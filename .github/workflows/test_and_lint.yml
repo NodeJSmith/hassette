@@ -30,8 +30,21 @@ jobs:
           activate-environment: true
           enable-cache: true
 
+      - run: uv pip install pytest-timeout
+
       - name: Run tests
-        run: uv run pytest
+        env:
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONASYNCIODEBUG: "1"
+        run: |
+          # If pytest truly hangs, send USR1 to dump stacktraces before killing.
+          pytest_args="-vv -s --maxfail=1 --durations=10 --timeout=120 --timeout-method=thread -m 'not e2e and not requires_ha'"
+          # Give the whole run a hard cap; dump tracebacks on timeout:
+          timeout 15m bash -c '
+            trap "pkill -USR1 -f '\''pytest$'\'' || true" TERM
+            pytest $pytest_args
+          '
 
       - name: Run lint checks
         run: uvx pre-commit run --all-files
