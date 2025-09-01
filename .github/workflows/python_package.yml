@@ -1,0 +1,58 @@
+name: Publish Python package
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build-pypi-dists:
+    name: Build Python package
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.14"
+          activate-environment: true
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install python packages
+        run: uv sync
+
+      - name: Build a binary wheel and a source tarball
+        run: uv build
+
+      - name: Publish build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypi-dists
+          path: "./dist"
+
+  publish-pypi-dists:
+    name: Publish to PyPI
+    environment:
+      name: release
+      url: https://pypi.org/p/hassette
+    needs: [build-pypi-dists]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: pypi-dists
+          path: "./dist"
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
