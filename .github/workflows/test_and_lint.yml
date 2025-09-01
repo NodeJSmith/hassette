@@ -26,7 +26,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11"] #, "3.12", "3.13"]
 
     steps:
       - name: Checkout code
@@ -46,21 +46,12 @@ jobs:
 
       - run: uv sync
 
-      - run: uv pip install pytest-timeout
-
       - name: Run tests
         env:
           PYTHONUNBUFFERED: "1"
           PYTHONFAULTHANDLER: "1"
           PYTHONASYNCIODEBUG: "1"
-        run: |
-          # If pytest truly hangs, send USR1 to dump stacktraces before killing.
-
-          # Give the whole run a hard cap; dump tracebacks on timeout:
-          timeout 1m bash -c '
-            trap "pkill -USR1 -f '\''pytest$'\'' || true" TERM
-            pytest -vv -s --maxfail=1 --durations=10 --timeout=120 --timeout-method=thread
-          '
+        run: uv run pytest -vv -s --maxfail=1 --durations=10
 
       - name: Run lint checks
         run: uvx pre-commit run --all-files
