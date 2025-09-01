@@ -30,6 +30,8 @@ jobs:
           activate-environment: true
           enable-cache: true
 
+      - run: uv sync
+
       - run: uv pip install pytest-timeout
 
       - name: Run tests
