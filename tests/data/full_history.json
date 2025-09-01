@@ -1,0 +1,166 @@
+[
+  [
+    {
+      "entity_id": "light.entryway",
+      "state": "on",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Entryway"
+      },
+      "last_changed": "2025-06-30T05:00:00+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.entryway",
+      "state": "unavailable",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Entryway"
+      },
+      "last_changed": "2025-06-30T16:39:15.821182+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.entryway",
+      "state": "unknown",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Entryway"
+      },
+      "last_changed": "2025-06-30T16:39:42.249438+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.entryway",
+      "state": "on",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Entryway"
+      },
+      "last_changed": "2025-06-30T16:40:27.543323+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.entryway",
+      "state": "unavailable",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Entryway"
+      },
+      "last_changed": "2025-06-30T16:42:01.964269+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.entryway",
+      "state": "unknown",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Entryway"
+      },
+      "last_changed": "2025-06-30T16:42:22.347849+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.entryway",
+      "state": "on",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Entryway"
+      },
+      "last_changed": "2025-06-30T16:43:08.425249+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    }
+  ],
+  [
+    {
+      "entity_id": "light.office",
+      "state": "off",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-06-30T05:00:00+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.office",
+      "state": "on",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-06-30T11:00:00.638833+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.office",
+      "state": "unavailable",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-06-30T16:39:15.829305+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.office",
+      "state": "unknown",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-06-30T16:39:42.255047+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.office",
+      "state": "on",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-06-30T16:40:27.527050+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.office",
+      "state": "unavailable",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-06-30T16:42:01.970230+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.office",
+      "state": "unknown",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-06-30T16:42:22.351884+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.office",
+      "state": "on",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-06-30T16:43:08.407463+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    },
+    {
+      "entity_id": "light.office",
+      "state": "off",
+      "attributes": {
+        "icon": "mdi:lightbulb-group",
+        "friendly_name": "Office"
+      },
+      "last_changed": "2025-07-01T04:08:51.472584+00:00",
+      "last_updated": "2025-06-30T05:00:00+00:00"
+    }
+  ]
+]

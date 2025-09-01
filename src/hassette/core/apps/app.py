@@ -1,0 +1,101 @@
+import typing
+from logging import getLogger
+from typing import ClassVar, Generic
+
+from hassette.config.app_manifest import AppManifest
+from hassette.core.apps.app_config import DEFAULT_CONFIG, AppConfig, AppConfigT
+from hassette.core.apps.utils import validate_app
+from hassette.core.classes import Resource
+from hassette.core.enums import ResourceRole
+
+if typing.TYPE_CHECKING:
+    from hassette.core.core import Hassette
+
+LOGGER = getLogger(__name__)
+
+
+class App(Generic[AppConfigT], Resource):
+    """Base class for applications in the Hassette framework.
+
+    This class provides a structure for applications, allowing them to be initialized and managed
+    within the Hassette ecosystem. Lifecycle will generally be managed for you via the service status events,
+    which send an event to the Bus and set the `status` attribute, based on the app's lifecycle.
+    """
+
+    role: ClassVar[ResourceRole] = ResourceRole.APP
+    """Role of the resource, e.g. 'App', 'Service', etc."""
+
+    app_manifest_cls: ClassVar[AppManifest]
+    "Manifest for the app itself, not used by app instances."
+
+    app_config_cls: ClassVar[type[AppConfig]]
+    """Config class to use for instances of the created app. Configuration from hassette.toml or
+    other sources will be validated by this class."""
+
+    _import_exception: ClassVar[Exception | None] = None
+    """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
+
+    def __init__(self, hassette: "Hassette", app_config: AppConfigT = DEFAULT_CONFIG, index: int = 0, *args, **kwargs):
+        """Initialize the App instance. This will generally not be called directly.
+
+        Args:
+            hassette (Hassette): The Hassette instance this app belongs to.
+            app_config (AppConfigT): User configuration for the app, defaults to AppUserConfig.
+
+        """
+        super().__init__(hassette=hassette, *args, **kwargs)  # noqa: B026
+        self.app_config = app_config
+        self.index = index
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        try:
+            cls.app_config_cls = validate_app(cls)
+
+        except Exception as e:
+            # note: because these are imported dynamically, we cannot do anything to prevent logging
+            # the same class multiple times; likely won't be an issue in practice
+            cls._import_exception = e
+            LOGGER.exception("Failed to initialize subclass %s", cls.__name__)
+
+    @property
+    def api(self):
+        return self.hassette.api
+
+    @property
+    def bus(self):
+        return self.hassette.bus
+
+    @property
+    def scheduler(self):
+        return self.hassette.scheduler
+
+    async def initialize(self) -> None:
+        """Initialize the app.
+
+        This method should be overridden by subclasses to provide custom initialization logic.
+        """
+        await super().initialize()
+        self.logger.info("App '%s' initialized", self.class_name)
+
+    async def shutdown(self) -> None:
+        """Shutdown the app.
+
+        This method should be overridden by subclasses to provide custom shutdown logic.
+        """
+        await super().shutdown()
+
+    def _make_unique_name(self) -> str:
+        """Generate a unique name for the app instance."""
+        return f"{self.app_manifest_cls.display_name or self.class_name}_{id(self)}"
+
+
+class HassAppSync(App[AppConfigT]):
+    """Synchronous adapter for App."""
+
+    def initialize(self) -> None:
+        self.hassette.run_sync(super().initialize())
+
+    def shutdown(self) -> None:
+        self.hassette.run_sync(super().shutdown())

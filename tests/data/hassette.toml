@@ -1,0 +1,18 @@
+[hass]
+base_url = "http://localhost:8123"
+api_port = 8123
+
+
+[apps.my_app]
+enabled = true
+app_path = "tests/data"
+filename = "my_app.py"
+class_name = "MyApp"
+
+[[apps.my_app.config]]
+cover_entity = "cover.ratgdo_door"
+test_entity = "light.test_light"
+
+[[apps.my_app.config]]
+cover_entity = "cover.ratgdo_door_2"
+test_entity = "light.test_light_2"

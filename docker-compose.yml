@@ -1,0 +1,42 @@
+services:
+  test-homeassistant:
+    container_name: test-homeassistant
+    image: "homeassistant/home-assistant:stable"
+    ports:
+      - "8123:8123"
+    volumes:
+      - ./volumes/config:/config
+    user: "1000:1000" # Use a non-root user so we can still access the files
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  hassette:
+    # image: ghcr.io/yourusername/hassette:latest
+    build:
+      context: . # where Dockerfile and project live
+      dockerfile: Dockerfile # optional if it’s literally named Dockerfile
+    container_name: hassette
+    restart: unless-stopped
+    volumes:
+      - ./config:/config
+      - ./data:/data
+    environment:
+      - TZ=America/New_York
+      - LOG_LEVEL=info
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8126/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  default:
+    name: homeassistantapi_default

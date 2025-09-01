@@ -1,0 +1,57 @@
+{
+    "type": "event",
+    "event": {
+        "event_type": "state_changed",
+        "data": {
+            "entity_id": "device_tracker.tp_link_technologies_45_85_86",
+            "old_state": {
+                "entity_id": "device_tracker.tp_link_technologies_45_85_86",
+                "state": "not home",
+                "attributes": {
+                    "source_type": "router",
+                    "ip": "192.168.1.245",
+                    "mac": "00:11:22:33:44:55",
+                    "last_time_reachable": "2025-06-30T15:14:43-05:00",
+                    "reason": "arp-response",
+                    "friendly_name": "TP-Link Technologies 33:44:55"
+                },
+                "last_changed": "2025-06-30T16:42:44.000135+00:00",
+                "last_reported": "2025-06-30T20:14:43.591194+00:00",
+                "last_updated": "2025-06-30T20:14:43.591194+00:00",
+                "context": {
+                    "id": "01JZ17MJC7F8HGT7A4CRFXZ0DP",
+                    "parent_id": null,
+                    "user_id": null
+                }
+            },
+            "new_state": {
+                "entity_id": "device_tracker.tp_link_technologies_45_85_86",
+                "state": "home",
+                "attributes": {
+                    "source_type": "router",
+                    "ip": "192.168.1.245",
+                    "mac": "00:11:22:33:44:55",
+                    "last_time_reachable": "2025-06-30T15:16:43-05:00",
+                    "reason": "arp-response",
+                    "friendly_name": "TP-Link Technologies 33:44:55"
+                },
+                "last_changed": "2025-06-30T16:42:44.000135+00:00",
+                "last_reported": "2025-06-30T20:16:43.677404+00:00",
+                "last_updated": "2025-06-30T20:16:43.677404+00:00",
+                "context": {
+                    "id": "01JZ17R7MX7E2Z7DCR1WYGNGEM",
+                    "parent_id": null,
+                    "user_id": null
+                }
+            }
+        },
+        "origin": "LOCAL",
+        "time_fired": "2025-06-30T20:16:43.677404+00:00",
+        "context": {
+            "id": "01JZ17R7MX7E2Z7DCR1WYGNGEM",
+            "parent_id": null,
+            "user_id": null
+        }
+    },
+    "id": 1
+}

@@ -1,0 +1,108 @@
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+# Same as Black.
+line-length = 120
+indent-width = 4
+
+target-version = "py311"
+
+[lint]
+select = [
+    # "ANN",
+    "E",    # pycodestyle (error)
+    "W",    # pycodestyle (warning)
+    "F",    # pyflakes
+    "UP",   # pyupgrade
+    "C419", # pylint - convention - unnecessary-comprehension-in-call
+    "RET",  # flake8-return
+    "SIM",  # flake8-simplify
+    "ARG",  # flake8-unused-arguments
+    "PTH",  # flake8-use-pathlib
+    "PD",   # pandas-vet
+    "RUF",  # ruff
+    "TCH",  # flake8-type-checking
+    "I",    # isort
+    "DTZ",  # flake8-datetimez
+    "PT",   # flake8-pytest-style (PT)
+    "B",    # bugbear
+    "LOG",  # flake8-logging (LOG)
+    "G",    #flake8-logging-format (G)
+    "N",    #pep8-naming (N),
+    "PERF", # Perflint (PERF)
+]
+
+ignore = [
+    "RET504", # flake8-return - unnecessary-assign
+    "SIM102", # flake8-simplify - collapsible-if
+    "PTH123", # flake8-use-pathlib - builtin-open
+    "PD901",  # pandas-vet - pandas-df-variable-name
+    "RUF015", # ruff - unnecessary-iterable-allocation-for-first-element
+    "PTH118", # flake8-use-pathlib - os-path-join
+    "DTZ001", # call-datetime-without-tzinfo (DTZ001)
+    "DTZ002", # call-datetime-today (DTZ002)
+    "DTZ005", # call-datetime-now-without-tzinfo (DTZ005)
+    "DTZ007", # call-datetime-strptime-without-zone (DTZ007)
+    "D100",   # undocumented-public-module
+    "D101",   # undocumented-public-class
+    "D104",   # undocumented-public-package
+    # "D103", # undocumented-public-function
+    "D107",   # undocumented-public-init
+    "ANN204", # missing-return-type-special-method
+    "ANN003", # missing-type-kwargs
+    "ANN002", # missing-type-args (ANN002)
+    "ARG002", # unused-method-argument (ARG002)
+    "UP046",  # non-pep695-generic-class (UP046)
+    "UP047",  # non-pep695-generic-function (UP047)
+    "N801",   # invalid-class-name
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[lint.pydocstyle]
+convention = "google" # Accepts: "google", "numpy", or "pep257".
