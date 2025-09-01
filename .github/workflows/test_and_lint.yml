@@ -41,11 +41,11 @@ jobs:
           PYTHONASYNCIODEBUG: "1"
         run: |
           # If pytest truly hangs, send USR1 to dump stacktraces before killing.
-          pytest_args="-vv -s --maxfail=1 --durations=10 --timeout=120 --timeout-method=thread -m 'not e2e and not requires_ha'"
+
           # Give the whole run a hard cap; dump tracebacks on timeout:
-          timeout 15m bash -c '
+          timeout 1m bash -c '
             trap "pkill -USR1 -f '\''pytest$'\'' || true" TERM
-            pytest $pytest_args
+            pytest -vv -s --maxfail=1 --durations=10 --timeout=120 --timeout-method=thread
           '
 
       - name: Run lint checks

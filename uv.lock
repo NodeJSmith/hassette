@@ -436,9 +436,6 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
-dev = [
-    { name = "docker" },
-]
 model-gen = [
     { name = "datamodel-code-generator" },
 ]
@@ -466,7 +463,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "docker", specifier = ">=7.1.0" }]
+dev = []
 model-gen = [{ name = "datamodel-code-generator", specifier = ">=0.30.1" }]
 test = [
     { name = "docker", specifier = ">=7.1.0" },
