@@ -9,6 +9,7 @@ jobs:
     env:
       ACTIONS_RUNNER_DEBUG: true
       ACTIONS_STEP_DEBUG: true
+      TZ: America/Chicago
 
     strategy:
       matrix:
