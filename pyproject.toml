@@ -25,7 +25,7 @@ dependencies = [
 
 
 [dependency-groups]
-dev = ["datamodel-code-generator>=0.30.1", "ipython>=9.3.0"]
+dev = []
 test = [
     "docker>=7.1.0",
     "nox>=2025.5.1",
@@ -33,6 +33,7 @@ test = [
     "pytest-asyncio>=1.0.0",
     "pytest-randomly>=3.16.0",
 ]
+model_gen = ["datamodel-code-generator>=0.30.1"]
 
 [tool.uv]
 default-groups = ["dev", "test"]
