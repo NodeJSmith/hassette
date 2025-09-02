@@ -613,9 +613,10 @@ class Api(Resource):
         entity_id = str(entity_id)
 
         attributes = attributes or {}
+        curr_attributes = {}
 
-        entity = (await self.get_state_raw(entity_id)) or {}
-        curr_attributes = entity.get("attributes", {}) or {}
+        if await self.entity_exists(entity_id):
+            curr_attributes = (await self.get_state_raw(entity_id)).get("attributes", {}) or {}
 
         # Merge current attributes with new attributes
         new_attributes = curr_attributes | attributes
