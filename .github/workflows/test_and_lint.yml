@@ -14,10 +14,7 @@ jobs:
         - 8123:8123
       volumes:
         - ${{ github.workspace }}/volumes/config:/config
-      options: >-
-        --health-cmd="curl -fsS http://localhost:8123/ || exit 1"
-        --health-interval=10s --health-timeout=3s --health-retries=60
-        --name test-homeassistant
+      options: --name test-homeassistant
 
     env:
       ACTIONS_RUNNER_DEBUG: true
@@ -43,6 +40,8 @@ jobs:
           version: "0.8.14"
           activate-environment: true
           enable-cache: true
+
+      - run: curl -fsS http://127.0.0.1:8123/ || exit 1
 
       - run: uv sync
 
