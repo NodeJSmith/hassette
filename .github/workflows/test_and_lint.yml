@@ -14,7 +14,11 @@ jobs:
         - 8123:8123
       volumes:
         - ${{ github.workspace }}/volumes/config:/config
-      options: --name test-homeassistant
+      options: >-
+        --health-cmd="curl -fsS http://localhost:8123/ || exit 1"
+        --health-interval=10s --health-timeout=3s --health-retries=60
+        --name test-homeassistant
+        --label test-homeassistant
 
     env:
       ACTIONS_RUNNER_DEBUG: true
@@ -41,7 +45,18 @@ jobs:
           activate-environment: true
           enable-cache: true
 
-      - run: curl -fsS http://test-homeassistant:8123 || exit 1
+      - name: Wait for Home Assistant
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://test-homeassistant:8123 >/dev/null; then
+              echo "Home Assistant is up!"
+              exit 0
+            fi
+            echo "Waiting for Home Assistant..."
+            sleep 2
+          done
+          echo "Home Assistant did not start in time"
+          exit 1
 
       - run: uv sync
 
