@@ -106,6 +106,14 @@ class _Api(Resource):
             response.raise_for_status()
 
             return response
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                if not suppress_error_message:
+                    self.logger.error("Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2)
+
+                raise EntityNotFoundError(f"Entity not found: {url}") from None
+            raise
+
         except aiohttp.ClientError as e:
             if not suppress_error_message:
                 self.logger.error("Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2)
@@ -433,10 +441,8 @@ class Api(Resource):
             response = await self.rest_request("GET", url, suppress_error_message=True)
             await response.json()
             return True
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return False
-            raise
+        except EntityNotFoundError:
+            return False
 
     async def get_entity(self, entity_id: str, model: type[EntityT]) -> EntityT:
         """Get an entity object for a specific entity.
