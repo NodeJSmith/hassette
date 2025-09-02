@@ -183,6 +183,8 @@ async def hassette_core(test_config: TestConfig, homeassistant_container: Contai
 async def hassette_core_no_ha(test_config: TestConfig):
     with patch("hassette.core.core._Websocket", Mock()) as websocket_mock:
         websocket_mock.shutdown = AsyncMock()
+        websocket_mock.send_and_wait = AsyncMock()
+        websocket_mock.send_json = AsyncMock()
         hassette = Hassette(config=test_config)
         hassette._health_service = AsyncMock()
 
