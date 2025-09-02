@@ -1,4 +1,5 @@
 import asyncio
+import json
 import threading
 import time
 import tracemalloc
@@ -100,6 +101,7 @@ def homeassistant_container(docker_client: docker.DockerClient):
 
     # should_stop = False
     print(f"Reusing existing Home Assistant container (status: {container.status})")
+    print(json.dumps(vars(container), indent=4, default=str))
 
     # if not container:
     #     print("Starting new Home Assistant container...")
