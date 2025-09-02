@@ -1,6 +1,8 @@
-
 # Loads default set of integrations. Do not remove.
 default_config:
 
 # Load frontend themes from the themes folder
 frontend:
+
+# demo
+demo:
