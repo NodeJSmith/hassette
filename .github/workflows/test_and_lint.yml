@@ -47,6 +47,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Ensure /config is accessible by the container
+        # Only needed if your /config has restrictive ownership/permissions.
+        # If your service runs as root (default), this can usually be skipped.
+        run: sudo chown -R 1000:1000 "${{ github.workspace }}/volumes/config" || true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
