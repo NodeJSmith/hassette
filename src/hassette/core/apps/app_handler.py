@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import sys
 import typing
+from logging import getLogger
 
 import anyio
 
@@ -16,7 +17,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.apps.app_config import AppConfig
     from hassette.core.core import Hassette
 
-FAIL_AFTER_SECONDS = 5
+FAIL_AFTER_SECONDS = 10
 
 
 def _is_timeout(exc: BaseException) -> bool:
@@ -157,6 +158,7 @@ class _AppHandler(Resource):
 
         class_name = app_class.__name__
         app_class.app_manifest_cls = app_manifest
+        app_class.logger = getLogger(f"hassette.{app_class.__name__}")
 
         # Normalize to list-of-configs; TOML supports both single dict and list of dicts.
         settings_cls = app_class.app_config_cls
@@ -180,7 +182,7 @@ class _AppHandler(Resource):
                 self.logger.info("App %s (%s) initialized successfully", ident, class_name)
             except Exception as e:
                 if _is_timeout(e):
-                    self.logger.error("Timed out while starting app %s (%s)", ident, class_name)
+                    self.logger.exception("Timed out while starting app %s (%s)", ident, class_name)
                 else:
                     self.logger.exception("Failed to start app %s (%s)", ident, class_name)
                 app_instance.status = ResourceStatus.STOPPED
