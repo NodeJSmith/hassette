@@ -6,34 +6,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # container:
-    #   image: homeassistant/home-assistant:stable
-    #   env:
-    #     TZ: America/Chicago
-    #   ports:
-    #     - 8123:8123
-    #   volumes:
-    #     - ${{ github.workspace }}/volumes/config:/config
-    #   options: >-
-    #     --health-cmd="curl -fsS http://localhost:8123/ || exit 1"
-    #     --health-interval=10s --health-timeout=3s --health-retries=60
-    #     --name test-homeassistant
-    #     --label test-homeassistant
-
-    # Run HA as a sibling service with your mounted /config and healthcheck
-    services:
-      homeassistant:
-        image: ghcr.io/home-assistant/home-assistant:2025.8 # pin for stability
-        ports:
-          - 8123:8123
-        volumes:
-          - ${{ github.workspace }}/volumes/config:/config
-        options: >-
-          --health-cmd="curl -fsS http://localhost:8123/ || exit 1"
-          --health-interval=10s --health-timeout=3s --health-retries=60
-          --name test-homeassistant
-          --label test-homeassistant
-
     env:
       ACTIONS_RUNNER_DEBUG: true
       ACTIONS_STEP_DEBUG: true
@@ -44,11 +16,6 @@ jobs:
         python-version: ["3.11"] #, "3.12", "3.13"]
 
     steps:
-      - name: Ensure /config is accessible by the container
-        # Only needed if your /config has restrictive ownership/permissions.
-        # If your service runs as root (default), this can usually be skipped.
-        run: sudo chown -R 1000:1000 "${{ github.workspace }}/volumes/config" || true
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -64,19 +31,6 @@ jobs:
           activate-environment: true
           enable-cache: true
 
-      - name: Wait for Home Assistant
-        run: |
-          for i in {1..60}; do
-            if curl -fsS http://127.0.0.1:8123 >/dev/null; then
-              echo "Home Assistant is up!"
-              exit 0
-            fi
-            echo "Waiting for Home Assistant..."
-            sleep 2
-          done
-          echo "Home Assistant did not start in time"
-          exit 1
-
       - run: uv sync
 
       - name: Run tests
@@ -84,7 +38,7 @@ jobs:
           PYTHONUNBUFFERED: "1"
           PYTHONFAULTHANDLER: "1"
           PYTHONASYNCIODEBUG: "1"
-        run: uv run pytest -vv -s --maxfail=1 --durations=10
+        run: uv run pytest -vv -s --maxfail=1 --durations=10 -m 'not requires_ha'
 
       - name: Run lint checks
         run: uvx pre-commit run --all-files
