@@ -108,7 +108,7 @@ class _Api(Resource):
             return response
         except aiohttp.ClientError as e:
             if not suppress_error_message:
-                self.logger.error("Error occurred while making %s request to %s: %s", method, url, e)
+                self.logger.error("Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2)
 
             raise
 
