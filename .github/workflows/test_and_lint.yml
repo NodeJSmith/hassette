@@ -41,7 +41,7 @@ jobs:
           activate-environment: true
           enable-cache: true
 
-      - run: curl -fsS http://127.0.0.1:8123/ || exit 1
+      - run: curl -fsS http://test-homeassistant:8123 || exit 1
 
       - run: uv sync
 
