@@ -1,4 +1,4 @@
-from .app import App
+from .app import App, AppSync
 from .app_config import DEFAULT_CONFIG, AppConfig, AppConfigT
 
 __all__ = [
@@ -6,4 +6,5 @@ __all__ = [
     "App",
     "AppConfig",
     "AppConfigT",
+    "AppSync",
 ]

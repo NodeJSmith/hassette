@@ -91,7 +91,7 @@ class App(Generic[AppConfigT], Resource):
         return f"{self.app_manifest_cls.display_name or self.class_name}_{id(self)}"
 
 
-class HassAppSync(App[AppConfigT]):
+class AppSync(App[AppConfigT]):
     """Synchronous adapter for App."""
 
     def initialize(self) -> None:
