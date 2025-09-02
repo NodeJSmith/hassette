@@ -38,5 +38,5 @@ In the meantime, the source code is reasonably well-structured. ~~and you can pe
 [MIT](LICENSE)
 
 <sub>
-This README.md was written by ChatGPT. The project was written by me (with a <i>bit</i> of help from ChatGPT - it is not a vibe coded horror show)
+This temporary README.md was written by ChatGPT. The project was written by me (with a <i>bit</i> of help from ChatGPT - it is not a vibe coded horror show)
 </sub>

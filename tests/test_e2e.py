@@ -4,6 +4,8 @@ from hassette.core.core import Hassette
 from hassette.models import states
 from hassette.models.entities import SunEntity
 
+pytestmark = pytest.mark.requires_ha
+
 
 async def test_get_states_call(hassette_core: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
@@ -104,6 +106,7 @@ async def test_sync_call_from_async_raises_exception(hassette_core: Hassette) ->
         inst.sync.get_config()
 
 
+@pytest.mark.requires_ha
 def test_sync_call_from_sync_works(hassette_core_sync: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
 

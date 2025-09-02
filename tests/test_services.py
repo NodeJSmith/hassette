@@ -56,11 +56,11 @@ async def test_service_start_twice_and_shutdown():
     assert not svc.is_running()
 
 
-async def test_restart_service_cancels_then_starts(hassette_core: Hassette):
+async def test_restart_service_cancels_then_starts(hassette_core_no_ha: Hassette):
     called = {"cancel": 0, "start": 0}
 
     svc = get_dummy_service(called)
-    hassette_core._resources[svc.class_name] = svc
+    hassette_core_no_ha._resources[svc.class_name] = svc
 
     event = create_service_status_event(
         resource_name=svc.class_name,
@@ -69,7 +69,7 @@ async def test_restart_service_cancels_then_starts(hassette_core: Hassette):
         exc=Exception("test"),
     )
 
-    await hassette_core.restart_service(event)
+    await hassette_core_no_ha.restart_service(event)
     await asyncio.sleep(0.1)  # allow restart to run
 
     assert called == {"cancel": 1, "start": 1}

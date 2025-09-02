@@ -187,8 +187,8 @@ class _Scheduler(Service):
             self.logger.debug("Running job %s at %s", job, now())
             async_func = make_async_adapter(func)
             await async_func()
-        except Exception:
-            self.logger.exception("Error running job %s", job)
+        except Exception as e:
+            self.logger.error("Error running job%s: %s - %s", job, type(e), e)
 
 
 class Scheduler(Resource):
