@@ -801,6 +801,22 @@ class ApiSyncFacade(Resource):
         """
         return self.hassette.run_sync(self._api.get_states())
 
+    def get_states(self):
+        """Get all states in Home Assistant synchronously.
+
+        Returns:
+            list[StateDict]: A list of states as dictionaries.
+        """
+        return self.hassette.run_sync(self._api.get_states())
+
+    def get_states_raw(self):
+        """Get all states in Home Assistant synchronously (raw).
+
+        Returns:
+            list[StateDict]: A list of states as raw dictionaries.
+        """
+        return self.hassette.run_sync(self._api.get_states_raw())
+
     def get_config(self):
         """
         Get the Home Assistant configuration.
