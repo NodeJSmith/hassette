@@ -124,7 +124,7 @@ def homeassistant_container(docker_client: docker.DockerClient):
 
     #     while True:
     #         try:
-    #             resp = requests.get("http://localhost:8123/")
+    #             resp = requests.get("http://127.0.0.1:8123/")
     #             resp.raise_for_status()
     #             time.sleep(1)  # give it a moment to fully settle
     #             break
@@ -177,6 +177,36 @@ async def hassette_core(test_config: TestConfig, homeassistant_container: Contai
 
     with suppress(asyncio.CancelledError):
         await task
+
+
+@pytest.fixture(scope="session")
+async def hassette_core_no_ha(test_config: TestConfig):
+    with patch("hassette.core.core._Websocket", Mock()) as websocket_mock:
+        websocket_mock.shutdown = AsyncMock()
+        hassette = Hassette(config=test_config)
+        hassette._health_service = AsyncMock()
+
+        print("loop is", hassette._loop, id(hassette._loop))
+
+        # Launch run_forever() which enters its own context
+        task = asyncio.create_task(hassette.run_forever())
+
+        await hassette.ready_event.wait()
+
+        yield hassette
+
+        await asyncio.sleep(0.1)
+
+        # shutdown and then pause for things to settle
+        hassette.shutdown()
+        await asyncio.sleep(0.1)
+        await hassette._shutdown_event.wait()
+
+        # cancel our task group to ensure all tasks are cleaned up
+        task.cancel()
+
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 @pytest.fixture(scope="session")

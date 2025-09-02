@@ -73,7 +73,7 @@
       {
         "id": "089d05ca04b54c65943d1e72f164e998",
         "user_id": "caa14e06472b499cb00545bb65e56e5a",
-        "client_id": "http://localhost:8123/",
+        "client_id": "http://127.0.0.1:8123/",
         "client_name": null,
         "client_icon": null,
         "token_type": "normal",

@@ -1,5 +1,5 @@
 [hass]
-base_url = "http://localhost:8123"
+base_url = "http://127.0.0.1:8123"
 api_port = 8123
 
 

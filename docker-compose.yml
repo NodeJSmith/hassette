@@ -10,7 +10,7 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8123"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8123"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,7 +32,7 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8126/healthz"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3
