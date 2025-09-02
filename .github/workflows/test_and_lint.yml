@@ -62,7 +62,7 @@ jobs:
       - name: Wait for Home Assistant
         run: |
           for i in {1..60}; do
-            if curl -fsS http://test-homeassistant:8123 >/dev/null; then
+            if curl -fsS http://127.0.0.1:8123 >/dev/null; then
               echo "Home Assistant is up!"
               exit 0
             fi
