@@ -16,3 +16,15 @@ test_entity = "light.test_light"
 [[apps.my_app.config]]
 cover_entity = "cover.ratgdo_door_2"
 test_entity = "light.test_light_2"
+
+
+[apps.battery]
+enabled = true
+app_path = "examples/battery.py"
+filename = "battery.py"
+class_name = "Battery"
+
+[[apps.battery.config]]
+always_send = false
+force = false
+threshold = 10
