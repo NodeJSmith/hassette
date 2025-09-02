@@ -29,7 +29,7 @@ If you’d like to try it out or contribute, please do — early adopters and fe
 ## Documentation
 
 Full documentation and examples are coming soon.
-In the meantime, the source code is reasonably well-structured. ~~and you can peek at the `examples/` folder for starting points.~~
+In the meantime, the source code is reasonably well-structured. and you can peek at the `examples/` folder for starting points.
 
 ---
 
