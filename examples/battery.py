@@ -33,7 +33,7 @@ class Battery(App[BatteryConfig]):
     async def initialize(self):
         await super().initialize()
         self.scheduler.run_cron(self.check_batteries, hour=6, day_of_month="*")
-        assert self.app_config.threshold == 20
+        assert self.app_config.threshold == 10  # from what is in hassette.toml
 
     async def check_batteries(self):
         # get_states and all other methods are fully typed, including their Attributes
