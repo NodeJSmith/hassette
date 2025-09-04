@@ -14,5 +14,3 @@ class InputSelectState(StringBaseState):
 
     attributes: Attributes | None = Field(default=None)
 
-    def model_post_init(self, context: Any) -> None:
-        return super().model_post_init(context)
