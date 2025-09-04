@@ -65,7 +65,7 @@ class AttributesBase(BaseModel):
     friendly_name: str | None = Field(default=None, description="A friendly name for the entity.")
 
     entity_id: list[str] | None = Field(default=None, description="List of entity IDs if this is a group entity.")
-    supported_features: int | None = Field(default=None, description="Bitfield of supported features.")
+    supported_features: int | float | None = Field(default=None, description="Bitfield of supported features.")
 
 
 class BaseState(BaseModel, Generic[StateValueT]):
