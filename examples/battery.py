@@ -76,8 +76,7 @@ class Battery(App[BatteryConfig]):
             # TODO: create a notify method on api
             await self.api.call_service(
                 "notify",
-                "notify",
-                target={"entity_id": "my_phone"},
+                "my_mobile_phone",
                 message=message,
                 title="Home Assistant Battery Report",
                 name="andrew_mail",
@@ -130,10 +129,5 @@ class BatterySync(AppSync[BatteryConfig]):
 
         if low or self.app_config.always_send or self.app_config.force:
             self.api.sync.call_service(
-                "notify",
-                "notify",
-                target={"entity_id": "my_phone"},
-                message=message,
-                title="Home Assistant Battery Report",
-                name="andrew_mail",
+                "notify", "my_mobile_phone", message=message, title="Home Assistant Battery Report", name="andrew_mail"
             )

@@ -55,12 +55,7 @@ class Presence(App[PresenceAppConfig]):
             message = f"{person} {place}"
             self.logger.info(message)
             if self.app_config.notify:
-                await self.api.call_service(
-                    "notify",
-                    "notify",
-                    target={"entity_id": self.app_config.notify},
-                    message=message,
-                )
+                await self.api.call_service("notify", "my_mobile_phone", message=message)
 
     async def everyone_left(self, event: StateChangeEvent[DeviceTrackerState]):
         self.logger.info("Everyone left")
