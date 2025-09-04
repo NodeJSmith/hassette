@@ -536,3 +536,23 @@ class Bus(Resource):
         """
 
         return self.on_hassette_service_status(status=ResourceStatus.CRASHED, handler=handler, where=where, **opts)
+
+    def on_hassette_service_started(
+        self,
+        *,
+        handler: "Handler[HassetteServiceEvent]",
+        where: "Predicate | Iterable[Predicate] | None" = None,
+        **opts,
+    ) -> Subscription:
+        """Subscribe to hassette service started events.
+
+        Args:
+            handler (Callable): The function to call when the event matches.
+            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            Subscription: A subscription object that can be used to manage the listener.
+        """
+
+        return self.on_hassette_service_status(status=ResourceStatus.RUNNING, handler=handler, where=where, **opts)
