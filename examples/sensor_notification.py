@@ -1,6 +1,4 @@
-from hassette.core.apps import App, AppConfig
-from hassette.models.events import StateChangeEvent
-from hassette.models.states import Sensor_BaseState
+from hassette import App, AppConfig, SensorState, StateChangeEvent
 
 
 class SensorNotificationAppConfig(AppConfig):
@@ -35,7 +33,7 @@ class SensorNotification(App[SensorNotificationAppConfig]):
         for sensor in sensors:
             self.bus.on_entity(sensor, handler=self.state_change)
 
-    async def state_change(self, event: StateChangeEvent[Sensor_BaseState]):
+    async def state_change(self, event: StateChangeEvent[SensorState]):
         data = event.payload.data
         if not data.new_state:
             return

@@ -18,7 +18,7 @@ from hassette.core.health_service import _HealthService
 from hassette.core.scheduler import Scheduler
 from hassette.core.scheduler.scheduler import _Scheduler
 from hassette.core.websocket import _Websocket
-from hassette.models.events import Event, ServiceEvent
+from hassette.models.events import Event, HassetteServiceEvent
 from hassette.utils import get_traceback_string
 
 if typing.TYPE_CHECKING:
@@ -188,7 +188,7 @@ class Hassette:
             "Hassette is not initialized in the current context. Use `Hassette.run_forever()` to start it."
         )
 
-    async def restart_service(self, event: ServiceEvent) -> None:
+    async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Start a service from a service event."""
         data = event.payload.data
         name = data.resource_name
@@ -214,7 +214,7 @@ class Hassette:
             self.logger.error("Failed to restart %s '%s': %s", role, name, e)
             raise
 
-    async def log_service_event(self, event: ServiceEvent) -> None:
+    async def log_service_event(self, event: HassetteServiceEvent) -> None:
         """Log the startup of a service."""
 
         name = event.payload.data.resource_name
@@ -243,7 +243,7 @@ class Hassette:
             self.logger.error("Failed to log %s startup for '%s': %s", role, name, e)
             raise
 
-    async def shutdown_if_crashed(self, event: ServiceEvent) -> None:
+    async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
         """Shutdown the Hassette instance if a service has crashed."""
         data = event.payload.data
         name = data.resource_name

@@ -1,6 +1,6 @@
 from typing import Any
 
-from hassette.core.apps import App, AppConfig, AppSync
+from hassette import App, AppConfig, AppSync
 
 
 # we subclass AppConfig to provide configuration specific to our app

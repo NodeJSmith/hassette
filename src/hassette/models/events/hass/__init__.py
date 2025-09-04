@@ -1,15 +1,22 @@
 from .hass import (
+    AutomationTriggeredEvent,
     CallServiceEvent,
     ComponentLoadedEvent,
     HassContext,
     HassEvent,
+    LogbookEntryEvent,
+    ScriptStartedEvent,
     ServiceRegisteredEvent,
+    ServiceRemovedEvent,
     StateChangeEvent,
+    UserAddedEvent,
+    UserRemovedEvent,
     create_event_from_hass,
 )
 from .raw import HassContextDict, HassEventDict, HassEventEnvelopeDict, HassStateDict
 
 __all__ = [
+    "AutomationTriggeredEvent",
     "CallServiceEvent",
     "ComponentLoadedEvent",
     "HassContext",
@@ -18,7 +25,12 @@ __all__ = [
     "HassEventDict",
     "HassEventEnvelopeDict",
     "HassStateDict",
+    "LogbookEntryEvent",
+    "ScriptStartedEvent",
     "ServiceRegisteredEvent",
+    "ServiceRemovedEvent",
     "StateChangeEvent",
+    "UserAddedEvent",
+    "UserRemovedEvent",
     "create_event_from_hass",
 ]

@@ -1,6 +1,4 @@
-from hassette.core.apps import App, AppConfig
-from hassette.models.events import StateChangeEvent
-from hassette.models.states import DeviceTrackerState, PersonState
+from hassette import App, AppConfig, DeviceTrackerState, PersonState, StateChangeEvent
 
 
 class PresenceAppConfig(AppConfig):

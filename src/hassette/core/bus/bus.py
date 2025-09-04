@@ -25,7 +25,7 @@ if typing.TYPE_CHECKING:
         CallServiceEvent,
         ComponentLoadedEvent,
         Event,
-        ServiceEvent,
+        HassetteServiceEvent,
         ServiceRegisteredEvent,
         StateChangeEvent,
     )
@@ -464,7 +464,7 @@ class Bus(Resource):
         self,
         status: ResourceStatus | None = None,
         *,
-        handler: "Handler[ServiceEvent]",
+        handler: "Handler[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         **opts,
     ) -> Subscription:
@@ -500,7 +500,7 @@ class Bus(Resource):
     def on_hassette_service_failed(
         self,
         *,
-        handler: "Handler[ServiceEvent]",
+        handler: "Handler[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         **opts,
     ) -> Subscription:
@@ -520,7 +520,7 @@ class Bus(Resource):
     def on_hassette_service_crashed(
         self,
         *,
-        handler: "Handler[ServiceEvent]",
+        handler: "Handler[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         **opts,
     ) -> Subscription:
