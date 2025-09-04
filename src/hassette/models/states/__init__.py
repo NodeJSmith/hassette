@@ -114,6 +114,7 @@ StateUnion = (
     | InputTextState
     | SelectState
     | InputButtonState
+    | InputSelectState
     | SensorState
     | BinarySensorState
     | BaseState
@@ -200,6 +201,7 @@ __all__ = [
     "InputButtonState",
     "InputDatetimeState",
     "InputNumberState",
+    "InputSelectState",
     "InputTextState",
     "LightState",
     "MediaPlayerState",
