@@ -5,7 +5,7 @@ from pydantic import Field, field_validator
 from hassette.models.states.base import AttributesBase, BaseState
 
 
-class BinarySensor_BaseState(BaseState[bool | None]):
+class BinarySensorState(BaseState[bool | None]):
     domain: Literal["binary_sensor"]
 
     attributes: AttributesBase | None = Field(default=None)

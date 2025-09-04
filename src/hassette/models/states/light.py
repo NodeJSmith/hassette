@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -13,7 +13,7 @@ class LightState(StringBaseState):
         max_mireds: int | None = Field(default=None)
         effect_list: list[str] | None = Field(default=None)
         supported_color_modes: list[str] | None = Field(default=None)
-        effect: None = Field(default=None)
+        effect: Any | None = Field(default=None)
         color_mode: str | None = Field(default=None)
         brightness: int | None = Field(default=None)
         color_temp_kelvin: int | None = Field(default=None)
