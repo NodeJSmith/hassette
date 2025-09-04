@@ -694,42 +694,6 @@ class Api(Resource):
             raise RuntimeError(f"Failed to delete entity {entity_id}: {response.status} - {response.reason}")
 
 
-def orjson_dump(data: Any) -> str:
-    return orjson.dumps(data, default=str).decode("utf-8")
-
-
-def clean_kwargs(**kwargs: Any) -> dict[str, Any]:
-    """Converts values to strings where needed and removes keys with None values."""
-
-    def clean_value(val: Any) -> Any:
-        if val is None:
-            return None
-
-        if isinstance(val, bool):
-            return str(val).lower()
-
-        if isinstance(val, (PlainDateTime | ZonedDateTime | Instant | Date)):
-            return val.format_common_iso()
-
-        if isinstance(val, (int | float | str)):
-            if isinstance(val, str) and not val.strip():
-                return None
-            return val
-
-        if isinstance(val, datetime):
-            return val.isoformat()
-
-        if isinstance(val, Mapping):
-            return {k: clean_value(v) for k, v in val.items() if v is not None}
-
-        if isinstance(val, Iterable) and not isinstance(val, str | bytes):
-            return [clean_value(v) for v in val if v is not None]
-
-        return str(val)
-
-    return {k: cleaned for k, v in kwargs.items() if (cleaned := clean_value(v)) is not None}
-
-
 class ApiSyncFacade(Resource):
     """Synchronous facade for the API service.
 
@@ -745,7 +709,80 @@ class ApiSyncFacade(Resource):
         super().__init__(api.hassette)
         self._api = api
 
-    def get_entities_raw(self):
+    def ws_send_and_wait(self, **data: Any):
+        """Send a WebSocket message and wait for a response."""
+        return self.hassette.run_sync(self._api.ws_send_and_wait(**data))
+
+    def ws_send_json(self, **data: Any):
+        """Send a WebSocket message without waiting for a response."""
+        return self.hassette.run_sync(self._api.ws_send_json(**data))
+
+    def rest_request(
+        self,
+        method: str,
+        url: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        suppress_error_message: bool = False,
+        **kwargs,
+    ):
+        """Make a REST request to the Home Assistant API.
+
+        Args:
+            method (str): The HTTP method to use (e.g., "GET", "POST").
+            url (str): The URL endpoint for the request.
+            params (dict[str, Any], optional): Query parameters for the request.
+            data (dict[str, Any], optional): JSON payload for the request.
+            suppress_error_message (bool, optional): Whether to suppress error messages.
+
+        Returns:
+            aiohttp.ClientResponse: The response from the API.
+        """
+        return self.hassette.run_sync(
+            self._api.rest_request(
+                method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
+            )
+        )
+
+    def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs):
+        """Make a GET request to the Home Assistant API.
+
+        Args:
+            url (str): The URL endpoint for the request.
+            params (dict[str, Any], optional): Query parameters for the request.
+            kwargs: Additional keyword arguments to pass to the request.
+
+        Returns:
+            aiohttp.ClientResponse: The response from the API.
+        """
+        return self.hassette.run_sync(self._api.get_rest_request(url, params=params, **kwargs))
+
+    def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs):
+        """Make a POST request to the Home Assistant API.
+
+        Args:
+            url (str): The URL endpoint for the request.
+            data (dict[str, Any], optional): JSON payload for the request.
+            kwargs: Additional keyword arguments to pass to the request.
+
+        Returns:
+            aiohttp.ClientResponse: The response from the API.
+        """
+        return self.hassette.run_sync(self._api.post_rest_request(url, data=data, **kwargs))
+
+    def delete_rest_request(self, url: str, **kwargs):
+        """Make a DELETE request to the Home Assistant API.
+
+        Args:
+            url (str): The URL endpoint for the request.
+            kwargs: Additional keyword arguments to pass to the request.
+
+        Returns:
+            aiohttp.ClientResponse: The response from the API.
+        """
+        return self.hassette.run_sync(self._api.delete_rest_request(url, **kwargs))
+
+    def get_states_raw(self):
         """Get all entities in Home Assistant as raw dictionaries.
 
         Returns:
@@ -753,7 +790,7 @@ class ApiSyncFacade(Resource):
         """
         return self.hassette.run_sync(self._api.get_states_raw())
 
-    def get_entities(self):
+    def get_states(self) -> list[StateUnion]:
         """Get all entities in Home Assistant.
 
         Args:
@@ -891,6 +928,10 @@ class ApiSyncFacade(Resource):
         """Get the state of a specific entity."""
         return self.hassette.run_sync(self._api.get_entity_or_none(entity_id, model))
 
+    def get_state(self, entity_id: str, model: type[StateT]):
+        """Get the state of a specific entity."""
+        return self.hassette.run_sync(self._api.get_state(entity_id, model))
+
     def get_state_value(self, entity_id: str):
         """Get the state of a specific entity as raw data."""
         return self.hassette.run_sync(self._api.get_state_value(entity_id))
@@ -1011,41 +1052,37 @@ class ApiSyncFacade(Resource):
         self.hassette.run_sync(self._api.delete_entity(entity_id))
 
 
-# TODO: add/update changed/new methods + add way to check this automatically and raise error
+def orjson_dump(data: Any) -> str:
+    return orjson.dumps(data, default=str).decode("utf-8")
 
 
-"""
-TODO: Implement all of these (that make sense)
+def clean_kwargs(**kwargs: Any) -> dict[str, Any]:
+    """Converts values to strings where needed and removes keys with None values."""
 
-@callback
-def async_register_commands(
-    hass: HomeAssistant,
-    async_reg: Callable[[HomeAssistant, const.WebSocketCommandHandler], None],
-) -> None:
-    # Register commands
+    def clean_value(val: Any) -> Any:
+        if val is None:
+            return None
 
-    async_reg(hass, handle_call_service)
-    async_reg(hass, handle_entity_source)
-    async_reg(hass, handle_execute_script)
-    async_reg(hass, handle_fire_event)
-    async_reg(hass, handle_get_config)
-    async_reg(hass, handle_get_services)
-    async_reg(hass, handle_get_states)
-    async_reg(hass, handle_manifest_get)
-    async_reg(hass, handle_integration_setup_info)
-    async_reg(hass, handle_manifest_list)
-    async_reg(hass, handle_ping)
-    async_reg(hass, handle_render_template)
-    async_reg(hass, handle_subscribe_bootstrap_integrations)
-    async_reg(hass, handle_subscribe_condition_platforms)
-    async_reg(hass, handle_subscribe_events)
-    async_reg(hass, handle_subscribe_trigger)
-    async_reg(hass, handle_subscribe_trigger_platforms)
-    async_reg(hass, handle_test_condition)
-    async_reg(hass, handle_unsubscribe_events)
-    async_reg(hass, handle_validate_config)
-    async_reg(hass, handle_subscribe_entities)
-    async_reg(hass, handle_supported_features)
-    async_reg(hass, handle_integration_descriptions)
-    async_reg(hass, handle_integration_wait)
-"""
+        if isinstance(val, bool):
+            return str(val).lower()
+
+        if isinstance(val, (PlainDateTime | ZonedDateTime | Instant | Date)):
+            return val.format_common_iso()
+
+        if isinstance(val, (int | float | str)):
+            if isinstance(val, str) and not val.strip():
+                return None
+            return val
+
+        if isinstance(val, datetime):
+            return val.isoformat()
+
+        if isinstance(val, Mapping):
+            return {k: clean_value(v) for k, v in val.items() if v is not None}
+
+        if isinstance(val, Iterable) and not isinstance(val, str | bytes):
+            return [clean_value(v) for v in val if v is not None]
+
+        return str(val)
+
+    return {k: cleaned for k, v in kwargs.items() if (cleaned := clean_value(v)) is not None}
