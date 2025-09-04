@@ -490,7 +490,7 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if status is not None:
-            preds.append(Guard["ServiceEvent"](lambda event: event.payload.data.status == status))
+            preds.append(Guard["HassetteServiceEvent"](lambda event: event.payload.data.status == status))
 
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
