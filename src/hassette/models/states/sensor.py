@@ -17,4 +17,4 @@ class SensorAttributes(AttributesBase):
 
 class SensorState(StringBaseState):
     domain: Literal["sensor"]
-    attributes: SensorAttributes | None = Field(default=None)
+    attributes: SensorAttributes
