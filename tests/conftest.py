@@ -29,6 +29,10 @@ assert TEST_TOML_FILE.exists(), f"Test TOML file {TEST_TOML_FILE} does not exist
 # do not include the name of the fixture
 pytest_plugins = ["hassette.test_utils.fixtures"]
 
+# TODO:
+# figure out how to get websocket mocked for some tests but not others
+# i think the fixtures/patch are clashing with each other
+
 
 class TestConfig(HassetteConfig):
     """
