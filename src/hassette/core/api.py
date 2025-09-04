@@ -243,7 +243,7 @@ class Api(Resource):
         """Get all entities in Home Assistant as raw dictionaries.
 
         Returns:
-            list[StateDict]: A list of states as dictionaries.
+            list[HassStateDict]: A list of states as dictionaries.
         """
         val: list[HassStateDict] = await self.ws_send_and_wait(type="get_states")  # type: ignore
         assert isinstance(val, list), "Expected a list of states"
@@ -786,11 +786,11 @@ class ApiSyncFacade(Resource):
         """Get all entities in Home Assistant as raw dictionaries.
 
         Returns:
-            list[StateDict]: A list of states as dictionaries.
+            list[HassStateDict]: A list of states as dictionaries.
         """
         return self.hassette.run_sync(self._api.get_states_raw())
 
-    def get_states(self) -> list[StateUnion]:
+    def get_states(self):
         """Get all entities in Home Assistant.
 
         Args:
@@ -800,22 +800,6 @@ class ApiSyncFacade(Resource):
             list[StateUnion]: A list of states, either as dictionaries or converted to state objects.
         """
         return self.hassette.run_sync(self._api.get_states())
-
-    def get_states(self):
-        """Get all states in Home Assistant synchronously.
-
-        Returns:
-            list[StateDict]: A list of states as dictionaries.
-        """
-        return self.hassette.run_sync(self._api.get_states())
-
-    def get_states_raw(self):
-        """Get all states in Home Assistant synchronously (raw).
-
-        Returns:
-            list[StateDict]: A list of states as raw dictionaries.
-        """
-        return self.hassette.run_sync(self._api.get_states_raw())
 
     def get_config(self):
         """
