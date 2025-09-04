@@ -146,7 +146,7 @@ def hassette_logging(test_config: TestConfig):
     return hassette
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 async def hassette_core(test_config: TestConfig, homeassistant_container: Container):
     # this line is mostly here to keep pyright/ruff from complaining that we aren't using the variable
     assert homeassistant_container.status in ["created", "running"], (
@@ -182,7 +182,7 @@ async def hassette_core(test_config: TestConfig, homeassistant_container: Contai
         await task
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def hassette_core_sync(test_config: TestConfig, homeassistant_container: Container):
     # this line is mostly here to keep pyright/ruff from complaining that we aren't using the variable
     assert homeassistant_container.status in ["created", "running"], (
@@ -234,7 +234,7 @@ def hassette_core_sync(test_config: TestConfig, homeassistant_container: Contain
         t.join(timeout=5)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def hassette_core_no_ha(test_config: TestConfig):
     with patch("hassette.core.core._Websocket", Mock()) as websocket_mock:
         websocket_mock.shutdown = AsyncMock()
