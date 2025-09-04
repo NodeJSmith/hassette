@@ -51,7 +51,7 @@ Homepage = "https://github.com/nodejsmith/hassette"
 Repository = "https://github.com/nodejsmith/hassette"
 Documentation = "https://github.com/nodejsmith/hassette#readme"
 "Bug Reports" = "https://github.com/nodejsmith/hassette/issues"
-Changelog = "https://github.com/nodejsmith/hassette/releases"
+Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 
 
 [dependency-groups]
