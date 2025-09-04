@@ -6,9 +6,32 @@ build-backend = "uv_build"
 name = "hassette"
 version = "0.2.0"
 description = "Hassette is a modern, asynchronous, fully typed Python framework for running Home Assistant scripts and automations."
+readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
 requires-python = ">=3.11,<3.14"
+keywords = [
+    "home-assistant",
+    "automation",
+    "async",
+    "typed",
+    "framework",
+    "smart-home",
+    "iot",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Home Automation",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Framework :: AsyncIO",
+    "Typing :: Typed",
+]
 dependencies = [
     "aiohttp>=3.11.18",
     "anyio>=4.10.0",
@@ -22,6 +45,13 @@ dependencies = [
     "tenacity>=9.1.2",
     "whenever>=0.8.4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/nodejsmith/hassette"
+Repository = "https://github.com/nodejsmith/hassette"
+Documentation = "https://github.com/nodejsmith/hassette#readme"
+"Bug Reports" = "https://github.com/nodejsmith/hassette/issues"
+Changelog = "https://github.com/nodejsmith/hassette/releases"
 
 
 [dependency-groups]
