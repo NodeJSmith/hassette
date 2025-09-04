@@ -13,4 +13,4 @@ class TimerState(StringBaseState):
 
     domain: Literal["timer"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

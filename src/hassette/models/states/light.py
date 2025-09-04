@@ -25,4 +25,4 @@ class LightState(StringBaseState):
 
     domain: Literal["light"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

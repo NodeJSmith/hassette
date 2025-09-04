@@ -24,4 +24,4 @@ class WeatherState(StringBaseState):
 
     domain: Literal["weather"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

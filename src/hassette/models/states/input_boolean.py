@@ -11,4 +11,4 @@ class InputBooleanState(BoolBaseState):
 
     domain: Literal["input_boolean"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

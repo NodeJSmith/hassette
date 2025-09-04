@@ -12,4 +12,4 @@ class RemoteState(StringBaseState):
 
     domain: Literal["remote"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

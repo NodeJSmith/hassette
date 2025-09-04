@@ -64,6 +64,7 @@ class AttributesBase(BaseModel):
     icon: str | None = Field(default=None, exclude=True, repr=False)
     friendly_name: str | None = Field(default=None, description="A friendly name for the entity.")
 
+    device_class: str | None = Field(default=None, description="The device class of the entity.")
     entity_id: list[str] | None = Field(default=None, description="List of entity IDs if this is a group entity.")
     supported_features: int | float | None = Field(default=None, description="Bitfield of supported features.")
 
@@ -103,7 +104,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
     is_unknown: bool = Field(default=False)
     is_unavailable: bool = Field(default=False)
     value: StateValueT = Field(..., validation_alias="state")
-    attributes: AttributesBase | None = Field(default=None)
+    attributes: AttributesBase
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:

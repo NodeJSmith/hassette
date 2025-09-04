@@ -12,8 +12,7 @@ class NumberState(BaseState[int | float | None]):
         step: int | float | None = Field(default=None)
         mode: str | None = Field(default=None)
         unit_of_measurement: str | None = Field(default=None)
-        device_class: str | None = Field(default=None)
 
     domain: Literal["number"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

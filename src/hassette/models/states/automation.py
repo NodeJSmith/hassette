@@ -15,4 +15,4 @@ class AutomationState(StringBaseState):
 
     domain: Literal["automation"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

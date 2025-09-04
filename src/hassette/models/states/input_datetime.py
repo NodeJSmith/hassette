@@ -33,4 +33,4 @@ class InputDatetimeState(BaseState[Instant | PlainDateTime | Date | None]):
 
     domain: Literal["input_datetime"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

@@ -18,8 +18,7 @@ class UpdateState(StringBaseState):
         title: str | None = Field(default=None)
         update_percentage: Any | None = Field(default=None)
         entity_picture: str | None = Field(default=None)
-        device_class: str | None = Field(default=None)
 
     domain: Literal["update"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

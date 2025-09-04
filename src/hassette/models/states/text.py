@@ -15,4 +15,4 @@ class TextState(StringBaseState):
 
     domain: Literal["text"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

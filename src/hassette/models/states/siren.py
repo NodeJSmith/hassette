@@ -11,4 +11,4 @@ class SirenState(StringBaseState):
 
     domain: Literal["siren"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

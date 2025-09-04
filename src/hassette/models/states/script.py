@@ -13,4 +13,4 @@ class ScriptState(StringBaseState):
 
     domain: Literal["script"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

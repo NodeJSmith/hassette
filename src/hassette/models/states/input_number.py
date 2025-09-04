@@ -28,4 +28,4 @@ class InputNumberState(BaseState[int | float | None]):
 
     domain: Literal["input_number"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

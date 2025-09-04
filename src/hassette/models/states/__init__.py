@@ -1,26 +1,19 @@
 import typing
-from collections import defaultdict
 from contextlib import suppress
 from logging import getLogger
 from warnings import warn
 
 from pydantic import BaseModel, ConfigDict
 
-from .ai_task import AiTaskState
 from .air_quality import AirQualityState
 from .alarm_control_panel import AlarmControlPanelState
 from .assist_satellite import AssistSatelliteState
 from .automation import AutomationState
 from .base import BaseState, StateT, StateValueT
 from .binary_sensor import BinarySensorState
-from .button import ButtonState
 from .calendar import CalendarState
 from .camera import CameraState
 from .climate import ClimateState
-from .conversation import ConversationState
-from .cover import CoverState
-from .date import DateState
-from .datetime import DateTimeState
 from .device_tracker import DeviceTrackerState
 from .event import EventState
 from .fan import FanState
@@ -32,9 +25,7 @@ from .input_datetime import InputDatetimeState
 from .input_number import InputNumberState
 from .input_text import InputTextState
 from .light import LightState
-from .lock import LockState
 from .media_player import MediaPlayerState
-from .notify import NotifyState
 from .number import NumberState
 from .person import PersonState
 from .remote import RemoteState
@@ -42,18 +33,28 @@ from .scene import SceneState
 from .script import ScriptState
 from .select import SelectState
 from .sensor import SensorAttributes, SensorState
+from .simple import (
+    AiTaskState,
+    ButtonState,
+    ConversationState,
+    CoverState,
+    DateState,
+    DateTimeState,
+    LockState,
+    NotifyState,
+    SttState,
+    SwitchState,
+    TimeState,
+    TodoState,
+    TtsState,
+    ValveState,
+)
 from .siren import SirenState
-from .stt import SttState
 from .sun import SunState
-from .switch import SwitchState
 from .text import TextState
-from .time import TimeState
 from .timer import TimerState
-from .todo import TodoState
-from .tts import TtsState
 from .update import UpdateState
 from .vacuum import VacuumState
-from .valve import ValveState
 from .water_heater import WaterHeaterState
 from .weather import WeatherState
 from .zone import ZoneState
@@ -119,7 +120,6 @@ StateUnion = (
 
 
 LOGGER = getLogger(__name__)
-FAILED_CONVERSIONS: dict[str, list[dict]] = defaultdict(list)
 
 
 @typing.overload

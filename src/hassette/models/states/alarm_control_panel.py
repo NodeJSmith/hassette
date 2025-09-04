@@ -15,4 +15,4 @@ class AlarmControlPanelState(StringBaseState):
 
     domain: Literal["alarm_control_panel"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

@@ -11,4 +11,4 @@ class SelectState(StringBaseState):
 
     domain: Literal["select"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

@@ -15,4 +15,4 @@ class InputTextState(StringBaseState):
 
     domain: Literal["input_text"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

@@ -16,4 +16,4 @@ class PersonState(StringBaseState):
 
     domain: Literal["person"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

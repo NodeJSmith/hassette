@@ -15,4 +15,4 @@ class AirQualityState(StringBaseState):
 
     domain: Literal["air_quality"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

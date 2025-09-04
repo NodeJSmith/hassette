@@ -20,4 +20,4 @@ class WaterHeaterState(StringBaseState):
 
     domain: Literal["water_heater"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

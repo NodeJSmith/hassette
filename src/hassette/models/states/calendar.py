@@ -18,4 +18,4 @@ class CalendarState(StringBaseState):
 
     domain: Literal["calendar"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

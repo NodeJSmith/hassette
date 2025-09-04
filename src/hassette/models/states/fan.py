@@ -22,4 +22,4 @@ class FanState(StringBaseState):
 
     domain: Literal["fan"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes
