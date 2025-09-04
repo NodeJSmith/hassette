@@ -9,8 +9,8 @@ class ScriptState(StringBaseState):
     class Attributes(AttributesBase):
         last_triggered: str | None = Field(default=None)
         mode: str | None = Field(default=None)
-        current: int | None = Field(default=None)
+        current: int | float | None = Field(default=None)
 
     domain: Literal["script"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

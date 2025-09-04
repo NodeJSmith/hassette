@@ -13,4 +13,4 @@ class SceneState(BaseState[Instant | None]):
 
     domain: Literal["scene"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

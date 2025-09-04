@@ -2,7 +2,7 @@ import pytest
 
 from hassette.core.core import Hassette
 from hassette.models import states
-from hassette.models.entities import SunEntity
+from hassette.models.entities import LightEntity
 
 pytestmark = pytest.mark.requires_ha
 
@@ -90,11 +90,11 @@ async def test_get_entity(hassette_core: Hassette) -> None:
 
     # Give more time for real network calls
 
-    entity = await inst.get_entity("sun.sun", SunEntity)
+    entity = await inst.get_entity("light.bed_light", LightEntity)
     assert entity, "Entity should not be None"
-    assert entity.entity_id == "sun.sun", "Entity ID should match"
-    assert entity.domain == "sun", "Domain should be sun"
-    assert isinstance(entity.state, states.SunState), "State should be of type SunState"
+    assert entity.entity_id == "light.bed_light", "Entity ID should match"
+    assert entity.domain == "light", "Domain should be light"
+    assert isinstance(entity.state, states.LightState), "State should be of type LightState"
 
 
 async def test_sync_call_from_async_raises_exception(hassette_core: Hassette) -> None:

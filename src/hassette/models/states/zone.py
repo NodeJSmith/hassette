@@ -16,4 +16,4 @@ class ZoneState(BaseState[int | None]):
 
     domain: Literal["zone"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

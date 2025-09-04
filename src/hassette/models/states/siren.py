@@ -5,10 +5,10 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
-class SelectState(StringBaseState):
+class SirenState(StringBaseState):
     class Attributes(AttributesBase):
-        options: list[str] | None = Field(default=None)
+        available_tones: list[str] | None = Field(default=None)
 
-    domain: Literal["select"]
+    domain: Literal["siren"]
 
     attributes: Attributes

@@ -11,4 +11,4 @@ class AssistSatelliteState(StringBaseState):
 
     domain: Literal["assist_satellite"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

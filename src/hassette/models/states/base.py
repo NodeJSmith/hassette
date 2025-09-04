@@ -1,8 +1,8 @@
 from logging import getLogger
-from typing import Generic, Literal, TypeVar
+from typing import ClassVar, Generic, Literal, TypeVar, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Date, Instant, PlainDateTime
+from whenever import Date, Instant, PlainDateTime, Time
 
 DomainLiteral = Literal[
     "automation",
@@ -59,13 +59,14 @@ class Context(BaseModel):
 class AttributesBase(BaseModel):
     """Represents the attributes of a HomeAssistant state."""
 
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True)
 
     icon: str | None = Field(default=None, exclude=True, repr=False)
     friendly_name: str | None = Field(default=None, description="A friendly name for the entity.")
 
+    device_class: str | None = Field(default=None, description="The device class of the entity.")
     entity_id: list[str] | None = Field(default=None, description="List of entity IDs if this is a group entity.")
-    supported_features: int | None = Field(default=None, description="Bitfield of supported features.")
+    supported_features: int | float | None = Field(default=None, description="Bitfield of supported features.")
 
 
 class BaseState(BaseModel, Generic[StateValueT]):
@@ -75,7 +76,9 @@ class BaseState(BaseModel, Generic[StateValueT]):
     # Leaving them off unless we find a use case or get a feature request for them.
     # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
 
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+
+    DOMAIN_MAP: ClassVar[dict[str, type["BaseState"]]] = {}
 
     domain: str | DomainLiteral = Field(..., description="The domain of the entity, e.g. 'light', 'sensor', etc.")
     entity_id: str = Field(..., description="The full entity ID, e.g. 'light.living_room'.")
@@ -101,7 +104,29 @@ class BaseState(BaseModel, Generic[StateValueT]):
     is_unknown: bool = Field(default=False)
     is_unavailable: bool = Field(default=False)
     value: StateValueT = Field(..., validation_alias="state")
-    attributes: AttributesBase | None = Field(default=None)
+    attributes: AttributesBase
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
+        fields = cls.model_fields
+        domain = fields.get("domain")
+        domain_value = ""
+
+        if not domain:
+            return
+
+        domain_args = get_args(domain.annotation)
+
+        if len(domain_args) == 1 and isinstance(domain_args[0], str):
+            domain_value = domain_args[0]
+
+        if not domain_value:
+            return
+
+        if domain_value in cls.DOMAIN_MAP:
+            raise ValueError(f"Duplicate domain registration for {domain_value}")
+        cls.DOMAIN_MAP[domain_value] = cls  # pyright: ignore[reportArgumentType]
 
     @model_validator(mode="before")
     @classmethod
@@ -161,6 +186,13 @@ class InstantBaseState(BaseState[Instant | None]):
     """Base class for Instant states.
 
     Valid state values are Instant or None.
+    """
+
+
+class TimeBaseState(BaseState[Time | None]):
+    """Base class for Time states.
+
+    Valid state values are Time or None.
     """
 
 

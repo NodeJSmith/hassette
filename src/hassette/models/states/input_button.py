@@ -11,4 +11,4 @@ class InputButtonState(DateTimeBaseState):
 
     domain: Literal["input_button"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

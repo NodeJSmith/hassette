@@ -1,5 +1,4 @@
 import asyncio
-import json
 import threading
 import time
 import tracemalloc
@@ -9,6 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import docker
 import pytest
+import requests
 from docker.errors import NotFound
 from docker.models.containers import Container
 from pydantic_settings import SettingsConfigDict, TomlConfigSettingsSource
@@ -28,6 +28,10 @@ assert TEST_TOML_FILE.exists(), f"Test TOML file {TEST_TOML_FILE} does not exist
 # this wants package.nested_directories.final_file_name
 # do not include the name of the fixture
 pytest_plugins = ["hassette.test_utils.fixtures"]
+
+# TODO:
+# figure out how to get websocket mocked for some tests but not others
+# i think the fixtures/patch are clashing with each other
 
 
 class TestConfig(HassetteConfig):
@@ -86,55 +90,54 @@ def docker_client():
 
 @pytest.fixture(scope="session")
 def homeassistant_container(docker_client: docker.DockerClient):
-    # project_root = Path(__file__).parent.parent
-    # config_dir = project_root / "volumes" / "config"
+    project_root = Path(__file__).parent.parent
+    config_dir = project_root / "volumes" / "config"
 
-    # should_stop = True
-    # container = None
+    should_stop = True
+    container = None
 
-    while True:
-        try:
+    try:
+        resp = requests.get("http://localhost:8123/")
+        resp.raise_for_status()
+        container = docker_client.containers.get("test-homeassistant")
+        should_stop = False
+        print(f"Reusing existing Home Assistant container (status: {container.status})")
+
+    except Exception:
+        pass
+
+    if not container:
+        print("Starting new Home Assistant container...")
+
+        with suppress(NotFound):
             container = docker_client.containers.get("test-homeassistant")
-            break
-        except NotFound:
-            time.sleep(1)
+            if container.status == "exited":
+                container.remove()
+                time.sleep(0.5)
 
-    # should_stop = False
-    print(f"Reusing existing Home Assistant container (status: {container.status})")
-    print(json.dumps(vars(container), indent=4, default=str))
+        container = docker_client.containers.run(
+            "homeassistant/home-assistant:stable",
+            name="test-homeassistant",
+            ports={"8123/tcp": 8123},
+            volumes={str(config_dir): {"bind": "/config", "mode": "rw"}},
+            user="1000:1000",
+            detach=True,
+            remove=True,
+        )
 
-    # if not container:
-    #     print("Starting new Home Assistant container...")
+        while True:
+            try:
+                resp = requests.get("http://localhost:8123/")
+                resp.raise_for_status()
+                time.sleep(1)  # give it a moment to fully settle
+                break
+            except Exception:
+                time.sleep(1)
 
-    #     with suppress(NotFound):
-    #         container = docker_client.containers.get("test-homeassistant")
-    #         if container.status == "exited":
-    #             container.remove()
-    #             time.sleep(0.5)
+    yield container
 
-    #     container = docker_client.containers.run(
-    #         "homeassistant/home-assistant:stable",
-    #         name="test-homeassistant",
-    #         ports={"8123/tcp": 8123},
-    #         volumes={str(config_dir): {"bind": "/config", "mode": "rw"}},
-    #         user="1000:1000",
-    #         detach=True,
-    #         remove=True,
-    #     )
-
-    #     while True:
-    #         try:
-    #             resp = requests.get("http://127.0.0.1:8123/")
-    #             resp.raise_for_status()
-    #             time.sleep(1)  # give it a moment to fully settle
-    #             break
-    #         except Exception:
-    #             time.sleep(1)
-
-    return container
-
-    # if should_stop:
-    #     container.stop()
+    if should_stop:
+        container.stop()
 
 
 @pytest.fixture(scope="session")
@@ -143,7 +146,7 @@ def hassette_logging(test_config: TestConfig):
     return hassette
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 async def hassette_core(test_config: TestConfig, homeassistant_container: Container):
     # this line is mostly here to keep pyright/ruff from complaining that we aren't using the variable
     assert homeassistant_container.status in ["created", "running"], (
@@ -179,39 +182,7 @@ async def hassette_core(test_config: TestConfig, homeassistant_container: Contai
         await task
 
 
-@pytest.fixture(scope="session")
-async def hassette_core_no_ha(test_config: TestConfig):
-    with patch("hassette.core.core._Websocket", Mock()) as websocket_mock:
-        websocket_mock.shutdown = AsyncMock()
-        websocket_mock.send_and_wait = AsyncMock()
-        websocket_mock.send_json = AsyncMock()
-        hassette = Hassette(config=test_config)
-        hassette._health_service = AsyncMock()
-
-        print("loop is", hassette._loop, id(hassette._loop))
-
-        # Launch run_forever() which enters its own context
-        task = asyncio.create_task(hassette.run_forever())
-
-        await hassette.ready_event.wait()
-
-        yield hassette
-
-        await asyncio.sleep(0.1)
-
-        # shutdown and then pause for things to settle
-        hassette.shutdown()
-        await asyncio.sleep(0.1)
-        await hassette._shutdown_event.wait()
-
-        # cancel our task group to ensure all tasks are cleaned up
-        task.cancel()
-
-        with suppress(asyncio.CancelledError):
-            await task
-
-
-@pytest.fixture(scope="session")
+@pytest.fixture
 def hassette_core_sync(test_config: TestConfig, homeassistant_container: Container):
     # this line is mostly here to keep pyright/ruff from complaining that we aren't using the variable
     assert homeassistant_container.status in ["created", "running"], (
@@ -261,6 +232,34 @@ def hassette_core_sync(test_config: TestConfig, homeassistant_container: Contain
         hassette.shutdown()
         # give the runner thread a moment to exit cleanly
         t.join(timeout=5)
+
+
+@pytest.fixture
+async def hassette_core_no_ha(test_config: TestConfig):
+    with patch("hassette.core.core._Websocket", Mock()) as websocket_mock:
+        websocket_mock.shutdown = AsyncMock()
+        hassette = Hassette(config=test_config)
+        hassette._health_service = AsyncMock()
+
+        # Launch run_forever() which enters its own context
+        task = asyncio.create_task(hassette.run_forever())
+
+        await hassette.ready_event.wait()
+
+        yield hassette
+
+        await asyncio.sleep(0.1)
+
+        # shutdown and then pause for things to settle
+        hassette.shutdown()
+        await asyncio.sleep(0.1)
+        await hassette._shutdown_event.wait()
+
+        # cancel our task group to ensure all tasks are cleaned up
+        task.cancel()
+
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 @pytest.fixture

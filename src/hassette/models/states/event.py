@@ -13,4 +13,4 @@ class EventState(InstantBaseState):
 
     domain: Literal["event"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

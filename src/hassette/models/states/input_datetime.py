@@ -11,12 +11,12 @@ class InputDatetimeState(BaseState[Instant | PlainDateTime | Date | None]):
         has_date: bool | None = Field(default=None)
         has_time: bool | None = Field(default=None)
         editable: bool | None = Field(default=None)
-        year: int | None = Field(default=None)
-        month: int | None = Field(default=None)
-        day: int | None = Field(default=None)
-        hour: int | None = Field(default=None)
-        minute: int | None = Field(default=None)
-        second: int | None = Field(default=None)
+        year: int | float | None = Field(default=None)
+        month: int | float | None = Field(default=None)
+        day: int | float | None = Field(default=None)
+        hour: int | float | None = Field(default=None)
+        minute: int | float | None = Field(default=None)
+        second: int | float | None = Field(default=None)
         timestamp: float | None = Field(default=None)
 
         @property
@@ -33,4 +33,4 @@ class InputDatetimeState(BaseState[Instant | PlainDateTime | Date | None]):
 
     domain: Literal["input_datetime"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes

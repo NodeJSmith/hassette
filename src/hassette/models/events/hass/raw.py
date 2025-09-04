@@ -25,7 +25,7 @@ class HassStateDict(TypedDict, total=False):
     context: Required[HassContextDict]
 
     state: Required[Any]
-    attributes: Required[dict[str, Any] | None]
+    attributes: Required[dict[str, Any]]
 
 
 class HassEventDict(TypedDict):
