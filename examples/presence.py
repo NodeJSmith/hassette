@@ -1,4 +1,4 @@
-from hassette import App, AppConfig, DeviceTrackerState, PersonState, StateChangeEvent
+from hassette import App, AppConfig, StateChangeEvent, states
 
 
 class PresenceAppConfig(AppConfig):
@@ -25,9 +25,9 @@ class Presence(App[PresenceAppConfig]):
         await self.api.set_state("sensor.andrew_tracker", state="away")
         await self.api.set_state("sensor.wendy_tracker", state="away")
 
-    async def presence_change(self, event: StateChangeEvent[DeviceTrackerState]):
+    async def presence_change(self, event: StateChangeEvent[states.DeviceTrackerState]):
         person = await self.api.get_attribute(event.payload.data.entity_id, attribute="friendly_name")
-        person_state = await self.api.get_state(event.payload.data.entity_id, PersonState)
+        person_state = await self.api.get_state(event.payload.data.entity_id, states.PersonState)
         if person_state.attributes and person_state.attributes.friendly_name:
             person = person_state.attributes.friendly_name
 
@@ -57,7 +57,7 @@ class Presence(App[PresenceAppConfig]):
             if self.app_config.notify:
                 await self.api.call_service("notify", "my_mobile_phone", message=message)
 
-    async def everyone_left(self, event: StateChangeEvent[DeviceTrackerState]):
+    async def everyone_left(self, event: StateChangeEvent[states.DeviceTrackerState]):
         self.logger.info("Everyone left")
         valid_modes = (self.app_config.input_select or "").split(",")
         input_select = valid_modes.pop(0)
@@ -68,7 +68,7 @@ class Presence(App[PresenceAppConfig]):
             if self.app_config.night_scene_absent:
                 await self.api.turn_on(self.app_config.night_scene_absent)
 
-    async def someone_home(self, event: StateChangeEvent[DeviceTrackerState]):
+    async def someone_home(self, event: StateChangeEvent[states.DeviceTrackerState]):
         self.logger.info("Someone came home")
         if self.app_config.vacation:
             await self.api.set_state(self.app_config.vacation, state="off")

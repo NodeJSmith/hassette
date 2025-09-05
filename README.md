@@ -141,15 +141,15 @@ self.bus.on_hassette_service_started(handler=self.my_app_started)
 
 **Advanced filtering with complex conditions:**
 ```python
-from hassette import AllOf, AttrChanged
+from hassette import predicates
 
 # Create specific attribute change filters
-light_color_changed = AttrChanged("color", to="alice_blue")
-brightness_changed = AttrChanged("brightness", from_=0)  # leaving 'to' undefined means "any value"
+light_color_changed = predicates.AttrChanged("color", to="alice_blue")
+brightness_changed = predicates.AttrChanged("brightness", from_=0)  # leaving 'to' undefined means "any value"
 
 # Combine multiple conditions
 self.bus.on_entity("light.*", handler=self.light_changed,
-                   where=AllOf(brightness_changed, light_color_changed))
+                   where=predicates.AllOf(brightness_changed, light_color_changed))
 ```
 
 ### Scheduling

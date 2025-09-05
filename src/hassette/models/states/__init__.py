@@ -212,6 +212,7 @@ __all__ = [
     "ScriptState",
     "SelectState",
     "SensorAttributes",
+    "SensorState",
     "StateT",
     "StateUnion",
     "StateValueT",
