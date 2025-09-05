@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
 from pydantic import Field
-from whenever import Instant, PlainDateTime, SystemDateTime
+from whenever import Instant, SystemDateTime
 
 from .base import AttributesBase, BoolBaseState, DateTimeBaseState, NumericBaseState, StringBaseState
 
@@ -37,7 +37,7 @@ class InputDatetimeState(DateTimeBaseState):
         timestamp: float | None = Field(default=None)
 
         @property
-        def timestamp_as_instant(self) -> Instant | PlainDateTime | None:
+        def timestamp_as_instant(self) -> Instant | None:
             if self.timestamp is None:
                 return None
             return Instant.from_timestamp(self.timestamp)
