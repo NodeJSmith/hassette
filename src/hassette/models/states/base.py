@@ -196,8 +196,10 @@ class TimeBaseState(BaseState[Time | None]):
     """
 
 
-class BoolBaseState(BaseState[bool]):
+class BoolBaseState(BaseState[bool | None]):
     """Base class for boolean states.
+
+    Valids state values are True, False, or None.
 
     Will convert string values "on" and "off" to boolean True and False.
     """
@@ -205,6 +207,8 @@ class BoolBaseState(BaseState[bool]):
     @field_validator("value", mode="before")
     @classmethod
     def validate_state(cls, value):
+        if value is None:
+            return None
         if isinstance(value, str):
             if value.lower() == "on":
                 return True

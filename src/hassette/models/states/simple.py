@@ -1,6 +1,6 @@
 from typing import Literal
 
-from .base import DateTimeBaseState, InstantBaseState, NumericBaseState, StringBaseState, TimeBaseState
+from .base import BoolBaseState, DateTimeBaseState, InstantBaseState, NumericBaseState, StringBaseState, TimeBaseState
 
 
 class AiTaskState(StringBaseState):
@@ -57,3 +57,7 @@ class TtsState(InstantBaseState):
 
 class ValveState(StringBaseState):
     domain: Literal["valve"]
+
+
+class BinarySensorState(BoolBaseState):
+    domain: Literal["binary_sensor"]
