@@ -32,7 +32,7 @@ class Battery(App[BatteryConfig]):
 
     async def initialize(self):
         await super().initialize()
-        self.scheduler.run_cron(self.check_batteries, hour=6, day_of_month="*")
+        self.scheduler.run_in(self.check_batteries, 1)
         assert self.app_config.threshold == 10  # from what is in hassette.toml
 
     async def check_batteries(self):
@@ -59,7 +59,7 @@ class Battery(App[BatteryConfig]):
 
             if battery < self.app_config.threshold:
                 low.append(device)
-            values[device] = battery
+            values[device.entity_id] = battery
 
         message = "Battery Level Report\n\n"
         if low:
@@ -69,8 +69,8 @@ class Battery(App[BatteryConfig]):
             message += "\n\n"
 
         message += "Battery Levels:\n\n"
-        for device in sorted(values):
-            message += f"{device}: {values[device]}\n"
+        for device, value in sorted(values.items()):
+            message += f"{device}: {value}\n"
 
         if low or self.app_config.always_send or self.app_config.force:
             # TODO: create a notify method on api
@@ -84,13 +84,28 @@ class Battery(App[BatteryConfig]):
 
 
 class BatterySync(AppSync[BatteryConfig]):
+    # TODO: Apparently this doesn't actually work yet
+
+    # 2025-09-04 19:04:48 ERROR hassette.core.apps.app_handler._AppHandler._initialize_single_app:187 ─ Failed to start app battery_sync[0] (BatterySync) # noqa
+    # Traceback (most recent call last):
+    #   File "/home/jessica/source/other/hassette/src/hassette/core/apps/app_handler.py", line 181, in _initialize_single_app # noqa
+    #     await app_instance.initialize()
+    #           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    #   File "/home/jessica/source/other/hassette/examples/battery.py", line 92, in initialize
+    #     super().initialize()
+    #   File "/home/jessica/source/other/hassette/src/hassette/core/apps/app.py", line 98, in initialize
+    #     self.hassette.run_sync(super().initialize())
+    #   File "/home/jessica/source/other/hassette/src/hassette/core/core.py", line 133, in run_sync
+    #     raise RuntimeError("This sync method was called from within an event loop. Use the async method instead.")
+    # RuntimeError: This sync method was called from within an event loop. Use the async method instead.
+
     """If you would prefer to have a fully synchronous app (e.g. have initialize and shutdown be sync)
     you can inherit from AppSync. All other functionality remains the same.
     """
 
     def initialize(self) -> None:
         super().initialize()
-        self.scheduler.run_cron(self.check_batteries, hour=6, day_of_month="*")
+        self.scheduler.run_in(self.check_batteries, 10)
 
     def check_batteries(self):
         """Everything that you can do asynchronously, you can also do synchronously.
@@ -114,7 +129,7 @@ class BatterySync(AppSync[BatteryConfig]):
 
             if battery < self.app_config.threshold:
                 low.append(device)
-            values[device] = battery
+            values[device.entity_id] = battery
 
         message = "Battery Level Report\n\n"
         if low:
@@ -124,8 +139,8 @@ class BatterySync(AppSync[BatteryConfig]):
             message += "\n\n"
 
         message += "Battery Levels:\n\n"
-        for device in sorted(values):
-            message += f"{device}: {values[device]}\n"
+        for device, value in sorted(values.items()):
+            message += f"{device}: {value}\n"
 
         if low or self.app_config.always_send or self.app_config.force:
             self.api.sync.call_service(
