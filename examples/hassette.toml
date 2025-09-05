@@ -1,0 +1,10 @@
+[apps.battery]
+enabled = true
+app_path = "examples/battery.py"
+filename = "battery.py"
+class_name = "Battery"
+
+[[apps.battery.config]]
+always_send = false
+force = false
+threshold = 10

@@ -83,7 +83,7 @@ def create_service_status_event(
     status: ResourceStatus,
     previous_status: ResourceStatus | None = None,
     exc: Exception | None = None,
-) -> "ServiceEvent":
+) -> "HassetteServiceEvent":
     payload = ServiceStatusPayload(
         resource_name=resource_name,
         role=role,
@@ -102,7 +102,7 @@ def create_service_status_event(
 
 def create_websocket_status_event(
     connected: bool, url: str | None = None, error: str | None = None
-) -> "WebsocketStatusEvent":
+) -> "HassetteWebsocketStatusEvent":
     """Create a websocket status event.
 
     Args:
@@ -133,6 +133,6 @@ def create_websocket_status_event(
     )
 
 
-ServiceEvent = Event[HassettePayload[ServiceStatusPayload]]
-WebsocketStatusEvent = Event[HassettePayload[WebsocketStatusEventPayload]]
+HassetteServiceEvent = Event[HassettePayload[ServiceStatusPayload]]
+HassetteWebsocketStatusEvent = Event[HassettePayload[WebsocketStatusEventPayload]]
 HassetteEvent = Event[HassettePayload[Any]]

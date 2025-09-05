@@ -6,15 +6,19 @@ Organized by development priority. Items may evolve over time as architecture an
 
 ## 🥇 Priority 1 – Foundation & Stability
 
-- [ ] Add more test coverage across all layers (core, services, scheduler, event bus, apps)
+- [x] Add more test coverage across all layers (core, services, scheduler, event bus, apps)
 - [ ] More specific retry handling for known/recoverable errors
+  - [x] `_Websocket`
+  - [ ] `_Api`
+  - [ ] `_Bus`
+  - [ ] `_Scheduler`
+  - [ ] `_Hassette`
 - [ ] Retry limits (no infinite retries)
-- [ ] Switch from APScheduler to a custom scheduler
+- [x] Switch from APScheduler to a custom scheduler
 - [ ] Tighten up and test configuration classes
   - [ ] Fully document priority: environment variables > `.env` > `pyproject.toml`
-- [ ] Add timeouts to startup/shutdown, especially for user apps/services
-- [ ] ~~Add a separate event bus for internal events~~ Decided against this, if HA can use a single event bus we should be able to as well
-- [ ] Expand event bus beyond just state change events
+- [x] Add timeouts to startup/shutdown, especially for user apps/services
+- [x] Expand event bus beyond just state change events
 - [ ] Improved logging configuration
 - [ ] App-level logging configuration
 
@@ -24,28 +28,26 @@ Organized by development priority. Items may evolve over time as architecture an
 
 - [ ] Allow user services to be registered/loaded
 - [ ] Create decorators to simplify registering event handlers and/or services
-- [ ] Make it easier to mock calls/responses - likely through a small `litestar` app or similar
-- [x] Add additional log levels:
-  - [x] `TRACE` (debugging)
-  - [ ] TBD
+- [x] Make it easier to mock calls/responses - `SimpleTestServer` in `test_utils.py`
 - [ ] Document everything thoroughly
 - [ ] Add ability to generate `.pyi` stubs for Home Assistant entities/services
 - [ ] Add instrumentation tools for troubleshooting
 - [ ] Graceful shutdown chaining (e.g. warn before timeout)
 - [ ] Built-in validation for service calls and event payloads
+  - [x] Event payloads
+  - [ ] Service call data
 - [ ] Service/app dependencies with startup/shutdown ordering
-- [ ] Multiple instances of the same app with separate config
+- [x] Multiple instances of the same app with separate config
 
 ---
 
 ## 🥉 Priority 3 – Distribution & External Integration
 
-- [ ] Make GitHub repo public
-- [ ] Publish to PyPI
+- [x] Make GitHub repo public
+- [x] Publish to PyPI
 - [ ] Add ability to register REST endpoints (like AppDaemon)
-- [ ] Optional integration with Prometheus or OpenTelemetry
 - [ ] Autodoc generation from decorators
-- [ ] Provide reference/sample apps
+- [_] Provide reference/sample apps - in progress
 - [ ] Docker-first deployment mode
 - [ ] Plugin loader or extension system
 - [ ] UI Config Editor Integration
