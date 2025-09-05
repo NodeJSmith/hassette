@@ -72,7 +72,7 @@ class InputSelectState(StringBaseState):
 
     domain: Literal["input_select"]
 
-    attributes: Attributes | None = Field(default=None)
+    attributes: Attributes
 
 
 class InputTextState(StringBaseState):
