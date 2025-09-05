@@ -1,5 +1,6 @@
 from logging import getLogger
-from typing import ClassVar, Generic, Literal, TypeVar, get_args
+from typing import Generic, Literal, TypeVar, get_args
+from warnings import warn
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, Instant, PlainDateTime, Time
@@ -48,9 +49,12 @@ StateValueT = TypeVar("StateValueT")
 
 
 LOGGER = getLogger(__name__)
+DOMAIN_MAP: dict[str, type["BaseState"]] = {}
 
 
 class Context(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     id: str | None = Field(default=None)
     parent_id: str | None = Field(default=None)
     user_id: str | None = Field(default=None)
@@ -59,9 +63,9 @@ class Context(BaseModel):
 class AttributesBase(BaseModel):
     """Represents the attributes of a HomeAssistant state."""
 
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 
-    icon: str | None = Field(default=None, exclude=True, repr=False)
+    icon: str | None = Field(default=None, repr=False)
     friendly_name: str | None = Field(default=None, description="A friendly name for the entity.")
 
     device_class: str | None = Field(default=None, description="The device class of the entity.")
@@ -69,18 +73,41 @@ class AttributesBase(BaseModel):
     supported_features: int | float | None = Field(default=None, description="Bitfield of supported features.")
 
 
-class BaseState(BaseModel, Generic[StateValueT]):
+class _BaseState(BaseModel):
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
+        fields = cls.model_fields
+        domain = fields.get("domain")
+        domain_value = ""
+
+        if not domain:
+            return
+
+        domain_args = get_args(domain.annotation)
+
+        if len(domain_args) == 1 and isinstance(domain_args[0], str):
+            domain_value = domain_args[0]
+
+        if not domain_value:
+            return
+
+        if domain_value in DOMAIN_MAP and DOMAIN_MAP[domain_value] is not cls:
+            other_cls = DOMAIN_MAP[domain_value]
+            raise ValueError(f"Duplicate domain registration for {domain_value}: {cls} and {other_cls}")
+        DOMAIN_MAP[domain_value] = cls  # pyright: ignore[reportArgumentType]
+
+
+class BaseState(_BaseState, Generic[StateValueT]):
     """Represents a Home Assistant state object."""
 
     # Note: HA docs mention object_id and name, but I personally haven't seen these in practice.
     # Leaving them off unless we find a use case or get a feature request for them.
     # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
 
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True)
-
-    DOMAIN_MAP: ClassVar[dict[str, type["BaseState"]]] = {}
-
-    domain: str | DomainLiteral = Field(..., description="The domain of the entity, e.g. 'light', 'sensor', etc.")
+    domain: DomainLiteral | str = Field(..., description="The domain of the entity, e.g. 'light', 'sensor', etc.")
     entity_id: str = Field(..., description="The full entity ID, e.g. 'light.living_room'.")
     last_changed: Instant | None = Field(
         None,
@@ -101,32 +128,12 @@ class BaseState(BaseModel, Generic[StateValueT]):
     )
     context: Context = Field(repr=False)
 
-    is_unknown: bool = Field(default=False)
-    is_unavailable: bool = Field(default=False)
-    value: StateValueT = Field(..., validation_alias="state")
-    attributes: AttributesBase
-
-    @classmethod
-    def __pydantic_init_subclass__(cls, **kwargs) -> None:
-        super().__pydantic_init_subclass__(**kwargs)
-        fields = cls.model_fields
-        domain = fields.get("domain")
-        domain_value = ""
-
-        if not domain:
-            return
-
-        domain_args = get_args(domain.annotation)
-
-        if len(domain_args) == 1 and isinstance(domain_args[0], str):
-            domain_value = domain_args[0]
-
-        if not domain_value:
-            return
-
-        if domain_value in cls.DOMAIN_MAP:
-            raise ValueError(f"Duplicate domain registration for {domain_value}")
-        cls.DOMAIN_MAP[domain_value] = cls  # pyright: ignore[reportArgumentType]
+    is_unknown: bool = Field(default=False, description="Whether the state is 'unknown'.")
+    is_unavailable: bool = Field(default=False, description="Whether the state is 'unavailable'.")
+    value: StateValueT = Field(
+        ..., validation_alias="state", description="The state value, e.g. 'on', 'off', 23.5, etc."
+    )
+    attributes: AttributesBase = Field(..., description="The attributes of the state.")
 
     @property
     def is_group(self) -> bool:
@@ -143,9 +150,9 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
     @model_validator(mode="before")
     @classmethod
-    def _set_domain_from_entity_id(cls, values):
+    def _validate_domain_and_state(cls, values):
         if not isinstance(values, dict):
-            LOGGER.warning("Expected values to be a dict, got %s", type(values).__name__)
+            warn(f"Expected values to be a dict, got {type(values).__name__}", stacklevel=2)
             return values
 
         entity_id = values.get("entity_id")
