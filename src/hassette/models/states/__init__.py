@@ -5,6 +5,7 @@ from warnings import warn
 
 from pydantic import BaseModel, ConfigDict
 
+from ..history import HistoryEntry
 from .air_quality import AirQualityState
 from .alarm_control_panel import AlarmControlPanelState
 from .assist_satellite import AssistSatelliteState
@@ -196,6 +197,7 @@ __all__ = [
     "DeviceTrackerState",
     "EventState",
     "FanState",
+    "HistoryEntry",
     "HumidifierState",
     "InputBooleanState",
     "InputButtonState",
@@ -212,6 +214,7 @@ __all__ = [
     "ScriptState",
     "SelectState",
     "SensorAttributes",
+    "SensorState",
     "StateT",
     "StateUnion",
     "StateValueT",
