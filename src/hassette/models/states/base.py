@@ -1,6 +1,5 @@
 from logging import getLogger
 from typing import Generic, Literal, TypeVar, get_args
-from warnings import warn
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, Instant, PlainDateTime, Time
@@ -152,7 +151,7 @@ class BaseState(_BaseState, Generic[StateValueT]):
     @classmethod
     def _validate_domain_and_state(cls, values):
         if not isinstance(values, dict):
-            warn(f"Expected values to be a dict, got {type(values).__name__}", stacklevel=2)
+            LOGGER.warning("Expected values to be a dict, got %s", type(values).__name__, stacklevel=2)
             return values
 
         entity_id = values.get("entity_id")
