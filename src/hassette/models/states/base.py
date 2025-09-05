@@ -128,9 +128,22 @@ class BaseState(BaseModel, Generic[StateValueT]):
             raise ValueError(f"Duplicate domain registration for {domain_value}")
         cls.DOMAIN_MAP[domain_value] = cls  # pyright: ignore[reportArgumentType]
 
+    @property
+    def is_group(self) -> bool:
+        if not self.attributes:
+            return False
+
+        if not hasattr(self.attributes, "entity_id"):
+            return False
+
+        if not isinstance(self.attributes.entity_id, list):  # type: ignore
+            return False
+
+        return len(self.attributes.entity_id) > 1  # type: ignore
+
     @model_validator(mode="before")
     @classmethod
-    def set_domain_from_entity_id(cls, values):
+    def _set_domain_from_entity_id(cls, values):
         if not isinstance(values, dict):
             LOGGER.warning("Expected values to be a dict, got %s", type(values).__name__)
             return values
@@ -149,19 +162,6 @@ class BaseState(BaseModel, Generic[StateValueT]):
             values["state"] = None
 
         return values
-
-    @property
-    def is_group(self) -> bool:
-        if not self.attributes:
-            return False
-
-        if not hasattr(self.attributes, "entity_id"):
-            return False
-
-        if not isinstance(self.attributes.entity_id, list):  # type: ignore
-            return False
-
-        return len(self.attributes.entity_id) > 1  # type: ignore
 
 
 class StringBaseState(BaseState[str | None]):
