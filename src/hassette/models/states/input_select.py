@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import Field
 
@@ -13,4 +13,3 @@ class InputSelectState(StringBaseState):
     domain: Literal["input_select"]
 
     attributes: Attributes | None = Field(default=None)
-
