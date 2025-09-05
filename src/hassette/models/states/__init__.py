@@ -19,12 +19,14 @@ from .event import EventState
 from .fan import FanState
 from .humidifier import HumidifierState
 from .image_processing import ImageProcessingState
-from .input_boolean import InputBooleanState
-from .input_button import InputButtonState
-from .input_datetime import InputDatetimeState
-from .input_number import InputNumberState
-from .input_select import InputSelectState
-from .input_text import InputTextState
+from .input import (
+    InputBooleanState,
+    InputButtonState,
+    InputDatetimeState,
+    InputNumberState,
+    InputSelectState,
+    InputTextState,
+)
 from .light import LightState
 from .media_player import MediaPlayerState
 from .number import NumberState
