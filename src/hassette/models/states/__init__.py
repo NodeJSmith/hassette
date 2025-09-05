@@ -9,8 +9,7 @@ from .air_quality import AirQualityState
 from .alarm_control_panel import AlarmControlPanelState
 from .assist_satellite import AssistSatelliteState
 from .automation import AutomationState
-from .base import BaseState, StateT, StateValueT
-from .binary_sensor import BinarySensorState
+from .base import DOMAIN_MAP, BaseState, StateT, StateValueT
 from .calendar import CalendarState
 from .camera import CameraState
 from .climate import ClimateState
@@ -19,12 +18,14 @@ from .event import EventState
 from .fan import FanState
 from .humidifier import HumidifierState
 from .image_processing import ImageProcessingState
-from .input_boolean import InputBooleanState
-from .input_button import InputButtonState
-from .input_datetime import InputDatetimeState
-from .input_number import InputNumberState
-from .input_select import InputSelectState
-from .input_text import InputTextState
+from .input import (
+    InputBooleanState,
+    InputButtonState,
+    InputDatetimeState,
+    InputNumberState,
+    InputSelectState,
+    InputTextState,
+)
 from .light import LightState
 from .media_player import MediaPlayerState
 from .number import NumberState
@@ -36,6 +37,7 @@ from .select import SelectState
 from .sensor import SensorAttributes, SensorState
 from .simple import (
     AiTaskState,
+    BinarySensorState,
     ButtonState,
     ConversationState,
     CoverState,
@@ -64,7 +66,7 @@ if typing.TYPE_CHECKING:
     from hassette.models.events import HassStateDict
 
 
-StateUnion = (
+StateUnion: typing.TypeAlias = (
     AiTaskState
     | AssistSatelliteState
     | AutomationState
@@ -165,7 +167,7 @@ def try_convert_state(data: "HassStateDict | None") -> StateUnion | None:
             case "sensor":
                 cls = SensorState
             case _:
-                cls = BaseState.DOMAIN_MAP.get(domain)
+                cls = DOMAIN_MAP.get(domain)
 
     if cls is not None:
         try:

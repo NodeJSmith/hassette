@@ -2,10 +2,10 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, BaseState
+from .base import AttributesBase, IntBaseState
 
 
-class ZoneState(BaseState[int | None]):
+class ZoneState(IntBaseState):
     class Attributes(AttributesBase):
         latitude: float | None = Field(default=None)
         longitude: float | None = Field(default=None)

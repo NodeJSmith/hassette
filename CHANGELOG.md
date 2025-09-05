@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- Fixed timestamp conversion return types in `InputDateTimeState` attributes
+- Removed custom attributes from input number states
+
+### Internal
+- Consolidated input entity states into unified `input.py` module
+- `BinarySensorState` now inherits from `BoolBaseState`
+- Fixed inheritance issues in `SceneState`, `ZoneState`, and `NumberState`
+
 ## [0.3.0] - 2025-09-04
 ### Changed
 - Update exports to remove long lists of states, events, and predicates

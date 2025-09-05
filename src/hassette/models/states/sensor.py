@@ -3,7 +3,8 @@ from typing import Literal
 from pydantic import Field
 
 from hassette.const.sensor import DEVICE_CLASS, STATE_CLASS, UNIT_OF_MEASUREMENT
-from hassette.models.states.base import AttributesBase, StringBaseState
+
+from .base import AttributesBase, StringBaseState
 
 
 class SensorAttributes(AttributesBase):
