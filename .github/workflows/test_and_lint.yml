@@ -63,3 +63,4 @@ jobs:
 
       - name: stop test-homeassistant
         run: docker compose -f docker-compose.yml down test-homeassistant
+        if: always()
