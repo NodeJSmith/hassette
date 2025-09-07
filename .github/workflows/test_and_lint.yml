@@ -25,7 +25,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: start test-homeassistant
-        run: docker compose -f docker-compose.yml up test-homeassistant --build -d
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml up test-homeassistant --build -d
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -38,16 +38,17 @@ jobs:
       - name: Wait for Home Assistant to be available
         run: |
           for i in {1..30}; do
-            if curl -f http://localhost:8123; then
-              echo "Home Assistant is up!, sleeping 3s more to be sure..."
+          if curl -fsS http://127.0.0.1:8123 >/dev/null; then
+              echo "Home Assistant is up! Sleeping 3s..."
               sleep 3
               exit 0
-            else
-              echo "Waiting for Home Assistant to be available..."
-              sleep 10
-            fi
+          fi
+          echo "Waiting for Home Assistant to be available..."
+          sleep 10
           done
-          echo "Home Assistant did not become available in time."
+          echo "::group::test-homeassistant logs"
+          docker logs --tail=200 test-homeassistant || true
+          echo "::endgroup::"
           exit 1
 
       - name: Run tests
