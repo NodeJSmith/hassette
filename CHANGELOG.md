@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.2] - 2025-09-07
+
+### Fixed
+- Removed incorrect `__init__` override in `AppSync` that was causing issues with app instantiation
+
 ## [0.3.1] - 2025-09-07
 
 ### Fixed
