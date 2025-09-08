@@ -2,6 +2,8 @@ import typing
 from logging import getLogger
 from typing import ClassVar, Generic
 
+from anyio import to_thread
+
 from hassette.config.app_manifest import AppManifest
 from hassette.core.apps.app_config import DEFAULT_CONFIG, AppConfig, AppConfigT
 from hassette.core.apps.utils import validate_app
@@ -92,10 +94,41 @@ class App(Generic[AppConfigT], Resource):
 
 
 class AppSync(App[AppConfigT]):
-    """Synchronous adapter for App."""
+    """Synchronous adapter for App.
 
-    def initialize(self) -> None:
-        self.hassette.run_sync(super().initialize())
+    This class allows synchronous apps to work properly in the async environment
+    by using anyio's thread management capabilities.
+    """
 
-    def shutdown(self) -> None:
-        self.hassette.run_sync(super().shutdown())
+    def __init__(self, hassette: "Hassette", app_config: AppConfigT = DEFAULT_CONFIG, index: int = 0, *args, **kwargs):
+        super().__init__(hassette, app_config, index, *args, **kwargs)
+
+    async def initialize(self) -> None:
+        """Initialize the app in a thread-safe manner."""
+        # Call Resource.initialize() to handle status events
+        await Resource.initialize(self)
+
+        # Run the sync initialize method in a thread
+        await to_thread.run_sync(self.initialize_sync)
+
+    async def shutdown(self) -> None:
+        """Shutdown the app in a thread-safe manner."""
+        # Run the sync shutdown method in a thread
+        await to_thread.run_sync(self.shutdown_sync)
+
+        # Call Resource.shutdown() to handle status events
+        await Resource.shutdown(self)
+
+    def initialize_sync(self) -> None:
+        """Synchronous initialization method to be overridden by subclasses.
+
+        This method runs in a separate thread and can safely perform blocking operations.
+        """
+        pass
+
+    def shutdown_sync(self) -> None:
+        """Synchronous shutdown method to be overridden by subclasses.
+
+        This method runs in a separate thread and can safely perform blocking operations.
+        """
+        pass

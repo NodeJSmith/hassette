@@ -103,6 +103,34 @@ class Hassette:
         self._resources[resource.class_name] = inst = resource(self, *args)
         return inst
 
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        """Get the current event loop."""
+        if self._loop is None:
+            raise RuntimeError("Event loop is not running")
+        return self._loop
+
+    @property
+    def hass_config(self) -> "HassConfig":
+        """Get the current Hassette configuration."""
+        return self.config.hass
+
+    @property
+    def apps(self) -> dict:
+        """Get the currently loaded apps."""
+        return self._app_handler.apps
+
+    @classmethod
+    def get_instance(cls) -> "Hassette":
+        """Get the current instance of Hassette."""
+
+        if cls._instance is not None:
+            return cls._instance
+
+        raise RuntimeError(
+            "Hassette is not initialized in the current context. Use `Hassette.run_forever()` to start it."
+        )
+
     async def send_event(self, event_name: str, event: Event[Any]) -> None:
         """Send an event to the event bus."""
         await self._send_stream.send((event_name, event))
@@ -167,26 +195,16 @@ class Hassette:
         self._loop.call_soon_threadsafe(_call)
         return await fut
 
-    @property
-    def hass_config(self) -> "HassConfig":
-        """Get the current Hassette configuration."""
-        return self.config.hass
+    def create_task(self, coro: Coroutine[Any, Any, R]) -> asyncio.Task[R]:
+        """Create a task in the main event loop.
 
-    @property
-    def apps(self) -> dict:
-        """Get the currently loaded apps."""
-        return self._app_handler.apps
+        Args:
+            coro (Coroutine[Any, Any, R]): The coroutine to run as a task.
 
-    @classmethod
-    def get_instance(cls) -> "Hassette":
-        """Get the current instance of Hassette."""
-
-        if cls._instance is not None:
-            return cls._instance
-
-        raise RuntimeError(
-            "Hassette is not initialized in the current context. Use `Hassette.run_forever()` to start it."
-        )
+        Returns:
+            asyncio.Task[R]: The created task.
+        """
+        return self.loop.create_task(coro)
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Start a service from a service event."""

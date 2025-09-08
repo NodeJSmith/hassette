@@ -131,7 +131,7 @@ class _Websocket(Service):
                     await self.authenticate()
 
                     # start the reader first so send_and_wait can get replies
-                    self._recv_task = asyncio.create_task(self._recv_loop())
+                    self._recv_task = self.hassette.create_task(self._recv_loop())
 
                     sub_all_id = await self._subscribe_events()  # uses send_and_wait internally
                     self._subscription_ids.add(sub_all_id)
