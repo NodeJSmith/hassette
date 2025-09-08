@@ -10,11 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed timestamp conversion return types in `InputDateTimeState` attributes
 - Removed custom attributes from input number states
+- Get AppSync working using anyio.to_thread and `hassette.loop.create_task` to ensure we're on the right event loop
+-
 
 ### Internal
 - Consolidated input entity states into unified `input.py` module
 - `BinarySensorState` now inherits from `BoolBaseState`
 - Fixed inheritance issues in `SceneState`, `ZoneState`, and `NumberState`
+
+### Tests
+- get tests against HA instance working in Github Actions
+- updated tests for fixed synchronous app handling
 
 ## [0.3.0] - 2025-09-04
 ### Changed
