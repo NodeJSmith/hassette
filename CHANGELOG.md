@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.3] - 2025-09-07
+
+### Fixed
+- Filter pydantic args correctly in `get_app_config_class` utility function so we
+    don't attempt to use `typing.TypeVar` as a config class.
+
 ## [0.3.2] - 2025-09-07
 
 ### Fixed
