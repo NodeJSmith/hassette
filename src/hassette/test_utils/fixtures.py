@@ -1,17 +1,55 @@
 import asyncio
 import contextlib
-from collections.abc import Callable
-from unittest.mock import AsyncMock, PropertyMock, patch
+import typing
+from collections.abc import Callable, Coroutine
+from typing import Any, cast
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from aiohttp import web
+from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette.core.api import Api, _Api
+from hassette.core.bus.bus import Bus, _Bus
 from hassette.core.classes import Resource
+from hassette.core.core import Event, Hassette
 from hassette.core.enums import ResourceStatus
 
 from .test_server import SimpleTestServer
+
+if typing.TYPE_CHECKING:
+    from hassette.core.core import Hassette
+
+
+@pytest.fixture(scope="module")
+async def mock_hassette_with_bus():
+    """Yields a mock Hassette instance with a running Bus. Everything else is a mock/AsyncMock."""
+
+    class MockHassette:
+        task: asyncio.Task
+
+        def __init__(self):
+            self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, Event]](1000)
+            self._bus = _Bus(cast("Hassette", self), self._receive_stream.clone())
+            self.bus = Bus(cast("Hassette", self), self._bus)
+
+        async def send_event(self, topic: str, event: Event[Any]) -> None:
+            """Mock method to send an event to the bus."""
+            await self._send_stream.send((topic, event))
+
+        def create_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
+            return asyncio.create_task(coro)
+
+    hassette = MockHassette()
+
+    hassette.task = asyncio.create_task(hassette._bus.run_forever())
+    await asyncio.sleep(0.3)  # Allow the task to start
+    yield hassette
+
+    hassette.task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await hassette.task
 
 
 async def _wait_for(
@@ -45,7 +83,7 @@ async def _shutdown_resource(res: Resource, desc: str) -> None:
 
 
 @pytest.fixture
-async def mock_ha_api(unused_tcp_port):
+async def mock_ha_api(unused_tcp_port, mock_hassette_with_bus):
     """
     Yields (api, mock) where:
       - api  is a fully started Api facade targeting a local in-proc HTTP server
@@ -87,12 +125,14 @@ async def mock_ha_api(unused_tcp_port):
         stack.enter_context(headers_patch)
 
         # create API resources
-        _api = _Api(AsyncMock())
+        _api = _Api(mock_hassette_with_bus)
         api = Api(_api.hassette, _api)
 
         # start them
         await _start_resource(_api, desc="_Api")
+        await asyncio.sleep(0.1)
         await _start_resource(api, desc="Api")
+        await asyncio.sleep(0.1)
 
         try:
             yield api, mock
