@@ -237,6 +237,31 @@ motion_sensor = "binary_sensor.main_motion"
 lights = ["light.living_room", "light.kitchen"]
 ```
 
+
+### Synchronous Apps
+
+For simpler synchronous use cases, use `AppSync`. Only a few changes are required:
+
+1. Inherit from `AppSync` instead of `App`.
+2. Implement `initialize_sync` instead of `initialize`.
+3. Use the `.sync` API for Home Assistant calls.
+
+```python
+from hassette import AppSync
+
+class SimpleApp(AppSync[AppConfig]):
+    def initialize_sync(self):
+        # scheduler and bus are available in sync apps too with no changes required
+        self.scheduler.run_in(self.check_batteries, 10)
+        self.bus.on_entity("*", handler=self.handle_sensor_event)
+
+    def my_task(self):
+        # Use .sync API for synchronous Home Assistant calls
+        states = self.api.sync.get_states()
+        # All async API methods have sync equivalents
+```
+
+
 ## 📖 Examples
 
 Check out the [`examples/`](examples/) directory for more complete examples:
