@@ -18,25 +18,8 @@ cover_entity = "cover.ratgdo_door_2"
 test_entity = "light.test_light_2"
 
 
-[apps.battery]
+[apps.my_app_sync]
 enabled = true
-app_path = "examples/battery.py"
-filename = "battery.py"
-class_name = "Battery"
-
-[apps.battery_sync]
-enabled = true
-app_path = "examples/battery.py"
-filename = "battery.py"
-class_name = "BatterySync"
-
-[[apps.battery.config]]
-always_send = false
-force = false
-threshold = 10
-
-
-[[apps.battery_sync.config]]
-always_send = false
-force = false
-threshold = 10
+app_path = "tests/data"
+filename = "my_app.py"
+class_name = "MyAppSync"

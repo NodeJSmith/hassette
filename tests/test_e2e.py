@@ -1,7 +1,9 @@
 import asyncio
 
+import anyio
 import pytest
 
+from hassette import ResourceStatus
 from hassette.core.core import Hassette
 from hassette.models import states
 from hassette.models.entities import LightEntity
@@ -116,7 +118,6 @@ async def test_sync_call_from_async_raises_exception(hassette_core: Hassette) ->
         inst.sync.get_config()
 
 
-@pytest.mark.requires_ha
 def test_sync_call_from_sync_works(hassette_core_sync: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
 
@@ -126,3 +127,16 @@ def test_sync_call_from_sync_works(hassette_core_sync: Hassette) -> None:
     assert config, "Config should not be empty."
     # Make assertions more flexible for different HA configurations
     assert isinstance(config, dict), "Config should be a dictionary"
+
+
+async def test_apps_are_working(hassette_core: Hassette) -> None:
+    """Test actual WebSocket calls against running HA instance."""
+    with anyio.fail_after(3):
+        while hassette_core._app_handler.status != ResourceStatus.RUNNING:
+            await asyncio.sleep(0.1)
+
+    await asyncio.sleep(0.3)
+    assert hassette_core._app_handler is not None, "App handler should be initialized"
+    assert hassette_core._app_handler.apps, "There should be at least one app group"
+    assert "my_app" in hassette_core._app_handler.apps, "my_app should be one of the app groups"
+    assert "my_app_sync" in hassette_core._app_handler.apps, "my_app_sync should be one of the app groups"
