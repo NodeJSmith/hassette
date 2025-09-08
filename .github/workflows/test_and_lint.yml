@@ -7,8 +7,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ACTIONS_RUNNER_DEBUG: true
-      ACTIONS_STEP_DEBUG: true
       TZ: America/Chicago
 
     strategy:
@@ -87,11 +85,7 @@ jobs:
           exit 1
 
       - name: Run tests
-        env:
-          PYTHONUNBUFFERED: "1"
-          PYTHONFAULTHANDLER: "1"
-          PYTHONASYNCIODEBUG: "1"
-        run: uv run pytest -vv -s --maxfail=1 --durations=10
+        run: uv run pytest -vv --durations=10
 
       - name: stop test-homeassistant
         run: docker compose -f docker-compose.yml down test-homeassistant
