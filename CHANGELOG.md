@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.1] - 2025-09-07
+
 ### Fixed
 - Fixed timestamp conversion return types in `InputDateTimeState` attributes
 - Removed custom attributes from input number states
