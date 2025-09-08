@@ -34,6 +34,37 @@ jobs:
       - name: Run lint checks
         run: uvx pre-commit run --all-files
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get HA digest (linux/amd64) without pulling layers
+        id: ha
+        run: |
+          set -euo pipefail
+          # Query the manifest list and pick the amd64 digest
+          DIGEST=$(docker buildx imagetools inspect --raw homeassistant/home-assistant:stable \
+            | jq -r '.manifests[] | select(.platform.architecture=="amd64" and .platform.os=="linux") | .digest')
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Restore cached HA image
+        id: cache_ha
+        uses: actions/cache@v4
+        with:
+          path: ha-image-amd64.tar
+          key: ha-image-${{ steps.ha.outputs.digest }}
+
+      # Load if cache hit
+      - name: Load HA image from cache
+        if: steps.cache_ha.outputs.cache-hit == 'true'
+        run: docker load -i ha-image-amd64.tar
+
+      # Pull & save only on cache miss
+      - name: Pull & save HA image
+        if: steps.cache_ha.outputs.cache-hit != 'true'
+        run: |
+          docker pull --platform=linux/amd64 homeassistant/home-assistant:stable
+          docker save homeassistant/home-assistant:stable -o ha-image-amd64.tar
+
       - name: start test-homeassistant
         run: docker compose -f docker-compose.yml -f docker-compose.override.yml up test-homeassistant --build -d
 
