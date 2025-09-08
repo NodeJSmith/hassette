@@ -100,9 +100,6 @@ class AppSync(App[AppConfigT]):
     by using anyio's thread management capabilities.
     """
 
-    def __init__(self, hassette: "Hassette", app_config: AppConfigT = DEFAULT_CONFIG, index: int = 0, *args, **kwargs):
-        super().__init__(hassette, app_config, index, *args, **kwargs)
-
     async def initialize(self) -> None:
         """Initialize the app in a thread-safe manner."""
         # Call Resource.initialize() to handle status events
