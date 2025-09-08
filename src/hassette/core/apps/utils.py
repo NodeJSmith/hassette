@@ -44,11 +44,12 @@ def _get_app_config_class(cls: type["App"]) -> type[AppConfig]:
         if args and not isinstance(args[0], typing.TypeVar):
             break
 
-    # if we haven't found a user_config_class, raise an error
-    if not args:
+    # if we haven't found a user_config_class, we'll just return the default
+    pydantic_model_args = [arg for arg in args if isinstance(arg, type) and issubclass(arg, AppConfig)]
+    if not pydantic_model_args:
         return AppConfig
 
-    return args[0]
+    return pydantic_model_args[0]
 
 
 def validate_app(cls: type["App"]) -> type[AppConfig]:
