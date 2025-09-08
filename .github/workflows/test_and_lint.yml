@@ -61,7 +61,7 @@ jobs:
           exit 1
 
       - name: Run tests
-        run: uv run pytest -vv --durations=10
+        run: uv run pytest -vvv --durations=10
 
       - name: stop test-homeassistant
         run: docker compose -f docker-compose.yml down test-homeassistant
