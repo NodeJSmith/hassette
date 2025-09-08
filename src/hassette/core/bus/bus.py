@@ -186,7 +186,7 @@ class Bus(Resource):
         handler = make_async_handler(orig)
         # decorate
         if debounce and debounce > 0:
-            handler = add_debounce(handler, debounce)
+            handler = add_debounce(handler, debounce, self.hassette)
         if throttle and throttle > 0:
             handler = add_throttle(handler, throttle)
 

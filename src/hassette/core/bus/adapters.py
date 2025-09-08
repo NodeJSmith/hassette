@@ -7,6 +7,7 @@ from hassette.async_utils import make_async_adapter
 from hassette.models.events import Event
 
 if typing.TYPE_CHECKING:
+    from hassette.core.core import Hassette
     from hassette.core.types import AsyncHandler, E_contra, Handler
 
 
@@ -25,7 +26,9 @@ def make_async_handler(fn: "Handler[E_contra]") -> "AsyncHandler[E_contra]":
     return cast("AsyncHandler[E_contra]", make_async_adapter(fn))
 
 
-def add_debounce(handler: "AsyncHandler[Event[Any]]", seconds: float) -> "AsyncHandler[Event[Any]]":
+def add_debounce(
+    handler: "AsyncHandler[Event[Any]]", seconds: float, hassette: "Hassette"
+) -> "AsyncHandler[Event[Any]]":
     """Add a debounce to an async handler.
 
     This will ensure that the handler is only called after a specified period of inactivity.
@@ -55,7 +58,7 @@ def add_debounce(handler: "AsyncHandler[Event[Any]]", seconds: float) -> "AsyncH
             except asyncio.CancelledError:
                 pass
 
-        pending = asyncio.create_task(_later())
+        pending = hassette.create_task(_later())
 
     return _debounced
 
