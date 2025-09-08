@@ -64,7 +64,7 @@ jobs:
           docker save homeassistant/home-assistant:stable -o ha-image-amd64.tar
 
       - name: start test-homeassistant
-        run: docker compose -f docker-compose.yml -f docker-compose.override.yml up test-homeassistant --build -d
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml up test-homeassistant -d
 
       - run: uv sync
 
