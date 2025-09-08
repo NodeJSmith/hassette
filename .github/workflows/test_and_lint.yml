@@ -1,17 +1,18 @@
 name: Test and Lint
 
-on: [push]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     env:
-      ACTIONS_RUNNER_DEBUG: true
-      ACTIONS_STEP_DEBUG: true
       TZ: America/Chicago
 
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
 
@@ -31,14 +32,39 @@ jobs:
           activate-environment: true
           enable-cache: true
 
-      - run: uv sync
-
-      - name: Run tests
-        env:
-          PYTHONUNBUFFERED: "1"
-          PYTHONFAULTHANDLER: "1"
-          PYTHONASYNCIODEBUG: "1"
-        run: uv run pytest -vv -s --maxfail=1 --durations=10 -m 'not requires_ha'
-
       - name: Run lint checks
         run: uvx pre-commit run --all-files
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Pull HA image
+        run: docker pull --platform=linux/amd64 homeassistant/home-assistant:stable
+
+      - name: start test-homeassistant
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml up test-homeassistant -d
+
+      - run: uv sync
+
+      - name: Wait for Home Assistant to be available
+        run: |
+          for i in {1..30}; do
+          if curl -fsS http://127.0.0.1:8123 >/dev/null; then
+              echo "Home Assistant is up! Sleeping 3s..."
+              sleep 3
+              exit 0
+          fi
+          echo "Waiting for Home Assistant to be available..."
+          sleep 10
+          done
+          echo "::group::test-homeassistant logs"
+          docker logs --tail=200 test-homeassistant || true
+          echo "::endgroup::"
+          exit 1
+
+      - name: Run tests
+        run: uv run pytest -vvv --durations=10
+
+      - name: stop test-homeassistant
+        run: docker compose -f docker-compose.yml down test-homeassistant
+        if: always()

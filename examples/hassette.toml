@@ -4,7 +4,18 @@ app_path = "examples/battery.py"
 filename = "battery.py"
 class_name = "Battery"
 
+[apps.battery_sync]
+enabled = true
+app_path = "examples/battery.py"
+filename = "battery.py"
+class_name = "BatterySync"
+
 [[apps.battery.config]]
+always_send = false
+force = false
+threshold = 10
+
+[[apps.battery_sync.config]]
 always_send = false
 force = false
 threshold = 10

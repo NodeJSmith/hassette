@@ -22,7 +22,8 @@ class _HealthService(Service):
     async def run_forever(self) -> None:
         try:
             app = web.Application()
-            app["hassette"] = self.hassette
+            hassette_key = web.AppKey["Hassette"]("hassette")
+            app[hassette_key] = self.hassette
             app.router.add_get("/healthz", self._handle_health)
 
             self._runner = web.AppRunner(app)

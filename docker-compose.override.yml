@@ -1,4 +1,7 @@
 services:
+  test-homeassistant:
+    user: "0:0"
+
   hassette:
     # Reuse same build/image from docker-compose.yml
     volumes:

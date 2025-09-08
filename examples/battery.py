@@ -1,6 +1,6 @@
 from typing import Any
 
-from hassette import App, AppConfig, AppSync
+from hassette import App, AppConfig, AppSync, StateChangeEvent, states
 
 
 # we subclass AppConfig to provide configuration specific to our app
@@ -84,28 +84,23 @@ class Battery(App[BatteryConfig]):
 
 
 class BatterySync(AppSync[BatteryConfig]):
-    # TODO: Apparently this doesn't actually work yet
-
-    # 2025-09-04 19:04:48 ERROR hassette.core.apps.app_handler._AppHandler._initialize_single_app:187 ─ Failed to start app battery_sync[0] (BatterySync) # noqa
-    # Traceback (most recent call last):
-    #   File "/home/jessica/source/other/hassette/src/hassette/core/apps/app_handler.py", line 181, in _initialize_single_app # noqa
-    #     await app_instance.initialize()
-    #           ^^^^^^^^^^^^^^^^^^^^^^^^^
-    #   File "/home/jessica/source/other/hassette/examples/battery.py", line 92, in initialize
-    #     super().initialize()
-    #   File "/home/jessica/source/other/hassette/src/hassette/core/apps/app.py", line 98, in initialize
-    #     self.hassette.run_sync(super().initialize())
-    #   File "/home/jessica/source/other/hassette/src/hassette/core/core.py", line 133, in run_sync
-    #     raise RuntimeError("This sync method was called from within an event loop. Use the async method instead.")
-    # RuntimeError: This sync method was called from within an event loop. Use the async method instead.
-
     """If you would prefer to have a fully synchronous app (e.g. have initialize and shutdown be sync)
-    you can inherit from AppSync. All other functionality remains the same.
+    you can inherit from AppSync.
+
+    The standard `initialize` is replaced with `initialize_sync`, which is run in a thread, the same
+    with `shutdown` being replaced with `shutdown_sync`.
+
+    The API is fully available in synchronous form via the `.sync` property on the `api` property.
+
+    The Bus and Scheduler can work with sync or async callbacks, so you can use them as normal.
     """
 
-    def initialize(self) -> None:
-        super().initialize()
+    def initialize_sync(self) -> None:
         self.scheduler.run_in(self.check_batteries, 10)
+        self.bus.on_entity("*", handler=self.handle_sensor_event)
+
+    def handle_sensor_event(self, event: StateChangeEvent[states.SensorState]) -> None:
+        self.logger.info("Sensor event: %s", event)
 
     def check_batteries(self):
         """Everything that you can do asynchronously, you can also do synchronously.
@@ -113,7 +108,9 @@ class BatterySync(AppSync[BatteryConfig]):
         Just use the `.sync` property to access the synchronous version of the API.
 
         """
+        self.logger.info("Checking batteries (sync version)")
         states = self.api.sync.get_states()
+        self.logger.info("Found %d states", len(states))
         values = {}
         low = []
         for device in states:

@@ -1,5 +1,4 @@
 import asyncio
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -24,7 +23,7 @@ class _HoldService(Service):
         await super().shutdown(*a, **k)
 
 
-def get_dummy_service(called: dict[str, int]) -> Service:
+def get_dummy_service(called: dict[str, int], hassette) -> Service:
     class _Dummy(Service):
         """Does nothing, just tracks calls."""
 
@@ -37,11 +36,11 @@ def get_dummy_service(called: dict[str, int]) -> Service:
         def start(self):
             called["start"] += 1
 
-    return _Dummy(AsyncMock())
+    return _Dummy(hassette)
 
 
-async def test_service_start_twice_and_shutdown():
-    svc = _HoldService(AsyncMock())
+async def test_service_start_twice_and_shutdown(mock_hassette_with_bus):
+    svc = _HoldService(mock_hassette_with_bus)
     svc.start()
     await asyncio.sleep(0.1)  # allow start to run
 
@@ -59,7 +58,7 @@ async def test_service_start_twice_and_shutdown():
 async def test_restart_service_cancels_then_starts(hassette_core_no_ha: Hassette):
     called = {"cancel": 0, "start": 0}
 
-    svc = get_dummy_service(called)
+    svc = get_dummy_service(called, hassette_core_no_ha)
     hassette_core_no_ha._resources[svc.class_name] = svc
 
     event = create_service_status_event(

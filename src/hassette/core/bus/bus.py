@@ -57,11 +57,11 @@ class _Bus(Service):
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""
-        self._tasks.add(asyncio.create_task(self.add_listener_coro(listener)))
+        self._tasks.add(self.hassette.create_task(self.add_listener_coro(listener)))
 
     def remove_listener_by_key(self, topic: str, key: str) -> None:
         """Remove a listener by its key."""
-        self._tasks.add(asyncio.create_task(self.remove_listener_by_key_coro(topic, key)))
+        self._tasks.add(self.hassette.create_task(self.remove_listener_by_key_coro(topic, key)))
 
     async def add_listener_coro(self, listener: Listener) -> None:
         """Add a listener to the bus in a coroutine."""
@@ -110,7 +110,7 @@ class _Bus(Service):
                 except Exception:
                     self.logger.exception("Listener error (topic=%s, handler=%r)", topic, listener_.handler_name)
 
-            asyncio.create_task(_dispatch())  # noqa: RUF006
+            self.hassette.create_task(_dispatch())
 
     async def run_forever(self) -> None:
         """Worker loop that processes events from the stream."""
@@ -186,7 +186,7 @@ class Bus(Resource):
         handler = make_async_handler(orig)
         # decorate
         if debounce and debounce > 0:
-            handler = add_debounce(handler, debounce)
+            handler = add_debounce(handler, debounce, self.hassette)
         if throttle and throttle > 0:
             handler = add_throttle(handler, throttle)
 

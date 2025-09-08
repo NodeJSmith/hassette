@@ -47,7 +47,7 @@ class _Scheduler(Service):
 
                 while not self._queue.is_empty() and (peek := self._queue.peek()) and peek.next_run <= now():
                     job = self._queue.pop()
-                    self._tasks.add(asyncio.create_task(self._dispatch_and_log(job)))
+                    self._tasks.add(self.hassette.create_task(self._dispatch_and_log(job)))
 
                 await self._sleep()
         except asyncio.CancelledError:
