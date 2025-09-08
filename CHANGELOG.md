@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated input entity states into unified `input.py` module
 - `BinarySensorState` now inherits from `BoolBaseState`
 - Fixed inheritance issues in `SceneState`, `ZoneState`, and `NumberState`
+- Update health service to use a `web.AppKey` instead of a string
 
 ### Tests
 - get tests against HA instance working in Github Actions
