@@ -3,7 +3,7 @@ import typing
 from .base import Guard
 
 if typing.TYPE_CHECKING:
-    from hassette.models.events import CallServiceEvent
+    from hassette.core.events import CallServiceEvent
 
 
 def home_assistant_restarted(event: "CallServiceEvent"):

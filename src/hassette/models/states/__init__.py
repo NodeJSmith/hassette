@@ -63,7 +63,7 @@ from .weather import WeatherState
 from .zone import ZoneState
 
 if typing.TYPE_CHECKING:
-    from hassette.models.events import HassStateDict
+    from hassette.core.events import HassStateDict
 
 
 StateUnion: typing.TypeAlias = (

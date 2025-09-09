@@ -20,8 +20,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
     from hassette.core.core import Hassette
-    from hassette.core.types import Handler, Predicate
-    from hassette.models.events import (
+    from hassette.core.events import (
         CallServiceEvent,
         ComponentLoadedEvent,
         Event,
@@ -29,6 +28,7 @@ if typing.TYPE_CHECKING:
         ServiceRegisteredEvent,
         StateChangeEvent,
     )
+    from hassette.core.types import Handler, Predicate
 
 
 class _Bus(Service):

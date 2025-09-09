@@ -7,7 +7,7 @@ from logging import getLogger
 from typing import ClassVar
 
 from hassette.core.enums import ResourceRole, ResourceStatus
-from hassette.models.events import create_service_status_event
+from hassette.core.events import create_service_status_event
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette

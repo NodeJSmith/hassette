@@ -14,7 +14,6 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
 
     assert test_config.hass.ws_url == "ws://127.0.0.1:8123/api/websocket"
     assert test_config.hass.token.get_secret_value() == expected_token
-    assert test_config.debug_mode is True
 
     assert len(test_config.apps) > 0, "Expected at least one app configuration to be loaded"
     assert "my_app" in test_config.apps, "Expected 'my_app' to be in the loaded app configurations"

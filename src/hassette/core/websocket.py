@@ -16,6 +16,7 @@ from tenacity import AsyncRetrying, RetryCallState, retry_if_exception_type
 
 from hassette.core.classes import Service
 from hassette.core.enums import ResourceStatus
+from hassette.core.events import HassEventEnvelopeDict, create_event_from_hass, create_websocket_status_event
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -23,7 +24,6 @@ from hassette.exceptions import (
     InvalidAuthError,
     RetryableConnectionClosedError,
 )
-from hassette.models.events import HassEventEnvelopeDict, create_event_from_hass, create_websocket_status_event
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette

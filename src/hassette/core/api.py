@@ -11,9 +11,9 @@ from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wai
 from whenever import Date, Instant, PlainDateTime, ZonedDateTime
 
 from hassette.core.classes import Resource
+from hassette.core.events import HassContext, HassStateDict
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity, EntityT
-from hassette.models.events import HassContext, HassStateDict
 from hassette.models.history import HistoryEntry, normalize_history
 from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, try_convert_state
 

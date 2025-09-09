@@ -9,7 +9,7 @@ from whenever import Instant
 
 from hassette.core.bus.predicates.common import HomeAssistantRestarted
 from hassette.core.core import Event, Hassette
-from hassette.models.events import (
+from hassette.core.events import (
     CallServiceEvent,
     ComponentLoadedEvent,
     HassContext,
@@ -18,7 +18,7 @@ from hassette.models.events import (
 )
 
 if typing.TYPE_CHECKING:
-    from hassette.models.events import HassEventEnvelopeDict
+    from hassette.core.events import HassEventEnvelopeDict
 
 EVENT: Event[Any] = cast("Event[Any]", object())
 

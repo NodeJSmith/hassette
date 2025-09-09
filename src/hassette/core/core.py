@@ -14,11 +14,11 @@ from hassette.core.api import Api, _Api
 from hassette.core.apps.app_handler import _AppHandler
 from hassette.core.bus.bus import Bus, _Bus
 from hassette.core.enums import ResourceRole, ResourceStatus
+from hassette.core.events import Event, HassetteServiceEvent
 from hassette.core.health_service import _HealthService
 from hassette.core.scheduler import Scheduler
 from hassette.core.scheduler.scheduler import _Scheduler
 from hassette.core.websocket import _Websocket
-from hassette.models.events import Event, HassetteServiceEvent
 from hassette.utils import get_traceback_string
 
 if typing.TYPE_CHECKING:

@@ -5,7 +5,7 @@ from typing import Any, Generic, Literal, Self, TypeAlias, TypeVar
 from whenever import Instant
 
 from hassette.core import topics
-from hassette.models.events import Event
+from hassette.core.events import Event
 from hassette.models.states import StateT, try_convert_state
 
 from .raw import HassEventEnvelopeDict, HassStateDict
@@ -171,7 +171,7 @@ def create_event_from_hass(
 ):
     """Create an Event from a dictionary."""
 
-    from hassette.models.events import Event  # avoid circular import
+    from hassette.core.events import Event  # avoid circular import
 
     event = data.get("event", {})
     event_type = event.get("event_type")
