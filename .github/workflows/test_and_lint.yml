@@ -42,7 +42,7 @@ jobs:
         run: docker pull --platform=linux/amd64 homeassistant/home-assistant:stable
 
       - name: start test-homeassistant
-        run: docker compose -f docker-compose.yml -f docker-compose.override.yml up test-homeassistant -d
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up test-homeassistant -d
 
       - run: uv sync
 
