@@ -40,7 +40,7 @@ class App(Generic[AppConfigT], Resource):
     def __init__(
         self,
         hassette: "Hassette",
-        app_config: AppConfigT | type[AppConfig] = DEFAULT_CONFIG,
+        app_config: AppConfigT = DEFAULT_CONFIG,
         index: int = 0,
         *args,
         **kwargs,
