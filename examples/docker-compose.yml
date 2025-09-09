@@ -6,7 +6,7 @@ services:
     user: "1000:1000"
     volumes:
       - ./config:/config
-      - ./data:/data
+      - ./apps:/apps
     environment:
       - LOG_LEVEL=info
     healthcheck:

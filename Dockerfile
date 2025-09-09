@@ -36,10 +36,11 @@ COPY --from=builder --chown=hassette:hassette /app/.venv /app/.venv
 
 USER hassette
 
-VOLUME ["/config", "/data"]
+VOLUME ["/config", "/data", "/apps"]
 
 ENV HASSETTE_CONFIG_DIR=/config \
     HASSETTE_DATA_DIR=/data \
+    HASSETTE_APP_DIR=/apps \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
 

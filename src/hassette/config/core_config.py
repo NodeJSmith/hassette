@@ -3,7 +3,7 @@ import os
 import sys
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
 import platformdirs
 from packaging.version import Version
@@ -50,10 +50,17 @@ def default_data_dir() -> Path:
     return platformdirs.user_data_path("hassette", version=f"v{VERSION.major}")
 
 
+def default_app_dir() -> Path:
+    if env := os.getenv("HASSETTE_APP_DIR"):
+        return Path(env)
+    docker = Path("/apps")
+    if docker.exists():
+        return docker
+    return Path.cwd() / "apps"  # relative to where the program is run
+
+
 class HassetteConfig(BaseSettings):
     """Configuration for Hassette."""
-
-    role: ClassVar[str] = "config"
 
     model_config = SettingsConfigDict(
         env_prefix="hassette__",
@@ -74,6 +81,7 @@ class HassetteConfig(BaseSettings):
     )
 
     data_dir: Path = Field(default_factory=default_data_dir, description="Directory to store Hassette data.")
+    app_dir: Path = Field(default_factory=default_app_dir, description="Directory to load user apps from.")
     config_dir: Path = Field(default_factory=default_config_dir, description="Directory to store Hassette config.")
 
     websocket_timeout_seconds: int = Field(default=5, description="Timeout for WebSocket requests.")

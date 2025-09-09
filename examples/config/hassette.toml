@@ -1,12 +1,12 @@
 [apps.battery]
 enabled = true
-app_path = "/data/examples/battery.py" # assuming we're running via docker compose, this should be absolute starting at /data/
+app_path = "/apps/examples/battery.py" # assuming we're running via docker compose, this should be absolute starting at /apps/
 filename = "battery.py"
 class_name = "Battery"
 
 [apps.battery_sync]
 enabled = true
-app_path = "/data/examples/battery.py"
+app_path = "/apps/examples/battery.py"
 filename = "battery.py"
 class_name = "BatterySync"
 

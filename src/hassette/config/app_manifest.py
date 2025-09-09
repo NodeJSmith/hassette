@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 from warnings import warn
 
 from pydantic import Field, model_validator
@@ -9,8 +9,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppManifest(BaseSettings):
-    role: ClassVar[str] = "config"
-
     model_config = SettingsConfigDict(extra="allow")
 
     enabled: bool
@@ -22,7 +20,9 @@ class AppManifest(BaseSettings):
         default=..., description="Display name of the app, will use filename if not set", examples=["My App"]
     )
     app_path: Path = Field(
-        ..., description="Path to the app directory, relative to current working directory", examples=["./apps"]
+        ...,
+        description="Path to the app directory, relative to current working directory or absolute",
+        examples=["./apps"],
     )
 
     user_config: dict[str, Any] | list[dict[str, Any]] = Field(
