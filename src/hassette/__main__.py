@@ -50,7 +50,13 @@ async def main() -> None:
             nested_model_default_partial_update=True,
         )
 
-    core = Hassette(config=CustomSettings()) if has_args else Hassette()
+    try:
+        config = CustomSettings() if has_args else HassetteConfig()
+    except Exception as e:
+        LOGGER.exception("Error loading configuration: %s", e)
+        raise
+
+    core = Hassette(config=config) if has_args else Hassette()
 
     await core.run_forever()
 
