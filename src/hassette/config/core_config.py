@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import sys
@@ -76,7 +75,6 @@ class HassetteConfig(BaseSettings):
 
     data_dir: Path = Field(default_factory=default_data_dir, description="Directory to store Hassette data.")
     config_dir: Path = Field(default_factory=default_config_dir, description="Directory to store Hassette config.")
-    debug_mode: bool = Field(default=False, description="Enable debug mode for Hassette.")
 
     websocket_timeout_seconds: int = Field(default=5, description="Timeout for WebSocket requests.")
     run_sync_timeout_seconds: int = Field(default=6, description="Default timeout for synchronous function calls.")
@@ -90,20 +88,6 @@ class HassetteConfig(BaseSettings):
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         enable_logging(self.log_level)
-
-        hassette_logger = logging.getLogger("hassette")
-
-        # NOTE: the debug_mode flag doesn't actually do anything yet
-        # but i want it here for some planned features
-        if sys.flags.dev_mode or "debug" in str(sys.argv) or getattr(sys, "gettrace", None):
-            self.debug_mode = True
-
-        if self.debug_mode:
-            hassette_logger.info("Debug mode is enabled")
-            json_data = json.loads(self.model_dump_json())
-            json_data["hass"]["token"] = self.hass.truncated_token
-            json_str = json.dumps(json_data, indent=4)
-            hassette_logger.info("Configuration: %s", json_str)
 
     @classmethod
     def settings_customise_sources(
@@ -120,19 +104,4 @@ class HassetteConfig(BaseSettings):
             TomlConfigSettingsSource(settings_cls),
             file_secret_settings,
         )
-        # SETTINGS_SOURCES.extend(sources)
         return sources
-
-
-#     def _settings_build_values(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-#         values = super()._settings_build_values(*args, **kwargs)
-
-#         LOGGER.info("Values: %s", values)
-#         LOGGER.info("Settings sources:")
-#         LOGGER.info(SETTINGS_SOURCES[0].settings_sources_data)
-
-#         return values
-
-
-# SETTINGS_SOURCES_DATA: dict[str, dict[str, Any]] = {}
-# SETTINGS_SOURCES = []
