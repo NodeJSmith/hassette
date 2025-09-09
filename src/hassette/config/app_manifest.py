@@ -14,10 +14,16 @@ class AppManifest(BaseSettings):
     model_config = SettingsConfigDict(extra="allow")
 
     enabled: bool
-    filename: str | Path
-    class_name: str
-    display_name: str
-    app_path: Path | None = Field(None, description="Path to the app directory, relative to current working directory")
+    filename: str | Path = Field(
+        default=..., description="Filename of the app, will be looked for in app_path", examples=["my_app.py"]
+    )
+    class_name: str = Field(default=..., description="Class name of the app", examples=["MyApp"])
+    display_name: str = Field(
+        default=..., description="Display name of the app, will use filename if not set", examples=["My App"]
+    )
+    app_path: Path = Field(
+        ..., description="Path to the app directory, relative to current working directory", examples=["./apps"]
+    )
 
     user_config: dict[str, Any] | list[dict[str, Any]] = Field(
         default_factory=dict, description="User configuration for the app", validation_alias="config"

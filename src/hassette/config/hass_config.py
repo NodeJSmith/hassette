@@ -8,11 +8,12 @@ from yarl import URL
 class HassConfig(BaseSettings):
     role: ClassVar[str] = "config"
 
-    base_url: str = Field("http://127.0.0.1:8123", description="Base URL of the Home Assistant instance")
-    api_port: int = Field(8123, description="API port for Home Assistant (default is 8123 for local instances)")
+    base_url: str = Field(default="http://127.0.0.1:8123", description="Base URL of the Home Assistant instance")
+    api_port: int = Field(default=8123, description="API port for Home Assistant (default is 8123 for local instances)")
 
     # The access token for the Home Assistant instance
     token: SecretStr = Field(
+        default=...,
         description="Access token for Home Assistant instance",
         validation_alias=AliasChoices("token", "HASSETTE_HA_TOKEN", "HASSETTE_HASS_TOKEN", "HASSETTE_TOKEN"),
     )
