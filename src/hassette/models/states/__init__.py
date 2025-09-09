@@ -1,15 +1,14 @@
 import typing
-from contextlib import suppress
 from logging import getLogger
 from warnings import warn
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .air_quality import AirQualityState
 from .alarm_control_panel import AlarmControlPanelState
 from .assist_satellite import AssistSatelliteState
 from .automation import AutomationState
-from .base import DOMAIN_MAP, BaseState, StateT, StateValueT
+from .base import BaseState, StateT, StateValueT
 from .calendar import CalendarState
 from .camera import CameraState
 from .climate import ClimateState
@@ -65,8 +64,8 @@ from .zone import ZoneState
 if typing.TYPE_CHECKING:
     from hassette.core.events import HassStateDict
 
-
-StateUnion: typing.TypeAlias = (
+# _StateUnion does not include BaseState, which is the fallback type if no specific type matches.
+_StateUnion: typing.TypeAlias = (
     AiTaskState
     | AssistSatelliteState
     | AutomationState
@@ -119,9 +118,10 @@ StateUnion: typing.TypeAlias = (
     | InputSelectState
     | SensorState
     | BinarySensorState
-    | BaseState
 )
 
+StateUnion = _StateUnion | BaseState
+"""A union of all specific state types and BaseState. Used for type hinting when the specific type is not known."""
 
 LOGGER = getLogger(__name__)
 
@@ -142,7 +142,7 @@ def try_convert_state(data: "HassStateDict | None") -> StateUnion | None:
 
     class _AnyState(BaseModel):
         model_config = ConfigDict(coerce_numbers_to_str=True, arbitrary_types_allowed=True)
-        state: StateUnion
+        state: _StateUnion = Field(discriminator="domain")
 
     if data is None:
         return None
@@ -151,40 +151,19 @@ def try_convert_state(data: "HassStateDict | None") -> StateUnion | None:
         LOGGER.error("Data contains 'event' key, expected state data, not event data", stacklevel=2)
         return None
 
-    # ensure it's wrapped in a dict with "state" key
-    convert_envelope = {"state": data}
-
-    domain = None
-    cls: type[BaseState] | None = None
-
-    with suppress(Exception):
-        domain = data["entity_id"].split(".")[0]
-
-    if domain:
-        match domain:
-            case "binary_sensor":
-                cls = BinarySensorState
-            case "sensor":
-                cls = SensorState
-            case _:
-                cls = DOMAIN_MAP.get(domain)
-
-    if cls is not None:
-        try:
-            return cls.model_validate(data)
-        except Exception:
-            LOGGER.exception("Failed to convert state for domain %s", domain)
-
     try:
-        result = _AnyState.model_validate(convert_envelope).state
+        data["domain"] = data["entity_id"].split(".")[0]
+        return _AnyState.model_validate({"state": data}).state
     except Exception:
         LOGGER.exception("Unable to convert state data %s", data)
-        return None
 
-    if type(result) is BaseState:
+    try:
+        result = BaseState.model_validate(data)
         warn(f"try_convert_state result {result.entity_id} is of type BaseState", stacklevel=2)
-
-    return result
+        return result
+    except Exception:
+        LOGGER.exception("Unable to convert state data to BaseState %s", data)
+        return None
 
 
 __all__ = [
