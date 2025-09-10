@@ -1,3 +1,4 @@
+from copy import deepcopy
 from logging import getLogger
 from pathlib import Path
 from typing import Any
@@ -17,9 +18,12 @@ class AppManifest(BaseModel):
     )
     class_name: str = Field(default=..., description="Class name of the app", examples=["MyApp"])
     display_name: str = Field(
-        default=..., description="Display name of the app, will use filename if not set", examples=["My App"]
+        default=...,
+        description="Display name of the app, will use class_name if not set",
+        examples=["My App"],
+        validation_alias=AliasChoices("name", "display_name"),
     )
-    app_path: Path = Field(
+    app_dir: Path = Field(
         ...,
         description="Path to the app directory, relative to current working directory or absolute",
         examples=["./apps"],
@@ -29,12 +33,21 @@ class AppManifest(BaseModel):
         default_factory=dict, description="User configuration for the app", validation_alias="config"
     )
 
-    def get_full_path(self) -> Path:
-        """Get the full path to the app file."""
-        if self.app_path and self.app_path.exists() and self.app_path.is_file():
-            return self.app_path
+    _full_path: Path | None = None  # Cached full path after first access
 
-        path = (self.app_path or Path.cwd()).resolve()
+    @property
+    def full_path(self) -> Path:
+        """Get the full path to the app file."""
+        if self._full_path is None:
+            self._full_path = self._get_full_path()
+        return self._full_path
+
+    def _get_full_path(self) -> Path:
+        """Get the full path to the app file."""
+        if self.app_dir and self.app_dir.exists() and self.app_dir.is_file():
+            return self.app_dir
+
+        path = (self.app_dir or Path.cwd()).resolve()
         if not path.exists():
             raise FileNotFoundError(f"App path {path} does not exist")
 
@@ -55,28 +68,46 @@ class AppManifest(BaseModel):
         if isinstance(values.get("filename"), str):
             values["filename"] = Path(values["filename"])
 
-        if isinstance(values.get("app_path"), str):
-            values["app_path"] = app_path = Path(values["app_path"]).resolve()
-            if not app_path.exists():
-                raise FileNotFoundError(f"App path {app_path} does not exist")
-            if app_path.exists() and app_path.is_file():
-                values["filename"] = app_path.name
+        if isinstance(values.get("app_dir"), str):
+            values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
+            if not app_dir.exists():
+                raise FileNotFoundError(f"App directory {app_dir} does not exist")
+            if app_dir.exists() and app_dir.is_file():
+                LOGGER.warning("App directory %s is a file, using the parent directory as app_dir", app_dir)
+                values["filename"] = app_dir.name
 
-        if "display_name" not in values or not values["display_name"]:
-            if values.get("filename"):
-                values["display_name"] = Path(values["filename"]).stem
+        display_name = values.get("display_name") or values.get("name")
+
+        if not display_name:
+            if values.get("class_name"):
+                values["display_name"] = values["class_name"]
 
         return values
 
     def model_post_init(self, context: Any) -> None:
-        if self.model_extra:
-            keys = list(self.model_extra.keys())
-            warn(
-                f"{type(self).__name__} - {self.display_name} - Instance configuration values should be"
-                " set under the `config` field:\n"
-                f"  {keys}\n"
-                "This will ensure proper validation and handling of custom configurations.",
-                stacklevel=2,
-            )
+        if not self.model_extra:
+            return super().model_post_init(context)
+
+        keys = list(self.model_extra.keys())
+        msg = (
+            f"{type(self).__name__} - {self.display_name} - Instance configuration values should be"
+            " set under the `config` field:\n"
+            f"  {keys}\n"
+            "This will ensure proper validation and handling of custom configurations."
+        )
+
+        if not self.user_config:
+            self.user_config = deepcopy(self.model_extra)
+        elif isinstance(self.user_config, dict) and not set(self.user_config).intersection(set(keys)):
+            self.user_config.update(deepcopy(self.model_extra))
+        else:
+            if isinstance(self.user_config, list):
+                msg += "\nNote: Unable to merge extra fields into list-based config."
+            elif isinstance(self.user_config, dict):
+                msg += "\nNote: Unable to merge extra fields into existing config due to intersecting keys."
+
+            msg += "\nExtra fields will be ignored. Please update your configuration."
+
+        warn(msg, stacklevel=5)
 
         return super().model_post_init(context)
