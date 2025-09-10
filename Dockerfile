@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 FROM python:3.12-slim AS builder
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /bin/
 
 # Install curl for healthcheck (and clean up to keep it small)
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
@@ -33,10 +33,11 @@ WORKDIR /app
 RUN useradd -ms /bin/bash hassette
 
 # Copy uv binary
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /bin/
 # Copy virtualenv
 COPY --from=builder --chown=hassette:hassette /app/.venv /app/.venv
 COPY --from=builder --chown=hassette:hassette /app/docker_start.sh /app/docker_start.sh
+COPY --from=builder --chown=hassette:hassette /app/src/scripts/compile_requirements.py /app/compile_requirements.py
 
 USER hassette
 
