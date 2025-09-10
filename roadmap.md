@@ -48,7 +48,7 @@ Organized by development priority. Items may evolve over time as architecture an
 - [ ] Add ability to register REST endpoints (like AppDaemon)
 - [ ] Autodoc generation from decorators
 - [_] Provide reference/sample apps - in progress
-- [ ] Docker-first deployment mode
+- [_] Docker-first deployment mode - in progress
 - [ ] Plugin loader or extension system
 - [ ] UI Config Editor Integration
 - [ ] Web dashboard or CLI tool for app/service inspection
