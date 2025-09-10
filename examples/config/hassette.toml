@@ -1,12 +1,14 @@
+[hassette]
+base_url = "http://127.0.0.1:8123"
+app_dir = "/apps" # assuming we're running via docker compose, this should be absolute starting at /apps/
+
 [apps.battery]
 enabled = true
-app_path = "/apps/examples/battery.py" # assuming we're running via docker compose, this should be absolute starting at /apps/
 filename = "battery.py"
 class_name = "Battery"
 
 [apps.battery_sync]
 enabled = true
-app_path = "/apps/examples/battery.py"
 filename = "battery.py"
 class_name = "BatterySync"
 

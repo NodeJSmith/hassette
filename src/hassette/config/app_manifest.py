@@ -1,15 +1,15 @@
+from logging import getLogger
 from pathlib import Path
 from typing import Any
 from warnings import warn
 
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
-# note to future self: do not rename app_path to path, as it causes Pydantic to set it to $PATH
+LOGGER = getLogger(__name__)
 
 
-class AppManifest(BaseSettings):
-    model_config = SettingsConfigDict(extra="allow")
+class AppManifest(BaseModel):
+    model_config = ConfigDict(extra="allow")
 
     enabled: bool
     filename: str | Path = Field(

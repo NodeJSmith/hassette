@@ -17,8 +17,7 @@ services:
       - HASSETTE_CONFIG_DIR=/config
       - HASSETTE_DATA_DIR=/data
       - HASSETTE_APP_DIR=/apps
-      - HASSETTE__HASS__BASE_URL=http://test-homeassistant:8123
-      - HASSETTE__APPS__MY_APP__APP_PATH=/config/my_app.py
+      - HASSETTE_BASE_URL=http://test-homeassistant:8123
       # Make Python look at /app/src first
       - PYTHONPATH=/app/src
 

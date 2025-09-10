@@ -56,12 +56,12 @@ class _Api(Resource):
     @property
     def _headers(self) -> dict[str, str]:
         """Get the headers for this API instance."""
-        return self.hassette.hass_config.headers
+        return self.hassette.config.headers
 
     @property
     def _rest_url(self) -> str:
         """Get the REST URL for this API instance."""
-        return self.hassette.hass_config.rest_url
+        return self.hassette.config.rest_url
 
     @property
     def _ws_conn(self) -> "_Websocket":

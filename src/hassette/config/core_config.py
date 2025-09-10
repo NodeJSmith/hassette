@@ -6,14 +6,21 @@ from pathlib import Path
 from typing import Any, Literal
 
 import platformdirs
+from dotenv import load_dotenv
 from packaging.version import Version
-from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
+from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
+from pydantic_settings import (
+    BaseSettings,
+    CliSettingsSource,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    TomlConfigSettingsSource,
+)
+from yarl import URL
 
 from hassette.logging_ import enable_logging
 
 from .app_manifest import AppManifest
-from .hass_config import HassConfig
 
 # Date/Time formats
 FORMAT_DATE = "%Y-%m-%d"
@@ -63,29 +70,111 @@ class HassetteConfig(BaseSettings):
     """Configuration for Hassette."""
 
     model_config = SettingsConfigDict(
-        env_prefix="hassette__",
+        env_prefix="hassette_",
         env_file=["/config/.env", ".env"],
         toml_file=["/config/hassette.toml", "hassette.toml"],
         env_ignore_empty=True,
         extra="allow",
-        env_nested_delimiter="__",
+        env_nested_delimiter="_",
+        cli_parse_args=True,
     )
 
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="INFO", validation_alias=AliasChoices("HASSETTE_LOG_LEVEL", "LOG_LEVEL")
+    # General configuration
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    config_dir: Path = Field(default_factory=default_config_dir, description="Directory to load/save configuration.")
+    data_dir: Path = Field(default_factory=default_data_dir, description="Directory to store Hassette data.")
+    app_dir: Path = Field(default_factory=default_app_dir, description="Directory to load user apps from.")
+
+    # Home Assistant configuration starts here
+    base_url: str = Field(default="http://127.0.0.1:8123", description="Base URL of the Home Assistant instance")
+    api_port: int = Field(
+        default=8123, description="API port for Home Assistant, overriden by port in base_url if present"
+    )
+    # The access token for the Home Assistant instance
+    # set here for CLI usage, but can also be set in hass config
+
+    token: SecretStr = Field(
+        default=...,
+        description="Access token for Home Assistant instance",
+        validation_alias=AliasChoices(
+            "HASSETTE_TOKEN",
+            "HA_TOKEN",
+            "HOME_ASSISTANT_TOKEN",
+            "t",  # for cli
+        ),
     )
 
-    hass: HassConfig = Field(default_factory=HassConfig)  # pyright: ignore[reportArgumentType]
+    # App configurations
     apps: dict[str, AppManifest] = Field(
         default_factory=dict, description="Configuration for Hassette apps, keyed by app name."
     )
 
-    data_dir: Path = Field(default_factory=default_data_dir, description="Directory to store Hassette data.")
-    app_dir: Path = Field(default_factory=default_app_dir, description="Directory to load user apps from.")
-    config_dir: Path = Field(default_factory=default_config_dir, description="Directory to store Hassette config.")
-
+    # Other configurations
     websocket_timeout_seconds: int = Field(default=5, description="Timeout for WebSocket requests.")
     run_sync_timeout_seconds: int = Field(default=6, description="Default timeout for synchronous function calls.")
+
+    @property
+    def ws_url(self) -> str:
+        """Construct the WebSocket URL for Home Assistant."""
+        yurl = URL(self.base_url)
+        scheme = yurl.scheme if yurl.scheme else "ws"
+        if "http" in scheme:
+            scheme = scheme.replace("http", "ws")
+
+        port = yurl.port if yurl.port else self.api_port
+        host = yurl.host if yurl.host else self.base_url.split(":")[0]
+
+        return str(URL.build(scheme=scheme, host=host, port=port, path="/api/websocket"))
+
+    @property
+    def rest_url(self) -> str:
+        """Construct the REST API URL for Home Assistant."""
+        yurl = URL(self.base_url)
+
+        port = yurl.port if yurl.port else self.api_port
+        scheme = yurl.scheme if yurl.scheme else "http"
+        host = yurl.host if yurl.host else self.base_url.split(":")[0]
+
+        return str(URL.build(scheme=scheme, host=host, port=port, path="/api/"))
+
+    @property
+    def auth_headers(self) -> dict[str, str]:
+        """Return the headers required for authentication."""
+        return {"Authorization": f"Bearer {self.token.get_secret_value()}"}
+
+    @property
+    def headers(self) -> dict[str, str]:
+        """Return the headers for API requests."""
+        headers = self.auth_headers.copy()
+        headers["Content-Type"] = "application/json"
+        return headers
+
+    @property
+    def truncated_token(self) -> str:
+        """Return a truncated version of the token for display purposes."""
+        token_value = self.token.get_secret_value()
+        return f"{token_value[:6]}...{token_value[-6:]}"
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_hassette_header(cls, values: dict[str, Any]) -> dict[str, Any]:
+        if values.get("hassette"):
+            values.update(values.pop("hassette"))
+        return values
+
+    @field_validator("apps", mode="before")
+    @classmethod
+    def set_app_dir_in_apps(cls, values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
+        """Sets the app_dir in each app manifest if not already set."""
+        app_dir = info.data.get("app_dir")
+        if not app_dir:
+            return values
+        for v in values.values():
+            if not isinstance(v, dict):
+                continue
+            if "app_dir" not in v or not v["app_dir"]:
+                v["app_dir"] = app_dir
+        return values
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -97,16 +186,26 @@ class HassetteConfig(BaseSettings):
 
         enable_logging(self.log_level)
 
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        envs = self.config_dir.rglob("*.env")
+        for env in envs:
+            LOGGER.info("Loading environment variables from %s", env)
+            load_dotenv(env)
+
     @classmethod
     def settings_customise_sources(
         cls,
         settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,  # noqa
+        init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         sources = (
+            # we don't error if unknown args are passed, since other things may be passed in CLI
+            # that aren't for us (plus it's just very freaking annoying, like damn, not everything's about you)
+            CliSettingsSource(settings_cls, cli_ignore_unknown_args=True),
+            init_settings,
             env_settings,
             dotenv_settings,
             TomlConfigSettingsSource(settings_cls),

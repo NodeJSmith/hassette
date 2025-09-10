@@ -41,7 +41,7 @@ class _Websocket(Service):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
         self.hassette = hassette
-        self.url = self.hassette.config.hass.ws_url
+        self.url = self.hassette.config.ws_url
         self._stack = AsyncExitStack()
         self._session: aiohttp.ClientSession | None = None
         self._ws: aiohttp.ClientWebSocketResponse | None = None
@@ -286,9 +286,9 @@ class _Websocket(Service):
         """Authenticate with the Home Assistant WebSocket API."""
 
         assert self._ws, "WebSocket must be initialized before authenticating"
-        token = self.hassette.config.hass.token.get_secret_value()
-        truncated_token = self.hassette.config.hass.truncated_token
-        ws_url = self.hassette.config.hass.ws_url
+        token = self.hassette.config.token.get_secret_value()
+        truncated_token = self.hassette.config.truncated_token
+        ws_url = self.hassette.config.ws_url
 
         with anyio.fail_after(10):
             msg = await self._ws.receive_json()

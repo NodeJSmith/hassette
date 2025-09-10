@@ -22,7 +22,6 @@ from hassette.core.websocket import _Websocket
 from hassette.utils import get_traceback_string
 
 if typing.TYPE_CHECKING:
-    from hassette.config.hass_config import HassConfig
     from hassette.core.classes import Resource, Service
 
 
@@ -109,11 +108,6 @@ class Hassette:
         if self._loop is None:
             raise RuntimeError("Event loop is not running")
         return self._loop
-
-    @property
-    def hass_config(self) -> "HassConfig":
-        """Get the current Hassette configuration."""
-        return self.config.hass
 
     @property
     def apps(self) -> dict:

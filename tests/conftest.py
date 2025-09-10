@@ -41,7 +41,7 @@ class TestConfig(HassetteConfig):
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="hassette__",
+        env_prefix="hassette_",
         env_file=ENV_FILE.as_posix(),
         toml_file=TEST_TOML_FILE.as_posix(),
         env_ignore_empty=True,
