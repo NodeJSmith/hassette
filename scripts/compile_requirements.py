@@ -52,7 +52,7 @@ def main() -> int:
     lines = read_lines_dedup(files)
 
     if not lines:
-        print(f"No requirements files found in {CONFIG_PATH}, exiting")
+        print(f"No requirements files found in {CONFIG_PATH} or {APPS_PATH}, skipping")
         return 0
 
     OUTPUT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")

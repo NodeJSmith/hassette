@@ -22,11 +22,12 @@ APPS=/apps
 # find $CONF -name requirements.txt -type f -not -empty -exec uv pip install -r {} --directory $APPS \;
 # if pyproject.toml or uv.lock exists in $APPS, install that
 if [ -f $APPS/pyproject.toml ] || [ -f $APPS/uv.lock ]; then
+    echo "Installing project in $APPS"
     uv sync --directory $APPS --no-default-groups --inexact --no-build-isolation --active # leave existing packages alone
 fi
 
 # find $CONF -name requirements.txt -type f -not -empty -exec uv pip install -r {} --directory $APPS \;
-if uv run scripts/compile_requirements.py; then
+if uv run scripts/compile_requirements.py && [ -f /tmp/merged_requirements.txt ]; then
     uv pip install -r /tmp/merged_requirements.txt --no-deps --no-build-isolation
 fi
 

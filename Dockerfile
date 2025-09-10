@@ -30,10 +30,14 @@ RUN apk add --no-cache curl tini
 
 WORKDIR /app
 
+ENV UV_CACHE_DIR=/uv_cache
+
 # Create non-root user first
 RUN addgroup -S hassette \
     && adduser -S -G hassette -h /home/hassette hassette \
-    && chown -R hassette:hassette /home/hassette
+    && chown -R hassette:hassette /home/hassette \
+    && mkdir -p $UV_CACHE_DIR \
+    && chown -R hassette:hassette $UV_CACHE_DIR
 
 # Copy uv binary
 COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /bin/
@@ -49,11 +53,11 @@ ENV HOME=/home/hassette \
     HASSETTE_DATA_DIR=/data \
     HASSETTE_APP_DIR=/apps \
     PYTHONUNBUFFERED=1 \
-    UV_NO_CACHE=1 \
     UV_LINK_MODE=copy \
+    UV_CACHE_DIR=/uv_cache \
     OSTYPE=linux \
     PATH="/app/.venv/bin:$PATH"
 
-VOLUME ["/config", "/data", "/apps"]
+VOLUME ["/config", "/data", "/apps", "/uv_cache"]
 
 ENTRYPOINT ["tini", "--", "/app/scripts/docker_start.sh"]
