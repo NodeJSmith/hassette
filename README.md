@@ -63,7 +63,7 @@ Create `hassette.toml`:
 ```toml
 [apps.battery_monitor]
 enabled = true
-app_path = "battery_monitor.py"
+filename = "battery_monitor.py"
 class_name = "BatteryMonitor"
 
 [apps.battery_monitor.config]
@@ -95,7 +95,7 @@ Apps are configured via a `hassette.toml` file using Pydantic models for validat
 ```toml
 [apps.my_app]  # Validated by AppManifest during Hassette startup
 enabled = true
-app_path = "my_app.py"
+filename = "my_app.py"
 class_name = "MyApp"
 
 [apps.my_app.config]  # Validated by your Pydantic class when MyApp initializes
@@ -214,7 +214,7 @@ Configure multiple instances of the same app with different configurations:
 ```toml
 [apps.presence]
 enabled = true
-app_path = "presence.py"
+filename = "presence.py"
 class_name = "PresenceApp"
 
 # Multiple instances using [[apps.presence.config]]
