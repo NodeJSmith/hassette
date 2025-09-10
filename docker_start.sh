@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# shellcheck disable=SC1091
 . /app/.venv/bin/activate
 
 CONF=/config
