@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/usr/bin/env sh
+
+set -eu  # no pipefail in busybox ash
 
 ## We use a virtual environment because uv REALLY doesn't like to not use one
 ## plus it isolates the hassette dependencies from the host system
@@ -9,8 +11,10 @@
 
 ## otherwise we look for hassette-requirements.txt/requirements.txt files in /config and /apps and install those
 
+# ---- Activate venv (guard bash-isms in activate) -------------------------
 # shellcheck disable=SC1091
 . /app/.venv/bin/activate
+
 
 APPS=/apps
 
@@ -22,7 +26,7 @@ if [ -f $APPS/pyproject.toml ] || [ -f $APPS/uv.lock ]; then
 fi
 
 # find $CONF -name requirements.txt -type f -not -empty -exec uv pip install -r {} --directory $APPS \;
-if uv run compile_requirements.py; then
+if uv run scripts/compile_requirements.py; then
     uv pip install -r /tmp/merged_requirements.txt --no-deps --no-build-isolation
 fi
 

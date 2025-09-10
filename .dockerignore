@@ -1,22 +1,64 @@
-# Repository
-.github/
-.mypy_cache/
-.ruff_cache/
-.venv/
-docs/
-examples/
-scripts/
+# VCS
+.git
 .gitignore
-.pre-commit-config.yaml
-.readthedocs.yml
-CODE_OF_CONDUCT.md
-LICENSE
+.gitattributes
+
+# Env
+.env
+.env.*
+*.env.*
+*.env
 
 # Python
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
 *.egg-info/
-*.egg/
+*.egg
+*.whl
+.eggs/
+.python-version
+.venv/
+venv/
+ENV/
+env/
+.Python
+
+# Build/test artifacts
 build/
 dist/
-*.pyc
-*.pyo
+.coverage
+.coverage.*
+.cache/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+.tox/
+.nox/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs/temp
+*.log
+*.out
+*.tmp
+*.bak
+*.old
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Project-specific ignores (add as needed)
+# /config/
+# /data/
+# /apps/

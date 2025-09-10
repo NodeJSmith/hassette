@@ -1,53 +1,59 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.12-slim AS builder
+# ---- Builder stage ----
+FROM python:3.12-alpine AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /bin/
 
-# Install curl for healthcheck (and clean up to keep it small)
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+# uncomment this if/when we need to build packages with native extensions
+# RUN apk add --no-cache build-base
 
 WORKDIR /app
 
-# Copy lock + manifest for dependency resolution first
+# Copy lock + manifest for dependency resolution
 ADD . /app
 
 ENV UV_LINK_MODE=copy
 
 # Install deps (without project)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project --no-editable
+    uv sync --locked --no-install-project --no-editable --active
 
-WORKDIR /app
-
-# Install project into venv (not editable)
+# Install project into venv (not editable, root owns at this point)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-editable
+    uv sync --locked --no-editable --active
 
-# ---- Final image ----
-FROM python:3.12-slim
+# ---- Final stage ----
+FROM python:3.12-alpine
+
+# System packages you want available at runtime
+RUN apk add --no-cache curl tini
 
 WORKDIR /app
 
 # Create non-root user first
-RUN useradd -ms /bin/bash hassette
+RUN addgroup -S hassette \
+    && adduser -S -G hassette -h /home/hassette hassette \
+    && chown -R hassette:hassette /home/hassette
 
 # Copy uv binary
 COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /bin/
-# Copy virtualenv
-COPY --from=builder --chown=hassette:hassette /app/.venv /app/.venv
-COPY --from=builder --chown=hassette:hassette /app/docker_start.sh /app/docker_start.sh
-COPY --from=builder --chown=hassette:hassette /app/src/scripts/compile_requirements.py /app/compile_requirements.py
+
+# Copy app, venv, scripts
+COPY --from=builder --chown=hassette:hassette /app /app
 
 USER hassette
 
-VOLUME ["/config", "/data", "/apps"]
-
-ENV HASSETTE_CONFIG_DIR=/config \
+# add OSTYPE to fix issue in python3.12 (https://github.com/python/cpython/issues/112252)
+ENV HOME=/home/hassette \
+    HASSETTE_CONFIG_DIR=/config \
     HASSETTE_DATA_DIR=/data \
     HASSETTE_APP_DIR=/apps \
     PYTHONUNBUFFERED=1 \
+    UV_NO_CACHE=1 \
+    UV_LINK_MODE=copy \
+    OSTYPE=linux \
     PATH="/app/.venv/bin:$PATH"
 
-# Run via installed console script
-ENTRYPOINT ["/app/docker_start.sh"]
+VOLUME ["/config", "/data", "/apps"]
+
+ENTRYPOINT ["tini", "--", "/app/scripts/docker_start.sh"]

@@ -3,10 +3,10 @@ services:
     image: ghcr.io/yourusername/hassette:latest # once I actually get it published
     container_name: hassette
     restart: unless-stopped
-    user: "1000:1000"
     volumes:
       - ./config:/config
       - ./apps:/apps
+      - ./data:/data
     environment:
       - LOG_LEVEL=info
     healthcheck:
