@@ -69,7 +69,7 @@ class _Api(Resource):
         return self.hassette._websocket
 
     @retry(
-        retry=retry_if_not_exception_type((EntityNotFoundError, InvalidAuthError)),
+        retry=retry_if_not_exception_type((EntityNotFoundError, InvalidAuthError, RuntimeError)),
         wait=wait_exponential_jitter(),
         stop=stop_after_attempt(5),
         reraise=True,
