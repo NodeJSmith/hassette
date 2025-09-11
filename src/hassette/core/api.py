@@ -12,7 +12,7 @@ from whenever import Date, Instant, PlainDateTime, ZonedDateTime
 
 from hassette.core.classes import Resource
 from hassette.core.events import HassContext, HassStateDict
-from hassette.exceptions import EntityNotFoundError
+from hassette.exceptions import EntityNotFoundError, InvalidAuthError
 from hassette.models.entities import BaseEntity, EntityT
 from hassette.models.history import HistoryEntry, normalize_history
 from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, try_convert_state
@@ -69,7 +69,7 @@ class _Api(Resource):
         return self.hassette._websocket
 
     @retry(
-        retry=retry_if_not_exception_type(EntityNotFoundError),
+        retry=retry_if_not_exception_type((EntityNotFoundError, InvalidAuthError)),
         wait=wait_exponential_jitter(),
         stop=stop_after_attempt(5),
         reraise=True,
