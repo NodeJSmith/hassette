@@ -21,7 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Configuration
 - New `app_dir` configuration option to specify the directory containing user apps (default: ./apps)
 - Top level `[hassette]` can be used - previously had to be at the root of the file, with no header
--
+- `_HealthService` config - allow setting port and allow disabling health service
+  - `health_service_port` (default: 8126)
+  - `run_health_service` (default: true)
+
 
 ### Changed
 - **BREAKING**: Moved all event models from `hassette.models.events` to `hassette.core.events` for better organization
@@ -32,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: Changed environment variable prefix from `hassette__*` to `hassette_*` (double underscore to single)
 - Simplified configuration test files to use new flattened structure
 - Reorganized imports throughout codebase to use new event locations
+- Change resource status prior to sending event, to ensure consistency
+- Improve retry logic in `_Api` and `_Websocket` classes
 
 ### Fixed
 - Improved App constructor with better parameter formatting and documentation
@@ -40,12 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced state conversion with better discriminated union handling using Pydantic's `discriminator` field
 - Improved error handling in `try_convert_state` function
 - Updated AppConfig to allow arbitrary types (`arbitrary_types_allowed=True`)
+- Handle bug in `_HealthService` config - sometimes `web.AppKey` raises an `UnboundLocalError` (only seen in testing so far), fallback to string in this case
 
 ### Removed
 - Removed unused `_make_unique_name` method from App class
 - Removed `KNOWN_TOPICS` constant that was no longer used
 - Removed `hass_config` property from Hassette class (configuration is now flattened)
 - Cleaned up unused imports and redundant code
+- ResourceSync
+- `stop` method on Resource
+-
 
 ### Internal
 - Updated all import statements throughout the codebase to reflect new module structure
