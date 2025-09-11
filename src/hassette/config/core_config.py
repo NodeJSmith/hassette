@@ -90,9 +90,6 @@ class HassetteConfig(BaseSettings):
     api_port: int = Field(
         default=8123, description="API port for Home Assistant, overriden by port in base_url if present"
     )
-    # The access token for the Home Assistant instance
-    # set here for CLI usage, but can also be set in hass config
-
     token: SecretStr = Field(
         default=...,
         description="Access token for Home Assistant instance",
@@ -112,6 +109,12 @@ class HassetteConfig(BaseSettings):
     # Other configurations
     websocket_timeout_seconds: int = Field(default=5, description="Timeout for WebSocket requests.")
     run_sync_timeout_seconds: int = Field(default=6, description="Default timeout for synchronous function calls.")
+    run_health_service: bool = Field(
+        default=True, description="Whether to run the health service for container healthchecks."
+    )
+    health_service_port: int | None = Field(
+        default=8126, description="Port to run the health service on, ignored if run_health_service is False."
+    )
 
     @property
     def ws_url(self) -> str:
