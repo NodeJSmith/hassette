@@ -15,15 +15,15 @@ from .core import (
     Resource,
     ResourceRole,
     ResourceStatus,
-    ResourceSync,
     ScheduledJob,
     Service,
     TriggerProtocol,
+    events,
     topics,
 )
 from .core.bus import predicates
-from .models import entities, events, states
-from .models.events import StateChangeEvent
+from .core.events import StateChangeEvent
+from .models import entities, states
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
 
@@ -42,7 +42,6 @@ __all__ = [
     "Resource",
     "ResourceRole",
     "ResourceStatus",
-    "ResourceSync",
     "ScheduledJob",
     "Service",
     "StateChangeEvent",

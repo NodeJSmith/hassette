@@ -33,6 +33,8 @@ async def mock_hassette_with_bus():
             self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, Event]](1000)
             self._bus = _Bus(cast("Hassette", self), self._receive_stream.clone())
             self.bus = Bus(cast("Hassette", self), self._bus)
+            self.ready_event = asyncio.Event()
+            self.ready_event.set()
 
         async def send_event(self, topic: str, event: Event[Any]) -> None:
             """Mock method to send an event to the bus."""

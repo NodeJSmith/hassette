@@ -37,12 +37,20 @@ class App(Generic[AppConfigT], Resource):
     _import_exception: ClassVar[Exception | None] = None
     """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
 
-    def __init__(self, hassette: "Hassette", app_config: AppConfigT = DEFAULT_CONFIG, index: int = 0, *args, **kwargs):
+    def __init__(
+        self,
+        hassette: "Hassette",
+        app_config: AppConfigT = DEFAULT_CONFIG,
+        index: int = 0,
+        *args,
+        **kwargs,
+    ):
         """Initialize the App instance. This will generally not be called directly.
 
         Args:
             hassette (Hassette): The Hassette instance this app belongs to.
             app_config (AppConfigT): User configuration for the app, defaults to AppUserConfig.
+            index (int): Index of the app instance, used when multiple instances of the same app are run.
 
         """
         super().__init__(hassette=hassette, *args, **kwargs)  # noqa: B026
@@ -87,10 +95,6 @@ class App(Generic[AppConfigT], Resource):
         This method should be overridden by subclasses to provide custom shutdown logic.
         """
         await super().shutdown()
-
-    def _make_unique_name(self) -> str:
-        """Generate a unique name for the app instance."""
-        return f"{self.app_manifest_cls.display_name or self.class_name}_{id(self)}"
 
 
 class AppSync(App[AppConfigT]):

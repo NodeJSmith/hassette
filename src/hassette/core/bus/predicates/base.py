@@ -7,8 +7,8 @@ from inspect import isawaitable
 from hassette.core.types import E_contra
 
 if typing.TYPE_CHECKING:
+    from hassette.core.events import Event
     from hassette.core.types import Predicate
-    from hassette.models.events import Event
 
 
 SENTINEL = object()

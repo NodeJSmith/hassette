@@ -7,7 +7,7 @@ from logging import getLogger
 from typing import ClassVar
 
 from hassette.core.enums import ResourceRole, ResourceStatus
-from hassette.models.events import create_service_status_event
+from hassette.core.events import create_service_status_event
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
@@ -36,7 +36,6 @@ class _HassetteBase:
             **kwargs: Additional keyword arguments.
         """
         self.hassette = hassette
-        self.sync = _HassetteBaseSyncFacade(self)
 
     def __init_subclass__(cls) -> None:
         """
@@ -82,63 +81,33 @@ class _HassetteBase:
         """Handle a stop event."""
 
         self.logger.info("Stopping %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.STOPPED
         event = self._create_service_status_event(ResourceStatus.STOPPED)
         await self.hassette.send_event(event.topic, event)
-        self.status = ResourceStatus.STOPPED
 
     async def handle_failed(self, exception: Exception) -> None:
         """Handle a failure event."""
 
         self.logger.error("%s '%s' failed: %s - %s", self.role, self.class_name, type(exception), str(exception))
+        self.status = ResourceStatus.FAILED
         event = self._create_service_status_event(ResourceStatus.FAILED, exception)
         await self.hassette.send_event(event.topic, event)
-        self.status = ResourceStatus.FAILED
 
     async def handle_start(self) -> None:
         """Handle a start event for the service."""
 
         self.logger.info("Starting %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.RUNNING
         event = self._create_service_status_event(ResourceStatus.RUNNING)
         await self.hassette.send_event(event.topic, event)
-        self.status = ResourceStatus.RUNNING
 
     async def handle_crash(self, exception: Exception) -> None:
         """Handle a crash event."""
 
         self.logger.exception("%s '%s' crashed", self.role, self.class_name)
+        self.status = ResourceStatus.CRASHED
         event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
         await self.hassette.send_event(event.topic, event)
-        self.status = ResourceStatus.CRASHED
-
-
-class _HassetteBaseSyncFacade:
-    """Facade for synchronous operations in Hassette."""
-
-    def __init__(self, base: _HassetteBase) -> None:
-        """
-        Initialize the synchronous facade with a reference to the Hassette instance.
-
-        Args:
-            base (_HassetteBase): The Hassette base instance to use for synchronous operations.
-        """
-        self.base = base
-        self.hassette = base.hassette
-
-    def handle_stop(self) -> None:
-        """Handle the stop event for the service synchronously."""
-        self.hassette.run_sync(self.base.handle_stop())
-
-    def handle_failed(self, exception: Exception) -> None:
-        """Handle a failure event for the service synchronously."""
-        self.hassette.run_sync(self.base.handle_failed(exception))
-
-    def handle_start(self) -> None:
-        """Handle the start event for the service synchronously."""
-        self.hassette.run_sync(self.base.handle_start())
-
-    def handle_crash(self, exception: Exception) -> None:
-        """Handle a crash event for the service synchronously."""
-        self.hassette.run_sync(self.base.handle_crash(exception))
 
 
 class Resource(_HassetteBase):
@@ -178,16 +147,6 @@ class Resource(_HassetteBase):
         self.logger.debug("Starting '%s' %s", self.class_name, self.role)
         self._task = self.hassette.create_task(self.initialize())
 
-    def stop(self) -> None:
-        """Stop the resource."""
-        if self.status == ResourceStatus.STOPPED:
-            self.logger.warning("%s '%s' is already stopped", self.role, self.class_name)
-            return
-
-        self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
-
-        self.hassette.run_sync(self.shutdown())
-
     def cancel(self) -> None:
         """Stop the resource."""
         if self._task and not self._task.done():
@@ -211,6 +170,10 @@ class Resource(_HassetteBase):
 
         This method can be overridden by subclasses to perform resource-specific shutdown tasks.
         """
+        if self.status == ResourceStatus.STOPPED:
+            self.logger.warning("%s '%s' is already stopped", self.role, self.class_name)
+            return
+
         self.logger.debug("Shutting down '%s' %s", self.class_name, self.role)
         await self.handle_stop()
         self.status = ResourceStatus.STOPPED
@@ -220,14 +183,6 @@ class Resource(_HassetteBase):
         self.logger.debug("Restarting '%s' %s", self.class_name, self.role)
         await self.shutdown()
         await self.initialize()
-
-
-class ResourceSync(Resource):
-    def initialize(self, *args, **kwargs) -> None:
-        self.hassette.run_sync(super().initialize(*args, **kwargs))
-
-    def shutdown(self, *args, **kwargs) -> None:
-        self.hassette.run_sync(super().shutdown(*args, **kwargs))
 
 
 class Service(Resource):
@@ -244,18 +199,6 @@ class Service(Resource):
     """Role of the service, e.g. 'App', 'Service', etc."""
 
     _task: asyncio.Task | None = None
-
-    def __init__(self, hassette: "Hassette", *args, **kwargs) -> None:
-        """
-        Initialize the service.
-
-        Args:
-            hassette (Hassette): The Hassette instance this service belongs to.
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-        """
-        super().__init__(hassette, *args, **kwargs)
-        self.logger.debug("Creating instance of '%s' %s", self.class_name, self.role)
 
     @abstractmethod
     async def run_forever(self) -> None:

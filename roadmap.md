@@ -26,7 +26,7 @@ Organized by development priority. Items may evolve over time as architecture an
 
 ## 🥈 Priority 2 – Developer Experience & Extensibility
 
-- [ ] Allow user services to be registered/loaded
+- [ ] Allow apps to have `run_forever` tasks like services (and/or inherit from Service instead of Resource? not sure)
 - [ ] Create decorators to simplify registering event handlers and/or services
 - [x] Make it easier to mock calls/responses - `SimpleTestServer` in `test_utils.py`
 - [ ] Document everything thoroughly
@@ -48,7 +48,7 @@ Organized by development priority. Items may evolve over time as architecture an
 - [ ] Add ability to register REST endpoints (like AppDaemon)
 - [ ] Autodoc generation from decorators
 - [_] Provide reference/sample apps - in progress
-- [ ] Docker-first deployment mode
+- [_] Docker-first deployment mode - in progress
 - [ ] Plugin loader or extension system
 - [ ] UI Config Editor Integration
 - [ ] Web dashboard or CLI tool for app/service inspection

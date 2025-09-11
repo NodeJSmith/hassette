@@ -4,7 +4,7 @@ import typing
 from typing import Any, cast
 
 from hassette.async_utils import make_async_adapter
-from hassette.models.events import Event
+from hassette.core.events import Event
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette

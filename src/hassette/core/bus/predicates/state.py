@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 
 if typing.TYPE_CHECKING:
-    from hassette.models.events import StateChangeEvent
+    from hassette.core.events import StateChangeEvent
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 from hassette import App, AppConfig, AppSync
+from hassette.core.events import StateChangeEvent
 from hassette.models.entities import LightEntity
-from hassette.models.events import StateChangeEvent
 from hassette.models.states import InputButtonState, LightState
 
 

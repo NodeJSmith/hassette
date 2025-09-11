@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
 from hassette.core.enums import ResourceRole, ResourceStatus
+from hassette.core.events import Event
 from hassette.core.topics import HASSETTE_EVENT_SERVICE_STATUS, HASSETTE_EVENT_WEBSOCKET_STATUS
-from hassette.models.events import Event
 from hassette.utils import get_traceback_string
 
 HassetteT = TypeVar("HassetteT", covariant=True)

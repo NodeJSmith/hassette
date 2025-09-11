@@ -7,12 +7,12 @@ class AppConfig(BaseSettings):
     """Base configuration class for applications in the Hassette framework.
 
     This default class does not define any fields, allowing anyone who prefers to not use
-    this functionality to ignore it. It also allows all extras, so that no checking/validation
-    is done on incoming configuration data.
+    this functionality to ignore it. It also allows all extras, so arbitrary additional
+    configuration data can be passed without needing to define a custom subclass.
 
     Fields can be set on subclasses and extra can be overriden by assigning a new value to `model_config`."""
 
-    model_config = SettingsConfigDict(extra="allow")
+    model_config = SettingsConfigDict(extra="allow", arbitrary_types_allowed=True)
 
 
 AppConfigT = TypeVar("AppConfigT", bound=AppConfig)

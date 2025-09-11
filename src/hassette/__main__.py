@@ -36,21 +36,27 @@ async def main() -> None:
     args = get_parser().parse_known_args()[0]
     has_args = any(vars(args).values())
 
-    # kind of a hack to allow the settings to be loaded from the command line
+    # kind of a hack to allow the settings file to be provided at the command line
     # i'm not sure if there's a better way, given that you can only pass _env_file and _secret_dir
     # not any other overrides
     class CustomSettings(HassetteConfig):
         model_config = SettingsConfigDict(
-            env_prefix="hassette__",
+            env_prefix="hassette_",
             env_file=args.env_file,
             toml_file=args.settings,
             env_ignore_empty=True,
             extra="allow",
-            env_nested_delimiter="__",
+            env_nested_delimiter="_",
             nested_model_default_partial_update=True,
         )
 
-    core = Hassette(config=CustomSettings()) if has_args else Hassette()
+    try:
+        config = CustomSettings() if has_args else HassetteConfig()
+    except Exception as e:
+        LOGGER.exception("Error loading configuration: %s", e)
+        raise
+
+    core = Hassette(config=config) if has_args else Hassette()
 
     await core.run_forever()
 

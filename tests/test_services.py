@@ -5,7 +5,7 @@ import pytest
 from hassette.core.classes import Service
 from hassette.core.core import Hassette
 from hassette.core.enums import ResourceStatus
-from hassette.models.events import create_service_status_event
+from hassette.core.events import create_service_status_event
 
 
 class _HoldService(Service):

@@ -1,42 +1,33 @@
 import inspect
-from typing import cast
-from unittest.mock import AsyncMock, Mock, patch
 
-import orjson
-import pytest
-
-from hassette.core.api import Api, ApiSyncFacade, _Api, clean_kwargs
+from hassette.core.api import Api, ApiSyncFacade, clean_kwargs
+from hassette.test_utils import SimpleTestServer
 
 
-@pytest.fixture
-def mock_api():
-    mock = _Api(Mock())
-    mock._session = AsyncMock()
-    mock._session.request.return_value = Mock()
-    return mock
+async def test_api_rest_request_sets_body_and_headers(mock_ha_api: tuple[Api, SimpleTestServer]):
+    api, mock = mock_ha_api
+
+    mock.expect("POST", "/api/thing", "", json={"a": 1}, status=200)
+
+    resp = await api.rest_request("POST", "/api/thing", data={"a": 1})
+    resp_data = await resp.json()
+
+    assert "application/json" in resp.headers.get("Content-Type", "")
+    assert resp_data == {"a": 1}
 
 
-async def test_api_rest_request_sets_body_and_headers(mock_api: _Api):
-    await mock_api._rest_request("POST", "/api/thing", data={"a": 1})
+async def test_api_rest_request_cleans_params(mock_ha_api: tuple[Api, SimpleTestServer]):
+    api, mock = mock_ha_api
 
-    # casting to keep types linked properly, so refactoring tools work
-    req = cast("Mock", mock_api._session.request)
-
-    req.assert_called_once_with(
-        "POST",
-        "/api/thing",
-        data=orjson.dumps({"a": 1}).decode("utf-8"),
-        headers={"Content-Type": "application/json"},
-    )
-
-
-@patch("hassette.core.api.clean_kwargs")
-async def test_api_rest_request_cleans_params(mock_clean: Mock, mock_api: _Api):
     params = {"keep": "x", "none": None, "empty": "  ", "flag": False}
 
-    await mock_api._rest_request("GET", "/api/thing", params=params)
+    mock.expect("GET", "/api/thing", "keep=x&flag=false", status=200)
 
-    mock_clean.assert_called_once_with(**params)
+    resp = await api.rest_request("GET", "/api/thing", params=params)
+
+    assert resp.status == 200
+
+    assert dict(resp.request_info.url.query) == {"keep": "x", "flag": "false"}
 
 
 def test_clean_kwargs_basic():

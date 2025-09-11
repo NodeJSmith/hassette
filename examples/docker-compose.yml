@@ -1,0 +1,16 @@
+services:
+  hassette:
+    image: ghcr.io/yourusername/hassette:latest # once I actually get it published
+    container_name: hassette
+    restart: unless-stopped
+    volumes:
+      - ./config:/config
+      - ./apps:/apps
+      - ./data:/data
+    environment:
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

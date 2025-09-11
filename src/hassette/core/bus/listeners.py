@@ -11,8 +11,8 @@ if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hassette.core.bus import Bus
-    from hassette.core.bus.predicates.base import Predicate
-    from hassette.models.events import Event
+    from hassette.core.events import Event
+    from hassette.core.types import Predicate
 
 
 def callable_name(fn: Any) -> str:

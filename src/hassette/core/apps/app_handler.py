@@ -196,7 +196,7 @@ class _AppHandler(Resource):
         Uses a collision-proof module key per file path so multiple classes
         with the same name from different files don't stomp each other.
         """
-        module_path = str(app_config.get_full_path())  # resolves path, validates presence
+        module_path = str(app_config.full_path)
         class_name = app_config.class_name
 
         if not module_path or not class_name:

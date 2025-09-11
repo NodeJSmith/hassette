@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Generic, Literal, TypeVar, get_args
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, Instant, PlainDateTime, Time
@@ -48,7 +48,6 @@ StateValueT = TypeVar("StateValueT")
 
 
 LOGGER = getLogger(__name__)
-DOMAIN_MAP: dict[str, type["BaseState"]] = {}
 
 
 class Context(BaseModel):
@@ -72,39 +71,14 @@ class AttributesBase(BaseModel):
     supported_features: int | float | None = Field(default=None, description="Bitfield of supported features.")
 
 
-class _BaseState(BaseModel):
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
-
-    @classmethod
-    def __pydantic_init_subclass__(cls, **kwargs) -> None:
-        super().__pydantic_init_subclass__(**kwargs)
-        fields = cls.model_fields
-        domain = fields.get("domain")
-        domain_value = ""
-
-        if not domain:
-            return
-
-        domain_args = get_args(domain.annotation)
-
-        if len(domain_args) == 1 and isinstance(domain_args[0], str):
-            domain_value = domain_args[0]
-
-        if not domain_value:
-            return
-
-        if domain_value in DOMAIN_MAP and DOMAIN_MAP[domain_value] is not cls:
-            other_cls = DOMAIN_MAP[domain_value]
-            raise ValueError(f"Duplicate domain registration for {domain_value}: {cls} and {other_cls}")
-        DOMAIN_MAP[domain_value] = cls  # pyright: ignore[reportArgumentType]
-
-
-class BaseState(_BaseState, Generic[StateValueT]):
+class BaseState(BaseModel, Generic[StateValueT]):
     """Represents a Home Assistant state object."""
 
     # Note: HA docs mention object_id and name, but I personally haven't seen these in practice.
     # Leaving them off unless we find a use case or get a feature request for them.
     # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
+
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 
     domain: DomainLiteral | str = Field(..., description="The domain of the entity, e.g. 'light', 'sensor', etc.")
     entity_id: str = Field(..., description="The full entity ID, e.g. 'light.living_room'.")

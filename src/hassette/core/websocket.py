@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import typing
 from contextlib import AsyncExitStack, suppress
 from dataclasses import dataclass
@@ -12,10 +13,16 @@ import anyio
 import tenacity
 from aiohttp import ClientConnectorError, ClientOSError, ClientTimeout, ServerDisconnectedError, WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
-from tenacity import AsyncRetrying, RetryCallState, retry_if_exception_type
+from tenacity import (
+    AsyncRetrying,
+    before_sleep_log,
+    retry_if_exception_type,
+    retry_if_not_exception_type,
+)
 
 from hassette.core.classes import Service
 from hassette.core.enums import ResourceStatus
+from hassette.core.events import HassEventEnvelopeDict, create_event_from_hass, create_websocket_status_event
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -23,7 +30,6 @@ from hassette.exceptions import (
     InvalidAuthError,
     RetryableConnectionClosedError,
 )
-from hassette.models.events import HassEventEnvelopeDict, create_event_from_hass, create_websocket_status_event
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
@@ -41,7 +47,7 @@ class _Websocket(Service):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
         self.hassette = hassette
-        self.url = self.hassette.config.hass.ws_url
+        self.url = self.hassette.config.ws_url
         self._stack = AsyncExitStack()
         self._session: aiohttp.ClientSession | None = None
         self._ws: aiohttp.ClientWebSocketResponse | None = None
@@ -86,17 +92,6 @@ class _Websocket(Service):
             finally:
                 await self._cleanup()
 
-    async def _my_before_sleep(self, retry_state: RetryCallState):
-        if not retry_state.outcome:
-            return
-
-        exc = retry_state.outcome.exception()
-        if exc is None:
-            self.logger.warning("No exception in retry state, not calling handle_failed")
-            return
-
-        await self._send_connection_lost_event(f"{type(exc)}.{exc}")
-
     async def _connect_and_run(self) -> None:
         """Connect to the WebSocket and run the receive loop."""
 
@@ -109,13 +104,14 @@ class _Websocket(Service):
 
         timeout = ClientTimeout(connect=5, total=30)
         async for attempt in AsyncRetrying(
-            retry=retry_if_exception_type(
+            retry=retry_if_not_exception_type((InvalidAuthError, asyncio.CancelledError))
+            | retry_if_exception_type(
                 (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError)
             ),
             wait=tenacity.wait_fixed(1),
             stop=tenacity.stop_after_attempt(60),
             reraise=True,
-            before_sleep=self._my_before_sleep,
+            before_sleep=before_sleep_log(LOGGER, logging.WARNING),
         ):
             with attempt:
                 async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -286,9 +282,9 @@ class _Websocket(Service):
         """Authenticate with the Home Assistant WebSocket API."""
 
         assert self._ws, "WebSocket must be initialized before authenticating"
-        token = self.hassette.config.hass.token.get_secret_value()
-        truncated_token = self.hassette.config.hass.truncated_token
-        ws_url = self.hassette.config.hass.ws_url
+        token = self.hassette.config.token.get_secret_value()
+        truncated_token = self.hassette.config.truncated_token
+        ws_url = self.hassette.config.ws_url
 
         with anyio.fail_after(10):
             msg = await self._ws.receive_json()

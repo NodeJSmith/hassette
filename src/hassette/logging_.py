@@ -1,6 +1,7 @@
 import logging
 import sys
 import threading
+from contextlib import suppress
 from typing import Literal
 
 import coloredlogs
@@ -25,7 +26,8 @@ def enable_logging(
 
     # Move the coloredlogs handler to hassette logger, not root
     # TODO: move off coloredlogs, this stuff is too buggy
-    logger.addHandler(logging.getLogger().handlers.pop(0))
+    with suppress(IndexError):
+        logger.addHandler(logging.getLogger().handlers.pop(0))
 
     # set hassette log level back to declared level
     logger.setLevel(log_level)
