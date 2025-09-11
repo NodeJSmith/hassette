@@ -1,12 +1,13 @@
 services:
   hassette:
-    image: ghcr.io/yourusername/hassette:latest # once I actually get it published
+    image: ghcr.io/nodejsmith/hassette:latest
     container_name: hassette
     restart: unless-stopped
     volumes:
       - ./config:/config
       - ./apps:/apps
       - ./data:/data
+      - uv_cache:/uv_cache
     environment:
       - LOG_LEVEL=info
     healthcheck:
@@ -14,3 +15,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+
+volumes:
+  uv_cache:
