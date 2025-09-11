@@ -75,6 +75,7 @@ class AppManifest(BaseModel):
             if app_dir.exists() and app_dir.is_file():
                 LOGGER.warning("App directory %s is a file, using the parent directory as app_dir", app_dir)
                 values["filename"] = app_dir.name
+                values["app_dir"] = app_dir.parent
 
         display_name = values.get("display_name") or values.get("name")
 
