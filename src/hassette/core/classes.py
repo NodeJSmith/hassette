@@ -36,7 +36,6 @@ class _HassetteBase:
             **kwargs: Additional keyword arguments.
         """
         self.hassette = hassette
-        self.sync = _HassetteBaseSyncFacade(self)
 
     def __init_subclass__(cls) -> None:
         """
@@ -108,37 +107,6 @@ class _HassetteBase:
         self.logger.exception("%s '%s' crashed", self.role, self.class_name)
         event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
         await self.hassette.send_event(event.topic, event)
-        self.status = ResourceStatus.CRASHED
-
-
-class _HassetteBaseSyncFacade:
-    """Facade for synchronous operations in Hassette."""
-
-    def __init__(self, base: _HassetteBase) -> None:
-        """
-        Initialize the synchronous facade with a reference to the Hassette instance.
-
-        Args:
-            base (_HassetteBase): The Hassette base instance to use for synchronous operations.
-        """
-        self.base = base
-        self.hassette = base.hassette
-
-    def handle_stop(self) -> None:
-        """Handle the stop event for the service synchronously."""
-        self.hassette.run_sync(self.base.handle_stop())
-
-    def handle_failed(self, exception: Exception) -> None:
-        """Handle a failure event for the service synchronously."""
-        self.hassette.run_sync(self.base.handle_failed(exception))
-
-    def handle_start(self) -> None:
-        """Handle the start event for the service synchronously."""
-        self.hassette.run_sync(self.base.handle_start())
-
-    def handle_crash(self, exception: Exception) -> None:
-        """Handle a crash event for the service synchronously."""
-        self.hassette.run_sync(self.base.handle_crash(exception))
 
 
 class Resource(_HassetteBase):
@@ -244,18 +212,6 @@ class Service(Resource):
     """Role of the service, e.g. 'App', 'Service', etc."""
 
     _task: asyncio.Task | None = None
-
-    def __init__(self, hassette: "Hassette", *args, **kwargs) -> None:
-        """
-        Initialize the service.
-
-        Args:
-            hassette (Hassette): The Hassette instance this service belongs to.
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-        """
-        super().__init__(hassette, *args, **kwargs)
-        self.logger.debug("Creating instance of '%s' %s", self.class_name, self.role)
 
     @abstractmethod
     async def run_forever(self) -> None:
