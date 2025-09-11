@@ -33,8 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `config.hass.ws_url` → `config.ws_url`
   - `config.hass.base_url` → `config.base_url`
 - **BREAKING**: Changed environment variable prefix from `hassette__*` to `hassette_*` (double underscore to single)
-- Simplified configuration test files to use new flattened structure
-- Reorganized imports throughout codebase to use new event locations
 - Change resource status prior to sending event, to ensure consistency
 - Improve retry logic in `_Api` and `_Websocket` classes
 
@@ -52,11 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `KNOWN_TOPICS` constant that was no longer used
 - Removed `hass_config` property from Hassette class (configuration is now flattened)
 - Cleaned up unused imports and redundant code
-- ResourceSync
-- `stop` method on Resource
--
+  - `ResourceSync`
+  - `stop` method on Resource
+  - `__init__` on `Service` that was the same as the parent class
 
 ### Internal
+- Simplified configuration test files to use new flattened structure
 - Updated all import statements throughout the codebase to reflect new module structure
 - Simplified app handler path resolution by using `full_path` property directly
 - Updated test configuration and example files to match new config structure
