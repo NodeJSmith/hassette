@@ -29,10 +29,6 @@ assert TEST_TOML_FILE.exists(), f"Test TOML file {TEST_TOML_FILE} does not exist
 # do not include the name of the fixture
 pytest_plugins = ["hassette.test_utils.fixtures"]
 
-# TODO:
-# figure out how to get websocket mocked for some tests but not others
-# i think the fixtures/patch are clashing with each other
-
 
 class TestConfig(HassetteConfig):
     """
@@ -46,6 +42,7 @@ class TestConfig(HassetteConfig):
         toml_file=TEST_TOML_FILE.as_posix(),
         env_ignore_empty=True,
         extra="ignore",
+        cli_parse_args=False,
     )
 
     @classmethod
@@ -68,15 +65,15 @@ class TestConfig(HassetteConfig):
 
 
 @pytest.fixture(scope="session")
-def test_config():
+def test_config(unused_tcp_port_factory):
     """
     Provide a HassetteConfig instance for testing.
     This is used to ensure the configuration is set up correctly for tests.
     """
 
-    tc = TestConfig(websocket_timeout_seconds=1, run_sync_timeout_seconds=2)  # type: ignore
+    port = unused_tcp_port_factory()
 
-    assert tc.websocket_timeout_seconds == 1
+    tc = TestConfig(websocket_timeout_seconds=1, run_sync_timeout_seconds=2, health_service_port=port)  # type: ignore
 
     return tc
 
@@ -154,9 +151,6 @@ async def hassette_core(test_config: TestConfig, homeassistant_container: Contai
     )
 
     hassette = Hassette(config=test_config)
-    hassette._health_service = AsyncMock()
-
-    print("loop is", hassette._loop, id(hassette._loop))
 
     # Launch run_forever() which enters its own context
     task = asyncio.create_task(hassette.run_forever())
@@ -189,10 +183,7 @@ def hassette_core_sync(test_config: TestConfig, homeassistant_container: Contain
         f"Home Assistant container is not running ({homeassistant_container.status})"
     )
 
-    # mock health service in this one, as we will only actually test health service
-    # from the other fixture
-    with patch("hassette.core.core._HealthService", Mock()):
-        hassette = Hassette(config=test_config)
+    hassette = Hassette(config=test_config)
 
     ready = threading.Event()
 
@@ -229,6 +220,7 @@ def hassette_core_sync(test_config: TestConfig, homeassistant_container: Contain
     try:
         yield hassette
     finally:
+        print("Shutting down Hassette...")
         hassette.shutdown()
         # give the runner thread a moment to exit cleanly
         t.join(timeout=5)

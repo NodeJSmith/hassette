@@ -1,28 +1,4 @@
 [hassette]
-app_dir = "tests/data"
 base_url = "http://127.0.0.1:8123"
 api_port = 8123
-
-[apps.my_app]
-enabled = true
-filename = "my_app.py"
-class_name = "MyApp"
-name = "My Test App"
-
-[[apps.my_app.config]]
-cover_entity = "cover.ratgdo_door"
-test_entity = "light.test_light"
-
-[[apps.my_app.config]]
-cover_entity = "cover.ratgdo_door_2"
-test_entity = "light.test_light_2"
-
-[apps.my_app_sync]
-enabled = true
-filename = "my_app.py"
-class_name = "MyAppSync"
-test_entity = "light.test_light_2"
-display_name = "My Test App Sync"
-
-[apps.my_app_sync.config]
-test_entity = "light.test_light_2_from_config"
+app_dir = "tests/data"
