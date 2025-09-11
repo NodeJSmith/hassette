@@ -147,16 +147,6 @@ class Resource(_HassetteBase):
         self.logger.debug("Starting '%s' %s", self.class_name, self.role)
         self._task = self.hassette.create_task(self.initialize())
 
-    def stop(self) -> None:
-        """Stop the resource."""
-        if self.status == ResourceStatus.STOPPED:
-            self.logger.warning("%s '%s' is already stopped", self.role, self.class_name)
-            return
-
-        self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
-
-        self.hassette.run_sync(self.shutdown())
-
     def cancel(self) -> None:
         """Stop the resource."""
         if self._task and not self._task.done():
@@ -189,14 +179,6 @@ class Resource(_HassetteBase):
         self.logger.debug("Restarting '%s' %s", self.class_name, self.role)
         await self.shutdown()
         await self.initialize()
-
-
-class ResourceSync(Resource):
-    def initialize(self, *args, **kwargs) -> None:
-        self.hassette.run_sync(super().initialize(*args, **kwargs))
-
-    def shutdown(self, *args, **kwargs) -> None:
-        self.hassette.run_sync(super().shutdown(*args, **kwargs))
 
 
 class Service(Resource):
