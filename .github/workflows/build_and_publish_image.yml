@@ -2,20 +2,19 @@ name: Build & Publish Image
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
-  workflow_dispatch:
+    tags: ["v*"] # only versioned releases
+  workflow_dispatch: # manual trigger
 
 permissions:
   contents: read
-  packages: write # <- required to push to GHCR
-  id-token: write # (optional) for provenance/attestations
+  packages: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: hassette # lowercase
+      IMAGE_NAME: hassette
       REGISTRY: ghcr.io
       OWNER: ${{ github.repository_owner }}
     steps:
@@ -40,11 +39,14 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
+            # Always tag by short commit SHA (7 chars)
+            type=sha,prefix=sha-,format=short
+
+            # Only tag releases (v*) with version number
             type=ref,event=tag
-            type=sha
-            # Also tag latest on main:
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+            # Only tag latest when building on a release tag
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build & Push
         uses: docker/build-push-action@v6
@@ -53,8 +55,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Optional: enable cache to speed builds
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Optional: multi-arch
-          # platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64
