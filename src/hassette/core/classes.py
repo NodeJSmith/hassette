@@ -170,6 +170,10 @@ class Resource(_HassetteBase):
 
         This method can be overridden by subclasses to perform resource-specific shutdown tasks.
         """
+        if self.status == ResourceStatus.STOPPED:
+            self.logger.warning("%s '%s' is already stopped", self.role, self.class_name)
+            return
+
         self.logger.debug("Shutting down '%s' %s", self.class_name, self.role)
         await self.handle_stop()
         self.status = ResourceStatus.STOPPED
