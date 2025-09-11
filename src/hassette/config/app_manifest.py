@@ -72,7 +72,7 @@ class AppManifest(BaseModel):
             values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
             if not app_dir.exists():
                 raise FileNotFoundError(f"App directory {app_dir} does not exist")
-            if app_dir.exists() and app_dir.is_file():
+            if app_dir.is_file():
                 LOGGER.warning("App directory %s is a file, using the parent directory as app_dir", app_dir)
                 values["filename"] = app_dir.name
                 values["app_dir"] = app_dir.parent
