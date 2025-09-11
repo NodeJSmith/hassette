@@ -2,9 +2,8 @@ name: Build & Publish Image
 
 on:
   push:
-    branches-ignore: [main]   # ignore main pushes
-    tags: ['v*']              # build on version tags
-  workflow_dispatch:           # allow manual trigger
+    tags: ["v*"] # only versioned releases
+  workflow_dispatch: # manual trigger
 
 permissions:
   contents: read
