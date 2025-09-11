@@ -81,30 +81,31 @@ class _HassetteBase:
         """Handle a stop event."""
 
         self.logger.info("Stopping %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.STOPPED
         event = self._create_service_status_event(ResourceStatus.STOPPED)
         await self.hassette.send_event(event.topic, event)
-        self.status = ResourceStatus.STOPPED
 
     async def handle_failed(self, exception: Exception) -> None:
         """Handle a failure event."""
 
         self.logger.error("%s '%s' failed: %s - %s", self.role, self.class_name, type(exception), str(exception))
+        self.status = ResourceStatus.FAILED
         event = self._create_service_status_event(ResourceStatus.FAILED, exception)
         await self.hassette.send_event(event.topic, event)
-        self.status = ResourceStatus.FAILED
 
     async def handle_start(self) -> None:
         """Handle a start event for the service."""
 
         self.logger.info("Starting %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.RUNNING
         event = self._create_service_status_event(ResourceStatus.RUNNING)
         await self.hassette.send_event(event.topic, event)
-        self.status = ResourceStatus.RUNNING
 
     async def handle_crash(self, exception: Exception) -> None:
         """Handle a crash event."""
 
         self.logger.exception("%s '%s' crashed", self.role, self.class_name)
+        self.status = ResourceStatus.CRASHED
         event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
         await self.hassette.send_event(event.topic, event)
 
