@@ -1,18 +1,20 @@
+import logging
 import typing
 from collections.abc import Iterable, Mapping
 from contextlib import AsyncExitStack
 from datetime import date, datetime
 from enum import StrEnum
+from logging import getLogger
 from typing import Any
 
 import aiohttp
 import orjson
-from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential_jitter
+from tenacity import before_sleep_log, retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential_jitter
 from whenever import Date, Instant, PlainDateTime, ZonedDateTime
 
 from hassette.core.classes import Resource
 from hassette.core.events import HassContext, HassStateDict
-from hassette.exceptions import EntityNotFoundError, InvalidAuthError
+from hassette.exceptions import ConnectionClosedError, EntityNotFoundError, InvalidAuthError
 from hassette.models.entities import BaseEntity, EntityT
 from hassette.models.history import HistoryEntry, normalize_history
 from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, try_convert_state
@@ -20,6 +22,8 @@ from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, t
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
     from hassette.core.websocket import _Websocket
+
+LOGGER = getLogger(__name__)
 
 
 class _Api(Resource):
@@ -69,9 +73,12 @@ class _Api(Resource):
         return self.hassette._websocket
 
     @retry(
-        retry=retry_if_not_exception_type((EntityNotFoundError, InvalidAuthError, RuntimeError)),
+        retry=retry_if_not_exception_type(
+            (EntityNotFoundError, InvalidAuthError, RuntimeError, ConnectionClosedError, TypeError, AttributeError)
+        ),
         wait=wait_exponential_jitter(),
         stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(LOGGER, logging.WARNING),
         reraise=True,
     )
     async def _rest_request(
