@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.4.1] - 2025-09-11
+### Fixed
+- Fixed Dockerfile to build for both amd64 and arm64
+
 ## [0.4.0] - 2025-09-10
 
 ### Added
