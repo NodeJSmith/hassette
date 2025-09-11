@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.4.0] - 2025-09-10
+
+### Added
+#### Docker Support
+- Dockerfile with Python 3.12-alpine base image for lightweight deployment
+- Docker start script to set up virtual environment, install dependencies, and run Hassette
+  - /apps that contain a pyproject.toml or uv.lock will be installed as a project
+  - /config and /apps will be scanned for requirements.txt or hassette-requirements.txt files and merged for installation
+- Example docker-compose.yml file for easy setup
+- uv cache directory at /uv_cache to speed up dependency installation
+
+#### Configuration
+- New `app_dir` configuration option to specify the directory containing user apps (default: ./apps)
+- Top level `[hassette]` can be used - previously had to be at the root of the file, with no header
+-
+
+### Changed
+- **BREAKING**: Moved all event models from `hassette.models.events` to `hassette.core.events` for better organization
+- **BREAKING**: Updated configuration structure - flattened Hass configuration properties directly into main config
+  - `config.hass.token` → `config.token`
+  - `config.hass.ws_url` → `config.ws_url`
+  - `config.hass.base_url` → `config.base_url`
+- **BREAKING**: Changed environment variable prefix from `hassette__*` to `hassette_*` (double underscore to single)
+- Simplified configuration test files to use new flattened structure
+- Reorganized imports throughout codebase to use new event locations
+
+### Fixed
+- Improved App constructor with better parameter formatting and documentation
+- Added `index` parameter documentation to App `__init__` method
+- Fixed logging initialization to handle missing handlers gracefully using `contextlib.suppress`
+- Enhanced state conversion with better discriminated union handling using Pydantic's `discriminator` field
+- Improved error handling in `try_convert_state` function
+- Updated AppConfig to allow arbitrary types (`arbitrary_types_allowed=True`)
+
+### Removed
+- Removed unused `_make_unique_name` method from App class
+- Removed `KNOWN_TOPICS` constant that was no longer used
+- Removed `hass_config` property from Hassette class (configuration is now flattened)
+- Cleaned up unused imports and redundant code
+
+### Internal
+- Updated all import statements throughout the codebase to reflect new module structure
+- Simplified app handler path resolution by using `full_path` property directly
+- Updated test configuration and example files to match new config structure
+- Enhanced state model discriminator logic for better type resolution
+- Consolidated configuration access patterns for cleaner code
+
 ## [0.3.3] - 2025-09-07
 
 ### Fixed
