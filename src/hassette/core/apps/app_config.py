@@ -12,7 +12,7 @@ class AppConfig(BaseSettings):
 
     Fields can be set on subclasses and extra can be overriden by assigning a new value to `model_config`."""
 
-    model_config = SettingsConfigDict(extra="allow", arbitrary_types_allowed=True)
+    model_config = SettingsConfigDict(extra="allow", arbitrary_types_allowed=True, env_file=["/config/.env", ".env"])
 
 
 AppConfigT = TypeVar("AppConfigT", bound=AppConfig)

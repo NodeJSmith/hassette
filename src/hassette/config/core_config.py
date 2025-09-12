@@ -4,6 +4,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Literal
+from warnings import warn
 
 import platformdirs
 from dotenv import load_dotenv
@@ -70,12 +71,12 @@ class HassetteConfig(BaseSettings):
     """Configuration for Hassette."""
 
     model_config = SettingsConfigDict(
-        env_prefix="hassette_",
+        env_prefix="hassette__",
         env_file=["/config/.env", ".env"],
         toml_file=["/config/hassette.toml", "hassette.toml"],
         env_ignore_empty=True,
         extra="allow",
-        env_nested_delimiter="_",
+        env_nested_delimiter="__",
         cli_parse_args=True,
     )
 
@@ -94,7 +95,7 @@ class HassetteConfig(BaseSettings):
         default=...,
         description="Access token for Home Assistant instance",
         validation_alias=AliasChoices(
-            "HASSETTE_TOKEN",
+            "HASSETTE__TOKEN",
             "HA_TOKEN",
             "HOME_ASSISTANT_TOKEN",
             "t",  # for cli
@@ -162,7 +163,10 @@ class HassetteConfig(BaseSettings):
     @classmethod
     def check_hassette_header(cls, values: dict[str, Any]) -> dict[str, Any]:
         if values.get("hassette"):
-            values.update(values.pop("hassette"))
+            warn(
+                "Top level configuration should not be placed under any key, these values will be ignored.",
+                stacklevel=2,
+            )
         return values
 
     @field_validator("apps", mode="before")
@@ -211,7 +215,7 @@ class HassetteConfig(BaseSettings):
             init_settings,
             env_settings,
             dotenv_settings,
-            TomlConfigSettingsSource(settings_cls),
+            TomlConfigSettingsSource(settings_cls),  # TODO: make our own so we can handle top level hassette key
             file_secret_settings,
         )
         return sources

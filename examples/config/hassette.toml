@@ -1,4 +1,3 @@
-[hassette]
 base_url = "http://127.0.0.1:8123"
 app_dir = "/apps" # assuming we're running via docker compose, this should be absolute starting at /apps/
 
