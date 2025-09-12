@@ -4,6 +4,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Literal
+from warnings import warn
 
 import platformdirs
 from dotenv import load_dotenv
@@ -162,7 +163,10 @@ class HassetteConfig(BaseSettings):
     @classmethod
     def check_hassette_header(cls, values: dict[str, Any]) -> dict[str, Any]:
         if values.get("hassette"):
-            values.update(values.pop("hassette"))
+            warn(
+                "Top level configuration should not be placed under any key, these values will be ignored.",
+                stacklevel=2,
+            )
         return values
 
     @field_validator("apps", mode="before")
@@ -211,7 +215,7 @@ class HassetteConfig(BaseSettings):
             init_settings,
             env_settings,
             dotenv_settings,
-            TomlConfigSettingsSource(settings_cls),
+            TomlConfigSettingsSource(settings_cls),  # TODO: make our own so we can handle top level hassette key
             file_secret_settings,
         )
         return sources
