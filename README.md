@@ -110,6 +110,17 @@ from hassette import App, AppConfig
 from pydantic import Field
 
 class MyAppConfig(AppConfig):
+    # you can add a model config and set an env_prefix to simplify your environment variables
+    # this way you can set environment variables like:
+    # e.g. MYAPP_ENTITY_ID=10
+    # note this this will default to a single underscore and being case-insensitive
+
+    # otherwise you can set this with HASSETTE__APPS__MYAPP__CONFIG__ENTITY_ID=10
+    # which is not the most user friendly
+
+    model_config = SettingsConfigDict(env_prefix="myapp_")
+
+    # attributes
     entity_id: str = Field(..., description="Entity ID of the light")
     brightness_when_home: int = Field(200, ge=0, le=255)
     brightness_when_away: int = Field(50, ge=0, le=255)

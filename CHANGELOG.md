@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+### Changed
+- Remove logic to pop top level `[hassette]` section from config file, this has the unfortunate side effect of potentially overriding values set in environment variables
+  - Update examples to remove references to top level `[hassette]` section
+  - Add warning if we detect this section in the config file
+  - Add TODO to get this working by implementing a custom `TomlConfigSettingsSource` that handles this
+- Switch back to `__` double underscore for environment variable prefixes, prevents issues with app config that uses single underscore
+- Add `env_file` to AppConfig default class config to load environment variables from `/config/.env` and `.env` files automatically
+- Add examples of using `SettingsConfigDict` to set a custom `env_prefix` on AppConfig subclasses
 
 ## [0.4.2] - 2025-09-12
 ### Fixed

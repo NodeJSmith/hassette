@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic_settings import SettingsConfigDict
+
 from hassette import App, AppConfig, AppSync, StateChangeEvent, states
 
 
@@ -7,6 +9,13 @@ from hassette import App, AppConfig, AppSync, StateChangeEvent, states
 # this data can be provided in hassette.toml, in an .env file, environment
 # variables, or hardcoded - it uses pydantic settings under the hood
 class BatteryConfig(AppConfig):
+    # you can add a model config and set an env_prefix to simplify your environment variables
+    # e.g. BATTERY_THRESHOLD=10
+
+    # otherwise you can set this with HASSETTE__APPS__BATTERY__CONFIG__THRESHOLD=10
+    # which is not the most user friendly
+    model_config = SettingsConfigDict(env_prefix="battery_")
+
     threshold: float = 20
     always_send: bool = False
     force: bool = False
