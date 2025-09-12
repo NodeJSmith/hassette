@@ -70,12 +70,12 @@ class HassetteConfig(BaseSettings):
     """Configuration for Hassette."""
 
     model_config = SettingsConfigDict(
-        env_prefix="hassette_",
+        env_prefix="hassette__",
         env_file=["/config/.env", ".env"],
         toml_file=["/config/hassette.toml", "hassette.toml"],
         env_ignore_empty=True,
         extra="allow",
-        env_nested_delimiter="_",
+        env_nested_delimiter="__",
         cli_parse_args=True,
     )
 

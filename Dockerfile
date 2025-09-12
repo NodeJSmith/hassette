@@ -51,9 +51,9 @@ USER hassette
 
 # add OSTYPE to fix issue in python3.12 (https://github.com/python/cpython/issues/112252)
 ENV HOME=/home/hassette \
-    HASSETTE_CONFIG_DIR=/config \
-    HASSETTE_DATA_DIR=/data \
-    HASSETTE_APP_DIR=/apps \
+    HASSETTE__CONFIG_DIR=/config \
+    HASSETTE__DATA_DIR=/data \
+    HASSETTE__APP_DIR=/apps \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     UV_CACHE_DIR=/uv_cache \

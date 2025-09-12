@@ -41,12 +41,12 @@ async def main() -> None:
     # not any other overrides
     class CustomSettings(HassetteConfig):
         model_config = SettingsConfigDict(
-            env_prefix="hassette_",
+            env_prefix="hassette__",
             env_file=args.env_file,
             toml_file=args.settings,
             env_ignore_empty=True,
             extra="allow",
-            env_nested_delimiter="_",
+            env_nested_delimiter="__",
             nested_model_default_partial_update=True,
         )
 
