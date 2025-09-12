@@ -6,7 +6,7 @@ services:
     volumes:
       - ./config:/config
       - ./apps:/apps
-      - ./data:/data
+      - data:/data
       - uv_cache:/uv_cache
     environment:
       - LOG_LEVEL=info
@@ -18,3 +18,4 @@ services:
 
 volumes:
   uv_cache:
+  data:
