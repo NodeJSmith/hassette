@@ -16,7 +16,7 @@ async def test_apps_are_working(test_config) -> None:
             "my_app": {"enabled": True, "filename": "my_app.py", "class_name": "MyApp"},
             "my_app_sync": {"enabled": True, "filename": "my_app.py", "class_name": "MyAppSync"},
         },
-        HASSETTE_TOKEN=test_config.token.get_secret_value(),  # type: ignore
+        HASSETTE__TOKEN=test_config.token.get_secret_value(),  # type: ignore
         app_dir=test_config.app_dir,
     )  # type: ignore
 

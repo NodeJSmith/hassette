@@ -95,7 +95,7 @@ class HassetteConfig(BaseSettings):
         default=...,
         description="Access token for Home Assistant instance",
         validation_alias=AliasChoices(
-            "HASSETTE_TOKEN",
+            "HASSETTE__TOKEN",
             "HA_TOKEN",
             "HOME_ASSISTANT_TOKEN",
             "t",  # for cli

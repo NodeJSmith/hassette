@@ -10,7 +10,7 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
     Test that the overrides in the HassetteConfig are used correctly.
     """
 
-    expected_token = dotenv.get_key(env_file_path, "hassette_token")
+    expected_token = dotenv.get_key(env_file_path, "hassette__token")
 
     assert test_config.ws_url == "ws://127.0.0.1:8123/api/websocket"
     assert test_config.token.get_secret_value() == expected_token
