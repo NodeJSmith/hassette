@@ -38,8 +38,8 @@ RUN addgroup -S hassette \
     && chown -R hassette:hassette /home/hassette \
     && mkdir -p $UV_CACHE_DIR \
     && chown -R hassette:hassette $UV_CACHE_DIR \
-    && mkdkir -p /config /data /apps \
-    && chown -R hassette:hassette /config /data /apps
+    && mkdir -p /config /data /apps \
+    && chown -R hassette:hassette /config /data /apps /app
 
 # Copy uv binary
 COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /bin/
