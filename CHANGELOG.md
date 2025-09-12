@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.4.2] - 2025-09-12
+### Fixed
+- Fixed permissions for /app and /data in Dockerfile
+- Update example docker-compose.yml to use named volume for /data
+
 ## [0.4.1] - 2025-09-11
 ### Fixed
 - Fixed Dockerfile to build for both amd64 and arm64
