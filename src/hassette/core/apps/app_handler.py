@@ -1,14 +1,16 @@
 import asyncio
-import hashlib
+import importlib.machinery
 import importlib.util
 import sys
 import typing
 from collections import defaultdict
 from logging import getLogger
+from pathlib import Path
 
 import anyio
 
-from hassette.core.apps.app import App
+from hassette.config.core_config import HassetteConfig
+from hassette.core.apps.app import App, AppSync
 from hassette.core.classes import Resource
 from hassette.core.enums import ResourceStatus
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
@@ -19,6 +21,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
 
 FAIL_AFTER_SECONDS = 10
+LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 
 
 def _is_timeout(exc: BaseException) -> bool:
@@ -107,7 +110,8 @@ class _AppHandler(Resource):
         # Initialize only that app from the current config if present and enabled
         manifest = self.hassette.config.apps.get(app_name)
         if manifest and manifest.enabled:
-            await self._initialize_single_app(app_name, manifest)
+            self._instantiate_apps_from_manifest(app_name, manifest)
+            await self._initialize_apps(app_name, manifest)
 
     # ---------- Core initialization logic ----------
 
@@ -142,12 +146,19 @@ class _AppHandler(Resource):
                 continue
 
             await self.stop_app(app_name)
-            await self._initialize_single_app(app_name, app_manifest)
+            self._instantiate_apps_from_manifest(app_name, app_manifest)
+            await self._initialize_apps(app_name, app_manifest)
 
-    async def _initialize_single_app(self, app_name: str, app_manifest: "AppManifest") -> None:
-        """Initialize all instances (configs) for a single app."""
+    def _instantiate_apps_from_manifest(self, app_name: str, app_manifest: "AppManifest") -> None:
+        """Create app instances from a manifest, validating config.
+
+        Args:
+            app_name (str): The name of the app.
+            app_manifest (AppManifest): The manifest containing configuration.
+        """
+
         try:
-            app_class = self._load_app_class(app_manifest)
+            app_class = load_app_class(app_manifest)
         except (UndefinedUserConfigError, InvalidInheritanceError):
             self.logger.error(
                 "Failed to load app %s due to bad configuration - check previous logs for details", app_name
@@ -171,11 +182,23 @@ class _AppHandler(Resource):
             try:
                 validated = settings_cls.model_validate(config)
                 app_instance = app_class(self.hassette, app_config=validated, index=idx)
-                self.apps.setdefault(app_name, {})[idx] = app_instance
+                self.apps[app_name][idx] = app_instance
             except Exception as e:
                 self.logger.exception("Failed to validate/init config for %s (%s)", ident, class_name)
-                self.failed_apps.setdefault(app_name, []).append((idx, e))
+                self.failed_apps[app_name].append((idx, e))
                 continue
+
+    async def _initialize_apps(self, app_name: str, app_manifest: "AppManifest") -> None:
+        """Initialize all instances of a given app_name.
+
+        Args:
+          app_name (str): The name of the app.
+          app_manifest (AppManifest): The manifest containing configuration.
+        """
+
+        class_name = app_manifest.class_name
+        for idx, app_instance in self.apps.get(app_name, {}).items():
+            ident = _manifest_key(app_name, idx)
 
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
@@ -191,45 +214,118 @@ class _AppHandler(Resource):
 
     # ---------- Module loading ----------
 
-    def _load_app_class(self, app_config: "AppManifest") -> "type[App[AppConfig]]":
-        """Dynamically load the app class from the specified module.
 
-        Uses a collision-proof module key per file path so multiple classes
-        with the same name from different files don't stomp each other.
-        """
-        module_path = str(app_config.full_path)
-        class_name = app_config.class_name
+def load_app_class(app_manifest: "AppManifest") -> "type[App[AppConfig]]":
+    """Import the app's class with a canonical package/module identity so isinstance works.
 
-        if not module_path or not class_name:
-            raise ValueError(f"App {app_config.display_name} is missing filename or class_name")
+    Args:
+        app_manifest (AppManifest): The app manifest containing configuration.
 
-        cache_key = (module_path, class_name)
-        if cache_key in self._loaded_classes:
-            return self._loaded_classes[cache_key]
+    Returns:
+        type[App]: The app class.
+    """
+    module_path = app_manifest.full_path
+    class_name = app_manifest.class_name
 
-        # Unique module key based on path hash + class name
-        digest = hashlib.sha1(module_path.encode("utf-8")).hexdigest()
-        module_key = f"hassette_apps.{digest}.{class_name}"
+    # cache keyed by (absolute file path, class name)
+    cache_key = (str(module_path), class_name)
+    if cache_key in LOADED_CLASSES:
+        return LOADED_CLASSES[cache_key]
 
-        spec = importlib.util.spec_from_file_location(module_key, module_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Could not load module {module_path}")
+    if not module_path or not class_name:
+        raise ValueError(f"App {app_manifest.display_name} is missing filename or class_name")
 
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_key] = module
-        spec.loader.exec_module(module)  # type: ignore[union-attr]
+    pkg_name = HassetteConfig.get_config().app_dir.name
+    _ensure_on_sys_path(app_manifest.app_dir)
+    _ensure_on_sys_path(app_manifest.app_dir.parent)
 
-        try:
-            app_class = getattr(module, class_name)
-        except AttributeError as e:
-            raise AttributeError(f"Class {class_name} not found in module {module_path}") from e
+    # 1) Ensure 'apps' is a namespace package pointing at app_config.app_dir
+    _ensure_namespace_package(app_manifest.app_dir, pkg_name)
 
-        if not issubclass(app_class, App):
-            raise TypeError(f"Class {class_name} is not a subclass of App")
+    # 2) Compute canonical module name from relative path under app_dir
+    mod_name = _module_name_for(app_manifest.app_dir, module_path, pkg_name)
 
-        # If subclass import failed at class definition time, surface it
-        if getattr(app_class, "_import_exception", None):
-            raise app_class._import_exception  # type: ignore[misc]
+    # 3) Import or reload the module by canonical name
+    if mod_name in sys.modules:  # noqa: SIM108
+        module = importlib.reload(sys.modules[mod_name])
+    else:
+        module = importlib.import_module(mod_name)
 
-        self._loaded_classes[cache_key] = app_class
-        return app_class
+    try:
+        app_class = getattr(module, class_name)
+    except AttributeError:
+        raise AttributeError(f"Class {class_name} not found in module {mod_name} ({module_path})") from None
+
+    if not issubclass(app_class, App | AppSync):
+        raise TypeError(f"Class {class_name} is not a subclass of App or AppSync")
+
+    if app_class._import_exception:
+        raise app_class._import_exception  # surface subclass init errors
+
+    LOADED_CLASSES[cache_key] = app_class
+    return app_class
+
+
+def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
+    """Ensure a namespace package rooted at `root` is importable as `pkg_name`.
+
+    Args:
+      root (Path): Directory to treat as the root of the namespace package.
+      pkg_name (str): The package name to use (e.g. 'apps')
+
+    Returns:
+      None
+
+    - Creates/updates sys.modules[pkg_name] as a namespace package.
+    - Adds `root` to submodule_search_locations so 'pkg_name.*' resolves under this directory.
+    """
+
+    root = root.resolve()
+    if pkg_name in sys.modules and hasattr(sys.modules[pkg_name], "__path__"):
+        ns_pkg = sys.modules[pkg_name]
+        # extend search locations if necessary
+        if str(root) not in ns_pkg.__path__:
+            ns_pkg.__path__.append(str(root))
+        return
+
+    # Synthesize a namespace package
+    spec = importlib.machinery.ModuleSpec(pkg_name, loader=None, is_package=True)
+    ns_pkg = importlib.util.module_from_spec(spec)
+    ns_pkg.__path__ = [str(root)]
+    sys.modules[pkg_name] = ns_pkg
+
+
+def _module_name_for(app_dir: Path, full_path: Path, pkg_name: str) -> str:
+    """
+    Map a file within app_dir to a stable module name under the 'apps' package.
+
+    Args:
+      app_dir (Path): The root directory containing apps (e.g. /path/to/apps)
+      full_path (Path): The full path to the app module file (e.g. /path/to/apps/my_app.py)
+      pkg_name (str): The package name to use (e.g. 'apps')
+
+    Returns:
+      str: The dotted module name (e.g. 'apps.my_app')
+
+    Examples:
+      app_dir=/path/to/apps
+        /path/to/apps/my_app.py         -> apps.my_app
+        /path/to/apps/notifications/email_digest.py -> apps.notifications.email_digest
+    """
+    app_dir = app_dir.resolve()
+    full_path = full_path.resolve()
+    rel = full_path.relative_to(app_dir).with_suffix("")  # drop .py
+    parts = list(rel.parts)
+    return ".".join([pkg_name, *parts])
+
+
+def _ensure_on_sys_path(p: Path) -> None:
+    """Ensure the given path is on sys.path for module resolution.
+
+    Args:
+      p (Path): Directory to add to sys.path
+    """
+
+    p = p.resolve()
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
