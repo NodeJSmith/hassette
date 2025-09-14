@@ -74,7 +74,9 @@ def test_config(unused_tcp_port_factory):
 
     port = unused_tcp_port_factory()
 
-    tc = TestConfig(websocket_timeout_seconds=1, run_sync_timeout_seconds=2, health_service_port=port)  # type: ignore
+    tc = TestConfig(
+        websocket_timeout_seconds=1, run_sync_timeout_seconds=2, health_service_port=port, app_dir=TEST_DATA_PATH
+    )
 
     return tc
 
