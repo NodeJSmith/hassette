@@ -269,7 +269,11 @@ class HassetteConfig(HassetteBaseSettings):
     @classmethod
     def get_config(cls) -> "HassetteConfig":
         """Get the global configuration instance."""
-        if cls._instance is None:
-            raise RuntimeError("Configuration has not been loaded yet.")
+        if hasattr(cls, "_instance") and cls._instance is not None:
+            return cls._instance
 
-        return cls._instance
+        # TODO: figure out why this is necessary in some cases
+        # sometimes the identity of HassetteConfig is different when accessed from different modules
+        from hassette.core.core import Hassette
+
+        return Hassette.get_instance().config  # will raise RuntimeError if not initialized yet
