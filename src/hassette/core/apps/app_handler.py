@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import sys
 import typing
+from collections import defaultdict
 from logging import getLogger
 
 import anyio
@@ -44,10 +45,10 @@ class _AppHandler(Resource):
         self.hassette = hassette
 
         # Running instances: { app_name: { index: App } }
-        self.apps: dict[str, dict[int, App]] = {}
+        self.apps: dict[str, dict[int, App]] = defaultdict(dict)
 
         # Failures captured during init: { app_name: [ (index, Exception) ] }
-        self.failed_apps: dict[str, list[tuple[int, Exception]]] = {}
+        self.failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
 
         # Cache: loaded classes keyed by (full_path, class_name)
         self._loaded_classes: dict[tuple[str, str], type[App[AppConfig]]] = {}
