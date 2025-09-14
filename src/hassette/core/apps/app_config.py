@@ -17,7 +17,3 @@ class AppConfig(BaseSettings):
 
 AppConfigT = TypeVar("AppConfigT", bound=AppConfig)
 """Type variable for app configuration classes."""
-
-
-DEFAULT_CONFIG = AppConfig()
-"""Default configuration for apps."""

@@ -4,24 +4,23 @@ from pathlib import Path
 from typing import Any
 from warnings import warn
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 LOGGER = getLogger(__name__)
 
 
 class AppManifest(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", coerce_numbers_to_str=True)
 
-    enabled: bool
-    filename: str | Path = Field(
+    enabled: bool = Field(
+        default=True, description="Whether the app is enabled or not, will default to True if not set"
+    )
+    filename: str = Field(
         default=..., description="Filename of the app, will be looked for in app_path", examples=["my_app.py"]
     )
     class_name: str = Field(default=..., description="Class name of the app", examples=["MyApp"])
     display_name: str = Field(
-        default=...,
-        description="Display name of the app, will use class_name if not set",
-        examples=["My App"],
-        validation_alias=AliasChoices("name", "display_name"),
+        default=..., description="Display name of the app, will use class_name if not set", examples=["My App"]
     )
     app_dir: Path = Field(
         ...,
@@ -64,24 +63,25 @@ class AppManifest(BaseModel):
     @classmethod
     def validate_app_config(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Validate the app configuration."""
+        required_keys = ["filename", "class_name", "app_dir"]
+        missing_keys = [key for key in required_keys if key not in values]
+        if missing_keys:
+            raise ValueError(f"App configuration is missing required keys: {', '.join(missing_keys)}")
 
-        if isinstance(values.get("filename"), str):
-            values["filename"] = Path(values["filename"])
+        values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
 
-        if isinstance(values.get("app_dir"), str):
-            values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
-            if not app_dir.exists():
-                raise FileNotFoundError(f"App directory {app_dir} does not exist")
-            if app_dir.is_file():
-                LOGGER.warning("App directory %s is a file, using the parent directory as app_dir", app_dir)
-                values["filename"] = app_dir.name
-                values["app_dir"] = app_dir.parent
+        # if not app_dir.exists():
+        #     raise FileNotFoundError(f"App directory {app_dir} does not exist")
 
-        display_name = values.get("display_name") or values.get("name")
+        values["display_name"] = values.get("display_name") or values.get("class_name")
 
-        if not display_name:
-            if values.get("class_name"):
-                values["display_name"] = values["class_name"]
+        if app_dir.is_file():
+            LOGGER.warning("App directory %s is a file, using the parent directory as app_dir", app_dir)
+            values["filename"] = app_dir.name
+            values["app_dir"] = app_dir.parent
+
+        # if not app_dir.joinpath(values["filename"]).exists():
+        #     raise FileNotFoundError(f"App file {values['filename']} does not exist in app_dir {app_dir}")
 
         return values
 

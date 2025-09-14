@@ -96,13 +96,16 @@ def _validate_init_method(cls: type["App[AppConfigT]"]) -> None:
     """
     from hassette.core.apps.app import App  # avoid circular import
 
+    if cls.__module__.startswith("hassette."):
+        # skipping internal classes
+        return
+
     LOGGER.debug("Validating __init__ method for %s", cls.__name__)
 
     mro = cls.mro()
     # get the first index in the MRO where App is found, excepting the first class
     hass_index = [i for i, base in enumerate(mro) if issubclass(base, App) and i != 0][0]
     LOGGER.debug("Found App at index %d in MRO for %s", hass_index, cls.__name__)
-    LOGGER.debug("MRO for %s: %s", cls.__name__, mro)
 
     # if the first class in the MRO declares an __init__ method, we can skip the rest
     # assumption: the first class in the MRO is App, so we can check it directly

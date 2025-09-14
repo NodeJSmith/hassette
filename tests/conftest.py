@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, Mock, patch
 import docker
 import pytest
 import requests
+from data.my_app import MyApp
 from docker.errors import NotFound
 from docker.models.containers import Container
-from pydantic_settings import SettingsConfigDict, TomlConfigSettingsSource
 
 from hassette.config.core_config import HassetteConfig
 from hassette.core.core import Hassette
@@ -36,32 +36,20 @@ class TestConfig(HassetteConfig):
     This is used to provide a specific configuration for testing purposes.
     """
 
-    model_config = SettingsConfigDict(
-        env_prefix="hassette_",
-        env_file=ENV_FILE.as_posix(),
-        toml_file=TEST_TOML_FILE.as_posix(),
-        env_ignore_empty=True,
-        extra="ignore",
-        cli_parse_args=False,
-    )
+    model_config = HassetteConfig.model_config.copy() | {
+        "cli_parse_args": False,
+        "toml_file": TEST_TOML_FILE,
+        "env_file": ENV_FILE,
+    }
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls,
-        init_settings,
-        env_settings,
-        dotenv_settings,
-        file_secret_settings,
-    ):
-        sources = (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            TomlConfigSettingsSource(settings_cls),
-            file_secret_settings,
-        )
-        return sources
+
+@pytest.fixture(scope="session")
+def test_config_class():
+    """
+    Provide the TestConfig class for testing.
+    This is used to ensure the configuration class is available for tests that require it.
+    """
+    return TestConfig
 
 
 @pytest.fixture(scope="session")
@@ -73,7 +61,9 @@ def test_config(unused_tcp_port_factory):
 
     port = unused_tcp_port_factory()
 
-    tc = TestConfig(websocket_timeout_seconds=1, run_sync_timeout_seconds=2, health_service_port=port)  # type: ignore
+    tc = TestConfig(
+        websocket_timeout_seconds=1, run_sync_timeout_seconds=2, health_service_port=port, app_dir=TEST_DATA_PATH
+    )
 
     return tc
 
@@ -270,3 +260,12 @@ def test_data_path():
     This is used to access any test-specific files needed during testing.
     """
     return TEST_DATA_PATH
+
+
+@pytest.fixture
+def my_app_class():
+    """
+    Provide the MyApp class for testing.
+    This is used to ensure the MyApp class is available for tests that require it.
+    """
+    return MyApp

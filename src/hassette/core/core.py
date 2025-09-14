@@ -9,26 +9,23 @@ from typing import Any, ClassVar, ParamSpec, TypeVar
 import anyio
 from anyio import create_memory_object_stream
 
-from hassette.config.core_config import HassetteConfig
-from hassette.core.api import Api, _Api
-from hassette.core.apps.app_handler import _AppHandler
-from hassette.core.bus.bus import Bus, _Bus
-from hassette.core.enums import ResourceRole, ResourceStatus
-from hassette.core.events import Event, HassetteServiceEvent
-from hassette.core.health_service import _HealthService
-from hassette.core.scheduler import Scheduler
-from hassette.core.scheduler.scheduler import _Scheduler
-from hassette.core.websocket import _Websocket
-from hassette.utils import get_traceback_string
-
-if typing.TYPE_CHECKING:
-    from hassette.core.classes import Resource, Service
-
+from ..config import HassetteConfig
+from ..utils import get_traceback_string
+from .api import Api, _Api
+from .apps.app import App
+from .apps.app_handler import _AppHandler
+from .bus.bus import Bus, _Bus
+from .classes import Resource, Service
+from .enums import ResourceRole, ResourceStatus
+from .events import Event, HassetteServiceEvent
+from .health_service import _HealthService
+from .scheduler.scheduler import Scheduler, _Scheduler
+from .websocket import _Websocket
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
-T = TypeVar("T", bound="Resource | Service")
+T = TypeVar("T", bound=Resource | Service)
 
 
 class Hassette:
@@ -42,7 +39,7 @@ class Hassette:
 
     _instance: ClassVar["Hassette"] = None  # type: ignore
 
-    def __init__(self, config: HassetteConfig | None = None) -> None:
+    def __init__(self, config: HassetteConfig) -> None:
         """
         Initialize the Hassette instance.
 
@@ -53,14 +50,7 @@ class Hassette:
 
         self.logger = getLogger(__name__)
 
-        if config is not None:
-            if not isinstance(config, HassetteConfig):
-                raise TypeError(f"Expected config to be HassetteConfig, got {type(config).__name__}")
-            self.config: HassetteConfig = config
-            self.logger.debug("Used provided HassetteConfig instance")
-        else:
-            self.config: HassetteConfig = HassetteConfig()  # type: ignore
-            self.logger.debug("Loaded default HassetteConfig")
+        self.config = config
 
         # collections
         self._resources: dict[str, Resource | Service] = {}
@@ -113,6 +103,19 @@ class Hassette:
     def apps(self) -> dict:
         """Get the currently loaded apps."""
         return self._app_handler.apps
+
+    def get_app(self, app_name: str, index: int = 0) -> App | None:
+        """Get a specific app instance if running.
+
+        Args:
+            app_name (str): The name of the app.
+            index (int): The index of the app instance, defaults to 0.
+
+        Returns:
+            App | None: The app instance if found, else None.
+        """
+
+        return self._app_handler.get(app_name, index)
 
     @classmethod
     def get_instance(cls) -> "Hassette":

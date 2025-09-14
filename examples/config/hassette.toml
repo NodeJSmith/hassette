@@ -1,3 +1,4 @@
+[hassette]
 base_url = "http://127.0.0.1:8123"
 app_dir = "/apps" # assuming we're running via docker compose, this should be absolute starting at /apps/
 
@@ -5,18 +6,10 @@ app_dir = "/apps" # assuming we're running via docker compose, this should be ab
 enabled = true
 filename = "battery.py"
 class_name = "Battery"
+config = {always_send = false, force = false, threshold = 10}
 
 [apps.battery_sync]
 enabled = true
 filename = "battery.py"
 class_name = "BatterySync"
-
-[[apps.battery.config]]
-always_send = false
-force = false
-threshold = 10
-
-[[apps.battery_sync.config]]
-always_send = false
-force = false
-threshold = 10
+config = {always_send = false, force = false, threshold = 10}

@@ -104,7 +104,9 @@ class _Websocket(Service):
 
         timeout = ClientTimeout(connect=5, total=30)
         async for attempt in AsyncRetrying(
-            retry=retry_if_not_exception_type((InvalidAuthError, asyncio.CancelledError))
+            retry=retry_if_not_exception_type(
+                (InvalidAuthError, asyncio.CancelledError, CouldNotFindHomeAssistantError)
+            )
             | retry_if_exception_type(
                 (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError)
             ),

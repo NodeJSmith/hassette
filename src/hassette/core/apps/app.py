@@ -5,7 +5,7 @@ from typing import ClassVar, Generic
 from anyio import to_thread
 
 from hassette.config.app_manifest import AppManifest
-from hassette.core.apps.app_config import DEFAULT_CONFIG, AppConfig, AppConfigT
+from hassette.core.apps.app_config import AppConfig, AppConfigT
 from hassette.core.apps.utils import validate_app
 from hassette.core.classes import Resource
 from hassette.core.enums import ResourceRole
@@ -14,6 +14,8 @@ if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
 
 LOGGER = getLogger(__name__)
+
+AppT = typing.TypeVar("AppT", bound="App")
 
 
 class App(Generic[AppConfigT], Resource):
@@ -27,7 +29,7 @@ class App(Generic[AppConfigT], Resource):
     role: ClassVar[ResourceRole] = ResourceRole.APP
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
-    app_manifest_cls: ClassVar[AppManifest]
+    app_manifest: ClassVar[AppManifest]
     "Manifest for the app itself, not used by app instances."
 
     app_config_cls: ClassVar[type[AppConfig]]
@@ -40,7 +42,7 @@ class App(Generic[AppConfigT], Resource):
     def __init__(
         self,
         hassette: "Hassette",
-        app_config: AppConfigT = DEFAULT_CONFIG,
+        app_config: AppConfigT,
         index: int = 0,
         *args,
         **kwargs,

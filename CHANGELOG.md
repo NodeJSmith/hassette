@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.6.0] - 2025-09-14
+
+### Removed
+- Removed `DEFAULT_CONFIG` constant for app config, not necessary
+
+### Fixed
+- Fixed `HassetteConfig` to properly handle `env_file` and `config_file` parameters passed in programmatically or via CLI args
+  - These are now passed to the appropriate settings sources correctly
+- Fixed `HassetteConfig` incorrectly prioritizing TomlConfig over environment variables and dotenv files (Pydantic docs are confusing on this point)
+
+### Changed
+#### Configuration
+  - Add back ability to set top level `[hassette]` section in config file using custom `TomlConfigSettingsSource`
+  - Update examples to show top level `[hassette]` section usage
+  - Update README with new config usage and Docker instructions
+  - Update README with example of using `docker-compose.yml` file
+  - Update README with example of setting app config inline (.e.g `config = {send_alert = true}`)
+  - Added relative `./config` path for config and .env files
+#### App Handler
+  - Improved app handler logic, apps should now be able to import other modules from the same app directory
+    - **Known Issue**: Using `isinstance` does not work consistently, will be providing recommendation in docs on how to make this work better
+#### Hassette
+  - Update imports to be relative, same as other modules
+#### Apps
+  - Rename `app_manifest_cls` to `app_manifest` - was always an instance, not a class
+
+### Added
+#### HassetteConfig
+  - Add `secrets` attribute to `HassetteConfig` to allow specifying secret names that will be filled from config sources
+    - Secrets can be listed in the config file like `secrets = ["my_secret", "another_secret"]`
+    - Secrets will be filled from config sources in order or will attempt to pull from environment variables if not found
+    - Secrets are available in config as a dict, e.g. `config.secrets["my_secret"]`
+  - Add `HassetteBaseSettings` to add tracking of final settings sources for all config attributes
+    - `HassetteConfig.FINAL_SETTINGS_SOURCES` will show where each config attribute was set from
+    - Useful for debugging config issues
+  - Add `HassetteTomlConfigSettingsSource` to load config from a TOML file, supports top level `[hassette]` section
+  - Add `get_config` class method to `HassetteConfig` to get global configuration without needing to access `Hassette` directly
+    - E.g. `HassetteConfig.get_config()` will return the current config instance
+  - Check for app required keys prior to loading apps, will skip any apps missing required keys and log a warning
+    - Particularly useful if you have config values for the app in environment variables but have the app removed/disabled
+#### Hassette
+  - Surface `get_app` on `Hassette` class to allow getting an app instance by name and index (if necessary)
+    - E.g. `hassette.get_app("MyApp")` or `hassette.get_app("MyApp", 1)`
+
+
 ## [0.5.0] - 2025-09-12
 ### Changed
 - **BREAKING**: Remove logic to pop top level `[hassette]` section from config file, this has the unfortunate side effect of potentially overriding values set in environment variables

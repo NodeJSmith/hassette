@@ -1,3 +1,6 @@
+[hassette]
 base_url = "http://127.0.0.1:8123"
 api_port = 8123
 app_dir = "tests/data"
+
+secrets = ["my_secret"]
