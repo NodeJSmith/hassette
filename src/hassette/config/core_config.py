@@ -70,12 +70,14 @@ class HassetteConfig(HassetteBaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="hassette__",
-        env_file=["/config/.env", ".env"],
-        toml_file=["/config/hassette.toml", "hassette.toml"],
+        env_file=["/config/.env", ".env", "./config/.env"],
+        toml_file=["/config/hassette.toml", "hassette.toml", "./config/hassette.toml"],
         env_ignore_empty=True,
         extra="allow",
         env_nested_delimiter="__",
         cli_parse_args=True,
+        coerce_numbers_to_str=True,
+        validate_by_name=True,
     )
 
     # General configuration
@@ -93,11 +95,13 @@ class HassetteConfig(HassetteBaseSettings):
         default=...,
         description="Access token for Home Assistant instance",
         validation_alias=AliasChoices(
-            "HASSETTE__TOKEN",
-            "HA_TOKEN",
-            "HOME_ASSISTANT_TOKEN",
+            "token",
+            "hassette__token",
+            "ha_token",
+            "home_assistant_token",
             "t",  # for cli
         ),
+        serialization_alias="token",
     )
 
     # App configurations
