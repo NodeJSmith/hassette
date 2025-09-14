@@ -308,6 +308,7 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
         if "hassette" not in self.toml_data:
             # just let the standard class handle it
             super().__init__(settings_cls, self.toml_file_path)
+            return
 
         LOGGER.info("Merging 'hassette' section from TOML config into top level")
         top_level_keys = set(self.toml_data.keys()) - {"hassette"}
