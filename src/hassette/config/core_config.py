@@ -118,6 +118,11 @@ class HassetteConfig(HassetteBaseSettings):
         default=8126, description="Port to run the health service on, ignored if run_health_service is False."
     )
 
+    # user config
+    secrets: dict[str, SecretStr] = Field(
+        default_factory=dict, description="User provided secrets that can be referenced in the config."
+    )
+
     @property
     def ws_url(self) -> str:
         """Construct the WebSocket URL for Home Assistant."""
@@ -167,6 +172,32 @@ class HassetteConfig(HassetteBaseSettings):
             json.dumps(type(self).FINAL_SETTINGS_SOURCES, default=str, indent=4, sort_keys=True),
         )
         return self
+
+    @field_validator("secrets", mode="before")
+    @classmethod
+    def validate_secrets(cls, values: dict[str, Any]) -> dict[str, Any]:
+        if not values:
+            return values
+
+        for k, v in values.items():
+            if v:
+                LOGGER.debug("Secret %r is already set to a value.", k)
+                continue
+            if k in cls.FINAL_SETTINGS_SOURCES:
+                source_name = cls.FINAL_SETTINGS_SOURCES[k]
+                source_data = cls.SETTINGS_SOURCES_DATA.get(source_name, {})
+                if k in source_data:
+                    if source_data[k]:
+                        LOGGER.info("Filling empty secret %r from source %r", k, source_name)
+                        values[k] = source_data[k]
+                        cls.FINAL_SETTINGS_SOURCES[f"secrets.{k}"] = source_name
+                        del cls.FINAL_SETTINGS_SOURCES[k]  # delete the non `secrets.` key
+                        continue
+                    LOGGER.warning("Secret %r is empty in source %r, leaving as empty.", k, source_name)
+            else:
+                LOGGER.warning("Secret %r is empty and not found in any sources, leaving as empty.", k, source_name)
+
+        return values
 
     @field_validator("apps", mode="before")
     @classmethod
