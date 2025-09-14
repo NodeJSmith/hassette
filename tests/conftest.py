@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import docker
 import pytest
 import requests
+from data.my_app import MyApp
 from docker.errors import NotFound
 from docker.models.containers import Container
 from pydantic_settings import SettingsConfigDict, TomlConfigSettingsSource
@@ -270,3 +271,12 @@ def test_data_path():
     This is used to access any test-specific files needed during testing.
     """
     return TEST_DATA_PATH
+
+
+@pytest.fixture
+def my_app_class():
+    """
+    Provide the MyApp class for testing.
+    This is used to ensure the MyApp class is available for tests that require it.
+    """
+    return MyApp
