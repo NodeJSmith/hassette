@@ -1,5 +1,6 @@
 import logging
 
+from .config import HassetteConfig
 from .core import (
     Api,
     App,
@@ -36,6 +37,7 @@ __all__ = [
     "AsyncHandler",
     "CronTrigger",
     "Handler",
+    "HassetteConfig",
     "HomeAssistantRestarted",
     "IntervalTrigger",
     "Not",
