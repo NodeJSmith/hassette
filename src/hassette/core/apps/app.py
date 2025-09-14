@@ -5,7 +5,7 @@ from typing import ClassVar, Generic
 from anyio import to_thread
 
 from hassette.config.app_manifest import AppManifest
-from hassette.core.apps.app_config import DEFAULT_CONFIG, AppConfig, AppConfigT
+from hassette.core.apps.app_config import AppConfig, AppConfigT
 from hassette.core.apps.utils import validate_app
 from hassette.core.classes import Resource
 from hassette.core.enums import ResourceRole
@@ -40,7 +40,7 @@ class App(Generic[AppConfigT], Resource):
     def __init__(
         self,
         hassette: "Hassette",
-        app_config: AppConfigT = DEFAULT_CONFIG,
+        app_config: AppConfigT,
         index: int = 0,
         *args,
         **kwargs,
