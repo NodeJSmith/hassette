@@ -9,26 +9,22 @@ from typing import Any, ClassVar, ParamSpec, TypeVar
 import anyio
 from anyio import create_memory_object_stream
 
-from hassette.config.core_config import HassetteConfig
-from hassette.core.api import Api, _Api
-from hassette.core.apps.app_handler import _AppHandler
-from hassette.core.bus.bus import Bus, _Bus
-from hassette.core.enums import ResourceRole, ResourceStatus
-from hassette.core.events import Event, HassetteServiceEvent
-from hassette.core.health_service import _HealthService
-from hassette.core.scheduler import Scheduler
-from hassette.core.scheduler.scheduler import _Scheduler
-from hassette.core.websocket import _Websocket
-from hassette.utils import get_traceback_string
-
-if typing.TYPE_CHECKING:
-    from hassette.core.classes import Resource, Service
-
+from ..config import HassetteConfig
+from ..utils import get_traceback_string
+from .api import Api, _Api
+from .apps.app_handler import _AppHandler
+from .bus.bus import Bus, _Bus
+from .classes import Resource, Service
+from .enums import ResourceRole, ResourceStatus
+from .events import Event, HassetteServiceEvent
+from .health_service import _HealthService
+from .scheduler.scheduler import Scheduler, _Scheduler
+from .websocket import _Websocket
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
-T = TypeVar("T", bound="Resource | Service")
+T = TypeVar("T", bound=Resource | Service)
 
 
 class Hassette:
