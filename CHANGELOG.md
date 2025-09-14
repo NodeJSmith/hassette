@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.6.0] - 2025-09-13
+## [0.6.0] - 2025-09-14
 
 ### Removed
 - Removed `DEFAULT_CONFIG` constant for app config, not necessary
+
+### Fixed
+- Fixed `HassetteConfig` to properly handle `env_file` and `config_file` parameters passed in programmatically or via CLI args
+  - These are now passed to the appropriate settings sources correctly
+- Fixed `HassetteConfig` incorrectly prioritizing TomlConfig over environment variables and dotenv files (Pydantic docs are confusing on this point)
 
 ### Changed
 #### Configuration
