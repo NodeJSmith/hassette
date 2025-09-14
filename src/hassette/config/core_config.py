@@ -5,7 +5,6 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, ClassVar, Literal
-from warnings import warn
 
 import platformdirs
 from dotenv import load_dotenv
@@ -168,16 +167,6 @@ class HassetteConfig(HassetteBaseSettings):
             json.dumps(type(self).FINAL_SETTINGS_SOURCES, default=str, indent=4, sort_keys=True),
         )
         return self
-
-    @model_validator(mode="before")
-    @classmethod
-    def check_hassette_header(cls, values: dict[str, Any]) -> dict[str, Any]:
-        if values.get("hassette"):
-            warn(
-                "Top level configuration should not be placed under any key, these values will be ignored.",
-                stacklevel=2,
-            )
-        return values
 
     @field_validator("apps", mode="before")
     @classmethod
