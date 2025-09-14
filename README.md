@@ -21,39 +21,34 @@ Hassette brings the developer experience of modern Python projects to Home Assis
 
 ### Installation
 
+#### Local Development
 ```bash
-pip install hassette
+uv pip install hassette && run-hassette
 ```
 
-### Basic Example
+#### Docker
+There is an official Docker image available on GitHub Container Registry. You can run it with Docker Compose:
 
-Create a simple battery monitoring app:
+```yaml
+services:
+  hassette:
+    image: ghcr.io/nodejsmith/hassette:latest
+    container_name: hassette
+    pull_policy: always
+    restart: unless-stopped
+    volumes:
+      - ./config:/config # where your hassette.toml (and optional .env file) will be located
+      - ./src:/apps # or wherever your app files are located
+      - data:/data # persistent data (e.g. sqlite db)
+      - uv_cache:/uv_cache # uv cache for faster startup
 
-```python
-from hassette import App, AppConfig
+volumes:
+  uv_cache:
+  data:
+```
 
-class BatteryConfig(AppConfig):
-    threshold: float = 20
-    notify_entity: str = "my_mobile_phone"
-
-class BatteryMonitor(App[BatteryConfig]):
-    async def initialize(self):
-        # Run battery check every morning at 9 AM
-        self.scheduler.run_cron(self.check_batteries, hour=9)
-
-    async def check_batteries(self):
-        states = await self.api.get_states()
-        low_batteries = []
-
-        for device in states:
-            if hasattr(device.attributes, 'battery_level'):
-                level = device.attributes.battery_level
-                if level and level < self.app_config.threshold:
-                    low_batteries.append(f"{device.entity_id}: {level}%")
-
-        if low_batteries:
-            message = "Low battery devices: " + ",".join(low_batteries)
-            await self.api.call_service("notify", self.app_config.notify_entity, message=message)
+```bash
+docker compose up -d
 ```
 
 ### Configuration
@@ -61,20 +56,11 @@ class BatteryMonitor(App[BatteryConfig]):
 Create `hassette.toml`:
 
 ```toml
-[apps.battery_monitor]
-enabled = true
-filename = "battery_monitor.py"
-class_name = "BatteryMonitor"
+[hassette]
+base_url = "localhost:8123"
+app_dir = "src/apps"  # Directory where your app files are located
 
-[apps.battery_monitor.config]
-threshold = 15
-notify_entity = "notify.mobile_app_phone"
-```
-
-### Running
-
-```bash
-run-hassette
+# App Configuration will be shown below
 ```
 
 ## 📚 Core Concepts
@@ -91,19 +77,6 @@ Apps are the building blocks of your automations. They can:
 
 Apps are configured via a `hassette.toml` file using Pydantic models for validation. Custom configuration is optional but recommended for most use cases.
 
-**Configuration file (`hassette.toml`):**
-```toml
-[apps.my_app]  # Validated by AppManifest during Hassette startup
-enabled = true
-filename = "my_app.py"
-class_name = "MyApp"
-
-[apps.my_app.config]  # Validated by your Pydantic class when MyApp initializes
-entity_id = "light.living_room"
-brightness_when_home = 200
-brightness_when_away = 50
-```
-
 **App with typed configuration:**
 ```python
 from hassette import App, AppConfig
@@ -111,6 +84,8 @@ from pydantic import Field
 
 class MyAppConfig(AppConfig):
     # you can add a model config and set an env_prefix to simplify your environment variables
+    model_config = SettingsConfigDict(env_prefix="myapp_")
+
     # this way you can set environment variables like:
     # e.g. MYAPP_ENTITY_ID=10
     # note this this will default to a single underscore and being case-insensitive
@@ -118,18 +93,36 @@ class MyAppConfig(AppConfig):
     # otherwise you can set this with HASSETTE__APPS__MYAPP__CONFIG__ENTITY_ID=10
     # which is not the most user friendly
 
-    model_config = SettingsConfigDict(env_prefix="myapp_")
-
     # attributes
     entity_id: str = Field(..., description="Entity ID of the light")
     brightness_when_home: int = Field(200, ge=0, le=255)
     brightness_when_away: int = Field(50, ge=0, le=255)
 
+# `App` is generic, use your config class as type parameter when inheriting
 class MyApp(App[MyAppConfig]):
     async def initialize(self):
+        # self.app_config is now fully typed
+        assert type(self.app_config) is MyAppConfig
+
         # Fully typed access to configuration
         light_id = self.app_config.entity_id
         brightness = self.app_config.brightness_when_home
+```
+
+**Configuration file (`hassette.toml`):**
+```toml
+[apps.my_app]  # Validated by AppManifest during Hassette startup
+enabled = true # defaults to true, so only technically required if you want to disable the app
+filename = "my_app.py" # the file name within `app_dir`
+class_name = "MyApp" # the class name within that file (e.g. `class MyApp(App): ...`)
+# inline config - valid if only one instance of the app is needed
+config = {entity_id = "light.living_room", brightness_when_home = 200, brightness_when_away = 50}
+
+# config as a separate table - required if multiple instances of the same app are needed
+# [apps.my_app.config] or [[apps.my_app.config]] for multiple instances
+# entity_id = "light.living_room"
+# brightness_when_home = 200
+# brightness_when_away = 50
 ```
 
 ### Event Handling
@@ -165,7 +158,7 @@ self.bus.on_entity("light.*", handler=self.light_changed,
 
 ### Scheduling
 
-Schedule tasks with cron expressions or intervals using [`whenever`](https://github.com/ariebovenberg/whenever):
+Schedule tasks with cron expressions (courtesy of [`croniter`](https://github.com/pallets-eco/croniter)) or intervals/specific times (via [`whenever`](https://github.com/ariebovenberg/whenever)):
 
 ```python
 # Every day at 6 AM
@@ -224,7 +217,6 @@ Configure multiple instances of the same app with different configurations:
 
 ```toml
 [apps.presence]
-enabled = true
 filename = "presence.py"
 class_name = "PresenceApp"
 
@@ -239,15 +231,6 @@ name = "downstairs"
 motion_sensor = "binary_sensor.downstairs_motion"
 lights = ["light.living_room", "light.kitchen"]
 ```
-
-**Single instance configuration:**
-```toml
-[apps.presence.config]  # Note: single [config] instead of [[config]]
-name = "main"
-motion_sensor = "binary_sensor.main_motion"
-lights = ["light.living_room", "light.kitchen"]
-```
-
 
 ### Synchronous Apps
 
