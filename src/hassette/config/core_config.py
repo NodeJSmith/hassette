@@ -25,7 +25,7 @@ FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
 LOG_LEVEL = (
-    os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
+    os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
 ).upper()
 
 logging.basicConfig(
@@ -39,7 +39,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def default_config_dir() -> Path:
-    if env := os.getenv("HASSETTE_CONFIG_DIR"):
+    if env := os.getenv("HASSETTE__CONFIG_DIR", os.getenv("HASSETTE_CONFIG_DIR")):
         return Path(env)
     docker = Path("/config")
     if docker.exists():
@@ -48,7 +48,7 @@ def default_config_dir() -> Path:
 
 
 def default_data_dir() -> Path:
-    if env := os.getenv("HASSETTE_DATA_DIR"):
+    if env := os.getenv("HASSETTE__DATA_DIR", os.getenv("HASSETTE_DATA_DIR")):
         return Path(env)
     docker = Path("/data")
     if docker.exists():
@@ -57,7 +57,7 @@ def default_data_dir() -> Path:
 
 
 def default_app_dir() -> Path:
-    if env := os.getenv("HASSETTE_APP_DIR"):
+    if env := os.getenv("HASSETTE__APP_DIR", os.getenv("HASSETTE_APP_DIR")):
         return Path(env)
     docker = Path("/apps")
     if docker.exists():

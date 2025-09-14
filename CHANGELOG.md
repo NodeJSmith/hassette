@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.6.1] - 2025-09-14
+### Fixed
+- Fixed `HassetteConfig` using single underscore when checking for app_dir, config_dir, and data_dir manually
+  - Now checks both single and double underscore (with double underscore taking precedence) just to be safe
+- Fixed `HassetteConfig` incorrectly prioritizing `HASSETTE_LOG_LEVEL` over `HASSETTE__LOG_LEVEL` (double underscore should take precedence)
+
 ## [0.6.0] - 2025-09-14
 
 ### Removed
