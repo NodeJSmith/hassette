@@ -70,8 +70,8 @@ class AppManifest(BaseModel):
 
         values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
 
-        if not app_dir.exists():
-            raise FileNotFoundError(f"App directory {app_dir} does not exist")
+        # if not app_dir.exists():
+        #     raise FileNotFoundError(f"App directory {app_dir} does not exist")
 
         values["display_name"] = values.get("display_name") or values.get("class_name")
 
@@ -80,8 +80,8 @@ class AppManifest(BaseModel):
             values["filename"] = app_dir.name
             values["app_dir"] = app_dir.parent
 
-        if not app_dir.joinpath(values["filename"]).exists():
-            raise FileNotFoundError(f"App file {values['filename']} does not exist in app_dir {app_dir}")
+        # if not app_dir.joinpath(values["filename"]).exists():
+        #     raise FileNotFoundError(f"App file {values['filename']} does not exist in app_dir {app_dir}")
 
         return values
 
