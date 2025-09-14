@@ -25,7 +25,7 @@ FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
 LOG_LEVEL = (
-    os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
+    os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
 ).upper()
 
 logging.basicConfig(
