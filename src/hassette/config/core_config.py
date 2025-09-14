@@ -24,9 +24,10 @@ FORMAT_TIME = "%H:%M:%S"
 FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
+LOG_LEVEL = os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=LOG_LEVEL,
     format="%(asctime)s %(levelname)-8s %(name)s:%(lineno)d %(message)s",
     datefmt=FORMAT_DATETIME,
     handlers=[logging.StreamHandler(sys.stdout)],
