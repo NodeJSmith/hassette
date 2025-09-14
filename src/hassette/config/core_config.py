@@ -120,7 +120,9 @@ class HassetteConfig(HassetteBaseSettings):
 
     # user config
     secrets: dict[str, SecretStr] = Field(
-        default_factory=dict, description="User provided secrets that can be referenced in the config."
+        default_factory=dict,
+        description="User provided secrets that can be referenced in the config.",
+        examples=["['my_secret','another_secret']"],
     )
 
     @property
@@ -175,29 +177,35 @@ class HassetteConfig(HassetteBaseSettings):
 
     @field_validator("secrets", mode="before")
     @classmethod
-    def validate_secrets(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def validate_secrets(cls, values: list[str]) -> dict[str, str]:
+        """Convert list of secret names to dict of secret values from config sources."""
         if not values:
-            return values
+            return {}
 
-        for k, v in values.items():
-            if v:
-                LOGGER.debug("Secret %r is already set to a value.", k)
+        output = {}
+
+        for k in values:
+            if k not in cls.FINAL_SETTINGS_SOURCES:
+                if os.getenv(k):
+                    LOGGER.info("Filling secret %r from environment variable", k)
+                    output[k] = os.getenv(k)
+                    cls.FINAL_SETTINGS_SOURCES[f"secrets.{k}"] = "environment variable"
+                    continue
+                LOGGER.warning("Secret %r not found in any configuration sources, leaving as empty.", k)
                 continue
-            if k in cls.FINAL_SETTINGS_SOURCES:
-                source_name = cls.FINAL_SETTINGS_SOURCES[k]
-                source_data = cls.SETTINGS_SOURCES_DATA.get(source_name, {})
-                if k in source_data:
-                    if source_data[k]:
-                        LOGGER.info("Filling empty secret %r from source %r", k, source_name)
-                        values[k] = source_data[k]
-                        cls.FINAL_SETTINGS_SOURCES[f"secrets.{k}"] = source_name
-                        del cls.FINAL_SETTINGS_SOURCES[k]  # delete the non `secrets.` key
-                        continue
-                    LOGGER.warning("Secret %r is empty in source %r, leaving as empty.", k, source_name)
-            else:
-                LOGGER.warning("Secret %r is empty and not found in any sources, leaving as empty.", k, source_name)
 
-        return values
+            source_name = cls.FINAL_SETTINGS_SOURCES[k]
+            source_data = cls.SETTINGS_SOURCES_DATA.get(source_name, {})
+            if k in source_data:
+                if source_data[k]:
+                    LOGGER.info("Filling empty secret %r from source %r", k, source_name)
+                    output[k] = source_data[k]
+                    cls.FINAL_SETTINGS_SOURCES[f"secrets.{k}"] = source_name
+                    del cls.FINAL_SETTINGS_SOURCES[k]  # delete the non `secrets.` key
+                    continue
+                LOGGER.warning("Secret %r is empty in source %r, leaving as empty.", k, source_name)
+
+        return output
 
     @field_validator("apps", mode="before")
     @classmethod
