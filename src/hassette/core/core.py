@@ -39,7 +39,7 @@ class Hassette:
 
     _instance: ClassVar["Hassette"] = None  # type: ignore
 
-    def __init__(self, config: HassetteConfig | None = None) -> None:
+    def __init__(self, config: HassetteConfig) -> None:
         """
         Initialize the Hassette instance.
 
@@ -50,14 +50,7 @@ class Hassette:
 
         self.logger = getLogger(__name__)
 
-        if config is not None:
-            if not isinstance(config, HassetteConfig):
-                raise TypeError(f"Expected config to be HassetteConfig, got {type(config).__name__}")
-            self.config: HassetteConfig = config
-            self.logger.debug("Used provided HassetteConfig instance")
-        else:
-            self.config: HassetteConfig = HassetteConfig()  # type: ignore
-            self.logger.debug("Loaded default HassetteConfig")
+        self.config = config
 
         # collections
         self._resources: dict[str, Resource | Service] = {}
