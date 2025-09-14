@@ -4,7 +4,7 @@ import os
 import sys
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from warnings import warn
 
 import platformdirs
@@ -65,6 +65,8 @@ def default_app_dir() -> Path:
 
 class HassetteConfig(HassetteBaseSettings):
     """Configuration for Hassette."""
+
+    _instance: ClassVar["HassetteConfig"]
 
     model_config = SettingsConfigDict(
         env_prefix="hassette__",
@@ -192,17 +194,6 @@ class HassetteConfig(HassetteBaseSettings):
     def log_level_to_uppercase(cls, v: str) -> str:
         return v.upper()
 
-    def model_post_init(self, context: Any):
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-
-        enable_logging(self.log_level)
-
-        self.config_dir.mkdir(parents=True, exist_ok=True)
-        envs = self.config_dir.rglob("*.env")
-        for env in envs:
-            LOGGER.info("Loading environment variables from %s", env)
-            load_dotenv(env)
-
     @classmethod
     def settings_customise_sources(
         cls,
@@ -223,3 +214,24 @@ class HassetteConfig(HassetteBaseSettings):
             file_secret_settings,
         )
         return sources
+
+    def model_post_init(self, context: Any):
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+        enable_logging(self.log_level)
+
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        envs = self.config_dir.rglob("*.env")
+        for env in envs:
+            LOGGER.info("Loading environment variables from %s", env)
+            load_dotenv(env)
+
+        type(self)._instance = self
+
+    @classmethod
+    def get_config(cls) -> "HassetteConfig":
+        """Get the global configuration instance."""
+        if cls._instance is None:
+            raise RuntimeError("Configuration has not been loaded yet.")
+
+        return cls._instance
