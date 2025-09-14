@@ -207,12 +207,14 @@ class HassetteBaseSettings(BaseSettings):
             state: dict[str, Any] = {}
             states: dict[str, dict[str, Any]] = {}
             for source in sources:
+                LOGGER.debug("Loading configuration from source: %s", source)
                 if isinstance(source, PydanticBaseSettingsSource):
                     source._set_current_state(state)
                     source._set_settings_sources_data(states)
 
                 source_name = source.__name__ if hasattr(source, "__name__") else type(source).__name__
                 source_state = source()
+                LOGGER.debug("Configuration from %s: %s", source_name, source_state)
 
                 states[source_name] = source_state
                 state = self.deep_update(state, source_state, source_name)
@@ -271,12 +273,7 @@ class HassetteBaseSettings(BaseSettings):
                     updated[k] = {}
 
                 # Recurse into subtree; we expect recursive calls to set leaf provenance
-                updated[k] = self.deep_update(
-                    updated.get(k, {}),  # may be {} from above
-                    v,
-                    source_name,
-                    parent_path=path,
-                )
+                updated[k] = self.deep_update(updated.get(k, {}), v, source_name, parent_path=path)
 
             # Branch 2: v is a leaf (scalar or list) → replace & set provenance
             else:
@@ -291,6 +288,10 @@ class HassetteBaseSettings(BaseSettings):
                     env_prefix = type(self).model_config.get("env_prefix", "").rstrip("_")
                     leaf_key = f"{env_prefix}.{leaf_key}"
                     # Only record provenance for known fields
+
+                prev_source = type(self).FINAL_SETTINGS_SOURCES.get(leaf_key)
+                if prev_source:
+                    LOGGER.debug("Setting %s from %s (was %s)", leaf_key, source_name, prev_source)
                 type(self).FINAL_SETTINGS_SOURCES[leaf_key] = source_name
 
         return updated
