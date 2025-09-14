@@ -36,7 +36,11 @@ class TestConfig(HassetteConfig):
     This is used to provide a specific configuration for testing purposes.
     """
 
-    model_config = HassetteConfig.model_config.copy() | {"cli_parse_args": False}
+    model_config = HassetteConfig.model_config.copy() | {
+        "cli_parse_args": False,
+        "toml_file": TEST_TOML_FILE,
+        "env_file": ENV_FILE,
+    }
 
 
 @pytest.fixture(scope="session")
