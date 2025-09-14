@@ -20,6 +20,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.apps.app_config import AppConfig
     from hassette.core.core import Hassette
 
+LOGGER = getLogger(__name__)
 FAIL_AFTER_SECONDS = 10
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 
@@ -170,7 +171,6 @@ class _AppHandler(Resource):
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
-        app_class.logger = getLogger(f"hassette.{app_class.__name__}")
 
         # Normalize to list-of-configs; TOML supports both single dict and list of dicts.
         settings_cls = app_class.app_config_cls
@@ -324,8 +324,15 @@ def _ensure_on_sys_path(p: Path) -> None:
 
     Args:
       p (Path): Directory to add to sys.path
+
+    Note:
+      - Will not add root directories (with <=1 parts) for safety.
     """
 
     p = p.resolve()
+    if len(p.parts) <= 1:
+        LOGGER.warning("Refusing to add root directory %s to sys.path", p)
+        return
+
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
