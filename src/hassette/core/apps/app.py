@@ -27,7 +27,7 @@ class App(Generic[AppConfigT], Resource):
     role: ClassVar[ResourceRole] = ResourceRole.APP
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
-    app_manifest_cls: ClassVar[AppManifest]
+    app_manifest: ClassVar[AppManifest]
     "Manifest for the app itself, not used by app instances."
 
     app_config_cls: ClassVar[type[AppConfig]]
