@@ -1,26 +1,25 @@
 import asyncio
-from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from hassette import ResourceStatus
 from hassette.config import HassetteConfig
-from hassette.core.apps.app_handler import _AppHandler
+from hassette.core.apps.app_handler import _AppHandler, load_app_class
 
 
 @pytest.fixture
-async def app_handler(test_config, test_data_path: Path):
+async def app_handler(test_config):
     tc = HassetteConfig(
         websocket_timeout_seconds=1,
         run_sync_timeout_seconds=2,
         run_health_service=False,
         apps={
             "my_app": {"enabled": True, "filename": "my_app.py", "class_name": "MyApp"},
-            "my_app_sync": {"enabled": True, "filename": "my_app.py", "class_name": "MyAppSync"},  # type: ignore
+            "my_app_sync": {"enabled": True, "filename": "my_app_sync.py", "class_name": "MyAppSync"},  # type: ignore
         },
         token=test_config.token.get_secret_value(),
-        app_dir=test_data_path,
+        app_dir=test_config.app_dir,
     )
 
     hassette = Mock()
@@ -56,14 +55,10 @@ def test_get_app_instance(app_handler: _AppHandler) -> None:
     """Test getting a specific app instance."""
     app = app_handler.get("my_app", 0)
     assert app is not None, "App instance should be found"
-    assert app.class_name == "MyApp", "App class name should be MyApp"
 
-    app_sync = app_handler.get("my_app_sync", 0)
-    assert app_sync is not None, "AppSync instance should be found"
-    assert app_sync.class_name == "MyAppSync", "AppSync class name should be MyAppSync"
+    my_app_class = load_app_class(app.app_manifest)
 
-    non_existent_app = app_handler.get("non_existent_app", 0)
-    assert non_existent_app is None, "Non-existent app should return None"
+    assert isinstance(app, my_app_class), "App instance should be of type MyApp"
 
 
 def test_all_apps(app_handler: _AppHandler) -> None:

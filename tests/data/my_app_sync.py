@@ -1,0 +1,41 @@
+from hassette import AppConfig, AppSync
+from hassette.core.events import StateChangeEvent
+from hassette.models.entities import LightEntity
+from hassette.models.states import InputButtonState, LightState
+
+try:
+    from .my_app import MyApp
+except ImportError:
+    from my_app import MyApp  # type: ignore
+
+
+class MyAppUserConfig(AppConfig):
+    test_entity: str = "input_button.test"
+
+
+class MyAppSync(AppSync):
+    def initialize_sync(self) -> None:
+        print(self.app_config_cls)
+        print(self.app_config)
+
+        self.hassette.bus.on_entity("input_button.test", handler=self.handle_event)
+        self.hassette.scheduler.run_in(self.test_stuff, 1)
+
+        self.office_light_exists = self.hassette.api.sync.entity_exists("light.office")
+        self.test_button_exists = self.hassette.api.sync.entity_exists("input_button.test")
+
+    def test_stuff(self) -> None:
+        my_app = self.hassette.get_app("my_app", 0)
+        assert isinstance(my_app, MyApp)
+
+        if self.office_light_exists:
+            self.light_state = self.hassette.api.sync.get_state("light.office", model=LightState)
+            self.light_entity = self.hassette.api.sync.get_entity("light.office", model=LightEntity)
+        elif self.test_button_exists:
+            self.button_state = self.hassette.api.sync.get_state("input_button.test", model=InputButtonState)
+            self.logger.info("Button state: %s", self.button_state)
+
+    def handle_event(self, event: StateChangeEvent) -> None:
+        self.logger.info("event: %s", event)
+        test = self.hassette.api.sync.get_state_value("input_button.test")
+        self.logger.info("state: %s", test)
