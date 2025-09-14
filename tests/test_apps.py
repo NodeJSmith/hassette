@@ -14,11 +14,11 @@ async def test_apps_are_working(test_config) -> None:
         run_health_service=False,
         apps={
             "my_app": {"enabled": True, "filename": "my_app.py", "class_name": "MyApp"},
-            "my_app_sync": {"enabled": True, "filename": "my_app.py", "class_name": "MyAppSync"},
+            "my_app_sync": {"enabled": True, "filename": "my_app.py", "class_name": "MyAppSync"},  # type: ignore
         },
         token=test_config.token.get_secret_value(),
         app_dir=test_config.app_dir,
-    )  # type: ignore
+    )
 
     hassette = Mock()
     hassette.send_event = AsyncMock()
