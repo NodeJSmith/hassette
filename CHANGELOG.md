@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.6.0] - 2025-09-13
+
 ### Removed
 - Removed `DEFAULT_CONFIG` constant for app config, not necessary
 
