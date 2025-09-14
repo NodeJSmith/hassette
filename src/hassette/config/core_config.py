@@ -177,8 +177,21 @@ class HassetteConfig(HassetteBaseSettings):
 
     @field_validator("apps", mode="before")
     @classmethod
-    def set_app_dir_in_apps(cls, values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
+    def validate_apps(cls, values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
         """Sets the app_dir in each app manifest if not already set."""
+        required_keys = {"filename", "class_name"}
+        missing_required = {
+            k: v for k, v in values.items() if isinstance(v, dict) and not required_keys.issubset(v.keys())
+        }
+        if missing_required:
+            LOGGER.warning(
+                "The following apps are missing required keys (%s) and will be ignored: %s",
+                ", ".join(required_keys),
+                list(missing_required.keys()),
+            )
+            for k in missing_required:
+                values.pop(k)
+
         app_dir = info.data.get("app_dir")
         if not app_dir:
             return values
@@ -186,6 +199,7 @@ class HassetteConfig(HassetteBaseSettings):
             if not isinstance(v, dict):
                 continue
             if "app_dir" not in v or not v["app_dir"]:
+                LOGGER.info("Setting app_dir for app %s to %s", v["filename"], app_dir)
                 v["app_dir"] = app_dir
         return values
 
