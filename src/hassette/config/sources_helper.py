@@ -238,13 +238,19 @@ class HassetteBaseSettings(BaseSettings):
             state: dict[str, Any] = {}
             states: dict[str, dict[str, Any]] = {}
             for source in sources:
+                # hassette logging
                 LOGGER.debug("Loading configuration from source: %s", source)
                 if isinstance(source, PydanticBaseSettingsSource):
                     source._set_current_state(state)
                     source._set_settings_sources_data(states)
 
                 source_name = source.__name__ if hasattr(source, "__name__") else type(source).__name__
+                if isinstance(source, DotEnvSettingsSource) and source.env_file is not None:
+                    source_name = f"{type(source).__name__}(env_file={source.env_file})"
+                elif isinstance(source, TomlConfigSettingsSource) and source.toml_file_path is not None:
+                    source_name = f"{type(source).__name__}(toml_file={source.toml_file_path})"
                 source_state = source()
+                # hassette logging
                 LOGGER.debug("Configuration from %s: %s", source_name, source_state)
 
                 states[source_name] = source_state
