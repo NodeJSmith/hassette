@@ -15,6 +15,8 @@ if typing.TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 
+AppT = typing.TypeVar("AppT", bound="App")
+
 
 class App(Generic[AppConfigT], Resource):
     """Base class for applications in the Hassette framework.
