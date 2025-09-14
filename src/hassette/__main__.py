@@ -16,9 +16,11 @@ def get_parser() -> ArgumentParser:
     """
     parser = ArgumentParser(description="Hassette - A Home Assistant integration")
     parser.add_argument(
-        "--config",
+        "--config-file",
+        "--config_file",
         "-c",
         "--hassette-config",
+        "--hassette_config",
         type=str,
         default=None,
         help="Path to the settings file",

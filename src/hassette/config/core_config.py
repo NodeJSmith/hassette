@@ -259,19 +259,12 @@ class HassetteConfig(HassetteBaseSettings):
         # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#changing-priority
         # "The order of the returned callables decides the priority of inputs; first item is the highest priority."
 
-        # we don't get access to the init kwargs here, so our custom base settings class sets them on the class for us
-        hassette_file = settings_cls.init_kwargs.get("config_file")
-        if hassette_file:
-            hassette_toml_config = HassetteTomlConfigSettingsSource(settings_cls, toml_file=hassette_file)
-        else:
-            hassette_toml_config = HassetteTomlConfigSettingsSource(settings_cls)
-
         sources = (
             # we don't error if unknown args are passed, since other things may be passed in CLI
             # that aren't for us (plus it's just very freaking annoying, like damn, not everything's about you)
             CliSettingsSource(settings_cls, cli_ignore_unknown_args=True),
             init_settings,
-            hassette_toml_config,  # let env, dot_env, and secrets override toml
+            HassetteTomlConfigSettingsSource(settings_cls),  # let env, dot_env, and secrets override toml
             env_settings,
             dotenv_settings,  # env file override (if provided) already set in `_settings_build_values`
             file_secret_settings,

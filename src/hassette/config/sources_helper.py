@@ -86,7 +86,8 @@ class HassetteBaseSettings(BaseSettings):
         _secrets_dir: PathType | None = None,
     ) -> dict[str, Any]:
         # custom checks
-        type(self).init_kwargs = init_kwargs
+        if init_kwargs.get("config_file"):
+            self.model_config["toml_file"] = init_kwargs.get("config_file")
 
         # Determine settings config values
         case_sensitive = _case_sensitive if _case_sensitive is not None else self.model_config.get("case_sensitive")
