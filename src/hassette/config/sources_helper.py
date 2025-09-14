@@ -89,6 +89,9 @@ class HassetteBaseSettings(BaseSettings):
         if init_kwargs.get("config_file"):
             self.model_config["toml_file"] = init_kwargs.get("config_file")
 
+        if init_kwargs.get("env_file"):
+            _env_file = init_kwargs.get("env_file")
+
         # Determine settings config values
         case_sensitive = _case_sensitive if _case_sensitive is not None else self.model_config.get("case_sensitive")
         env_prefix = _env_prefix if _env_prefix is not None else self.model_config.get("env_prefix")

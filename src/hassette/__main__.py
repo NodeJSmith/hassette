@@ -47,8 +47,8 @@ async def main() -> None:
     # using type: ignore because there's no good way to tell pyright that these are being passed in for
     # the base settings superclass and not for the HassetteConfig class itself
     # (well, there may be, but I can't think of it off the top of my head)
-    # note: _env_file is natively supported, config_file is custom
-    config = HassetteConfig(_env_file=args.env_file, config_file=args.config_file)  # type: ignore
+    # note: _env_file is natively supported, but we are passing as env_file to avoid overriding to an empty value
+    config = HassetteConfig(env_file=args.env_file, config_file=args.config_file)  # type: ignore
 
     core = Hassette(config=config)
 
