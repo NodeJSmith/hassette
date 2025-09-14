@@ -54,6 +54,7 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
 class HassetteBaseSettings(BaseSettings):
     SETTINGS_SOURCES_DATA: ClassVar[dict[str, dict[str, Any]]] = {}
     FINAL_SETTINGS_SOURCES: ClassVar[dict[str, Any]] = {}
+    init_kwargs: ClassVar[dict[str, Any]] = {}
 
     def _settings_build_values(
         self,
@@ -84,6 +85,9 @@ class HassetteBaseSettings(BaseSettings):
         _cli_kebab_case: bool | None = None,
         _secrets_dir: PathType | None = None,
     ) -> dict[str, Any]:
+        # custom checks
+        type(self).init_kwargs = init_kwargs
+
         # Determine settings config values
         case_sensitive = _case_sensitive if _case_sensitive is not None else self.model_config.get("case_sensitive")
         env_prefix = _env_prefix if _env_prefix is not None else self.model_config.get("env_prefix")
@@ -246,7 +250,11 @@ class HassetteBaseSettings(BaseSettings):
                 states[source_name] = source_state
                 state = self.deep_update(state, source_state, source_name)
                 type(self).SETTINGS_SOURCES_DATA = states
+
+            type(self).init_kwargs = {}  # reset after init
             return state
+
+        type(self).init_kwargs = {}  # reset after init
 
         # no one should mean to do this, but I think returning an empty dict is marginally preferable
         # to an informative error and much better than a confusing error

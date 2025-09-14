@@ -10,7 +10,7 @@ import platformdirs
 from dotenv import load_dotenv
 from packaging.version import Version
 from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
-from pydantic_settings import BaseSettings, CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
+from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 from yarl import URL
 
 from hassette.logging_ import enable_logging
@@ -24,7 +24,9 @@ FORMAT_TIME = "%H:%M:%S"
 FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
-LOG_LEVEL = os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
+LOG_LEVEL = (
+    os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
+).upper()
 
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -244,20 +246,34 @@ class HassetteConfig(HassetteBaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: type[BaseSettings],
+        settings_cls: type[HassetteBaseSettings],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # note: the docs make it sound like the first source returned here is the highest priority
+        # but that's not correct (or I'm reading their docs wrong) - the last source to set a value wins
+        # so the order here is from lowest priority to highest priority
+        #
+        # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#changing-priority
+        # "The order of the returned callables decides the priority of inputs; first item is the highest priority."
+
+        # we don't get access to the init kwargs here, so our custom base settings class sets them on the class for us
+        hassette_file = settings_cls.init_kwargs.get("config_file")
+        if hassette_file:
+            hassette_toml_config = HassetteTomlConfigSettingsSource(settings_cls, toml_file=hassette_file)
+        else:
+            hassette_toml_config = HassetteTomlConfigSettingsSource(settings_cls)
+
         sources = (
             # we don't error if unknown args are passed, since other things may be passed in CLI
             # that aren't for us (plus it's just very freaking annoying, like damn, not everything's about you)
             CliSettingsSource(settings_cls, cli_ignore_unknown_args=True),
             init_settings,
+            hassette_toml_config,  # let env, dot_env, and secrets override toml
             env_settings,
-            dotenv_settings,
-            HassetteTomlConfigSettingsSource(settings_cls),
+            dotenv_settings,  # env file override (if provided) already set in `_settings_build_values`
             file_secret_settings,
         )
         return sources
