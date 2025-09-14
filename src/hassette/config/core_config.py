@@ -11,12 +11,7 @@ import platformdirs
 from dotenv import load_dotenv
 from packaging.version import Version
 from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
-from pydantic_settings import (
-    BaseSettings,
-    CliSettingsSource,
-    PydanticBaseSettingsSource,
-    SettingsConfigDict,
-)
+from pydantic_settings import BaseSettings, CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 from yarl import URL
 
 from hassette.logging_ import enable_logging
