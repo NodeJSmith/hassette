@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sys
@@ -15,13 +16,13 @@ from pydantic_settings import (
     CliSettingsSource,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
-    TomlConfigSettingsSource,
 )
 from yarl import URL
 
 from hassette.logging_ import enable_logging
 
 from .app_manifest import AppManifest
+from .sources_helper import HassetteBaseSettings, HassetteTomlConfigSettingsSource
 
 # Date/Time formats
 FORMAT_DATE = "%Y-%m-%d"
@@ -67,7 +68,7 @@ def default_app_dir() -> Path:
     return Path.cwd() / "apps"  # relative to where the program is run
 
 
-class HassetteConfig(BaseSettings):
+class HassetteConfig(HassetteBaseSettings):
     """Configuration for Hassette."""
 
     model_config = SettingsConfigDict(
@@ -159,6 +160,14 @@ class HassetteConfig(BaseSettings):
         token_value = self.token.get_secret_value()
         return f"{token_value[:6]}...{token_value[-6:]}"
 
+    @model_validator(mode="after")
+    def print_settings_sources(self) -> "HassetteConfig":
+        LOGGER.info(
+            "Configuration sources: %s",
+            json.dumps(type(self).FINAL_SETTINGS_SOURCES, default=str, indent=4, sort_keys=True),
+        )
+        return self
+
     @model_validator(mode="before")
     @classmethod
     def check_hassette_header(cls, values: dict[str, Any]) -> dict[str, Any]:
@@ -215,7 +224,7 @@ class HassetteConfig(BaseSettings):
             init_settings,
             env_settings,
             dotenv_settings,
-            TomlConfigSettingsSource(settings_cls),  # TODO: make our own so we can handle top level hassette key
+            HassetteTomlConfigSettingsSource(settings_cls),
             file_secret_settings,
         )
         return sources
