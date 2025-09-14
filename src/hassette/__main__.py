@@ -2,8 +2,6 @@ import asyncio
 from argparse import ArgumentParser
 from logging import getLogger
 
-from pydantic_settings import SettingsConfigDict
-
 from hassette.config import HassetteConfig
 from hassette.core.core import Hassette
 
@@ -17,7 +15,15 @@ def get_parser() -> ArgumentParser:
     Parse command line arguments for the Hassette application.
     """
     parser = ArgumentParser(description="Hassette - A Home Assistant integration")
-    parser.add_argument("--settings", "-s", type=str, default=None, help="Path to the settings file")
+    parser.add_argument(
+        "--config",
+        "-c",
+        "--hassette-config",
+        type=str,
+        default=None,
+        help="Path to the settings file",
+        dest="config_file",
+    )
     parser.add_argument(
         "--env-file",
         "--env_file",
@@ -26,6 +32,7 @@ def get_parser() -> ArgumentParser:
         type=str,
         default=None,
         help="Path to the environment file (default: .env)",
+        dest="env_file",
     )
     return parser
 
@@ -34,29 +41,14 @@ async def main() -> None:
     """Main function to run the Hassette application."""
 
     args = get_parser().parse_known_args()[0]
-    has_args = any(vars(args).values())
 
-    # kind of a hack to allow the settings file to be provided at the command line
-    # i'm not sure if there's a better way, given that you can only pass _env_file and _secret_dir
-    # not any other overrides
-    class CustomSettings(HassetteConfig):
-        model_config = SettingsConfigDict(
-            env_prefix="hassette__",
-            env_file=args.env_file,
-            toml_file=args.settings,
-            env_ignore_empty=True,
-            extra="allow",
-            env_nested_delimiter="__",
-            nested_model_default_partial_update=True,
-        )
+    # using type: ignore because there's no good way to tell pyright that these are being passed in for
+    # the base settings superclass and not for the HassetteConfig class itself
+    # (well, there may be, but I can't think of it off the top of my head)
+    # note: _env_file is natively supported, config_file is custom
+    config = HassetteConfig(_env_file=args.env_file, config_file=args.config_file)  # type: ignore
 
-    try:
-        config = CustomSettings() if has_args else HassetteConfig()
-    except Exception as e:
-        LOGGER.exception("Error loading configuration: %s", e)
-        raise
-
-    core = Hassette(config=config) if has_args else Hassette()
+    core = Hassette(config=config)
 
     await core.run_forever()
 
