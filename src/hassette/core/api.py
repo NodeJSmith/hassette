@@ -259,9 +259,6 @@ class Api(Resource):
     async def get_states(self) -> list[StateUnion]:
         """Get all entities in Home Assistant.
 
-        Args:
-            convert (bool): Whether to convert the states to state objects.
-
         Returns:
             list[StateUnion]: A list of states, either as dictionaries or converted to state objects.
         """
@@ -273,10 +270,9 @@ class Api(Resource):
     async def get_config(self) -> dict[str, Any]:
         """
         Get the Home Assistant configuration.
+
         Returns:
             dict: The configuration data.
-        Raises:
-            FailedMessageError: If the configuration retrieval fails or times out.
         """
         val = await self.ws_send_and_wait(type="get_config")
         assert isinstance(val, dict), "Expected a dictionary of configuration data"
@@ -285,10 +281,9 @@ class Api(Resource):
     async def get_services(self) -> dict[str, Any]:
         """
         Get the available services in Home Assistant.
+
         Returns:
             dict: The services data.
-        Raises:
-            FailedMessageError: If the service retrieval fails or times out.
         """
         val = await self.ws_send_and_wait(type="get_services")
         assert isinstance(val, dict), "Expected a dictionary of services"
@@ -297,10 +292,9 @@ class Api(Resource):
     async def get_panels(self) -> dict[str, Any]:
         """
         Get the available panels in Home Assistant.
+
         Returns:
             dict: The panels data.
-        Raises:
-            FailedMessageError: If the panel retrieval fails or times out.
         """
         val = await self.ws_send_and_wait(type="get_panels")
         assert isinstance(val, dict), "Expected a dictionary of panels"
@@ -313,13 +307,13 @@ class Api(Resource):
     ) -> dict[str, Any]:
         """
         Fire a custom event in Home Assistant.
+
         Args:
             event_type (str): The type of the event to fire (e.g., "custom_event").
             event_data (dict[str, Any], optional): Additional data to include with the event.
+
         Returns:
             dict: The response from Home Assistant.
-        Raises:
-            FailedMessageError: If the event firing fails or times out.
         """
         event_data = event_data or {}
 
@@ -348,9 +342,6 @@ class Api(Resource):
 
         Returns:
             HassContext | None: The response from Home Assistant if return_response is True. Otherwise, returns None.
-
-        Raises:
-            FailedMessageError: If the service call fails or times out.
         """
         payload = {
             "type": "call_service",
@@ -376,13 +367,13 @@ class Api(Resource):
     async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data):
         """
         Turn on a specific entity in Home Assistant.
+
         Args:
             entity_id (str): The ID of the entity to turn on (e.g., "light.office").
             domain (str): The domain of the entity (default: "homeassistant").
+
         Returns:
-            dict[str, Any]: The response from Home Assistant.
-        Raises:
-            FailedMessageError: If the service call fails or times out.
+            HassContext: The response context from Home Assistant.
         """
         entity_id = str(entity_id)
 
@@ -398,13 +389,13 @@ class Api(Resource):
     async def turn_off(self, entity_id: str, domain: str = "homeassistant"):
         """
         Turn off a specific entity in Home Assistant.
+
         Args:
             entity_id (str): The ID of the entity to turn off (e.g., "light.office").
             domain (str): The domain of the entity (default: "homeassistant").
+
         Returns:
-            dict[str, Any]: The response from Home Assistant.
-        Raises:
-            FailedMessageError: If the service call fails or times out.
+            HassContext: The response context from Home Assistant.
         """
         self.logger.debug("Turning off entity %s", entity_id)
         return await self.call_service(
@@ -417,13 +408,13 @@ class Api(Resource):
     async def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
         """
         Toggle a specific entity in Home Assistant.
+
         Args:
             entity_id (str): The ID of the entity to toggle (e.g., "light.office").
             domain (str): The domain of the entity (default: "homeassistant").
+
         Returns:
-            dict[str, Any]: The response from Home Assistant.
-        Raises:
-            FailedMessageError: If the service call fails or times out.
+            HassContext: The response context from Home Assistant.
         """
         self.logger.debug("Toggling entity %s", entity_id)
         return await self.call_service(
@@ -434,14 +425,28 @@ class Api(Resource):
         )
 
     async def get_state_raw(self, entity_id: str) -> HassStateDict:
-        """Get the state of a specific entity."""
+        """Get the state of a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the state for.
+
+        Returns:
+            HassStateDict: The state of the entity as raw data.
+        """
 
         url = f"states/{entity_id}"
         response = await self.get_rest_request(url)
         return await response.json()
 
     async def entity_exists(self, entity_id: str) -> bool:
-        """Check if a specific entity exists."""
+        """Check if a specific entity exists.
+
+        Args:
+            entity_id (str): The ID of the entity to check.
+
+        Returns:
+            bool: True if the entity exists, False otherwise.
+        """
 
         try:
             url = f"states/{entity_id}"
@@ -454,6 +459,12 @@ class Api(Resource):
     async def get_entity(self, entity_id: str, model: type[EntityT]) -> EntityT:
         """Get an entity object for a specific entity.
 
+        Args:
+            entity_id (str): The ID of the entity to get.
+            model (type[EntityT]): The model class to use for the entity.
+
+        Returns:
+            EntityT: The entity object.
 
         Note:
             This is not the same as calling get_state: get_state returns a BaseState subclass.
@@ -469,7 +480,15 @@ class Api(Resource):
         return model.model_validate({"state": raw})
 
     async def get_entity_or_none(self, entity_id: str, model: type[EntityT]) -> EntityT | None:
-        """Get the state of a specific entity."""
+        """Get an entity object for a specific entity, or None if it does not exist.
+
+        Args:
+            entity_id (str): The ID of the entity to get.
+            model (type[EntityT]): The model class to use for the entity.
+
+        Returns:
+            EntityT | None: The entity object, or None if it does not exist.
+        """
         try:
             return await self.get_entity(entity_id, model)
         except aiohttp.ClientResponseError as e:
@@ -478,8 +497,17 @@ class Api(Resource):
             raise
 
     async def get_state(self, entity_id: str, model: type[StateT]) -> StateT:
-        """Get the state of a specific entity."""
-        if not issubclass(model, StateUnion):  # runtime check
+        """Get the state of a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the state for.
+            model (type[StateT]): The model type to convert the state to.
+
+        Returns:
+            StateT: The state of the entity converted to the specified model type.
+        """
+
+        if not issubclass(model, BaseState):  # runtime check
             raise TypeError(f"Model {model!r} is not a valid StateType subclass")
 
         raw = await self.get_state_raw(entity_id)
@@ -517,10 +545,10 @@ class Api(Resource):
 
         Args:
             entity_id (str): The ID of the entity to get the state for.
-            model (type[BaseState[ST]]): The model type to convert the state to.
+            model (type[BaseState[StateValueT]]): The model type to convert the state to.
 
         Returns:
-            ST: The state of the entity converted to the specified model type.
+            StateValueT: The state of the entity converted to the specified model type.
 
         Raises:
             TypeError: If the model is not a valid StateType subclass.
@@ -533,8 +561,16 @@ class Api(Resource):
         state = await self.get_state(entity_id, model)
         return state.value
 
-    async def get_attribute(self, entity_id: str, attribute: str) -> Any:
-        """Get a specific attribute of an entity."""
+    async def get_attribute(self, entity_id: str, attribute: str) -> Any | None:
+        """Get a specific attribute of an entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the attribute for.
+            attribute (str): The name of the attribute to retrieve.
+
+        Returns:
+            Any: The value of the specified attribute, or None if it does not exist.
+        """
 
         entity = await self.get_state_raw(entity_id)
         return (entity.get("attributes", {}) or {}).get(attribute)
@@ -548,7 +584,21 @@ class Api(Resource):
         minimal_response: bool = False,
         no_attributes: bool = False,
     ) -> list[HistoryEntry]:
-        """Get the history of a specific entity."""
+        """Get the history of a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the history for.
+            start_time (PlainDateTime | Date | datetime | date | str):
+                The start time for the history range.
+            end_time (PlainDateTime | Date | datetime | date | str | None, optional):
+                The end time for the history range.
+            significant_changes_only (bool, optional): Whether to only include significant changes.
+            minimal_response (bool, optional): Whether to request a minimal response.
+            no_attributes (bool, optional): Whether to exclude attributes from the response.
+
+        Returns:
+            list[HistoryEntry]: A list of history entries for the specified entity.
+        """
         if "," in entity_id:
             raise ValueError("Entity ID should not contain commas. Use `get_histories` for multiple entities.")
 
@@ -579,7 +629,21 @@ class Api(Resource):
         minimal_response: bool = False,
         no_attributes: bool = False,
     ) -> dict[str, list[HistoryEntry]]:
-        """Get the history of a specific entity."""
+        """Get the history of a specific entity.
+
+        Args:
+            entity_ids (list[str]): The IDs of the entities to get the history for.
+            start_time (PlainDateTime | Date | datetime | date | str):
+                The start time for the history range.
+            end_time (PlainDateTime | Date | datetime | date | str | None, optional):
+                The end time for the history range.
+            significant_changes_only (bool, optional): Whether to only include significant changes.
+            minimal_response (bool, optional): Whether to request a minimal response.
+            no_attributes (bool, optional): Whether to exclude attributes from the response.
+
+        Returns:
+            dict[str, list[HistoryEntry]]: A dictionary mapping entity IDs to their respective history entries.
+        """
         entity_id = ",".join(entity_ids)
 
         entries = await self._api._get_history_raw(
@@ -606,7 +670,16 @@ class Api(Resource):
         start_time: PlainDateTime | Date | datetime | date | str,
         end_time: PlainDateTime | Date | datetime | date | str,
     ) -> list[dict]:
-        """Get the logbook entries for a specific entity."""
+        """Get the logbook entries for a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the logbook entries for.
+            start_time (PlainDateTime | Date | datetime | date | str): The start time for the logbook range.
+            end_time (PlainDateTime | Date | datetime | date | str): The end time for the logbook range.
+
+        Returns:
+            list[dict]: A list of logbook entries for the specified entity.
+        """
 
         url = f"logbook/{start_time}"
         params = {"entity": entity_id, "end_time": end_time}
@@ -621,7 +694,16 @@ class Api(Resource):
         state: str,
         attributes: dict[str, Any] | None = None,
     ) -> dict:
-        """Set the state of a specific entity."""
+        """Set the state of a specific entity.
+
+        Args:
+            entity_id (str | StrEnum): The ID of the entity to set the state for.
+            state (str): The new state value to set.
+            attributes (dict[str, Any], optional): Additional attributes to set for the entity.
+
+        Returns:
+            dict: The response from Home Assistant after setting the state.
+        """
 
         entity_id = str(entity_id)
 
@@ -645,7 +727,16 @@ class Api(Resource):
         entity_id: str,
         timestamp: ZonedDateTime | PlainDateTime | Date | datetime | date | str | None = None,
     ) -> bytes:
-        """Get the latest camera image for a specific entity."""
+        """Get the latest camera image for a specific entity.
+
+        Args:
+            entity_id (str): The ID of the camera entity to get the image for.
+            timestamp (ZonedDateTime | PlainDateTime | Date | datetime | date | str | None, optional):
+                The timestamp for the image. If None, the latest image is returned.
+
+        Returns:
+            bytes: The camera image data.
+        """
 
         url = f"camera_proxy/{entity_id}"
         params = {}
@@ -669,7 +760,16 @@ class Api(Resource):
         start_time: PlainDateTime | Date | datetime | date | str,
         end_time: PlainDateTime | Date | datetime | date | str,
     ) -> list[dict]:
-        """Get events from a specific calendar."""
+        """Get events from a specific calendar.
+
+        Args:
+            calendar_id (str): The ID of the calendar to get events from.
+            start_time (PlainDateTime | Date | datetime | date | str): The start time for the event range.
+            end_time (PlainDateTime | Date | datetime | date | str): The end time for the event range.
+
+        Returns:
+            list[dict]: A list of calendar events.
+        """
 
         url = f"calendars/{calendar_id}/events"
         params = {"start": start_time, "end": end_time}
@@ -682,7 +782,15 @@ class Api(Resource):
         template: str,
         variables: dict | None = None,
     ) -> str:
-        """Render a template with given variables."""
+        """Render a template with given variables.
+
+        Args:
+            template (str): The template string to render.
+            variables (dict, optional): Variables to use in the template.
+
+        Returns:
+            str: The rendered template result.
+        """
 
         url = "template"
         data = {"template": template, "variables": variables or {}}
@@ -691,7 +799,14 @@ class Api(Resource):
         return await response.text()
 
     async def delete_entity(self, entity_id: str) -> None:
-        """Delete a specific entity."""
+        """Delete a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to delete.
+
+        Raises:
+            RuntimeError: If the deletion fails.
+        """
 
         url = f"states/{entity_id}"
 
@@ -800,9 +915,6 @@ class ApiSyncFacade(Resource):
     def get_states(self):
         """Get all entities in Home Assistant.
 
-        Args:
-            convert (bool): Whether to convert the states to state objects.
-
         Returns:
             list[StateUnion]: A list of states, either as dictionaries or converted to state objects.
         """
@@ -811,30 +923,27 @@ class ApiSyncFacade(Resource):
     def get_config(self):
         """
         Get the Home Assistant configuration.
+
         Returns:
             dict: The configuration data.
-        Raises:
-            FailedMessageError: If the configuration retrieval fails or times out.
         """
         return self.hassette.run_sync(self._api.get_config())
 
     def get_services(self):
         """
         Get the available services in Home Assistant.
+
         Returns:
             dict: The services data.
-        Raises:
-            FailedMessageError: If the service retrieval fails or times out.
         """
         return self.hassette.run_sync(self._api.get_services())
 
     def get_panels(self):
         """
         Get the available panels in Home Assistant.
+
         Returns:
             dict: The panels data.
-        Raises:
-            FailedMessageError: If the panel retrieval fails or times out.
         """
         return self.hassette.run_sync(self._api.get_panels())
 
@@ -845,13 +954,13 @@ class ApiSyncFacade(Resource):
     ):
         """
         Fire a custom event in Home Assistant.
+
         Args:
             event_type (str): The type of the event to fire (e.g., "custom_event").
             event_data (dict[str, Any], optional): Additional data to include with the event.
+
         Returns:
             dict: The response from Home Assistant.
-        Raises:
-            FailedMessageError: If the event firing fails or times out.
         """
         return self.hassette.run_sync(self._api.fire_event(event_type, event_data))
 
@@ -865,61 +974,68 @@ class ApiSyncFacade(Resource):
     ):
         """
         Call a Home Assistant service.
+
         Args:
             domain (str): The domain of the service (e.g., "light").
             service (str): The name of the service to call (e.g., "turn_on").
             target (dict[str, str], optional): Target entity IDs or areas.
             **kwargs: Additional data to send with the service call.
+
         Returns:
             Context | None: The response from Home Assistant if return_response is True.
                           Otherwise, returns None.
-        Raises:
-            FailedMessageError: If the service call fails or times out.
         """
         return self.hassette.run_sync(self._api.call_service(domain, service, target, return_response, **data))
 
     def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data):
         """
         Turn on a specific entity in Home Assistant.
+
         Args:
             entity_id (str): The ID of the entity to turn on (e.g., "light.office").
             domain (str): The domain of the entity (default: "homeassistant").
+
         Returns:
             dict[str, Any]: The response from Home Assistant.
-        Raises:
-            FailedMessageError: If the service call fails or times out.
         """
         return self.hassette.run_sync(self._api.turn_on(entity_id, domain, **data))
 
     def turn_off(self, entity_id: str, domain: str = "homeassistant"):
         """
         Turn off a specific entity in Home Assistant.
+
         Args:
             entity_id (str): The ID of the entity to turn off (e.g., "light.office").
             domain (str): The domain of the entity (default: "homeassistant").
+
         Returns:
             dict[str, Any]: The response from Home Assistant.
-        Raises:
-            FailedMessageError: If the service call fails or times out.
         """
         return self.hassette.run_sync(self._api.turn_off(entity_id, domain))
 
     def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
         """
         Toggle a specific entity in Home Assistant.
+
         Args:
             entity_id (str): The ID of the entity to toggle (e.g., "light.office").
             domain (str): The domain of the entity (default: "homeassistant").
+
         Returns:
             dict[str, Any]: The response from Home Assistant.
-        Raises:
-            FailedMessageError: If the service call fails or times out.
         """
         return self.hassette.run_sync(self._api.toggle_service(entity_id, domain))
 
     def get_state_raw(self, entity_id: str):
-        """Get the state of a specific entity."""
+        """Get the state of a specific entity.
 
+        Args:
+            entity_id (str): The ID of the entity to get the state for.
+
+        Returns:
+            dict[str, Any]: The state of the entity.
+            FailedMessageError: If the service call fails or times out.
+        """
         return self.hassette.run_sync(self._api.get_state_raw(entity_id))
 
     def entity_exists(self, entity_id: str):
