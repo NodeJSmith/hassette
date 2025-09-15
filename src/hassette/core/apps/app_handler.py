@@ -171,6 +171,7 @@ class _AppHandler(Resource):
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
+        app_class.logger = getLogger(f"hassette.{app_class.__name__}")
 
         # Normalize to list-of-configs; TOML supports both single dict and list of dicts.
         settings_cls = app_class.app_config_cls
