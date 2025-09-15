@@ -1,7 +1,7 @@
 from . import topics
 from .api import Api
 from .apps import App, AppConfig, AppConfigT, AppSync
-from .bus import AllOf, AnyOf, AttrChanged, Changed, ChangedFrom, ChangedTo, DomainIs, EntityIs, Guard, Not
+from .bus.predicates import AllOf, AnyOf, AttrChanged, Changed, ChangedFrom, ChangedTo, DomainIs, EntityIs, Guard, Not
 from .bus.predicates.common import HomeAssistantRestarted
 from .classes import Resource, Service
 from .enums import ResourceRole, ResourceStatus

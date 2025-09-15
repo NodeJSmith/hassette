@@ -10,6 +10,8 @@ LOGGER = getLogger(__name__)
 
 
 class AppManifest(BaseModel):
+    """Manifest for a Hassette app."""
+
     model_config = ConfigDict(extra="allow", coerce_numbers_to_str=True)
 
     enabled: bool = Field(default=True)

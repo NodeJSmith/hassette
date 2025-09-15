@@ -168,6 +168,7 @@ def try_convert_state(data: "HassStateDict | None") -> StateUnion | None:
 
 __all__ = [
     "AutomationState",
+    "BaseState",
     "BinarySensorState",
     "ButtonState",
     "CalendarState",
