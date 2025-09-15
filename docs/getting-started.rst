@@ -110,11 +110,11 @@ To pass the token on the command line instead of env vars:
 5) Verify it's working
 ----------------------
 - You should see log lines indicating WebSocket authentication and service startup.
-- Trigger a light state change in Home Assistant; your handler will run.
+- Set HASSETTE__LOG_LEVEL=DEBUG to see detailed logs.
 
 Next steps
 ----------
 - Explore the :doc:`events` page for powerful filtering and predicates.
 - Learn the :doc:`api` for service calls, state access, and history.
 - Schedule recurring jobs with the :doc:`scheduler`.
- - Build richer automations with typed configs and lifecycle details in :doc:`apps`.
+  - Build richer automations with typed configs and lifecycle details in :doc:`apps`.
