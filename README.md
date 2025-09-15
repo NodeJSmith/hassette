@@ -20,10 +20,10 @@ Why Hassette?
 
 ## 📖 Examples
 
-Check out the [`examples/`](examples/) directory for more complete examples:
-- [Battery monitoring](examples/battery.py)
-- [Presence detection](examples/presence.py)
-- [Sensor notifications](examples/sensor_notification.py)
+Check out the [`examples/`](examples/apps) directory for more complete examples:
+- [Battery monitoring](examples/apps/battery.py)
+- [Presence detection](examples/apps/presence.py)
+- [Sensor notifications](examples/apps/sensor_notification.py)
 
 ## 🛣️ Status & Roadmap
 
