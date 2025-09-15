@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.6.2] - 2025-09-14
+### Fixed
+- Fix logging on `App` subclasses to use `hassette.<AppClassName>` logger
+
 ## [0.6.1] - 2025-09-14
 ### Fixed
 - Fixed `HassetteConfig` using single underscore when checking for app_dir, config_dir, and data_dir manually
