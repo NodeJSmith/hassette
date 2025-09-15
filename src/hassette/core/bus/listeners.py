@@ -106,7 +106,8 @@ class Subscription:
     topic: str
     key: str
 
-    def cancel(self) -> None:
+    def unsubscribe(self) -> None:
+        """Unsubscribe the listener from the bus."""
         self.bus.remove_listener_by_key(self.topic, self.key)
 
     @contextlib.contextmanager
@@ -114,4 +115,4 @@ class Subscription:
         try:
             yield self
         finally:
-            self.cancel()
+            self.unsubscribe()

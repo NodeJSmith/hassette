@@ -118,7 +118,7 @@ async def test_bus_throttle(mock_hassette_with_bus: Hassette) -> None:
 async def test_bus_subscription_remove(mock_hassette_with_bus: Hassette) -> None:
     calls = []
     sub = mock_hassette_with_bus.bus.on(topic="x", handler=get_handler(calls))
-    sub.cancel()
+    sub.unsubscribe()
 
     await mock_hassette_with_bus.send_event("x", EVENT)
     await asyncio.sleep(0)
