@@ -5,15 +5,6 @@ from pydantic_settings import SettingsConfigDict
 from hassette import App, AppConfig, AppSync, StateChangeEvent, states
 
 
-def try_cast_int(value: Any | None):
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return None
-
-
 # we subclass AppConfig to provide configuration specific to our app
 # this data can be provided in hassette.toml, in an .env file, environment
 # variables, or hardcoded - it uses pydantic settings under the hood
@@ -30,6 +21,15 @@ class BatteryConfig(AppConfig):
     force: bool = False
 
 
+def try_cast_int(value: Any | None):
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 class Battery(App[BatteryConfig]):
     """App is generic, so add your config class to the type parameter and you'll have
     fully typed access to the config values.
@@ -43,8 +43,6 @@ class Battery(App[BatteryConfig]):
         await super().initialize()
         self.scheduler.run_in(self.check_batteries, 1)
         assert self.app_config.threshold == 10  # from what is in hassette.toml
-
-        assert self.app_config.frce is False
 
     async def check_batteries(self):
         # get_states and all other methods are fully typed, including their Attributes
