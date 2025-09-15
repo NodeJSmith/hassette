@@ -11,12 +11,12 @@ Documentation: https://hassette.readthedocs.io
 
 Why Hassette?
 -------------
-- Async-first core built on asyncio
-- Typed events, states, and API interactions
-- Typed app configuration, typed events, typed states, typed API, typed everything
-- Powerful event bus with predicates, debounce, and throttle
-- Flexible scheduling (cron and intervals)
-- Simple, TOML-based configuration with Pydantic validation
+- 🌟 Async-first core built on asyncio
+- 🔧 Typed events, states, and API interactions
+- 📝 Typed app configuration, typed events, typed states, typed API, typed everything
+- 🚌 Powerful event bus with predicates, debounce, and throttle
+- ⏰ Flexible scheduling (cron and intervals)
+- ⚙️ Simple, TOML-based configuration with Pydantic validation
 
 License
 -------
