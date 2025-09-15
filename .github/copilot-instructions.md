@@ -27,10 +27,11 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - Minimal async app:
   ```python
   from hassette import App, AppConfig
-  class MyCfg(AppConfig): pass
-  class MyApp(App[MyCfg]):
+  class MyConfig(AppConfig): pass
+  class MyApp(App[MyConfig]):
       async def initialize(self):
           self.bus.on_entity("light.*", handler=self.changed)
+          await super().initialize()
       async def changed(self, event):
           await self.api.turn_on("light.bedroom")
   ```
