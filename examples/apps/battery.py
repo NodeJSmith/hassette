@@ -1,3 +1,5 @@
+# compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/battery.py
+
 from typing import Any
 
 from pydantic_settings import SettingsConfigDict
@@ -82,7 +84,6 @@ class Battery(App[BatteryConfig]):
             message += f"{device}: {value}\n"
 
         if low or self.app_config.always_send or self.app_config.force:
-            # TODO: create a notify method on api
             await self.api.call_service(
                 "notify",
                 "my_mobile_phone",

@@ -54,8 +54,13 @@ class Context(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str | None = Field(default=None)
+    """The context ID of the event."""
+
     parent_id: str | None = Field(default=None)
+    """The parent context ID of the event, if any."""
+
     user_id: str | None = Field(default=None)
+    """The user ID for who triggered the event."""
 
 
 class AttributesBase(BaseModel):
@@ -64,11 +69,19 @@ class AttributesBase(BaseModel):
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 
     icon: str | None = Field(default=None, repr=False)
-    friendly_name: str | None = Field(default=None, description="A friendly name for the entity.")
+    """The icon of the entity."""
 
-    device_class: str | None = Field(default=None, description="The device class of the entity.")
-    entity_id: list[str] | None = Field(default=None, description="List of entity IDs if this is a group entity.")
-    supported_features: int | float | None = Field(default=None, description="Bitfield of supported features.")
+    friendly_name: str | None = Field(default=None)
+    """A friendly name for the entity."""
+
+    device_class: str | None = Field(default=None)
+    """The device class of the entity."""
+
+    entity_id: list[str] | None = Field(default=None)
+    """List of entity IDs if this is a group entity."""
+
+    supported_features: int | float | None = Field(default=None)
+    """Bitfield of supported features."""
 
 
 class BaseState(BaseModel, Generic[StateValueT]):
@@ -80,36 +93,43 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 
-    domain: DomainLiteral | str = Field(..., description="The domain of the entity, e.g. 'light', 'sensor', etc.")
-    entity_id: str = Field(..., description="The full entity ID, e.g. 'light.living_room'.")
-    last_changed: Instant | None = Field(
-        None,
-        repr=False,
-        description="Time the state changed in the state machine, not updated when only attributes change.",
-    )
-    last_reported: Instant | None = Field(
-        None,
-        repr=False,
-        description="Time the state was written to the state machine, "
-        "updated regardless of any changes to the state or state attributes.",
-    )
-    last_updated: Instant | None = Field(
-        None,
-        repr=False,
-        description="Time the state or state attributes changed in the state machine, "
-        "not updated if neither state nor state attributes changed.",
-    )
-    context: Context = Field(repr=False)
+    domain: DomainLiteral | str = Field(...)
+    """The domain of the entity, e.g. 'light', 'sensor', etc."""
 
-    is_unknown: bool = Field(default=False, description="Whether the state is 'unknown'.")
-    is_unavailable: bool = Field(default=False, description="Whether the state is 'unavailable'.")
-    value: StateValueT = Field(
-        ..., validation_alias="state", description="The state value, e.g. 'on', 'off', 23.5, etc."
-    )
-    attributes: AttributesBase = Field(..., description="The attributes of the state.")
+    entity_id: str = Field(...)
+    """The full entity ID, e.g. 'light.living_room'."""
+
+    last_changed: Instant | None = Field(None, repr=False)
+    """Time the state changed in the state machine, not updated when only attributes change."""
+
+    last_reported: Instant | None = Field(None, repr=False)
+    """Time the state was written to the state machine, updated regardless of any changes to the state or
+    state attributes.
+    """
+
+    last_updated: Instant | None = Field(None, repr=False)
+    """Time the state or state attributes changed in the state machine, not updated if neither state nor state
+    attributes changed.
+    """
+
+    context: Context = Field(repr=False)
+    """The context of the state change."""
+
+    is_unknown: bool = Field(default=False)
+    """Whether the state is 'unknown'."""
+
+    is_unavailable: bool = Field(default=False)
+    """Whether the state is 'unavailable'."""
+
+    value: StateValueT = Field(..., validation_alias="state")
+    """The state value, e.g. 'on', 'off', 23.5, etc."""
+
+    attributes: AttributesBase = Field(...)
+    """The attributes of the state."""
 
     @property
     def is_group(self) -> bool:
+        """Whether this entity is a group entity (i.e. has multiple entity_ids)."""
         if not self.attributes:
             return False
 

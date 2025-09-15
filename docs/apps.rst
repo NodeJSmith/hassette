@@ -5,23 +5,36 @@ Build automations as classes with strong typing and a clear lifecycle.
 
 App Anatomy
 -----------
-- ``App[Cfg]``: async-first apps implement ``async def initialize(self)``.
-- ``AppSync[Cfg]``: synchronous apps implement ``def initialize_sync(self)``.
+- ``App[AppConfig]``: async-first apps implement ``async def initialize(self)``.
+- ``AppSync[AppConfig]``: synchronous apps implement ``def initialize_sync(self)``.
 - ``AppConfig``: Pydantic-based config model for typed ``self.app_config``.
 
 When to use which:
+
 - Prefer ``App`` for most automations; the API is async-first.
 - Use ``AppSync`` only when your logic must be synchronous (e.g., legacy libs) and call ``self.api.sync``.
 
 Lifecycle
 ---------
-- Initialize: set up subscriptions, schedules, and any initial state.
-- Teardown: unsubscribe or cancel jobs if you kept references (optional; Hassette cleans up on shutdown).
+- Initialize (``initialize`` or ``initialize_sync``): set up subscriptions, schedules, and any initial state.
+- Teardown (``shutdown`` or ``shutdown_sync``): unsubscribe or cancel jobs if you kept references (optional; Hassette cleans up on shutdown).
+
+.. note::
+
+    You should always call ``await super().initialize()`` and ``super().shutdown()`` (or their sync counterparts) if you override these methods. These will set the state
+    of your app to "running"/"stopped" and perform necessary internal setup/teardown.
+
+    You'll generally want to call them *after* your own setup in ``initialize`` and *after* your own teardown in ``shutdown``.
+
+.. warning::
+
+    You should not override ``__init__``, as this is managed by the framework. Use ``initialize`` for setup.
 
 .. code-block:: python
 
    class WithCleanup(App[AppConfig]):
        async def initialize(self):
+           await super().initialize()
            self.sub = self.bus.on_entity("light.kitchen", handler=self.on_change)
            self.job = self.scheduler.run_every(self.tick, interval=60)
 
@@ -32,29 +45,32 @@ Lifecycle
            ...
 
        # Optional: if you keep references, you can clean up explicitly
-       async def finalize(self):  # if you add a custom shutdown path
+       async def shutdown(self):  # if you add a custom shutdown path
            self.sub.unsubscribe()
            self.job.cancel()
+           await super().shutdown()
 
 .. code-block:: python
 
    from hassette import App, AppSync, AppConfig, StateChangeEvent, states
 
-   class MyCfg(AppConfig):
+   class MyConfig(AppConfig):
        entity_id: str
 
-   class LightsOn(App[MyCfg]):
+   class LightsOn(App[MyConfig]):
        async def initialize(self):
            self.logger.info("Starting LightsOn for %s", self.app_config.entity_id)
            self.bus.on_entity(self.app_config.entity_id, handler=self.on_change)
+           await super().initialize()
 
        async def on_change(self, event: StateChangeEvent[states.LightState]):
            if event.payload.data.new_state_value == "off":
                await self.api.turn_on(self.app_config.entity_id)
 
-   class LightsOnSync(AppSync[MyCfg]):
+   class LightsOnSync(AppSync[MyConfig]):
        def initialize_sync(self):
            self.bus.on_entity(self.app_config.entity_id, handler=self.on_change)
+           super().initialize_sync()
 
        def on_change(self, event: StateChangeEvent[states.LightState]):
            if event.payload.data.new_state_value == "off":
@@ -69,14 +85,15 @@ Define a Pydantic config for validation and editor help.
    from hassette import App, AppConfig
    from pydantic import Field, SettingsConfigDict
 
-   class PresenceCfg(AppConfig):
+   class PresenceConfig(AppConfig):
        model_config = SettingsConfigDict(env_prefix="PRESENCE_")
        motion_sensor: str = Field(...)
        lights: list[str] = Field(default_factory=list)
 
-   class Presence(App[PresenceCfg]):
+   class Presence(App[PresenceConfig]):
        async def initialize(self):
            self.bus.on_entity(self.app_config.motion_sensor, handler=self.on_motion, changed_to="on")
+           await super().initialize()
 
        async def on_motion(self, event):
            for light in self.app_config.lights:

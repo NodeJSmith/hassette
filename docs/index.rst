@@ -1,7 +1,7 @@
 Hassette
 ========
 
-A modern, async-first Python framework for building Home Assistant automations with type safety and great developer experience.
+A simple, modern, async-first Python framework for building Home Assistant automations.
 
 Why Hassette?
 -------------
@@ -99,6 +99,7 @@ Learn More
   api
   events
   scheduler
+  reference/index
 
 
 Indices and tables

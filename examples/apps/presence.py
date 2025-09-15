@@ -1,4 +1,11 @@
+# compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/presence.py
+
+import typing
+
 from hassette import App, AppConfig, StateChangeEvent, states
+
+if typing.TYPE_CHECKING:
+    from sound import Sound
 
 
 class PresenceAppConfig(AppConfig):
@@ -12,7 +19,7 @@ class PresenceAppConfig(AppConfig):
     input_select: str | None = None
     vacation: str | None = None
     announce: str | None = None
-    volume: int | None = None
+    volume: float = 6
 
 
 class Presence(App[PresenceAppConfig]):
@@ -26,30 +33,35 @@ class Presence(App[PresenceAppConfig]):
         await self.api.set_state("sensor.wendy_tracker", state="away")
 
     async def presence_change(self, event: StateChangeEvent[states.DeviceTrackerState]):
-        person = await self.api.get_attribute(event.payload.data.entity_id, attribute="friendly_name")
-        person_state = await self.api.get_state(event.payload.data.entity_id, states.PersonState)
-        if person_state.attributes and person_state.attributes.friendly_name:
-            person = person_state.attributes.friendly_name
+        data = event.payload.data
+        if not data.new_state:
+            return
+
+        person = data.new_state.attributes.friendly_name or data.entity_id
 
         tracker_entity = f"sensor.{person.lower()}_tracker"
 
-        new = event.payload.data.new_state_value
-        old = event.payload.data.old_state_value
+        new = data.new_state_value
+        old = data.old_state_value
+        announce_app: Sound | None = self.hassette.get_app("Sound")  # pyright: ignore[reportAssignmentType]
 
-        await self.api.set_state(tracker_entity, state=event.payload.data.new_state_value)
+        await self.api.set_state(tracker_entity, state=new)
         if old != new:
             if new == "not_home":
                 place = "is away"
                 if self.app_config.announce and self.app_config.announce.find(person) != -1:
-                    self.logger.error("We currently do not implement `get_app` logic")
-                    # self.announce = self.get_app("Sound")
-                    # self.announce.tts(f"{person} just left", self.app_config.volume, 3)
+                    if not announce_app:
+                        self.logger.error("Sound app not found, cannot announce")
+                        return
+
+                    await announce_app.tts(f"{person} just left", self.app_config.volume, 3)
             elif new == "home":
                 place = "arrived home"
                 if self.app_config.announce and self.app_config.announce.find(person) != -1:
-                    self.logger.error("We currently do not implement `get_app` logic")
-                    # self.announce = self.get_app("Sound")
-                    # self.announce.tts(f"{person} arrived home", self.app_config.volume, 3)
+                    if not announce_app:
+                        self.logger.error("Sound app not found, cannot announce")
+                        return
+                    await announce_app.tts(f"{person} arrived home", self.app_config.volume, 3)
             else:
                 place = f"is at {new}"
             message = f"{person} {place}"
