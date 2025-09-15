@@ -17,13 +17,14 @@ Create a Python file in your apps directory (e.g., ``src/apps/my_app.py``):
 
     from hassette import App, AppConfig, StateChangeEvent, states
 
-    class MyCfg(AppConfig):
+    class MyConfig(AppConfig):
          pass
 
-    class MyApp(App[MyCfg]):
+    class MyApp(App[MyConfig]):
         async def initialize(self):
             # React when any light changes
             self.bus.on_entity("light.*", handler=self.changed)
+            await super().initialize()
 
         async def changed(self, event: StateChangeEvent[states.LightState]):
             # Turn on a specific light (demo)

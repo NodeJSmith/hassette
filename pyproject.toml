@@ -64,7 +64,22 @@ test = [
     "pytest-randomly>=3.16.0",
 ]
 model_gen = ["datamodel-code-generator>=0.30.1"]
-docs = ["esbonio>=0.12.0", "sphinx>=7.0", "sphinx-rtd-theme>=2.0"]
+docs = [
+    "esbonio>=0.12.0",
+    "furo>=2024.8.6",
+    "autodoc-pydantic>=2.2.0",
+    "sphinx>=8.2.3",
+    "sphinx-autobuild==2024.10.3",
+    "sphinx-autodoc-typehints==3.2.0",
+    "sphinx-autodoc2==0.5.0",
+    "sphinx-basic-ng==1.0.0b2",
+    "sphinxcontrib-applehelp==2.0.0",
+    "sphinxcontrib-devhelp==2.0.0",
+    "sphinxcontrib-htmlhelp==2.1.0",
+    "sphinxcontrib-jsmath==1.0.1",
+    "sphinxcontrib-qthelp==2.0.0",
+    "sphinxcontrib-serializinghtml==2.0.0",
+]
 
 [tool.uv]
 default-groups = ["dev", "test"]

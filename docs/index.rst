@@ -99,6 +99,7 @@ Learn More
   api
   events
   scheduler
+  reference/index
 
 
 Indices and tables

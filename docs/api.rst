@@ -1,7 +1,20 @@
 API
 ===
 
-Async-first API for REST and WebSocket interactions.
+Async-first API for REST and WebSocket interactions. The service wraps Home Assistant's HTTP and
+WebSocket endpoints with typed models so your apps can query and mutate data without hand-building
+requests. All calls run on Hassette's asyncio loop and share the same authentication/session that the
+framework manages for you.
+
+Key capabilities
+----------------
+- Retrieve states and entities as rich Pydantic models (with raw variants available when needed).
+- Call services with convenience helpers for on/off/toggle as well as the generic
+  :meth:`call_service` method.
+- Fire custom events, fetch history/logbook records, interact with calendars, render templates, and
+  download camera stills.
+- Drop down to low-level ``rest_request`` or ``ws_send_and_wait`` helpers when you need direct API
+  access.
 
 .. caution::
 
@@ -33,33 +46,124 @@ Async-first API for REST and WebSocket interactions.
 
     An exception to this is ``get_state_value``, which does not accept a model and always returns a raw string from Home Assistant. You can use ``get_state_value_typed`` if you want a typed return value.
 
-Main methods
-------------
-- States: ``get_states()``, ``get_state_raw(entity_id)``, ``get_state(entity_id, StateType)``, ``get_state_value(entity_id)``, ``get_state_value_typed(entity_id, StateModel)``
-- Entities: ``get_entity(entity_id, EntityModel)``, ``get_entity_or_none(...)``
-- Attributes: ``get_attribute(entity_id, attribute)``
-- Services: ``call_service(domain, service, target=..., **data)``, ``turn_on(entity_id, domain=...)``, ``turn_off(...)``, ``toggle_service(...)``
-- Events: ``fire_event(event_type, event_data=None)``
-- History/Logbook: ``get_history(...)``, ``get_histories(...)``, ``get_logbook(...)``
-- Misc: ``render_template(template, variables=None)``, ``set_state(entity_id, state, attributes=None)``, ``delete_entity(entity_id)``, ``get_camera_image(entity_id, timestamp=None)``, ``get_calendars()``, ``get_calendar_events(...)``
+States
+------
+``get_states`` and ``get_state`` convert raw dictionaries into the appropriate
+:class:`~hassette.models.states.BaseState` subclasses. Pass the state model you expect to ``get_state``
+so you receive the fully typed object. If you just need the primary value, ``get_state_value`` returns
+the raw Home Assistant string, while ``get_state_value_typed`` will coerce into your Pydantic model's
+``state`` field.
 
-Examples
---------
 .. code-block:: python
 
-   # Turn on a light with brightness
-   await self.api.turn_on("light.bedroom", domain="light", brightness=200)
-
-   # Fetch a typed state
    from hassette import states
-   s = await self.api.get_state("light.bedroom", states.LightState)
 
-   # Call a service directly
-   await self.api.call_service("notify", "mobile_app_me", message="Hello from Hassette")
+   # Bulk fetch every entity as a typed state union
+   all_states = await self.api.get_states()
+
+   # Target a specific device with a concrete model
+   climate = await self.api.get_state("climate.living_room", states.ClimateState)
+   if climate.hvac_action == "heating":
+       self.log.debug("Living room is warming up (%.1f°C)", climate.attributes.current_temperature)
+
+   # Raw access
+   temperature = await self.api.get_state_value("sensor.outdoor_temp")
+
+Entities
+--------
+Entities (:py:mod:`~hassette.models.entities`) wrap a state plus helper methods. ``get_entity`` performs a
+runtime check to be sure you requested the right entity model and returns ``None`` if you use
+``get_entity_or_none`` and the entity is missing.
+
+.. code-block:: python
+
+   from hassette.models.entities import LightEntity
+
+   light = await self.api.get_entity("light.bedroom", LightEntity)
+   await light.turn_on(brightness_pct=30)
+
+   maybe = await self.api.get_entity_or_none("light.guest", LightEntity)
+   if maybe is None:
+       self.log.warning("Guest light is not registered")
+
+.. note::
+
+    Entities are on the roadmap but not fully implemented yet, currently there is only ``BaseEntity`` and ``LightEntity``.
+
+Service helpers
+---------------
+:meth:`Api.call_service` is the lowest-level abstraction for invoking Home Assistant services. Pass
+``domain``/``service`` along with a ``target`` dict or additional service data. Convenience wrappers
+turn_on/turn_off/toggle simply forward to ``call_service`` and request a response context so you can
+inspect the HA ``HassContext``.
+
+.. code-block:: python
+
+   await self.api.call_service(
+       "light",
+       "turn_on",
+       target={"entity_id": "light.porch"},
+       brightness_pct=80,
+   )
+
+   ctx = await self.api.turn_off("switch.air_purifier")
+   self.log.debug("Service request id=%s", ctx.id if ctx else "n/a")
+
+   # Fire an automation event
+   await self.api.fire_event("hassette_custom", {"trigger": "wake"})
+
+.. note::
+
+    Typed service calls are a high priority, but not yet implemented. Most detailed services (e.g. light.turn_on) will be
+    implemented in Entity classes to avoid having hundreds of overloads on the Api class.
+
+History and logbook
+-------------------
+History endpoints accept Whenever ``PlainDateTime``/``Date`` objects, Python ``datetime``/``date``, or
+plain strings. ``get_history`` returns normalized :class:`hassette.models.history.HistoryEntry`
+instances; ``get_histories`` yields a mapping of entity IDs to entry lists when you need to fetch
+multiple series at once.
+
+.. code-block:: python
+
+   from whenever import PlainDateTime
+
+   start = PlainDateTime.now().subtract(hours=2)
+   history = await self.api.get_history("climate.living_room", start_time=start)
+   for entry in history:
+       self.log.debug("%s -> %s", entry.timestamp, entry.state)
+
+   logbook = await self.api.get_logbook("binary_sensor.front_door", start_time=start)
+
+Templates, calendars, and other REST endpoints
+----------------------------------------------
+Use the provided helpers instead of building raw URLs:
+
+- :meth:`render_template` renders Jinja templates.
+- :meth:`get_camera_image` streams the latest still (or a specific timestamp).
+- :meth:`set_state` writes synthetic states (handy for helpers or sensors you manage).
+- :meth:`get_calendars` / :meth:`get_calendar_events` expose HA calendar data.
+
+Each helper handles serialization and retries for you.
+
+Low-level access
+----------------
+If you need an endpoint Hassette does not wrap yet, ``rest_request`` and ``ws_send_and_wait`` provide
+direct access to the authenticated ``aiohttp`` session and WebSocket connection. They include retry
+logic and raise Hassette-specific exceptions like :class:`hassette.exceptions.EntityNotFoundError` and
+:class:`hassette.exceptions.InvalidAuthError` so you can handle failures consistently.
+
+.. code-block:: python
+
+   response = await self.api.rest_request("GET", "config")
+   cfg = await response.json()
+   await self.api.ws_send_json(type="ping")
 
 Sync facade
 -----------
-``self.api.sync`` mirrors the async API with blocking calls for synchronous code. Do not call from within an event loop.
+``self.api.sync`` mirrors the async API with blocking calls for synchronous code. Do not call from
+within an event loop—it's intended for ``AppSync`` subclasses or transitional code paths (for
+example, libraries that expect synchronous hooks).
 
 .. code-block:: python
 
@@ -69,4 +173,5 @@ Sync facade
 Typing status
 -------------
 - Many models and read operations are strongly typed.
-- Service calls are not fully typed yet; finishing this is a high priority. For now, ``call_service`` accepts ``**data`` and performs string normalization for REST parameters.
+- Service calls are not fully typed yet; finishing this is a high priority. For now, ``call_service``
+  accepts ``**data`` and performs string normalization for REST parameters.
