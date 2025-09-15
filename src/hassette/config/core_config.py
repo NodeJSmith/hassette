@@ -84,18 +84,26 @@ class HassetteConfig(HassetteBaseSettings):
 
     # General configuration
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
-    config_dir: Path = Field(default_factory=default_config_dir, description="Directory to load/save configuration.")
-    data_dir: Path = Field(default_factory=default_data_dir, description="Directory to store Hassette data.")
-    app_dir: Path = Field(default_factory=default_app_dir, description="Directory to load user apps from.")
+    """Logging level for Hassette."""
+
+    config_dir: Path = Field(default_factory=default_config_dir)
+    """Directory to load/save configuration."""
+
+    data_dir: Path = Field(default_factory=default_data_dir)
+    """Directory to store Hassette data."""
+
+    app_dir: Path = Field(default_factory=default_app_dir)
+    """Directory to load user apps from."""
 
     # Home Assistant configuration starts here
-    base_url: str = Field(default="http://127.0.0.1:8123", description="Base URL of the Home Assistant instance")
-    api_port: int = Field(
-        default=8123, description="API port for Home Assistant, overriden by port in base_url if present"
-    )
+    base_url: str = Field(default="http://127.0.0.1:8123")
+    """Base URL of the Home Assistant instance"""
+
+    api_port: int = Field(default=8123)
+    """API port for Home Assistant, overriden by port in base_url if present"""
+
     token: SecretStr = Field(
         default=...,
-        description="Access token for Home Assistant instance",
         validation_alias=AliasChoices(
             "token",
             "hassette__token",
@@ -105,28 +113,28 @@ class HassetteConfig(HassetteBaseSettings):
         ),
         serialization_alias="token",
     )
+    """Access token for Home Assistant instance"""
 
     # App configurations
-    apps: dict[str, AppManifest] = Field(
-        default_factory=dict, description="Configuration for Hassette apps, keyed by app name."
-    )
+    apps: dict[str, AppManifest] = Field(default_factory=dict)
+    """Configuration for Hassette apps, keyed by app name."""
 
     # Other configurations
-    websocket_timeout_seconds: int = Field(default=5, description="Timeout for WebSocket requests.")
-    run_sync_timeout_seconds: int = Field(default=6, description="Default timeout for synchronous function calls.")
-    run_health_service: bool = Field(
-        default=True, description="Whether to run the health service for container healthchecks."
-    )
-    health_service_port: int | None = Field(
-        default=8126, description="Port to run the health service on, ignored if run_health_service is False."
-    )
+    websocket_timeout_seconds: int = Field(default=5)
+    """Timeout for WebSocket requests."""
+
+    run_sync_timeout_seconds: int = Field(default=6)
+    """Default timeout for synchronous function calls."""
+
+    run_health_service: bool = Field(default=True)
+    """Whether to run the health service for container healthchecks."""
+
+    health_service_port: int | None = Field(default=8126)
+    """Port to run the health service on, ignored if run_health_service is False."""
 
     # user config
-    secrets: dict[str, SecretStr] = Field(
-        default_factory=dict,
-        description="User provided secrets that can be referenced in the config.",
-        examples=["['my_secret','another_secret']"],
-    )
+    secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
+    """User provided secrets that can be referenced in the config."""
 
     @property
     def ws_url(self) -> str:

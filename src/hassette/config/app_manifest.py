@@ -12,25 +12,23 @@ LOGGER = getLogger(__name__)
 class AppManifest(BaseModel):
     model_config = ConfigDict(extra="allow", coerce_numbers_to_str=True)
 
-    enabled: bool = Field(
-        default=True, description="Whether the app is enabled or not, will default to True if not set"
-    )
-    filename: str = Field(
-        default=..., description="Filename of the app, will be looked for in app_path", examples=["my_app.py"]
-    )
-    class_name: str = Field(default=..., description="Class name of the app", examples=["MyApp"])
-    display_name: str = Field(
-        default=..., description="Display name of the app, will use class_name if not set", examples=["My App"]
-    )
-    app_dir: Path = Field(
-        ...,
-        description="Path to the app directory, relative to current working directory or absolute",
-        examples=["./apps"],
-    )
+    enabled: bool = Field(default=True)
+    """Whether the app is enabled or not, will default to True if not set"""
 
-    user_config: dict[str, Any] | list[dict[str, Any]] = Field(
-        default_factory=dict, description="User configuration for the app", validation_alias="config"
-    )
+    filename: str = Field(default=..., examples=["my_app.py"])
+    """Filename of the app, will be looked for in app_path"""
+
+    class_name: str = Field(default=..., examples=["MyApp"])
+    """Class name of the app"""
+
+    display_name: str = Field(default=..., examples=["My App"])
+    """Display name of the app, will use class_name if not set"""
+
+    app_dir: Path = Field(..., examples=["./apps"])
+    """Path to the app directory, relative to current working directory or absolute"""
+
+    user_config: dict[str, Any] | list[dict[str, Any]] = Field(default_factory=dict, validation_alias="config")
+    """User configuration for the app"""
 
     _full_path: Path | None = None  # Cached full path after first access
 
