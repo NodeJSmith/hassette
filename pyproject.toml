@@ -5,7 +5,7 @@ build-backend = "uv_build"
 [project]
 name = "hassette"
 version = "0.7.1"
-description = "Hassette is a modern, asynchronous, fully typed Python framework for running Home Assistant scripts and automations."
+description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
