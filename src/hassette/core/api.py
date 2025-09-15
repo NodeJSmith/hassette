@@ -982,8 +982,8 @@ class ApiSyncFacade(Resource):
             **kwargs: Additional data to send with the service call.
 
         Returns:
-            Context | None: The response from Home Assistant if return_response is True.
-                          Otherwise, returns None.
+            HassContext | None: The response from Home Assistant if return_response is True.
+                Otherwise, returns None.
         """
         return self.hassette.run_sync(self._api.call_service(domain, service, target, return_response, **data))
 
@@ -996,7 +996,7 @@ class ApiSyncFacade(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            dict[str, Any]: The response from Home Assistant.
+            HassContext: The response context from Home Assistant.
         """
         return self.hassette.run_sync(self._api.turn_on(entity_id, domain, **data))
 
@@ -1009,7 +1009,7 @@ class ApiSyncFacade(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            dict[str, Any]: The response from Home Assistant.
+            HassContext: The response context from Home Assistant.
         """
         return self.hassette.run_sync(self._api.turn_off(entity_id, domain))
 
@@ -1022,7 +1022,7 @@ class ApiSyncFacade(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            dict[str, Any]: The response from Home Assistant.
+            HassContext: The response context from Home Assistant.
         """
         return self.hassette.run_sync(self._api.toggle_service(entity_id, domain))
 
@@ -1033,39 +1033,109 @@ class ApiSyncFacade(Resource):
             entity_id (str): The ID of the entity to get the state for.
 
         Returns:
-            dict[str, Any]: The state of the entity.
-            FailedMessageError: If the service call fails or times out.
+            HassStateDict: The state of the entity as raw data.
         """
         return self.hassette.run_sync(self._api.get_state_raw(entity_id))
 
     def entity_exists(self, entity_id: str):
-        """Check if a specific entity exists."""
+        """Check if a specific entity exists.
+
+        Args:
+            entity_id (str): The ID of the entity to check.
+
+        Returns:
+            bool: True if the entity exists, False otherwise.
+        """
 
         return self.hassette.run_sync(self._api.entity_exists(entity_id))
 
     def get_entity(self, entity_id: str, model: type[EntityT]):
-        """Get the state of a specific entity."""
+        """Get an entity object for a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get.
+            model (type[EntityT]): The model class to use for the entity.
+
+        Returns:
+            EntityT: The entity object.
+
+        Note:
+            This is not the same as calling get_state: get_state returns a BaseState subclass.
+            This call returns an EntityState subclass, which wraps the state object and provides
+            api methods for interacting with the entity.
+        """
         return self.hassette.run_sync(self._api.get_entity(entity_id, model))
 
     def get_entity_or_none(self, entity_id: str, model: type[EntityT]):
-        """Get the state of a specific entity."""
+        """Get an entity object for a specific entity, or None if it does not exist.
+
+        Args:
+            entity_id (str): The ID of the entity to get.
+            model (type[EntityT]): The model class to use for the entity.
+
+        Returns:
+            EntityT | None: The entity object, or None if it does not exist.
+        """
         return self.hassette.run_sync(self._api.get_entity_or_none(entity_id, model))
 
     def get_state(self, entity_id: str, model: type[StateT]):
-        """Get the state of a specific entity."""
+        """Get the state of a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the state for.
+            model (type[StateT]): The model type to convert the state to.
+
+        Returns:
+            StateT: The state of the entity converted to the specified model type.
+        """
         return self.hassette.run_sync(self._api.get_state(entity_id, model))
 
     def get_state_value(self, entity_id: str):
-        """Get the state of a specific entity as raw data."""
+        """Get the state of a specific entity without converting it to a state object.
+
+        Args:
+            entity_id (str): The ID of the entity to get the state for.
+
+        Returns:
+            str: The state of the entity as raw data.
+
+        Note:
+            While most default methods in this library work with state objects for
+            strong typing, this method is designed to return the raw state value,
+            as it is likely overkill to convert it to a state object for simple state value retrieval.
+        """
         return self.hassette.run_sync(self._api.get_state_value(entity_id))
 
     def get_state_value_typed(self, entity_id: str, model: type[BaseState[StateValueT]]):
-        """Get the state of all entities."""
+        """Get the state of a specific entity as a converted state object.
+
+        Args:
+            entity_id (str): The ID of the entity to get the state for.
+            model (type[BaseState[StateValueT]]): The model type to convert the state to.
+
+        Returns:
+            StateValueT: The state of the entity converted to the specified model type.
+
+        Raises:
+            TypeError: If the model is not a valid StateType subclass.
+
+        Note:
+            Instead of the default way of calling `get_state` involving a type, we assume that the
+            average user only needs the raw value of the state value, without type safety.
+        """
 
         return self.hassette.run_sync(self._api.get_state_value_typed(entity_id, model))
 
     def get_attribute(self, entity_id: str, attribute: str):
-        """Get a specific attribute of an entity."""
+        """Get a specific attribute of an entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the attribute for.
+            attribute (str): The name of the attribute to retrieve.
+
+        Returns:
+            Any: The value of the specified attribute, or None if it does not exist.
+        """
 
         return self.hassette.run_sync(self._api.get_attribute(entity_id, attribute))
 
@@ -1078,7 +1148,21 @@ class ApiSyncFacade(Resource):
         minimal_response: bool = False,
         no_attributes: bool = False,
     ):
-        """Get the history of a specific entity."""
+        """Get the history of a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the history for.
+            start_time (PlainDateTime | Date | datetime | date | str):
+                The start time for the history range.
+            end_time (PlainDateTime | Date | datetime | date | str | None, optional):
+                The end time for the history range.
+            significant_changes_only (bool, optional): Whether to only include significant changes.
+            minimal_response (bool, optional): Whether to request a minimal response.
+            no_attributes (bool, optional): Whether to exclude attributes from the response.
+
+        Returns:
+            list[HistoryEntry]: A list of history entries for the specified entity.
+        """
         return self.hassette.run_sync(
             self._api.get_history(
                 entity_id=entity_id,
@@ -1099,7 +1183,21 @@ class ApiSyncFacade(Resource):
         minimal_response: bool = False,
         no_attributes: bool = False,
     ):
-        """Get the history of a specific entity."""
+        """Get the history of a specific entity.
+
+        Args:
+            entity_ids (list[str]): The IDs of the entities to get the history for.
+            start_time (PlainDateTime | Date | datetime | date | str):
+                The start time for the history range.
+            end_time (PlainDateTime | Date | datetime | date | str | None, optional):
+                The end time for the history range.
+            significant_changes_only (bool, optional): Whether to only include significant changes.
+            minimal_response (bool, optional): Whether to request a minimal response.
+            no_attributes (bool, optional): Whether to exclude attributes from the response.
+
+        Returns:
+            dict[str, list[HistoryEntry]]: A dictionary mapping entity IDs to their respective history entries.
+        """
         return self.hassette.run_sync(
             self._api.get_histories(
                 entity_ids=entity_ids,
@@ -1117,7 +1215,16 @@ class ApiSyncFacade(Resource):
         start_time: PlainDateTime | Date | datetime | date | str,
         end_time: PlainDateTime | Date | datetime | date | str,
     ):
-        """Get the logbook entries for a specific entity."""
+        """Get the logbook entries for a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to get the logbook entries for.
+            start_time (PlainDateTime | Date | datetime | date | str): The start time for the logbook range.
+            end_time (PlainDateTime | Date | datetime | date | str): The end time for the logbook range.
+
+        Returns:
+            list[dict]: A list of logbook entries for the specified entity.
+        """
 
         return self.hassette.run_sync(self._api.get_logbook(entity_id, start_time, end_time))
 
@@ -1127,7 +1234,16 @@ class ApiSyncFacade(Resource):
         state: str,
         attributes: dict[str, Any] | None = None,
     ):
-        """Set the state of a specific entity."""
+        """Set the state of a specific entity.
+
+        Args:
+            entity_id (str | StrEnum): The ID of the entity to set the state for.
+            state (str): The new state value to set.
+            attributes (dict[str, Any], optional): Additional attributes to set for the entity.
+
+        Returns:
+            dict: The response from Home Assistant after setting the state.
+        """
 
         return self.hassette.run_sync(self._api.set_state(entity_id, state, attributes))
 
@@ -1136,12 +1252,25 @@ class ApiSyncFacade(Resource):
         entity_id: str,
         timestamp: ZonedDateTime | PlainDateTime | Date | datetime | date | str | None = None,
     ):
-        """Get the latest camera image for a specific entity."""
+        """Get the latest camera image for a specific entity.
+
+        Args:
+            entity_id (str): The ID of the camera entity to get the image for.
+            timestamp (ZonedDateTime | PlainDateTime | Date | datetime | date | str | None, optional):
+                The timestamp for the image. If None, the latest image is returned.
+
+        Returns:
+            bytes: The camera image data.
+        """
 
         return self.hassette.run_sync(self._api.get_camera_image(entity_id, timestamp))
 
     def get_calendars(self):
-        """Get the list of calendars."""
+        """Get the list of calendars.
+
+        Returns:
+            list[dict]: The calendars configured in Home Assistant.
+        """
 
         return self.hassette.run_sync(self._api.get_calendars())
 
@@ -1151,7 +1280,16 @@ class ApiSyncFacade(Resource):
         start_time: PlainDateTime | Date | datetime | date | str,
         end_time: PlainDateTime | Date | datetime | date | str,
     ):
-        """Get events from a specific calendar."""
+        """Get events from a specific calendar.
+
+        Args:
+            calendar_id (str): The ID of the calendar to get events from.
+            start_time (PlainDateTime | Date | datetime | date | str): The start time for the event range.
+            end_time (PlainDateTime | Date | datetime | date | str): The end time for the event range.
+
+        Returns:
+            list[dict]: A list of calendar events.
+        """
 
         return self.hassette.run_sync(
             self._api.get_calendar_events(
@@ -1166,11 +1304,26 @@ class ApiSyncFacade(Resource):
         template: str,
         variables: dict | None = None,
     ):
-        """Render a template with given variables."""
+        """Render a template with given variables.
+
+        Args:
+            template (str): The template string to render.
+            variables (dict, optional): Variables to use in the template.
+
+        Returns:
+            str: The rendered template result.
+        """
         return self.hassette.run_sync(self._api.render_template(template, variables))
 
     def delete_entity(self, entity_id: str):
-        """Delete a specific entity."""
+        """Delete a specific entity.
+
+        Args:
+            entity_id (str): The ID of the entity to delete.
+
+        Raises:
+            RuntimeError: If the deletion fails.
+        """
 
         self.hassette.run_sync(self._api.delete_entity(entity_id))
 
