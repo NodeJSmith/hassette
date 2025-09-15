@@ -70,7 +70,6 @@ Hassette expects a ``hassette.toml`` file to set basic options and declare your 
     When running in Docker, you should typically mount your apps to ``/apps`` and config to ``/config``.
 
 ``[apps.<name>]`` section
--------------------------
 - ``enabled``: determines whether Hassette loads this app; defaults to true, so only required if you want to disable
 - ``filename``: the Python file within ``app_dir`` containing your app class (e.g., ``my_app.py``)
 - ``class_name``: the class name of your app within that file (e.g., ``MyApp``)
@@ -79,6 +78,11 @@ Hassette expects a ``hassette.toml`` file to set basic options and declare your 
 
 
 Single vs multiple instances:
+
+.. note::
+
+     See :doc:`apps` for a deeper walkthrough of app anatomy, ``App`` vs ``AppSync``,
+     and how to use ``self.api``, ``self.bus``, ``self.scheduler``, ``self.logger``, and ``self.hassette``.
 
 .. code-block:: toml
 

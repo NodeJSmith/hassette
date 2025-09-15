@@ -91,14 +91,14 @@ Learn More
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. toctree::
-  :maxdepth: 1
+  :maxdepth: 2
 
-  configuration
   getting-started
-  events
+  configuration
+  apps
   api
+  events
   scheduler
-  testing
 
 
 Indices and tables

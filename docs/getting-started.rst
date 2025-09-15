@@ -117,3 +117,4 @@ Next steps
 - Explore the :doc:`events` page for powerful filtering and predicates.
 - Learn the :doc:`api` for service calls, state access, and history.
 - Schedule recurring jobs with the :doc:`scheduler`.
+ - Build richer automations with typed configs and lifecycle details in :doc:`apps`.
