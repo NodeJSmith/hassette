@@ -1,3 +1,5 @@
+# compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/sensor_notification.py
+
 from hassette import App, AppConfig, StateChangeEvent, states
 
 
@@ -38,7 +40,7 @@ class SensorNotification(App[SensorNotificationAppConfig]):
         if not data.new_state:
             return
 
-        friendly_name = data.new_state.attributes.friendly_name if data.new_state.attributes else data.entity_id
+        friendly_name = data.new_state.attributes.friendly_name or data.entity_id
         new = data.new_state_value
 
         if new != "":
