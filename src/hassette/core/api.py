@@ -629,7 +629,7 @@ class Api(Resource):
         minimal_response: bool = False,
         no_attributes: bool = False,
     ) -> dict[str, list[HistoryEntry]]:
-        """Get the history of a specific entity.
+        """Get the history for multiple entities.
 
         Args:
             entity_ids (list[str]): The IDs of the entities to get the history for.
@@ -1183,7 +1183,7 @@ class ApiSyncFacade(Resource):
         minimal_response: bool = False,
         no_attributes: bool = False,
     ):
-        """Get the history of a specific entity.
+        """Get the history for multiple entities.
 
         Args:
             entity_ids (list[str]): The IDs of the entities to get the history for.
