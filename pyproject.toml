@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.6.2"
+version = "0.7.0"
 description = "Hassette is a modern, asynchronous, fully typed Python framework for running Home Assistant scripts and automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -64,6 +64,7 @@ test = [
     "pytest-randomly>=3.16.0",
 ]
 model_gen = ["datamodel-code-generator>=0.30.1"]
+docs = ["esbonio>=0.12.0", "sphinx>=7.0", "sphinx-rtd-theme>=2.0"]
 
 [tool.uv]
 default-groups = ["dev", "test"]

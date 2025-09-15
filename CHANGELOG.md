@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.7.0] - 2025-09-14
+### Changed
+- rename `cancel` on `Subscription` to `unsubscribe` for clarity
+
+### Fixed
+- improved docstrings across `Api` methods
+
+### Added
+- Documentation!
+
 ## [0.6.2] - 2025-09-14
 ### Fixed
 - Fix logging on `App` subclasses to use `hassette.<AppClassName>` logger
