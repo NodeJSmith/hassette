@@ -58,7 +58,6 @@ class Presence(App[PresenceAppConfig]):
             elif new == "home":
                 place = "arrived home"
                 if self.app_config.announce and self.app_config.announce.find(person) != -1:
-                    self.logger.error("We currently do not implement `get_app` logic")
                     if not announce_app:
                         self.logger.error("Sound app not found, cannot announce")
                         return
