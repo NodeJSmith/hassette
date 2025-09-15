@@ -70,7 +70,7 @@ Lifecycle
    class LightsOnSync(AppSync[MyConfig]):
        def initialize_sync(self):
            self.bus.on_entity(self.app_config.entity_id, handler=self.on_change)
-           await super().initialize_sync()
+           super().initialize_sync()
 
        def on_change(self, event: StateChangeEvent[states.LightState]):
            if event.payload.data.new_state_value == "off":
