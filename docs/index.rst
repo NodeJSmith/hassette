@@ -93,7 +93,6 @@ Learn More
 .. toctree::
   :maxdepth: 1
 
-  install
   configuration
   getting-started
   events
