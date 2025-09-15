@@ -197,10 +197,8 @@ Best practice: use env vars (or .env) for tokens and secrets; keep TOML non-secr
 
 .. hint::
 
-    Set ``HASSETTE__LOG_LEVEL=debug`` to log which source provided each setting
+    Set ``HASSETTE__LOG_LEVEL=DEBUG`` to log which source provided each setting
     at startup. This is helpful when values aren't what you expect.
-
-    Common values: ``debug``, ``info``, ``warning``, ``error``.
 
     Warning: this can print sensitive values in logs. Use only during setup and
     never share these logs publicly.
