@@ -21,7 +21,6 @@ class LightState(StringBaseState):
         hs_color: list[float] | None = Field(default=None)
         rgb_color: list[int] | None = Field(default=None)
         xy_color: list[float] | None = Field(default=None)
-        entity_id: list[str] | None = Field(default=None)
 
     domain: Literal["light"]
 
