@@ -4,13 +4,18 @@ Configuration
 This guide helps you configure Hassette for a smooth first run. The settings below are not necessarily exhaustive,
 but cover the most important and commonly used options.
 
+.. seealso::
+
+    First time here? Start with :doc:`getting-started`.
+
 Hassette requires very few settings to run - just the Home Assistant URL and a token. The URL can be provided
 via the config file or environment variable; the token should be provided via environment variable or CLI
 argument for security reasons.
 
 Specifying the location of your files
-=====================================
+-------------------------------------
 By default, Hassette looks for ``hassette.toml`` in one of three locations (in order):
+
 1. ``/config/hassette.toml`` (for Docker setups)
 2. ``./hassette.toml`` (in the current working directory)
 3. ``./config/hassette.toml`` (in a ``config`` subdirectory of the working directory)
@@ -22,18 +27,18 @@ If you want to use a different path for the config file, you can pass it via the
 
 .. code-block:: bash
 
-   uv run run-hassette -c /home/hassette.toml
+    uv run run-hassette -c ./config/hassette.toml -e ./config/.env
 
 Home Assistant Token
-====================
+--------------------
 Hassette needs a long-lived access token from your Home Assistant user profile to authenticate with the
-WebSocket API. You can create one in your Home Assistant profile page.
+WebSocket API. You can create one on your Home Assistant user profile page.
 
 This can be provided to ``Hassette`` under multiple names: ``HASSETTE__TOKEN``, ``HOME_ASSISTANT_TOKEN``,
-``HA_TOKEN`` if using environment variables, or ``--token``/``--t`` if using the CLI.
+``HA_TOKEN`` if using environment variables, or ``--token``/``-t`` if using the CLI.
 
 hassette.toml file
-==================
+------------------
 Hassette expects a ``hassette.toml`` file to set basic options and declare your apps. The structure is:
 
 .. code-block:: toml
@@ -51,22 +56,22 @@ Hassette expects a ``hassette.toml`` file to set basic options and declare your 
 
 
 ``[hassette]`` section
-======================
+----------------------
 - ``base_url``: Home Assistant URL (default ``http://127.0.0.1:8123``)
     - Set this to your HA address. If it includes a port, that port is used for API requests and WebSocket connections.
     - If no port is given, the default 8123 is used.
     - If a non-default port is needed, it can be set in the URL (e.g., ``http://host:port``) or via ``api_port``.
 - ``app_dir``: Directory of your app modules; determines import package name
     - This should point to the directory where your app Python files live, such as ``src/apps``.
-        - If you have a file named ``my_app.py``, Hassette will attempt to find it in `src/apps/my_app.py` and import it as ``apps.my_app``.
+    - If you have a file named ``my_app.py``, Hassette will attempt to find it in ``src/apps/my_app.py`` and import it as ``apps.my_app``.
 
 .. note::
 
     When running in Docker, you should typically mount your apps to ``/apps`` and config to ``/config``.
 
 ``[apps.<name>]`` section
-==========================
-- ``enabled``: determines if Hassette loads this app - defaults to true, so only required if you want to disable
+-------------------------
+- ``enabled``: determines whether Hassette loads this app; defaults to true, so only required if you want to disable
 - ``filename``: the Python file within ``app_dir`` containing your app class (e.g., ``my_app.py``)
 - ``class_name``: the class name of your app within that file (e.g., ``MyApp``)
 - ``display_name``: optional; defaults to ``class_name``
@@ -96,17 +101,17 @@ Single vs multiple instances:
 
 .. note::
 
-    An *app* is validated by the `AppManifest` class, which checks that required fields are present and correctly typed. There can only be one ``[apps.<name>]`` section per app name.
+    An *app* is validated by the ``AppManifest`` class, which checks that required fields are present and correctly typed. There can only be one ``[apps.<name>]`` section per app name.
 
-    An *app config* (if used) is validated by your app's `AppConfig` subclass, which checks that required fields are present and correctly typed. There can be multiple ``[[apps.<name>.config]]`` sections per app name.
+    An *app config* (if used) is validated by your app's ``AppConfig`` subclass, which checks that required fields are present and correctly typed. There can be multiple ``[[apps.<name>.config]]`` sections per app name.
 
 
 Typed app configuration
-=======================
+-----------------------
 
 Your app classes inherit from ``App``, which is generic on a config type. The generic parameter gives you a typed config instance at ``self.app_config`` and validates TOML ``config`` values.
 
-``AppConfig`` is a subclass of `pydantic.BaseSettings`, so you can use all of Pydantic's features, including field validation, defaults, and environment variable support. Environment variables
+``AppConfig`` is a subclass of ``pydantic.BaseSettings``, so you can use all of Pydantic's features, including field validation, defaults, and environment variable support. Environment variables
 or values in a ``.env`` file that match your app name and config field names will be passed to your app config. This can be a bit unwieldy at times, but you can also set an ``env_prefix`` to set a
 custom prefix - in this case ``Hassette`` is no longer involved and ``pydantic`` will take over.
 
@@ -124,8 +129,7 @@ custom prefix - in this case ``Hassette`` is no longer involved and ``pydantic``
    class MyApp(App[MyConfig]):
        async def initialize(self):
            # self.app_config is fully typed here
-           await self.api.turn_on(self.app_config.entity_id,
-              brightness=self.app_config.brightness)
+              await self.api.turn_on(self.app_config.entity_id, brightness=self.app_config.brightness)
 
 .. code-block:: toml
 
@@ -142,7 +146,7 @@ custom prefix - in this case ``Hassette`` is no longer involved and ``pydantic``
     export HASSETTE__APPS__MY_APP__CONFIG__REQUIRED_SECRET="s3cr3t"
 
 Managing secrets
-=================
+----------------
 
 Use environment variables or ``.env`` to set secrets required by ``Hassette`` or your apps configuration. If you want to have any secrets set on the
 ``HassetteConfig`` instance, you may also list secret keys in ``[hassette].secrets``; the config layer will attempt to fill them from available sources.
@@ -189,8 +193,10 @@ Best practice: use env vars (or .env) for tokens and secrets; keep TOML non-secr
 
 .. hint::
 
-   Set ``HASSETTE__LOG_LEVEL=DEBUG`` to log which source provided each setting
-   at startup. This is helpful when values aren't what you expect.
+    Set ``HASSETTE__LOG_LEVEL=debug`` to log which source provided each setting
+    at startup. This is helpful when values aren't what you expect.
 
-   Warning: this can print sensitive values in logs. Use only during setup and
-   never share these logs publicly.
+    Common values: ``debug``, ``info``, ``warning``, ``error``.
+
+    Warning: this can print sensitive values in logs. Use only during setup and
+    never share these logs publicly.

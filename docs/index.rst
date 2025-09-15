@@ -3,10 +3,6 @@ Hassette
 
 A modern, async-first Python framework for building Home Assistant automations with type safety and great developer experience.
 
-Elevator Pitch
---------------
-Hassette brings the comfort of modern Python to your Home Assistant automations: fully async, strongly typed, and built around an event bus and scheduler that make complex automations easy to write and easy to reason about.
-
 Why Hassette?
 -------------
 - Async-first core built on asyncio
@@ -14,6 +10,7 @@ Why Hassette?
 - Powerful event bus with predicates, debounce, and throttle
 - Flexible scheduling (cron and intervals)
 - Simple, TOML-based configuration with Pydantic validation
+
 
 Quick Start
 -----------
@@ -89,12 +86,12 @@ Create a ``hassette.toml`` (e.g., in ``./config``)::
   # inline config for a single instance
   config = { some_option = true }
 
-Next Steps
-----------
+
+Learn More
+~~~~~~~~~~~~~~~~~~~~~
 
 .. toctree::
-  :maxdepth: 2
-  :caption: Learn More
+  :maxdepth: 1
 
   install
   configuration
@@ -103,6 +100,7 @@ Next Steps
   api
   scheduler
   testing
+
 
 Indices and tables
 ------------------
