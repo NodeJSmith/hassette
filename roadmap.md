@@ -15,8 +15,8 @@ Organized by development priority. Items may evolve over time as architecture an
   - [ ] `_Hassette`
 - [ ] Retry limits (no infinite retries)
 - [x] Switch from APScheduler to a custom scheduler
-- [ ] Tighten up and test configuration classes
-  - [ ] Fully document priority: environment variables > `.env` > `pyproject.toml`
+- [x] Tighten up and test configuration classes
+  - [x] Fully document priority: environment variables > `.env` > `pyproject.toml`
 - [x] Add timeouts to startup/shutdown, especially for user apps/services
 - [x] Expand event bus beyond just state change events
 - [ ] Improved logging configuration
@@ -30,6 +30,10 @@ Organized by development priority. Items may evolve over time as architecture an
 - [ ] Create decorators to simplify registering event handlers and/or services
 - [x] Make it easier to mock calls/responses - `SimpleTestServer` in `test_utils.py`
 - [ ] Document everything thoroughly
+  - [x] Concept docs (architecture, core components, how it works)
+  - [x] User guide (getting started, writing apps, deploying)
+  - [x] Public API reference (auto-generated from docstrings)
+  - [ ] Full api reference - in progress
 - [ ] Add ability to generate `.pyi` stubs for Home Assistant entities/services
 - [ ] Add instrumentation tools for troubleshooting
 - [ ] Graceful shutdown chaining (e.g. warn before timeout)
@@ -47,8 +51,8 @@ Organized by development priority. Items may evolve over time as architecture an
 - [x] Publish to PyPI
 - [ ] Add ability to register REST endpoints (like AppDaemon)
 - [ ] Autodoc generation from decorators
-- [_] Provide reference/sample apps - in progress
-- [_] Docker-first deployment mode - in progress
+- [x] Provide reference/sample apps
+- [x] Docker-first deployment mode
 - [ ] Plugin loader or extension system
 - [ ] UI Config Editor Integration
 - [ ] Web dashboard or CLI tool for app/service inspection
