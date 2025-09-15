@@ -66,8 +66,12 @@ class AttributesBase(BaseModel):
     icon: str | None = Field(default=None, repr=False)
     friendly_name: str | None = Field(default=None, description="A friendly name for the entity.")
 
-    device_class: str | None = Field(default=None, description="The device class of the entity.")
-    entity_id: list[str] | None = Field(default=None, description="List of entity IDs if this is a group entity.")
+    device_class: str | None = Field(default=None)
+    "The device class of the entity."
+
+    entity_id: list[str] | None = Field(default=None)
+    "List of entity IDs if this is a group entity."
+
     supported_features: int | float | None = Field(default=None, description="Bitfield of supported features.")
 
 
