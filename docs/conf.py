@@ -16,6 +16,8 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",  # for Google/NumPy-style docstrings
     "sphinxcontrib.autodoc_pydantic",  # renders BaseModel fields nicely
+    "sphinx_copybutton",  # adds "copy" button to code blocks
+    "sphinxext.opengraph",  # Open Graph metadata for social media
 ]
 
 
