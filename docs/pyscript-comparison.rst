@@ -45,7 +45,7 @@ App model and configuration
 
 *Pyscript*: Scripts live under ``<config>/pyscript`` and load automatically; reusable packages sit in
 ``pyscript/apps``. An app is activated only when a YAML entry exists under
-``pyscript.apps.<name>`` (``docs/reference.rst``). Configuration stays untyped—``pyscript.app_config``
+``pyscript.apps.<name>`` (``docs/reference.rst``). Configuration stays untyped - ``pyscript.app_config``
 is just a ``dict`` exposed in the module's global scope, and ``pyscript.config`` provides access to
 all settings (including other apps, though that cross-app visibility will be restricted in a future
 release). Secrets and validation are up to the author. Pyscript code can be synchronous or async, but
@@ -94,7 +94,7 @@ without additional globals.
 *Where Hassette lags today*
 
 - No direct equivalent to ``state_hold`` edge handling; combine ``debounce`` and scheduler tasks manually.
-- No decorator sugar—users must call ``self.bus...`` inside ``initialize``.
+- No decorator sugar - users must call ``self.bus...`` inside ``initialize``.
 - Lacks built-in MQTT trigger helper (you can subscribe via ``bus.on`` but need manual payload parsing).
 
 Scheduling and long-running work
@@ -116,14 +116,14 @@ are no first-class sunrise/sunset helpers yet, but cron covers many needs. Rate 
 *Where Hassette shines*
 
 - Job handles make cancellation and inspection straightforward compared to tracking task ids.
-- Consistent async execution—no risk of blocking the event loop with a forgotten synchronous decorator.
+- Consistent async execution - no risk of blocking the event loop with a forgotten synchronous decorator.
 - Cron exposes seconds and integrates with logging (job names propagate into logs).
 
 *Where Hassette lags today*
 
 - Missing sunrise/sunset convenience built-ins you get from ``@time_trigger``.
 - No decorator syntax; scheduling happens inside ``initialize``.
-- Callbacks do not receive automatic kwargs—use closures/partials for context.
+- Callbacks do not receive automatic kwargs - use closures/partials for context.
 
 Home Assistant API and services
 -------------------------------
@@ -168,7 +168,7 @@ Migration checklist
 - For decorator conveniences like ``state_hold`` or ``@time_active``, combine Hassette predicates, scheduler jobs,
   and app-level logic (e.g., maintain a timestamp to enforce hold-off windows).
 
-Take stock of Pyscript features you rely on today—Jupyter kernel integration, free-form module imports,
+Take stock of Pyscript features you rely on today - Jupyter kernel integration, free-form module imports,
 inline YAML service descriptions. Some map cleanly to Hassette; others may need supporting utilities or remain on
 your migration backlog until Hassette's roadmap (typed service calls, entity classes) fills the gaps.
 

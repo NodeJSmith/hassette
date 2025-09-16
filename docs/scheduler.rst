@@ -113,7 +113,7 @@ Cron schedules use the Whenever parser with second-level precision. Some quick r
 
 * Use strings for expressions such as ``"*/10"`` or ``"mon-fri"``.
 * ``day_of_week`` accepts both numbers (0=Monday) and aliases (``"sun"``).
-* Provide ``start`` if you need to delay activation—for example to avoid running until Home
+* Provide ``start`` if you need to delay activation - for example to avoid running until Home
   Assistant has finished booting.
 
 Best practices
