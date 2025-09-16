@@ -54,20 +54,16 @@ PYDANTIC_IGNORE_FIELDS = [
 ]
 
 
-# autodoc_default_options = {
-#     "members": True,
-#     "exclude-members": ", ".join(PYDANTIC_IGNORE_FIELDS),
-#     "member-order": "groupwise",
-# }
-
 master_doc = "index"
 html_theme = "furo"
 templates_path = ["_templates"]
 html_static_path = ["_static"]
 html_theme_options = {
-    "sidebar_hide_name": True,
     "navigation_with_keys": True,
 }
+html_css_files = [
+    "style.css",
+]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
