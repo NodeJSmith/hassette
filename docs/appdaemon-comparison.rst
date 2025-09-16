@@ -10,7 +10,7 @@ Quick reference table
 
 .. list-table:: Snapshot of common tasks
    :header-rows: 1
-   :widths: 20 60 60
+   :widths: 20 40 40
 
    * - Action
      - AppDaemon
@@ -43,81 +43,86 @@ Quick reference table
 App model and configuration
 ---------------------------
 
-*AppDaemon*: Apps subclass ``hass.Hass`` and implement ``initialize`` (synchronous). Configuration is
-loaded from ``apps.yaml`` with one section per app instance. Every option arrives as an untyped
-``dict`` on ``self.args``; validation is manual. To reuse an App, you need to create a new section in
-``apps.yaml`` with a unique name, specifying the same module/class but different args.
+AppDaemon
+    Apps subclass ``hass.Hass`` and implement ``initialize`` (synchronous). Configuration is loaded
+    from ``apps.yaml`` with one section per app instance. Every option arrives as an untyped ``dict``
+    on ``self.args``; validation is manual. Reusing an app means adding another section in
+    ``apps.yaml`` that points to the same module/class but tweaks arguments.
 
-*Hassette*: Apps subclass :class:`hassette.App` (async) or :class:`hassette.AppSync` (sync bridge).
-``initialize`` is ``async`` and should call ``await super().initialize()`` after custom initialization.
-Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables. Each app supplies a :class:`hassette.AppConfig`
-subclass, so Hassette validates input before instantiating the app and you access ``self.app_config`` with IDE/autocomplete
-support. Environment variables (via Pydantic) are first-class. Multiple instances use TOML list-of-tables,
-which still maps to a strongly-typed model.
+Hassette
+    Apps subclass :class:`hassette.App` (async) or :class:`hassette.AppSync` (sync bridge).
+    ``initialize`` is ``async`` and should call ``await super().initialize()`` after custom
+    initialization. Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables.
+    Each app ships with a :class:`hassette.AppConfig` subclass, so Hassette validates input before
+    instantiating the app and you access ``self.app_config`` with IDE/autocomplete support.
+    Environment variables (via Pydantic) are first-class. Multiple instances use TOML
+    list-of-tables, which still map to strongly typed models.
 
-*Migration impact*: Expect to convert ``initialize`` to ``async`` and replace ``self.args`` lookups with
-fields on ``self.app_config``. If you depend on runtime-generated keys in ``self.args``, you will need
-an explicit ``dict[str, Any]`` field in your config model.
+.. rubric:: Where Hassette shines
 
-*Where Hassette shines*
-
-- Strongly-typed configuration models improve IDE support and reduce runtime errors.
+- Strongly typed configuration models improve IDE support and reduce runtime errors.
 - Multiple app instances are clearer in ``hassette.toml`` since they share the same table name.
-- Async-first for modern development practices and no threading confusion.
+- Async-first lifecycle keeps all automation logic in the main coroutine context.
 
 Event bus and callbacks
 -----------------------
 
-*AppDaemon*: ``listen_state`` (plus variants like ``listen_event`` and ``listen_event("call_service")``)
-call your handler with several positional arguments, e.g. ``callback(self, entity, attribute, old, new,
-kwargs)``. Convenience keyword arguments include ``attribute``, ``new``, ``old``, ``duration`` (wait for
-stable state), ``immediate`` (fire once right away), namespaces, and ``timeout``. You cancel by
-passing the handle to ``cancel_listen_state``. Filtering by multiple conditions typically involves
-several keyword arguments or manual logic in the callback.
+AppDaemon
+    ``listen_state`` (plus variants like ``listen_event`` and ``listen_event("call_service")``) call
+    your handler with several positional arguments (``callback(self, entity, attribute, old, new,
+    kwargs)``). Convenience keyword arguments include ``attribute``, ``new``, ``old``, ``duration``
+    (wait for stable state), ``immediate`` (fire once right away), namespaces, and ``timeout``. You
+    cancel by passing the handle to ``cancel_listen_state``. Filtering by multiple conditions typically
+    involves several keyword arguments or manual logic in the callback.
 
-*Hassette*: All subscriptions emit a typed event dataclass as a **single** argument. ``self.bus.on_entity``
-and ``self.bus.on_attribute`` wrap Home Assistant's ``state_changed`` topic; ``self.bus.on_call_service``
-exposes service traffic; and ``self.bus.on`` lets you subscribe to any topic (including custom events
-via ``"hassette.event.my_event"``). Predicates provide composable guards (e.g., ``P.ChangedTo("on")`` & ``P.AnyOf``).
-``debounce`` and ``throttle`` parameters remove boilerplate that AppDaemon typically handles via extra state variables.
-Subscription objects expose ``unsubscribe()`` for cleanup.
+Hassette
+    All subscriptions emit a typed event dataclass as a single argument. ``self.bus.on_entity`` and
+    ``self.bus.on_attribute`` wrap Home Assistant's ``state_changed`` topic; ``self.bus.on_call_service``
+    exposes service traffic; and ``self.bus.on`` lets you subscribe to any topic (including custom
+    events via ``"hassette.event.my_event"``). Predicates provide composable guards (e.g.,
+    ``P.ChangedTo("on")`` & ``P.AnyOf``). ``debounce`` and ``throttle`` parameters remove boilerplate
+    that AppDaemon typically handles via extra state variables. Subscription objects expose
+    ``unsubscribe()`` for cleanup.
 
-*Where Hassette shines*
+.. rubric:: Where Hassette shines
 
 - Typed payloads with exact models (``StateChangeEvent[LightState]``) instead of raw dicts.
 - Predicate composition beats nested ``if`` trees and can guard on attributes without extra callbacks.
-- Async-first handlers avoid thread-launch overhead.
 
-*Where Hassette lags today*
+.. rubric:: Where Hassette lags today
 
-- No built-in equivalent for ``duration``, ``timeout``, or ``immediate`` - on the roadmap.
+- No built-in equivalent for ``duration``, ``timeout``, or ``immediate`` (on the roadmap).
 
 
 Scheduler differences
 ---------------------
 
-*AppDaemon*: Offers a large toolbox - ``run_in``, ``run_once``, ``run_every``, ``run_daily``, ``run_hourly``,
-``run_minutely``, ``run_at``, ``run_at_sunrise/sunset``, and cron support. Timers return handles you pass to ``cancel_timer``.
-Scheduler helpers can pass ``kwargs`` back into the callback so the same function can serve multiple timers. ``info_timer``
-exists to inspect the next run time, but it requires an extra API call.
+AppDaemon
+    Offers a large toolbox—``run_in``, ``run_once``, ``run_every``, ``run_daily``, ``run_hourly``,
+    ``run_minutely``, ``run_at``, ``run_at_sunrise/sunset``, and cron support. Timers return handles you
+    pass to ``cancel_timer``. Scheduler helpers can pass ``kwargs`` back into the callback so the same
+    function can serve multiple timers. ``info_timer`` exists to inspect the next run time, but it
+    requires an extra API call.
 
-*Hassette*: Consolidates on a smaller set: ``run_in``, ``run_every``, ``run_once``, and ``run_cron``. All
-helpers accept async or sync callables and return a ``ScheduledJob`` object with ``next_run`` metadata
-and ``cancel()``. Triggers use the ``whenever`` library, so you can express start times and intervals
-with precise objects (``TimeDelta``, ``SystemDateTime``). Cron covers most repeating needs, there
-are not dedicated helpers like ``run_daily`` or ``run_hourly``. Scheduling a callback does not
-accept additional arguments; use ``functools.partial`` or closures to capture context.
+Hassette
+    Consolidates on a smaller set: ``run_in``, ``run_every``, ``run_once``, and ``run_cron``. All
+    helpers accept async or sync callables and return a ``ScheduledJob`` object with ``next_run``
+    metadata and ``cancel()``. Triggers use the ``whenever`` library, so you can express start times
+    and intervals with precise objects (``TimeDelta``, ``SystemDateTime``). Cron covers most repeating
+    needs, but there are not dedicated helpers like ``run_daily`` or ``run_hourly``. Scheduling a
+    callback does not accept additional arguments; use ``functools.partial`` or closures to capture
+    context.
 
-*Where Hassette shines*
+.. rubric:: Where Hassette shines
 
-- Async jobs run on the main loop - no background threads required.
+- Async jobs run on the main loop—no background threads required.
 - Cron has second-level precision and shares a consistent API for async/sync functions.
 - ``ScheduledJob`` exposes ``next_run`` without extra API calls.
 
-*Where Hassette lags today*
+.. rubric:: Where Hassette lags today
 
 - Missing helpers for common patterns like ``run_daily``.
-- Scheduling does not accept ``**kwargs``; use ``partial`` or closures - on the roadmap.
+- Scheduling does not accept ``**kwargs``; use ``partial`` or closures (on the roadmap).
 
 .. note::
 
@@ -127,36 +132,39 @@ accept additional arguments; use ``functools.partial`` or closures to capture co
 Home Assistant API surface
 --------------------------
 
-*AppDaemon*: ``get_state``/``set_state``/``call_service``/``fire_event``/``listen_event`` return raw
-strings or dicts. There is no typing or schema validation, so runtime errors emerge only when Home Assistant
-rejects a payload. Calls to ``get_state`` access state stored in AppDaemon's internal state tracker. Calls
-are synchronous. Domain and entity are often provided as a single string separated by a "/", which differs
-from Home Assistant's native API (e.g. ``light/turn_on`` vs ``light.turn_on``). Lots of helper functions
-like ``anyone_home``, ``notify``, ``area_devices``, etc. are available.
+AppDaemon
+    ``get_state``/``set_state``/``call_service``/``fire_event``/``listen_event`` return raw strings or
+    dicts. There is no typing or schema validation, so runtime errors emerge only when Home Assistant
+    rejects a payload. Calls to ``get_state`` access state stored in AppDaemon's internal state tracker
+    and run synchronously. Domain and entity are often provided as a single string separated by a
+    ``/`` (e.g., ``light/turn_on``), and helper functions like ``anyone_home`` or ``notify`` are
+    included.
 
-*Hassette*: ``self.api`` is async from top to bottom. ``get_state`` and ``get_states`` coerce responses
-into Pydantic models (``states.LightState`` etc.), while ``get_state_raw`` mirrors AppDaemon's dict
-return. ``get_entity`` begins a push toward entity classes, though today only ``BaseEntity`` and
-``LightEntity`` ship. ``call_service`` and ``turn_on``/``turn_off`` return the ``HassContext`` when
-available, which helps with debugging. Low-level ``rest_request`` and ``ws_send_and_wait`` expose the
-underlying ``aiohttp`` session if you need endpoints Hassette has not wrapped yet. For synchronous
-apps, ``self.api.sync`` mirrors the async API.
+Hassette
+    ``self.api`` is async from top to bottom. ``get_state`` and ``get_states`` coerce responses into
+    Pydantic models (``states.LightState`` etc.), while ``get_state_raw`` mirrors AppDaemon's dict
+    return. ``get_entity`` begins a push toward entity classes, though today only ``BaseEntity`` and
+    ``LightEntity`` ship. ``call_service`` and ``turn_on``/``turn_off`` return the ``HassContext`` when
+    available, which helps with debugging. Low-level ``rest_request`` and ``ws_send_and_wait`` expose
+    the underlying ``aiohttp`` session if you need endpoints Hassette has not wrapped yet. For
+    synchronous apps, ``self.api.sync`` mirrors the async API.
 
 .. note::
 
-    See :ref:`the note on the API page <entity-state-note>` for terminology differences regarding states and entities.
+    See :ref:`the note on the API page <entity-state-note>` for terminology differences regarding
+    states and entities.
 
-*Where Hassette shines*
+.. rubric:: Where Hassette shines
 
 - Strong typing on read operations: IDEs surface attributes, and Pydantic validates conversions.
 - Explicit separation between entities, states, state values, and attributes.
 - Simple API surface: no deep class hierarchies or plugin layers to trace through.
 
-*Where Hassette lags today*
+.. rubric:: Where Hassette lags today
 
 - Service calls are not fully typed yet; you still pass ``**data`` manually.
 - Entity helper classes are nascent (only lights today), so you may need to keep using plain service calls.
-- Currently no built-in helpers like ``notify`` or ``area_devices`` - on the roadmap.
+- Currently no built-in helpers like ``notify`` or ``area_devices`` (on the roadmap).
 
 
 Migration checklist
