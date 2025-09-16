@@ -56,6 +56,7 @@ Organized by development priority. Items may evolve over time as architecture an
 - [ ] Plugin loader or extension system
 - [ ] UI Config Editor Integration
 - [ ] Web dashboard or CLI tool for app/service inspection
+- [ ] Home Assistant Add-on
 
 ---
 
