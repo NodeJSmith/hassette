@@ -16,6 +16,8 @@ Key capabilities
 - Drop down to low-level ``rest_request`` or ``ws_send_and_wait`` helpers when you need direct API
   access.
 
+.. _entity-state-note:
+
 .. caution::
 
     Hassette uses different terminology than Home Assistant and AppDaemon, in an attempt to reduce confusion regarding states and entities.
@@ -162,7 +164,7 @@ logic and raise Hassette-specific exceptions like :class:`hassette.exceptions.En
 Sync facade
 -----------
 ``self.api.sync`` mirrors the async API with blocking calls for synchronous code. Do not call from
-within an event loop—it's intended for ``AppSync`` subclasses or transitional code paths (for
+within an event loop - it's intended for ``AppSync`` subclasses or transitional code paths (for
 example, libraries that expect synchronous hooks).
 
 .. code-block:: python

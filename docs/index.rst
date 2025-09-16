@@ -99,7 +99,10 @@ Learn More
   api
   events
   scheduler
+  appdaemon-comparison
   reference/index
+
+..   pyscript-comparison
 
 
 Indices and tables

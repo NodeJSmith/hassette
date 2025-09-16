@@ -21,6 +21,11 @@ Organized by development priority. Items may evolve over time as architecture an
 - [x] Expand event bus beyond just state change events
 - [ ] Improved logging configuration
 - [ ] App-level logging configuration
+- [ ] Add timeout logic for event handlers and callbacks
+- [ ] Add duration logic (e.g. run if state persists for N seconds)
+- [ ] Add "immediate" option to scheduler for checking conditions right away
+- [ ] Allow adding kwargs to scheduled callbacks
+- [ ] Add helper functions to API, similar to AD, such as `anyone_home`, `integration_entities`, etc.
 
 ---
 
@@ -56,6 +61,7 @@ Organized by development priority. Items may evolve over time as architecture an
 - [ ] Plugin loader or extension system
 - [ ] UI Config Editor Integration
 - [ ] Web dashboard or CLI tool for app/service inspection
+- [ ] Home Assistant Add-on
 
 ---
 

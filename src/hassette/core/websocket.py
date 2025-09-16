@@ -344,7 +344,7 @@ class _Websocket(Service):
 
         # took a while to track this one down - we need to cancel if we get told that the connection is closing
         if msg_type == WSMsgType.CLOSING:
-            self.logger.debug("WebSocket is closing — exiting receive loop")
+            self.logger.debug("WebSocket is closing - exiting receive loop")
             raise RetryableConnectionClosedError("WebSocket is closing")
 
         self.logger.warning("Received unexpected message type: %r", msg_type)

@@ -74,8 +74,8 @@ Export one of these environment variables before starting Hassette:
 4) Run Hassette
 ---------------
 
-Option A — Docker Compose
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Option A - Docker Compose
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
 
@@ -94,8 +94,8 @@ Option A — Docker Compose
 
     docker compose up -d
 
-Option B — Local (uv)
-~~~~~~~~~~~~~~~~~~~~~
+Option B - Local (uv)
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 

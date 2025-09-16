@@ -119,7 +119,7 @@ Every subscription helper accepts ``where`` (a predicate or list of predicates),
 Unsubscribing
 -------------
 Subscriptions return a ``Subscription`` handle. Call ``unsubscribe()`` on that handle to detach the
-listener when it is no longer needed—for example during cleanup or when a conditional workflow
+listener when it is no longer needed - for example during cleanup or when a conditional workflow
 finishes. You can also use the handle to capture metadata such as the topic you subscribed to.
 
 .. code-block:: python

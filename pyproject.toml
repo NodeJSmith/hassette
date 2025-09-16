@@ -65,7 +65,6 @@ test = [
 ]
 model_gen = ["datamodel-code-generator>=0.30.1"]
 docs = [
-    "esbonio>=0.12.0",
     "furo>=2024.8.6",
     "autodoc-pydantic>=2.2.0",
     "sphinx>=8.2.3",
@@ -79,10 +78,12 @@ docs = [
     "sphinxcontrib-jsmath==1.0.1",
     "sphinxcontrib-qthelp==2.0.0",
     "sphinxcontrib-serializinghtml==2.0.0",
+    "sphinx-copybutton>=0.5.2",
+    "sphinxext-opengraph[social-cards]>=0.13.0",
 ]
 
 [tool.uv]
-default-groups = ["dev", "test"]
+default-groups = ["dev", "test", "docs"]
 
 [project.scripts]
 run-hassette = "hassette.__main__:entrypoint"
