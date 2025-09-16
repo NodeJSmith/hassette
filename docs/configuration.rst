@@ -57,6 +57,7 @@ Hassette expects a ``hassette.toml`` file to set basic options and declare your 
 
 ``[hassette]`` section
 ----------------------
+
 - ``base_url``: Home Assistant URL (default ``http://127.0.0.1:8123``)
     - Set this to your HA address. If it includes a port, that port is used for API requests and WebSocket connections.
     - If no port is given, the default 8123 is used.
@@ -70,6 +71,8 @@ Hassette expects a ``hassette.toml`` file to set basic options and declare your 
     When running in Docker, you should typically mount your apps to ``/apps`` and config to ``/config``.
 
 ``[apps.<name>]`` section
+--------------------------
+
 - ``enabled``: determines whether Hassette loads this app; defaults to true, so only required if you want to disable
 - ``filename``: the Python file within ``app_dir`` containing your app class (e.g., ``my_app.py``)
 - ``class_name``: the class name of your app within that file (e.g., ``MyApp``)
