@@ -20,10 +20,16 @@ Why Hassette?
 
 ## 📖 Examples
 
-Check out the [`examples/`](examples/apps) directory for more complete examples:
-- [Battery monitoring](examples/apps/battery.py)
-- [Presence detection](examples/apps/presence.py)
-- [Sensor notifications](examples/apps/sensor_notification.py)
+Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) directory for more complete examples:
+- Based on AppDaemon's examples:
+  - [Battery monitoring](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/battery.py)
+  - [Presence detection](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/presence.py)
+  - [Sensor notifications](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/sensor_notification.py)
+- Cleaned up versions of my own apps:
+  - [Office Button App](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/office_button_app.py)
+  - [Laundry Room Lights](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/laundry_room_light.py)
+- Docker Compose Example: [docker-compose.yml](https://github.com/NodeJSmith/hassette/blob/main/examples/docker-compose.yml)
+- hassette.toml example: [hassette.toml](https://github.com/NodeJSmith/hassette/blob/main/examples/config/hassette.toml)
 
 ## 🛣️ Status & Roadmap
 
@@ -40,7 +46,7 @@ Hassette is brand new and under active development. We follow semantic versionin
   - 🛠️ Test fixtures and framework for user apps
   - 🚫 No more manual state changes in HA Developer Tools for testing!
 
-See the full [roadmap](roadmap.md) for details - open an issue or PR if you'd like to contribute or provide feedback!
+See the full [roadmap](https://github.com/NodeJSmith/hassette/blob/main/roadmap.md) for details - open an issue or PR if you'd like to contribute or provide feedback!
 
 ## 🤝 Contributing
 
