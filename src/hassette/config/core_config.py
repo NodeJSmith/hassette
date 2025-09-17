@@ -238,9 +238,10 @@ class HassetteConfig(HassetteBaseSettings):
         app_dir = info.data.get("app_dir")
         if not app_dir:
             return values
-        for v in values.values():
+        for k, v in values.items():
             if not isinstance(v, dict):
                 continue
+            v["app_key"] = k
             if "app_dir" not in v or not v["app_dir"]:
                 LOGGER.info("Setting app_dir for app %s to %s", v["filename"], app_dir)
                 v["app_dir"] = app_dir
