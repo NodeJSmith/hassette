@@ -327,7 +327,7 @@ class Api(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | None = None,
+        target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = None,
         **data,
     ) -> HassContext | None:
@@ -968,7 +968,7 @@ class ApiSyncFacade(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | None = None,
+        target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool = True,
         **data,
     ):
