@@ -1,4 +1,4 @@
-from .app import App, AppSync
+from .app import App, AppSync, only
 from .app_config import AppConfig, AppConfigT
 
 __all__ = [
@@ -6,4 +6,5 @@ __all__ = [
     "AppConfig",
     "AppConfigT",
     "AppSync",
+    "only",
 ]

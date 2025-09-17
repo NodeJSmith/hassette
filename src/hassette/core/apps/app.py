@@ -18,6 +18,17 @@ LOGGER = getLogger(__name__)
 AppT = typing.TypeVar("AppT", bound="App")
 
 
+def only(app_cls: type[AppT]) -> type[AppT]:
+    """Decorator to mark an app class as the only one to run. If more than one app is marked with this decorator,
+    an exception will be raised during initialization.
+
+    This is useful for development and testing, where you may want to run only a specific app without
+    modifying configuration files.
+    """
+    app_cls._only = True  # type: ignore[attr-defined]
+    return app_cls
+
+
 class App(Generic[AppConfigT], Resource):
     """Base class for applications in the Hassette framework.
 
@@ -25,6 +36,9 @@ class App(Generic[AppConfigT], Resource):
     within the Hassette ecosystem. Lifecycle will generally be managed for you via the service status events,
     which send an event to the Bus and set the `status` attribute, based on the app's lifecycle.
     """
+
+    _only: ClassVar[bool] = False
+    """If True, only this app will be run. Only one app can be marked as only."""
 
     role: ClassVar[ResourceRole] = ResourceRole.APP
     """Role of the resource, e.g. 'App', 'Service', etc."""
