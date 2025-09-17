@@ -22,6 +22,9 @@ class MyApp(App[MyAppUserConfig]):
         self.office_light_exists = await self.hassette.api.entity_exists("light.office")
         self.test_button_exists = await self.hassette.api.entity_exists("input_button.test")
 
+    async def test_reload_app(self):
+        await self.hassette._app_handler.reload_app(self.app_manifest.app_key)
+
     async def test_stuff(self) -> None:
         if self.office_light_exists:
             self.light_state = await self.hassette.api.get_state("light.office", model=LightState)
