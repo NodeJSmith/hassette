@@ -137,6 +137,55 @@ class HassetteConfig(HassetteBaseSettings):
     """User provided secrets that can be referenced in the config."""
 
     @property
+    def env_files(self) -> list[Path]:
+        """Return a list of environment files to load."""
+        env_files = self.model_config.get("env_file", [])
+        env_files = [env_files] if isinstance(env_files, str | Path | None) else env_files
+        env_files = list(filter(bool, env_files))  # remove empty strings / None
+        return [Path(f).resolve() for f in env_files if f and Path(f).exists()]
+
+    @property
+    def toml_files(self) -> list[Path]:
+        """Return a list of TOML files to load."""
+        toml_files = self.model_config.get("toml_file", [])
+        toml_files = [toml_files] if isinstance(toml_files, str | Path | None) else toml_files
+        toml_files = list(filter(bool, toml_files))  # remove empty strings / None
+        return [Path(f).resolve() for f in toml_files if f and Path(f).exists()]
+
+    def get_watchable_files(self) -> set[Path]:
+        """Return a list of files to watch for changes."""
+
+        # TODO: clean this up + `toml_files` and `env_files` should probably use some helper methods
+
+        files = set(self.env_files + self.toml_files)
+        files.add(self.app_dir.resolve())
+        for app in self.apps.values():
+            if app.app_dir:
+                f = Path(app.app_dir).resolve()
+                if not f.exists():
+                    LOGGER.warning("The app_dir %s for app %s does not exist and will be ignored.", f, app.app_key)
+                    continue
+                if f in files:
+                    LOGGER.debug("The app_dir %s for app %s is already being watched.", f, app.app_key)
+                    continue
+                files.add(f)
+            f = Path(app.full_path).resolve()
+            if not f.exists():
+                LOGGER.warning("The filename %s for app %s does not exist and will be ignored.", f, app.app_key)
+                continue
+            if f in files:
+                LOGGER.debug("The filename %s for app %s is already being watched.", f, app.app_key)
+                continue
+            files.add(f)
+
+        non_existent_files = [f for f in files if not f.exists()]
+        if non_existent_files:
+            LOGGER.warning("The following watchable files do not exist and will be ignored: %s", non_existent_files)
+        files = set(f for f in files if f.exists())
+
+        return files
+
+    @property
     def ws_url(self) -> str:
         """Construct the WebSocket URL for Home Assistant."""
         yurl = URL(self.base_url)
