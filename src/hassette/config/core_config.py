@@ -37,6 +37,10 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger(__name__)
 
+# TODO: allow user to specify servies/resources to call `set_logger_to_debug` on
+# would be cleaner for me as well, so I don't litter the code with `set_logger_to_debug` calls that should probably
+# not be there when we cut a new version
+
 
 def default_config_dir() -> Path:
     if env := os.getenv("HASSETTE__CONFIG_DIR", os.getenv("HASSETTE_CONFIG_DIR")):
