@@ -281,12 +281,12 @@ class HassetteConfig(HassetteBaseSettings):
         return sources
 
     def model_post_init(self, context: Any):
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-
         enable_logging(self.log_level)
 
+        self.data_dir.mkdir(parents=True, exist_ok=True)
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        envs = self.config_dir.rglob("*.env")
+
+        envs = set(list(self.config_dir.rglob("*.env")))
         for env in envs:
             LOGGER.info("Loading environment variables from %s", env)
             load_dotenv(env)
