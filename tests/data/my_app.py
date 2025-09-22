@@ -1,5 +1,4 @@
 from hassette import App, AppConfig
-from hassette.core.apps.app import only
 from hassette.core.events import StateChangeEvent
 from hassette.models.entities import LightEntity
 from hassette.models.states import InputButtonState, LightState
@@ -9,7 +8,6 @@ class MyAppUserConfig(AppConfig):
     test_entity: str = "input_button.test"
 
 
-@only
 class MyApp(App[MyAppUserConfig]):
     async def initialize(self) -> None:
         await super().initialize()
