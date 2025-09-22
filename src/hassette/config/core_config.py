@@ -37,7 +37,7 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger(__name__)
 
-# TODO: allow user to specify servies/resources to call `set_logger_to_debug` on
+# TODO: allow user to specify services/resources to call `set_logger_to_debug` on
 # would be cleaner for me as well, so I don't litter the code with `set_logger_to_debug` calls that should probably
 # not be there when we cut a new version
 
