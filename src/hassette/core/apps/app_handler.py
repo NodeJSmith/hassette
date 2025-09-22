@@ -1,4 +1,3 @@
-import asyncio
 import importlib.machinery
 import importlib.util
 import sys
@@ -52,14 +51,9 @@ class _AppWatcher(Service):
         try:
             self.logger.info("Starting app watcher service")
 
-            # TODO: abstract this wait-for-running logic or dependencies list/lifecycle method
-            # i've written this in enough places now that i need to stop thinking i don't know how
-            # to make this a utility function
-            while self.app_handler.status != ResourceStatus.RUNNING:
-                if self.hassette._shutdown_event.is_set():
-                    self.logger.warning("Shutdown in progress, aborting app watcher")
-                    return
-                await asyncio.sleep(0.1)
+            if not self.hassette.wait_for_resources_running([self.app_handler]):
+                self.logger.error("App handler is not running, cannot start app watcher")
+                return
 
             paths = self.hassette.config.get_watchable_files()
 
@@ -287,15 +281,7 @@ class _AppHandler(Resource):
         await self._initialize_app_instances(app_key, manifest)
 
     async def initialize_apps(self) -> None:
-        with anyio.move_on_after(6) as scope:
-            while self.hassette._websocket.status != ResourceStatus.RUNNING and not self.hassette._websocket.connected:
-                await asyncio.sleep(0.1)
-                if self.hassette._shutdown_event.is_set():
-                    self.logger.warning("Shutdown in progress, aborting app initialization")
-                    return
-                self.logger.info("Waiting for websocket connection...")
-
-        if scope.cancel_called:
+        if not self.hassette.wait_for_resources_running([self.hassette._websocket]):
             self.logger.warning("App initialization timed out")
             return
 
