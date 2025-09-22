@@ -1,6 +1,7 @@
 import itertools
 from dataclasses import dataclass, field
-from typing import Any, Generic, Literal, TypeVar
+from pathlib import Path
+from typing import Any, Generic, TypeVar
 
 from hassette.core.enums import ResourceRole, ResourceStatus
 from hassette.core.events import Event
@@ -88,11 +89,7 @@ class FileWatcherEventPayload:
 
     event_id: int = field(default_factory=next_id, init=False)
 
-    orphaned_apps: set[str] = field(default_factory=set)
-    new_apps: set[str] = field(default_factory=set)
-    reimport_apps: set[str] = field(default_factory=set)
-    reload_apps: set[str] = field(default_factory=set)
-    config_changes: dict[str, Any] = field(default_factory=dict)
+    changed_file_path: Path
 
 
 def create_service_status_event(
@@ -153,42 +150,22 @@ def create_websocket_status_event(
 
 
 def create_file_watcher_event(
-    event_type: Literal["orphaned_apps", "new_apps", "reimport_apps", "reload_apps"],
-    orphaned_apps: set[str] | None = None,
-    new_apps: set[str] | None = None,
-    reimport_apps: set[str] | None = None,
-    reload_apps: set[str] | None = None,
-    config_changes: dict[str, Any] | None = None,
+    changed_file_path: Path,
 ) -> "HassetteEvent":
     """Create a file watcher event.
 
     Args:
-        orphaned_apps (set[str]): Set of orphaned app names.
-        new_apps (set[str]): Set of new app names.
-        reimport_apps (set[str]): Set of app names that need to be reimported.
-        reload_apps (set[str]): Set of app names that need to be reloaded.
-        config_changes (dict[str, Any]): Dictionary of configuration changes.
+        changed_file_path (Path): The path of the changed file.
 
     Returns:
         FileWatcherEvent: The created file watcher event.
     """
-    orphaned_apps = orphaned_apps or set()
-    new_apps = new_apps or set()
-    reimport_apps = reimport_apps or set()
-    reload_apps = reload_apps or set()
-    config_changes = config_changes or {}
-
-    payload = FileWatcherEventPayload(
-        orphaned_apps=orphaned_apps,
-        new_apps=new_apps,
-        reimport_apps=reimport_apps,
-        reload_apps=reload_apps,
-        config_changes=config_changes,
-    )
 
     return Event(
         topic=HASSETTE_EVENT_FILE_WATCHER,
-        payload=HassettePayload(event_type=event_type, data=payload),
+        payload=HassettePayload(
+            event_type="file_changed", data=FileWatcherEventPayload(changed_file_path=changed_file_path)
+        ),
     )
 
 
