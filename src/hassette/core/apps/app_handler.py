@@ -51,7 +51,7 @@ class _AppWatcher(Service):
         try:
             self.logger.info("Starting app watcher service")
 
-            if not self.hassette.wait_for_resources_running([self.app_handler]):
+            if not (await self.hassette.wait_for_resources_running([self.app_handler])):
                 self.logger.error("App handler is not running, cannot start app watcher")
                 return
 
@@ -281,7 +281,7 @@ class _AppHandler(Resource):
         await self._initialize_app_instances(app_key, manifest)
 
     async def initialize_apps(self) -> None:
-        if not self.hassette.wait_for_resources_running([self.hassette._websocket]):
+        if not (await self.hassette.wait_for_resources_running([self.hassette._websocket])):
             self.logger.warning("App initialization timed out")
             return
 

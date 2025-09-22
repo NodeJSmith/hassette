@@ -29,6 +29,7 @@ async def app_handler(test_config):
     hassette._websocket = Mock()
     hassette._websocket.connected = True
     hassette._websocket.status = ResourceStatus.RUNNING
+    hassette.wait_for_resources_running = AsyncMock(return_value=True)
 
     app_handler = _AppHandler(hassette)
     await app_handler.initialize()
