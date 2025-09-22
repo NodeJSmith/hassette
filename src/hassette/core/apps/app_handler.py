@@ -28,8 +28,6 @@ LOGGER = getLogger(__name__)
 FAIL_AFTER_SECONDS = 10
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 
-CHECK_COUNT = 0
-
 
 def _manifest_key(app_name: str, index: int) -> str:
     # Human-friendly identifier for logs; not used as dict key.
