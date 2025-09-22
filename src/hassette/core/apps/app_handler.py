@@ -90,6 +90,8 @@ class _AppWatcher(Service):
         original_apps_config = deepcopy(self.app_handler.apps_config)
 
         # reinitialize config to pick up changes
+        # note: this is the proper way to do it, even if it feels weird
+        # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
         self.hassette.config.__init__()
         self.app_handler.set_apps_configs(self.hassette.config.apps)
         curr_apps_config = deepcopy(self.app_handler.apps_config)
