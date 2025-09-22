@@ -94,7 +94,7 @@ class _AppWatcher(Service):
             curr_apps_config,
             ignore_order=True,
             # TODO: do not use magic strings here
-            include_paths=["root", "user_config"],
+            include_paths=[ROOT_PATH, USER_CONFIG_PATH],
         )
 
         if not diff:
