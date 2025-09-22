@@ -3,6 +3,9 @@ from hassette.core.events import StateChangeEvent
 from hassette.models.entities import LightEntity
 from hassette.models.states import InputButtonState, LightState
 
+# from hassette.core.apps.app import only
+
+
 try:
     from .my_app import MyApp
 except ImportError:
@@ -13,6 +16,7 @@ class MyAppUserConfig(AppConfig):
     test_entity: str = "input_button.test"
 
 
+# @only
 class MyAppSync(AppSync):
     def initialize_sync(self) -> None:
         print(self.app_config_cls)
