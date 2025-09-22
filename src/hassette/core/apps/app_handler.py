@@ -51,7 +51,6 @@ class _AppWatcher(Service):
 
     async def run_forever(self) -> None:
         """Watch app directories for changes and trigger reloads."""
-        global CHECK_COUNT
         try:
             self.logger.info("Starting app watcher service")
 
@@ -70,9 +69,6 @@ class _AppWatcher(Service):
 
             await self.handle_start()
             async for changes in awatch(*paths, stop_event=self.hassette._shutdown_event):
-                CHECK_COUNT += 1
-                self.logger.info("Watcher iteration %d: detected changes: %s", CHECK_COUNT, changes)
-
                 if self.hassette._shutdown_event.is_set():
                     break
 
