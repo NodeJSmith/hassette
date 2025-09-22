@@ -47,7 +47,7 @@ class _AppWatcher(Service):
         super().__init__(hassette, *args, **kwargs)
         self.app_handler = app_handler
 
-        self.set_logger_to_debug()
+        # self.set_logger_to_debug()
 
     async def run_forever(self) -> None:
         """Watch app directories for changes and trigger reloads."""
@@ -159,7 +159,7 @@ class _AppHandler(Resource):
         super().__init__(hassette)
         self.apps_config = {}
 
-        self.set_logger_to_debug()
+        # self.set_logger_to_debug()
 
         self.set_apps_configs(self.hassette.config.apps)
 
