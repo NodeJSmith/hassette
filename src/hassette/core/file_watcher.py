@@ -9,8 +9,6 @@ from hassette.core.events.hassette import create_file_watcher_event
 class _FileWatcher(Service):
     """Background task to watch for file changes and reload apps."""
 
-    # TODO: double check only_app when any source files change, in case the only flag changed
-
     async def run_forever(self) -> None:
         """Watch app directories for changes and trigger reloads."""
         try:
@@ -34,6 +32,7 @@ class _FileWatcher(Service):
                     self.logger.info("Detected change in %s", changed_path)
                     event = create_file_watcher_event(changed_file_path=changed_path)
                     await self.hassette.send_event(event.topic, event)
+
         except Exception as e:
             self.logger.exception("App watcher encountered an error, exception args: %s", e.args)
             await self.handle_crash(e)
