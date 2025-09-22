@@ -98,7 +98,11 @@ class _AppWatcher(Service):
 
         diff = DeepDiff(original_apps_config, curr_apps_config, ignore_order=True)
         config_diff = DeepDiff(
-            original_apps_config, curr_apps_config, ignore_order=True, include_paths=["root", "user_config"]
+            original_apps_config,
+            curr_apps_config,
+            ignore_order=True,
+            # TODO: do not use magic strings here
+            include_paths=["root", "user_config"],
         )
 
         if not diff:
