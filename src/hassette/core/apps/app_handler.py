@@ -316,7 +316,7 @@ class _AppHandler(Resource):
             try:
                 app_class = load_app_class(app_manifest)
                 if app_class._only:
-                    only_apps.append(app_class.app_manifest.app_key)
+                    only_apps.append(app_manifest.app_key)
             except (UndefinedUserConfigError, InvalidInheritanceError):
                 self.logger.error(
                     "Failed to load app %s due to bad configuration - check previous logs for details",
@@ -334,6 +334,8 @@ class _AppHandler(Resource):
 
     async def _initialize_apps(self):
         """Initialize all configured and enabled apps."""
+
+        await self._set_only_app()
 
         for app_key, app_manifest in self.active_apps_config.items():
             try:
