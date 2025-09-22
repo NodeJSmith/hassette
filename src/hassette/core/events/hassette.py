@@ -1,10 +1,14 @@
 import itertools
 from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from hassette.core.enums import ResourceRole, ResourceStatus
 from hassette.core.events import Event
-from hassette.core.topics import HASSETTE_EVENT_SERVICE_STATUS, HASSETTE_EVENT_WEBSOCKET_STATUS
+from hassette.core.topics import (
+    HASSETTE_EVENT_FILE_WATCHER,
+    HASSETTE_EVENT_SERVICE_STATUS,
+    HASSETTE_EVENT_WEBSOCKET_STATUS,
+)
 from hassette.utils import get_traceback_string
 
 HassetteT = TypeVar("HassetteT", covariant=True)
@@ -56,6 +60,8 @@ class ServiceStatusPayload:
 class WebsocketStatusEventPayload:
     """Payload for websocket status events."""
 
+    event_id: int = field(default_factory=next_id, init=False)
+
     connected: bool
     """Whether the websocket is connected or not."""
 
@@ -74,6 +80,19 @@ class WebsocketStatusEventPayload:
     def disconnected_payload(cls, error: str) -> "WebsocketStatusEventPayload":
         """Create a payload for a disconnected websocket event."""
         return cls(connected=False, error=error)
+
+
+@dataclass(slots=True, frozen=True)
+class FileWatcherEventPayload:
+    """Payload for file watcher events."""
+
+    event_id: int = field(default_factory=next_id, init=False)
+
+    orphaned_apps: set[str] = field(default_factory=set)
+    new_apps: set[str] = field(default_factory=set)
+    reimport_apps: set[str] = field(default_factory=set)
+    reload_apps: set[str] = field(default_factory=set)
+    config_changes: dict[str, Any] = field(default_factory=dict)
 
 
 def create_service_status_event(
@@ -133,6 +152,47 @@ def create_websocket_status_event(
     )
 
 
+def create_file_watcher_event(
+    event_type: Literal["orphaned_apps", "new_apps", "reimport_apps", "reload_apps"],
+    orphaned_apps: set[str] | None = None,
+    new_apps: set[str] | None = None,
+    reimport_apps: set[str] | None = None,
+    reload_apps: set[str] | None = None,
+    config_changes: dict[str, Any] | None = None,
+) -> "HassetteEvent":
+    """Create a file watcher event.
+
+    Args:
+        orphaned_apps (set[str]): Set of orphaned app names.
+        new_apps (set[str]): Set of new app names.
+        reimport_apps (set[str]): Set of app names that need to be reimported.
+        reload_apps (set[str]): Set of app names that need to be reloaded.
+        config_changes (dict[str, Any]): Dictionary of configuration changes.
+
+    Returns:
+        FileWatcherEvent: The created file watcher event.
+    """
+    orphaned_apps = orphaned_apps or set()
+    new_apps = new_apps or set()
+    reimport_apps = reimport_apps or set()
+    reload_apps = reload_apps or set()
+    config_changes = config_changes or {}
+
+    payload = FileWatcherEventPayload(
+        orphaned_apps=orphaned_apps,
+        new_apps=new_apps,
+        reimport_apps=reimport_apps,
+        reload_apps=reload_apps,
+        config_changes=config_changes,
+    )
+
+    return Event(
+        topic=HASSETTE_EVENT_FILE_WATCHER,
+        payload=HassettePayload(event_type=event_type, data=payload),
+    )
+
+
 HassetteServiceEvent = Event[HassettePayload[ServiceStatusPayload]]
 HassetteWebsocketStatusEvent = Event[HassettePayload[WebsocketStatusEventPayload]]
+HassetteFileWatcherEvent = Event[HassettePayload[FileWatcherEventPayload]]
 HassetteEvent = Event[HassettePayload[Any]]

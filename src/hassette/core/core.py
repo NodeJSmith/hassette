@@ -13,11 +13,12 @@ from ..config import HassetteConfig
 from ..utils import get_traceback_string
 from .api import Api, _Api
 from .apps.app import App
-from .apps.app_handler import _AppHandler, _AppWatcher
+from .apps.app_handler import _AppHandler
 from .bus.bus import Bus, _Bus
 from .classes import Resource, Service
 from .enums import ResourceRole, ResourceStatus
 from .events import Event, HassetteServiceEvent
+from .file_watcher import _FileWatcher
 from .health_service import _HealthService
 from .scheduler.scheduler import Scheduler, _Scheduler
 from .websocket import _Websocket
@@ -69,7 +70,7 @@ class Hassette:
         # internal only (so far, at least)
         self._websocket = self._register_resource(_Websocket)
         self._app_handler = self._register_resource(_AppHandler)
-        self._app_watcher = self._register_resource(_AppWatcher, self._app_handler)
+        self._file_watcher = self._register_resource(_FileWatcher)
         self._health_service = self._register_resource(_HealthService)
 
         # internal/public pairs

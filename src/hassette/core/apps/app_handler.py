@@ -8,20 +8,20 @@ from logging import getLogger
 from pathlib import Path
 
 import anyio
-from deepdiff import DeepDiff
-from watchfiles import awatch
 
-from hassette import Service
 from hassette.config.core_config import HassetteConfig
+from hassette.core import Guard
 from hassette.core.apps.app import App, AppSync
 from hassette.core.classes import Resource
 from hassette.core.enums import ResourceStatus
+from hassette.core.topics import HASSETTE_EVENT_FILE_WATCHER
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 
 if typing.TYPE_CHECKING:
     from hassette.config.app_manifest import AppManifest
     from hassette.core.apps.app_config import AppConfig
     from hassette.core.core import Hassette
+    from hassette.core.events import HassetteFileWatcherEvent
 
 LOGGER = getLogger(__name__)
 FAIL_AFTER_SECONDS = 10
@@ -33,109 +33,6 @@ USER_CONFIG_PATH = "user_config"
 def _manifest_key(app_name: str, index: int) -> str:
     # Human-friendly identifier for logs; not used as dict key.
     return f"{app_name}[{index}]"
-
-
-class _AppWatcher(Service):
-    """Background task to watch for file changes and reload apps."""
-
-    # TODO: should this be separated from app_handler? i don't like how tightly coupled they are
-    # TODO: use events to signal changes instead of direct method calls? (almost definitely - question is now or later?)
-    # TODO: double check only_app when any source files change, in case the only flag changed
-
-    def __init__(self, hassette: "Hassette", app_handler: "_AppHandler", *args, **kwargs) -> None:
-        super().__init__(hassette, *args, **kwargs)
-        self.app_handler = app_handler
-
-        # self.set_logger_to_debug()
-
-    async def run_forever(self) -> None:
-        """Watch app directories for changes and trigger reloads."""
-        try:
-            self.logger.info("Starting app watcher service")
-
-            if not (await self.hassette.wait_for_resources_running([self.app_handler])):
-                self.logger.error("App handler is not running, cannot start app watcher")
-                return
-
-            paths = self.hassette.config.get_watchable_files()
-
-            self.logger.info("Watching app directories for changes: %s", ", ".join(str(p) for p in paths))
-
-            await self.handle_start()
-            async for changes in awatch(*paths, stop_event=self.hassette._shutdown_event):
-                if self.hassette._shutdown_event.is_set():
-                    break
-
-                for _, changed_path in changes:
-                    changed_path = Path(changed_path).resolve()
-                    self.logger.info("Detected change in %s", changed_path)
-                    await self.handle_changes(changed_path)
-                    continue
-        except Exception as e:
-            self.logger.exception("App watcher encountered an error, exception args: %s", e.args)
-            await self.handle_crash(e)
-            raise
-
-    async def handle_changes(self, changed_path: Path) -> None:
-        """Handle changes detected by the watcher."""
-
-        # TODO: clean this up - separate it into smaller methods, etc.
-
-        original_apps_config = deepcopy(self.app_handler.apps_config)
-
-        # reinitialize config to pick up changes
-        # note: this is the proper way to do it, even if it feels weird
-        # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
-        self.hassette.config.__init__()
-        self.app_handler.set_apps_configs(self.hassette.config.apps)
-        curr_apps_config = deepcopy(self.app_handler.apps_config)
-
-        diff = DeepDiff(original_apps_config, curr_apps_config, ignore_order=True)
-        config_diff = DeepDiff(
-            original_apps_config, curr_apps_config, ignore_order=True, include_paths=[ROOT_PATH, USER_CONFIG_PATH]
-        )
-
-        if not diff:
-            self.logger.debug("No changes in app configuration detected")
-        else:
-            self.logger.debug("App configuration changes detected: %s", diff)
-
-        original_app_keys = set(original_apps_config.keys())
-        curr_app_keys = set(curr_apps_config.keys())
-
-        # handle stopping apps due to config changes
-        orphans = original_app_keys - curr_app_keys
-        if orphans:
-            self.logger.info("Apps removed from config: %s", orphans)
-            await self.app_handler.stop_orphans(orphans)
-
-        # handle loading new apps due to config changes
-        new_apps = curr_app_keys - original_app_keys
-        if not new_apps:
-            self.logger.debug("No new apps to add")
-        else:
-            self.logger.info("New apps added to config: %s", new_apps)
-            await self.app_handler.start_new_apps()
-
-        # handle reloading apps due to source code changes
-        force_reload_apps = {app.app_key for app in curr_apps_config.values() if app.full_path == changed_path}
-        if force_reload_apps:
-            self.logger.debug("Apps to force reload due to file change: %s", force_reload_apps)
-            for app_key in force_reload_apps.copy():
-                if app_key in new_apps or app_key in orphans:
-                    continue  # already handled
-                self.logger.info("Reloading app %s due to file change", app_key)
-                await self.app_handler.reload_app(app_key, force_reload=True)
-
-        # handle reloading apps due to config changes
-        if config_diff:
-            self.logger.debug("App configuration changes detected: %s", config_diff)
-            app_keys = config_diff.affected_root_keys
-            for app_key in app_keys:
-                if app_key in new_apps or app_key in orphans or app_key in force_reload_apps:
-                    continue  # already handled
-                self.logger.info("Reloading app %s due to configuration change", app_key)
-                await self.app_handler.reload_app(app_key)
 
 
 class _AppHandler(Resource):
@@ -189,6 +86,27 @@ class _AppHandler(Resource):
 
     async def initialize(self) -> None:
         """Start handler and initialize configured apps."""
+        self.hassette.bus.on(
+            topic=HASSETTE_EVENT_FILE_WATCHER,
+            handler=self._reload_apps_handler,
+            where=Guard["HassetteFileWatcherEvent"](lambda event: event.payload.event_type == "reload_apps"),
+        )
+        self.hassette.bus.on(
+            topic=HASSETTE_EVENT_FILE_WATCHER,
+            handler=self._reimport_apps_handler,
+            where=Guard["HassetteFileWatcherEvent"](lambda event: event.payload.event_type == "reimport_apps"),
+        )
+        self.hassette.bus.on(
+            topic=HASSETTE_EVENT_FILE_WATCHER,
+            handler=self._stop_orphans_handler,
+            where=Guard["HassetteFileWatcherEvent"](lambda event: event.payload.event_type == "orphaned_apps"),
+        )
+        self.hassette.bus.on(
+            topic=HASSETTE_EVENT_FILE_WATCHER,
+            handler=self._start_new_apps_handler,
+            where=Guard["HassetteFileWatcherEvent"](lambda event: event.payload.event_type == "new_apps"),
+        )
+
         await self.initialize_apps()
         await super().initialize()
 
@@ -262,21 +180,23 @@ class _AppHandler(Resource):
     async def reload_app(self, app_key: str, force_reload: bool = False) -> None:
         """Stop and reinitialize a single app by key (based on current config)."""
         self.logger.info("Reloading app %s", app_key)
-
-        await self.stop_app(app_key)
-        # Initialize only that app from the current config if present and enabled
-        manifest = self.active_apps_config.get(app_key)
-        if not manifest:
-            if manifest := self.apps_config.get(app_key):
-                self.logger.warning("Cannot reload app %s, not enabled", app_key)
+        try:
+            await self.stop_app(app_key)
+            # Initialize only that app from the current config if present and enabled
+            manifest = self.active_apps_config.get(app_key)
+            if not manifest:
+                if manifest := self.apps_config.get(app_key):
+                    self.logger.warning("Cannot reload app %s, not enabled", app_key)
+                    return
+                self.logger.warning("Cannot reload app %s, not found", app_key)
                 return
-            self.logger.warning("Cannot reload app %s, not found", app_key)
-            return
 
-        assert manifest is not None, "Manifest should not be None"
+            assert manifest is not None, "Manifest should not be None"
 
-        self._create_app_instances(app_key, manifest, force_reload=force_reload)
-        await self._initialize_app_instances(app_key, manifest)
+            self._create_app_instances(app_key, manifest, force_reload=force_reload)
+            await self._initialize_app_instances(app_key, manifest)
+        except Exception:
+            self.logger.exception("Failed to reload app %s", app_key)
 
     async def initialize_apps(self) -> None:
         if not (await self.hassette.wait_for_resources_running([self.hassette._websocket])):
@@ -309,12 +229,16 @@ class _AppHandler(Resource):
             except Exception:
                 self.logger.exception("Failed to load app class for %s", app_manifest.display_name)
 
-        if only_apps:
-            if len(only_apps) > 1:
-                keys = ", ".join(app for app in only_apps)
-                raise RuntimeError(f"Multiple apps marked as only: {keys}")
-            self.only_app = only_apps[0]
-            self.logger.warning("App %s is marked as only, skipping all others", self.only_app)
+        if not only_apps:
+            self.only_app = None
+            return
+
+        if len(only_apps) > 1:
+            keys = ", ".join(app for app in only_apps)
+            raise RuntimeError(f"Multiple apps marked as only: {keys}")
+
+        self.only_app = only_apps[0]
+        self.logger.warning("App %s is marked as only, skipping all others", self.only_app)
 
     async def _initialize_apps(self):
         """Initialize all configured and enabled apps."""
@@ -341,8 +265,12 @@ class _AppHandler(Resource):
             app_key (str): The key of the app, as found in hassette.toml.
             app_manifest (AppManifest): The manifest containing configuration.
         """
-
-        app_class = load_app_class(app_manifest, force_reload=force_reload)
+        try:
+            app_class = load_app_class(app_manifest, force_reload=force_reload)
+        except Exception as e:
+            self.logger.exception("Failed to load app class for %s", app_key)
+            self.failed_apps[app_key].append((0, e))
+            return
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
@@ -388,6 +316,42 @@ class _AppHandler(Resource):
                 self.logger.exception("Failed to start app %s (%s)", ident, class_name)
                 app_instance.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
+
+    async def _reload_apps_handler(self, event: "HassetteFileWatcherEvent"):
+        """Handle reload_apps events from the file watcher."""
+        if not event.payload.data.reload_apps:
+            return
+
+        for app_key in event.payload.data.reload_apps:
+            await self.reload_app(app_key)
+
+    async def _reimport_apps_handler(self, event: "HassetteFileWatcherEvent"):
+        """Handle reimport_apps events from the file watcher."""
+        if not event.payload.data.reimport_apps:
+            return
+
+        for app_key in event.payload.data.reimport_apps:
+            await self.reload_app(app_key, force_reload=True)
+
+        # in case a source file changed that affects only_app, recompute it
+        await self._set_only_app()
+
+        # in case only_app changed, restart any apps that were skipped
+        await self.start_new_apps()
+
+    async def _stop_orphans_handler(self, event: "HassetteFileWatcherEvent"):
+        """Handle orphaned_apps events from the file watcher."""
+        if not event.payload.data.orphaned_apps:
+            return
+
+        await self.stop_orphans(event.payload.data.orphaned_apps)
+
+    async def _start_new_apps_handler(self, event: "HassetteFileWatcherEvent"):
+        """Handle new_apps events from the file watcher."""
+        if not event.payload.data.new_apps:
+            return
+
+        await self.start_new_apps()
 
 
 def load_app_class(app_manifest: "AppManifest", force_reload: bool = False) -> "type[App[AppConfig]]":
