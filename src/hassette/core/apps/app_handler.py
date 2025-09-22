@@ -26,6 +26,8 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 FAIL_AFTER_SECONDS = 10
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
+ROOT_PATH = "root"
+USER_CONFIG_PATH = "user_config"
 
 
 def _manifest_key(app_name: str, index: int) -> str:
@@ -93,7 +95,6 @@ class _AppWatcher(Service):
             original_apps_config,
             curr_apps_config,
             ignore_order=True,
-            # TODO: do not use magic strings here
             include_paths=[ROOT_PATH, USER_CONFIG_PATH],
         )
 
