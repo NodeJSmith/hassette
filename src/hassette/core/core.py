@@ -204,6 +204,74 @@ class Hassette:
         """
         return self.loop.create_task(coro)
 
+    async def wait_for_resources_running(
+        self, resources: list[Resource] | Resource, poll_interval: float = 0.1, timeout: int = 20
+    ) -> bool:
+        """Block until all dependent resources are running or shutdown is requested.
+
+        Args:
+            resources (list[Resource] | Resource): The resources to wait for.
+            poll_interval (float): The interval to poll for resource status.
+            timeout (int): The timeout for the wait operation.
+        Returns:
+            bool: True if all resources are running, False if timeout or shutdown.
+        """
+
+        resources = resources if isinstance(resources, list) else [resources]
+
+        with anyio.move_on_after(timeout) as cancel_scope:
+            futures = asyncio.gather(
+                *(self._wait_for_resource_running(resource, poll_interval) for resource in resources)
+            )
+            await futures
+
+        not_running = [r.class_name for r in resources if r.status != ResourceStatus.RUNNING]
+
+        if cancel_scope.cancel_called:
+            self.logger.error(
+                "Timeout waiting for resources to start after %d seconds: %s", timeout, ", ".join(not_running)
+            )
+            return False
+
+        if not_running:
+            self.logger.error("Some resources are not running: %s", ", ".join(not_running))
+            return False
+
+        return True
+
+    async def _wait_for_resource_running(
+        self, resource: Resource, poll_interval: float = 0.1, timeout: int = 20
+    ) -> bool:
+        """Block until a dependent resource is running or shutdown is requested.
+
+        Args:
+            resource (Resource): The resource to wait for.
+            poll_interval (float): The interval to poll for resource status.
+            timeout (int): The timeout for the wait operation.
+
+        Returns:
+            bool: True if the resource is running, False if shutdown.
+        """
+
+        with anyio.move_on_after(timeout) as cancel_scope:
+            while resource.status != ResourceStatus.RUNNING:
+                if self._shutdown_event.is_set():
+                    self.logger.warning("Shutdown in progress, aborting app watcher")
+                    return False
+                await asyncio.sleep(poll_interval)
+
+        if cancel_scope.cancel_called:
+            self.logger.error(
+                "Timeout waiting for resource '%s' to start after %d seconds", resource.class_name, timeout
+            )
+            return False
+
+        if resource.status != ResourceStatus.RUNNING:
+            self.logger.error("Resource '%s' is not running", resource.class_name)
+            return False
+
+        return True
+
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Start a service from a service event."""
         data = event.payload.data
@@ -286,22 +354,17 @@ class Hassette:
 
         self.ready_event.set()
 
-        with anyio.move_on_after(5) as scope:
-            while True:
-                if self._shutdown_event.is_set():
-                    self.logger.warning("Shutdown in progress, aborting run loop")
-                    break
-                await anyio.sleep(0.1)
-                all_statuses = [s.status for s in self._resources.values()]
-                if all(s == ResourceStatus.RUNNING for s in all_statuses):
-                    break
+        started = await self.wait_for_resources_running(list(self._resources.values()), timeout=20)
 
-        if scope.cancel_called:
-            not_running = [s.class_name for s in self._resources.values() if s.status != ResourceStatus.RUNNING]
-            self.logger.error("Hassette startup timed out, resources that are not running: %s", not_running)
+        if not started:
+            self.logger.error("Not all resources started successfully, shutting down")
             await self._shutdown()
+            return
 
-        elif self._shutdown_event.is_set():
+        self.logger.info("All resources started successfully")
+        self.logger.info("Hassette is running.")
+
+        if self._shutdown_event.is_set():
             self.logger.warning("Hassette is shutting down, aborting run loop")
             await self._shutdown()
 
