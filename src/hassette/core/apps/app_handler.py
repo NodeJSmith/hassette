@@ -52,8 +52,6 @@ class _AppHandler(Resource):
         super().__init__(hassette)
         self.apps_config = {}
 
-        # self.set_logger_to_debug()
-
         self.set_apps_configs(self.hassette.config.apps)
 
         self.only_app: str | None = None
