@@ -14,10 +14,6 @@ class _FileWatcher(Service):
         try:
             self.logger.info("Starting file watcher service")
 
-            if not (await self.hassette.wait_for_resources_running([self.hassette._app_handler])):
-                self.logger.error("App handler is not running, cannot start file watcher")
-                return
-
             paths = self.hassette.config.get_watchable_files()
 
             self.logger.info("Watching app directories for changes: %s", ", ".join(str(p) for p in paths))
