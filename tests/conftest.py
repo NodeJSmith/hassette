@@ -284,7 +284,7 @@ def test_config_with_apps(apps_config_file):
             "env_file": [ENV_FILE],
         }
 
-    previous_instance = getattr(HassetteConfig, "_instance", None)
+    previous_instance: HassetteConfig | None = getattr(HassetteConfig, "_instance", None)
     config = AppsTestConfig(
         websocket_timeout_seconds=1,
         run_sync_timeout_seconds=2,
@@ -297,7 +297,7 @@ def test_config_with_apps(apps_config_file):
     try:
         yield config
     finally:
-        HassetteConfig._instance = previous_instance
+        HassetteConfig._instance = previous_instance or HassetteConfig._instance
 
 
 @pytest.fixture
