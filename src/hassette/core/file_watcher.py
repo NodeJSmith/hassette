@@ -34,6 +34,9 @@ class _FileWatcher(Service):
                     event = create_file_watcher_event(changed_file_path=changed_path)
                     await self.hassette.send_event(event.topic, event)
 
+                # update paths in case new apps were added
+                paths = self.hassette.config.get_watchable_files()
+
         except Exception as e:
             self.logger.exception("App watcher encountered an error, exception args: %s", e.args)
             await self.handle_crash(e)
