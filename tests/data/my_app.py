@@ -12,9 +12,6 @@ class MyApp(App[MyAppUserConfig]):
     async def initialize(self) -> None:
         await super().initialize()
 
-        print(self.app_config_cls)
-        print(self.app_config)
-
         self.logger.info("MyApp has been initialized")
         self.hassette.bus.on_entity("input_button.test", handler=self.handle_event_sync)
         self.hassette.scheduler.run_in(self.hassette.api.get_states, 1)

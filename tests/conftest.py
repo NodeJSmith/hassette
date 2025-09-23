@@ -21,9 +21,11 @@ tracemalloc.start()
 TEST_DATA_PATH = Path.cwd().joinpath("tests", "data")
 ENV_FILE = TEST_DATA_PATH.joinpath(".env")
 TEST_TOML_FILE = TEST_DATA_PATH.joinpath("hassette.toml")
+APPS_TOML_TEMPLATE = TEST_DATA_PATH.joinpath("hassette_apps.toml")
 
 assert ENV_FILE.exists(), f"Environment file {ENV_FILE} does not exist"
 assert TEST_TOML_FILE.exists(), f"Test TOML file {TEST_TOML_FILE} does not exist"
+assert APPS_TOML_TEMPLATE.exists(), f"Apps TOML template {APPS_TOML_TEMPLATE} does not exist"
 
 # this wants package.nested_directories.final_file_name
 # do not include the name of the fixture
@@ -260,6 +262,42 @@ def test_data_path():
     This is used to access any test-specific files needed during testing.
     """
     return TEST_DATA_PATH
+
+
+@pytest.fixture
+def apps_config_file(tmp_path_factory):
+    """Return a temporary hassette.toml populated with app definitions for app-centric tests."""
+
+    tmp_dir = tmp_path_factory.mktemp("hassette_apps")
+    toml_path = tmp_dir / "hassette.toml"
+    toml_path.write_text(APPS_TOML_TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+    return toml_path
+
+
+@pytest.fixture
+def test_config_with_apps(apps_config_file):
+    """Provide a HassetteConfig instance that loads apps from a temporary hassette.toml."""
+
+    class AppsTestConfig(TestConfig):
+        model_config = TestConfig.model_config.copy() | {
+            "toml_file": [apps_config_file],
+            "env_file": [ENV_FILE],
+        }
+
+    previous_instance = getattr(HassetteConfig, "_instance", None)
+    config = AppsTestConfig(
+        websocket_timeout_seconds=1,
+        run_sync_timeout_seconds=2,
+        run_health_service=False,
+        app_dir=TEST_DATA_PATH,
+    )
+
+    HassetteConfig._instance = config
+
+    try:
+        yield config
+    finally:
+        HassetteConfig._instance = previous_instance
 
 
 @pytest.fixture

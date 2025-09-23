@@ -19,9 +19,6 @@ class MyAppUserConfig(AppConfig):
 # @only
 class MyAppSync(AppSync):
     def initialize_sync(self) -> None:
-        print(self.app_config_cls)
-        print(self.app_config)
-
         self.hassette.bus.on_entity("input_button.test", handler=self.handle_event)
         self.hassette.scheduler.run_in(self.test_stuff, 1)
 
