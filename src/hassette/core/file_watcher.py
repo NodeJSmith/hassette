@@ -19,7 +19,12 @@ class _FileWatcher(Service):
             self.logger.info("Watching app directories for changes: %s", ", ".join(str(p) for p in paths))
 
             await self.handle_start()
-            async for changes in awatch(*paths, stop_event=self.hassette._shutdown_event):
+            async for changes in awatch(
+                *paths,
+                stop_event=self.hassette._shutdown_event,
+                step=self.hassette.config.file_watcher_step_milliseconds,
+                debounce=self.hassette.config.file_watcher_debounce_milliseconds,
+            ):
                 if self.hassette._shutdown_event.is_set():
                     break
 
