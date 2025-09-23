@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - importable from `hassette.core.apps`
   - useful for development when you want to only run a single app without modifying config file
   - will raise an error if multiple apps are marked with `@only`
+- add `app_key` to `AppManifest` - reflects the key used to identify the app in config
 
 ### Changed
 - move service watching logic to it's own service
