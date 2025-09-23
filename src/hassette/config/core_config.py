@@ -137,6 +137,12 @@ class HassetteConfig(HassetteBaseSettings):
     health_service_port: int | None = Field(default=8126)
     """Port to run the health service on, ignored if run_health_service is False."""
 
+    file_watcher_debounce_milliseconds: int = Field(default=1_600)
+    """Debounce time for file watcher events in milliseconds."""
+
+    file_watcher_step_milliseconds: int = Field(default=50)
+    """Time to wait for additional file changes before emitting event in milliseconds."""
+
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
     """User provided secrets that can be referenced in the config."""
