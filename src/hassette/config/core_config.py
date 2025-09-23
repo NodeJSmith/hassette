@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Sequence
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -141,51 +142,27 @@ class HassetteConfig(HassetteBaseSettings):
     """User provided secrets that can be referenced in the config."""
 
     @property
-    def env_files(self) -> list[Path]:
-        """Return a list of environment files to load."""
-        env_files = self.model_config.get("env_file", [])
-        env_files = [env_files] if isinstance(env_files, str | Path | None) else env_files
-        env_files = list(filter(bool, env_files))  # remove empty strings / None
-        return [Path(f).resolve() for f in env_files if f and Path(f).exists()]
+    def env_files(self) -> set[Path]:
+        """Return a list of environment files that Pydantic will check."""
+        return filter_paths_to_unique_existing(self.model_config.get("env_file", []))
 
     @property
-    def toml_files(self) -> list[Path]:
-        """Return a list of TOML files to load."""
-        toml_files = self.model_config.get("toml_file", [])
-        toml_files = [toml_files] if isinstance(toml_files, str | Path | None) else toml_files
-        toml_files = list(filter(bool, toml_files))  # remove empty strings / None
-        return [Path(f).resolve() for f in toml_files if f and Path(f).exists()]
+    def toml_files(self) -> set[Path]:
+        """Return a list of toml files that Pydantic will check."""
+        return filter_paths_to_unique_existing(self.model_config.get("toml_file", []))
 
     def get_watchable_files(self) -> set[Path]:
         """Return a list of files to watch for changes."""
 
-        # TODO: clean this up + `toml_files` and `env_files` should probably use some helper methods
-
-        files = set(self.env_files + self.toml_files)
+        files = self.env_files | self.toml_files
         files.add(self.app_dir.resolve())
-        for app in self.apps.values():
-            if app.app_dir:
-                f = Path(app.app_dir).resolve()
-                if not f.exists():
-                    LOGGER.warning("The app_dir %s for app %s does not exist and will be ignored.", f, app.app_key)
-                    continue
-                if f in files:
-                    LOGGER.debug("The app_dir %s for app %s is already being watched.", f, app.app_key)
-                    continue
-                files.add(f)
-            f = Path(app.full_path).resolve()
-            if not f.exists():
-                LOGGER.warning("The filename %s for app %s does not exist and will be ignored.", f, app.app_key)
-                continue
-            if f in files:
-                LOGGER.debug("The filename %s for app %s is already being watched.", f, app.app_key)
-                continue
-            files.add(f)
 
-        non_existent_files = [f for f in files if not f.exists()]
-        if non_existent_files:
-            LOGGER.warning("The following watchable files do not exist and will be ignored: %s", non_existent_files)
-        files = set(f for f in files if f.exists())
+        # just add everything from here, since we'll filter it to only existing and remove duplicates later
+        for app in self.apps.values():
+            files.add(app.app_dir)
+            files.add(app.full_path)
+
+        files = filter_paths_to_unique_existing(files)
 
         return files
 
@@ -357,3 +334,22 @@ class HassetteConfig(HassetteBaseSettings):
         from hassette.core.core import Hassette
 
         return Hassette.get_instance().config  # will raise RuntimeError if not initialized yet
+
+
+def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | None | set[Path]) -> set[Path]:
+    """Filter the provided paths to only include unique existing paths.
+
+    Args:
+        value (list[str]): List of file paths as strings.
+
+    Returns:
+        list[Path]: List of existing file paths as Path objects.
+
+    Raises:
+        ValueError: If any of the provided paths do not exist.
+    """
+    value = [value] if isinstance(value, str | Path | None) else value
+
+    paths = set([nv for v in value if v and (nv := Path(v).resolve()).exists()])
+
+    return paths
