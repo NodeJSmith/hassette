@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor app_handler to handle reloading apps, re-importing, removing orphans, etc.
 
 ### Fixed
-- update `api.call_service` target typing to also allow lists of ids - thanks @zlangbert!
+- update `api.call_service` target typing to also allow lists of ids - [thanks @zlangbert](https://github.com/NodeJSmith/hassette/pull/44)!
 
 ## [0.7.0] - 2025-09-14
 ### Changed
