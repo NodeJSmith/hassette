@@ -143,6 +143,9 @@ class HassetteConfig(HassetteBaseSettings):
     file_watcher_step_milliseconds: int = Field(default=50)
     """Time to wait for additional file changes before emitting event in milliseconds."""
 
+    watch_files: bool = Field(default=True)
+    """Whether to watch files for changes and reload apps automatically."""
+
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
     """User provided secrets that can be referenced in the config."""

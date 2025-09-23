@@ -71,7 +71,12 @@ class Hassette:
         self._service_watcher = self._register_resource(_ServiceWatcher)
         self._websocket = self._register_resource(_Websocket)
         self._app_handler = self._register_resource(_AppHandler)
-        self._file_watcher = self._register_resource(_FileWatcher)
+
+        if config.watch_files:
+            self._file_watcher = self._register_resource(_FileWatcher)
+        else:
+            self.logger.info("File watching is disabled")
+
         self._health_service = self._register_resource(_HealthService)
 
         # internal/public pairs
