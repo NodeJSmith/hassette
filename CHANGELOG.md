@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- hot-reloading support for apps using `watchfiles` library
+  - watches app files, hassette.toml, and .env files for changes
+  - reloads apps on change, removes orphans, reimports apps if source files change
+  - can be disabled with `watch_files = false` in config
+  - add a few new configuration values to control file watcher behavior
+- add utility function to wait for resources to be running with shutdown support
+  - `wait_for_resources_running` function added to `Hassette` class
+  - also available as standalone utility function in `hassette.utils`
+- `@only` decorator to allow marking a single app to run without changing `hassette.toml`
+  - importable from `hassette.core.apps`
+  - useful for development when you want to only run a single app without modifying config file
+  - will raise an error if multiple apps are marked with `@only`
+
+### Changed
+- move service watching logic to it's own service
+- refactor app_handler to handle reloading apps, re-importing, removing orphans, etc.
+
+### Fixed
+- update `api.call_service` target typing to also allow lists of ids - thanks @zlangbert!
+
 ## [0.7.0] - 2025-09-14
 ### Changed
 - rename `cancel` on `Subscription` to `unsubscribe` for clarity
