@@ -83,7 +83,6 @@ docs = [
     "sphinxcontrib-qthelp==2.0.0",
     "sphinxcontrib-serializinghtml==2.0.0",
     "sphinx-copybutton>=0.5.2",
-    "sphinxext-opengraph[social-cards]>=0.13.0",
 ]
 
 [tool.uv]
