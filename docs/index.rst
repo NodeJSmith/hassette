@@ -100,9 +100,9 @@ Learn More
   events
   scheduler
   appdaemon-comparison
+  pyscript-comparison
   reference/index
 
-..   pyscript-comparison
 
 
 Indices and tables
