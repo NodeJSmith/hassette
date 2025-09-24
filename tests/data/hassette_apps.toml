@@ -1,0 +1,30 @@
+[hassette]
+base_url = "http://127.0.0.1:8123"
+api_port = 8123
+app_dir = "tests/data"
+
+secrets = ["my_secret"]
+
+[apps.my_app]
+enabled = true
+filename = "my_app.py"
+class_name = "MyApp"
+display_name = "My Test App"
+app_dir = "tests/data"
+config = { test_entity = "input_button.test" }
+
+[apps.my_app_sync]
+enabled = true
+filename = "my_app_sync.py"
+class_name = "MyAppSync"
+display_name = "My Test App Sync"
+app_dir = "tests/data"
+config = { test_entity = "input_button.test" }
+
+[apps.disabled_app]
+enabled = false
+filename = "disabled_app.py"
+class_name = "DisabledApp"
+display_name = "Disabled App"
+app_dir = "tests/data"
+config = { test_entity = "input_button.test" }

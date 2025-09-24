@@ -2,6 +2,7 @@
 
 HASSETTE_EVENT_SERVICE_STATUS = "hassette.event.service_status"
 HASSETTE_EVENT_WEBSOCKET_STATUS = "hassette.event.websocket"
+HASSETTE_EVENT_FILE_WATCHER = "hassette.event.file_watcher"
 
 # Home Assistant events
 HASS_EVENT_STATE_CHANGED = "hass.event.state_changed"

@@ -36,6 +36,8 @@ async def mock_hassette_with_bus():
             self.ready_event = asyncio.Event()
             self.ready_event.set()
 
+            self._resources: dict[str, Resource] = {}
+
         async def send_event(self, topic: str, event: Event[Any]) -> None:
             """Mock method to send an event to the bus."""
             await self._send_stream.send((topic, event))

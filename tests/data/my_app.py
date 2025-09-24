@@ -12,15 +12,15 @@ class MyApp(App[MyAppUserConfig]):
     async def initialize(self) -> None:
         await super().initialize()
 
-        print(self.app_config_cls)
-        print(self.app_config)
-
         self.logger.info("MyApp has been initialized")
         self.hassette.bus.on_entity("input_button.test", handler=self.handle_event_sync)
         self.hassette.scheduler.run_in(self.hassette.api.get_states, 1)
 
         self.office_light_exists = await self.hassette.api.entity_exists("light.office")
         self.test_button_exists = await self.hassette.api.entity_exists("input_button.test")
+
+    async def test_reload_app(self):
+        await self.hassette._app_handler.reload_app(self.app_manifest.app_key)
 
     async def test_stuff(self) -> None:
         if self.office_light_exists:

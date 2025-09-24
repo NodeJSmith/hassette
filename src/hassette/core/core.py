@@ -6,20 +6,21 @@ from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, ClassVar, ParamSpec, TypeVar
 
-import anyio
 from anyio import create_memory_object_stream
 
 from ..config import HassetteConfig
-from ..utils import get_traceback_string
+from ..utils import get_traceback_string, wait_for_resources_running
 from .api import Api, _Api
 from .apps.app import App
 from .apps.app_handler import _AppHandler
 from .bus.bus import Bus, _Bus
 from .classes import Resource, Service
-from .enums import ResourceRole, ResourceStatus
-from .events import Event, HassetteServiceEvent
+from .enums import ResourceRole
+from .events import Event
+from .file_watcher import _FileWatcher
 from .health_service import _HealthService
 from .scheduler.scheduler import Scheduler, _Scheduler
+from .service_watcher import _ServiceWatcher
 from .websocket import _Websocket
 
 P = ParamSpec("P")
@@ -67,8 +68,15 @@ class Hassette:
         self._thread_pool = ThreadPoolExecutor(max_workers=10)
 
         # internal only (so far, at least)
+        self._service_watcher = self._register_resource(_ServiceWatcher)
         self._websocket = self._register_resource(_Websocket)
         self._app_handler = self._register_resource(_AppHandler)
+
+        if config.watch_files:
+            self._file_watcher = self._register_resource(_FileWatcher)
+        else:
+            self.logger.info("File watching is disabled")
+
         self._health_service = self._register_resource(_HealthService)
 
         # internal/public pairs
@@ -203,104 +211,45 @@ class Hassette:
         """
         return self.loop.create_task(coro)
 
-    async def restart_service(self, event: HassetteServiceEvent) -> None:
-        """Start a service from a service event."""
-        data = event.payload.data
-        name = data.resource_name
-        role = data.role
+    async def wait_for_resources_running(
+        self, resources: list[Resource] | Resource, poll_interval: float = 0.1, timeout: int = 20
+    ) -> bool:
+        """Block until all dependent resources are running or shutdown is requested.
 
-        try:
-            if name is None:
-                self.logger.warning("No %s specified to start, skipping", role)
-                return
+        Args:
+            resources (list[Resource] | Resource): The resources to wait for.
+            poll_interval (float): The interval to poll for resource status.
+            timeout (int): The timeout for the wait operation.
+        Returns:
+            bool: True if all resources are running, False if timeout or shutdown.
+        """
+        resources = resources if isinstance(resources, list) else [resources]
 
-            self.logger.info("%s '%s' is being restarted after '%s'", role, name, event.payload.event_type)
-
-            self.logger.info("Starting %s '%s'", role, name)
-            service = self._resources.get(name)
-            if service is None:
-                self.logger.warning("No %s found for '%s', skipping start", role, name)
-                return
-
-            service.cancel()
-            service.start()
-
-        except Exception as e:
-            self.logger.error("Failed to restart %s '%s': %s", role, name, e)
-            raise
-
-    async def log_service_event(self, event: HassetteServiceEvent) -> None:
-        """Log the startup of a service."""
-
-        name = event.payload.data.resource_name
-        role = event.payload.data.role
-
-        if name is None:
-            self.logger.warning("No resource specified for startup, cannot log")
-            return
-
-        status, previous_status = event.payload.data.status, event.payload.data.previous_status
-
-        if status == previous_status:
-            self.logger.debug("%s '%s' status unchanged at '%s', not logging", role, name, status)
-            return
-
-        try:
-            self.logger.info(
-                "%s '%s' transitioned to status '%s' from '%s'",
-                role,
-                name,
-                event.payload.data.status,
-                event.payload.data.previous_status,
-            )
-
-        except Exception as e:
-            self.logger.error("Failed to log %s startup for '%s': %s", role, name, e)
-            raise
-
-    async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
-        """Shutdown the Hassette instance if a service has crashed."""
-        data = event.payload.data
-        name = data.resource_name
-        role = data.role
-
-        try:
-            self.logger.exception(
-                "%s '%s' has crashed (event_id %d), shutting down Hassette, %s",
-                role,
-                name,
-                data.event_id,
-                data.exception_traceback,
-            )
-            self.shutdown()
-        except Exception:
-            self.logger.error("Failed to handle %s crash for '%s': %s", role, name)
-            raise
+        return await wait_for_resources_running(
+            resources,
+            poll_interval=poll_interval,
+            timeout=timeout,
+            shutdown_event=self._shutdown_event,
+        )
 
     async def run_forever(self) -> None:
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
         self._start_resources()
-        self._register_internal_event_listeners()
 
         self.ready_event.set()
 
-        with anyio.move_on_after(5) as scope:
-            while True:
-                if self._shutdown_event.is_set():
-                    self.logger.warning("Shutdown in progress, aborting run loop")
-                    break
-                await anyio.sleep(0.1)
-                all_statuses = [s.status for s in self._resources.values()]
-                if all(s == ResourceStatus.RUNNING for s in all_statuses):
-                    break
+        started = await self.wait_for_resources_running(list(self._resources.values()), timeout=20)
 
-        if scope.cancel_called:
-            not_running = [s.class_name for s in self._resources.values() if s.status != ResourceStatus.RUNNING]
-            self.logger.error("Hassette startup timed out, resources that are not running: %s", not_running)
+        if not started:
+            self.logger.error("Not all resources started successfully, shutting down")
             await self._shutdown()
+            return
 
-        elif self._shutdown_event.is_set():
+        self.logger.info("All resources started successfully")
+        self.logger.info("Hassette is running.")
+
+        if self._shutdown_event.is_set():
             self.logger.warning("Hassette is shutting down, aborting run loop")
             await self._shutdown()
 
@@ -328,12 +277,6 @@ class Hassette:
                 await resource.shutdown()
             except Exception as e:
                 self.logger.error("Failed to shutdown resource '%s': %s", resource.class_name, e)
-
-    def _register_internal_event_listeners(self) -> None:
-        """Register internal event listeners for resource lifecycle."""
-        self.bus.on_hassette_service_failed(handler=self.restart_service)
-        self.bus.on_hassette_service_crashed(handler=self.shutdown_if_crashed)
-        self.bus.on_hassette_service_status(handler=self.log_service_event)
 
     async def _shutdown(self) -> None:
         """Shutdown all services gracefully and gather any results."""

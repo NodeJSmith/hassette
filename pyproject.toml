@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.7.2"
+version = "0.8.0"
 description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -37,12 +37,14 @@ dependencies = [
     "anyio>=4.10.0",
     "coloredlogs>=15.0.1",
     "croniter>=6.0.0",
+    "deepdiff>=8.6.1",
     "orjson>=3.10.18",
     "packaging>=25.0",
     "platformdirs>=4.3.8",
     "pydantic-settings>=2.9.1",
     "python-dotenv>=1.1.0",
     "tenacity>=9.1.2",
+    "watchfiles>=1.1.0",
     "whenever>=0.8.4",
 ]
 
@@ -55,7 +57,9 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 
 
 [dependency-groups]
-dev = []
+dev = [
+    "tomli-w>=1.2.0",
+]
 test = [
     "docker>=7.1.0",
     "nox>=2025.5.1",

@@ -1,10 +1,15 @@
 import itertools
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 from hassette.core.enums import ResourceRole, ResourceStatus
 from hassette.core.events import Event
-from hassette.core.topics import HASSETTE_EVENT_SERVICE_STATUS, HASSETTE_EVENT_WEBSOCKET_STATUS
+from hassette.core.topics import (
+    HASSETTE_EVENT_FILE_WATCHER,
+    HASSETTE_EVENT_SERVICE_STATUS,
+    HASSETTE_EVENT_WEBSOCKET_STATUS,
+)
 from hassette.utils import get_traceback_string
 
 HassetteT = TypeVar("HassetteT", covariant=True)
@@ -56,6 +61,8 @@ class ServiceStatusPayload:
 class WebsocketStatusEventPayload:
     """Payload for websocket status events."""
 
+    event_id: int = field(default_factory=next_id, init=False)
+
     connected: bool
     """Whether the websocket is connected or not."""
 
@@ -74,6 +81,15 @@ class WebsocketStatusEventPayload:
     def disconnected_payload(cls, error: str) -> "WebsocketStatusEventPayload":
         """Create a payload for a disconnected websocket event."""
         return cls(connected=False, error=error)
+
+
+@dataclass(slots=True, frozen=True)
+class FileWatcherEventPayload:
+    """Payload for file watcher events."""
+
+    event_id: int = field(default_factory=next_id, init=False)
+
+    changed_file_path: Path
 
 
 def create_service_status_event(
@@ -133,6 +149,27 @@ def create_websocket_status_event(
     )
 
 
+def create_file_watcher_event(
+    changed_file_path: Path,
+) -> "HassetteEvent":
+    """Create a file watcher event.
+
+    Args:
+        changed_file_path (Path): The path of the changed file.
+
+    Returns:
+        FileWatcherEvent: The created file watcher event.
+    """
+
+    return Event(
+        topic=HASSETTE_EVENT_FILE_WATCHER,
+        payload=HassettePayload(
+            event_type="file_changed", data=FileWatcherEventPayload(changed_file_path=changed_file_path)
+        ),
+    )
+
+
 HassetteServiceEvent = Event[HassettePayload[ServiceStatusPayload]]
 HassetteWebsocketStatusEvent = Event[HassettePayload[WebsocketStatusEventPayload]]
+HassetteFileWatcherEvent = Event[HassettePayload[FileWatcherEventPayload]]
 HassetteEvent = Event[HassettePayload[Any]]

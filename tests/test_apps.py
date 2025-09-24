@@ -1,36 +1,33 @@
 import asyncio
-from unittest.mock import AsyncMock, Mock
+from copy import deepcopy
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from hassette import ResourceStatus
-from hassette.config import HassetteConfig
 from hassette.core.apps.app_handler import _AppHandler, load_app_class
 
 
 @pytest.fixture
-async def app_handler(test_config):
-    tc = HassetteConfig(
-        websocket_timeout_seconds=1,
-        run_sync_timeout_seconds=2,
-        run_health_service=False,
-        apps={
-            "my_app": {"enabled": True, "filename": "my_app.py", "class_name": "MyApp"},
-            "my_app_sync": {"enabled": True, "filename": "my_app_sync.py", "class_name": "MyAppSync"},  # type: ignore
-        },
-        token=test_config.token.get_secret_value(),
-        app_dir=test_config.app_dir,
-    )
-
+async def app_handler(test_config_with_apps):
     hassette = Mock()
+    hassette.bus = Mock()
+    hassette.scheduler = Mock()
     hassette.send_event = AsyncMock()
     hassette.api.entity_exists = AsyncMock(return_value=True)
-    hassette.config = tc
+    hassette.api.sync.entity_exists.return_value = True  # type: ignore[attr-defined]
+    hassette.api.get_states = AsyncMock()
+    hassette.api.get_state_value = AsyncMock()
+    hassette.config = test_config_with_apps
     hassette._websocket = Mock()
     hassette._websocket.connected = True
     hassette._websocket.status = ResourceStatus.RUNNING
+    hassette.wait_for_resources_running = AsyncMock(return_value=True)
 
     app_handler = _AppHandler(hassette)
+    hassette._app_handler = app_handler
+    hassette.get_app = app_handler.get  # used by sync apps
+
     await app_handler.initialize()
 
     yield app_handler
@@ -46,6 +43,7 @@ async def test_apps_are_working(app_handler: _AppHandler) -> None:
     assert app_handler.apps, "There should be at least one app group"
     assert "my_app" in app_handler.apps, "my_app should be one of the app groups"
     assert "my_app_sync" in app_handler.apps, "my_app_sync should be one of the app groups"
+    assert "disabled_app" not in app_handler.apps, "disabled_app should remain disabled"
 
     # test that an app that only has config values but no class_name/filename is ignored
     assert "myfakeapp" not in app_handler.apps, "myfakeapp should not be one of the app groups"
@@ -69,3 +67,76 @@ def test_all_apps(app_handler: _AppHandler) -> None:
     class_names = [app.class_name for app in all_apps]
     assert "MyApp" in class_names, "MyApp should be in the list of running apps"
     assert "MyAppSync" in class_names, "MyAppSync should be in the list of running apps"
+
+
+async def test_handle_changes_disables_app(app_handler: _AppHandler) -> None:
+    """Verify that editing hassette.toml to disable an app stops the running instance."""
+
+    assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
+    assert app_handler.apps_config["my_app"].enabled is True, "Precondition: my_app config shows enabled"
+
+    with patch.object(app_handler, "_calculate_app_changes") as mock_calc_changes:
+        mock_calc_changes.return_value = (
+            {"my_app"},  # orphans
+            set(),  # new_apps
+            set(),  # reimport_apps
+            set(),  # reload_apps
+        )
+
+        await app_handler.handle_changes()
+        await asyncio.sleep(0)  # let async shutdowns complete
+
+        assert "my_app" not in app_handler.apps, "my_app should stop after being disabled"
+        assert "my_app_sync" in app_handler.apps, "Other enabled apps should continue running"
+
+
+async def test_handle_changes_enables_app(app_handler: _AppHandler) -> None:
+    """Verify that editing hassette.toml to enable a disabled app starts the instance."""
+
+    assert "disabled_app" not in app_handler.apps, "Precondition: disabled_app starts disabled"
+    assert app_handler.apps_config["disabled_app"].enabled is False, "Precondition: disabled_app config shows disabled"
+
+    new_app_config = deepcopy(app_handler.apps_config)
+    new_app_config["disabled_app"].enabled = True
+
+    with (
+        patch.object(app_handler, "_calculate_app_changes") as mock_calc_changes,
+        patch.object(app_handler, "refresh_config") as mock_refresh_config,
+    ):
+        app_handler.apps_config = new_app_config
+        mock_refresh_config.return_value = (app_handler.apps_config, new_app_config)
+        mock_calc_changes.return_value = (
+            set(),  # orphans
+            {"disabled_app"},  # new_apps
+            set(),  # reimport_apps
+            set(),  # reload_apps
+        )
+
+        await app_handler.handle_changes()
+        await asyncio.sleep(0.3)  # let async startups complete
+
+        assert "disabled_app" in app_handler.apps, "disabled_app should start after being enabled"
+        assert "my_app" in app_handler.apps, "Other enabled apps should continue running"
+
+
+async def test_config_changes_are_reflected_after_reload(app_handler: _AppHandler) -> None:
+    """Verify that editing hassette.toml to change an app's config reloads the instance."""
+
+    assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
+
+    my_app_instance = app_handler.get("my_app", 0)
+    assert my_app_instance is not None, "Precondition: my_app instance should exist"
+
+    assert my_app_instance.app_config.test_entity == "input_button.test", (
+        "Precondition: my_app config has initial value"
+    )
+
+    app_handler.apps_config["my_app"].user_config = {"test_entity": "light.office"}
+
+    await app_handler._reload_apps_due_to_config({"my_app"})
+    await asyncio.sleep(0.3)  # let async startups complete
+
+    assert "my_app" in app_handler.apps, "my_app should still be running after reload"
+    my_app_instance = app_handler.get("my_app", 0)
+    assert my_app_instance is not None, "my_app instance should still exist after reload"
+    assert my_app_instance.app_config.test_entity == "light.office", "my_app config should be updated after reload"

@@ -14,6 +14,9 @@ class AppManifest(BaseModel):
 
     model_config = ConfigDict(extra="allow", coerce_numbers_to_str=True)
 
+    app_key: str = Field(default=...)
+    """Reflects the key for this app in hassette.toml"""
+
     enabled: bool = Field(default=True)
     """Whether the app is enabled or not, will default to True if not set"""
 
