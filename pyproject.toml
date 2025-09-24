@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.8.0"
+version = "0.8.1"
 description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -83,7 +83,6 @@ docs = [
     "sphinxcontrib-qthelp==2.0.0",
     "sphinxcontrib-serializinghtml==2.0.0",
     "sphinx-copybutton>=0.5.2",
-    "sphinxext-opengraph[social-cards]>=0.13.0",
 ]
 
 [tool.uv]

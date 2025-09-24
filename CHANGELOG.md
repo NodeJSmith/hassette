@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.8.1] - 2025-09-23
+### Fixed
+- Remove opengraph sphinx extension from docs dependencies - it was causing issues with building the docs and isn't necessary for our use case
+
 ## [0.8.0] - 2025-09-23
 ### Added
 - hot-reloading support for apps using `watchfiles` library
