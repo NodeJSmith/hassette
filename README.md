@@ -18,6 +18,9 @@ Why Hassette?
 - ⏰ Flexible scheduling (cron and intervals)
 - ⚙️ Simple, TOML-based configuration with Pydantic validation
 
+## Comparison to Other Frameworks
+See the [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/appdaemon-comparison.html) and [Pyscript Comparison](https://hassette.readthedocs.io/en/latest/pyscript-comparison.html) in the docs for a detailed comparison of features and design philosophies.
+
 ## 📖 Examples
 
 Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) directory for more complete examples:
