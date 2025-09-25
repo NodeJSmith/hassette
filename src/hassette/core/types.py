@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, TypeVar
 
 from whenever import SystemDateTime
@@ -32,3 +32,6 @@ class TriggerProtocol(Protocol):
     def next_run_time(self) -> SystemDateTime:
         """Return the next run time of the trigger."""
         ...
+
+
+JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]

@@ -15,6 +15,9 @@ class MyApp(App[MyAppUserConfig]):
         self.logger.info("MyApp has been initialized")
         self.hassette.bus.on_entity("input_button.test", handler=self.handle_event_sync)
         self.hassette.scheduler.run_in(self.hassette.api.get_states, 1)
+        self.hassette.scheduler.run_every(
+            self.scheduled_job_example, 10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
+        )
 
         self.office_light_exists = await self.hassette.api.entity_exists("light.office")
         self.test_button_exists = await self.hassette.api.entity_exists("input_button.test")
@@ -39,3 +42,15 @@ class MyApp(App[MyAppUserConfig]):
         self.logger.info("Async event: %s", event)
         test = await self.hassette.api.get_state_value("input_button.test")
         self.logger.info("Async state: %s", test)
+
+    async def scheduled_job_example(self, test_value: str, test_value2: str, *, kwarg1: str | None = None):
+        self.logger.info(
+            "Scheduled job executed with test_value=%s, test_value2=%s, kwarg1=%s",
+            test_value,
+            test_value2,
+            kwarg1,
+        )
+        if self.office_light_exists:
+            await self.light_entity.turn_on(brightness=128)
+        elif self.test_button_exists:
+            await self.hassette.api.set_state("input_button.test", "pushed")

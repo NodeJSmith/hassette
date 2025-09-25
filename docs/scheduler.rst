@@ -33,6 +33,8 @@ Scheduling helpers
 Each helper returns a :class:`hassette.core.scheduler.scheduler.ScheduledJob` you can keep to inspect
 ``next_run`` or cancel it later.
 
+All helpers accept keyword-only parameters ``args`` and ``kwargs`` that are forwarded to your callable when it runs.
+
 ``run_once(func, run_at, name="")``
     Execute exactly once at a specific :class:`whenever.SystemDateTime`.
 

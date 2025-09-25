@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import heapq
 import typing
-from collections.abc import Awaitable, Callable
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
 
@@ -10,13 +10,12 @@ from whenever import SystemDateTime, TimeDelta
 
 from hassette.async_utils import make_async_adapter
 from hassette.core.classes import Resource, Service
-from hassette.core.types import TriggerProtocol
 
 from .triggers import CronTrigger, IntervalTrigger, now
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
-
+    from hassette.core.types import JobCallable, TriggerProtocol
 
 T = TypeVar("T")
 
@@ -186,7 +185,7 @@ class _Scheduler(Service):
         try:
             self.logger.debug("Running job %s at %s", job, now())
             async_func = make_async_adapter(func)
-            await async_func()
+            await async_func(*job.args, **job.kwargs)
         except Exception as e:
             self.logger.error("Error running job%s: %s - %s", job, type(e), e)
 
@@ -220,62 +219,85 @@ class Scheduler(Resource):
 
     def schedule(
         self,
-        func: Callable[[], Awaitable[None]] | Callable[[], None],
+        func: "JobCallable",
         run_at: SystemDateTime,
-        trigger: TriggerProtocol | None = None,
+        trigger: "TriggerProtocol | None" = None,
         repeat: bool = False,
         name: str = "",
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
         """Schedule a job to run at a specific time or based on a trigger.
 
         Args:
-            func (Callable): The function to run.
+            func (JobCallable): The function to run.
             run_at (SystemDateTime): The time to run the job.
             trigger (TriggerProtocol | None): Optional trigger for repeating jobs.
             repeat (bool): Whether the job should repeat.
             name (str): Optional name for the job.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
         """
 
-        job = ScheduledJob(next_run=run_at, job=func, trigger=trigger, repeat=repeat, name=name)
+        job = ScheduledJob(
+            next_run=run_at,
+            job=func,
+            trigger=trigger,
+            repeat=repeat,
+            name=name,
+            args=tuple(args) if args else (),
+            kwargs=dict(kwargs) if kwargs else {},
+        )
         return self.add_job(job)
 
     def run_once(
         self,
-        func: Callable[[], Awaitable[None]] | Callable[[], None],
+        func: "JobCallable",
         run_at: SystemDateTime,
         name: str = "",
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
         """Schedule a job to run at a specific time.
 
         Args:
-            func (Callable): The function to run.
+            func (JobCallable): The function to run.
             run_at (SystemDateTime): The time to run the job.
             name (str): Optional name for the job.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
         """
 
-        return self.schedule(func, run_at, name=name)
+        return self.schedule(func, run_at, name=name, args=args, kwargs=kwargs)
 
     def run_every(
         self,
-        func: Callable[[], Awaitable[None]] | Callable[[], None],
+        func: "JobCallable",
         interval: TimeDelta | float,
         name: str = "",
         start: SystemDateTime | None = None,
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
         """Schedule a job to run at a fixed interval.
 
         Args:
-            func (Callable): The function to run.
+            func (JobCallable): The function to run.
             interval (TimeDelta | float): The interval between runs.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
                 time. Otherwise it will run at the current time plus the interval.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
@@ -286,23 +308,28 @@ class Scheduler(Resource):
         first_run = start if start else now().add(seconds=interval_seconds)
         trigger = IntervalTrigger.from_arguments(seconds=interval_seconds, start=first_run)
 
-        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name)
+        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_in(
         self,
-        func: Callable[[], Awaitable[None]] | Callable[[], None | Any],
+        func: "JobCallable",
         delay: TimeDelta | float,
         name: str = "",
         start: SystemDateTime | None = None,
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
         """Schedule a job to run after a delay.
 
         Args:
-            func (Callable): The function to run.
+            func (JobCallable): The function to run.
             delay (TimeDelta | float): The delay before running the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
                 time. Otherwise it will run at the current time plus the delay.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
@@ -311,11 +338,11 @@ class Scheduler(Resource):
         delay_seconds = delay if isinstance(delay, float | int) else delay.in_seconds()
 
         run_at = start if start else now().add(seconds=delay_seconds)
-        return self.schedule(func, run_at, name=name)
+        return self.schedule(func, run_at, name=name, args=args, kwargs=kwargs)
 
     def run_cron(
         self,
-        func: Callable[[], Awaitable[None]] | Callable[[], None],
+        func: "JobCallable",
         second: int | str = 0,
         minute: int | str = 0,
         hour: int | str = 0,
@@ -324,13 +351,16 @@ class Scheduler(Resource):
         day_of_week: int | str = "*",
         name: str = "",
         start: SystemDateTime | None = None,
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
         """Schedule a job using a cron expression.
 
         Uses a 6-field format (seconds, minutes, hours, day of month, month, day of week).
 
         Args:
-            func (Callable): The function to run.
+            func (JobCallable): The function to run.
             second (int | str): Seconds field of the cron expression.
             minute (int | str): Minutes field of the cron expression.
             hour (int | str): Hours field of the cron expression.
@@ -340,6 +370,8 @@ class Scheduler(Resource):
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
                 time. Otherwise it will run at the current time plus the cron schedule.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
@@ -354,7 +386,7 @@ class Scheduler(Resource):
             start=start,
         )
         run_at = trigger.next_run_time()
-        return self.schedule(func, run_at, trigger=trigger, repeat=True, name=name)
+        return self.schedule(func, run_at, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
 
 @dataclass(order=True)
@@ -362,11 +394,13 @@ class ScheduledJob:
     """A job scheduled to run based on a trigger or at a specific time."""
 
     next_run: SystemDateTime
-    job: Callable[[], Awaitable[None]] | Callable[[], None] = field(compare=False)
-    trigger: TriggerProtocol | None = field(compare=False, default=None)
+    job: "JobCallable" = field(compare=False)
+    trigger: "TriggerProtocol | None" = field(compare=False, default=None)
     repeat: bool = field(compare=False, default=False)
     name: str = field(default="", compare=False)
     cancelled: bool = field(default=False, compare=False)
+    args: tuple[Any, ...] = field(default_factory=tuple, compare=False)
+    kwargs: dict[str, Any] = field(default_factory=dict, compare=False)
 
     def __repr__(self) -> str:
         return f"ScheduledJob(name={self.name!r}, next_run={self.next_run})"
@@ -376,6 +410,9 @@ class ScheduledJob:
 
         if not self.name:
             self.name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
+
+        self.args = tuple(self.args)
+        self.kwargs = dict(self.kwargs)
 
     def cancel(self) -> None:
         """Cancel the scheduled job by setting the cancelled flag to True."""
@@ -388,11 +425,11 @@ class HeapQueue(Generic[T]):
 
     def push(self, job: T):
         """Push a job onto the queue."""
-        heapq.heappush(self._queue, job)
+        heapq.heappush(self._queue, job)  # pyright: ignore[reportArgumentType]
 
     def pop(self) -> T:
         """Pop the next job from the queue."""
-        return heapq.heappop(self._queue)
+        return heapq.heappop(self._queue)  # pyright: ignore[reportArgumentType]
 
     def peek(self) -> T | None:
         """Peek at the next job without removing it.

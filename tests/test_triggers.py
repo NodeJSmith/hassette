@@ -1,7 +1,9 @@
 import asyncio
 import contextlib
+from collections.abc import Coroutine
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -17,6 +19,8 @@ TZ = ZoneInfo("America/Chicago")
 
 class MockHassette:
     task: asyncio.Task
+    _loop: asyncio.AbstractEventLoop
+    _thread_pool: ThreadPoolExecutor
 
     def __init__(self, test_config: "HassetteConfig"):
         self._scheduler = _Scheduler(cast("Hassette", self))
@@ -26,10 +30,17 @@ class MockHassette:
         """Mock method to send an event to the bus."""
         pass
 
+    def create_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+        return asyncio.create_task(coro)
+
 
 @pytest.fixture
 async def mock_scheduler(test_config: "HassetteConfig"):
     hassette = MockHassette(test_config)
+    hassette._loop = asyncio.get_running_loop()
+    hassette._thread_pool = ThreadPoolExecutor()
+    previous_instance = Hassette._instance
+    Hassette._instance = cast("Hassette", hassette)
     hassette.task = asyncio.create_task(hassette._scheduler.run_forever())
     await asyncio.sleep(0)  # Allow the task to start
 
@@ -39,6 +50,8 @@ async def mock_scheduler(test_config: "HassetteConfig"):
     hassette.task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await hassette.task
+    hassette._thread_pool.shutdown(wait=True)
+    Hassette._instance = previous_instance
 
 
 async def test_interval_trigger_catchup() -> None:
