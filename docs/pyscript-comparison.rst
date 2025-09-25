@@ -122,7 +122,7 @@ Hassette
     The scheduler exposes ``run_in``, ``run_every``, ``run_once``, and ``run_cron``. Each returns a
     ``ScheduledJob`` with ``next_run`` metadata and ``cancel()``. Helpers accept async/sync callables and
     rely on ``whenever`` time primitives, so you can pass ``TimeDelta`` or ``SystemDateTime`` objects.
-    There are no first-class sunrise/sunset helpers yet, but cron covers many needs. Rate limiting lives
+    There are no first-class sunrise/sunset helpers, but cron covers many needs. Rate limiting lives
     on the bus via ``debounce``/``throttle`` or in code via scheduler jobs.
 
 .. rubric:: Where Hassette shines
@@ -135,7 +135,6 @@ Hassette
 
 - Missing sunrise/sunset convenience built-ins you get from ``@time_trigger``.
 - No decorator syntax; scheduling happens inside ``initialize``.
-- Callbacks do not receive automatic keyword arguments -- use closures or partials for context.
 
 Home Assistant API surface
 --------------------------

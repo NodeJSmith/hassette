@@ -109,9 +109,7 @@ Hassette
     helpers accept async or sync callables and return a ``ScheduledJob`` object with ``next_run``
     metadata and ``cancel()``. Triggers use the ``whenever`` library, so you can express start times
     and intervals with precise objects (``TimeDelta``, ``SystemDateTime``). Cron covers most repeating
-    needs, but there are not dedicated helpers like ``run_daily`` or ``run_hourly``. Scheduling a
-    callback does not accept additional arguments; use ``functools.partial`` or closures to capture
-    context.
+    needs, but there are not dedicated helpers like ``run_daily`` or ``run_hourly``.
 
 .. rubric:: Where Hassette shines
 
@@ -122,7 +120,6 @@ Hassette
 .. rubric:: Where Hassette lags today
 
 - Missing helpers for common patterns like ``run_daily``.
-- Scheduling does not accept ``**kwargs``; use ``partial`` or closures (on the roadmap).
 
 .. note::
 
@@ -183,8 +180,8 @@ Migration checklist
 - Replace synchronous API calls with ``await self.api...`` variants; use ``self.api.sync`` only inside
   ``AppSync`` code paths.
 
-If you rely on AppDaemon features that Hassette lacks (timeout/duration/immediate, scheduler kwargs,
-specific helpers), please open an issue to discuss your use case and help prioritize the roadmap.
+If you rely on AppDaemon features that Hassette lacks (timeout/duration/immediate, specific helpers), please open an issue
+to discuss your use case and help prioritize the roadmap.
 
 ---------------
 
