@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Added ability to provide args and kwargs to scheduled jobs via scheduler helpers
+  - `args` and `kwargs` keyword-only parameters added to all scheduler helper functions
+  - These will be passed to the scheduled callable when it is run
+  - See [Scheduler documentation](https://hassette.readthedocs.io/en/latest/scheduler.html) for details
+
 ### Changed
 - Narrow date/time types accepted by `get_history`, `get_logbook`, `get_camera_image` and `get_calendar_events` to exclude `datetime`, `date`, and `ZonedDateTime` - use `PlainDateTime`, `SystemDateTime`, or `Date` instead
 
