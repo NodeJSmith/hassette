@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- Narrow date/time types accepted by `get_history`, `get_logbook`, `get_camera_image` and `get_calendar_events` to exclude `datetime`, `date`, and `ZonedDateTime` - use `PlainDateTime`, `SystemDateTime`, or `Date` instead
+
 ## [0.8.1] - 2025-09-23
 ### Fixed
 - Remove opengraph sphinx extension from docs dependencies - it was causing issues with building the docs and isn't necessary for our use case
