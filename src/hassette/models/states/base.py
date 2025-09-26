@@ -2,7 +2,7 @@ from logging import getLogger
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Date, Instant, PlainDateTime, Time
+from whenever import Date, OffsetDateTime, PlainDateTime, SystemDateTime, Time, ZonedDateTime
 
 DomainLiteral = Literal[
     "automation",
@@ -99,15 +99,15 @@ class BaseState(BaseModel, Generic[StateValueT]):
     entity_id: str = Field(...)
     """The full entity ID, e.g. 'light.living_room'."""
 
-    last_changed: Instant | None = Field(None, repr=False)
+    last_changed: SystemDateTime | None = Field(None)
     """Time the state changed in the state machine, not updated when only attributes change."""
 
-    last_reported: Instant | None = Field(None, repr=False)
+    last_reported: SystemDateTime | None = Field(None)
     """Time the state was written to the state machine, updated regardless of any changes to the state or
     state attributes.
     """
 
-    last_updated: Instant | None = Field(None, repr=False)
+    last_updated: SystemDateTime | None = Field(None)
     """Time the state or state attributes changed in the state machine, not updated if neither state nor state
     attributes changed.
     """
@@ -141,6 +141,19 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
         return len(self.attributes.entity_id) > 1  # type: ignore
 
+    @field_validator("last_changed", "last_reported", "last_updated", mode="before")
+    @classmethod
+    def _validate_datetime_fields(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, int | float):
+            value = ZonedDateTime.from_timestamp(value, tz="UTC").to_system_tz()
+        if isinstance(value, str):
+            # need to use OffsetDateTime since the value is +00:00, not Z or a timezone
+            return OffsetDateTime.parse_common_iso(value).to_system_tz()
+
+        return value
+
     @model_validator(mode="before")
     @classmethod
     def _validate_domain_and_state(cls, values):
@@ -168,25 +181,38 @@ class StringBaseState(BaseState[str | None]):
     """Base class for string states."""
 
 
-class DateTimeBaseState(BaseState[Instant | PlainDateTime | Date | None]):
+class DateTimeBaseState(BaseState[SystemDateTime | PlainDateTime | Date | None]):
     """Base class for datetime states.
 
-    Valid state values are Instant, PlainDateTime, Date, or None.
+    Valid state values are PlainDateTime, Date, or None.
     """
 
-
-class TimestampBaseState(BaseState[Instant | PlainDateTime | None]):
-    """Base class for timestamp states.
-
-    Valid state values are Instant, PlainDateTime, or None.
-    """
-
-
-class InstantBaseState(BaseState[Instant | None]):
-    """Base class for Instant states.
-
-    Valid state values are Instant or None.
-    """
+    @field_validator("value", mode="before")
+    @classmethod
+    def validate_state(
+        cls, value: SystemDateTime | PlainDateTime | Date | str | None
+    ) -> SystemDateTime | PlainDateTime | Date | None:
+        if value is None:
+            return None
+        if isinstance(value, SystemDateTime | PlainDateTime | Date):
+            return value
+        if isinstance(value, str):
+            # Try parsing as OffsetDateTime first (most common case)
+            try:
+                return OffsetDateTime.parse_common_iso(value).to_system_tz()
+            except ValueError:
+                pass
+            # Next try PlainDateTime
+            try:
+                return PlainDateTime.parse_common_iso(value)
+            except ValueError:
+                pass
+            # Finally try Date
+            try:
+                return Date.parse_common_iso(value)
+            except ValueError:
+                pass
+        raise ValueError(f"State must be a datetime, date, or None, got {value}")
 
 
 class TimeBaseState(BaseState[Time | None]):
