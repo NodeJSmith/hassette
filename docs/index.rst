@@ -5,11 +5,10 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 
 Why Hassette?
 -------------
-- Async-first core built on asyncio
-- Typed events, states, and API interactions
-- Powerful event bus with predicates, debounce, and throttle
-- Flexible scheduling (cron and intervals)
-- Simple, TOML-based configuration with Pydantic validation
+- **Modern developer experience** with typed APIs, Pydantic models, and IDE-friendly design
+- **Async-first architecture** designed for modern Python from the ground up
+- **Simple, transparent framework** with minimal magic and clear extension points
+- **Focused mission**: does one thing well — run user-defined apps that interact with Home Assistant
 
 
 Quick Start
@@ -69,6 +68,7 @@ Option B: Local installation
   uv run run-hassette -t <token>  # maps to token
   # or
   uv run run-hassette --token <token>
+
 
 Configuration Basics
 --------------------

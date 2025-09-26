@@ -30,28 +30,20 @@ seconds and converted into ``TimeDelta`` instances internally. Cron schedules us
 
 Scheduling helpers
 ------------------
-Each helper returns a :class:`hassette.core.scheduler.scheduler.ScheduledJob` you can keep to inspect
+Each helper returns a :class:`~hassette.core.scheduler.scheduler.ScheduledJob` you can keep to inspect
 ``next_run`` or cancel it later.
 
 All helpers accept keyword-only parameters ``args`` and ``kwargs`` that are forwarded to your callable when it runs.
 
-``run_once(func, run_at, name="")``
-    Execute exactly once at a specific :class:`whenever.SystemDateTime`.
+.. currentmodule:: hassette.core.scheduler.scheduler
 
-``run_in(func, delay, name="", start=None)``
-    Fire once after ``delay`` seconds. ``delay`` can be a ``float``/``int`` (interpreted as seconds)
-    or a :class:`whenever.TimeDelta`. Optionally provide ``start`` (a ``SystemDateTime``) if you want
-    to delay commencement until a particular instant.
+.. automethod:: Scheduler.run_once
 
-``run_every(func, interval, name="", start=None)``
-    Repeat forever with a fixed interval. ``interval`` may be a ``float``/``int`` representing
-    seconds, but using ``TimeDelta`` keeps your intent explicit. ``start`` (``SystemDateTime``)
-    lets you align the first run sometime in the future.
+.. automethod:: Scheduler.run_in
 
-``run_cron(func, ..., name="", start=None)``
-    6-field cron syntax (seconds, minutes, hours, day-of-month, month, day-of-week). You can mix
-    integers and expressions like ``"*/15"``. Provide ``start`` (``SystemDateTime``) to delay
-    commencement until a particular instant.
+.. automethod:: Scheduler.run_every
+
+.. automethod:: Scheduler.run_cron
 
 Worked examples
 ---------------

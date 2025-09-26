@@ -5,6 +5,16 @@ This guide targets Pyscript users who want to understand where Hassette matches 
 workflow, where it differs, and what the migration effort looks like. It focuses on the core moving
 parts: triggers and the event bus, the scheduler, Home Assistant API access, and app configuration.
 
+Pyscript Overview
+------------------
+Pyscript is a Home Assistant integration that runs Python scripts inside the Home Assistant process. It
+exposes decorators to bind functions to triggers (state changes, events, time schedules) and
+automatically reloads modules when files change. Scripts can be synchronous or asynchronous, and
+long-running tasks continue across reloads unless explicitly cancelled. Configuration lives in YAML
+under the ``pyscript`` key, and apps/packages are placed in the ``<config>/pyscript`` directory. The
+Home Assistant API is synchronous and returns raw strings or dicts. Arguments provided to decorators
+are stringly typed and evaluated at runtime.
+
 Quick reference table
 ---------------------
 

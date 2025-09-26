@@ -19,7 +19,7 @@ Subscribe to state changes and services using the Bus.
 
 Event model
 -----------
-Every message you receive from the bus is a :class:`hassette.core.events.Event` dataclass. It has two
+Every message you receive from the bus is a :class:`~hassette.core.events.Event` dataclass. It has two
 fields:
 
 ``topic``
@@ -44,7 +44,7 @@ fields:
     * **Hassette payloads** (:mod:`hassette.core.events.hassette`) represent framework level events
       such as service lifecycle or websocket status updates. They also expose their contents via
       ``payload.data``, but those values are Hassette dataclasses like
-      :class:`hassette.core.events.hassette.ServiceStatusPayload`.
+      :class:`~hassette.core.events.hassette.ServiceStatusPayload`.
 
 Because of this structure you can always look at ``event.topic`` to decide what happened and reach
 for ``event.payload.data`` to access the meaningful content. The payload also carries an

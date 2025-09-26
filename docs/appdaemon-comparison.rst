@@ -5,6 +5,16 @@ This guide targets AppDaemon users who want to understand where Hassette matches
 workflow, where it differs, and what the migration effort looks like. It focuses on the core moving
 parts: the bus, scheduler, Home Assistant API, and app configuration.
 
+AppDaemon Overview
+------------------
+AppDaemon is a long-running Python process that connects to Home Assistant via WebSocket and REST API.
+It maintains an internal state tracker that caches entity states and attributes. You develop apps by
+in an IDE (e.g., VSCode) and placing them in a configured directory. Configuration lives in ``apps.yaml``
+and ``appdaemon.yaml``. AppDaemon runs apps in separate threads, so you can write synchronous code
+without worrying about blocking the main event loop. The scheduler offers a variety of helpers for
+delayed and recurring tasks. The event bus exposes entity state changes, service calls, and custom
+events. The Home Assistant API is synchronous and returns raw strings or dicts.
+
 Quick reference table
 ---------------------
 
