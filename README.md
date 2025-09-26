@@ -11,15 +11,17 @@ Documentation: https://hassette.readthedocs.io
 
 Why Hassette?
 -------------
-- 🌟 Async-first core built on asyncio
-- 🔧 Typed events, states, and API interactions
-- 📝 Typed app configuration, typed events, typed states, typed API, typed everything
-- 🚌 Powerful event bus with predicates, debounce, and throttle
-- ⏰ Flexible scheduling (cron and intervals)
-- ⚙️ Simple, TOML-based configuration with Pydantic validation
+- 🌟 **Modern developer experience** with typed APIs, Pydantic models, and IDE-friendly design
+- ⚡ **Async-first architecture** designed for modern Python from the ground up
+- 🔍 **Simple, transparent framework** with minimal magic and clear extension points
+- 🎯 **Focused mission**: does one thing well — run user-defined apps that interact with Home Assistant
 
 ## Comparison to Other Frameworks
-See the [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/appdaemon-comparison.html) and [Pyscript Comparison](https://hassette.readthedocs.io/en/latest/pyscript-comparison.html) in the docs for a detailed comparison of features and design philosophies.
+
+We have detailed comparisons in the docs for the two most popular frameworks. Open an issue or PR if you'd like additional comparisons!
+
+- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/appdaemon-comparison.html)
+- [Pyscript Comparison](https://hassette.readthedocs.io/en/latest/pyscript-comparison.html)
 
 ## 📖 Examples
 
@@ -31,12 +33,14 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 - Cleaned up versions of my own apps:
   - [Office Button App](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/office_button_app.py)
   - [Laundry Room Lights](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/laundry_room_light.py)
-- Docker Compose Example: [docker-compose.yml](https://github.com/NodeJSmith/hassette/blob/main/examples/docker-compose.yml)
-- hassette.toml example: [hassette.toml](https://github.com/NodeJSmith/hassette/blob/main/examples/config/hassette.toml)
+- `docker-compose.yml` example: [docker-compose.yml](https://github.com/NodeJSmith/hassette/blob/main/examples/docker-compose.yml)
+- `hassette.toml` example: [hassette.toml](https://github.com/NodeJSmith/hassette/blob/main/examples/config/hassette.toml)
 
 ## 🛣️ Status & Roadmap
 
 Hassette is brand new and under active development. We follow semantic versioning and recommend pinning a minor version while the API stabilizes.
+
+Hassette development is tracked in [this project](https://github.com/users/NodeJSmith/projects/1) (still a slight work-in-progress) - open an issue or PR if you'd like to contribute or provide feedback!
 
 ### Current Focus Areas
 
@@ -48,8 +52,6 @@ Hassette is brand new and under active development. We follow semantic versionin
   - 📊 More tests for core and utilities
   - 🛠️ Test fixtures and framework for user apps
   - 🚫 No more manual state changes in HA Developer Tools for testing!
-
-See the full [roadmap](https://github.com/NodeJSmith/hassette/blob/main/roadmap.md) for details - open an issue or PR if you'd like to contribute or provide feedback!
 
 ## 🤝 Contributing
 
