@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.9.0] - 2025-09-26
+
 ### Added
 - Added ability to provide args and kwargs to scheduled jobs via scheduler helpers
   - `args` and `kwargs` keyword-only parameters added to all scheduler helper functions
@@ -15,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Narrow date/time types accepted by `get_history`, `get_logbook`, `get_camera_image` and `get_calendar_events` to exclude `datetime`, `date`, and `ZonedDateTime` - use `PlainDateTime`, `SystemDateTime`, or `Date` instead
+
+### Documentation
+- Updated scheduler documentation to include new args/kwargs parameters for scheduling helpers
+- Updated Readme to change roadmap reference to point to Github project board
+- Removed roadmap.md file, using project board for tracking now
 
 ## [0.8.1] - 2025-09-23
 ### Fixed
