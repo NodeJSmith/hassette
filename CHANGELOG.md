@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Added utility functions for datetime conversion in `src/hassette/utils.py`
+
+### Changed
+- Updated state models to use `SystemDateTime` consistently instead of `Instant` or mixed types
+- Replaced deprecated `InstantBaseState` with `DateTimeBaseState` for better type handling
+
+### Fixed
+- Fixed incorrect datetime conversion in `InputDateTimeState` to ensure proper timezone handling
+
 ## [0.9.0] - 2025-09-26
 
 ### Added
