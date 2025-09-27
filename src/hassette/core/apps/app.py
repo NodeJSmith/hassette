@@ -1,3 +1,4 @@
+import logging
 import typing
 from logging import getLogger
 from typing import ClassVar, Generic
@@ -53,6 +54,9 @@ class App(Generic[AppConfigT], Resource):
     _import_exception: ClassVar[Exception | None] = None
     """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
 
+    logger: logging.Logger
+    """Logger for the instance."""
+
     def __init__(
         self,
         hassette: "Hassette",
@@ -72,6 +76,8 @@ class App(Generic[AppConfigT], Resource):
         super().__init__(hassette=hassette, *args, **kwargs)  # noqa: B026
         self.app_config = app_config
         self.index = index
+        logger_name = f"hassette.{type(self).__name__}.{self.app_config.instance_name}"
+        self.logger = getLogger(logger_name)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)

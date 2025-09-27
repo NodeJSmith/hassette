@@ -56,7 +56,7 @@ class _AppHandler(Resource):
 
         self.only_app: str | None = None
 
-        self.apps: dict[str, dict[int, App]] = defaultdict(dict)
+        self.apps: dict[str, dict[int, App[AppConfig]]] = defaultdict(dict)
         """Running apps"""
 
         self.failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
@@ -258,7 +258,6 @@ class _AppHandler(Resource):
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
-        app_class.logger = getLogger(f"hassette.{app_class.__name__}")
 
         # Normalize to list-of-configs; TOML supports both single dict and list of dicts.
         settings_cls = app_class.app_config_cls
@@ -269,6 +268,19 @@ class _AppHandler(Resource):
             ident = _manifest_key(app_key, idx)
             try:
                 validated = settings_cls.model_validate(config)
+
+                # set a default instance name if not set
+                # doing it this way instead of using a pydantic validator so we don't have to provide
+                # the index to the config class
+                if not validated.instance_name:
+                    validated.instance_name = f"{class_name}.{idx}"
+                    self.logger.warning(
+                        "App %s config at index %d is missing instance_name, defaulting to %s",
+                        class_name,
+                        idx,
+                        validated.instance_name,
+                    )
+
                 app_instance = app_class(self.hassette, app_config=validated, index=idx)
                 self.apps[app_key][idx] = app_instance
             except Exception as e:
