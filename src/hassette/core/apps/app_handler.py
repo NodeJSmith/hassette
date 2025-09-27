@@ -337,29 +337,23 @@ class _AppHandler(Resource):
 
         original_apps_config, curr_apps_config = await self.refresh_config()
 
+        # recalculate only_app in case it changed
+        await self._set_only_app()
+
         orphans, new_apps, reimport_apps, reload_apps = self._calculate_app_changes(
             original_apps_config, curr_apps_config, changed_file_path
+        )
+        self.logger.debug(
+            "App changes detected - orphans: %s, new: %s, reimport: %s, reload: %s",
+            orphans,
+            new_apps,
+            reimport_apps,
+            reload_apps,
         )
         await self._handle_removed_apps(orphans)
         await self._handle_new_apps(new_apps)
         await self._reload_apps_due_to_file_change(reimport_apps)
         await self._reload_apps_due_to_config(reload_apps)
-
-        prev_only_app = self.only_app
-
-        # recalculate only_app in case it changed
-        await self._set_only_app()
-
-        # re-run orphan and start checks in case only_app changed
-        if prev_only_app != self.only_app:
-            if self.only_app:
-                # stop all except only_app
-                orphans = {k for k in self.apps if k != self.only_app}
-                await self._handle_removed_apps(orphans)
-                await self._handle_new_apps({self.only_app} if self.only_app in curr_apps_config else set())
-            else:
-                # start all enabled apps
-                await self.initialize_apps()
 
     def _calculate_app_changes(
         self,
@@ -388,6 +382,8 @@ class _AppHandler(Resource):
 
         original_app_keys = set(original_apps_config.keys())
         curr_app_keys = set(curr_apps_config.keys())
+        if self.only_app:
+            curr_app_keys = {k for k in curr_app_keys if k == self.only_app}
 
         orphans = original_app_keys - curr_app_keys
         new_apps = curr_app_keys - original_app_keys
