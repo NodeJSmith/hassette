@@ -50,7 +50,3 @@ class MyApp(App[MyAppUserConfig]):
             test_value2,
             kwarg1,
         )
-        if self.office_light_exists:
-            await self.light_entity.turn_on(brightness=128)
-        elif self.test_button_exists:
-            await self.hassette.api.set_state("input_button.test", "pushed")

@@ -2,10 +2,10 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, InstantBaseState
+from .base import AttributesBase, DateTimeBaseState
 
 
-class EventState(InstantBaseState):
+class EventState(DateTimeBaseState):
     class Attributes(AttributesBase):
         event_types: list[str] | None = Field(default=None)
         event_type: str | None = Field(default=None)

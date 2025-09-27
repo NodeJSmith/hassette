@@ -1,6 +1,6 @@
 from typing import Literal
 
-from .base import BoolBaseState, DateTimeBaseState, InstantBaseState, NumericBaseState, StringBaseState, TimeBaseState
+from .base import BoolBaseState, DateTimeBaseState, NumericBaseState, StringBaseState, TimeBaseState
 
 
 class AiTaskState(StringBaseState):
@@ -51,7 +51,7 @@ class TodoState(NumericBaseState):
     domain: Literal["todo"]
 
 
-class TtsState(InstantBaseState):
+class TtsState(DateTimeBaseState):
     domain: Literal["tts"]
 
 
