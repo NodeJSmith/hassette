@@ -2,11 +2,12 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, Self, TypeAlias, TypeVar
 
-from whenever import Instant
+from whenever import SystemDateTime
 
 from hassette.core import topics
 from hassette.core.events import Event
 from hassette.models.states import StateT, try_convert_state
+from hassette.utils import convert_datetime_str_to_system_tz
 
 from .raw import HassEventEnvelopeDict, HassStateDict
 
@@ -30,8 +31,12 @@ class HassPayload(Generic[HassT]):
     event_type: str
     data: HassT
     origin: Literal["LOCAL", "REMOTE"]
-    time_fired: Instant
+    time_fired: SystemDateTime
     context: HassContext
+
+    def __post_init__(self):
+        if isinstance(self.time_fired, str):
+            object.__setattr__(self, "time_fired", convert_datetime_str_to_system_tz(self.time_fired))
 
     @property
     def entity_id(self) -> str | None:
