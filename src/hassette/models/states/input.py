@@ -3,6 +3,8 @@ from typing import Any, Literal
 from pydantic import Field
 from whenever import Instant, SystemDateTime
 
+from hassette.utils import convert_utc_timestamp_to_system_tz
+
 from .base import AttributesBase, BoolBaseState, DateTimeBaseState, NumericBaseState, StringBaseState
 
 
@@ -46,7 +48,7 @@ class InputDatetimeState(DateTimeBaseState):
         def timestamp_as_system_datetime(self) -> SystemDateTime | None:
             if self.timestamp is None:
                 return None
-            return SystemDateTime.from_timestamp(self.timestamp)
+            return convert_utc_timestamp_to_system_tz(self.timestamp)
 
     domain: Literal["input_datetime"]
 
