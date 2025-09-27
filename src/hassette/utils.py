@@ -5,11 +5,38 @@ from logging import getLogger
 
 import aiohttp
 import anyio
+from whenever import OffsetDateTime, SystemDateTime, ZonedDateTime
 
 if typing.TYPE_CHECKING:
     from hassette.core.classes import Resource
 
 LOGGER = getLogger(__name__)
+
+
+def convert_utc_timestamp_to_system_tz(timestamp: int | float) -> SystemDateTime:
+    """Convert a UTC timestamp to SystemDateTime in system timezone.
+
+    Args:
+        timestamp (int | float): The UTC timestamp.
+
+    Returns:
+        SystemDateTime: The converted SystemDateTime.
+    """
+    return ZonedDateTime.from_timestamp(timestamp, tz="UTC").to_system_tz()
+
+
+def convert_datetime_str_to_system_tz(value: str | SystemDateTime | None) -> SystemDateTime | None:
+    """Convert an ISO 8601 datetime string to SystemDateTime in system timezone.
+
+    Args:
+        value (str | SystemDateTime | None): The ISO 8601 datetime string.
+
+    Returns:
+        SystemDateTime | None: The converted SystemDateTime or None if input is None.
+    """
+    if value is None or isinstance(value, SystemDateTime):
+        return value
+    return OffsetDateTime.parse_common_iso(value).to_system_tz()
 
 
 async def wait_for_resources_running_or_raise(

@@ -1,7 +1,9 @@
 from typing import Literal
 
 from pydantic import Field, field_validator
-from whenever import OffsetDateTime, SystemDateTime
+from whenever import SystemDateTime
+
+from hassette.utils import convert_datetime_str_to_system_tz
 
 from .base import AttributesBase, StringBaseState
 
@@ -28,9 +30,7 @@ class DeviceTrackerState(StringBaseState):
         @field_validator("last_time_reachable", mode="before")
         @classmethod
         def parse_last_triggered(cls, value: SystemDateTime | str | None) -> SystemDateTime | None:
-            if isinstance(value, str):
-                return OffsetDateTime.parse_common_iso(value).to_system_tz()
-            return value
+            return convert_datetime_str_to_system_tz(value)
 
     domain: Literal["device_tracker"]
 

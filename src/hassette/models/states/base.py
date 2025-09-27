@@ -2,7 +2,9 @@ from logging import getLogger
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Date, OffsetDateTime, PlainDateTime, SystemDateTime, Time, ZonedDateTime
+from whenever import Date, PlainDateTime, SystemDateTime, Time
+
+from hassette.utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
 DomainLiteral = Literal[
     "automation",
@@ -147,10 +149,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
         if value is None:
             return None
         if isinstance(value, int | float):
-            value = ZonedDateTime.from_timestamp(value, tz="UTC").to_system_tz()
+            return convert_utc_timestamp_to_system_tz(value)
         if isinstance(value, str):
             # need to use OffsetDateTime since the value is +00:00, not Z or a timezone
-            return OffsetDateTime.parse_common_iso(value).to_system_tz()
+            return convert_datetime_str_to_system_tz(value)
 
         return value
 
@@ -184,7 +186,7 @@ class StringBaseState(BaseState[str | None]):
 class DateTimeBaseState(BaseState[SystemDateTime | PlainDateTime | Date | None]):
     """Base class for datetime states.
 
-    Valid state values are PlainDateTime, Date, or None.
+    Valid state values are SystemDateTime, PlainDateTime, Date, or None.
     """
 
     @field_validator("value", mode="before")
@@ -192,14 +194,12 @@ class DateTimeBaseState(BaseState[SystemDateTime | PlainDateTime | Date | None])
     def validate_state(
         cls, value: SystemDateTime | PlainDateTime | Date | str | None
     ) -> SystemDateTime | PlainDateTime | Date | None:
-        if value is None:
-            return None
-        if isinstance(value, SystemDateTime | PlainDateTime | Date):
+        if isinstance(value, None | SystemDateTime | PlainDateTime | Date):
             return value
         if isinstance(value, str):
             # Try parsing as OffsetDateTime first (most common case)
             try:
-                return OffsetDateTime.parse_common_iso(value).to_system_tz()
+                return convert_datetime_str_to_system_tz(value)
             except ValueError:
                 pass
             # Next try PlainDateTime
