@@ -94,15 +94,14 @@ class _AppHandler(Resource):
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
 
         # Flatten and iterate
-        for app_key, instances in list(self.apps.items()):
-            for index, app_instance in list(instances.items()):
-                ident = _manifest_key(app_key, index)
+        for instances in list(self.apps.values()):
+            for inst in list(instances.values()):
                 try:
                     with anyio.fail_after(FAIL_AFTER_SECONDS):
-                        await app_instance.shutdown()
-                    self.logger.info("App %s shutdown successfully", ident)
+                        await inst.shutdown()
+                    self.logger.info("App %s shutdown successfully", inst.app_config.instance_name)
                 except Exception:
-                    self.logger.exception("Failed to shutdown app %s", ident)
+                    self.logger.exception("Failed to shutdown app %s", inst.app_config.instance_name)
 
         self.apps.clear()
         self.failed_apps.clear()
@@ -122,15 +121,16 @@ class _AppHandler(Resource):
         if not instances:
             self.logger.warning("Cannot stop app %s, not found", app_key)
             return
-        self.logger.info("Stopping %d instance of %s", len(instances), app_key)
-        for index, inst in instances.items():
-            ident = _manifest_key(app_key, index)
+        self.logger.info("Stopping %d instances of %s", len(instances), app_key)
+        for inst in instances.values():
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
                     await inst.shutdown()
-                self.logger.info("Stopped app %s", ident)
+                self.logger.info("Stopped app '%s'", inst.app_config.instance_name)
             except Exception:
-                self.logger.exception("Failed to stop app %s", ident)
+                self.logger.exception("Failed to stop app '%s'", inst.app_config.instance_name)
+
+            del inst  # help GC
 
     async def stop_orphans(self, app_keys: set[str] | list[str]) -> None:
         """Stop any running apps that are no longer in config."""
@@ -258,13 +258,13 @@ class _AppHandler(Resource):
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
+        settings_cls = app_class.app_config_cls
+        app_configs = app_manifest.app_config
 
         # Normalize to list-of-configs; TOML supports both single dict and list of dicts.
-        settings_cls = app_class.app_config_cls
-        user_configs = app_manifest.user_config
-        config_list = user_configs if isinstance(user_configs, list) else [user_configs]
+        app_configs = app_configs if isinstance(app_configs, list) else [app_configs]
 
-        for idx, config in enumerate(config_list):
+        for idx, config in enumerate(app_configs):
             ident = _manifest_key(app_key, idx)
             try:
                 validated = settings_cls.model_validate(config)
@@ -297,20 +297,20 @@ class _AppHandler(Resource):
         """
 
         class_name = app_manifest.class_name
-        for idx, app_instance in self.apps.get(app_key, {}).items():
-            ident = _manifest_key(app_key, idx)
-
+        for idx, isnt in self.apps.get(app_key, {}).items():
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
-                    await app_instance.initialize()
-                self.logger.info("App %s (%s) initialized successfully", ident, class_name)
+                    await isnt.initialize()
+                self.logger.info("App '%s' (%s) initialized successfully", isnt.app_config.instance_name, class_name)
             except TimeoutError as e:
-                self.logger.exception("Timed out while starting app %s (%s)", ident, class_name)
-                app_instance.status = ResourceStatus.STOPPED
+                self.logger.exception(
+                    "Timed out while starting app '%s' (%s)", isnt.app_config.instance_name, class_name
+                )
+                isnt.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
             except Exception as e:
-                self.logger.exception("Failed to start app %s (%s)", ident, class_name)
-                app_instance.status = ResourceStatus.STOPPED
+                self.logger.exception("Failed to start app '%s' (%s)", isnt.app_config.instance_name, class_name)
+                isnt.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
 
     async def handle_change_event(self, event: "HassetteFileWatcherEvent") -> None:
