@@ -131,7 +131,7 @@ async def test_config_changes_are_reflected_after_reload(app_handler: _AppHandle
         "Precondition: my_app config has initial value"
     )
 
-    app_handler.apps_config["my_app"].user_config = {"test_entity": "light.office"}
+    app_handler.apps_config["my_app"].app_config = {"test_entity": "light.office"}
 
     await app_handler._reload_apps_due_to_config({"my_app"})
     await asyncio.sleep(0.3)  # let async startups complete
