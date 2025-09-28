@@ -8,7 +8,6 @@ from pathlib import Path
 import docker
 import pytest
 import requests
-from data.my_app import MyApp
 from docker.errors import NotFound
 from docker.models.containers import Container
 
@@ -269,4 +268,6 @@ def my_app_class():
     Provide the MyApp class for testing.
     This is used to ensure the MyApp class is available for tests that require it.
     """
+    from data.my_app import MyApp
+
     return MyApp

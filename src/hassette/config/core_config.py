@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
+from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -168,8 +169,9 @@ class HassetteConfig(HassetteBaseSettings):
 
         # just add everything from here, since we'll filter it to only existing and remove duplicates later
         for app in self.apps.values():
-            files.add(app.app_dir)
-            files.add(app.full_path)
+            with suppress(FileNotFoundError):
+                files.add(app.get_full_path())
+                files.add(app.app_dir)
 
         files = filter_paths_to_unique_existing(files)
 

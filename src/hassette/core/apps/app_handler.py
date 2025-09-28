@@ -388,7 +388,7 @@ class _AppHandler(Resource):
         orphans = original_app_keys - curr_app_keys
         new_apps = curr_app_keys - original_app_keys
 
-        reimport_apps = {app.app_key for app in curr_apps_config.values() if app.full_path == changed_path}
+        reimport_apps = {app.app_key for app in curr_apps_config.values() if app.get_full_path() == changed_path}
 
         reload_apps = {
             app_key
@@ -431,7 +431,7 @@ def load_app_class(app_manifest: "AppManifest", force_reload: bool = False) -> "
     Returns:
         type[App]: The app class.
     """
-    module_path = app_manifest.full_path
+    module_path = app_manifest.get_full_path()
     class_name = app_manifest.class_name
 
     # cache keyed by (absolute file path, class name)
