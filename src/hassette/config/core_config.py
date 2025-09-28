@@ -225,6 +225,17 @@ class HassetteConfig(HassetteBaseSettings):
             "Configuration sources: %s",
             json.dumps(type(self).FINAL_SETTINGS_SOURCES, default=str, indent=4, sort_keys=True),
         )
+        LOGGER.info("Hassette version: %s", VERSION)
+
+        active_apps = [app for app in self.apps.values() if app.enabled]
+        if active_apps:
+            LOGGER.info("Active apps: %s", active_apps)
+        else:
+            LOGGER.info("No active apps found.")
+
+        inactive_apps = [app for app in self.apps.values() if not app.enabled]
+        if inactive_apps:
+            LOGGER.info("Inactive apps: %s", inactive_apps)
         return self
 
     @field_validator("secrets", mode="before")
