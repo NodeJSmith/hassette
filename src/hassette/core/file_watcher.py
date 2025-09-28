@@ -12,11 +12,9 @@ class _FileWatcher(Service):
     async def run_forever(self) -> None:
         """Watch app directories for changes and trigger reloads."""
         try:
-            self.logger.info("Starting file watcher service")
-
             paths = self.hassette.config.get_watchable_files()
 
-            self.logger.info("Watching app directories for changes: %s", ", ".join(str(p) for p in paths))
+            self.logger.debug("Watching app directories for changes: %s", ", ".join(str(p) for p in paths))
 
             await self.handle_start()
             async for changes in awatch(

@@ -61,6 +61,9 @@ class AppManifest(BaseModel):
 
         raise FileNotFoundError(f"Could not find {self.filename} in directory {path}")
 
+    def __repr__(self) -> str:
+        return f"<AppManifest {self.display_name} ({self.class_name}) - enabled={self.enabled} file={self.filename}>"
+
     @model_validator(mode="before")
     @classmethod
     def validate_app_config(cls, values: dict[str, Any]) -> dict[str, Any]:
