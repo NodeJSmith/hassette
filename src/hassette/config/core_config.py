@@ -138,10 +138,10 @@ class HassetteConfig(HassetteBaseSettings):
     health_service_port: int | None = Field(default=8126)
     """Port to run the health service on, ignored if run_health_service is False."""
 
-    file_watcher_debounce_milliseconds: int = Field(default=1_600)
+    file_watcher_debounce_milliseconds: int = Field(default=3_000)
     """Debounce time for file watcher events in milliseconds."""
 
-    file_watcher_step_milliseconds: int = Field(default=50)
+    file_watcher_step_milliseconds: int = Field(default=500)
     """Time to wait for additional file changes before emitting event in milliseconds."""
 
     watch_files: bool = Field(default=True)
