@@ -3,7 +3,7 @@ from pathlib import Path
 from watchfiles import awatch
 
 from hassette import Service
-from hassette.core.events.hassette import create_file_watcher_event
+from hassette.core.events import FileWatcherEventPayload
 
 
 class _FileWatcher(Service):
@@ -29,7 +29,7 @@ class _FileWatcher(Service):
                 for _, changed_path in changes:
                     changed_path = Path(changed_path).resolve()
                     self.logger.info("Detected change in %s", changed_path)
-                    event = create_file_watcher_event(changed_file_path=changed_path)
+                    event = FileWatcherEventPayload.create_event(changed_file_path=changed_path)
                     await self.hassette.send_event(event.topic, event)
 
                 # update paths in case new apps were added
