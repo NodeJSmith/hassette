@@ -117,8 +117,7 @@ async def test_bus_throttle(hassette_with_bus: Hassette) -> None:
 
 async def test_bus_subscription_remove(hassette_with_bus: Hassette) -> None:
     calls = []
-    sub = hassette_with_bus.bus.on(topic="x", handler=get_handler(calls))
-    sub.unsubscribe()
+    hassette_with_bus.bus.on(topic="x", handler=get_handler(calls))
 
     await hassette_with_bus.send_event("x", EVENT)
     await asyncio.sleep(0)
@@ -134,7 +133,7 @@ async def test_bus_on_call_service(
     hassette_with_bus: Hassette, domain: str | None, service: str | None, expected_calls: int
 ) -> None:
     calls: list[CallServiceEvent] = []
-    sub = hassette_with_bus.bus.on_call_service(domain=domain, service=service, handler=get_handler(calls))
+    hassette_with_bus.bus.on_call_service(domain=domain, service=service, handler=get_handler(calls))
 
     await hassette_with_bus.send_event(
         "hass.event.call_service",
@@ -150,8 +149,6 @@ async def test_bus_on_call_service(
         assert calls[0].payload.domain == "light"
     else:
         assert {call.payload.domain for call in calls} == {"light", "switch"}
-
-    sub.unsubscribe()
 
 
 @pytest.mark.parametrize(
