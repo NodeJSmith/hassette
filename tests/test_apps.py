@@ -163,3 +163,18 @@ async def test_app_without_instance_name(app_handler: _AppHandler) -> None:
         "my_app_sync instance should have the default instance_name,"
         f" found {my_app_sync_instance.app_config.instance_name}"
     )
+
+
+async def test_app_logger_is_instance_attribute(app_handler: _AppHandler) -> None:
+    """Test that an app has its own logger attribute."""
+    assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
+
+    my_app_instance = app_handler.get("my_app", 0)
+    assert my_app_instance is not None, "my_app instance should exist"
+    assert hasattr(my_app_instance, "logger"), "my_app instance should have a logger attribute"
+    assert type(my_app_instance).logger != my_app_instance.logger, (
+        "logger should be an instance attribute, not class attribute"
+    )
+    assert my_app_instance.logger.name == "hassette.MyApp.unique_instance_name", (
+        f"my_app logger name should be 'hassette.MyApp.unique_instance_name', found {my_app_instance.logger.name}"
+    )
