@@ -11,7 +11,6 @@ from anyio import create_memory_object_stream
 from ..config import HassetteConfig
 from ..utils import get_traceback_string, wait_for_resources_running
 from .api import Api, _Api
-from .apps.app import App
 from .apps.app_handler import _AppHandler
 from .bus.bus import Bus, _Bus
 from .classes import Resource, Service
@@ -108,11 +107,12 @@ class Hassette:
         return self._loop
 
     @property
-    def apps(self) -> dict:
+    def apps(self):
         """Get the currently loaded apps."""
+        # note: return type left deliberately empty to allow underlying call to define it
         return self._app_handler.apps
 
-    def get_app(self, app_name: str, index: int = 0) -> App | None:
+    def get_app(self, app_name: str, index: int = 0):
         """Get a specific app instance if running.
 
         Args:
@@ -120,8 +120,9 @@ class Hassette:
             index (int): The index of the app instance, defaults to 0.
 
         Returns:
-            App | None: The app instance if found, else None.
+            App[AppConfig] | None: The app instance if found, else None.
         """
+        # note: return type left deliberately empty to allow underlying call to define it
 
         return self._app_handler.get(app_name, index)
 

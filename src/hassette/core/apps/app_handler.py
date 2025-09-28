@@ -107,11 +107,11 @@ class _AppHandler(Resource):
         self.failed_apps.clear()
         await super().shutdown()
 
-    def get(self, app_key: str, index: int = 0) -> App | None:
+    def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
         """Get a specific app instance if running."""
         return self.apps.get(app_key, {}).get(index)
 
-    def all(self) -> list[App]:
+    def all(self) -> list["App[AppConfig]"]:
         """All running app instances."""
         return [inst for group in self.apps.values() for inst in group.values()]
 
