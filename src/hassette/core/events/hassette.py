@@ -75,39 +75,34 @@ class ServiceStatusPayload:
 
 
 @dataclass(slots=True, frozen=True)
-class WebsocketStatusEventPayload:
-    """Payload for websocket status events."""
+class WebsocketConnectedEventPayload:
+    """Payload for websocket connected events."""
 
     event_id: int = field(default_factory=next_id, init=False)
 
-    connected: bool
-    url: str | None = None
-    error: str | None = None
+    url: str
 
     @classmethod
-    def connected_payload(cls, url: str) -> "WebsocketStatusEventPayload":
-        return cls(connected=True, url=url)
-
-    @classmethod
-    def disconnected_payload(cls, error: str) -> "WebsocketStatusEventPayload":
-        return cls(connected=False, error=error)
-
-    @classmethod
-    def connected_event(cls, url: str) -> "HassetteWebsocketStatusEvent":
-        if not url:
-            raise ValueError("URL must be provided for a connected websocket event")
-        payload = cls.connected_payload(url)
+    def create_event(cls, *, url: str) -> "HassetteWebsocketConnectedEvent":
+        payload = cls(url=url)
         return _wrap_hassette_event(
             topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
             payload=payload,
             event_type="connected",
         )
 
+
+@dataclass(slots=True, frozen=True)
+class WebsocketDisconnectedEventPayload:
+    """Payload for websocket disconnected events."""
+
+    event_id: int = field(default_factory=next_id, init=False)
+
+    error: str
+
     @classmethod
-    def disconnected_event(cls, error: str) -> "HassetteWebsocketStatusEvent":
-        if not error:
-            raise ValueError("Error message must be provided for a disconnected websocket event")
-        payload = cls.disconnected_payload(error)
+    def create_event(cls, *, error: str) -> "HassetteWebsocketDisconnectedEvent":
+        payload = cls(error=error)
         return _wrap_hassette_event(
             topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
             payload=payload,
@@ -134,6 +129,7 @@ class FileWatcherEventPayload:
 
 
 HassetteServiceEvent = Event[HassettePayload[ServiceStatusPayload]]
-HassetteWebsocketStatusEvent = Event[HassettePayload[WebsocketStatusEventPayload]]
+HassetteWebsocketConnectedEvent = Event[HassettePayload[WebsocketConnectedEventPayload]]
+HassetteWebsocketDisconnectedEvent = Event[HassettePayload[WebsocketDisconnectedEventPayload]]
 HassetteFileWatcherEvent = Event[HassettePayload[FileWatcherEventPayload]]
 HassetteEvent = Event[HassettePayload[Any]]

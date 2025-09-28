@@ -16,7 +16,12 @@ from tenacity import AsyncRetrying, before_sleep_log, retry_if_exception_type, r
 
 from hassette.core.classes import Service
 from hassette.core.enums import ResourceStatus
-from hassette.core.events import HassEventEnvelopeDict, WebsocketStatusEventPayload, create_event_from_hass
+from hassette.core.events import (
+    HassEventEnvelopeDict,
+    WebsocketConnectedEventPayload,
+    WebsocketDisconnectedEventPayload,
+    create_event_from_hass,
+)
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -123,7 +128,7 @@ class _Websocket(Service):
                     self._subscription_ids.add(sub_all_id)
 
                     await self.handle_start()
-                    event = WebsocketStatusEventPayload.connected_event(url=self.url)
+                    event = WebsocketConnectedEventPayload.create_event(url=self.url)
                     await self.hassette.send_event(event.topic, event)
 
                     # Keep running until recv loop ends (disconnect, error, etc.)
@@ -356,5 +361,5 @@ class _Websocket(Service):
 
     async def _send_connection_lost_event(self, error: str) -> None:
         """Send a connection lost event to the event bus."""
-        event = WebsocketStatusEventPayload.disconnected_event(error=error)
+        event = WebsocketDisconnectedEventPayload.create_event(error=error)
         await self.hassette.send_event(event.topic, event)
