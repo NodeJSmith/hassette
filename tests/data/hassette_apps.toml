@@ -11,7 +11,7 @@ filename = "my_app.py"
 class_name = "MyApp"
 display_name = "My Test App"
 app_dir = "tests/data"
-config = { test_entity = "input_button.test" }
+config = { test_entity = "input_button.test", instance_name = "unique_instance_name" }
 
 [apps.my_app_sync]
 enabled = true

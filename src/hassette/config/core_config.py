@@ -282,7 +282,7 @@ class HassetteConfig(HassetteBaseSettings):
                 continue
             v["app_key"] = k
             if "app_dir" not in v or not v["app_dir"]:
-                LOGGER.info("Setting app_dir for app %s to %s", v["filename"], app_dir)
+                LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
                 v["app_dir"] = app_dir
         return values
 

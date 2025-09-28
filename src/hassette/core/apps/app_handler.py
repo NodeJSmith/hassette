@@ -56,7 +56,7 @@ class _AppHandler(Resource):
 
         self.only_app: str | None = None
 
-        self.apps: dict[str, dict[int, App]] = defaultdict(dict)
+        self.apps: dict[str, dict[int, App[AppConfig]]] = defaultdict(dict)
         """Running apps"""
 
         self.failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
@@ -94,25 +94,24 @@ class _AppHandler(Resource):
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
 
         # Flatten and iterate
-        for app_key, instances in list(self.apps.items()):
-            for index, app_instance in list(instances.items()):
-                ident = _manifest_key(app_key, index)
+        for instances in list(self.apps.values()):
+            for inst in list(instances.values()):
                 try:
                     with anyio.fail_after(FAIL_AFTER_SECONDS):
-                        await app_instance.shutdown()
-                    self.logger.info("App %s shutdown successfully", ident)
+                        await inst.shutdown()
+                    self.logger.info("App %s shutdown successfully", inst.app_config.instance_name)
                 except Exception:
-                    self.logger.exception("Failed to shutdown app %s", ident)
+                    self.logger.exception("Failed to shutdown app %s", inst.app_config.instance_name)
 
         self.apps.clear()
         self.failed_apps.clear()
         await super().shutdown()
 
-    def get(self, app_key: str, index: int = 0) -> App | None:
+    def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
         """Get a specific app instance if running."""
         return self.apps.get(app_key, {}).get(index)
 
-    def all(self) -> list[App]:
+    def all(self) -> list["App[AppConfig]"]:
         """All running app instances."""
         return [inst for group in self.apps.values() for inst in group.values()]
 
@@ -122,15 +121,16 @@ class _AppHandler(Resource):
         if not instances:
             self.logger.warning("Cannot stop app %s, not found", app_key)
             return
-        self.logger.info("Stopping %d instance of %s", len(instances), app_key)
-        for index, inst in instances.items():
-            ident = _manifest_key(app_key, index)
+        self.logger.info("Stopping %d instances of %s", len(instances), app_key)
+        for inst in instances.values():
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
                     await inst.shutdown()
-                self.logger.info("Stopped app %s", ident)
+                self.logger.info("Stopped app '%s'", inst.app_config.instance_name)
             except Exception:
-                self.logger.exception("Failed to stop app %s", ident)
+                self.logger.exception("Failed to stop app '%s'", inst.app_config.instance_name)
+
+            del inst  # help GC
 
     async def stop_orphans(self, app_keys: set[str] | list[str]) -> None:
         """Stop any running apps that are no longer in config."""
@@ -258,17 +258,29 @@ class _AppHandler(Resource):
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
-        app_class.logger = getLogger(f"hassette.{app_class.__name__}")
+        settings_cls = app_class.app_config_cls
+        app_configs = app_manifest.app_config
 
         # Normalize to list-of-configs; TOML supports both single dict and list of dicts.
-        settings_cls = app_class.app_config_cls
-        user_configs = app_manifest.user_config
-        config_list = user_configs if isinstance(user_configs, list) else [user_configs]
+        app_configs = app_configs if isinstance(app_configs, list) else [app_configs]
 
-        for idx, config in enumerate(config_list):
+        for idx, config in enumerate(app_configs):
             ident = _manifest_key(app_key, idx)
             try:
                 validated = settings_cls.model_validate(config)
+
+                # set a default instance name if not set
+                # doing it this way instead of using a pydantic validator so we don't have to provide
+                # the index to the config class
+                if not validated.instance_name:
+                    validated.instance_name = f"{class_name}.{idx}"
+                    self.logger.warning(
+                        "App %s config at index %d is missing instance_name, defaulting to %s",
+                        class_name,
+                        idx,
+                        validated.instance_name,
+                    )
+
                 app_instance = app_class(self.hassette, app_config=validated, index=idx)
                 self.apps[app_key][idx] = app_instance
             except Exception as e:
@@ -285,20 +297,20 @@ class _AppHandler(Resource):
         """
 
         class_name = app_manifest.class_name
-        for idx, app_instance in self.apps.get(app_key, {}).items():
-            ident = _manifest_key(app_key, idx)
-
+        for idx, isnt in self.apps.get(app_key, {}).items():
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
-                    await app_instance.initialize()
-                self.logger.info("App %s (%s) initialized successfully", ident, class_name)
+                    await isnt.initialize()
+                self.logger.info("App '%s' (%s) initialized successfully", isnt.app_config.instance_name, class_name)
             except TimeoutError as e:
-                self.logger.exception("Timed out while starting app %s (%s)", ident, class_name)
-                app_instance.status = ResourceStatus.STOPPED
+                self.logger.exception(
+                    "Timed out while starting app '%s' (%s)", isnt.app_config.instance_name, class_name
+                )
+                isnt.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
             except Exception as e:
-                self.logger.exception("Failed to start app %s (%s)", ident, class_name)
-                app_instance.status = ResourceStatus.STOPPED
+                self.logger.exception("Failed to start app '%s' (%s)", isnt.app_config.instance_name, class_name)
+                isnt.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
 
     async def handle_change_event(self, event: "HassetteFileWatcherEvent") -> None:
@@ -325,29 +337,23 @@ class _AppHandler(Resource):
 
         original_apps_config, curr_apps_config = await self.refresh_config()
 
+        # recalculate only_app in case it changed
+        await self._set_only_app()
+
         orphans, new_apps, reimport_apps, reload_apps = self._calculate_app_changes(
             original_apps_config, curr_apps_config, changed_file_path
+        )
+        self.logger.debug(
+            "App changes detected - orphans: %s, new: %s, reimport: %s, reload: %s",
+            orphans,
+            new_apps,
+            reimport_apps,
+            reload_apps,
         )
         await self._handle_removed_apps(orphans)
         await self._handle_new_apps(new_apps)
         await self._reload_apps_due_to_file_change(reimport_apps)
         await self._reload_apps_due_to_config(reload_apps)
-
-        prev_only_app = self.only_app
-
-        # recalculate only_app in case it changed
-        await self._set_only_app()
-
-        # re-run orphan and start checks in case only_app changed
-        if prev_only_app != self.only_app:
-            if self.only_app:
-                # stop all except only_app
-                orphans = {k for k in self.apps if k != self.only_app}
-                await self._handle_removed_apps(orphans)
-                await self._handle_new_apps({self.only_app} if self.only_app in curr_apps_config else set())
-            else:
-                # start all enabled apps
-                await self.initialize_apps()
 
     def _calculate_app_changes(
         self,
@@ -376,6 +382,8 @@ class _AppHandler(Resource):
 
         original_app_keys = set(original_apps_config.keys())
         curr_app_keys = set(curr_apps_config.keys())
+        if self.only_app:
+            curr_app_keys = {k for k in curr_app_keys if k == self.only_app}
 
         orphans = original_app_keys - curr_app_keys
         new_apps = curr_app_keys - original_app_keys

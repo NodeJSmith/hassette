@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- Change `App` logger from class-level to instance-level to allow for better logging per app instance
+- Add `instance_name` attribute to `AppConfig` base class to simplify providing unique names for app instances
+  - Defaults to `"{class_name}.{index}"` if not provided in config
+- Improved handling of app reloading
+  - Check `only_app` earlier in the process to get accurate details on what to reload/stop/start/etc.
+
 ## [0.10.0] - 2025-09-27
 
 ### Added

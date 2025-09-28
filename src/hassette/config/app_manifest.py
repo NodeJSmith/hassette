@@ -32,8 +32,8 @@ class AppManifest(BaseModel):
     app_dir: Path = Field(..., examples=["./apps"])
     """Path to the app directory, relative to current working directory or absolute"""
 
-    user_config: dict[str, Any] | list[dict[str, Any]] = Field(default_factory=dict, validation_alias="config")
-    """User configuration for the app"""
+    app_config: dict[str, Any] | list[dict[str, Any]] = Field(default_factory=dict, validation_alias="config")
+    """Instance configuration for the app"""
 
     _full_path: Path | None = None  # Cached full path after first access
 
@@ -100,14 +100,14 @@ class AppManifest(BaseModel):
             "This will ensure proper validation and handling of custom configurations."
         )
 
-        if not self.user_config:
-            self.user_config = deepcopy(self.model_extra)
-        elif isinstance(self.user_config, dict) and not set(self.user_config).intersection(set(keys)):
-            self.user_config.update(deepcopy(self.model_extra))
+        if not self.app_config:
+            self.app_config = deepcopy(self.model_extra)
+        elif isinstance(self.app_config, dict) and not set(self.app_config).intersection(set(keys)):
+            self.app_config.update(deepcopy(self.model_extra))
         else:
-            if isinstance(self.user_config, list):
+            if isinstance(self.app_config, list):
                 msg += "\nNote: Unable to merge extra fields into list-based config."
-            elif isinstance(self.user_config, dict):
+            elif isinstance(self.app_config, dict):
                 msg += "\nNote: Unable to merge extra fields into existing config due to intersecting keys."
 
             msg += "\nExtra fields will be ignored. Please update your configuration."

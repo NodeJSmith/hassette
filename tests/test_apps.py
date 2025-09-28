@@ -1,4 +1,5 @@
 import asyncio
+import typing
 from copy import deepcopy
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -6,6 +7,9 @@ import pytest
 
 from hassette import ResourceStatus
 from hassette.core.apps.app_handler import _AppHandler, load_app_class
+
+if typing.TYPE_CHECKING:
+    from data.my_app import MyApp
 
 
 @pytest.fixture
@@ -124,19 +128,57 @@ async def test_config_changes_are_reflected_after_reload(app_handler: _AppHandle
 
     assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
 
-    my_app_instance = app_handler.get("my_app", 0)
+    my_app_instance = typing.cast("MyApp", app_handler.get("my_app", 0))
     assert my_app_instance is not None, "Precondition: my_app instance should exist"
 
     assert my_app_instance.app_config.test_entity == "input_button.test", (
         "Precondition: my_app config has initial value"
     )
 
-    app_handler.apps_config["my_app"].user_config = {"test_entity": "light.office"}
+    app_handler.apps_config["my_app"].app_config = {"test_entity": "light.office"}
 
     await app_handler._reload_apps_due_to_config({"my_app"})
     await asyncio.sleep(0.3)  # let async startups complete
 
     assert "my_app" in app_handler.apps, "my_app should still be running after reload"
-    my_app_instance = app_handler.get("my_app", 0)
+    my_app_instance = typing.cast("MyApp", app_handler.get("my_app", 0))
     assert my_app_instance is not None, "my_app instance should still exist after reload"
     assert my_app_instance.app_config.test_entity == "light.office", "my_app config should be updated after reload"
+
+
+async def test_app_with_instance_name(app_handler: _AppHandler) -> None:
+    """Test that an app with a specific instance_name in config starts correctly."""
+    assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
+
+    my_app_instance = app_handler.get("my_app", 0)
+    assert my_app_instance is not None, "my_app instance should exist"
+    assert my_app_instance.app_config.instance_name == "unique_instance_name", (
+        "my_app instance should have the specified instance_name"
+    )
+
+
+async def test_app_without_instance_name(app_handler: _AppHandler) -> None:
+    """Test that an app without a specific instance_name in config starts with default naming."""
+    assert "my_app_sync" in app_handler.apps, "Precondition: my_app_sync starts enabled"
+
+    my_app_sync_instance = app_handler.get("my_app_sync", 0)
+    assert my_app_sync_instance is not None, "my_app_sync instance should exist"
+    assert my_app_sync_instance.app_config.instance_name == "MyAppSync.0", (
+        "my_app_sync instance should have the default instance_name,"
+        f" found {my_app_sync_instance.app_config.instance_name}"
+    )
+
+
+async def test_app_logger_is_instance_attribute(app_handler: _AppHandler) -> None:
+    """Test that an app has its own logger attribute."""
+    assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
+
+    my_app_instance = app_handler.get("my_app", 0)
+    assert my_app_instance is not None, "my_app instance should exist"
+    assert hasattr(my_app_instance, "logger"), "my_app instance should have a logger attribute"
+    assert type(my_app_instance).logger != my_app_instance.logger, (
+        "logger should be an instance attribute, not class attribute"
+    )
+    assert my_app_instance.logger.name == "hassette.MyApp.unique_instance_name", (
+        f"my_app logger name should be 'hassette.MyApp.unique_instance_name', found {my_app_instance.logger.name}"
+    )
