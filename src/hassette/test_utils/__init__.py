@@ -4,9 +4,26 @@ They currently are not meant to be used by external users and will likely not be
 However, if you find them useful, knock yourself out.
 """
 
-from .fixtures import mock_ha_api
+from .fixtures import (
+    hassette_app_handler,
+    hassette_harness,
+    hassette_scheduler,
+    hassette_with_bus,
+    hassette_with_file_watcher,
+    hassette_with_mock_api,
+)
+from .harness import HassetteHarness
 from .test_server import SimpleTestServer
 
-__all__ = ["SimpleTestServer", "mock_ha_api"]
+__all__ = [
+    "HassetteHarness",
+    "SimpleTestServer",
+    "hassette_app_handler",
+    "hassette_harness",
+    "hassette_scheduler",
+    "hassette_with_bus",
+    "hassette_with_file_watcher",
+    "hassette_with_mock_api",
+]
 
 # TODO: clean these up and make them user facing

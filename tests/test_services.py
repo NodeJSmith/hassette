@@ -23,8 +23,8 @@ class _HoldService(Service):
         await super().shutdown(*a, **k)
 
 
-async def test_service_start_twice_and_shutdown(mock_hassette_with_bus):
-    svc = _HoldService(mock_hassette_with_bus)
+async def test_service_start_twice_and_shutdown(hassette_with_bus):
+    svc = _HoldService(hassette_with_bus)
     svc.start()
     await asyncio.sleep(0.1)  # allow start to run
 

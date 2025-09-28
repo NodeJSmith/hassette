@@ -4,8 +4,8 @@ from hassette.core.api import Api, ApiSyncFacade, clean_kwargs
 from hassette.test_utils import SimpleTestServer
 
 
-async def test_api_rest_request_sets_body_and_headers(mock_ha_api: tuple[Api, SimpleTestServer]):
-    api, mock = mock_ha_api
+async def test_api_rest_request_sets_body_and_headers(hassette_with_mock_api: tuple[Api, SimpleTestServer]):
+    api, mock = hassette_with_mock_api
 
     mock.expect("POST", "/api/thing", "", json={"a": 1}, status=200)
 
@@ -16,8 +16,8 @@ async def test_api_rest_request_sets_body_and_headers(mock_ha_api: tuple[Api, Si
     assert resp_data == {"a": 1}
 
 
-async def test_api_rest_request_cleans_params(mock_ha_api: tuple[Api, SimpleTestServer]):
-    api, mock = mock_ha_api
+async def test_api_rest_request_cleans_params(hassette_with_mock_api: tuple[Api, SimpleTestServer]):
+    api, mock = hassette_with_mock_api
 
     params = {"keep": "x", "none": None, "empty": "  ", "flag": False}
 

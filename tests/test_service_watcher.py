@@ -9,8 +9,8 @@ from hassette.core.service_watcher import _ServiceWatcher
 
 
 @pytest.fixture
-def get_service_watcher_mock(mock_hassette_with_bus):
-    return _ServiceWatcher(mock_hassette_with_bus)
+def get_service_watcher_mock(hassette_with_bus):
+    return _ServiceWatcher(hassette_with_bus)
 
 
 def get_dummy_service(called: dict[str, int], hassette) -> Service:
