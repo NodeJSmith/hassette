@@ -6,8 +6,6 @@ from hassette.core.core import Hassette
 from hassette.models import states
 from hassette.models.entities import LightEntity
 
-pytestmark = pytest.mark.requires_ha
-
 
 async def test_get_states_call(hassette_core: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""

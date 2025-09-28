@@ -74,10 +74,6 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
   ```bash
   # All tests (requires Docker and will start a Home Assistant container)
   uv run nox -s tests
-  # Skip HA-dependent tests
-  uv run nox -s tests_no_ha
-  # Or with pytest directly
-  uv run pytest -m "not requires_ha"
   ```
 - Entry point: `run-hassette` (see `pyproject.toml` -> `project.scripts`). Pinned tool versions in `mise.toml`.
 
