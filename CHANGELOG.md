@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduce some logging noise during startup/shutdown
   - Change some `info` logs to `debug` in `Hassette` and `FileWatcher`
   - Log Hassette version and enabled/disabled apps at `info` level on startup
+- Extended `_FileWatcher` default values for debounce and step milliseconds
 
 ### Fixed
 - Fixed issue where `_FileWatcher` would crash if an app file did not exist
