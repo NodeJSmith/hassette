@@ -3,7 +3,6 @@ import json
 import logging
 import typing
 from contextlib import AsyncExitStack, suppress
-from dataclasses import dataclass
 from itertools import count
 from logging import getLogger
 from typing import Any, cast
@@ -13,12 +12,7 @@ import anyio
 import tenacity
 from aiohttp import ClientConnectorError, ClientOSError, ClientTimeout, ServerDisconnectedError, WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
-from tenacity import (
-    AsyncRetrying,
-    before_sleep_log,
-    retry_if_exception_type,
-    retry_if_not_exception_type,
-)
+from tenacity import AsyncRetrying, before_sleep_log, retry_if_exception_type, retry_if_not_exception_type
 
 from hassette.core.classes import Service
 from hassette.core.enums import ResourceStatus
@@ -35,12 +29,6 @@ if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
 
 LOGGER = getLogger(__name__)
-
-
-@dataclass(frozen=True, eq=True)
-class FailedMessagePayload:
-    id: int
-    error: str
 
 
 class _Websocket(Service):
