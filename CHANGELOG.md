@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Defaults to `"{class_name}.{index}"` if not provided in config
 - Improved handling of app reloading
   - Check `only_app` earlier in the process to get accurate details on what to reload/stop/start/etc.
+- Changed `full_path` property on `AppManifest` to a method `get_full_path()` - this can raise `FileNotFoundError` if the file does not exist, so it shouldn't be a property
+
+### Fixed
+- Fixed issue where `_FileWatcher` would crash if an app file did not exist
 
 ## [0.10.0] - 2025-09-27
 

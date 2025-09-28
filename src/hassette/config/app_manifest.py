@@ -37,8 +37,7 @@ class AppManifest(BaseModel):
 
     _full_path: Path | None = None  # Cached full path after first access
 
-    @property
-    def full_path(self) -> Path:
+    def get_full_path(self) -> Path:
         """Get the full path to the app file."""
         if self._full_path is None:
             self._full_path = self._get_full_path()

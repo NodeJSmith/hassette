@@ -19,6 +19,7 @@ filename = "my_app_sync.py"
 class_name = "MyAppSync"
 display_name = "My Test App Sync"
 app_dir = "tests/data"
+# instance_name left off for testing default behavior
 config = { test_entity = "input_button.test" }
 
 [apps.disabled_app]
@@ -27,4 +28,13 @@ filename = "disabled_app.py"
 class_name = "DisabledApp"
 display_name = "Disabled App"
 app_dir = "tests/data"
-config = { test_entity = "input_button.test" }
+config = { test_entity = "input_button.test", instance_name = "disabled_instance" }
+
+
+[apps.non_existent_app]
+enabled = false
+filename = "non_existent_file.py"
+class_name = "MissingClass"
+display_name = "Missing App"
+app_dir = "tests/data"
+config = { test_entity = "input_button.test", instance_name = "missing" }
