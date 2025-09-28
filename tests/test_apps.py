@@ -1,4 +1,5 @@
 import asyncio
+import typing
 from copy import deepcopy
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -6,6 +7,9 @@ import pytest
 
 from hassette import ResourceStatus
 from hassette.core.apps.app_handler import _AppHandler, load_app_class
+
+if typing.TYPE_CHECKING:
+    from data.my_app import MyApp
 
 
 @pytest.fixture
@@ -124,7 +128,7 @@ async def test_config_changes_are_reflected_after_reload(app_handler: _AppHandle
 
     assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
 
-    my_app_instance = app_handler.get("my_app", 0)
+    my_app_instance = typing.cast("MyApp", app_handler.get("my_app", 0))
     assert my_app_instance is not None, "Precondition: my_app instance should exist"
 
     assert my_app_instance.app_config.test_entity == "input_button.test", (
@@ -137,7 +141,7 @@ async def test_config_changes_are_reflected_after_reload(app_handler: _AppHandle
     await asyncio.sleep(0.3)  # let async startups complete
 
     assert "my_app" in app_handler.apps, "my_app should still be running after reload"
-    my_app_instance = app_handler.get("my_app", 0)
+    my_app_instance = typing.cast("MyApp", app_handler.get("my_app", 0))
     assert my_app_instance is not None, "my_app instance should still exist after reload"
     assert my_app_instance.app_config.test_entity == "light.office", "my_app config should be updated after reload"
 
