@@ -19,15 +19,13 @@ from .hass import (
     create_event_from_hass,
 )
 from .hassette import (
+    FileWatcherEventPayload,
     HassetteFileWatcherEvent,
     HassettePayload,
     HassetteServiceEvent,
-    HassetteWebsocketStatusEvent,
     ServiceStatusPayload,
-    WebsocketStatusEventPayload,
-    create_file_watcher_event,
-    create_service_status_event,
-    create_websocket_status_event,
+    WebsocketConnectedEventPayload,
+    WebsocketDisconnectedEventPayload,
 )
 
 __all__ = [
@@ -35,6 +33,7 @@ __all__ = [
     "CallServiceEvent",
     "ComponentLoadedEvent",
     "Event",
+    "FileWatcherEventPayload",
     "HassContext",
     "HassContextDict",
     "HassEvent",
@@ -44,7 +43,6 @@ __all__ = [
     "HassetteFileWatcherEvent",
     "HassettePayload",
     "HassetteServiceEvent",
-    "HassetteWebsocketStatusEvent",
     "LogbookEntryEvent",
     "ScriptStartedEvent",
     "ServiceRegisteredEvent",
@@ -53,9 +51,7 @@ __all__ = [
     "StateChangeEvent",
     "UserAddedEvent",
     "UserRemovedEvent",
-    "WebsocketStatusEventPayload",
+    "WebsocketConnectedEventPayload",
+    "WebsocketDisconnectedEventPayload",
     "create_event_from_hass",
-    "create_file_watcher_event",
-    "create_service_status_event",
-    "create_websocket_status_event",
 ]

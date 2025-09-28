@@ -26,12 +26,7 @@ class _HealthService(Service):
 
         try:
             app = web.Application()
-            try:
-                hassette_key = web.AppKey["Hassette"]("hassette")
-            except UnboundLocalError:
-                # seen in tests, unsure if it happens in production
-                hassette_key = "hassette"
-
+            hassette_key = web.AppKey["Hassette"]("hassette")
             app[hassette_key] = self.hassette
             app.router.add_get("/healthz", self._handle_health)
 

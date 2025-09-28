@@ -4,7 +4,7 @@ import pytest
 
 from hassette.core.classes import Service
 from hassette.core.enums import ResourceStatus
-from hassette.core.events import create_service_status_event
+from hassette.core.events import ServiceStatusPayload
 from hassette.core.service_watcher import _ServiceWatcher
 
 
@@ -36,7 +36,7 @@ async def test_restart_service_cancels_then_starts(get_service_watcher_mock: _Se
         called, get_service_watcher_mock.hassette
     )
 
-    event = create_service_status_event(
+    event = ServiceStatusPayload.create_event(
         resource_name=svc.class_name,
         role=svc.role,
         status=ResourceStatus.FAILED,

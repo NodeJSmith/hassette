@@ -7,7 +7,7 @@ from logging import getLogger
 from typing import ClassVar
 
 from hassette.core.enums import ResourceRole, ResourceStatus
-from hassette.core.events import create_service_status_event
+from hassette.core.events import ServiceStatusPayload
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
@@ -69,7 +69,7 @@ class _HassetteBase:
                 self.logger.addHandler(handler)
 
     def _create_service_status_event(self, status: ResourceStatus, exception: Exception | None = None):
-        return create_service_status_event(
+        return ServiceStatusPayload.create_event(
             resource_name=self.class_name,
             role=self.role,
             status=status,

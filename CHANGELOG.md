@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed issue where `_FileWatcher` would crash if an app file did not exist
 
+### Internal
+- Improved Hassette events by bringing event creation into classes, adding helper methods
+  - Separated connected and disconnected events for websocket
+
 ## [0.10.0] - 2025-09-27
 
 ### Added

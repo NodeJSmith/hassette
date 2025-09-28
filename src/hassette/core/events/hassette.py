@@ -13,12 +13,17 @@ from hassette.core.topics import (
 from hassette.utils import get_traceback_string
 
 HassetteT = TypeVar("HassetteT", covariant=True)
+PayloadT = TypeVar("PayloadT")
 
 seq = itertools.count(1)
 
 
 def next_id() -> int:
     return next(seq)
+
+
+def _wrap_hassette_event(*, topic: str, payload: PayloadT, event_type: str) -> "Event[HassettePayload[PayloadT]]":
+    return Event(topic=topic, payload=HassettePayload(event_type=event_type, data=payload))
 
 
 @dataclass(slots=True, frozen=True)
@@ -36,51 +41,73 @@ class ServiceStatusPayload:
     event_id: int = field(default_factory=next_id, init=False)
 
     resource_name: str
-    """The name of the resource."""
-
     role: ResourceRole
-    """The role of the resource, e.g. 'service', 'resource', 'app', etc."""
-
     status: ResourceStatus
-    """The status of the resource, e.g. 'started', 'stopped', 'failed', etc."""
-
     previous_status: ResourceStatus | None = None
-    """The previous status of the resource before the current status."""
-
     exception: str | None = None
-    """Optional exception message if the service failed."""
-
     exception_type: str | None = None
-    """Optional type of the exception if the service failed."""
-
     exception_traceback: str | None = None
-    """Optional traceback of the exception if the service failed."""
+
+    @classmethod
+    def create_event(
+        cls,
+        *,
+        resource_name: str,
+        role: ResourceRole,
+        status: ResourceStatus,
+        previous_status: ResourceStatus | None = None,
+        exc: Exception | None = None,
+    ) -> "HassetteServiceEvent":
+        payload = cls(
+            resource_name=resource_name,
+            role=role,
+            status=status,
+            previous_status=previous_status,
+            exception=str(exc) if exc else None,
+            exception_type=type(exc).__name__ if exc else None,
+            exception_traceback=get_traceback_string(exc) if exc else None,
+        )
+        return _wrap_hassette_event(
+            topic=HASSETTE_EVENT_SERVICE_STATUS,
+            payload=payload,
+            event_type=str(status),
+        )
 
 
 @dataclass(slots=True, frozen=True)
-class WebsocketStatusEventPayload:
-    """Payload for websocket status events."""
+class WebsocketConnectedEventPayload:
+    """Payload for websocket connected events."""
 
     event_id: int = field(default_factory=next_id, init=False)
 
-    connected: bool
-    """Whether the websocket is connected or not."""
-
-    url: str | None = None
-    """The URL of the websocket server."""
-
-    error: str | None = None
-    """Optional error message if the websocket connection failed."""
+    url: str
 
     @classmethod
-    def connected_payload(cls, url: str) -> "WebsocketStatusEventPayload":
-        """Create a payload for a connected websocket event."""
-        return cls(connected=True, url=url)
+    def create_event(cls, *, url: str) -> "HassetteWebsocketConnectedEvent":
+        payload = cls(url=url)
+        return _wrap_hassette_event(
+            topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
+            payload=payload,
+            event_type="connected",
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class WebsocketDisconnectedEventPayload:
+    """Payload for websocket disconnected events."""
+
+    event_id: int = field(default_factory=next_id, init=False)
+
+    error: str
 
     @classmethod
-    def disconnected_payload(cls, error: str) -> "WebsocketStatusEventPayload":
-        """Create a payload for a disconnected websocket event."""
-        return cls(connected=False, error=error)
+    def create_event(cls, *, error: str) -> "HassetteWebsocketDisconnectedEvent":
+        payload = cls(error=error)
+        return _wrap_hassette_event(
+            topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
+            payload=payload,
+            event_type="disconnected",
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -91,85 +118,18 @@ class FileWatcherEventPayload:
 
     changed_file_path: Path
 
-
-def create_service_status_event(
-    *,
-    resource_name: str,
-    role: ResourceRole,
-    status: ResourceStatus,
-    previous_status: ResourceStatus | None = None,
-    exc: Exception | None = None,
-) -> "HassetteServiceEvent":
-    payload = ServiceStatusPayload(
-        resource_name=resource_name,
-        role=role,
-        status=status,
-        previous_status=previous_status,
-        exception=str(exc) if exc else None,
-        exception_type=type(exc).__name__ if exc else None,
-        exception_traceback=get_traceback_string(exc) if exc else None,
-    )
-
-    return Event(
-        topic=HASSETTE_EVENT_SERVICE_STATUS,
-        payload=HassettePayload(event_type=str(status), data=payload),
-    )
-
-
-def create_websocket_status_event(
-    connected: bool, url: str | None = None, error: str | None = None
-) -> "HassetteWebsocketStatusEvent":
-    """Create a websocket status event.
-
-    Args:
-        connected (bool): Whether the websocket is connected or not.
-        url (str | None): The URL of the websocket server.
-        error (str | None): Optional error message if the websocket connection failed.
-
-    Returns:
-        WebsocketStatusEvent: The created websocket status event.
-    """
-    if connected:
-        if not url:
-            raise ValueError("URL must be provided when connected is True")
-
-        return Event(
-            topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
-            payload=HassettePayload(event_type="connected", data=WebsocketStatusEventPayload.connected_payload(url)),
+    @classmethod
+    def create_event(cls, *, changed_file_path: Path) -> "HassetteEvent":
+        payload = cls(changed_file_path=changed_file_path)
+        return _wrap_hassette_event(
+            topic=HASSETTE_EVENT_FILE_WATCHER,
+            payload=payload,
+            event_type="file_changed",
         )
-
-    if not error:
-        raise ValueError("Error message must be provided when connected is False")
-
-    return Event(
-        topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
-        payload=HassettePayload(
-            event_type="disconnected", data=WebsocketStatusEventPayload.disconnected_payload(error)
-        ),
-    )
-
-
-def create_file_watcher_event(
-    changed_file_path: Path,
-) -> "HassetteEvent":
-    """Create a file watcher event.
-
-    Args:
-        changed_file_path (Path): The path of the changed file.
-
-    Returns:
-        FileWatcherEvent: The created file watcher event.
-    """
-
-    return Event(
-        topic=HASSETTE_EVENT_FILE_WATCHER,
-        payload=HassettePayload(
-            event_type="file_changed", data=FileWatcherEventPayload(changed_file_path=changed_file_path)
-        ),
-    )
 
 
 HassetteServiceEvent = Event[HassettePayload[ServiceStatusPayload]]
-HassetteWebsocketStatusEvent = Event[HassettePayload[WebsocketStatusEventPayload]]
+HassetteWebsocketConnectedEvent = Event[HassettePayload[WebsocketConnectedEventPayload]]
+HassetteWebsocketDisconnectedEvent = Event[HassettePayload[WebsocketDisconnectedEventPayload]]
 HassetteFileWatcherEvent = Event[HassettePayload[FileWatcherEventPayload]]
 HassetteEvent = Event[HassettePayload[Any]]

@@ -179,7 +179,7 @@ class Bus(Resource):
 
         pred = normalize_where(where)
 
-        lid = self.get_next_listener_id()
+        listener_id = self.get_next_listener_id()
         orig = handler
 
         # ensure-async
@@ -197,14 +197,14 @@ class Bus(Resource):
                     await handler(event)
                 finally:
                     # central, single path for removal
-                    self.remove_listener_by_key(topic, lid)
+                    self.remove_listener_by_key(topic, listener_id)
 
             run_final = _once
         else:
             run_final = handler
 
         listener = Listener(
-            key=lid,
+            key=listener_id,
             topic=topic,
             orig_handler=orig,
             handler=run_final,

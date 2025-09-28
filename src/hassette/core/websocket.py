@@ -3,7 +3,6 @@ import json
 import logging
 import typing
 from contextlib import AsyncExitStack, suppress
-from dataclasses import dataclass
 from itertools import count
 from logging import getLogger
 from typing import Any, cast
@@ -13,16 +12,16 @@ import anyio
 import tenacity
 from aiohttp import ClientConnectorError, ClientOSError, ClientTimeout, ServerDisconnectedError, WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
-from tenacity import (
-    AsyncRetrying,
-    before_sleep_log,
-    retry_if_exception_type,
-    retry_if_not_exception_type,
-)
+from tenacity import AsyncRetrying, before_sleep_log, retry_if_exception_type, retry_if_not_exception_type
 
 from hassette.core.classes import Service
 from hassette.core.enums import ResourceStatus
-from hassette.core.events import HassEventEnvelopeDict, create_event_from_hass, create_websocket_status_event
+from hassette.core.events import (
+    HassEventEnvelopeDict,
+    WebsocketConnectedEventPayload,
+    WebsocketDisconnectedEventPayload,
+    create_event_from_hass,
+)
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -35,12 +34,6 @@ if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
 
 LOGGER = getLogger(__name__)
-
-
-@dataclass(frozen=True, eq=True)
-class FailedMessagePayload:
-    id: int
-    error: str
 
 
 class _Websocket(Service):
@@ -135,7 +128,7 @@ class _Websocket(Service):
                     self._subscription_ids.add(sub_all_id)
 
                     await self.handle_start()
-                    event = create_websocket_status_event(connected=True, url=self.url)
+                    event = WebsocketConnectedEventPayload.create_event(url=self.url)
                     await self.hassette.send_event(event.topic, event)
 
                     # Keep running until recv loop ends (disconnect, error, etc.)
@@ -368,5 +361,5 @@ class _Websocket(Service):
 
     async def _send_connection_lost_event(self, error: str) -> None:
         """Send a connection lost event to the event bus."""
-        event = create_websocket_status_event(connected=False, error=error)
+        event = WebsocketDisconnectedEventPayload.create_event(error=error)
         await self.hassette.send_event(event.topic, event)
