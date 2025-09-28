@@ -4,7 +4,6 @@ import time
 import tracemalloc
 from contextlib import suppress
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
 
 import docker
 import pytest
@@ -129,12 +128,6 @@ def homeassistant_container(docker_client: docker.DockerClient):
         container.stop()
 
 
-@pytest.fixture(scope="session")
-def hassette_logging(test_config: TestConfig):
-    hassette = Hassette(config=test_config)
-    return hassette
-
-
 @pytest.fixture(scope="module")
 async def hassette_core(test_config: TestConfig, homeassistant_container: Container):
     # this line is mostly here to keep pyright/ruff from complaining that we aren't using the variable
@@ -161,9 +154,7 @@ async def hassette_core(test_config: TestConfig, homeassistant_container: Contai
     await asyncio.sleep(0.1)
     await hassette._shutdown_event.wait()
 
-    # cancel our task group to ensure all tasks are cleaned up
     task.cancel()
-
     with suppress(asyncio.CancelledError):
         await task
 
@@ -216,34 +207,6 @@ def hassette_core_sync(test_config: TestConfig, homeassistant_container: Contain
         hassette.shutdown()
         # give the runner thread a moment to exit cleanly
         t.join(timeout=5)
-
-
-@pytest.fixture
-async def hassette_core_no_ha(test_config: TestConfig):
-    with patch("hassette.core.core._Websocket", Mock()) as websocket_mock:
-        websocket_mock.shutdown = AsyncMock()
-        hassette = Hassette(config=test_config)
-        hassette._health_service = AsyncMock()
-
-        # Launch run_forever() which enters its own context
-        task = asyncio.create_task(hassette.run_forever())
-
-        await hassette.ready_event.wait()
-
-        yield hassette
-
-        await asyncio.sleep(0.1)
-
-        # shutdown and then pause for things to settle
-        hassette.shutdown()
-        await asyncio.sleep(0.1)
-        await hassette._shutdown_event.wait()
-
-        # cancel our task group to ensure all tasks are cleaned up
-        task.cancel()
-
-        with suppress(asyncio.CancelledError):
-            await task
 
 
 @pytest.fixture

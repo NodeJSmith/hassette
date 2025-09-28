@@ -20,8 +20,8 @@ START = PlainDateTime(2025, 6, 30, 0, 0, 0)
 END = PlainDateTime(2025, 6, 30, 23, 59, 59)
 
 
-async def test_get_histories(mock_ha_api: tuple[Api, SimpleTestServer]) -> None:
-    api, mock = mock_ha_api
+async def test_get_histories(hassette_with_mock_api: tuple[Api, SimpleTestServer]) -> None:
+    api, mock = hassette_with_mock_api
 
     # Expect one GET to the combined history endpoint for two entities
     path, qs = SimpleTestServer.make_history_path(["light.entryway", "light.office"], START, END, minimal=False)
@@ -39,8 +39,8 @@ async def test_get_histories(mock_ha_api: tuple[Api, SimpleTestServer]) -> None:
     assert "light.office" in history
 
 
-async def test_history_is_normalized(mock_ha_api: tuple[Api, SimpleTestServer]):
-    api, mock = mock_ha_api
+async def test_history_is_normalized(hassette_with_mock_api: tuple[Api, SimpleTestServer]):
+    api, mock = hassette_with_mock_api
 
     path, qs = SimpleTestServer.make_history_path(["light.entryway"], START, END, minimal=False)
     mock.expect("GET", path, qs, json=history_raw[0])
@@ -55,8 +55,8 @@ async def test_history_is_normalized(mock_ha_api: tuple[Api, SimpleTestServer]):
     assert mini == norm
 
 
-async def test_minimal_history_differs_if_not_normalized(mock_ha_api: tuple[Api, SimpleTestServer]) -> None:
-    api, mock = mock_ha_api
+async def test_minimal_history_differs_if_not_normalized(hassette_with_mock_api: tuple[Api, SimpleTestServer]) -> None:
+    api, mock = hassette_with_mock_api
 
     # Expect the non-minimal and minimal variants for a single entity
     path1, qs1 = SimpleTestServer.make_history_path(["light.entryway"], START, END, minimal=False)

@@ -1,49 +1,19 @@
 import asyncio
 import typing
 from copy import deepcopy
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
-import pytest
-
-from hassette import ResourceStatus
 from hassette.core.apps.app_handler import _AppHandler, load_app_class
 
 if typing.TYPE_CHECKING:
     from data.my_app import MyApp
 
 
-@pytest.fixture
-async def app_handler(test_config_with_apps):
-    hassette = Mock()
-    hassette.bus = Mock()
-    hassette.scheduler = Mock()
-    hassette.send_event = AsyncMock()
-    hassette.api.entity_exists = AsyncMock(return_value=True)
-    hassette.api.sync.entity_exists.return_value = True  # type: ignore[attr-defined]
-    hassette.api.get_states = AsyncMock()
-    hassette.api.get_state_value = AsyncMock()
-    hassette.config = test_config_with_apps
-    hassette._websocket = Mock()
-    hassette._websocket.connected = True
-    hassette._websocket.status = ResourceStatus.RUNNING
-    hassette.wait_for_resources_running = AsyncMock(return_value=True)
-
-    app_handler = _AppHandler(hassette)
-    hassette._app_handler = app_handler
-    hassette.get_app = app_handler.get  # used by sync apps
-
-    await app_handler.initialize()
-
-    yield app_handler
-
-    await app_handler.shutdown()
-
-
-async def test_apps_are_working(app_handler: _AppHandler) -> None:
+async def test_apps_are_working(hassette_app_handler: _AppHandler) -> None:
     """Test actual WebSocket calls against running HA instance."""
 
     await asyncio.sleep(0.3)
-    assert app_handler is not None, "App handler should be initialized"
+    app_handler = hassette_app_handler
     assert app_handler.apps, "There should be at least one app group"
     assert "my_app" in app_handler.apps, "my_app should be one of the app groups"
     assert "my_app_sync" in app_handler.apps, "my_app_sync should be one of the app groups"
@@ -53,9 +23,9 @@ async def test_apps_are_working(app_handler: _AppHandler) -> None:
     assert "myfakeapp" not in app_handler.apps, "myfakeapp should not be one of the app groups"
 
 
-def test_get_app_instance(app_handler: _AppHandler) -> None:
+def test_get_app_instance(hassette_app_handler: _AppHandler) -> None:
     """Test getting a specific app instance."""
-    app = app_handler.get("my_app", 0)
+    app = hassette_app_handler.get("my_app", 0)
     assert app is not None, "App instance should be found"
 
     my_app_class = load_app_class(app.app_manifest)
@@ -63,9 +33,9 @@ def test_get_app_instance(app_handler: _AppHandler) -> None:
     assert isinstance(app, my_app_class), "App instance should be of type MyApp"
 
 
-def test_all_apps(app_handler: _AppHandler) -> None:
+def test_all_apps(hassette_app_handler: _AppHandler) -> None:
     """Test getting all running app instances."""
-    all_apps = app_handler.all()
+    all_apps = hassette_app_handler.all()
     assert isinstance(all_apps, list), "All apps should return a list"
     assert len(all_apps) == 2, "There should be at least two running app instances"
     class_names = [app.class_name for app in all_apps]
@@ -73,9 +43,10 @@ def test_all_apps(app_handler: _AppHandler) -> None:
     assert "MyAppSync" in class_names, "MyAppSync should be in the list of running apps"
 
 
-async def test_handle_changes_disables_app(app_handler: _AppHandler) -> None:
+async def test_handle_changes_disables_app(hassette_app_handler: _AppHandler) -> None:
     """Verify that editing hassette.toml to disable an app stops the running instance."""
 
+    app_handler = hassette_app_handler
     assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
     assert app_handler.apps_config["my_app"].enabled is True, "Precondition: my_app config shows enabled"
 
@@ -94,9 +65,10 @@ async def test_handle_changes_disables_app(app_handler: _AppHandler) -> None:
         assert "my_app_sync" in app_handler.apps, "Other enabled apps should continue running"
 
 
-async def test_handle_changes_enables_app(app_handler: _AppHandler) -> None:
+async def test_handle_changes_enables_app(hassette_app_handler: _AppHandler) -> None:
     """Verify that editing hassette.toml to enable a disabled app starts the instance."""
 
+    app_handler = hassette_app_handler
     assert "disabled_app" not in app_handler.apps, "Precondition: disabled_app starts disabled"
     assert app_handler.apps_config["disabled_app"].enabled is False, "Precondition: disabled_app config shows disabled"
 
@@ -123,9 +95,10 @@ async def test_handle_changes_enables_app(app_handler: _AppHandler) -> None:
         assert "my_app" in app_handler.apps, "Other enabled apps should continue running"
 
 
-async def test_config_changes_are_reflected_after_reload(app_handler: _AppHandler) -> None:
+async def test_config_changes_are_reflected_after_reload(hassette_app_handler: _AppHandler) -> None:
     """Verify that editing hassette.toml to change an app's config reloads the instance."""
 
+    app_handler = hassette_app_handler
     assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
 
     my_app_instance = typing.cast("MyApp", app_handler.get("my_app", 0))
@@ -146,8 +119,9 @@ async def test_config_changes_are_reflected_after_reload(app_handler: _AppHandle
     assert my_app_instance.app_config.test_entity == "light.office", "my_app config should be updated after reload"
 
 
-async def test_app_with_instance_name(app_handler: _AppHandler) -> None:
+async def test_app_with_instance_name(hassette_app_handler: _AppHandler) -> None:
     """Test that an app with a specific instance_name in config starts correctly."""
+    app_handler = hassette_app_handler
     assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
 
     my_app_instance = app_handler.get("my_app", 0)
@@ -157,8 +131,9 @@ async def test_app_with_instance_name(app_handler: _AppHandler) -> None:
     )
 
 
-async def test_app_without_instance_name(app_handler: _AppHandler) -> None:
+async def test_app_without_instance_name(hassette_app_handler: _AppHandler) -> None:
     """Test that an app without a specific instance_name in config starts with default naming."""
+    app_handler = hassette_app_handler
     assert "my_app_sync" in app_handler.apps, "Precondition: my_app_sync starts enabled"
 
     my_app_sync_instance = app_handler.get("my_app_sync", 0)
@@ -169,8 +144,9 @@ async def test_app_without_instance_name(app_handler: _AppHandler) -> None:
     )
 
 
-async def test_app_logger_is_instance_attribute(app_handler: _AppHandler) -> None:
+async def test_app_logger_is_instance_attribute(hassette_app_handler: _AppHandler) -> None:
     """Test that an app has its own logger attribute."""
+    app_handler = hassette_app_handler
     assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
 
     my_app_instance = app_handler.get("my_app", 0)

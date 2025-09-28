@@ -75,52 +75,51 @@ def get_handler(calls: list[Event[Any]]) -> Callable[..., Coroutine[Any, Any, No
     return handler
 
 
-async def test_bus_once_and_debounce(mock_hassette_with_bus: Hassette) -> None:
+async def test_bus_once_and_debounce(hassette_with_bus: Hassette) -> None:
     calls = []
 
     # once + debounce 0.05s
-    mock_hassette_with_bus.bus.on(topic="demo", handler=get_handler(calls), once=True, debounce=0.05)
+    hassette_with_bus.bus.on(topic="demo", handler=get_handler(calls), once=True, debounce=0.05)
 
     # Emit 5 times quickly
     for _ in range(5):
-        await mock_hassette_with_bus.send_event("demo", EVENT)
+        await hassette_with_bus.send_event("demo", EVENT)
     await asyncio.sleep(0.1)  # allow debounce window to elapse + dispatch
 
     # once: only one call; debounce: collapsed burst
     assert len(calls) == 1
 
 
-async def test_bus_glob_and_exact(mock_hassette_with_bus: Hassette) -> None:
+async def test_bus_glob_and_exact(hassette_with_bus: Hassette) -> None:
     hits = []
 
-    mock_hassette_with_bus.bus.on(topic="demo.*", handler=get_handler(hits))
-    mock_hassette_with_bus.bus.on(topic="demo.specific", handler=get_handler(hits))
+    hassette_with_bus.bus.on(topic="demo.*", handler=get_handler(hits))
+    hassette_with_bus.bus.on(topic="demo.specific", handler=get_handler(hits))
 
-    await mock_hassette_with_bus.send_event("demo.specific", EVENT)
+    await hassette_with_bus.send_event("demo.specific", EVENT)
     await asyncio.sleep(0.1)  # allow dispatch
     assert hits, "No handlers fired!"
 
     assert hits == [EVENT, EVENT], "Both handlers should have fired"
 
 
-async def test_bus_throttle(mock_hassette_with_bus: Hassette) -> None:
+async def test_bus_throttle(hassette_with_bus: Hassette) -> None:
     calls = []
-    mock_hassette_with_bus.bus.on(topic="throttle", handler=get_handler(calls), throttle=0.05)
+    hassette_with_bus.bus.on(topic="throttle", handler=get_handler(calls), throttle=0.05)
 
     for _ in range(5):
-        await mock_hassette_with_bus.send_event("throttle", EVENT)
+        await hassette_with_bus.send_event("throttle", EVENT)
     await asyncio.sleep(0.12)
 
     # Implementation-dependent, but a tight burst should be 1 (maybe 2)
     assert 1 <= len(calls) <= 2
 
 
-async def test_bus_subscription_remove(mock_hassette_with_bus: Hassette) -> None:
+async def test_bus_subscription_remove(hassette_with_bus: Hassette) -> None:
     calls = []
-    sub = mock_hassette_with_bus.bus.on(topic="x", handler=get_handler(calls))
-    sub.unsubscribe()
+    hassette_with_bus.bus.on(topic="x", handler=get_handler(calls))
 
-    await mock_hassette_with_bus.send_event("x", EVENT)
+    await hassette_with_bus.send_event("x", EVENT)
     await asyncio.sleep(0)
 
     assert calls == []
@@ -131,16 +130,16 @@ async def test_bus_subscription_remove(mock_hassette_with_bus: Hassette) -> None
     [(None, None, 2), ("light", None, 1), (None, "turn_on", 2), ("light", "turn_on", 1)],
 )
 async def test_bus_on_call_service(
-    mock_hassette_with_bus: Hassette, domain: str | None, service: str | None, expected_calls: int
+    hassette_with_bus: Hassette, domain: str | None, service: str | None, expected_calls: int
 ) -> None:
     calls: list[CallServiceEvent] = []
-    mock_hassette_with_bus.bus.on_call_service(domain=domain, service=service, handler=get_handler(calls))
+    hassette_with_bus.bus.on_call_service(domain=domain, service=service, handler=get_handler(calls))
 
-    await mock_hassette_with_bus.send_event(
+    await hassette_with_bus.send_event(
         "hass.event.call_service",
         create_hass_event("call_service", domain="light", service="turn_on"),
     )
-    await mock_hassette_with_bus.send_event(
+    await hassette_with_bus.send_event(
         "hass.event.call_service", create_hass_event("call_service", domain="switch", service="turn_on")
     )
     await asyncio.sleep(0.1)  # allow dispatch
@@ -157,17 +156,17 @@ async def test_bus_on_call_service(
     [(None, None, 2), ("light", None, 1), (None, "turn_on", 2), ("light", "turn_on", 1)],
 )
 async def test_bus_on_service_registered(
-    mock_hassette_with_bus: Hassette, domain: str | None, service: str | None, expected_calls: int
+    hassette_with_bus: Hassette, domain: str | None, service: str | None, expected_calls: int
 ) -> None:
     calls: list[ServiceRegisteredEvent] = []
 
-    mock_hassette_with_bus.bus.on_service_registered(domain=domain, service=service, handler=get_handler(calls))
+    hassette_with_bus.bus.on_service_registered(domain=domain, service=service, handler=get_handler(calls))
 
-    await mock_hassette_with_bus.send_event(
+    await hassette_with_bus.send_event(
         "hass.event.service_registered",
         create_hass_event("service_registered", domain="light", service="turn_on"),
     )
-    await mock_hassette_with_bus.send_event(
+    await hassette_with_bus.send_event(
         "hass.event.service_registered", create_hass_event("service_registered", domain="switch", service="turn_on")
     )
     await asyncio.sleep(0.1)  # allow dispatch
@@ -180,18 +179,16 @@ async def test_bus_on_service_registered(
 
 
 @pytest.mark.parametrize(("component", "expected_calls"), [(None, 2), ("light", 1)])
-async def test_bus_on_component_loaded(
-    mock_hassette_with_bus: Hassette, component: str | None, expected_calls: int
-) -> None:
+async def test_bus_on_component_loaded(hassette_with_bus: Hassette, component: str | None, expected_calls: int) -> None:
     calls: list[ComponentLoadedEvent] = []
 
-    mock_hassette_with_bus.bus.on_component_loaded(component=component, handler=get_handler(calls))
+    hassette_with_bus.bus.on_component_loaded(component=component, handler=get_handler(calls))
 
-    await mock_hassette_with_bus.send_event(
+    await hassette_with_bus.send_event(
         "hass.event.component_loaded",
         create_hass_event("component_loaded", component="light"),
     )
-    await mock_hassette_with_bus.send_event(
+    await hassette_with_bus.send_event(
         "hass.event.component_loaded", create_hass_event("component_loaded", component="switch")
     )
     await asyncio.sleep(0.1)  # allow dispatch
@@ -204,20 +201,20 @@ async def test_bus_on_component_loaded(
         assert {call.payload.data.component for call in calls} == {"light", "switch"}
 
 
-async def test_bus_on_home_assistant_restarted(mock_hassette_with_bus: Hassette) -> None:
+async def test_bus_on_home_assistant_restarted(hassette_with_bus: Hassette) -> None:
     calls: list[CallServiceEvent] = []
 
-    mock_hassette_with_bus.bus.on(
+    hassette_with_bus.bus.on(
         topic="hass.event.call_service",
         handler=get_handler(calls),
         where=HomeAssistantRestarted,
     )
 
-    await mock_hassette_with_bus.send_event(
+    await hassette_with_bus.send_event(
         "hass.event.call_service",
         create_hass_event("call_service", domain="homeassistant", service="restart"),
     )
-    await mock_hassette_with_bus.send_event(
+    await hassette_with_bus.send_event(
         "hass.event.call_service", create_hass_event("call_service", domain="light", service="turn_on")
     )
     await asyncio.sleep(0.1)  # allow dispatch
