@@ -271,19 +271,17 @@ class Hassette:
         for service in self._resources.values():
             service.start()
 
-    async def _shutdown_resources(self) -> None:
-        """Shutdown all resources gracefully."""
+    async def _shutdown(self) -> None:
+        """Shutdown all services gracefully and gather any results."""
+        self.shutdown()  # signal shutdown
+
+        # shutdown each resource
         for resource in self._resources.values():
             try:
                 await resource.shutdown()
             except Exception as e:
                 self.logger.error("Failed to shutdown resource '%s': %s", resource.class_name, e)
 
-    async def _shutdown(self) -> None:
-        """Shutdown all services gracefully and gather any results."""
-        self.shutdown()  # signal shutdown
-
-        await self._shutdown_resources()
         self.logger.info("Waiting for all resources to finish...")
 
         tasks = [task for s in self._resources.values() if (task := s.get_task())]
@@ -301,6 +299,12 @@ class Hassette:
                 self.logger.error("Task raised an exception: %s", get_traceback_string(result))
             else:
                 self.logger.debug("Task completed successfully: %s", result)
+
+        # ensure streams are closed
+        if self._send_stream is not None:
+            await self._send_stream.aclose()
+        if self._receive_stream is not None:
+            await self._receive_stream.aclose()
 
     def shutdown(self) -> None:
         """Signal shutdown to the main loop."""
