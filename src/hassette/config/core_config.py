@@ -220,8 +220,8 @@ class HassetteConfig(HassetteBaseSettings):
         return f"{token_value[:6]}...{token_value[-6:]}"
 
     @model_validator(mode="after")
-    def print_settings_sources(self) -> "HassetteConfig":
-        LOGGER.info(
+    def show_details_at_startup(self) -> "HassetteConfig":
+        LOGGER.debug(
             "Configuration sources: %s",
             json.dumps(type(self).FINAL_SETTINGS_SOURCES, default=str, indent=4, sort_keys=True),
         )
