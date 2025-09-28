@@ -140,3 +140,26 @@ async def test_config_changes_are_reflected_after_reload(app_handler: _AppHandle
     my_app_instance = app_handler.get("my_app", 0)
     assert my_app_instance is not None, "my_app instance should still exist after reload"
     assert my_app_instance.app_config.test_entity == "light.office", "my_app config should be updated after reload"
+
+
+async def test_app_with_instance_name(app_handler: _AppHandler) -> None:
+    """Test that an app with a specific instance_name in config starts correctly."""
+    assert "my_app" in app_handler.apps, "Precondition: my_app starts enabled"
+
+    my_app_instance = app_handler.get("my_app", 0)
+    assert my_app_instance is not None, "my_app instance should exist"
+    assert my_app_instance.app_config.instance_name == "unique_instance_name", (
+        "my_app instance should have the specified instance_name"
+    )
+
+
+async def test_app_without_instance_name(app_handler: _AppHandler) -> None:
+    """Test that an app without a specific instance_name in config starts with default naming."""
+    assert "my_app_sync" in app_handler.apps, "Precondition: my_app_sync starts enabled"
+
+    my_app_sync_instance = app_handler.get("my_app_sync", 0)
+    assert my_app_sync_instance is not None, "my_app_sync instance should exist"
+    assert my_app_sync_instance.app_config.instance_name == "MyAppSync.0", (
+        "my_app_sync instance should have the default instance_name,"
+        f" found {my_app_sync_instance.app_config.instance_name}"
+    )
