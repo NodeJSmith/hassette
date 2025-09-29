@@ -19,6 +19,7 @@ from .core import (
     Service,
     TriggerProtocol,
     events,
+    only_app,
     topics,
 )
 from .core.bus import predicates
@@ -50,6 +51,7 @@ __all__ = [
     "TriggerProtocol",
     "entities",
     "events",
+    "only_app",
     "predicates",
     "states",
     "topics",

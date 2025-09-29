@@ -1,6 +1,6 @@
 from . import topics
 from .api import Api
-from .apps import App, AppConfig, AppConfigT, AppSync
+from .apps import App, AppConfig, AppConfigT, AppSync, only_app
 from .bus import Bus
 from .bus.predicates import AllOf, AnyOf, AttrChanged, Changed, ChangedFrom, ChangedTo, DomainIs, EntityIs, Guard, Not
 from .bus.predicates.common import HomeAssistantRestarted
@@ -40,5 +40,6 @@ __all__ = [
     "Scheduler",
     "Service",
     "TriggerProtocol",
+    "only_app",
     "topics",
 ]

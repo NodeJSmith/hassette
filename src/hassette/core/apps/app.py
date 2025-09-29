@@ -22,14 +22,14 @@ LOGGER = getLogger(__name__)
 AppT = typing.TypeVar("AppT", bound="App")
 
 
-def only(app_cls: type[AppT]) -> type[AppT]:
+def only_app(app_cls: type[AppT]) -> type[AppT]:
     """Decorator to mark an app class as the only one to run. If more than one app is marked with this decorator,
     an exception will be raised during initialization.
 
     This is useful for development and testing, where you may want to run only a specific app without
     modifying configuration files.
     """
-    app_cls._only = True  # type: ignore[attr-defined]
+    app_cls._only_app = True  # type: ignore[attr-defined]
     return app_cls
 
 
@@ -41,7 +41,7 @@ class App(Generic[AppConfigT], Resource):
     which send an event to the Bus and set the `status` attribute, based on the app's lifecycle.
     """
 
-    _only: ClassVar[bool] = False
+    _only_app: ClassVar[bool] = False
     """If True, only this app will be run. Only one app can be marked as only."""
 
     role: ClassVar[ResourceRole] = ResourceRole.APP
