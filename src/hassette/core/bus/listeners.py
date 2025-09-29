@@ -1,7 +1,8 @@
 import contextlib
 import inspect
+import itertools
 import typing
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from inspect import isawaitable
 from types import MethodType
@@ -10,9 +11,15 @@ from typing import Any
 if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from hassette.core.bus import Bus
     from hassette.core.events import Event
     from hassette.core.types import Predicate
+
+
+seq = itertools.count(1)
+
+
+def next_id() -> int:
+    return next(seq)
 
 
 def callable_name(fn: Any) -> str:
@@ -60,14 +67,31 @@ def callable_name(fn: Any) -> str:
 class Listener:
     """A listener for events with a specific topic and handler."""
 
-    key: str
+    listener_id: int = field(default_factory=next_id, init=False)
+
+    owner: str
+    """Owner of the listener, typically the app instance name."""
+
     topic: str
+    """Topic the listener is subscribed to."""
+
     orig_handler: "Callable[[Event[Any]], Any]"
+    """Original handler function provided by the user."""
+
     handler: "Callable[[Event[Any]], Awaitable[None]]"  # fully wrapped, ready to await
+    """Wrapped handler function that is always async."""
+
     predicate: "Predicate | None"
-    once: bool = False  # metadata for repr
+    """Predicate to filter events before invoking the handler."""
+
+    once: bool = False
+    """Whether the listener should be removed after one invocation."""
+
     debounce: float | None = None
+    """Debounce interval in seconds, or None if not debounced."""
+
     throttle: float | None = None
+    """Throttle interval in seconds, or None if not throttled."""
 
     @property
     def handler_name(self) -> str:
@@ -91,7 +115,7 @@ class Listener:
             flags.append(f"throttle={self.throttle}")
         flag_s = f" [{', '.join(flags)}]" if flags else ""
         pred_s = "None" if self.predicate is None else type(self.predicate).__name__
-        return f"Listener<{self.key} {self.topic} handler={self.handler_name} pred={pred_s}{flag_s}>"
+        return f"Listener<{self.listener_id} {self.topic} handler={self.handler_name} pred={pred_s}{flag_s}>"
 
 
 @dataclass(slots=True)
@@ -102,13 +126,11 @@ class Subscription:
     or managed within a context.
     """
 
-    bus: "Bus"
-    topic: str
-    key: str
+    listener: Listener
+    """The listener associated with this subscription."""
 
-    def unsubscribe(self) -> None:
-        """Unsubscribe the listener from the bus."""
-        self.bus.remove_listener_by_key(self.topic, self.key)
+    unsubscribe: "Callable[[], None]"
+    """Function to call to unsubscribe the listener."""
 
     @contextlib.contextmanager
     def manage(self):

@@ -3,14 +3,14 @@ import contextlib
 import heapq
 import typing
 from collections.abc import Mapping
-from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, TypeVar
 
 from whenever import SystemDateTime, TimeDelta
 
 from hassette.async_utils import make_async_adapter
 from hassette.core.classes import Resource, Service
 
+from .classes import HeapQueue, ScheduledJob
 from .triggers import CronTrigger, IntervalTrigger, now
 
 if typing.TYPE_CHECKING:
@@ -20,13 +20,14 @@ if typing.TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class _Scheduler(Service):
+class SchedulerService(Service):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
 
         self.min_delay = 0.1
         self.max_delay = 30.0
 
+        self.lock = asyncio.Lock()
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()
         self._counter = 0
         self._wakeup_event = asyncio.Event()
@@ -48,7 +49,7 @@ class _Scheduler(Service):
                     job = self._queue.pop()
                     self._tasks.add(self.hassette.create_task(self._dispatch_and_log(job)))
 
-                await self._sleep()
+                await self.sleep()
         except asyncio.CancelledError:
             self.logger.debug("Scheduler cancelled, stopping")
             await self.handle_stop()
@@ -58,9 +59,9 @@ class _Scheduler(Service):
             self._exit_event.set()
             raise
         finally:
-            await self._cleanup()
+            await self.cleanup()
 
-    async def _cleanup(self) -> None:
+    async def cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
 
         # Cancel background tasks
@@ -71,11 +72,11 @@ class _Scheduler(Service):
             await asyncio.gather(*self._tasks, return_exceptions=True)
             self.logger.debug("Cancelled %d pending tasks", len(self._tasks))
 
-    def _kick(self):
+    def kick(self):
         """Wake up the scheduler to check for jobs."""
         self._wakeup_event.set()
 
-    async def _sleep(self):
+    async def sleep(self):
         """Sleep until the next job is due or a kick is received.
 
         This method will wait for the next job to be due or until a kick is received.
@@ -110,10 +111,10 @@ class _Scheduler(Service):
 
         return TimeDelta(seconds=delay)
 
-    def _push_job(self, job: "ScheduledJob"):
+    def add_job(self, job: "ScheduledJob"):
         """Push a job to the queue."""
         self._queue.push(job)
-        self._kick()
+        self.kick()
         self.logger.debug("Scheduled job: %s", job)
 
     async def _dispatch_and_log(self, job: "ScheduledJob"):
@@ -128,40 +129,14 @@ class _Scheduler(Service):
 
         self.logger.debug("Dispatching job: %s", job)
         with contextlib.suppress(Exception):
-            await self._run_job(job)
+            await self.run_job(job)
 
         try:
-            await self._reschedule_job(job)
+            await self.reschedule_job(job)
         except Exception:
             self.logger.exception("Error rescheduling job %s", job)
 
-    async def _reschedule_job(self, job: "ScheduledJob"):
-        """Reschedule a job if it is repeating.
-
-        Args:
-            job (ScheduledJob): The job to reschedule.
-        """
-
-        if job.cancelled:
-            self.logger.debug("Job %s is cancelled, not rescheduling", job)
-            return
-
-        if job.repeat and job.trigger:
-            curr_next_run = job.next_run
-            job.next_run = job.trigger.next_run_time()
-            next_run_time_delta = job.next_run - curr_next_run
-            assert next_run_time_delta.in_seconds() > 0, "Next run time must be in the future"
-
-            self.logger.debug(
-                "Rescheduling repeating job %s from %s to %s (%s)",
-                job,
-                curr_next_run,
-                job.next_run,
-                next_run_time_delta.in_seconds(),
-            )
-            self._push_job(job)
-
-    async def _run_job(self, job: "ScheduledJob"):
+    async def run_job(self, job: "ScheduledJob"):
         """Run a scheduled job.
 
         Args:
@@ -187,18 +162,80 @@ class _Scheduler(Service):
             async_func = make_async_adapter(func)
             await async_func(*job.args, **job.kwargs)
         except Exception as e:
-            self.logger.error("Error running job%s: %s - %s", job, type(e), e)
+            self.logger.error("Error running job %s: %s - %s", job, type(e), e)
+
+    async def reschedule_job(self, job: "ScheduledJob"):
+        """Reschedule a job if it is repeating.
+
+        Args:
+            job (ScheduledJob): The job to reschedule.
+        """
+
+        if job.cancelled:
+            self.logger.debug("Job %s is cancelled, not rescheduling", job)
+            return
+
+        if job.repeat and job.trigger:
+            curr_next_run = job.next_run
+            job.next_run = job.trigger.next_run_time()
+            next_run_time_delta = job.next_run - curr_next_run
+            assert next_run_time_delta.in_seconds() > 0, "Next run time must be in the future"
+
+            self.logger.debug(
+                "Rescheduling repeating job %s from %s to %s (%s)",
+                job,
+                curr_next_run,
+                job.next_run,
+                next_run_time_delta.in_seconds(),
+            )
+            self.add_job(job)
+
+    def remove_jobs_by_owner(self, owner: str) -> None:
+        """Remove all jobs for a given owner.
+
+        Args:
+            owner (str): The owner of the jobs to remove.
+        """
+        original_count = len(self._queue._queue)
+        self._queue._queue = [job for job in self._queue._queue if job.owner != owner]
+        removed_count = original_count - len(self._queue._queue)
+
+        if removed_count > 0:
+            heapq.heapify(self._queue._queue)
+            self.kick()
+            self.logger.debug("Removed %d jobs for owner '%s'", removed_count, owner)
+        else:
+            self.logger.debug("No jobs found for owner '%s' to remove", owner)
+
+    def remove_job(self, job: "ScheduledJob") -> None:
+        """Remove a job from the scheduler.
+
+        Args:
+            job (ScheduledJob): The job to remove.
+        """
+        if not isinstance(job, ScheduledJob):
+            raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
+
+        if job in self._queue._queue:
+            self._queue._queue.remove(job)
+            heapq.heapify(self._queue._queue)
+            self.kick()
+            self.logger.debug("Removed job: %s", job)
+        else:
+            self.logger.debug("Job not found in queue, cannot remove: %s", job)
 
 
 class Scheduler(Resource):
-    def __init__(self, hassette: "Hassette", _scheduler: _Scheduler) -> None:
+    def __init__(self, hassette: "Hassette", owner: str) -> None:
         super().__init__(hassette)
-        self._scheduler = _scheduler
+
+        self.owner = owner
+        """Owner of the scheduler, must be a unique identifier for the owner."""
 
     @property
-    def scheduler(self) -> _Scheduler:
+    def scheduler_service(self) -> SchedulerService:
         """Get the internal scheduler instance."""
-        return self._scheduler
+        return self.hassette.scheduler_service
 
     def add_job(self, job: "ScheduledJob") -> "ScheduledJob":
         """Add a job to the scheduler.
@@ -213,9 +250,22 @@ class Scheduler(Resource):
         if not isinstance(job, ScheduledJob):
             raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
 
-        self._scheduler._push_job(job)
+        self.scheduler_service.add_job(job)
 
         return job
+
+    def remove_job(self, job: "ScheduledJob") -> None:
+        """Remove a job from the scheduler.
+
+        Args:
+            job (ScheduledJob): The job to remove.
+        """
+
+        self.scheduler_service.remove_job(job)
+
+    def remove_all_jobs(self) -> None:
+        """Remove all jobs for the owner of this scheduler."""
+        self.scheduler_service.remove_jobs_by_owner(self.owner)
 
     def schedule(
         self,
@@ -244,6 +294,7 @@ class Scheduler(Resource):
         """
 
         job = ScheduledJob(
+            owner=self.owner,
             next_run=run_at,
             job=func,
             trigger=trigger,
@@ -387,73 +438,3 @@ class Scheduler(Resource):
         )
         run_at = trigger.next_run_time()
         return self.schedule(func, run_at, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
-
-
-@dataclass(order=True)
-class ScheduledJob:
-    """A job scheduled to run based on a trigger or at a specific time."""
-
-    next_run: SystemDateTime
-    job: "JobCallable" = field(compare=False)
-    trigger: "TriggerProtocol | None" = field(compare=False, default=None)
-    repeat: bool = field(compare=False, default=False)
-    name: str = field(default="", compare=False)
-    cancelled: bool = field(default=False, compare=False)
-    args: tuple[Any, ...] = field(default_factory=tuple, compare=False)
-    kwargs: dict[str, Any] = field(default_factory=dict, compare=False)
-
-    def __repr__(self) -> str:
-        return f"ScheduledJob(name={self.name!r}, next_run={self.next_run})"
-
-    def __post_init__(self):
-        self.next_run = self.next_run.round(unit="second")
-
-        if not self.name:
-            self.name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
-
-        self.args = tuple(self.args)
-        self.kwargs = dict(self.kwargs)
-
-    def cancel(self) -> None:
-        """Cancel the scheduled job by setting the cancelled flag to True."""
-        self.cancelled = True
-
-
-@dataclass
-class HeapQueue(Generic[T]):
-    _queue: list[T] = field(default_factory=list)
-
-    def push(self, job: T):
-        """Push a job onto the queue."""
-        heapq.heappush(self._queue, job)  # pyright: ignore[reportArgumentType]
-
-    def pop(self) -> T:
-        """Pop the next job from the queue."""
-        return heapq.heappop(self._queue)  # pyright: ignore[reportArgumentType]
-
-    def peek(self) -> T | None:
-        """Peek at the next job without removing it.
-
-        Returns:
-            T | None: The next job in the queue, or None if the queue is empty"""
-        return self._queue[0] if self._queue else None
-
-    def peek_or_raise(self) -> T:
-        """Peek at the next job without removing it, raising an error if the queue is empty.
-
-        Method that the type checker knows always return a value - call `is_empty` first to avoid exceptions.
-
-        Returns:
-            T: The next job in the queue.
-
-        Raises:
-            IndexError: If the queue is empty.
-
-        """
-        if not self._queue:
-            raise IndexError("Peek from an empty queue")
-        return cast("T", self.peek())
-
-    def is_empty(self) -> bool:
-        """Check if the queue is empty."""
-        return not self._queue

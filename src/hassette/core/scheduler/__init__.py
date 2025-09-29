@@ -1,4 +1,5 @@
-from .scheduler import ScheduledJob, Scheduler
+from .classes import ScheduledJob
+from .scheduler import Scheduler
 from .triggers import CronTrigger, IntervalTrigger
 
 __all__ = [

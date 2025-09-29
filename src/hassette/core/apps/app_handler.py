@@ -11,6 +11,7 @@ import anyio
 from deepdiff import DeepDiff
 
 from hassette.config.core_config import HassetteConfig
+from hassette.core import Bus
 from hassette.core.apps.app import App, AppSync
 from hassette.core.classes import Resource
 from hassette.core.enums import ResourceStatus
@@ -62,6 +63,8 @@ class _AppHandler(Resource):
         self.failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
         """Apps we could not start/failed to start"""
 
+        self.bus = Bus(hassette, owner=self.unique_name)
+
     def set_apps_configs(self, apps_config: dict[str, "AppManifest"]) -> None:
         """Set the apps configuration.
 
@@ -84,7 +87,7 @@ class _AppHandler(Resource):
 
     async def initialize(self) -> None:
         """Start handler and initialize configured apps."""
-        self.hassette.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
+        self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
 
         await self.initialize_apps()
         await super().initialize()
@@ -92,6 +95,8 @@ class _AppHandler(Resource):
     async def shutdown(self) -> None:
         """Shutdown all app instances gracefully."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
+
+        self.bus.remove_all_listeners()
 
         # Flatten and iterate
         for instances in list(self.apps.values()):
@@ -122,10 +127,12 @@ class _AppHandler(Resource):
             self.logger.warning("Cannot stop app %s, not found", app_key)
             return
         self.logger.info("Stopping %d instances of %s", len(instances), app_key)
+
         for inst in instances.values():
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
                     await inst.shutdown()
+                    inst.cleanup_resources()
                 self.logger.info("Stopped app '%s'", inst.app_config.instance_name)
             except Exception:
                 self.logger.exception("Failed to stop app '%s'", inst.app_config.instance_name)
@@ -197,7 +204,7 @@ class _AppHandler(Resource):
         for app_manifest in self.active_apps_config.values():
             try:
                 app_class = load_app_class(app_manifest)
-                if app_class._only:
+                if app_class._only_app:
                     only_apps.append(app_manifest.app_key)
             except (UndefinedUserConfigError, InvalidInheritanceError):
                 self.logger.error(
@@ -265,26 +272,13 @@ class _AppHandler(Resource):
         app_configs = app_configs if isinstance(app_configs, list) else [app_configs]
 
         for idx, config in enumerate(app_configs):
-            ident = _manifest_key(app_key, idx)
+            config["instance_name"] = instance_name = config.get("instance_name", f"{class_name}.{idx}")
             try:
                 validated = settings_cls.model_validate(config)
-
-                # set a default instance name if not set
-                # doing it this way instead of using a pydantic validator so we don't have to provide
-                # the index to the config class
-                if not validated.instance_name:
-                    validated.instance_name = f"{class_name}.{idx}"
-                    self.logger.warning(
-                        "App %s config at index %d is missing instance_name, defaulting to %s",
-                        class_name,
-                        idx,
-                        validated.instance_name,
-                    )
-
                 app_instance = app_class(self.hassette, app_config=validated, index=idx)
                 self.apps[app_key][idx] = app_instance
             except Exception as e:
-                self.logger.exception("Failed to validate/init config for %s (%s)", ident, class_name)
+                self.logger.exception("Failed to validate/init config for %s (%s)", instance_name, class_name)
                 self.failed_apps[app_key].append((idx, e))
                 continue
 

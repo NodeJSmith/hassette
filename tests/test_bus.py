@@ -79,7 +79,7 @@ async def test_bus_once_and_debounce(hassette_with_bus: Hassette) -> None:
     calls = []
 
     # once + debounce 0.05s
-    hassette_with_bus.bus.on(topic="demo", handler=get_handler(calls), once=True, debounce=0.05)
+    hassette_with_bus._bus.on(topic="demo", handler=get_handler(calls), once=True, debounce=0.05)
 
     # Emit 5 times quickly
     for _ in range(5):
@@ -93,8 +93,8 @@ async def test_bus_once_and_debounce(hassette_with_bus: Hassette) -> None:
 async def test_bus_glob_and_exact(hassette_with_bus: Hassette) -> None:
     hits = []
 
-    hassette_with_bus.bus.on(topic="demo.*", handler=get_handler(hits))
-    hassette_with_bus.bus.on(topic="demo.specific", handler=get_handler(hits))
+    hassette_with_bus._bus.on(topic="demo.*", handler=get_handler(hits))
+    hassette_with_bus._bus.on(topic="demo.specific", handler=get_handler(hits))
 
     await hassette_with_bus.send_event("demo.specific", EVENT)
     await asyncio.sleep(0.1)  # allow dispatch
@@ -105,7 +105,7 @@ async def test_bus_glob_and_exact(hassette_with_bus: Hassette) -> None:
 
 async def test_bus_throttle(hassette_with_bus: Hassette) -> None:
     calls = []
-    hassette_with_bus.bus.on(topic="throttle", handler=get_handler(calls), throttle=0.05)
+    hassette_with_bus._bus.on(topic="throttle", handler=get_handler(calls), throttle=0.05)
 
     for _ in range(5):
         await hassette_with_bus.send_event("throttle", EVENT)
@@ -117,7 +117,7 @@ async def test_bus_throttle(hassette_with_bus: Hassette) -> None:
 
 async def test_bus_subscription_remove(hassette_with_bus: Hassette) -> None:
     calls = []
-    hassette_with_bus.bus.on(topic="x", handler=get_handler(calls))
+    hassette_with_bus._bus.on(topic="x", handler=get_handler(calls))
 
     await hassette_with_bus.send_event("x", EVENT)
     await asyncio.sleep(0)
@@ -133,7 +133,7 @@ async def test_bus_on_call_service(
     hassette_with_bus: Hassette, domain: str | None, service: str | None, expected_calls: int
 ) -> None:
     calls: list[CallServiceEvent] = []
-    hassette_with_bus.bus.on_call_service(domain=domain, service=service, handler=get_handler(calls))
+    hassette_with_bus._bus.on_call_service(domain=domain, service=service, handler=get_handler(calls))
 
     await hassette_with_bus.send_event(
         "hass.event.call_service",
@@ -160,7 +160,7 @@ async def test_bus_on_service_registered(
 ) -> None:
     calls: list[ServiceRegisteredEvent] = []
 
-    hassette_with_bus.bus.on_service_registered(domain=domain, service=service, handler=get_handler(calls))
+    hassette_with_bus._bus.on_service_registered(domain=domain, service=service, handler=get_handler(calls))
 
     await hassette_with_bus.send_event(
         "hass.event.service_registered",
@@ -182,7 +182,7 @@ async def test_bus_on_service_registered(
 async def test_bus_on_component_loaded(hassette_with_bus: Hassette, component: str | None, expected_calls: int) -> None:
     calls: list[ComponentLoadedEvent] = []
 
-    hassette_with_bus.bus.on_component_loaded(component=component, handler=get_handler(calls))
+    hassette_with_bus._bus.on_component_loaded(component=component, handler=get_handler(calls))
 
     await hassette_with_bus.send_event(
         "hass.event.component_loaded",
@@ -204,7 +204,7 @@ async def test_bus_on_component_loaded(hassette_with_bus: Hassette, component: s
 async def test_bus_on_home_assistant_restarted(hassette_with_bus: Hassette) -> None:
     calls: list[CallServiceEvent] = []
 
-    hassette_with_bus.bus.on(
+    hassette_with_bus._bus.on(
         topic="hass.event.call_service",
         handler=get_handler(calls),
         where=HomeAssistantRestarted,

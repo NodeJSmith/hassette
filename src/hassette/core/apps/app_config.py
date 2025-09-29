@@ -14,8 +14,8 @@ class AppConfig(BaseSettings):
 
     model_config = SettingsConfigDict(extra="allow", arbitrary_types_allowed=True, env_file=["/config/.env", ".env"])
 
-    instance_name: str | None = None
-    """Optional name for the instance of the app. Defaults to a name based on the class name and index."""
+    instance_name: str = ""
+    """Name for the instance of the app. Used for logging and ownership of resources."""
 
 
 AppConfigT = TypeVar("AppConfigT", bound=AppConfig)

@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from whenever import SystemDateTime
 
 from hassette.core.scheduler import Scheduler
-from hassette.core.scheduler.scheduler import ScheduledJob
+from hassette.core.scheduler.classes import ScheduledJob
 
 TZ = ZoneInfo("America/Chicago")
 
@@ -47,6 +47,7 @@ def test_scheduled_job_copies_args_kwargs() -> None:
     kwargs = {"alpha": 99}
 
     job = ScheduledJob(
+        owner="owner",
         next_run=SystemDateTime(2030, 1, 1, 0, 0, 0),
         job=lambda *a, **kw: None,  # noqa
         args=args,  # type: ignore

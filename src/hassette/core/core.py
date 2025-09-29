@@ -1,5 +1,6 @@
 import asyncio
 import typing
+import uuid
 from asyncio import Future, ensure_future
 from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
@@ -12,13 +13,13 @@ from ..config import HassetteConfig
 from ..utils import get_traceback_string, wait_for_resources_running
 from .api import Api, _Api
 from .apps.app_handler import _AppHandler
-from .bus.bus import Bus, _Bus
+from .bus.bus import Bus, BusService
 from .classes import Resource, Service
 from .enums import ResourceRole
 from .events import Event
 from .file_watcher import _FileWatcher
 from .health_service import _HealthService
-from .scheduler.scheduler import Scheduler, _Scheduler
+from .scheduler.scheduler import Scheduler, SchedulerService
 from .service_watcher import _ServiceWatcher
 from .websocket import _Websocket
 
@@ -39,6 +40,11 @@ class Hassette:
 
     _instance: ClassVar["Hassette"] = None  # type: ignore
 
+    @property
+    def unique_name(self) -> str:
+        """Unique identifier for the instance."""
+        return f"{type(self).__name__}-{self.unique_id}"
+
     def __init__(self, config: HassetteConfig) -> None:
         """
         Initialize the Hassette instance.
@@ -47,6 +53,7 @@ class Hassette:
             env_file (str | Path | None): Path to the environment file for configuration.
             config (HassetteConfig | None): Optional pre-loaded configuration.
         """
+        self.unique_id = uuid.uuid4().hex
 
         self.logger = getLogger(__name__)
 
@@ -78,15 +85,22 @@ class Hassette:
 
         self._health_service = self._register_resource(_HealthService)
 
-        # internal/public pairs
-        self._scheduler = self._register_resource(_Scheduler)
-        self.scheduler = self._register_resource(Scheduler, self._scheduler)
+        self.scheduler_service = self._register_resource(SchedulerService)
+        """Scheduler service for managing scheduled tasks."""
+
+        self._scheduler = self._register_resource(Scheduler, self.unique_name)
+        """Individual scheduler instance Hassette owned callbacks."""
+
+        self.bus_service = self._register_resource(BusService, self._receive_stream.clone())
+        """Event bus that all individual Bus instances connect to."""
+
+        self._bus = self._register_resource(Bus, self.unique_name)
+        """Individual event bus instance for Hassette owned events handlers."""
 
         self._api = self._register_resource(_Api)
-        self.api = self._register_resource(Api, self._api)
 
-        self._bus = self._register_resource(_Bus, self._receive_stream.clone())
-        self.bus = self._register_resource(Bus, self._bus)
+        self.api = self._register_resource(Api, self._api)
+        """API service for handling HTTP requests."""
 
         type(self)._instance = self
 

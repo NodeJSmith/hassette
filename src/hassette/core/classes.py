@@ -2,6 +2,7 @@ import asyncio
 import copy
 import logging
 import typing
+import uuid
 from abc import abstractmethod
 from logging import getLogger
 from typing import ClassVar
@@ -35,7 +36,16 @@ class _HassetteBase:
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
+        self.unique_id = uuid.uuid4().hex
+        """Unique identifier for the instance."""
+
         self.hassette = hassette
+        """Reference to the Hassette instance."""
+
+    @property
+    def unique_name(self) -> str:
+        """Unique identifier for the instance."""
+        return f"{self.class_name}-{self.unique_id}"
 
     def __init_subclass__(cls) -> None:
         """

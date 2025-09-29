@@ -14,12 +14,12 @@ from anyio import create_memory_object_stream
 
 from hassette.core.api import Api, _Api
 from hassette.core.apps.app_handler import _AppHandler
-from hassette.core.bus.bus import Bus, _Bus
+from hassette.core.bus.bus import Bus, BusService
 from hassette.core.classes import Resource
 from hassette.core.core import Event, Hassette
 from hassette.core.enums import ResourceStatus
 from hassette.core.file_watcher import _FileWatcher
-from hassette.core.scheduler.scheduler import Scheduler, _Scheduler
+from hassette.core.scheduler.scheduler import Scheduler, SchedulerService
 from hassette.core.websocket import _Websocket
 from hassette.test_utils.test_server import SimpleTestServer
 
@@ -73,10 +73,10 @@ class _HarnessHassette:
 
         self._api: _Api | None = None
         self.api: Api | None = None
-        self._bus: _Bus | None = None
-        self.bus: Bus | None = None
-        self._scheduler: _Scheduler | None = None
-        self.scheduler: Scheduler | None = None
+        self.bus_service: BusService | None = None
+        self._bus: Bus | None = None
+        self.scheduler_service: SchedulerService | None = None
+        self._scheduler: Scheduler | None = None
         self._file_watcher: _FileWatcher | None = None
         self._app_handler: _AppHandler | None = None
         self._websocket: _Websocket | None = None
@@ -152,10 +152,10 @@ class HassetteHarness:
 
         self.api: Api | None = None
         self.api_mock: SimpleTestServer | None = None
-        self._scheduler: _Scheduler | None = None
+        self._scheduler: SchedulerService | None = None
         self.scheduler: Scheduler | None = None
         self._file_watcher: _FileWatcher | None = None
-        self._bus: _Bus | None = None
+        self._bus: BusService | None = None
         self.bus: Bus | None = None
         self._app_handler: _AppHandler | None = None
         self._websocket: _Websocket | None = None
@@ -222,31 +222,31 @@ class HassetteHarness:
         send_stream, receive_stream = create_memory_object_stream[tuple[str, Event[Any]]](1000)
         self.hassette._send_stream = send_stream
         self.hassette._receive_stream = receive_stream
-        bus_service = _Bus(cast("Hassette", self.hassette), receive_stream.clone())
+        bus_service = BusService(cast("Hassette", self.hassette), receive_stream.clone())
 
         self._exit_stack.push_async_callback(send_stream.aclose)
         self._exit_stack.push_async_callback(receive_stream.aclose)
 
-        self.hassette._bus = bus_service
-        self.hassette.bus = Bus(cast("Hassette", self.hassette), bus_service)
-        self.hassette._resources[_Bus.class_name] = bus_service
-        self.hassette._resources[Bus.class_name] = self.hassette.bus
-        task = await start_resource(bus_service, desc="_Bus")
+        self.hassette.bus_service = bus_service
+        self.hassette._bus = Bus(cast("Hassette", self.hassette), owner="Hassette")
+        self.hassette._resources[BusService.class_name] = bus_service
+        self.hassette._resources[Bus.class_name] = self.hassette._bus
+        task = await start_resource(bus_service, desc="BusService")
         if task:
-            self._tasks.append(("_Bus", task))
+            self._tasks.append(("BusService", task))
 
     async def _start_scheduler(self) -> None:
-        scheduler_service = _Scheduler(cast("Hassette", self.hassette))
-        scheduler = Scheduler(cast("Hassette", self.hassette), scheduler_service)
-        self.hassette._scheduler = scheduler_service
-        self.hassette.scheduler = scheduler
+        scheduler_service = SchedulerService(cast("Hassette", self.hassette))
+        scheduler = Scheduler(cast("Hassette", self.hassette), owner="Hassette")
+        self.hassette.scheduler_service = scheduler_service
+        self.hassette._scheduler = scheduler
         self.hassette._thread_pool = self._thread_pool
-        self.hassette._resources[_Scheduler.class_name] = scheduler_service
+        self.hassette._resources[SchedulerService.class_name] = scheduler_service
         self.hassette._resources[Scheduler.class_name] = scheduler
         scheduler_service.max_delay = 1
-        task = await start_resource(scheduler_service, desc="_Scheduler")
+        task = await start_resource(scheduler_service, desc="SchedulerService")
         if task:
-            self._tasks.append(("_Scheduler", task))
+            self._tasks.append(("SchedulerService", task))
 
     async def _start_file_watcher(self) -> None:
         if not self.hassette.config:
@@ -259,7 +259,7 @@ class HassetteHarness:
             self._tasks.append(("_FileWatcher", task))
 
     async def _start_app_handler(self) -> None:
-        if not self.hassette.bus:
+        if not self.hassette._bus:
             raise RuntimeError("App handler requires bus")
         app_handler = _AppHandler(cast("Hassette", self.hassette))
         self.hassette._app_handler = app_handler

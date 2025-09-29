@@ -65,8 +65,8 @@ async def hassette_scheduler(
     test_config: "HassetteConfig",
 ) -> "AsyncIterator[Scheduler]":
     async with hassette_harness(config=test_config, use_scheduler=True) as harness:
-        assert harness.hassette.scheduler is not None
-        yield harness.hassette.scheduler
+        assert harness.hassette._scheduler is not None
+        yield harness.hassette._scheduler
 
 
 @pytest.fixture
@@ -80,8 +80,10 @@ async def hassette_with_file_watcher(
 
     async with hassette_harness(config=config, use_bus=True, use_file_watcher=True) as harness:
         assert harness.hassette._file_watcher is not None
-        assert harness.hassette._bus is not None
-        await wait_for_resources_running_or_raise([harness.hassette._file_watcher, harness.hassette._bus], timeout=5)
+        assert harness.hassette.bus_service is not None
+        await wait_for_resources_running_or_raise(
+            [harness.hassette._file_watcher, harness.hassette.bus_service], timeout=5
+        )
         yield cast("Hassette", harness.hassette)
 
 
@@ -94,6 +96,8 @@ async def hassette_app_handler(
 
     async with hassette_harness(config=config, use_bus=True, use_app_handler=True, use_scheduler=True) as harness:
         assert harness.hassette._app_handler is not None
-        assert harness.hassette._bus is not None
-        await wait_for_resources_running_or_raise([harness.hassette._app_handler, harness.hassette._bus], timeout=5)
+        assert harness.hassette.bus_service is not None
+        await wait_for_resources_running_or_raise(
+            [harness.hassette._app_handler, harness.hassette.bus_service], timeout=5
+        )
         yield cast("_AppHandler", harness.hassette._app_handler)

@@ -1,13 +1,28 @@
+import typing
+
+from hassette.core.bus import Bus
+
 from .classes import Resource
 from .events import HassetteServiceEvent
+
+if typing.TYPE_CHECKING:
+    from hassette.core.core import Hassette
 
 
 class _ServiceWatcher(Resource):
     """Watches for service events and handles them."""
 
+    def __init__(self, hassette: "Hassette"):
+        super().__init__(hassette=hassette)
+        self.bus = Bus(hassette, owner=self.unique_name)
+
     async def initialize(self, *args, **kwargs) -> None:
         self._register_internal_event_listeners()
         return await super().initialize(*args, **kwargs)
+
+    async def shutdown(self, *args, **kwargs) -> None:
+        self.bus.remove_all_listeners()
+        return await super().shutdown(*args, **kwargs)
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Start a service from a service event."""
@@ -85,6 +100,6 @@ class _ServiceWatcher(Resource):
 
     def _register_internal_event_listeners(self) -> None:
         """Register internal event listeners for resource lifecycle."""
-        self.hassette.bus.on_hassette_service_failed(handler=self.restart_service)
-        self.hassette.bus.on_hassette_service_crashed(handler=self.shutdown_if_crashed)
-        self.hassette.bus.on_hassette_service_status(handler=self.log_service_event)
+        self.bus.on_hassette_service_failed(handler=self.restart_service)
+        self.bus.on_hassette_service_crashed(handler=self.shutdown_if_crashed)
+        self.bus.on_hassette_service_status(handler=self.log_service_event)

@@ -1,15 +1,18 @@
 import logging
 import typing
 from logging import getLogger
-from typing import ClassVar, Generic
+from typing import Any, ClassVar, Generic
 
 from anyio import to_thread
 
-from hassette.config.app_manifest import AppManifest
-from hassette.core.apps.app_config import AppConfig, AppConfigT
-from hassette.core.apps.utils import validate_app
-from hassette.core.classes import Resource
-from hassette.core.enums import ResourceRole
+from ...config.app_manifest import AppManifest
+from ..apps.app_config import AppConfig, AppConfigT
+from ..apps.utils import validate_app
+from ..bus import Bus
+from ..classes import Resource
+from ..enums import ResourceRole
+from ..events import Event
+from ..scheduler import Scheduler
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
@@ -57,6 +60,24 @@ class App(Generic[AppConfigT], Resource):
     logger: logging.Logger
     """Logger for the instance."""
 
+    scheduler: Scheduler
+    """Scheduler instance for scheduled tasks owned by this app."""
+
+    bus: Bus
+    """Event bus instance for event handlers owned by this app."""
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        try:
+            cls.app_config_cls = validate_app(cls)
+
+        except Exception as e:
+            # note: because these are imported dynamically, we cannot do anything to prevent logging
+            # the same class multiple times; likely won't be an issue in practice
+            cls._import_exception = e
+            LOGGER.exception("Failed to initialize subclass %s", cls.__name__)
+
     def __init__(
         self,
         hassette: "Hassette",
@@ -79,29 +100,31 @@ class App(Generic[AppConfigT], Resource):
         logger_name = f"hassette.{type(self).__name__}.{self.app_config.instance_name}"
         self.logger = getLogger(logger_name)
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
+        if self.instance_name == "":
+            # this shouldn't happen, as AppHandler will set a default if not provided
+            raise ValueError("App instance_name cannot be empty.")
 
-        try:
-            cls.app_config_cls = validate_app(cls)
+        self.bus = Bus(self.hassette, owner=self.unique_name)
+        self.scheduler = Scheduler(self.hassette, owner=self.unique_name)
 
-        except Exception as e:
-            # note: because these are imported dynamically, we cannot do anything to prevent logging
-            # the same class multiple times; likely won't be an issue in practice
-            cls._import_exception = e
-            LOGGER.exception("Failed to initialize subclass %s", cls.__name__)
+    @property
+    def unique_name(self) -> str:
+        """Unique identifier for the instance."""
+        return f"{self.class_name}-{self.instance_name}-{self.unique_id}"
+
+    @property
+    def instance_name(self) -> str:
+        """Name for the instance of the app. Used for logging and ownership of resources."""
+        return self.app_config.instance_name
 
     @property
     def api(self):
+        """API instance for interacting with Home Assistant."""
         return self.hassette.api
 
-    @property
-    def bus(self):
-        return self.hassette.bus
-
-    @property
-    def scheduler(self):
-        return self.hassette.scheduler
+    async def send_event(self, event_name: str, event: Event[Any]) -> None:
+        """Send an event to the event bus."""
+        await self.hassette._send_stream.send((event_name, event))
 
     async def initialize(self) -> None:
         """Initialize the app.
@@ -117,6 +140,15 @@ class App(Generic[AppConfigT], Resource):
         This method should be overridden by subclasses to provide custom shutdown logic.
         """
         await super().shutdown()
+
+    def cleanup_resources(self) -> None:
+        """Cleanup resources owned by the app.
+
+        This method is called during shutdown to ensure that all resources are properly released.
+        """
+        self.scheduler.remove_all_jobs()
+        self.bus.remove_all_listeners()
+        self.logger.debug("Cleaned up resources for app '%s'", self.class_name)
 
 
 class AppSync(App[AppConfigT]):

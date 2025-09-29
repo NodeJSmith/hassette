@@ -31,7 +31,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.types import Handler, Predicate
 
 
-class _Bus(Service):
+class BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
     def __init__(self, hassette: "Hassette", stream: MemoryObjectReceiveStream["tuple[str, Event[Any]]"]):
@@ -59,23 +59,46 @@ class _Bus(Service):
         """Add a listener to the bus."""
         self._tasks.add(self.hassette.create_task(self.add_listener_coro(listener)))
 
-    def remove_listener_by_key(self, topic: str, key: str) -> None:
-        """Remove a listener by its key."""
-        self._tasks.add(self.hassette.create_task(self.remove_listener_by_key_coro(topic, key)))
+    def remove_listener(self, listener: Listener) -> None:
+        """Remove a listener from the bus."""
+        self.remove_listener_by_id(listener.topic, listener.listener_id)
+
+    def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
+        """Remove a listener by its ID."""
+        self._tasks.add(self.hassette.create_task(self.remove_listener_by_id_coro(topic, listener_id)))
+
+    def remove_listeners_by_owner(self, owner: str) -> None:
+        """Remove all listeners owned by a specific owner."""
+        self._tasks.add(self.hassette.create_task(self.remove_listeners_by_owner_coro(owner)))
 
     async def add_listener_coro(self, listener: Listener) -> None:
         """Add a listener to the bus in a coroutine."""
         async with self.lock:
             add_route(self.exact, self.globs, listener.topic, listener)
 
-    async def remove_listener_by_key_coro(self, topic: str, key: str) -> None:
-        """Remove a listener by its key in a coroutine."""
+    async def remove_listener_by_id_coro(self, topic: str, listener_id: int) -> None:
+        """Remove a listener by its ID in a coroutine."""
         async with self.lock:
 
-            def is_key(listener: Listener) -> bool:
-                return listener.key == key
+            def is_id(listener: Listener) -> bool:
+                return listener.listener_id == listener_id
 
-            remove_route(self.exact, self.globs, topic, is_key)
+            remove_route(self.exact, self.globs, topic, is_id)
+
+    async def remove_listeners_by_owner_coro(self, owner: str) -> None:
+        """Remove all listeners owned by a specific owner in a coroutine."""
+        async with self.lock:
+
+            def is_owner(listener: Listener) -> bool:
+                return listener.owner == owner
+
+            topics = list(self.exact.keys())
+            for topic in topics:
+                remove_route(self.exact, self.globs, topic, is_owner)
+
+            topics = list(self.globs.keys())
+            for topic in topics:
+                remove_route(self.exact, self.globs, topic, is_owner)
 
     async def dispatch(self, topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
@@ -101,16 +124,19 @@ class _Bus(Service):
         self.logger.debug("Listeners for %s: %r", topic, targets)
 
         for listener in targets:
+            self.hassette.create_task(self._dispatch(topic, event, listener))
 
-            async def _dispatch(listener_=listener):
-                try:
-                    if await listener_.matches(event):
-                        self.logger.debug("Dispatching %s -> %r", topic, listener_)
-                        await listener_.handler(event)
-                except Exception:
-                    self.logger.exception("Listener error (topic=%s, handler=%r)", topic, listener_.handler_name)
-
-            self.hassette.create_task(_dispatch())
+    async def _dispatch(self, topic: str, event: "Event[Any]", listener: Listener) -> None:
+        try:
+            if await listener.matches(event):
+                self.logger.debug("Dispatching %s -> %r", topic, listener)
+                await listener.handler(event)
+        except Exception:
+            self.logger.exception("Listener error (topic=%s, handler=%r)", topic, listener.handler_name)
+        finally:
+            # if once, remove after running
+            if listener.once:
+                self.remove_listener(listener)
 
     async def run_forever(self) -> None:
         """Worker loop that processes events from the stream."""
@@ -135,23 +161,31 @@ class _Bus(Service):
 
 
 class Bus(Resource):
-    """EventBus service that handles event dispatching and listener management."""
+    """Individual event bus instance for a specific owner (e.g., App or Service)."""
 
-    def __init__(self, hassette: "Hassette", _bus: _Bus):
+    def __init__(self, hassette: "Hassette", owner: str):
+        """Initialize the Bus instance."""
+
         super().__init__(hassette)
-        self._bus = _bus
 
-    def get_next_listener_id(self) -> str:
-        """Get the next listener ID."""
-        return f"L{next(self._bus.listener_seq):05d}"
+        self.owner = owner
+        """Owner of the bus, must be a unique identifier for the owner."""
 
-    def remove_listener_by_key(self, topic: str, key: str) -> None:
-        """Remove a listener by its key."""
-        self._bus.remove_listener_by_key(topic, key)
+    @property
+    def bus_service(self) -> BusService:
+        return self.hassette.bus_service
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""
-        self._bus.add_listener(listener)
+        self.bus_service.add_listener(listener)
+
+    def remove_listener(self, listener: Listener) -> None:
+        """Remove a listener from the bus."""
+        self.bus_service.remove_listener(listener)
+
+    def remove_all_listeners(self) -> None:
+        """Remove all listeners owned by this bus's owner."""
+        self.bus_service.remove_listeners_by_owner(self.owner)
 
     def on(
         self,
@@ -179,7 +213,6 @@ class Bus(Resource):
 
         pred = normalize_where(where)
 
-        listener_id = self.get_next_listener_id()
         orig = handler
 
         # ensure-async
@@ -190,32 +223,22 @@ class Bus(Resource):
         if throttle and throttle > 0:
             handler = add_throttle(handler, throttle)
 
-        if once:
-
-            async def _once(event: "Event[Any]") -> None:
-                try:
-                    await handler(event)
-                finally:
-                    # central, single path for removal
-                    self.remove_listener_by_key(topic, listener_id)
-
-            run_final = _once
-        else:
-            run_final = handler
-
         listener = Listener(
-            key=listener_id,
+            owner=self.owner,
             topic=topic,
             orig_handler=orig,
-            handler=run_final,
+            handler=handler,
             predicate=pred,
             once=once,
             debounce=debounce,
             throttle=throttle,
         )
 
+        def unsubscribe() -> None:
+            self.remove_listener(listener)
+
         self.add_listener(listener)
-        return Subscription(self, topic, key=listener.key)
+        return Subscription(listener, unsubscribe)
 
     def on_entity(
         self,
