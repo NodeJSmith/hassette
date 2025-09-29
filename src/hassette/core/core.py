@@ -167,9 +167,7 @@ class Hassette:
 
         """
 
-        timeout_seconds = (
-            timeout_seconds if timeout_seconds is None else (timeout_seconds or self.config.run_sync_timeout_seconds)
-        )
+        timeout_seconds = timeout_seconds if timeout_seconds is not None else self.config.run_sync_timeout_seconds
 
         # If we're already in an event loop, don't allow blocking calls.
         try:
