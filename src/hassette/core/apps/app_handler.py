@@ -15,7 +15,8 @@ from hassette.core import Bus
 from hassette.core.apps.app import App, AppSync
 from hassette.core.classes import Resource
 from hassette.core.enums import ResourceStatus
-from hassette.core.topics import HASSETTE_EVENT_FILE_WATCHER
+from hassette.core.events.hassette import HassetteEmptyPayload
+from hassette.core.topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 
 if typing.TYPE_CHECKING:
@@ -42,6 +43,12 @@ class _AppHandler(Resource):
     - Deterministic storage: apps[app_name][index] -> App
     - Tracks per-app failures in failed_apps for observability
     """
+
+    # TODO:
+    # need to separate startup of app handler from initialization of apps
+    # so that we can start the app handler, then the API, then initialize apps
+    # because apps may want to use the API during startup
+    # could trigger on websocket connected event, with a once=True handler?
 
     # TODO: handle stopping/starting individual app instances, instead of all apps of a class/key
     # no need to restart app index 2 if only app index 0 changed, etc.
@@ -183,12 +190,12 @@ class _AppHandler(Resource):
             self.logger.exception("Failed to reload app %s", app_key)
 
     async def initialize_apps(self) -> None:
-        if not (await self.hassette.wait_for_resources_running([self.hassette._websocket])):
-            self.logger.warning("App initialization timed out")
-            return
-
         if not self.apps_config:
             self.logger.info("No apps configured, skipping initialization")
+            return
+
+        if not (await self.hassette.wait_for_resources_running([self.hassette._websocket])):
+            self.logger.warning("App initialization timed out")
             return
 
         try:
@@ -347,6 +354,11 @@ class _AppHandler(Resource):
         await self._handle_new_apps(new_apps)
         await self._reload_apps_due_to_file_change(reimport_apps)
         await self._reload_apps_due_to_config(reload_apps)
+
+        await self.hassette.send_event(
+            HASSETTE_EVENT_APP_RELOAD_COMPLETED,
+            HassetteEmptyPayload.create_event(topic=HASSETTE_EVENT_APP_RELOAD_COMPLETED),
+        )
 
     def _calculate_app_changes(
         self,
