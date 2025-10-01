@@ -172,10 +172,12 @@ async def test_app_without_instance_name(hassette_with_app_handler: Hassette) ->
     app_handler = hassette_with_app_handler._app_handler
     assert "my_app_sync" in app_handler.apps, "Precondition: my_app_sync starts enabled"
 
+    expected_name = "MyAppSync.0"
+
     my_app_sync_instance = app_handler.get("my_app_sync", 0)
     assert my_app_sync_instance is not None, "my_app_sync instance should exist"
-    assert my_app_sync_instance.app_config.instance_name == "MyAppSync.0", (
-        "my_app_sync instance should have the default instance_name,"
+    assert my_app_sync_instance.app_config.instance_name == expected_name, (
+        f"my_app_sync instance should have the default instance_name {expected_name},"
         f" found {my_app_sync_instance.app_config.instance_name}"
     )
 
