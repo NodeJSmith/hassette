@@ -23,17 +23,37 @@ class ScheduledJob:
     """A job scheduled to run based on a trigger or at a specific time."""
 
     sort_index: tuple[int, int] = field(init=False, repr=False)
+    """Tuple of (next_run timestamp with nanoseconds, job_id) for ordering in a priority queue."""
 
     owner: str = field(compare=False)
+    """Unique string identifier for the owner of the job, e.g., a component or integration name."""
+
     next_run: SystemDateTime = field(compare=False)
+    """Timestamp of the next scheduled run."""
+
     job: "JobCallable" = field(compare=False)
+    """The callable to execute when the job runs."""
+
     trigger: "TriggerProtocol | None" = field(compare=False, default=None)
+    """The trigger that determines the job's schedule."""
+
     repeat: bool = field(compare=False, default=False)
+    """Whether the job should be rescheduled after running."""
+
     name: str = field(default="", compare=False)
+    """Optional name for the job for easier identification."""
+
     cancelled: bool = field(default=False, compare=False)
+    """Flag indicating whether the job has been cancelled."""
+
     args: tuple[Any, ...] = field(default_factory=tuple, compare=False)
+    """Positional arguments to pass to the job callable."""
+
     kwargs: dict[str, Any] = field(default_factory=dict, compare=False)
+    """Keyword arguments to pass to the job callable."""
+
     job_id: int = field(default_factory=next_id, init=False, compare=False)
+    """Unique identifier for the job instance."""
 
     def __repr__(self) -> str:
         return f"ScheduledJob(name={self.name!r}, next_run={self.next_run})"

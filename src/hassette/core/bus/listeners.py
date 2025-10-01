@@ -68,9 +68,10 @@ class Listener:
     """A listener for events with a specific topic and handler."""
 
     listener_id: int = field(default_factory=next_id, init=False)
+    """Unique identifier for the listener instance."""
 
-    owner: str
-    """Owner of the listener, typically the app instance name."""
+    owner: str = field(compare=False)
+    """Unique string identifier for the owner of the listener, e.g., a component or integration name."""
 
     topic: str
     """Topic the listener is subscribed to."""
