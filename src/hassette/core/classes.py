@@ -4,6 +4,7 @@ import logging
 import typing
 import uuid
 from abc import abstractmethod
+from contextlib import asynccontextmanager
 from logging import getLogger
 from typing import ClassVar
 
@@ -119,12 +120,38 @@ class _HassetteBase:
         event = self._create_service_status_event(ResourceStatus.FAILED, exception)
         await self.hassette.send_event(event.topic, event)
 
-    async def handle_start(self) -> None:
-        """Handle a start event for the service."""
+    async def handle_running(self) -> None:
+        """Handle a running event for the service."""
 
-        self.logger.info("Starting %s '%s'", self.role, self.class_name)
+        if self._previous_status == ResourceStatus.RUNNING:
+            self.logger.debug("%s '%s' is already running", self.role, self.class_name)
+            return
+
+        self.logger.info("Running %s '%s'", self.role, self.class_name)
         self.status = ResourceStatus.RUNNING
         event = self._create_service_status_event(ResourceStatus.RUNNING)
+        await self.hassette.send_event(event.topic, event)
+
+    @asynccontextmanager
+    async def starting(self):
+        try:
+            await self.handle_starting()
+            yield
+            await self.handle_running()
+        except Exception as e:
+            await self.handle_crash(e)
+            raise
+
+    async def handle_starting(self) -> None:
+        """Handle a starting event for the service."""
+
+        if self.status == ResourceStatus.STARTING:
+            self.logger.debug("%s '%s' is already starting", self.role, self.class_name)
+            return
+
+        self.logger.info("Starting %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.STARTING
+        event = self._create_service_status_event(ResourceStatus.STARTING)
         await self.hassette.send_event(event.topic, event)
 
     async def handle_crash(self, exception: Exception) -> None:
@@ -189,7 +216,7 @@ class Resource(_HassetteBase):
         resource-specific initialization tasks.
         """
         self.logger.debug("Initializing '%s' %s", self.class_name, self.role)
-        await self.handle_start()
+        await self.handle_running()
 
     async def shutdown(self, *args, **kwargs) -> None:
         """Shutdown the resource.
@@ -202,7 +229,6 @@ class Resource(_HassetteBase):
 
         self.logger.debug("Shutting down '%s' %s", self.class_name, self.role)
         await self.handle_stop()
-        self.status = ResourceStatus.STOPPED
 
     async def restart(self) -> None:
         """Restart the resource."""
