@@ -32,11 +32,6 @@ ROOT_PATH = "root"
 USER_CONFIG_PATH = "user_config"
 
 
-def _manifest_key(app_name: str, index: int) -> str:
-    # Human-friendly identifier for logs; not used as dict key.
-    return f"{app_name}[{index}]"
-
-
 class _AppHandler(Resource):
     """Manages the lifecycle of apps in Hassette.
 
@@ -278,8 +273,9 @@ class _AppHandler(Resource):
         app_configs = app_configs if isinstance(app_configs, list) else [app_configs]
 
         for idx, config in enumerate(app_configs):
-            # Set instance_name if not set in config
-            config["instance_name"] = instance_name = config.get("instance_name", f"{class_name}.{idx}")
+            instance_name = config.get("instance_name")
+            if not instance_name:
+                raise ValueError(f"App {app_key} instance {idx} is missing instance_name")
             try:
                 validated = settings_cls.model_validate(config)
                 app_instance = app_class(self.hassette, app_config=validated, index=idx)
