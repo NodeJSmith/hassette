@@ -24,8 +24,24 @@ class _HassetteBase:
     role: ClassVar[ResourceRole] = ResourceRole.BASE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
-    status: ResourceStatus = ResourceStatus.NOT_STARTED
+    # status: ResourceStatus = ResourceStatus.NOT_STARTED
+    # """Current status of the resource."""
+
+    _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
+    """Previous status of the resource."""
+
+    _status: ResourceStatus = ResourceStatus.NOT_STARTED
     """Current status of the resource."""
+
+    @property
+    def status(self) -> ResourceStatus:
+        """Current status of the resource."""
+        return self._status
+
+    @status.setter
+    def status(self, value: ResourceStatus) -> None:
+        self._previous_status = self._status
+        self._status = value
 
     def __init__(self, hassette: "Hassette", *args, **kwargs) -> None:
         """
@@ -83,7 +99,7 @@ class _HassetteBase:
             resource_name=self.class_name,
             role=self.role,
             status=status,
-            previous_status=self.status,
+            previous_status=self._previous_status,
             exc=exception,
         )
 
