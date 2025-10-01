@@ -252,7 +252,7 @@ class Hassette:
 
         self.ready_event.set()
 
-        started = await self.wait_for_resources_running(list(self._resources.values()), timeout=20)
+        started = await self.wait_for_resources_running(list(self._resources.values()))
 
         if not started:
             self.logger.error("Not all resources started successfully, shutting down")
