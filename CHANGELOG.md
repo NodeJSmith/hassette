@@ -7,24 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- `hassette.event.app_reload_completed` now fires after reload cycles, and `HassetteEmptyPayload` provides a helper for simple internal events.
+- Bus routing tracks listeners by owner with a fair async lock, improving atomic cleanup when instances shut down.
+
 ### Changed
-- Change `App` logger from class-level to instance-level to allow for better logging per app instance
-- Add `instance_name` attribute to `AppConfig` base class to simplify providing unique names for app instances
-  - Defaults to `"{class_name}.{index}"` if not provided in config
-- Improved handling of app reloading
-  - Check `only_app` earlier in the process to get accurate details on what to reload/stop/start/etc.
-- Changed `full_path` property on `AppManifest` to a method `get_full_path()` - this can raise `FileNotFoundError` if the file does not exist, so it shouldn't be a property
-- Reduce some logging noise during startup/shutdown
-  - Change some `info` logs to `debug` in `Hassette` and `FileWatcher`
-  - Log Hassette version and enabled/disabled apps at `info` level on startup
-- Extended `_FileWatcher` default values for debounce and step milliseconds
+- **Breaking:** Per-owner buses replace the global `hassette.bus`; listener removal must go through `BusService` and owner-aware APIs.
+- **Breaking:** `@only` becomes `@only_app`, apps must expose a non-empty `instance_name`, and each app now owns its `Bus` and `Scheduler` handles.
+- **Breaking:** Scheduler APIs run through `SchedulerService`, and `ScheduledJob` embeds an owner id for cleanup; update job creation/removal accordingly.
+- Lifecycle helpers introduce `ResourceStatus.STARTING`, add a `Resource.starting()` context, and Hassette core now exposes `bus_service`/`scheduler_service`, records a unique id, and reverses shutdown order for clearer lifecycles.
+- Scheduler service waits for readiness, logs catch-up execution, and supports owner-based job removal to make repeating tasks safer.
 
 ### Fixed
-- Fixed issue where `_FileWatcher` would crash if an app file did not exist
+- App reloads clean up owned listeners and jobs, preventing leaked callbacks between reload cycles.
 
 ### Internal
-- Improved Hassette events by bringing event creation into classes, adding helper methods
-  - Separated connected and disconnected events for websocket
+- Test harness provisions mock bus, scheduler, and API services without Docker, while CI skips the Home Assistant container to speed up pipelines.
+- Added `pyrightconfig.json` and documented the new `fair-async-rlock` dependency used by the router.
 
 ## [0.10.0] - 2025-09-27
 
