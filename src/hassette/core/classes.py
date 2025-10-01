@@ -4,7 +4,7 @@ import logging
 import typing
 import uuid
 from abc import abstractmethod
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from logging import getLogger
 from typing import ClassVar
 
@@ -226,6 +226,11 @@ class Resource(_HassetteBase):
         if self.status == ResourceStatus.STOPPED:
             self.logger.warning("%s '%s' is already stopped", self.role, self.class_name)
             return
+
+        self.cancel()
+        with suppress(asyncio.CancelledError):
+            if self._task:
+                await self._task
 
         self.logger.debug("Shutting down '%s' %s", self.class_name, self.role)
         await self.handle_stop()
