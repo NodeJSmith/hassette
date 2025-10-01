@@ -288,7 +288,7 @@ class Hassette:
         self.shutdown()  # signal shutdown
 
         # shutdown each resource
-        for resource in self._resources.values():
+        for resource in reversed(self._resources.values()):
             try:
                 await resource.shutdown()
             except Exception as e:
