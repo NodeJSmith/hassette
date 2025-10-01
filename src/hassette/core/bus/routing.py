@@ -48,15 +48,39 @@ class Router:
         bucket = self.globs if any(ch in topic for ch in GLOB_CHARS) else self.exact
 
         async with self.lock:
-            if topic in bucket:
-                bucket[topic] = list(filter(lambda x: not predicate(x), bucket[topic]))
-                if not bucket[topic]:
-                    bucket.pop(topic, None)
+            listeners = bucket.get(topic)
+            if not listeners:
+                return
 
-            # Also remove from owners
-            for owner, listeners in list(self.owners.items()):
-                self.owners[owner] = list(filter(lambda x: not predicate(x), listeners))
-                if not self.owners[owner]:
+            removed: list[Listener] = []
+            kept: list[Listener] = []
+
+            for listener in listeners:
+                if predicate(listener):
+                    removed.append(listener)
+                else:
+                    kept.append(listener)
+
+            if not removed:
+                return
+
+            if kept:
+                bucket[topic] = kept
+            else:
+                bucket.pop(topic, None)
+
+            removed_by_owner: dict[str, set[int]] = defaultdict(set)
+            for listener in removed:
+                removed_by_owner[listener.owner].add(listener.listener_id)
+
+            for owner, removed_ids in removed_by_owner.items():
+                owner_listeners = self.owners.get(owner)
+                if not owner_listeners:
+                    continue
+                remaining = [x for x in owner_listeners if x.listener_id not in removed_ids]
+                if remaining:
+                    self.owners[owner] = remaining
+                else:
                     self.owners.pop(owner, None)
 
     async def remove_listener(self, listener: Listener) -> None:
@@ -116,11 +140,20 @@ class Router:
             owner (str): The owner whose listeners should be removed.
         """
 
-        if owner not in self.owners:
-            return
-
         async with self.lock:
-            for listener in self.owners[owner]:
-                await self.remove_route(listener.topic, lambda x: x.owner == owner)
+            owner_listeners = self.owners.pop(owner, None)
+            if not owner_listeners:
+                return
 
-            self.owners.pop(owner, None)
+            handled_topics = {listener.topic for listener in owner_listeners}
+            for topic in handled_topics:
+                bucket = self.globs if any(ch in topic for ch in GLOB_CHARS) else self.exact
+                listeners = bucket.get(topic)
+                if not listeners:
+                    continue
+
+                remaining = [listener for listener in listeners if listener.owner != owner]
+                if remaining:
+                    bucket[topic] = remaining
+                else:
+                    bucket.pop(topic, None)
