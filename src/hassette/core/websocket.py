@@ -15,7 +15,6 @@ from aiohttp.client_exceptions import ClientConnectionResetError
 from tenacity import AsyncRetrying, before_sleep_log, retry_if_exception_type, retry_if_not_exception_type
 
 from hassette.core.classes import Service
-from hassette.core.enums import ResourceStatus
 from hassette.core.events import (
     HassEventEnvelopeDict,
     WebsocketConnectedEventPayload,
@@ -70,6 +69,7 @@ class _Websocket(Service):
         return next(self._seq)
 
     async def run_forever(self) -> None:
+        """Connect to the WebSocket and run the receive loop."""
         async with self._connect_lock:
             try:
                 await self._connect_and_run()
@@ -96,6 +96,7 @@ class _Websocket(Service):
         # adjust behavior in things like the Api class
 
         timeout = ClientTimeout(connect=5, total=30)
+
         async for attempt in AsyncRetrying(
             retry=retry_if_not_exception_type(
                 (InvalidAuthError, asyncio.CancelledError, CouldNotFindHomeAssistantError)
@@ -110,26 +111,26 @@ class _Websocket(Service):
         ):
             with attempt:
                 async with aiohttp.ClientSession(timeout=timeout) as session:
-                    self._session = session
-                    try:
-                        self._ws = await session.ws_connect(self.url, heartbeat=30)
-                    except ClientConnectorError as exc:
-                        if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
-                            raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
-                        raise
+                    async with self.starting():
+                        self._session = session
+                        try:
+                            self._ws = await session.ws_connect(self.url, heartbeat=30)
+                        except ClientConnectorError as exc:
+                            if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
+                                raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
+                            raise
 
-                    self.logger.debug("Connected to WebSocket at %s", self.url)
-                    await self.authenticate()
+                        self.logger.debug("Connected to WebSocket at %s", self.url)
+                        await self.authenticate()
 
-                    # start the reader first so send_and_wait can get replies
-                    self._recv_task = self.hassette.create_task(self._recv_loop())
+                        # start the reader first so send_and_wait can get replies
+                        self._recv_task = self.hassette.create_task(self._recv_loop())
 
-                    sub_all_id = await self._subscribe_events()  # uses send_and_wait internally
-                    self._subscription_ids.add(sub_all_id)
+                        sub_all_id = await self._subscribe_events()  # uses send_and_wait internally
+                        self._subscription_ids.add(sub_all_id)
 
-                    await self.handle_start()
-                    event = WebsocketConnectedEventPayload.create_event(url=self.url)
-                    await self.hassette.send_event(event.topic, event)
+                        event = WebsocketConnectedEventPayload.create_event(url=self.url)
+                        await self.hassette.send_event(event.topic, event)
 
                     # Keep running until recv loop ends (disconnect, error, etc.)
                     await self._recv_task
@@ -150,12 +151,6 @@ class _Websocket(Service):
         # HA replies with {'id': <same>, 'type': 'result', 'success': True}
         # We return our own id as the subscription handle for unsubscribe
         return sub_id
-
-    async def handle_start(self) -> None:
-        """Handle a start event for the service."""
-
-        if self.status != ResourceStatus.RUNNING:
-            await super().handle_start()
 
     async def _cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""

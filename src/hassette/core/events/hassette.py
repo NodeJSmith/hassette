@@ -13,7 +13,6 @@ from hassette.core.topics import (
 from hassette.utils import get_traceback_string
 
 HassetteT = TypeVar("HassetteT", covariant=True)
-PayloadT = TypeVar("PayloadT")
 
 seq = itertools.count(1)
 
@@ -22,7 +21,7 @@ def next_id() -> int:
     return next(seq)
 
 
-def _wrap_hassette_event(*, topic: str, payload: PayloadT, event_type: str) -> "Event[HassettePayload[PayloadT]]":
+def _wrap_hassette_event(*, topic: str, payload: HassetteT, event_type: str) -> "Event[HassettePayload[HassetteT]]":
     return Event(topic=topic, payload=HassettePayload(event_type=event_type, data=payload))
 
 
@@ -31,14 +30,23 @@ class HassettePayload(Generic[HassetteT]):
     """Base class for Hassette event payloads."""
 
     event_type: str
+    event_id: int = field(default_factory=next_id, init=False)
     data: HassetteT
+
+
+@dataclass(slots=True, frozen=True)
+class HassetteEmptyPayload:
+    """Empty payload for events that do not require additional data."""
+
+    @classmethod
+    def create_event(cls, topic: str) -> "HassetteSimpleEvent":
+        payload = cls()
+        return _wrap_hassette_event(topic=topic, payload=payload, event_type="empty")
 
 
 @dataclass(slots=True, frozen=True)
 class ServiceStatusPayload:
     """Payload for service events."""
-
-    event_id: int = field(default_factory=next_id, init=False)
 
     resource_name: str
     role: ResourceRole
@@ -78,8 +86,6 @@ class ServiceStatusPayload:
 class WebsocketConnectedEventPayload:
     """Payload for websocket connected events."""
 
-    event_id: int = field(default_factory=next_id, init=False)
-
     url: str
 
     @classmethod
@@ -95,8 +101,6 @@ class WebsocketConnectedEventPayload:
 @dataclass(slots=True, frozen=True)
 class WebsocketDisconnectedEventPayload:
     """Payload for websocket disconnected events."""
-
-    event_id: int = field(default_factory=next_id, init=False)
 
     error: str
 
@@ -114,8 +118,6 @@ class WebsocketDisconnectedEventPayload:
 class FileWatcherEventPayload:
     """Payload for file watcher events."""
 
-    event_id: int = field(default_factory=next_id, init=False)
-
     changed_file_path: Path
 
     @classmethod
@@ -129,6 +131,7 @@ class FileWatcherEventPayload:
 
 
 HassetteServiceEvent = Event[HassettePayload[ServiceStatusPayload]]
+HassetteSimpleEvent = Event[HassettePayload[HassetteEmptyPayload]]
 HassetteWebsocketConnectedEvent = Event[HassettePayload[WebsocketConnectedEventPayload]]
 HassetteWebsocketDisconnectedEvent = Event[HassettePayload[WebsocketDisconnectedEventPayload]]
 HassetteFileWatcherEvent = Event[HassettePayload[FileWatcherEventPayload]]

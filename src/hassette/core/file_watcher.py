@@ -11,19 +11,26 @@ class _FileWatcher(Service):
 
     async def run_forever(self) -> None:
         """Watch app directories for changes and trigger reloads."""
+        if not self.hassette.config.watch_files:
+            self.logger.info("File watching is disabled")
+            return
+
+        self.logger.debug("Waiting for Hassette ready event")
+        await self.hassette.ready_event.wait()
+
         try:
-            paths = self.hassette.config.get_watchable_files()
+            async with self.starting():
+                paths = self.hassette.config.get_watchable_files()
 
-            self.logger.debug("Watching app directories for changes: %s", ", ".join(str(p) for p in paths))
+                self.logger.debug("Watching app directories for changes: %s", ", ".join(str(p) for p in paths))
 
-            await self.handle_start()
             async for changes in awatch(
                 *paths,
-                stop_event=self.hassette._shutdown_event,
+                stop_event=self.hassette.shutdown_event,
                 step=self.hassette.config.file_watcher_step_milliseconds,
                 debounce=self.hassette.config.file_watcher_debounce_milliseconds,
             ):
-                if self.hassette._shutdown_event.is_set():
+                if self.hassette.shutdown_event.is_set():
                     break
 
                 for _, changed_path in changes:

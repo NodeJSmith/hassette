@@ -30,30 +30,19 @@ class _Api(Resource):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
 
-        self.started = False
         self._stack = AsyncExitStack()
 
     async def initialize(self):
         """
         Start the API service.
         """
-        await super().initialize()
-
-        if self.started:
-            return self
-
-        self.logger.debug("Starting '%s' service", self.class_name)
-
-        await self._stack.__aenter__()
-        self._session = await self._stack.enter_async_context(
-            aiohttp.ClientSession(headers=self._headers, base_url=self._rest_url)
-        )
-
-        self.started = True
-        return self
+        async with self.starting():
+            await self._stack.__aenter__()
+            self._session = await self._stack.enter_async_context(
+                aiohttp.ClientSession(headers=self._headers, base_url=self._rest_url)
+            )
 
     async def shutdown(self, *args, **kwargs) -> None:
-        self.started = False
         await self._stack.aclose()
         await super().shutdown()
 
@@ -172,6 +161,7 @@ class Api(Resource):
         super().__init__(hassette)
         self._api = _api
         self.sync = ApiSyncFacade(self)
+        """Synchronous facade for the API service."""
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""

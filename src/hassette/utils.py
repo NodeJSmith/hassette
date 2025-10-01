@@ -56,11 +56,13 @@ async def wait_for_resources_running_or_raise(
     Raises:
         RuntimeError: If any resource fails to start or timeout occurs.
     """
+    from hassette.core.enums import ResourceStatus
+
     results = await wait_for_resources_running(
         resources, poll_interval=poll_interval, timeout=timeout, shutdown_event=shutdown_event
     )
     if not results:
-        failed_to_start = [r.class_name for r in resources if r.status != "running"]
+        failed_to_start = [r.class_name for r in resources if r.status != ResourceStatus.RUNNING]
         LOGGER.error("One or more resources failed to start: %s", ", ".join(failed_to_start))
         raise RuntimeError(f"One or more resources failed to start: {', '.join(failed_to_start)}")
 
@@ -87,7 +89,17 @@ async def wait_for_resources_running(
         for resource in resources
     ]
 
-    results = await asyncio.gather(*futures)
+    try:
+        results = await asyncio.gather(*futures, return_exceptions=True)
+    except Exception as e:
+        LOGGER.error("Error waiting for resources: %s", e)
+        return False
+
+    # Convert exceptions to False, log errors
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            LOGGER.error("Error waiting for resource: %s", result)
+            results[i] = False
     return all(results)
 
 
@@ -110,7 +122,7 @@ async def wait_for_resource_running(
     with anyio.move_on_after(timeout) as cancel_scope:
         while resource.status != ResourceStatus.RUNNING:
             if shutdown_event and shutdown_event.is_set():
-                LOGGER.warning("Shutdown in progress, aborting app watcher")
+                LOGGER.warning("Shutdown in progress, aborting wait for resource '%s'", resource.class_name)
                 return False
             await asyncio.sleep(poll_interval)
 

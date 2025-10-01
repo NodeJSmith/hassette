@@ -25,7 +25,7 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
         called_event.set()
         assert event.topic == HASSETTE_EVENT_FILE_WATCHER
 
-    hassette.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=handler)
+    hassette._bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=handler)
 
     # wait a moment to ensure everything is settled
     await asyncio.sleep(0.2)

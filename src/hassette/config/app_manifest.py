@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 from warnings import warn
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 LOGGER = getLogger(__name__)
 
@@ -12,7 +12,7 @@ LOGGER = getLogger(__name__)
 class AppManifest(BaseModel):
     """Manifest for a Hassette app."""
 
-    model_config = ConfigDict(extra="allow", coerce_numbers_to_str=True)
+    model_config = ConfigDict(extra="allow", coerce_numbers_to_str=True, validate_assignment=True)
 
     app_key: str = Field(default=...)
     """Reflects the key for this app in hassette.toml"""
@@ -66,7 +66,7 @@ class AppManifest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validate_app_config(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def validate_app_manifest(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Validate the app configuration."""
         required_keys = ["filename", "class_name", "app_dir"]
         missing_keys = [key for key in required_keys if key not in values]
@@ -75,9 +75,6 @@ class AppManifest(BaseModel):
 
         values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
 
-        # if not app_dir.exists():
-        #     raise FileNotFoundError(f"App directory {app_dir} does not exist")
-
         values["display_name"] = values.get("display_name") or values.get("class_name")
 
         if app_dir.is_file():
@@ -85,10 +82,26 @@ class AppManifest(BaseModel):
             values["filename"] = app_dir.name
             values["app_dir"] = app_dir.parent
 
-        # if not app_dir.joinpath(values["filename"]).exists():
-        #     raise FileNotFoundError(f"App file {values['filename']} does not exist in app_dir {app_dir}")
-
         return values
+
+    @field_validator("app_config", mode="before")
+    @classmethod
+    def validate_app_config(cls, v: Any, validation_info: ValidationInfo) -> Any:
+        """Set instance name if not set in config."""
+
+        if not v:
+            return v
+
+        if isinstance(v, dict):
+            v = [v]
+
+        class_name = validation_info.data.get("class_name", "UnknownApp")
+
+        for idx, item in enumerate(v):
+            if "instance_name" not in item or not item["instance_name"]:
+                item["instance_name"] = f"{class_name}.{idx}"
+
+        return v
 
     def model_post_init(self, context: Any) -> None:
         if not self.model_extra:

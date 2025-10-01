@@ -7,25 +7,26 @@ from collections.abc import Callable, Coroutine, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, cast
-from unittest.mock import PropertyMock, patch
+from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 from aiohttp import web
 from anyio import create_memory_object_stream
+from yarl import URL
 
 from hassette.core.api import Api, _Api
 from hassette.core.apps.app_handler import _AppHandler
-from hassette.core.bus.bus import Bus, _Bus
+from hassette.core.bus.bus import Bus, BusService
 from hassette.core.classes import Resource
 from hassette.core.core import Event, Hassette
 from hassette.core.enums import ResourceStatus
 from hassette.core.file_watcher import _FileWatcher
-from hassette.core.scheduler.scheduler import Scheduler, _Scheduler
+from hassette.core.scheduler.scheduler import Scheduler, SchedulerService
 from hassette.core.websocket import _Websocket
 from hassette.test_utils.test_server import SimpleTestServer
+from hassette.utils import wait_for_resources_running_or_raise
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-    from yarl import URL
 
 LOGGER = logging.getLogger(__name__)
 tracemalloc.start()
@@ -58,13 +59,12 @@ async def shutdown_resource(res: Resource, *, desc: str) -> None:  # noqa
         await res.shutdown()
 
 
-class _HarnessHassette:
+class _HassetteMock:
     def __init__(self, *, config: Any | None = None) -> None:
         self.config = config
         self.logger = logging.getLogger("hassette.test.harness")
         self.ready_event = asyncio.Event()
-        self.ready_event.set()
-        self._shutdown_event = asyncio.Event()
+        self.shutdown_event = asyncio.Event()
         self._resources: dict[str, Resource] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread_pool: ThreadPoolExecutor | None = None
@@ -73,10 +73,10 @@ class _HarnessHassette:
 
         self._api: _Api | None = None
         self.api: Api | None = None
-        self._bus: _Bus | None = None
-        self.bus: Bus | None = None
-        self._scheduler: _Scheduler | None = None
-        self.scheduler: Scheduler | None = None
+        self.bus_service: BusService | None = None
+        self._bus: Bus | None = None
+        self.scheduler_service: SchedulerService | None = None
+        self._scheduler: Scheduler | None = None
         self._file_watcher: _FileWatcher | None = None
         self._app_handler: _AppHandler | None = None
         self._websocket: _Websocket | None = None
@@ -87,6 +87,45 @@ class _HarnessHassette:
         if self._send_stream._closed:
             raise RuntimeError("Event bus send stream is closed")
         await self._send_stream.send((topic, event))
+
+    def run_sync(self, fn: Coroutine, timeout_seconds: int | None = 2):
+        """Run an async function in a synchronous context.
+
+        Args:
+            fn (Coroutine[Any, Any, R]): The async function to run.
+            timeout_seconds (int | None): The timeout for the function call, defaults to 1, to use the config value.
+
+        Returns:
+            R: The result of the function call.
+
+        """
+
+        timeout_seconds = timeout_seconds
+
+        # If we're already in an event loop, don't allow blocking calls.
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass  # not in a loop -> safe to block
+        else:
+            fn.close()  # close the coroutine to avoid warnings
+            raise RuntimeError("This sync method was called from within an event loop. Use the async method instead.")
+
+        try:
+            if self._loop is None:
+                raise RuntimeError("Event loop is not running")
+
+            fut = asyncio.run_coroutine_threadsafe(fn, self._loop)
+            return fut.result(timeout=timeout_seconds)
+        except TimeoutError:
+            self.logger.exception("Sync function '%s' timed out", fn.__name__)
+            raise
+        except Exception:
+            self.logger.exception("Failed to run sync function '%s'", fn.__name__)
+            raise
+        finally:
+            if not fut.done():
+                fut.cancel()
 
     def create_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
         if not self._loop:
@@ -124,7 +163,7 @@ class _HarnessHassette:
         except TimeoutError:
             return False
 
-    async def get_app(self, name: str, index: int = 0) -> Any:
+    def get_app(self, name: str, index: int = 0) -> Any:
         if not self._app_handler:
             raise RuntimeError("App handler is not enabled on this harness")
         return self._app_handler.get(name, index=index)
@@ -133,35 +172,30 @@ class _HarnessHassette:
 @dataclass
 class HassetteHarness:
     config: Any | None = None
-    use_bus: bool = False
+    use_bus: bool = True
     use_scheduler: bool = False
-    use_api: bool = False
+    use_api_mock: bool = False
+    use_api_real: bool = False
     use_file_watcher: bool = False
     use_app_handler: bool = False
-    api_base_url: "URL | None" = None
+    use_websocket: bool = False
+    unused_tcp_port: int = 0
 
     def __post_init__(self) -> None:
-        if self.use_api or self.use_file_watcher or self.use_scheduler or self.use_app_handler:
-            self.use_bus = True
-        self.hassette = _HarnessHassette(config=self.config)
-        self._tasks: list[tuple[str, asyncio.Task[Any]]] = []
-        self._resources: list[tuple[str, Resource]] = []
-        self._exit_stack = contextlib.AsyncExitStack()
-        self._previous_instance: Hassette | None = None
-        self._thread_pool: ThreadPoolExecutor | None = None
+        if self.use_api_mock and self.use_api_real:
+            raise ValueError("Cannot use both API mock and real API in the same harness")
 
-        self.api: Api | None = None
+        self.hassette = _HassetteMock(config=self.config)
+        self._tasks: list[tuple[str, asyncio.Task[Any]]] = []
+        self._exit_stack = contextlib.AsyncExitStack()
+        self._thread_pool: ThreadPoolExecutor | None = None
         self.api_mock: SimpleTestServer | None = None
-        self._scheduler: _Scheduler | None = None
-        self.scheduler: Scheduler | None = None
-        self._file_watcher: _FileWatcher | None = None
-        self._bus: _Bus | None = None
-        self.bus: Bus | None = None
-        self._app_handler: _AppHandler | None = None
-        self._websocket: _Websocket | None = None
+        self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
     async def __aenter__(self) -> "HassetteHarness":
         await self.start()
+        assert self.hassette._loop is not None, "Event loop is not running"
+        assert self.hassette._loop.is_running(), "Event loop is not running"
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
@@ -169,9 +203,7 @@ class HassetteHarness:
 
     async def start(self) -> "HassetteHarness":
         self.hassette._loop = asyncio.get_running_loop()
-        self._thread_pool = ThreadPoolExecutor()
-        self.hassette._thread_pool = self._thread_pool
-        self._previous_instance = getattr(Hassette, "_instance", None)
+        self.hassette._thread_pool = self._thread_pool = ThreadPoolExecutor()
         Hassette._instance = cast("Hassette", self.hassette)
 
         if self.use_bus:
@@ -180,19 +212,35 @@ class HassetteHarness:
             await self._start_scheduler()
         if self.use_file_watcher:
             await self._start_file_watcher()
-        if self.use_api:
-            await self._start_api()
+        if self.use_api_mock:
+            await self._start_api_mock()
+        if self.use_api_real:
+            await self.start_api_real()
         if self.use_app_handler:
             await self._start_app_handler()
+        if self.use_websocket:
+            await self.start_websocket()
+
+        if not self.hassette._api:
+            self.hassette._api = Mock()
+
+        if not self.hassette.api:
+            self.hassette.api = AsyncMock()
+            self.hassette.api.sync = Mock()
+
+        self.hassette.ready_event.set()
+        await wait_for_resources_running_or_raise([x for x in self.hassette._resources.values()], timeout=5)
 
         return self
 
     async def stop(self) -> None:
-        self.hassette._shutdown_event.set()
+        self.hassette.shutdown_event.set()
 
         try:
-            for name, resource in reversed(self._resources):
+            for name, resource in reversed(self.hassette._resources.items()):
+                print(f"Shutting down resource: {name} ({resource})")
                 await shutdown_resource(resource, desc=name)
+                await asyncio.sleep(0.05)
         except Exception:
             LOGGER.exception("Error shutting down resources")
 
@@ -222,31 +270,29 @@ class HassetteHarness:
         send_stream, receive_stream = create_memory_object_stream[tuple[str, Event[Any]]](1000)
         self.hassette._send_stream = send_stream
         self.hassette._receive_stream = receive_stream
-        bus_service = _Bus(cast("Hassette", self.hassette), receive_stream.clone())
+        bus_service = BusService(cast("Hassette", self.hassette), receive_stream.clone())
 
         self._exit_stack.push_async_callback(send_stream.aclose)
         self._exit_stack.push_async_callback(receive_stream.aclose)
 
-        self.hassette._bus = bus_service
-        self.hassette.bus = Bus(cast("Hassette", self.hassette), bus_service)
-        self.hassette._resources[_Bus.class_name] = bus_service
-        self.hassette._resources[Bus.class_name] = self.hassette.bus
-        task = await start_resource(bus_service, desc="_Bus")
-        if task:
-            self._tasks.append(("_Bus", task))
+        self.hassette.bus_service = bus_service
+        self.hassette._bus = Bus(cast("Hassette", self.hassette), owner="Hassette")
+        self.hassette._resources[Bus.class_name] = self.hassette._bus
+        self.hassette._resources[BusService.class_name] = bus_service
+        bus_service.start()
+        self.hassette._bus.start()
 
     async def _start_scheduler(self) -> None:
-        scheduler_service = _Scheduler(cast("Hassette", self.hassette))
-        scheduler = Scheduler(cast("Hassette", self.hassette), scheduler_service)
-        self.hassette._scheduler = scheduler_service
-        self.hassette.scheduler = scheduler
+        scheduler_service = SchedulerService(cast("Hassette", self.hassette))
+        scheduler = Scheduler(cast("Hassette", self.hassette), owner="Hassette")
+        self.hassette.scheduler_service = scheduler_service
+        self.hassette._scheduler = scheduler
         self.hassette._thread_pool = self._thread_pool
-        self.hassette._resources[_Scheduler.class_name] = scheduler_service
+        self.hassette._resources[SchedulerService.class_name] = scheduler_service
         self.hassette._resources[Scheduler.class_name] = scheduler
         scheduler_service.max_delay = 1
-        task = await start_resource(scheduler_service, desc="_Scheduler")
-        if task:
-            self._tasks.append(("_Scheduler", task))
+        scheduler_service.start()
+        scheduler.start()
 
     async def _start_file_watcher(self) -> None:
         if not self.hassette.config:
@@ -254,24 +300,22 @@ class HassetteHarness:
         watcher = _FileWatcher(cast("Hassette", self.hassette))
         self.hassette._file_watcher = watcher
         self.hassette._resources[_FileWatcher.class_name] = watcher
-        task = await start_resource(watcher, desc="_FileWatcher")
-        if task:
-            self._tasks.append(("_FileWatcher", task))
+        watcher.start()
 
     async def _start_app_handler(self) -> None:
-        if not self.hassette.bus:
+        if not self.use_bus:
             raise RuntimeError("App handler requires bus")
+
         app_handler = _AppHandler(cast("Hassette", self.hassette))
         self.hassette._app_handler = app_handler
         self.hassette._resources[_AppHandler.class_name] = app_handler
-        self.hassette._websocket = _Websocket(cast("Hassette", self.hassette))
+        self.hassette._websocket = Mock()
         self.hassette._websocket.status = ResourceStatus.RUNNING
-        self.hassette._resources[_Websocket.class_name] = self.hassette._websocket
-        await app_handler.initialize()
+        app_handler.start()
 
         return
 
-    async def _start_api(self) -> None:
+    async def _start_api_mock(self) -> None:
         if not self.api_base_url:
             raise RuntimeError("API harness requires api_base_url")
         mock_server = SimpleTestServer()
@@ -304,15 +348,37 @@ class HassetteHarness:
         self.hassette._resources[_Api.class_name] = api_service
         self.hassette._resources[Api.class_name] = api
 
-        task_service = await start_resource(api_service, desc="_Api")
-        if task_service:
-            self._tasks.append(("_Api", task_service))
-        task_api = await start_resource(api, desc="Api")
-        if task_api:
-            self._tasks.append(("Api", task_api))
-        self.api = api
         self.api_mock = mock_server
-        self._resources.append(("_Api", api_service))
-        self._resources.append(("Api", api))
+
+        self.hassette._api.start()
+        self.hassette.api.start()
 
         return
+
+    async def start_api_real(self) -> None:
+        if not self.use_bus:
+            raise RuntimeError("API harness requires bus")
+
+        if not self.use_websocket:
+            raise RuntimeError("API harness requires websocket")
+
+        api_service = _Api(cast("Hassette", self.hassette))
+        api = Api(api_service.hassette, api_service)
+        self.hassette._api = api_service
+        self.hassette.api = api
+        self.hassette._resources[_Api.class_name] = api_service
+        self.hassette._resources[Api.class_name] = api
+        api_service.start()
+        api.start()
+
+    async def start_websocket(self) -> None:
+        if not self.hassette.config:
+            raise RuntimeError("Websocket requires a config")
+
+        if not self.use_bus:
+            raise RuntimeError("Websocket requires bus")
+
+        websocket = _Websocket(cast("Hassette", self.hassette))
+        self.hassette._websocket = websocket
+        self.hassette._resources[_Websocket.class_name] = websocket
+        websocket.start()

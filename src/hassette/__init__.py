@@ -16,14 +16,15 @@ from .core import (
     Resource,
     ResourceRole,
     ResourceStatus,
-    ScheduledJob,
     Service,
     TriggerProtocol,
     events,
+    only_app,
     topics,
 )
 from .core.bus import predicates
 from .core.events import StateChangeEvent
+from .core.scheduler.classes import ScheduledJob
 from .models import entities, states
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
@@ -50,6 +51,7 @@ __all__ = [
     "TriggerProtocol",
     "entities",
     "events",
+    "only_app",
     "predicates",
     "states",
     "topics",
