@@ -15,7 +15,6 @@ from aiohttp.client_exceptions import ClientConnectionResetError
 from tenacity import AsyncRetrying, before_sleep_log, retry_if_exception_type, retry_if_not_exception_type
 
 from hassette.core.classes import Service
-from hassette.core.enums import ResourceStatus
 from hassette.core.events import (
     HassEventEnvelopeDict,
     WebsocketConnectedEventPayload,
@@ -70,6 +69,7 @@ class _Websocket(Service):
         return next(self._seq)
 
     async def run_forever(self) -> None:
+        """Connect to the WebSocket and run the receive loop."""
         async with self._connect_lock:
             try:
                 await self._connect_and_run()
@@ -150,12 +150,6 @@ class _Websocket(Service):
         # HA replies with {'id': <same>, 'type': 'result', 'success': True}
         # We return our own id as the subscription handle for unsubscribe
         return sub_id
-
-    async def handle_start(self) -> None:
-        """Handle a start event for the service."""
-
-        if self.status != ResourceStatus.RUNNING:
-            await super().handle_start()
 
     async def _cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
