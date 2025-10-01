@@ -40,6 +40,21 @@ class Hassette:
 
     _instance: ClassVar["Hassette"] = None  # type: ignore
 
+    scheduler_service: SchedulerService
+    """Scheduler service for managing scheduled tasks."""
+
+    bus_service: BusService
+    """Event bus that all individual Bus instances connect to."""
+
+    api: Api
+    """API service for handling HTTP requests."""
+
+    ready_event: asyncio.Event
+    """Event set when the application is ready to accept requests."""
+
+    shutdown_event: asyncio.Event
+    """Event set when the application is starting to shutdown."""
+
     @property
     def unique_name(self) -> str:
         """Unique identifier for the instance."""
@@ -63,44 +78,29 @@ class Hassette:
         self._resources: dict[str, Resource | Service] = {}
 
         self.ready_event: asyncio.Event = asyncio.Event()
-        """Event set when the application is ready to accept requests."""
-
-        self._shutdown_event: asyncio.Event = asyncio.Event()
-        """Event set when the application is starting to shutdown."""
+        self.shutdown_event: asyncio.Event = asyncio.Event()
 
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, Event]](1000)
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread_pool = ThreadPoolExecutor(max_workers=10)
 
-        # internal only (so far, at least)
+        # private background services
         self._service_watcher = self._register_resource(_ServiceWatcher)
         self._websocket = self._register_resource(_Websocket)
+        self._api = self._register_resource(_Api)
+        self._health_service = self._register_resource(_HealthService)
+        self._file_watcher = self._register_resource(_FileWatcher)
         self._app_handler = self._register_resource(_AppHandler)
 
-        if config.watch_files:
-            self._file_watcher = self._register_resource(_FileWatcher)
-        else:
-            self.logger.info("File watching is disabled")
-
-        self._health_service = self._register_resource(_HealthService)
-
+        # public services
         self.scheduler_service = self._register_resource(SchedulerService)
-        """Scheduler service for managing scheduled tasks."""
-
-        self._scheduler = self._register_resource(Scheduler, self.unique_name)
-        """Individual scheduler instance Hassette owned callbacks."""
-
         self.bus_service = self._register_resource(BusService, self._receive_stream.clone())
-        """Event bus that all individual Bus instances connect to."""
-
-        self._bus = self._register_resource(Bus, self.unique_name)
-        """Individual event bus instance for Hassette owned events handlers."""
-
-        self._api = self._register_resource(_Api)
-
         self.api = self._register_resource(Api, self._api)
-        """API service for handling HTTP requests."""
+
+        # internal instances
+        self._bus = self._register_resource(Bus, self.unique_name)
+        self._scheduler = self._register_resource(Scheduler, self.unique_name)
 
         type(self)._instance = self
 
@@ -242,7 +242,7 @@ class Hassette:
             resources,
             poll_interval=poll_interval,
             timeout=timeout,
-            shutdown_event=self._shutdown_event,
+            shutdown_event=self.shutdown_event,
         )
 
     async def run_forever(self) -> None:
@@ -262,12 +262,12 @@ class Hassette:
         self.logger.info("All resources started successfully")
         self.logger.info("Hassette is running.")
 
-        if self._shutdown_event.is_set():
+        if self.shutdown_event.is_set():
             self.logger.warning("Hassette is shutting down, aborting run loop")
             await self._shutdown()
 
         try:
-            await self._shutdown_event.wait()
+            await self.shutdown_event.wait()
         except asyncio.CancelledError:
             self.logger.debug("Hassette run loop cancelled")
         except Exception as e:
@@ -321,4 +321,4 @@ class Hassette:
     def shutdown(self) -> None:
         """Signal shutdown to the main loop."""
         self.logger.debug("Shutting down Hassette")
-        self._shutdown_event.set()
+        self.shutdown_event.set()
