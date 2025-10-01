@@ -90,7 +90,7 @@ class _ServiceWatcher(Resource):
                 "%s '%s' has crashed (event_id %d), shutting down Hassette, %s",
                 role,
                 name,
-                data.event_id,
+                event.payload.event_id,
                 data.exception_traceback,
             )
             self.hassette.shutdown()
