@@ -278,6 +278,7 @@ class _AppHandler(Resource):
         app_configs = app_configs if isinstance(app_configs, list) else [app_configs]
 
         for idx, config in enumerate(app_configs):
+            # Set instance_name if not set in config
             config["instance_name"] = instance_name = config.get("instance_name", f"{class_name}.{idx}")
             try:
                 validated = settings_cls.model_validate(config)
