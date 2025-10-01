@@ -27,7 +27,7 @@ class MyAppSync(AppSync):
 
     def test_stuff(self) -> None:
         my_app = self.hassette.get_app("my_app", 0)
-        assert isinstance(my_app, MyApp)
+        assert isinstance(my_app, MyApp), f"Expected MyApp, got {type(my_app)}"
 
         if self.office_light_exists:
             self.light_state = self.api.sync.get_state("light.office", model=LightState)
