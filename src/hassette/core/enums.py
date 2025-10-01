@@ -7,6 +7,9 @@ class ResourceStatus(StrEnum):
     NOT_STARTED = auto()
     """The resource has not been started yet."""
 
+    STARTING = auto()
+    """The resource is in the process of starting."""
+
     RUNNING = auto()
     """The resource is currently running."""
 
