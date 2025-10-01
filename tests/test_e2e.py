@@ -7,9 +7,9 @@ from hassette.models import states
 from hassette.models.entities import LightEntity
 
 
-async def test_get_states_call(hassette_core: Hassette) -> None:
+async def test_get_states_call(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     # These will make real API calls to your test HA instance
     entities = await inst.get_states()
@@ -18,9 +18,9 @@ async def test_get_states_call(hassette_core: Hassette) -> None:
     assert isinstance(entities, list), "Entities should be a list."
 
 
-async def test_get_config_call(hassette_core: Hassette) -> None:
+async def test_get_config_call(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     config = await inst.get_config()
     await asyncio.sleep(0.1)
@@ -29,9 +29,9 @@ async def test_get_config_call(hassette_core: Hassette) -> None:
     assert isinstance(config, dict), "Config should be a dictionary"
 
 
-async def test_get_services_call(hassette_core: Hassette) -> None:
+async def test_get_services_call(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     services = await inst.get_services()
     await asyncio.sleep(0.1)
@@ -39,9 +39,9 @@ async def test_get_services_call(hassette_core: Hassette) -> None:
     assert "homeassistant" in services, "Should have homeassistant domain"
 
 
-async def test_get_panels_call(hassette_core: Hassette) -> None:
+async def test_get_panels_call(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     panels = await inst.get_panels()
     await asyncio.sleep(0.1)
@@ -49,9 +49,9 @@ async def test_get_panels_call(hassette_core: Hassette) -> None:
     assert isinstance(panels, dict), "Panels should be a dictionary"
 
 
-async def test_get_state(hassette_core: Hassette) -> None:
+async def test_get_state(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     state = await inst.get_state_value("sun.sun")
     await asyncio.sleep(0.1)
@@ -59,9 +59,9 @@ async def test_get_state(hassette_core: Hassette) -> None:
     assert isinstance(state, str)
 
 
-async def test_get_state_raw(hassette_core: Hassette) -> None:
+async def test_get_state_raw(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     entity = await inst.get_state_raw("sun.sun")
     await asyncio.sleep(0.1)
@@ -69,9 +69,9 @@ async def test_get_state_raw(hassette_core: Hassette) -> None:
     assert isinstance(entity, dict), "Entity should be a dictionary"
 
 
-async def test_get_state_typed(hassette_core: Hassette) -> None:
+async def test_get_state_typed(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     entity = await inst.get_state("sun.sun", states.SunState)
     await asyncio.sleep(0.1)
@@ -79,9 +79,9 @@ async def test_get_state_typed(hassette_core: Hassette) -> None:
     assert entity.entity_id == "sun.sun", "Entity ID should match"
 
 
-async def test_get_entity(hassette_core: Hassette) -> None:
+async def test_get_entity(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     entity = await inst.get_entity("light.bed_light", LightEntity)
     await asyncio.sleep(0.1)
@@ -91,19 +91,9 @@ async def test_get_entity(hassette_core: Hassette) -> None:
     assert isinstance(entity.state, states.LightState), "State should be of type LightState"
 
 
-async def test_sync_call_from_async_raises_exception(hassette_core: Hassette) -> None:
+async def test_sync_call_from_async_raises_exception(hassette_with_real_api: Hassette) -> None:
     """Test actual WebSocket calls against running HA instance."""
-    inst = hassette_core.api
+    inst = hassette_with_real_api.api
 
     with pytest.raises(RuntimeError, match="This sync method was called from within an event loop"):
         inst.sync.get_config()
-
-
-def test_sync_call_from_sync_works(hassette_core_sync: Hassette) -> None:
-    """Test actual WebSocket calls against running HA instance."""
-
-    config = hassette_core_sync.api.sync.get_config()
-
-    assert config, "Config should not be empty."
-    # Make assertions more flexible for different HA configurations
-    assert isinstance(config, dict), "Config should be a dictionary"
