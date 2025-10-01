@@ -155,7 +155,7 @@ class Hassette:
         """Send an event to the event bus."""
         await self._send_stream.send((event_name, event))
 
-    def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | None = 0) -> R:
+    def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | None = None) -> R:
         """Run an async function in a synchronous context.
 
         Args:
@@ -167,7 +167,7 @@ class Hassette:
 
         """
 
-        timeout_seconds = timeout_seconds if timeout_seconds is not None else self.config.run_sync_timeout_seconds
+        timeout_seconds = timeout_seconds or self.config.run_sync_timeout_seconds
 
         # If we're already in an event loop, don't allow blocking calls.
         try:
