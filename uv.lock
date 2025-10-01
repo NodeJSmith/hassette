@@ -409,6 +409,15 @@ wheels = [
 ]
 
 [[package]]
+name = "fair-async-rlock"
+version = "1.0.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/a3/24ef944e7b9e2bf60a6af54cf7e7892eb08cc1d0399f94d5bdd390f79ae1/fair_async_rlock-1.0.7.tar.gz", hash = "sha256:e46ad327089462c7cf11aa12a338376a014096ac42971c1a6d398a2d26adb852", size = 11172, upload-time = "2024-01-28T10:59:15.501Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c8/9e/e9db741acb4d4cc41505361de98bffd12ed600d6e2600db9768f38e41203/fair_async_rlock-1.0.7-py3-none-any.whl", hash = "sha256:015f86d0ba939fd6a57a285ffb50a3ca41ae9fe634d15c8d5ed0b3d483e3845a", size = 10391, upload-time = "2024-01-28T10:59:14.037Z" },
+]
+
+[[package]]
 name = "filelock"
 version = "3.19.1"
 source = { registry = "https://pypi.org/simple" }
@@ -538,6 +547,7 @@ dependencies = [
     { name = "coloredlogs" },
     { name = "croniter" },
     { name = "deepdiff" },
+    { name = "fair-async-rlock" },
     { name = "orjson" },
     { name = "packaging" },
     { name = "platformdirs" },
@@ -586,6 +596,7 @@ requires-dist = [
     { name = "coloredlogs", specifier = ">=15.0.1" },
     { name = "croniter", specifier = ">=6.0.0" },
     { name = "deepdiff", specifier = ">=8.6.1" },
+    { name = "fair-async-rlock", specifier = ">=1.0.7" },
     { name = "orjson", specifier = ">=3.10.18" },
     { name = "packaging", specifier = ">=25.0" },
     { name = "platformdirs", specifier = ">=4.3.8" },

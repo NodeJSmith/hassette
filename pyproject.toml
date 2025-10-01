@@ -38,6 +38,7 @@ dependencies = [
     "coloredlogs>=15.0.1",
     "croniter>=6.0.0",
     "deepdiff>=8.6.1",
+    "fair-async-rlock>=1.0.7",
     "orjson>=3.10.18",
     "packaging>=25.0",
     "platformdirs>=4.3.8",

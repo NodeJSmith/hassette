@@ -14,7 +14,7 @@ from .adapters import add_debounce, add_throttle, make_async_handler
 from .listeners import Listener, Subscription
 from .predicates import AllOf, AttrChanged, Changed, ChangedFrom, ChangedTo, EntityIs, Guard
 from .predicates.base import SENTINEL, normalize_where
-from .routing import add_route, matching_listeners, remove_route
+from .routing import Router
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
@@ -39,9 +39,7 @@ class BusService(Service):
         self.stream = stream
 
         self.listener_seq = itertools.count(1)
-        self.lock = asyncio.Lock()
-        self.exact: dict[str, list[Listener]] = {}
-        self.globs: dict[str, list[Listener]] = {}  # keys contain glob chars
+        self.router = Router()
         self._tasks: WeakSet[asyncio.Task] = WeakSet()
 
     async def _cleanup(self) -> None:
@@ -57,7 +55,7 @@ class BusService(Service):
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""
-        self._tasks.add(self.hassette.create_task(self.add_listener_coro(listener)))
+        self._tasks.add(self.hassette.create_task(self.router.add_route(listener.topic, listener)))
 
     def remove_listener(self, listener: Listener) -> None:
         """Remove a listener from the bus."""
@@ -65,57 +63,27 @@ class BusService(Service):
 
     def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
         """Remove a listener by its ID."""
-        self._tasks.add(self.hassette.create_task(self.remove_listener_by_id_coro(topic, listener_id)))
+        self._tasks.add(self.hassette.create_task(self.router.remove_listener_by_id(topic, listener_id)))
 
     def remove_listeners_by_owner(self, owner: str) -> None:
         """Remove all listeners owned by a specific owner."""
-        self._tasks.add(self.hassette.create_task(self.remove_listeners_by_owner_coro(owner)))
-
-    async def add_listener_coro(self, listener: Listener) -> None:
-        """Add a listener to the bus in a coroutine."""
-        async with self.lock:
-            add_route(self.exact, self.globs, listener.topic, listener)
-
-    async def remove_listener_by_id_coro(self, topic: str, listener_id: int) -> None:
-        """Remove a listener by its ID in a coroutine."""
-        async with self.lock:
-
-            def is_id(listener: Listener) -> bool:
-                return listener.listener_id == listener_id
-
-            remove_route(self.exact, self.globs, topic, is_id)
-
-    async def remove_listeners_by_owner_coro(self, owner: str) -> None:
-        """Remove all listeners owned by a specific owner in a coroutine."""
-        async with self.lock:
-
-            def is_owner(listener: Listener) -> bool:
-                return listener.owner == owner
-
-            topics = list(self.exact.keys())
-            for topic in topics:
-                remove_route(self.exact, self.globs, topic, is_owner)
-
-            topics = list(self.globs.keys())
-            for topic in topics:
-                remove_route(self.exact, self.globs, topic, is_owner)
+        self._tasks.add(self.hassette.create_task(self.router.clear_owner(owner)))
 
     async def dispatch(self, topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
-        async with self.lock:
-            try:
-                if (
-                    event.payload.event_type == "call_service"
-                    and event.payload.data.domain == "system_log"
-                    and event.payload.data.service_data.get("level") == "debug"
-                ):
-                    return
-            except Exception:
-                pass
+        try:
+            if (
+                event.payload.event_type == "call_service"
+                and event.payload.data.domain == "system_log"
+                and event.payload.data.service_data.get("level") == "debug"
+            ):
+                return
+        except Exception:
+            pass
 
-            targets = matching_listeners(self.exact, self.globs, topic)
+        targets = await self.router.get_matching_listeners(topic)
 
-            self.logger.debug("Event: %r", event)
+        self.logger.debug("Event: %r", event)
 
         if not targets:
             return
