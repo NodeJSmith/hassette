@@ -2,7 +2,6 @@ import asyncio
 import itertools
 import typing
 from typing import Any
-from weakref import WeakSet
 
 from anyio.streams.memory import MemoryObjectReceiveStream
 
@@ -40,22 +39,38 @@ class BusService(Service):
 
         self.listener_seq = itertools.count(1)
         self.router = Router()
-        self._tasks: WeakSet[asyncio.Task] = WeakSet()
+        self._tasks: set[asyncio.Task[Any]] = set()
 
     async def _cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
 
-        # Cancel background tasks
         if self._tasks:
-            for task in list(self._tasks):
+            tasks = list(self._tasks)
+            for task in tasks:
                 if not task.done():
                     task.cancel()
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-            self.logger.debug("Cancelled %d pending tasks", len(self._tasks))
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self.logger.debug("Cancelled %d pending tasks", len(tasks))
+        self._tasks.clear()
+
+    def _track_task(self, task: asyncio.Task[Any]) -> None:
+        """Track background tasks and surface failures."""
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        task.add_done_callback(self._log_task_result)
+
+    def _log_task_result(self, task: asyncio.Task[Any]) -> None:
+        if task.cancelled():
+            return
+
+        exc = task.exception()
+        if exc:
+            self.logger.error("Bus background task failed", exc_info=exc)
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""
-        self._tasks.add(self.hassette.create_task(self.router.add_route(listener.topic, listener)))
+        task = self.hassette.create_task(self.router.add_route(listener.topic, listener))
+        self._track_task(task)
 
     def remove_listener(self, listener: Listener) -> None:
         """Remove a listener from the bus."""
@@ -63,11 +78,13 @@ class BusService(Service):
 
     def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
         """Remove a listener by its ID."""
-        self._tasks.add(self.hassette.create_task(self.router.remove_listener_by_id(topic, listener_id)))
+        task = self.hassette.create_task(self.router.remove_listener_by_id(topic, listener_id))
+        self._track_task(task)
 
     def remove_listeners_by_owner(self, owner: str) -> None:
         """Remove all listeners owned by a specific owner."""
-        self._tasks.add(self.hassette.create_task(self.router.clear_owner(owner)))
+        task = self.hassette.create_task(self.router.clear_owner(owner))
+        self._track_task(task)
 
     async def dispatch(self, topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
@@ -92,13 +109,17 @@ class BusService(Service):
         self.logger.debug("Listeners for %s: %r", topic, targets)
 
         for listener in targets:
-            self.hassette.create_task(self._dispatch(topic, event, listener))
+            task = self.hassette.create_task(self._dispatch(topic, event, listener))
+            self._track_task(task)
 
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: Listener) -> None:
         try:
             if await listener.matches(event):
                 self.logger.debug("Dispatching %s -> %r", topic, listener)
                 await listener.handler(event)
+        except asyncio.CancelledError:
+            self.logger.debug("Listener dispatch cancelled (topic=%s, handler=%r)", topic, listener.handler_name)
+            raise
         except Exception:
             self.logger.exception("Listener error (topic=%s, handler=%r)", topic, listener.handler_name)
         finally:
