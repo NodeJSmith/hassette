@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import heapq
 import typing
 from collections.abc import Mapping
@@ -29,7 +28,6 @@ class SchedulerService(Service):
 
         self.lock = asyncio.Lock()
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()
-        self._counter = 0
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
         self._tasks: set[asyncio.Task] = set()
@@ -51,7 +49,8 @@ class SchedulerService(Service):
 
                 while not self._queue.is_empty() and (peek := self._queue.peek()) and peek.next_run <= now():
                     job = self._queue.pop()
-                    self._tasks.add(self.hassette.create_task(self._dispatch_and_log(job)))
+                    task = self.hassette.create_task(self._dispatch_and_log(job))
+                    self._track_task(task)
 
                 await self.sleep()
         except asyncio.CancelledError:
@@ -70,11 +69,27 @@ class SchedulerService(Service):
 
         # Cancel background tasks
         if self._tasks:
-            for task in list(self._tasks):
+            tasks_to_cleanup = list(self._tasks)
+            for task in tasks_to_cleanup:
                 if not task.done():
                     task.cancel()
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-            self.logger.debug("Cancelled %d pending tasks", len(self._tasks))
+            await asyncio.gather(*tasks_to_cleanup, return_exceptions=True)
+            self.logger.debug("Cancelled %d pending tasks", len(tasks_to_cleanup))
+        self._tasks.clear()
+
+    def _track_task(self, task: asyncio.Task[Any]) -> None:
+        """Keep track of background tasks and surface failures."""
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        task.add_done_callback(self._log_task_result)
+
+    def _log_task_result(self, task: asyncio.Task[Any]) -> None:
+        if task.cancelled():
+            return
+
+        exception = task.exception()
+        if exception:
+            self.logger.error("Scheduled job task failed", exc_info=exception)
 
     def kick(self):
         """Wake up the scheduler to check for jobs."""
@@ -132,11 +147,17 @@ class SchedulerService(Service):
             return
 
         self.logger.debug("Dispatching job: %s", job)
-        with contextlib.suppress(Exception):
+        try:
             await self.run_job(job)
+        except asyncio.CancelledError:
+            self.logger.debug("Dispatch cancelled for job %s", job)
+            raise
 
         try:
             await self.reschedule_job(job)
+        except asyncio.CancelledError:
+            self.logger.debug("Reschedule cancelled for job %s", job)
+            raise
         except Exception:
             self.logger.exception("Error rescheduling job %s", job)
 
@@ -165,6 +186,9 @@ class SchedulerService(Service):
             self.logger.debug("Running job %s at %s", job, now())
             async_func = make_async_adapter(func)
             await async_func(*job.args, **job.kwargs)
+        except asyncio.CancelledError:
+            self.logger.debug("Execution cancelled for job %s", job)
+            raise
         except Exception:
             self.logger.exception("Error running job %s", job)
 
@@ -181,7 +205,8 @@ class SchedulerService(Service):
 
         if job.repeat and job.trigger:
             curr_next_run = job.next_run
-            job.next_run = job.trigger.next_run_time()
+            next_run = job.trigger.next_run_time()
+            job.set_next_run(next_run)
             next_run_time_delta = job.next_run - curr_next_run
             assert next_run_time_delta.in_seconds() > 0, "Next run time must be in the future"
 

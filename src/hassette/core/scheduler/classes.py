@@ -22,10 +22,10 @@ def next_id() -> int:
 class ScheduledJob:
     """A job scheduled to run based on a trigger or at a specific time."""
 
-    job_id: int = field(default_factory=next_id, init=False)
+    sort_index: tuple[SystemDateTime, float, int] = field(init=False, repr=False)
 
-    owner: str
-    next_run: SystemDateTime
+    owner: str = field(compare=False)
+    next_run: SystemDateTime = field(compare=False)
     job: "JobCallable" = field(compare=False)
     trigger: "TriggerProtocol | None" = field(compare=False, default=None)
     repeat: bool = field(compare=False, default=False)
@@ -33,12 +33,13 @@ class ScheduledJob:
     cancelled: bool = field(default=False, compare=False)
     args: tuple[Any, ...] = field(default_factory=tuple, compare=False)
     kwargs: dict[str, Any] = field(default_factory=dict, compare=False)
+    job_id: int = field(default_factory=next_id, init=False, compare=False)
 
     def __repr__(self) -> str:
         return f"ScheduledJob(name={self.name!r}, next_run={self.next_run})"
 
     def __post_init__(self):
-        self.next_run = self.next_run.round(unit="second")
+        self.set_next_run(self.next_run)
 
         if not self.name:
             self.name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
@@ -49,6 +50,12 @@ class ScheduledJob:
     def cancel(self) -> None:
         """Cancel the scheduled job by setting the cancelled flag to True."""
         self.cancelled = True
+
+    def set_next_run(self, next_run: SystemDateTime) -> None:
+        """Update the next run timestamp and refresh ordering metadata."""
+        rounded_next_run = next_run.round(unit="second")
+        self.next_run = rounded_next_run
+        self.sort_index = (rounded_next_run, next_run.timestamp_nanos(), self.job_id)
 
 
 @dataclass
