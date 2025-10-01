@@ -48,6 +48,8 @@ class _AppHandler(Resource):
     # TODO: handle stopping/starting individual app instances, instead of all apps of a class/key
     # no need to restart app index 2 if only app index 0 changed, etc.
 
+    # TODO: clean this class up - it likely needs to be split into smaller pieces
+
     apps_config: dict[str, "AppManifest"]
     """Copy of Hassette's config apps"""
 
@@ -120,69 +122,6 @@ class _AppHandler(Resource):
     def all(self) -> list["App[AppConfig]"]:
         """All running app instances."""
         return [inst for group in self.apps.values() for inst in group.values()]
-
-    async def stop_app(self, app_key: str) -> None:
-        """Stop and remove all instances for a given app_name."""
-        instances = self.apps.pop(app_key, None)
-        if not instances:
-            self.logger.warning("Cannot stop app %s, not found", app_key)
-            return
-        self.logger.info("Stopping %d instances of %s", len(instances), app_key)
-
-        for inst in instances.values():
-            try:
-                with anyio.fail_after(FAIL_AFTER_SECONDS):
-                    await inst.shutdown()
-                    inst.cleanup_resources()
-                self.logger.info("Stopped app '%s'", inst.app_config.instance_name)
-            except Exception:
-                self.logger.exception("Failed to stop app '%s'", inst.app_config.instance_name)
-
-            del inst  # help GC
-
-    async def stop_orphans(self, app_keys: set[str] | list[str]) -> None:
-        """Stop any running apps that are no longer in config."""
-        if not app_keys:
-            return
-
-        self.logger.info("Stopping %d orphaned apps: %s", len(app_keys), app_keys)
-        for app_key in app_keys:
-            self.logger.info("Stopping orphaned app %s", app_key)
-            await self.stop_app(app_key)
-
-    async def _handle_new_apps(self, apps: set[str]) -> None:
-        """Start any apps that are in config but not currently running."""
-        if not apps:
-            return
-
-        self.logger.info("Starting %d new apps: %s", len(apps), list(apps))
-        try:
-            await self._initialize_apps(apps)
-        except Exception as e:
-            self.logger.exception("Failed to start new apps")
-            await self.handle_crash(e)
-            raise
-
-    async def reload_app(self, app_key: str, force_reload: bool = False) -> None:
-        """Stop and reinitialize a single app by key (based on current config)."""
-        self.logger.info("Reloading app %s", app_key)
-        try:
-            await self.stop_app(app_key)
-            # Initialize only that app from the current config if present and enabled
-            manifest = self.active_apps_config.get(app_key)
-            if not manifest:
-                if manifest := self.apps_config.get(app_key):
-                    self.logger.warning("Cannot reload app %s, not enabled", app_key)
-                    return
-                self.logger.warning("Cannot reload app %s, not found", app_key)
-                return
-
-            assert manifest is not None, "Manifest should not be None"
-
-            self._create_app_instances(app_key, manifest, force_reload=force_reload)
-            await self._initialize_app_instances(app_key, manifest)
-        except Exception:
-            self.logger.exception("Failed to reload app %s", app_key)
 
     async def initialize_apps(self) -> None:
         if not self.apps_config:
@@ -266,18 +205,18 @@ class _AppHandler(Resource):
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
-        settings_cls = app_class.app_config_cls
         app_configs = app_manifest.app_config
 
-        # Normalize to list-of-configs; TOML supports both single dict and list of dicts.
-        app_configs = app_configs if isinstance(app_configs, list) else [app_configs]
+        # toml data can be a dict or a list of dicts, but AppManifest should handle conversion for us
+        if not isinstance(app_configs, list):
+            raise ValueError(f"App {app_key} config is not a list, found {type(app_configs)}")
 
         for idx, config in enumerate(app_configs):
             instance_name = config.get("instance_name")
             if not instance_name:
                 raise ValueError(f"App {app_key} instance {idx} is missing instance_name")
             try:
-                validated = settings_cls.model_validate(config)
+                validated = app_class.app_config_cls.model_validate(config)
                 app_instance = app_class(self.hassette, app_config=validated, index=idx)
                 self.apps[app_key][idx] = app_instance
             except Exception as e:
@@ -315,6 +254,7 @@ class _AppHandler(Resource):
         await self.handle_changes(event.payload.data.changed_file_path)
 
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
+        """Reload the configuration and return (original_apps_config, current_apps_config)."""
         original_apps_config = deepcopy(self.active_apps_config)
 
         # Reinitialize config to pick up changes.
@@ -405,7 +345,14 @@ class _AppHandler(Resource):
             return
 
         self.logger.info("Apps removed from config: %s", orphans)
-        await self.stop_orphans(orphans)
+
+        self.logger.info("Stopping %d orphaned apps: %s", len(orphans), orphans)
+        for app_key in orphans:
+            self.logger.info("Stopping orphaned app %s", app_key)
+            try:
+                await self.stop_app(app_key)
+            except Exception:
+                self.logger.exception("Failed to stop orphaned app %s", app_key)
 
     async def _reload_apps_due_to_file_change(self, apps: set[str]) -> None:
         if not apps:
@@ -422,6 +369,55 @@ class _AppHandler(Resource):
         self.logger.info("Apps to reload due to config changes: %s", apps)
         for app_key in apps:
             await self.reload_app(app_key)
+
+    async def stop_app(self, app_key: str) -> None:
+        """Stop and remove all instances for a given app_name."""
+        instances = self.apps.pop(app_key, None)
+        if not instances:
+            self.logger.warning("Cannot stop app %s, not found", app_key)
+            return
+        self.logger.info("Stopping %d instances of %s", len(instances), app_key)
+
+        for inst in instances.values():
+            try:
+                with anyio.fail_after(FAIL_AFTER_SECONDS):
+                    await inst.shutdown()
+                    inst.cleanup_resources()
+                self.logger.info("Stopped app '%s'", inst.app_config.instance_name)
+            except Exception:
+                self.logger.exception("Failed to stop app '%s'", inst.app_config.instance_name)
+
+    async def _handle_new_apps(self, apps: set[str]) -> None:
+        """Start any apps that are in config but not currently running."""
+        if not apps:
+            return
+
+        self.logger.info("Starting %d new apps: %s", len(apps), list(apps))
+        try:
+            await self._initialize_apps(apps)
+        except Exception:
+            self.logger.exception("Failed to start new apps")
+
+    async def reload_app(self, app_key: str, force_reload: bool = False) -> None:
+        """Stop and reinitialize a single app by key (based on current config)."""
+        self.logger.info("Reloading app %s", app_key)
+        try:
+            await self.stop_app(app_key)
+            # Initialize only that app from the current config if present and enabled
+            manifest = self.active_apps_config.get(app_key)
+            if not manifest:
+                if manifest := self.apps_config.get(app_key):
+                    self.logger.warning("Cannot reload app %s, not enabled", app_key)
+                    return
+                self.logger.warning("Cannot reload app %s, not found", app_key)
+                return
+
+            assert manifest is not None, "Manifest should not be None"
+
+            self._create_app_instances(app_key, manifest, force_reload=force_reload)
+            await self._initialize_app_instances(app_key, manifest)
+        except Exception:
+            self.logger.exception("Failed to reload app %s", app_key)
 
 
 def load_app_class(app_manifest: "AppManifest", force_reload: bool = False) -> "type[App[AppConfig]]":
