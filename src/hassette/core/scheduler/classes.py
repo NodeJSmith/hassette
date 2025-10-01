@@ -22,7 +22,7 @@ def next_id() -> int:
 class ScheduledJob:
     """A job scheduled to run based on a trigger or at a specific time."""
 
-    sort_index: tuple[SystemDateTime, float, int] = field(init=False, repr=False)
+    sort_index: tuple[int, int] = field(init=False, repr=False)
 
     owner: str = field(compare=False)
     next_run: SystemDateTime = field(compare=False)
@@ -55,7 +55,7 @@ class ScheduledJob:
         """Update the next run timestamp and refresh ordering metadata."""
         rounded_next_run = next_run.round(unit="second")
         self.next_run = rounded_next_run
-        self.sort_index = (rounded_next_run, next_run.timestamp_nanos(), self.job_id)
+        self.sort_index = (next_run.timestamp_nanos(), self.job_id)
 
 
 @dataclass
