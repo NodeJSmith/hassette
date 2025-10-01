@@ -89,17 +89,17 @@ async def wait_for_resources_running(
         for resource in resources
     ]
 
-    results = []
-    for future in asyncio.as_completed(futures, timeout=timeout):
-        try:
-            result = await future
-            results.append(result)
-        except TimeoutError:
-            results.append(False)
-        except Exception as e:
-            LOGGER.error("Error waiting for resource: %s", e)
-            results.append(False)
+    try:
+        results = await asyncio.gather(*futures, return_exceptions=True)
+    except Exception as e:
+        LOGGER.error("Error waiting for resources: %s", e)
+        return False
 
+    # Convert exceptions to False, log errors
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            LOGGER.error("Error waiting for resource: %s", result)
+            results[i] = False
     return all(results)
 
 
