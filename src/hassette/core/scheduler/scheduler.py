@@ -36,8 +36,12 @@ class SchedulerService(Service):
 
     async def run_forever(self):
         """Run the scheduler forever, processing jobs as they become due."""
+
+        async with self.starting():
+            self.logger.debug("Waiting for Hassette ready event")
+            await self.hassette.ready_event.wait()
+
         try:
-            await self.handle_start()
             self._exit_event = asyncio.Event()
 
             while True:

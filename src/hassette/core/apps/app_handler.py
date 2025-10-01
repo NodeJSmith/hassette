@@ -87,10 +87,9 @@ class _AppHandler(Resource):
 
     async def initialize(self) -> None:
         """Start handler and initialize configured apps."""
-        self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
-
-        await self.initialize_apps()
-        await super().initialize()
+        async with self.starting():
+            self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
+            await self.initialize_apps()
 
     async def shutdown(self) -> None:
         """Shutdown all app instances gracefully."""

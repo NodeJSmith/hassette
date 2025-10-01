@@ -110,26 +110,26 @@ class _Websocket(Service):
         ):
             with attempt:
                 async with aiohttp.ClientSession(timeout=timeout) as session:
-                    self._session = session
-                    try:
-                        self._ws = await session.ws_connect(self.url, heartbeat=30)
-                    except ClientConnectorError as exc:
-                        if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
-                            raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
-                        raise
+                    async with self.starting():
+                        self._session = session
+                        try:
+                            self._ws = await session.ws_connect(self.url, heartbeat=30)
+                        except ClientConnectorError as exc:
+                            if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
+                                raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
+                            raise
 
-                    self.logger.debug("Connected to WebSocket at %s", self.url)
-                    await self.authenticate()
+                        self.logger.debug("Connected to WebSocket at %s", self.url)
+                        await self.authenticate()
 
-                    # start the reader first so send_and_wait can get replies
-                    self._recv_task = self.hassette.create_task(self._recv_loop())
+                        # start the reader first so send_and_wait can get replies
+                        self._recv_task = self.hassette.create_task(self._recv_loop())
 
-                    sub_all_id = await self._subscribe_events()  # uses send_and_wait internally
-                    self._subscription_ids.add(sub_all_id)
+                        sub_all_id = await self._subscribe_events()  # uses send_and_wait internally
+                        self._subscription_ids.add(sub_all_id)
 
-                    await self.handle_start()
-                    event = WebsocketConnectedEventPayload.create_event(url=self.url)
-                    await self.hassette.send_event(event.topic, event)
+                        event = WebsocketConnectedEventPayload.create_event(url=self.url)
+                        await self.hassette.send_event(event.topic, event)
 
                     # Keep running until recv loop ends (disconnect, error, etc.)
                     await self._recv_task

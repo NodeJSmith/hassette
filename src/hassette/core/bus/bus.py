@@ -141,10 +141,12 @@ class BusService(Service):
     async def run_forever(self) -> None:
         """Worker loop that processes events from the stream."""
 
+        async with self.starting():
+            self.logger.debug("Waiting for Hassette ready event")
+            await self.hassette.ready_event.wait()
+
         try:
             async with self.stream:
-                await self.handle_start()
-
                 async for event_name, event_data in self.stream:
                     try:
                         await self.dispatch(event_name, event_data)
