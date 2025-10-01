@@ -96,6 +96,7 @@ class _Websocket(Service):
         # adjust behavior in things like the Api class
 
         timeout = ClientTimeout(connect=5, total=30)
+
         async for attempt in AsyncRetrying(
             retry=retry_if_not_exception_type(
                 (InvalidAuthError, asyncio.CancelledError, CouldNotFindHomeAssistantError)
