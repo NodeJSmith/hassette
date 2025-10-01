@@ -161,6 +161,7 @@ class Api(Resource):
         super().__init__(hassette)
         self._api = _api
         self.sync = ApiSyncFacade(self)
+        """Synchronous facade for the API service."""
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""
