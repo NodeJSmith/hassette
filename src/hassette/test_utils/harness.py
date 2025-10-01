@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 from aiohttp import web
 from anyio import create_memory_object_stream
+from yarl import URL
 
 from hassette.core.api import Api, _Api
 from hassette.core.apps.app_handler import _AppHandler
@@ -26,7 +27,6 @@ from hassette.utils import wait_for_resources_running_or_raise
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-    from yarl import URL
 
 LOGGER = logging.getLogger(__name__)
 tracemalloc.start()
@@ -64,7 +64,7 @@ class _HassetteMock:
         self.config = config
         self.logger = logging.getLogger("hassette.test.harness")
         self.ready_event = asyncio.Event()
-        self._shutdown_event = asyncio.Event()
+        self.shutdown_event = asyncio.Event()
         self._resources: dict[str, Resource] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread_pool: ThreadPoolExecutor | None = None
@@ -179,7 +179,7 @@ class HassetteHarness:
     use_file_watcher: bool = False
     use_app_handler: bool = False
     use_websocket: bool = False
-    api_base_url: "URL | None" = None
+    unused_tcp_port: int = 0
 
     def __post_init__(self) -> None:
         if self.use_api_mock and self.use_api_real:
@@ -190,6 +190,7 @@ class HassetteHarness:
         self._exit_stack = contextlib.AsyncExitStack()
         self._thread_pool: ThreadPoolExecutor | None = None
         self.api_mock: SimpleTestServer | None = None
+        self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
     async def __aenter__(self) -> "HassetteHarness":
         await self.start()
@@ -233,7 +234,7 @@ class HassetteHarness:
         return self
 
     async def stop(self) -> None:
-        self.hassette._shutdown_event.set()
+        self.hassette.shutdown_event.set()
 
         try:
             for name, resource in reversed(self.hassette._resources.items()):

@@ -77,7 +77,7 @@ def test_data_path():
     return TEST_DATA_PATH
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def apps_config_file(tmp_path_factory):
     """Return a temporary hassette.toml populated with app definitions for app-centric tests."""
 
@@ -87,7 +87,7 @@ def apps_config_file(tmp_path_factory):
     return toml_path
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_config_with_apps(apps_config_file):
     """Provide a HassetteConfig instance that loads apps from a temporary hassette.toml."""
 
