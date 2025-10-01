@@ -9,7 +9,7 @@ import coloredlogs
 FORMAT_DATE = "%Y-%m-%d"
 FORMAT_TIME = "%H:%M:%S"
 FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
-FMT = "%(asctime)s %(levelname)s %(name)s.%(funcName)s:%(lineno)d ─ %(message)s"
+FMT = "%(asctime)s.%(msecs)03d %(levelname)s %(name)s.%(funcName)s:%(lineno)d ─ %(message)s"
 
 # TODO: remove coloredlogs and roll our own? or use colorlogs
 # coloredlogs is unmaintained and parts of it are broken on Python 3.13+
