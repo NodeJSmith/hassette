@@ -165,8 +165,8 @@ class SchedulerService(Service):
             self.logger.debug("Running job %s at %s", job, now())
             async_func = make_async_adapter(func)
             await async_func(*job.args, **job.kwargs)
-        except Exception as e:
-            self.logger.error("Error running job %s: %s - %s", job, type(e), e)
+        except Exception:
+            self.logger.exception("Error running job %s", job)
 
     async def reschedule_job(self, job: "ScheduledJob"):
         """Reschedule a job if it is repeating.
