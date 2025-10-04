@@ -36,6 +36,15 @@ def hassette_harness(
 
 
 @pytest.fixture(scope="module")
+async def hassette_with_nothing(
+    hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
+    test_config: "HassetteConfig",
+) -> "AsyncIterator[Hassette]":
+    async with hassette_harness(config=test_config) as harness:
+        yield cast("Hassette", harness.hassette)
+
+
+@pytest.fixture(scope="module")
 async def hassette_with_bus(
     hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
     test_config: "HassetteConfig",

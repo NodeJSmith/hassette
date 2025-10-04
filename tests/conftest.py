@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from hassette.config.core_config import HassetteConfig
-from hassette.core.tasks import TaskBucket, make_task_factory
+from hassette.core.core import Hassette
 
 tracemalloc.start()
 
@@ -140,18 +140,17 @@ def caplog_info(caplog):
 
 
 @pytest.fixture
-async def bucket_fixture():  # pytest-asyncio provides event_loop
-    b = TaskBucket("test", cancellation_timeout=0.1)  # small timeout → fast tests
-    # install factory so even raw asyncio.create_task is tracked
-    event_loop = asyncio.get_running_loop()
-    event_loop.set_task_factory(make_task_factory(b))
+async def bucket_fixture(hassette_with_nothing: Hassette):  # pytest-asyncio provides event_loop
     try:
-        yield b
+        yield hassette_with_nothing._global_tasks
     finally:
         # hard cleanup if a test forgot
-        await b.cancel_all()
+        await hassette_with_nothing._global_tasks.cancel_all()
+        await asyncio.sleep(0)  # let cancellations propagate
         # last-resort parachute: fail if anything still running
-        leftovers = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
+        current = asyncio.current_task()
+
+        leftovers = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
         if leftovers:
             # cancel and wait briefly so the loop can unwind
             for t in leftovers:

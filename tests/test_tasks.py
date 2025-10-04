@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import logging
 
-from hassette.core import tasks as core_tasks  # gives you the actual logger name
+from hassette.core.classes import tasks
 
 
 async def sleeper():
@@ -14,14 +14,23 @@ async def sleeper():
         raise
 
 
-async def test_cancel_all_cancels_cooperative_tasks(bucket_fixture):
+async def test_cancel_all_cancels_cooperative_tasks(bucket_fixture: tasks.TaskBucket):
     t = asyncio.create_task(sleeper(), name="cooperative")
     # factory should auto-register; no explicit bucket.add/spawn needed
     await asyncio.sleep(0)  # let it start
+
+    assert len(bucket_fixture) >= 1, f"bucket should track at least one task, tracks {len(bucket_fixture)}"
+
     await bucket_fixture.cancel_all()
 
-    assert t.done()
-    assert t.cancelled()
+    time = asyncio.get_running_loop().time()
+    end = time + bucket_fixture.cancel_timeout + 0.5
+    while not t.done() and time < end:
+        await asyncio.sleep(0.01)
+        time = asyncio.get_running_loop().time()
+
+    assert t.done(), f"task should be done after cancel_all, is {t._state}"
+    assert t.cancelled(), "task should be cancelled after cancel_all"
 
 
 async def boom(event: asyncio.Event):
@@ -30,9 +39,9 @@ async def boom(event: asyncio.Event):
     raise RuntimeError("boom")
 
 
-async def test_crash_is_logged(bucket_fixture, caplog):
+async def test_crash_is_logged(bucket_fixture: tasks.TaskBucket, caplog):
     event = asyncio.Event()
-    caplog.set_level(logging.DEBUG, logger=core_tasks.LOGGER.name)
+    caplog.set_level(logging.DEBUG, logger=bucket_fixture.logger.name)
     t = asyncio.create_task(boom(event), name="exploder")
 
     num_tasks = len(bucket_fixture)
@@ -42,11 +51,12 @@ async def test_crash_is_logged(bucket_fixture, caplog):
     await asyncio.sleep(0.2)  # let it crash and log
 
     msgs = [r.getMessage() for r in caplog.records]
-    # assert any("exploder" in m and "failed" in m for m in msgs)
-    if not any("exploder" in m and "failed" in m for m in msgs):
+
+    if not any("exploder" in m and "crashed" in m for m in msgs):
         raise AssertionError(f"No error log; logs were: {msgs}")
-    assert t.done()
-    assert not t.cancelled()
+
+    assert t.done(), f"task should be done after crash, is {t._state}"
+    assert not t.cancelled(), "task should not be cancelled after crash"
 
 
 async def stubborn(event: asyncio.Event):
@@ -58,13 +68,14 @@ async def stubborn(event: asyncio.Event):
     event.set()
 
 
-async def test_warns_on_stubborn_tasks(bucket_fixture, caplog):
+async def test_warns_on_stubborn_tasks(bucket_fixture: tasks.TaskBucket, caplog):
     event = asyncio.Event()
-    caplog.set_level(logging.WARNING, logger=core_tasks.LOGGER.name)
+    caplog.set_level(logging.WARNING, logger=bucket_fixture.logger.name)
     t = asyncio.create_task(stubborn(event), name="stubborn")
     await asyncio.sleep(0)
 
     await bucket_fixture.cancel_all()
+    await asyncio.sleep(0.2)  # let it log if needed
 
     # the task may still be running (ignored cancel), but we should have warned
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
@@ -74,11 +85,11 @@ async def test_warns_on_stubborn_tasks(bucket_fixture, caplog):
 
     await asyncio.wait_for(event.wait(), timeout=bucket_fixture.cancel_timeout + 0.5)
 
-    assert t.done()
-    assert not t.cancelled()
+    assert t.done(), f"task should be done after finishing, is {t._state}"
+    assert not t.cancelled(), "task should not be cancelled after finishing"
 
 
-async def test_factory_tracks_rogue_create_task(bucket_fixture):
+async def test_factory_tracks_rogue_create_task(bucket_fixture: tasks.TaskBucket):
     ran = asyncio.Event()
 
     async def rogue():
@@ -89,8 +100,8 @@ async def test_factory_tracks_rogue_create_task(bucket_fixture):
     await asyncio.sleep(0)
     await ran.wait()
     # No direct bucket.add; rely on factory
-    assert len(bucket_fixture) >= 1
+    assert len(bucket_fixture) >= 1, f"bucket should track at least one task, tracks {len(bucket_fixture)}"
 
     await bucket_fixture.cancel_all()
-    assert t.done()
-    assert t.cancelled()
+    assert t.done(), f"task should be done after cancel_all, is {t._state}"
+    assert t.cancelled(), "task should be cancelled after cancel_all"
