@@ -28,7 +28,7 @@ from hassette.utils import wait_for_resources_running_or_raise
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-LOGGER = logging.getLogger(__name__)
+
 tracemalloc.start()
 
 
@@ -62,7 +62,7 @@ async def shutdown_resource(res: Resource, *, desc: str) -> None:  # noqa
 class _HassetteMock:
     def __init__(self, *, config: Any | None = None) -> None:
         self.config = config
-        self.logger = logging.getLogger("hassette.test.harness")
+        self.logger = logging.getLogger(f"hassette.test.harness.{type(self).__name__}")
         self.ready_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
         self._resources: dict[str, Resource] = {}
@@ -217,6 +217,7 @@ class HassetteHarness:
         if self.use_api_mock and self.use_api_real:
             raise ValueError("Cannot use both API mock and real API in the same harness")
 
+        self.logger = logging.getLogger(f"hassette.test.harness.{type(self).__name__}")
         self.hassette = _HassetteMock(config=self.config)
         self._tasks: list[tuple[str, asyncio.Task[Any]]] = []
         self._exit_stack = contextlib.AsyncExitStack()
@@ -275,7 +276,7 @@ class HassetteHarness:
                 await shutdown_resource(resource, desc=name)
                 await asyncio.sleep(0.05)
         except Exception:
-            LOGGER.exception("Error shutting down resources")
+            self.logger.exception("Error shutting down resources")
 
         try:
             for _, task in reversed(self._tasks):
@@ -283,13 +284,13 @@ class HassetteHarness:
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
         except Exception:
-            LOGGER.exception("Error cancelling tasks")
+            self.logger.exception("Error cancelling tasks")
 
         try:
             if self.api_mock is not None:
                 self.api_mock.assert_clean()
         except Exception:
-            LOGGER.exception("Error checking API mock")
+            self.logger.exception("Error checking API mock")
 
         await self._exit_stack.aclose()
 
