@@ -23,14 +23,23 @@ class SchedulerService(Service):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
 
-        self.min_delay = 0.1
-        self.max_delay = 30.0
-
         self.lock = asyncio.Lock()
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
         self._tasks: set[asyncio.Task] = set()
+
+    @property
+    def min_delay(self) -> float:
+        return self.hassette.config.scheduler_min_delay_seconds
+
+    @property
+    def max_delay(self) -> float:
+        return self.hassette.config.scheduler_max_delay_seconds
+
+    @property
+    def default_delay(self) -> float:
+        return self.hassette.config.scheduler_default_delay_seconds
 
     async def run_forever(self):
         """Run the scheduler forever, processing jobs as they become due."""
@@ -121,7 +130,7 @@ class SchedulerService(Service):
             self.logger.debug("Next job scheduled at %s", next_run_time)
             delay = max((next_run_time - now()).in_seconds(), self.min_delay)
         else:
-            delay = 15.0  # or some generous default
+            delay = self.default_delay
 
         # ensure delay isn't over N seconds
         delay = min(delay, self.max_delay)

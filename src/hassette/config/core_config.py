@@ -126,8 +126,29 @@ class HassetteConfig(HassetteBaseSettings):
     """Configuration for Hassette apps, keyed by app name."""
 
     # Other configurations
-    websocket_timeout_seconds: int = Field(default=5)
-    """Timeout for WebSocket requests."""
+    websocket_authentication_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for WebSocket authentication to complete."""
+
+    websocket_response_timeout_seconds: int = Field(default=5)
+    """Length of time to wait for a response from the WebSocket."""
+
+    websocket_connection_timeout_seconds: int = Field(default=5)
+    """Length of time to wait for WebSocket connection to complete. Passed to aiohttp."""
+
+    websocket_total_timeout_seconds: int = Field(default=30)
+    """Total length of time to wait for WebSocket operations to complete. Passed to aiohttp."""
+
+    websocket_heartbeat_interval_seconds: int = Field(default=30)
+    """Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp."""
+
+    scheduler_min_delay_seconds: int = Field(default=1)
+    """Minimum delay between scheduled jobs."""
+
+    scheduler_max_delay_seconds: int = Field(default=30)
+    """Maximum delay between scheduled jobs."""
+
+    scheduler_default_delay_seconds: int = Field(default=15)
+    """Default delay between scheduled jobs."""
 
     run_sync_timeout_seconds: int = Field(default=6)
     """Default timeout for synchronous function calls."""
@@ -137,6 +158,9 @@ class HassetteConfig(HassetteBaseSettings):
 
     health_service_port: int | None = Field(default=8126)
     """Port to run the health service on, ignored if run_health_service is False."""
+
+    startup_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for all Hassette resources to start before giving up."""
 
     file_watcher_debounce_milliseconds: int = Field(default=3_000)
     """Debounce time for file watcher events in milliseconds."""

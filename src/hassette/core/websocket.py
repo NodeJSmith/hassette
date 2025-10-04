@@ -51,8 +51,24 @@ class _Websocket(Service):
         self._connect_lock = asyncio.Lock()  # if you don't already have it
 
     @property
-    def timeout_seconds(self) -> int:
-        return self.hassette.config.websocket_timeout_seconds
+    def resp_timeout_seconds(self) -> int:
+        return self.hassette.config.websocket_response_timeout_seconds
+
+    @property
+    def connection_timeout_seconds(self) -> int:
+        return self.hassette.config.websocket_connection_timeout_seconds
+
+    @property
+    def total_timeout_seconds(self) -> int:
+        return self.hassette.config.websocket_total_timeout_seconds
+
+    @property
+    def hearbeat_interval_seconds(self) -> int:
+        return self.hassette.config.websocket_heartbeat_interval_seconds
+
+    @property
+    def authentication_timeout_seconds(self) -> int:
+        return self.hassette.config.websocket_authentication_timeout_seconds
 
     @property
     def connected(self) -> bool:
@@ -208,9 +224,9 @@ class _Websocket(Service):
         self._response_futures[msg_id] = fut
         try:
             await self.send_json(**data)
-            return await asyncio.wait_for(fut, timeout=self.timeout_seconds)
+            return await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
         except TimeoutError:
-            raise FailedMessageError(f"Response timed out after {self.timeout_seconds}s (data: {data})") from None
+            raise FailedMessageError(f"Response timed out after {self.resp_timeout_seconds}s (data: {data})") from None
         finally:
             self._response_futures.pop(msg_id, None)
 
@@ -276,7 +292,7 @@ class _Websocket(Service):
         truncated_token = self.hassette.config.truncated_token
         ws_url = self.hassette.config.ws_url
 
-        with anyio.fail_after(10):
+        with anyio.fail_after(self.authentication_timeout_seconds):
             msg = await self._ws.receive_json()
             assert msg["type"] == "auth_required"
             await self._ws.send_json({"type": "auth", "access_token": token})
