@@ -21,6 +21,7 @@ from hassette.core.core import Event, Hassette
 from hassette.core.enums import ResourceStatus
 from hassette.core.file_watcher import _FileWatcher
 from hassette.core.scheduler.scheduler import Scheduler, _SchedulerService
+from hassette.core.tasks import TaskBucket
 from hassette.core.websocket import _Websocket
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.utils import wait_for_resources_running_or_raise
@@ -70,6 +71,7 @@ class _HassetteMock:
         self._thread_pool: ThreadPoolExecutor | None = None
         self._send_stream: MemoryObjectSendStream[tuple[str, Event[Any]]] | None = None
         self._receive_stream: MemoryObjectReceiveStream[tuple[str, Event[Any]]] | None = None
+        self._task_bucket = TaskBucket(cast("Hassette", self), name="hassette", prefix="hassette")
 
         self._api: _Api | None = None
         self.api: Api | None = None
@@ -128,9 +130,13 @@ class _HassetteMock:
                 fut.cancel()
 
     def create_task(self, coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task[Any]:
+        return self._task_bucket.spawn(coro, name=name)
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
         if not self._loop:
             raise RuntimeError("Event loop is not running")
-        return self._loop.create_task(coro, name=name)
+        return self._loop
 
     async def run_on_loop_thread(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self._loop:
