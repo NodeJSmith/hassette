@@ -24,6 +24,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.websocket import _Websocket
 
 LOGGER = getLogger(__name__)
+NOT_RETRYABLE = (EntityNotFoundError, InvalidAuthError, RuntimeError, ConnectionClosedError, TypeError, AttributeError)
 
 
 class _Api(Resource):
@@ -41,6 +42,8 @@ class _Api(Resource):
             self._session = await self._stack.enter_async_context(
                 aiohttp.ClientSession(headers=self._headers, base_url=self._rest_url)
             )
+            await self.hassette.wait_for_ready(self.hassette._websocket)
+            self.mark_ready(reason="API session initialized")
 
     async def shutdown(self, *args, **kwargs) -> None:
         await self._stack.aclose()
@@ -62,9 +65,7 @@ class _Api(Resource):
         return self.hassette._websocket
 
     @retry(
-        retry=retry_if_not_exception_type(
-            (EntityNotFoundError, InvalidAuthError, RuntimeError, ConnectionClosedError, TypeError, AttributeError)
-        ),
+        retry=retry_if_not_exception_type(NOT_RETRYABLE),
         wait=wait_exponential_jitter(),
         stop=stop_after_attempt(5),
         before_sleep=before_sleep_log(LOGGER, logging.WARNING),
