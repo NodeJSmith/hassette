@@ -1,9 +1,12 @@
+import asyncio
+import logging
 import tracemalloc
 from pathlib import Path
 
 import pytest
 
 from hassette.config.core_config import HassetteConfig
+from hassette.core.tasks import TaskBucket, make_task_factory
 
 tracemalloc.start()
 
@@ -128,3 +131,30 @@ def my_app_class():
     from data.my_app import MyApp
 
     return MyApp
+
+
+@pytest.fixture
+def caplog_info(caplog):
+    caplog.set_level(logging.INFO)
+    return caplog
+
+
+@pytest.fixture
+async def bucket_fixture():  # pytest-asyncio provides event_loop
+    b = TaskBucket("test", cancellation_timeout=0.1)  # small timeout → fast tests
+    # install factory so even raw asyncio.create_task is tracked
+    event_loop = asyncio.get_running_loop()
+    event_loop.set_task_factory(make_task_factory(b))
+    try:
+        yield b
+    finally:
+        # hard cleanup if a test forgot
+        await b.cancel_all()
+        # last-resort parachute: fail if anything still running
+        leftovers = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
+        if leftovers:
+            # cancel and wait briefly so the loop can unwind
+            for t in leftovers:
+                t.cancel()
+            await asyncio.wait(leftovers, timeout=0.2)
+            raise AssertionError(f"Leftover tasks after test: {[t.get_name() for t in leftovers]}")

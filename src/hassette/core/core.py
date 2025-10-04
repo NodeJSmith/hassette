@@ -21,6 +21,7 @@ from .file_watcher import _FileWatcher
 from .health_service import _HealthService
 from .scheduler.scheduler import Scheduler, _SchedulerService
 from .service_watcher import _ServiceWatcher
+from .tasks import TaskBucket, make_task_factory
 from .websocket import _Websocket
 
 P = ParamSpec("P")
@@ -216,7 +217,7 @@ class Hassette:
         Returns:
             asyncio.Task[R]: The created task.
         """
-        return self.loop.create_task(coro, name=name)
+        return self._task_bucket.spawn(coro, name=name)
 
     async def wait_for_ready(
         self,
@@ -274,6 +275,10 @@ class Hassette:
     async def run_forever(self) -> None:
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
+
+        self._task_bucket = TaskBucket("global")
+        self._loop.set_task_factory(make_task_factory(self._task_bucket))
+
         self._start_resources()
 
         self.ready_event.set()
@@ -343,6 +348,8 @@ class Hassette:
             await self._send_stream.aclose()
         if self._receive_stream is not None:
             await self._receive_stream.aclose()
+
+        await self._task_bucket.cancel_all()
 
     def shutdown(self) -> None:
         """Signal shutdown to the main loop."""

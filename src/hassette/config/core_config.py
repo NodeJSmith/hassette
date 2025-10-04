@@ -171,6 +171,9 @@ class HassetteConfig(HassetteBaseSettings):
     watch_files: bool = Field(default=True)
     """Whether to watch files for changes and reload apps automatically."""
 
+    task_cancellation_timeout_seconds: int = Field(default=5)
+    """Length of time to wait for tasks to cancel before forcing."""
+
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
     """User provided secrets that can be referenced in the config."""

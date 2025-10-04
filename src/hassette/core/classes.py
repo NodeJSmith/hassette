@@ -10,6 +10,7 @@ from typing import ClassVar
 
 from hassette.core.enums import ResourceRole, ResourceStatus
 from hassette.core.events import ServiceStatusPayload
+from hassette.core.tasks import TaskBucket
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
@@ -64,6 +65,8 @@ class _HassetteBase:
 
         self._ready_reason: str | None = None
         """Optional reason for readiness or lack thereof."""
+
+        self._task_bucket = TaskBucket(name=f"{self.class_name}-{self.unique_id}")
 
     @property
     def unique_name(self) -> str:
