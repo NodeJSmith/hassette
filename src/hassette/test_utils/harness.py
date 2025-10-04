@@ -204,7 +204,7 @@ class _HassetteMock:
 @dataclass
 class HassetteHarness:
     config: Any | None = None
-    use_bus: bool = True
+    use_bus: bool = False
     use_scheduler: bool = False
     use_api_mock: bool = False
     use_api_real: bool = False

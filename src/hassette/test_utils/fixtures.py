@@ -70,7 +70,7 @@ async def hassette_scheduler(
     hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
     test_config: "HassetteConfig",
 ) -> "AsyncIterator[Scheduler]":
-    async with hassette_harness(config=test_config, use_scheduler=True) as harness:
+    async with hassette_harness(config=test_config, use_bus=True, use_scheduler=True) as harness:
         assert harness.hassette._scheduler is not None
         yield harness.hassette._scheduler
 
