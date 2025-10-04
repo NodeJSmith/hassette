@@ -239,20 +239,20 @@ class _AppHandler(Resource):
         """
 
         class_name = app_manifest.class_name
-        for idx, isnt in self.apps.get(app_key, {}).items():
+        for idx, inst in self.apps.get(app_key, {}).items():
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
-                    await isnt.initialize()
-                self.logger.info("App '%s' (%s) initialized successfully", isnt.app_config.instance_name, class_name)
+                    await inst.initialize()
+                self.logger.info("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
             except TimeoutError as e:
                 self.logger.exception(
-                    "Timed out while starting app '%s' (%s)", isnt.app_config.instance_name, class_name
+                    "Timed out while starting app '%s' (%s)", inst.app_config.instance_name, class_name
                 )
-                isnt.status = ResourceStatus.STOPPED
+                inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
             except Exception as e:
-                self.logger.exception("Failed to start app '%s' (%s)", isnt.app_config.instance_name, class_name)
-                isnt.status = ResourceStatus.STOPPED
+                self.logger.exception("Failed to start app '%s' (%s)", inst.app_config.instance_name, class_name)
+                inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
 
     async def handle_change_event(self, event: "HassetteFileWatcherEvent") -> None:
