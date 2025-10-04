@@ -33,7 +33,7 @@ async def test_once_listener_removed(hassette_with_bus) -> None:
 
     await asyncio.sleep(0.1)
 
-    assert payloads == [1]
+    assert payloads == [1], f"Expected handler to fire once with payload 1, got {payloads}"
 
 
 async def test_bus_background_tasks_cleanup(hassette_with_bus) -> None:
@@ -55,4 +55,4 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus) -> None:
     await asyncio.wait_for(fired.wait(), timeout=1)
     await asyncio.sleep(0.1)
 
-    assert not hassette._bus_service._tasks
+    assert not hassette._bus_service._tasks, f"Expected no leftover bus tasks, found {hassette._bus_service._tasks}"

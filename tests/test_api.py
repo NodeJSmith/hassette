@@ -12,8 +12,8 @@ async def test_api_rest_request_sets_body_and_headers(hassette_with_mock_api: tu
     resp = await api.rest_request("POST", "/api/thing", data={"a": 1})
     resp_data = await resp.json()
 
-    assert "application/json" in resp.headers.get("Content-Type", "")
-    assert resp_data == {"a": 1}
+    assert "application/json" in resp.headers.get("Content-Type", ""), "Expected JSON response"
+    assert resp_data == {"a": 1}, f"Expected echoed JSON, got {resp_data}"
 
 
 async def test_api_rest_request_cleans_params(hassette_with_mock_api: tuple[Api, SimpleTestServer]):
@@ -25,14 +25,16 @@ async def test_api_rest_request_cleans_params(hassette_with_mock_api: tuple[Api,
 
     resp = await api.rest_request("GET", "/api/thing", params=params)
 
-    assert resp.status == 200
+    assert resp.status == 200, f"Expected 200 OK, got {resp.status}"
 
-    assert dict(resp.request_info.url.query) == {"keep": "x", "flag": "false"}
+    assert dict(resp.request_info.url.query) == {"keep": "x", "flag": "false"}, (
+        f"Unexpected query params: {resp.request_info.url.query}"
+    )
 
 
 def test_clean_kwargs_basic():
     out = clean_kwargs(a=None, b=False, c="  ", d="x", e=5)
-    assert out == {"b": "false", "d": "x", "e": 5}
+    assert out == {"b": "false", "d": "x", "e": 5}, f"Unexpected cleaned kwargs: {out}"
 
 
 def test_sync_parity():

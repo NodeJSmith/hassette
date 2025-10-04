@@ -18,7 +18,7 @@ async def test_interval_trigger_catchup() -> None:
     with patch.object(triggers, "now", lambda: fake_now):
         trig = IntervalTrigger(TimeDelta(seconds=10), start=SystemDateTime(2025, 8, 18, 0, 1, 0))
         nxt = trig.next_run_time()
-        assert nxt.format_common_iso() == "2025-08-18T00:01:40-05:00"
+        assert nxt.format_common_iso() == "2025-08-18T00:01:40-05:00", f"Got {nxt.format_common_iso()}"
 
 
 async def test_cron_trigger_catchup() -> None:
@@ -28,7 +28,7 @@ async def test_cron_trigger_catchup() -> None:
             second="*/10", minute="*", hour="*", start=SystemDateTime(2025, 8, 18, 0, 1, 0)
         )
         nxt = trig.next_run_time()
-        assert nxt.format_common_iso() == "2025-08-18T00:01:40-05:00"
+        assert nxt.format_common_iso() == "2025-08-18T00:01:40-05:00", f"Got {nxt.format_common_iso()}"
 
 
 async def test_run_cron_rejects_invalid(hassette_scheduler: Scheduler) -> None:
@@ -47,7 +47,7 @@ async def test_cron_trigger_seconds():
     start_time = SystemDateTime(2025, 8, 18, 0, 0, 0)
 
     trig = CronTrigger.from_arguments(second="*/1", start=start_time)
-    assert trig.cron_expression == "0 0 * * * */1"
+    assert trig.cron_expression == "0 0 * * * */1", f"Got {trig.cron_expression}"
 
     trig_next_time = trig.cron_iter.get_next()
 
@@ -60,7 +60,7 @@ async def test_cron_trigger_minutes():
     start_time = SystemDateTime(2025, 8, 18, 0, 0, 0)
 
     trig = CronTrigger.from_arguments(second="0", minute="*/1", start=start_time)
-    assert trig.cron_expression == "*/1 0 * * * 0"
+    assert trig.cron_expression == "*/1 0 * * * 0", f"Got {trig.cron_expression}"
 
     trig_next_time = trig.cron_iter.get_next()
 

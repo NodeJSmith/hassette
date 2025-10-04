@@ -12,8 +12,12 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
 
     expected_token = dotenv.get_key(env_file_path, "hassette__token")
 
-    assert test_config.ws_url == "ws://127.0.0.1:8123/api/websocket"
-    assert test_config.token.get_secret_value() == expected_token
+    assert test_config.ws_url == "ws://127.0.0.1:8123/api/websocket", (
+        f"Expected ws://127.0.0.1:8123/api/websocket, got {test_config.ws_url}"
+    )
+    assert test_config.token.get_secret_value() == expected_token, (
+        f"Expected token to be {expected_token}, got {test_config.token.get_secret_value()}"
+    )
 
 
 def test_env_overrides_are_used(test_config_class, monkeypatch):
@@ -22,4 +26,4 @@ def test_env_overrides_are_used(test_config_class, monkeypatch):
     """
     monkeypatch.setenv("hassette__app_dir", "/custom/apps")
     config = test_config_class()
-    assert config.app_dir == Path("/custom/apps")
+    assert config.app_dir == Path("/custom/apps"), f"Expected /custom/apps, got {config.app_dir}"

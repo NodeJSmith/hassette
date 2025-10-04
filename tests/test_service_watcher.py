@@ -46,4 +46,4 @@ async def test_restart_service_cancels_then_starts(get_service_watcher_mock: _Se
     await get_service_watcher_mock.restart_service(event)
     await asyncio.sleep(0.1)  # allow restart to run
 
-    assert called == {"cancel": 1, "start": 1}
+    assert called == {"cancel": 1, "start": 1}, f"Expected cancel and start to be called once each, got {called}"

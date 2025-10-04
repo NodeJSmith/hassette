@@ -23,7 +23,7 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
     # our handler for the file watcher event
     async def handler(event: Event[Any]) -> None:
         called_event.set()
-        assert event.topic == HASSETTE_EVENT_FILE_WATCHER
+        assert event.topic == HASSETTE_EVENT_FILE_WATCHER, f"Unexpected topic: {event.topic}"
 
     hassette._bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=handler)
 
@@ -45,5 +45,5 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
         with contextlib.suppress(asyncio.TimeoutError):
             with anyio.fail_after(1):
                 await called_event.wait()
-                assert called_event.is_set()
+                assert called_event.is_set(), f"Expected called_event to be set, got {called_event.is_set()}"
                 return
