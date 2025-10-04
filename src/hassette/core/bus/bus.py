@@ -30,7 +30,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.types import Handler, Predicate
 
 
-class BusService(Service):
+class _BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
     def __init__(self, hassette: "Hassette", stream: MemoryObjectReceiveStream["tuple[str, Event[Any]]"]):
@@ -133,6 +133,7 @@ class BusService(Service):
         async with self.starting():
             self.logger.debug("Waiting for Hassette ready event")
             await self.hassette.ready_event.wait()
+            self.mark_ready(reason="Hassette is ready")
 
         try:
             async with self.stream:
@@ -143,6 +144,7 @@ class BusService(Service):
                         self.logger.exception("Error processing event: %s", e)
         except asyncio.CancelledError:
             self.logger.debug("EventBus service cancelled")
+            self.mark_not_ready(reason="EventBus cancelled")
             await self.handle_stop()
         except Exception as e:
             await self.handle_crash(e)
@@ -163,8 +165,8 @@ class Bus(Resource):
         """Owner of the bus, must be a unique identifier for the owner."""
 
     @property
-    def bus_service(self) -> BusService:
-        return self.hassette.bus_service
+    def bus_service(self) -> _BusService:
+        return self.hassette._bus_service
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""

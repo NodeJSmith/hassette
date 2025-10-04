@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class SchedulerService(Service):
+class _SchedulerService(Service):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
 
@@ -47,6 +47,7 @@ class SchedulerService(Service):
         async with self.starting():
             self.logger.debug("Waiting for Hassette ready event")
             await self.hassette.ready_event.wait()
+            self.mark_ready(reason="Hassette is ready")
 
         try:
             self._exit_event = asyncio.Event()
@@ -63,6 +64,7 @@ class SchedulerService(Service):
 
                 await self.sleep()
         except asyncio.CancelledError:
+            self.mark_not_ready(reason="Scheduler cancelled")
             self.logger.debug("Scheduler cancelled, stopping")
             await self.handle_stop()
             self._exit_event.set()
@@ -271,9 +273,9 @@ class Scheduler(Resource):
         """Owner of the scheduler, must be a unique identifier for the owner."""
 
     @property
-    def scheduler_service(self) -> SchedulerService:
+    def scheduler_service(self) -> _SchedulerService:
         """Get the internal scheduler instance."""
-        return self.hassette.scheduler_service
+        return self.hassette._scheduler_service
 
     def add_job(self, job: "ScheduledJob") -> "ScheduledJob":
         """Add a job to the scheduler.

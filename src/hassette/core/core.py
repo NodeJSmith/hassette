@@ -13,13 +13,13 @@ from ..config import HassetteConfig
 from ..utils import get_traceback_string, wait_for_resources_running
 from .api import Api, _Api
 from .apps.app_handler import _AppHandler
-from .bus.bus import Bus, BusService
+from .bus.bus import Bus, _BusService
 from .classes import Resource, Service
 from .enums import ResourceRole
 from .events import Event
 from .file_watcher import _FileWatcher
 from .health_service import _HealthService
-from .scheduler.scheduler import Scheduler, SchedulerService
+from .scheduler.scheduler import Scheduler, _SchedulerService
 from .service_watcher import _ServiceWatcher
 from .websocket import _Websocket
 
@@ -39,12 +39,6 @@ class Hassette:
     role: ClassVar[ResourceRole] = ResourceRole.CORE
 
     _instance: ClassVar["Hassette"] = None  # type: ignore
-
-    scheduler_service: SchedulerService
-    """Scheduler service for managing scheduled tasks."""
-
-    bus_service: BusService
-    """Event bus that all individual Bus instances connect to."""
 
     api: Api
     """API service for handling HTTP requests."""
@@ -92,10 +86,10 @@ class Hassette:
         self._health_service = self._register_resource(_HealthService)
         self._file_watcher = self._register_resource(_FileWatcher)
         self._app_handler = self._register_resource(_AppHandler)
+        self._scheduler_service = self._register_resource(_SchedulerService)
+        self._bus_service = self._register_resource(_BusService, self._receive_stream.clone())
 
         # public services
-        self.scheduler_service = self._register_resource(SchedulerService)
-        self.bus_service = self._register_resource(BusService, self._receive_stream.clone())
         self.api = self._register_resource(Api, self._api)
 
         # internal instances
