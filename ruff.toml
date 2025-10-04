@@ -37,26 +37,27 @@ target-version = "py311"
 [lint]
 select = [
     # "ANN",
-    "E",    # pycodestyle (error)
-    "W",    # pycodestyle (warning)
-    "F",    # pyflakes
-    "UP",   # pyupgrade
-    "C419", # pylint - convention - unnecessary-comprehension-in-call
-    "RET",  # flake8-return
-    "SIM",  # flake8-simplify
-    "ARG",  # flake8-unused-arguments
-    "PTH",  # flake8-use-pathlib
-    "PD",   # pandas-vet
-    "RUF",  # ruff
-    "TCH",  # flake8-type-checking
-    "I",    # isort
-    "DTZ",  # flake8-datetimez
-    "PT",   # flake8-pytest-style (PT)
-    "B",    # bugbear
-    "LOG",  # flake8-logging (LOG)
-    "G",    #flake8-logging-format (G)
-    "N",    #pep8-naming (N),
-    "PERF", # Perflint (PERF)
+    "E",      # pycodestyle (error)
+    "W",      # pycodestyle (warning)
+    "F",      # pyflakes
+    "UP",     # pyupgrade
+    "C419",   # pylint - convention - unnecessary-comprehension-in-call
+    "RET",    # flake8-return
+    "SIM",    # flake8-simplify
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "PD",     # pandas-vet
+    "RUF",    # ruff
+    "TCH",    # flake8-type-checking
+    "I",      # isort
+    "DTZ",    # flake8-datetimez
+    "PT",     # flake8-pytest-style (PT)
+    "B",      # bugbear
+    "LOG",    # flake8-logging (LOG)
+    "G",      #flake8-logging-format (G)
+    "N",      #pep8-naming (N),
+    "PERF",   # Perflint (PERF)
+    "TID252", # relative imports
 ]
 
 ignore = [
