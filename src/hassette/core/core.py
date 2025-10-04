@@ -90,12 +90,12 @@ class Hassette:
         self._scheduler_service = self._register_resource(_SchedulerService)
         self._bus_service = self._register_resource(_BusService, self._receive_stream.clone())
 
-        # public services
-        self.api = self._register_resource(Api, self._api)
-
         # internal instances
         self._bus = self._register_resource(Bus, self.unique_name)
         self._scheduler = self._register_resource(Scheduler, self.unique_name)
+
+        # public services
+        self.api = self._register_resource(Api, self._api)
 
         type(self)._instance = self
 
@@ -209,7 +209,7 @@ class Hassette:
         return await fut
 
     def create_task(self, coro: Coroutine[Any, Any, R], name: str) -> asyncio.Task[R]:
-        """Create a task in the main event loop.
+        """Create a task tracked in the global hassette task bucket.
 
         Args:
             coro (Coroutine[Any, Any, R]): The coroutine to run as a task.
@@ -217,7 +217,8 @@ class Hassette:
         Returns:
             asyncio.Task[R]: The created task.
         """
-        return self._task_bucket.spawn(coro, name=name)
+
+        return self._global_tasks.spawn(coro, name=name)
 
     async def wait_for_ready(
         self,
@@ -276,8 +277,8 @@ class Hassette:
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
 
-        self._task_bucket = TaskBucket("global")
-        self._loop.set_task_factory(make_task_factory(self._task_bucket))
+        self._global_tasks = TaskBucket(self, name="hassette", prefix="hassette")
+        self._loop.set_task_factory(make_task_factory(self._global_tasks))
 
         self._start_resources()
 
@@ -322,6 +323,10 @@ class Hassette:
         for resource in reversed(self._resources.values()):
             try:
                 await resource.shutdown()
+
+                # in case the resource does not call its own cleanup
+                # shouldn't happen, but be safe
+                await resource._cleanup()
             except Exception as e:
                 self.logger.error("Failed to shutdown resource '%s': %s", resource.class_name, e)
 
@@ -349,7 +354,7 @@ class Hassette:
         if self._receive_stream is not None:
             await self._receive_stream.aclose()
 
-        await self._task_bucket.cancel_all()
+        await self._global_tasks.cancel_all()
 
     def shutdown(self) -> None:
         """Signal shutdown to the main loop."""
