@@ -69,7 +69,7 @@ class BusService(Service):
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""
-        task = self.hassette.create_task(self.router.add_route(listener.topic, listener))
+        task = self.hassette.create_task(self.router.add_route(listener.topic, listener), name="add_listener")
         self._track_task(task)
 
     def remove_listener(self, listener: Listener) -> None:
@@ -78,12 +78,12 @@ class BusService(Service):
 
     def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
         """Remove a listener by its ID."""
-        task = self.hassette.create_task(self.router.remove_listener_by_id(topic, listener_id))
+        task = self.hassette.create_task(self.router.remove_listener_by_id(topic, listener_id), name="remove_listener")
         self._track_task(task)
 
     def remove_listeners_by_owner(self, owner: str) -> None:
         """Remove all listeners owned by a specific owner."""
-        task = self.hassette.create_task(self.router.clear_owner(owner))
+        task = self.hassette.create_task(self.router.clear_owner(owner), name="remove_listeners_by_owner")
         self._track_task(task)
 
     async def dispatch(self, topic: str, event: "Event[Any]") -> None:
@@ -109,7 +109,7 @@ class BusService(Service):
         self.logger.debug("Listeners for %s: %r", topic, targets)
 
         for listener in targets:
-            task = self.hassette.create_task(self._dispatch(topic, event, listener))
+            task = self.hassette.create_task(self._dispatch(topic, event, listener), name="dispatch_listener")
             self._track_task(task)
 
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: Listener) -> None:

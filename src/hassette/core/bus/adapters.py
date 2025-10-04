@@ -58,7 +58,7 @@ def add_debounce(
             except asyncio.CancelledError:
                 pass
 
-        pending = hassette.create_task(_later())
+        pending = hassette.create_task(_later(), name="debounce_handler")
 
     return _debounced
 

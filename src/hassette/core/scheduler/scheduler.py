@@ -49,7 +49,7 @@ class SchedulerService(Service):
 
                 while not self._queue.is_empty() and (peek := self._queue.peek()) and peek.next_run <= now():
                     job = self._queue.pop()
-                    task = self.hassette.create_task(self._dispatch_and_log(job))
+                    task = self.hassette.create_task(self._dispatch_and_log(job), name="dispatch_scheduled_job")
                     self._track_task(task)
 
                 await self.sleep()

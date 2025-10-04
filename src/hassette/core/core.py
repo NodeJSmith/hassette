@@ -213,7 +213,7 @@ class Hassette:
         self._loop.call_soon_threadsafe(_call)
         return await fut
 
-    def create_task(self, coro: Coroutine[Any, Any, R]) -> asyncio.Task[R]:
+    def create_task(self, coro: Coroutine[Any, Any, R], name: str) -> asyncio.Task[R]:
         """Create a task in the main event loop.
 
         Args:
@@ -222,7 +222,7 @@ class Hassette:
         Returns:
             asyncio.Task[R]: The created task.
         """
-        return self.loop.create_task(coro)
+        return self.loop.create_task(coro, name=name)
 
     async def wait_for_resources_running(
         self, resources: list[Resource] | Resource, poll_interval: float = 0.1, timeout: int = 20

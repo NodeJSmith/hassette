@@ -198,7 +198,7 @@ class Resource(_HassetteBase):
             return
 
         self.logger.debug("Starting '%s' %s", self.class_name, self.role)
-        self._task = self.hassette.create_task(self.initialize())
+        self._task = self.hassette.create_task(self.initialize(), name="resource_initialize")
 
     def cancel(self) -> None:
         """Stop the resource."""
@@ -269,7 +269,7 @@ class Service(Resource):
         """Start the service."""
         if self._task and not self._task.done():
             raise RuntimeError(f"Service '{self.class_name}' is already running")
-        self._task = self.hassette.create_task(self.run_forever())
+        self._task = self.hassette.create_task(self.run_forever(), name=f"run_forever_{self.class_name}")
 
     async def start_async_on_loop_thread(self) -> None:
         """Start the service asynchronously.
