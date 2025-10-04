@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `hassette.event.app_reload_completed` now fires after reload cycles, and `HassetteEmptyPayload` provides a helper for simple internal events.
 - Bus routing tracks listeners by owner with a fair async lock, improving atomic cleanup when instances shut down.
+- Additional configuration for websocket and scheduler configuration values, such as timeouts, delay intervals, etc.
 
 ### Changed
 - **Breaking:** Per-owner buses replace the global `hassette.bus`; listener removal must go through `BusService` and owner-aware APIs.
@@ -24,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Internal
 - Test harness provisions mock bus, scheduler, and API services without Docker, while CI skips the Home Assistant container to speed up pipelines.
 - Added `pyrightconfig.json` and documented the new `fair-async-rlock` dependency used by the router.
+- Add ready indicator events to Resource/Service lifecycles for better observability.
+
 
 ## [0.10.0] - 2025-09-27
 
