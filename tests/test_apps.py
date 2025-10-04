@@ -3,7 +3,7 @@ import typing
 from copy import deepcopy
 from unittest.mock import patch
 
-from hassette.core.apps.app_handler import load_app_class
+from hassette.core.app_handler import load_app_class
 from hassette.core.bus import Listener
 from hassette.core.core import Hassette
 from hassette.core.topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED

@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 from whenever import SystemDateTime, TimeDelta
 
 from hassette.async_utils import make_async_adapter
-from hassette.core.classes import Resource, Service
+from hassette.core.classes.resource import Resource, Service
 
 from .classes import HeapQueue, ScheduledJob
 from .triggers import CronTrigger, IntervalTrigger, now

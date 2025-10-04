@@ -1,39 +1,42 @@
 import asyncio
-import copy
-import logging
 import typing
-import uuid
 from abc import abstractmethod
 from contextlib import asynccontextmanager, suppress
-from logging import getLogger
 from typing import ClassVar
 
+from hassette.core.classes.base import _HassetteBase
+from hassette.core.classes.tasks import TaskBucket
 from hassette.core.enums import ResourceRole, ResourceStatus
 from hassette.core.events import ServiceStatusPayload
-from hassette.core.tasks import TaskBucket
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
 
 
-class _HassetteBase:
-    logger: ClassVar[logging.Logger]
-    """Logger for the class."""
+class Resource(_HassetteBase):
+    """Base class for resources in the Hassette framework.
 
-    class_name: ClassVar[str]
-    """Name of the class."""
+    A Resource class or subclass represents a logical entity within the Hassette framework,
+    encapsulating its behavior and state. It is defined to offload lifecycle and status management
+    from the individual resource implementations.
+
+    A Resource is defined by having startup/shutdown logic, but does not run forever like a Service
+    does.
+    """
+
+    role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
+    """Role of the resource, e.g. 'App', 'Service', etc."""
 
     role: ClassVar[ResourceRole] = ResourceRole.BASE
     """Role of the resource, e.g. 'App', 'Service', etc."""
-
-    # status: ResourceStatus = ResourceStatus.NOT_STARTED
-    # """Current status of the resource."""
 
     _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
     """Previous status of the resource."""
 
     _status: ResourceStatus = ResourceStatus.NOT_STARTED
     """Current status of the resource."""
+
+    _task: asyncio.Task | None = None
 
     @property
     def status(self) -> ResourceStatus:
@@ -47,18 +50,18 @@ class _HassetteBase:
 
     def __init__(self, hassette: "Hassette", *args, **kwargs) -> None:
         """
-        Initialize the class with a reference to the Hassette instance.
+        Initialize the resource.
 
         Args:
             hassette (Hassette): The Hassette instance this resource belongs to.
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
-        self.unique_id = uuid.uuid4().hex
-        """Unique identifier for the instance."""
+        super().__init__(hassette, *args, **kwargs)
+        self.logger.debug("Creating instance of '%s' %s", self.class_name, self.role)
 
-        self.hassette = hassette
-        """Reference to the Hassette instance."""
+        self.task_bucket = TaskBucket(self.hassette, name=self.unique_name, prefix=self.class_name)
+        """Task bucket for managing tasks owned by this instance."""
 
         self.ready: asyncio.Event = asyncio.Event()
         """Event to signal readiness of the instance."""
@@ -66,22 +69,64 @@ class _HassetteBase:
         self._ready_reason: str | None = None
         """Optional reason for readiness or lack thereof."""
 
-        self._task_bucket = TaskBucket(name=f"{self.class_name}-{self.unique_id}")
+    def start(self) -> None:
+        """Start the resource."""
+        if self.status != ResourceStatus.NOT_STARTED:
+            self.logger.warning("%s '%s' is already started or running", self.role, self.class_name)
+            return
 
-    @property
-    def unique_name(self) -> str:
-        """Unique identifier for the instance."""
-        return f"{self.class_name}-{self.unique_id}"
+        self.logger.debug("Starting '%s' %s", self.class_name, self.role)
+        self._task = self.task_bucket.spawn(self.initialize(), name="resource:resource_initialize")
 
-    def __init_subclass__(cls) -> None:
+    def cancel(self) -> None:
+        """Stop the resource."""
+        if self._task and not self._task.done():
+            self._task.cancel()
+            self.logger.debug("Cancelled '%s' %s task", self.class_name, self.role)
+
+    def get_task(self) -> asyncio.Task | None:
+        return self._task
+
+    async def initialize(self, *args, **kwargs) -> None:
+        """Initialize the resource.
+
+        This method can be overridden by subclasses to perform
+        resource-specific initialization tasks.
         """
-        Initialize the subclass with a logger.
+        self.logger.debug("Initializing '%s' %s", self.class_name, self.role)
+        await self.handle_running()
 
-        This method is called when a subclass is created, setting up a logger
-        for the class based on its module and name.
+    async def shutdown(self, *args, **kwargs) -> None:
+        """Shutdown the resource.
+
+        This method can be overridden by subclasses to perform resource-specific shutdown tasks.
         """
-        cls.class_name = cls.__name__
-        cls.logger = getLogger(f"{cls.__module__}.{cls.__name__}")
+        if self.status == ResourceStatus.STOPPED:
+            self.logger.warning("%s '%s' is already stopped", self.role, self.class_name)
+            return
+
+        self.cancel()
+        with suppress(asyncio.CancelledError):
+            if self._task:
+                await self._task
+
+        self.logger.debug("Shutting down '%s' %s", self.class_name, self.role)
+        await self.handle_stop()
+
+    async def restart(self) -> None:
+        """Restart the resource."""
+        self.logger.debug("Restarting '%s' %s", self.class_name, self.role)
+        await self.shutdown()
+        await self.initialize()
+
+    def _create_service_status_event(self, status: ResourceStatus, exception: Exception | None = None):
+        return ServiceStatusPayload.create_event(
+            resource_name=self.class_name,
+            role=self.role,
+            status=status,
+            previous_status=self._previous_status,
+            exc=exception,
+        )
 
     def mark_ready(self, reason: str | None = None) -> None:
         """Mark the instance as ready.
@@ -127,36 +172,6 @@ class _HassetteBase:
             await self.ready.wait()
         else:
             await asyncio.wait_for(self.ready.wait(), timeout)
-
-    def set_logger_to_debug(self) -> None:
-        """Configure a logger to log DEBUG independently of its parent."""
-        self.logger.setLevel(logging.DEBUG)
-        self.logger.propagate = False  # avoid parent's filters
-
-        # Only add a handler if it doesn't already have one
-
-        parent_logger = self.logger.parent
-        while True:
-            if parent_logger and not parent_logger.handlers:
-                parent_logger = parent_logger.parent
-            else:
-                break
-
-        if not self.logger.handlers and parent_logger and parent_logger.handlers:
-            for parent_handler in parent_logger.handlers:
-                # This assumes handler can be shallow-copied
-                handler = copy.copy(parent_handler)
-                handler.setLevel(logging.DEBUG)
-                self.logger.addHandler(handler)
-
-    def _create_service_status_event(self, status: ResourceStatus, exception: Exception | None = None):
-        return ServiceStatusPayload.create_event(
-            resource_name=self.class_name,
-            role=self.role,
-            status=status,
-            previous_status=self._previous_status,
-            exc=exception,
-        )
 
     async def handle_stop(self) -> None:
         """Handle a stop event."""
@@ -223,84 +238,13 @@ class _HassetteBase:
         await self.hassette.send_event(event.topic, event)
         self.mark_not_ready("Crashed")
 
+    async def _cleanup(self) -> None:
+        """Cleanup resources owned by the instance.
 
-class Resource(_HassetteBase):
-    """Base class for resources in the Hassette framework.
-
-    A Resource class or subclass represents a logical entity within the Hassette framework,
-    encapsulating its behavior and state. It is defined to offload lifecycle and status management
-    from the individual resource implementations.
-
-    A Resource is defined by having startup/shutdown logic, but does not run forever like a Service
-    does.
-    """
-
-    role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
-    """Role of the resource, e.g. 'App', 'Service', etc."""
-
-    _task: asyncio.Task | None = None
-
-    def __init__(self, hassette: "Hassette", *args, **kwargs) -> None:
+        This method is called during shutdown to ensure that all resources are properly released.
         """
-        Initialize the resource.
-
-        Args:
-            hassette (Hassette): The Hassette instance this resource belongs to.
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-        """
-        super().__init__(hassette, *args, **kwargs)
-        self.logger.debug("Creating instance of '%s' %s", self.class_name, self.role)
-
-    def start(self) -> None:
-        """Start the resource."""
-        if self.status != ResourceStatus.NOT_STARTED:
-            self.logger.warning("%s '%s' is already started or running", self.role, self.class_name)
-            return
-
-        self.logger.debug("Starting '%s' %s", self.class_name, self.role)
-        self._task = self.hassette.create_task(self.initialize(), name="resource_initialize")
-
-    def cancel(self) -> None:
-        """Stop the resource."""
-        if self._task and not self._task.done():
-            self._task.cancel()
-            self.logger.debug("Cancelled '%s' %s task", self.class_name, self.role)
-
-    def get_task(self) -> asyncio.Task | None:
-        return self._task
-
-    async def initialize(self, *args, **kwargs) -> None:
-        """Initialize the resource.
-
-        This method can be overridden by subclasses to perform
-        resource-specific initialization tasks.
-        """
-        self.logger.debug("Initializing '%s' %s", self.class_name, self.role)
-        await self.handle_running()
-
-    async def shutdown(self, *args, **kwargs) -> None:
-        """Shutdown the resource.
-
-        This method can be overridden by subclasses to perform resource-specific shutdown tasks.
-        """
-        if self.status == ResourceStatus.STOPPED:
-            self.logger.warning("%s '%s' is already stopped", self.role, self.class_name)
-            return
-
-        self.cancel()
-        with suppress(asyncio.CancelledError):
-            if self._task:
-                await self._task
-
-        self.logger.debug("Shutting down '%s' %s", self.class_name, self.role)
-        await self.handle_stop()
-
-    async def restart(self) -> None:
-        """Restart the resource."""
-        self.logger.debug("Restarting '%s' %s", self.class_name, self.role)
-        await self.shutdown()
-        await self.initialize()
+        await self.task_bucket.cancel_all()
+        self.logger.debug("Cleaned up resources for %s '%s'", self.role, self.class_name)
 
 
 class Service(Resource):
@@ -330,7 +274,7 @@ class Service(Resource):
         """Start the service."""
         if self._task and not self._task.done():
             raise RuntimeError(f"Service '{self.class_name}' is already running")
-        self._task = self.hassette.create_task(self.run_forever(), name=f"run_forever_{self.class_name}")
+        self._task = self.task_bucket.spawn(self.run_forever(), name=f"service:run_forever_{self.class_name}")
 
     async def start_async_on_loop_thread(self) -> None:
         """Start the service asynchronously.

@@ -14,14 +14,14 @@ from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette.core.api import Api, _Api
-from hassette.core.apps.app_handler import _AppHandler
+from hassette.core.app_handler import _AppHandler
 from hassette.core.bus.bus import Bus, _BusService
-from hassette.core.classes import Resource
+from hassette.core.classes.resource import Resource
+from hassette.core.classes.tasks import TaskBucket
 from hassette.core.core import Event, Hassette
 from hassette.core.enums import ResourceStatus
 from hassette.core.file_watcher import _FileWatcher
 from hassette.core.scheduler.scheduler import Scheduler, _SchedulerService
-from hassette.core.tasks import TaskBucket
 from hassette.core.websocket import _Websocket
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.utils import wait_for_resources_running_or_raise

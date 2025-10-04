@@ -1,12 +1,11 @@
 import typing
 
-from hassette.core.bus import Bus
-
-from .classes import Resource
+from .bus import Bus
+from .classes.resource import Resource
 from .events import HassetteServiceEvent
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from .core import Hassette
 
 
 class _ServiceWatcher(Resource):

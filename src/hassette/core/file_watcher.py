@@ -3,7 +3,8 @@ from pathlib import Path
 from watchfiles import awatch
 
 from hassette import Service
-from hassette.core.events import FileWatcherEventPayload
+
+from .events import FileWatcherEventPayload
 
 
 class _FileWatcher(Service):

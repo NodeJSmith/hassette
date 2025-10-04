@@ -1,5 +1,5 @@
 from .classes import ScheduledJob
-from .scheduler import Scheduler
+from .scheduler import Scheduler, _SchedulerService
 from .triggers import CronTrigger, IntervalTrigger
 
 __all__ = [
@@ -7,4 +7,5 @@ __all__ = [
     "IntervalTrigger",
     "ScheduledJob",
     "Scheduler",
+    "_SchedulerService",
 ]

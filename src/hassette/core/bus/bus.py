@@ -6,7 +6,7 @@ from typing import Any
 from anyio.streams.memory import MemoryObjectReceiveStream
 
 from hassette.core import topics
-from hassette.core.classes import Resource, Service
+from hassette.core.classes.resource import Resource, Service
 from hassette.core.enums import ResourceStatus
 
 from .adapters import add_debounce, add_throttle, make_async_handler

@@ -20,13 +20,6 @@ from tenacity import (
     wait_fixed,
 )
 
-from hassette.core.classes import Service
-from hassette.core.events import (
-    HassEventEnvelopeDict,
-    WebsocketConnectedEventPayload,
-    WebsocketDisconnectedEventPayload,
-    create_event_from_hass,
-)
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -35,8 +28,16 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 
+from .classes.resource import Service
+from .events import (
+    HassEventEnvelopeDict,
+    WebsocketConnectedEventPayload,
+    WebsocketDisconnectedEventPayload,
+    create_event_from_hass,
+)
+
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from .core import Hassette
 
 LOGGER = getLogger(__name__)
 

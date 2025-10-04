@@ -11,19 +11,20 @@ import anyio
 from deepdiff import DeepDiff
 
 from hassette.config.core_config import HassetteConfig
-from hassette.core import Bus
-from hassette.core.apps.app import App, AppSync
-from hassette.core.classes import Resource
-from hassette.core.enums import ResourceStatus
-from hassette.core.events.hassette import HassetteEmptyPayload
-from hassette.core.topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
+
+from .bus import Bus
+from .classes import App, AppSync, Resource
+from .enums import ResourceStatus
+from .events.hassette import HassetteEmptyPayload
+from .topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
 
 if typing.TYPE_CHECKING:
     from hassette.config.app_manifest import AppManifest
-    from hassette.core.apps.app_config import AppConfig
-    from hassette.core.core import Hassette
-    from hassette.core.events import HassetteFileWatcherEvent
+
+    from .classes import AppConfig
+    from .core import Hassette
+    from .events import HassetteFileWatcherEvent
 
 LOGGER = getLogger(__name__)
 FAIL_AFTER_SECONDS = 10
@@ -32,7 +33,7 @@ ROOT_PATH = "root"
 USER_CONFIG_PATH = "user_config"
 
 
-class _AppHandler(Resource):
+class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
     """Manages the lifecycle of apps in Hassette.
 
     - Deterministic storage: apps[app_name][index] -> App
@@ -113,6 +114,10 @@ class _AppHandler(Resource):
                 try:
                     with anyio.fail_after(FAIL_AFTER_SECONDS):
                         await inst.shutdown()
+
+                        # in case the app does not call its own cleanup
+                        # which is honestly a better user experience
+                        await inst._cleanup()
                     self.logger.info("App %s shutdown successfully", inst.app_config.instance_name)
                 except Exception:
                     self.logger.exception("Failed to shutdown app %s", inst.app_config.instance_name)

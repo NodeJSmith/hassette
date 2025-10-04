@@ -12,16 +12,17 @@ import orjson
 from tenacity import before_sleep_log, retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential_jitter
 from whenever import Date, Instant, PlainDateTime, SystemDateTime
 
-from hassette.core.classes import Resource
-from hassette.core.events import HassContext, HassStateDict
 from hassette.exceptions import ConnectionClosedError, EntityNotFoundError, InvalidAuthError
 from hassette.models.entities import BaseEntity, EntityT
 from hassette.models.history import HistoryEntry, normalize_history
 from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, try_convert_state
 
+from .classes.resource import Resource
+from .events import HassContext, HassStateDict
+
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
-    from hassette.core.websocket import _Websocket
+    from .core import Hassette
+    from .websocket import _Websocket
 
 LOGGER = getLogger(__name__)
 NOT_RETRYABLE = (EntityNotFoundError, InvalidAuthError, RuntimeError, ConnectionClosedError, TypeError, AttributeError)

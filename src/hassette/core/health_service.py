@@ -2,11 +2,11 @@ import typing
 
 from aiohttp import web
 
-from hassette.core.classes import Service
-from hassette.core.enums import ResourceStatus
+from .classes.resource import Service
+from .enums import ResourceStatus
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from .core import Hassette
 
 _T = typing.TypeVar("_T")
 
@@ -78,6 +78,8 @@ class _HealthService(Service):
             self.logger.debug("Health service stopped")
         if self.status != ResourceStatus.STOPPED:
             await self.handle_stop()
+
+        await super()._cleanup()
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         # You can check internals here (e.g., WS status)

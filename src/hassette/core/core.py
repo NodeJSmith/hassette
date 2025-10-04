@@ -9,19 +9,19 @@ from typing import Any, ClassVar, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
 
-from ..config import HassetteConfig
-from ..utils import get_traceback_string, wait_for_resources_running
+from hassette.config import HassetteConfig
+from hassette.utils import get_traceback_string, wait_for_resources_running
+
 from .api import Api, _Api
-from .apps.app_handler import _AppHandler
-from .bus.bus import Bus, _BusService
-from .classes import Resource, Service
+from .app_handler import _AppHandler
+from .bus import Bus, _BusService
+from .classes import Resource, Service, TaskBucket, make_task_factory
 from .enums import ResourceRole
 from .events import Event
 from .file_watcher import _FileWatcher
 from .health_service import _HealthService
-from .scheduler.scheduler import Scheduler, _SchedulerService
+from .scheduler import Scheduler, _SchedulerService
 from .service_watcher import _ServiceWatcher
-from .tasks import TaskBucket, make_task_factory
 from .websocket import _Websocket
 
 P = ParamSpec("P")
