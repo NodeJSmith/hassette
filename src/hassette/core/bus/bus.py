@@ -41,24 +41,6 @@ class _BusService(Service):
         self.router = Router()
         self._tasks: set[asyncio.Task[Any]] = set()
 
-    async def _cleanup(self) -> None:
-        """Cleanup resources after the WebSocket connection is closed."""
-
-        if self._tasks:
-            tasks = list(self._tasks)
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-            self.logger.debug("Cancelled %d pending tasks", len(tasks))
-        self._tasks.clear()
-
-    def _track_task(self, task: asyncio.Task[Any]) -> None:
-        """Track background tasks and surface failures."""
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-        task.add_done_callback(self._log_task_result)
-
     def _log_task_result(self, task: asyncio.Task[Any]) -> None:
         if task.cancelled():
             return
@@ -69,8 +51,7 @@ class _BusService(Service):
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""
-        task = self.hassette.create_task(self.router.add_route(listener.topic, listener), name="add_listener")
-        self._track_task(task)
+        self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
     def remove_listener(self, listener: Listener) -> None:
         """Remove a listener from the bus."""
@@ -78,13 +59,11 @@ class _BusService(Service):
 
     def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
         """Remove a listener by its ID."""
-        task = self.hassette.create_task(self.router.remove_listener_by_id(topic, listener_id), name="remove_listener")
-        self._track_task(task)
+        self.task_bucket.spawn(self.router.remove_listener_by_id(topic, listener_id), name="bus:remove_listener")
 
     def remove_listeners_by_owner(self, owner: str) -> None:
         """Remove all listeners owned by a specific owner."""
-        task = self.hassette.create_task(self.router.clear_owner(owner), name="remove_listeners_by_owner")
-        self._track_task(task)
+        self.task_bucket.spawn(self.router.clear_owner(owner), name="bus:remove_listeners_by_owner")
 
     async def dispatch(self, topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
@@ -109,8 +88,7 @@ class _BusService(Service):
         self.logger.debug("Listeners for %s: %r", topic, targets)
 
         for listener in targets:
-            task = self.hassette.create_task(self._dispatch(topic, event, listener), name="dispatch_listener")
-            self._track_task(task)
+            self.task_bucket.spawn(self._dispatch(topic, event, listener), name="bus:dispatch_listener")
 
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: Listener) -> None:
         try:

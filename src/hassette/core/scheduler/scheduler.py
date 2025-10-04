@@ -59,8 +59,7 @@ class _SchedulerService(Service):
 
                 while not self._queue.is_empty() and (peek := self._queue.peek()) and peek.next_run <= now():
                     job = self._queue.pop()
-                    task = self.hassette.create_task(self._dispatch_and_log(job), name="dispatch_scheduled_job")
-                    self._track_task(task)
+                    self.task_bucket.spawn(self._dispatch_and_log(job), name="scheduler:dispatch_scheduled_job")
 
                 await self.sleep()
         except asyncio.CancelledError:
@@ -73,34 +72,7 @@ class _SchedulerService(Service):
             self._exit_event.set()
             raise
         finally:
-            await self.cleanup()
-
-    async def cleanup(self) -> None:
-        """Cleanup resources after the WebSocket connection is closed."""
-
-        # Cancel background tasks
-        if self._tasks:
-            tasks_to_cleanup = list(self._tasks)
-            for task in tasks_to_cleanup:
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(*tasks_to_cleanup, return_exceptions=True)
-            self.logger.debug("Cancelled %d pending tasks", len(tasks_to_cleanup))
-        self._tasks.clear()
-
-    def _track_task(self, task: asyncio.Task[Any]) -> None:
-        """Keep track of background tasks and surface failures."""
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-        task.add_done_callback(self._log_task_result)
-
-    def _log_task_result(self, task: asyncio.Task[Any]) -> None:
-        if task.cancelled():
-            return
-
-        exception = task.exception()
-        if exception:
-            self.logger.error("Scheduled job task failed", exc_info=exception)
+            await self._cleanup()
 
     def kick(self):
         """Wake up the scheduler to check for jobs."""

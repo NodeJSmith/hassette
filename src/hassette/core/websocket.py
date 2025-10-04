@@ -140,7 +140,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
             await self.authenticate()
 
             # start reader first so send_and_wait can get replies
-            self._recv_task = self.hassette.create_task(self._recv_loop(), name="ws:recv")
+            self._recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
 
             self._subscription_ids.add(await self._subscribe_events())
 
@@ -203,6 +203,8 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         if self._session:
             await self._session.close()
             self.logger.debug("Closed aiohttp session")
+
+        await super()._cleanup()
 
     async def send_and_wait(self, **data: Any) -> dict[str, Any]:
         """Send a message and wait for a response.
