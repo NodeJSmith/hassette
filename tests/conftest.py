@@ -33,6 +33,19 @@ class TestConfig(HassetteConfig):
         "env_file": ENV_FILE,
     }
 
+    websocket_connection_timeout_seconds: int | float = 1
+    websocket_authentication_timeout_seconds: int | float = 1
+    websocket_total_timeout_seconds: int | float = 2
+    websocket_response_timeout_seconds: int | float = 1
+    websocket_heartbeat_interval_seconds: int | float = 5
+    run_sync_timeout_seconds: int | float = 2
+    startup_timeout_seconds: int | float = 3
+    scheduler_default_delay_seconds: int | float = 1
+    scheduler_min_delay_seconds: int | float = 0.1
+    scheduler_max_delay_seconds: int | float = 3
+
+    app_dir: Path = TEST_DATA_PATH
+
 
 @pytest.fixture(scope="session")
 def test_config_class():
@@ -52,9 +65,7 @@ def test_config(unused_tcp_port_factory):
 
     port = unused_tcp_port_factory()
 
-    tc = TestConfig(
-        websocket_timeout_seconds=1, run_sync_timeout_seconds=2, health_service_port=port, app_dir=TEST_DATA_PATH
-    )
+    tc = TestConfig(health_service_port=port)
 
     return tc
 
@@ -98,12 +109,7 @@ def test_config_with_apps(apps_config_file):
         }
 
     previous_instance: HassetteConfig | None = getattr(HassetteConfig, "_instance", None)
-    config = AppsTestConfig(
-        websocket_timeout_seconds=1,
-        run_sync_timeout_seconds=2,
-        run_health_service=False,
-        app_dir=TEST_DATA_PATH,
-    )
+    config = AppsTestConfig(run_health_service=False, app_dir=TEST_DATA_PATH)
 
     HassetteConfig._instance = config
 

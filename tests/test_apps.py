@@ -60,7 +60,7 @@ async def test_handle_changes_disables_app(hassette_with_app_handler: Hassette) 
     async def handler(*args, **kwargs):  # noqa
         event.set()
 
-    hassette_with_app_handler.bus_service.add_listener(
+    hassette_with_app_handler._bus_service.add_listener(
         Listener(
             owner="test",
             topic=HASSETTE_EVENT_APP_RELOAD_COMPLETED,
@@ -100,7 +100,7 @@ async def test_handle_changes_enables_app(hassette_with_app_handler: Hassette) -
     async def handler(*args, **kwargs):  # noqa
         event.set()
 
-    hassette_with_app_handler.bus_service.add_listener(
+    hassette_with_app_handler._bus_service.add_listener(
         Listener(
             owner="test",
             topic=HASSETTE_EVENT_APP_RELOAD_COMPLETED,
