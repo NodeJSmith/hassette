@@ -46,7 +46,7 @@ NON_RETRYABLE = (InvalidAuthError, asyncio.CancelledError, CouldNotFindHomeAssis
 RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError)
 
 
-class _Websocket(Service):
+class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
         self.hassette = hassette

@@ -7,7 +7,7 @@ from hassette import Service
 from .events import FileWatcherEventPayload
 
 
-class _FileWatcher(Service):
+class _FileWatcher(Service):  # pyright: ignore[reportUnusedClass]
     """Background task to watch for file changes and reload apps."""
 
     async def run_forever(self) -> None:
