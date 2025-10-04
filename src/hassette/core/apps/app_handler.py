@@ -93,11 +93,17 @@ class _AppHandler(Resource):
         """Start handler and initialize configured apps."""
         async with self.starting():
             self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
+            ok = await self.hassette.wait_for_ready(self.hassette._websocket)
+            if not ok:
+                self.logger.warning("WebSocket not ready, skipping app initialization")
+                return
             await self.initialize_apps()
+            self.mark_ready("apps-initialized")
 
     async def shutdown(self) -> None:
         """Shutdown all app instances gracefully."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
+        self.mark_not_ready(reason="shutting-down")
 
         self.bus.remove_all_listeners()
 

@@ -218,6 +218,38 @@ class Hassette:
         """
         return self.loop.create_task(coro, name=name)
 
+    async def wait_for_ready(
+        self,
+        resources: list[Resource] | Resource,
+        poll_interval: float = 0.1,
+        timeout: int = 20,
+    ) -> bool:
+        """Block until all dependent resources are ready or shutdown is requested.
+
+        Args:
+            resources (list[Resource] | Resource): The resources to wait for.
+            poll_interval (float): The interval to poll for resource status.
+            timeout (int): The timeout for the wait operation.
+
+        Returns:
+            bool: True if all resources are ready, False if timeout or shutdown.
+
+        Raises:
+            CancelledError: If the wait operation is cancelled.
+            TimeoutError: If the wait operation times out.
+        """
+
+        resources = resources if isinstance(resources, list) else [resources]
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            if self.shutdown_event.is_set():
+                return False
+            if all(r.is_ready() for r in resources):
+                return True
+            if asyncio.get_event_loop().time() >= deadline:
+                return False
+            await asyncio.sleep(poll_interval)
+
     async def wait_for_resources_running(
         self, resources: list[Resource] | Resource, poll_interval: float = 0.1, timeout: int = 20
     ) -> bool:
@@ -246,7 +278,7 @@ class Hassette:
 
         self.ready_event.set()
 
-        started = await self.wait_for_resources_running(list(self._resources.values()))
+        started = await self.wait_for_ready(list(self._resources.values()), timeout=self.config.startup_timeout_seconds)
 
         if not started:
             self.logger.error("Not all resources started successfully, shutting down")
