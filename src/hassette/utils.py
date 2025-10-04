@@ -117,7 +117,7 @@ async def wait_for_resource_running(
     Returns:
         bool: True if the resource is running, False if shutdown.
     """
-    from hassette.core.classes import ResourceStatus
+    from hassette.core.enums import ResourceStatus
 
     with anyio.move_on_after(timeout) as cancel_scope:
         while resource.status != ResourceStatus.RUNNING:
