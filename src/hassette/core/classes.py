@@ -59,6 +59,12 @@ class _HassetteBase:
         self.hassette = hassette
         """Reference to the Hassette instance."""
 
+        self.ready: asyncio.Event = asyncio.Event()
+        """Event to signal readiness of the instance."""
+
+        self._ready_reason: str | None = None
+        """Optional reason for readiness or lack thereof."""
+
     @property
     def unique_name(self) -> str:
         """Unique identifier for the instance."""
@@ -73,6 +79,51 @@ class _HassetteBase:
         """
         cls.class_name = cls.__name__
         cls.logger = getLogger(f"{cls.__module__}.{cls.__name__}")
+
+    def mark_ready(self, reason: str | None = None) -> None:
+        """Mark the instance as ready.
+
+        Args:
+            reason (str | None): Optional reason for readiness.
+
+        """
+        self._ready_reason = reason
+        self.ready.set()
+
+    def mark_not_ready(self, reason: str | None = None) -> None:
+        """Mark the instance as not ready.
+
+        Args:
+            reason (str | None): Optional reason for lack of readiness.
+        """
+        if not self.ready.is_set():
+            self.logger.debug("%s is already not ready, skipping reason %s", self.unique_name, reason)
+
+        self._ready_reason = reason
+        self.ready.clear()
+
+    def is_ready(self) -> bool:
+        """Check if the instance is ready.
+
+        Returns:
+            bool: True if the instance is ready, False otherwise.
+        """
+        return self.ready.is_set()
+
+    async def wait_ready(self, timeout: float | None = None) -> None:
+        """Wait until the instance is marked as ready.
+
+        Args:
+            timeout (float | None): Optional timeout in seconds to wait for readiness.
+                                   If None, wait indefinitely.
+
+        Raises:
+            TimeoutError: If the timeout is reached before the instance is ready.
+        """
+        if timeout is None:
+            await self.ready.wait()
+        else:
+            await asyncio.wait_for(self.ready.wait(), timeout)
 
     def set_logger_to_debug(self) -> None:
         """Configure a logger to log DEBUG independently of its parent."""
@@ -112,6 +163,8 @@ class _HassetteBase:
         event = self._create_service_status_event(ResourceStatus.STOPPED)
         await self.hassette.send_event(event.topic, event)
 
+        self.mark_not_ready("Stopped")
+
     async def handle_failed(self, exception: Exception) -> None:
         """Handle a failure event."""
 
@@ -119,18 +172,7 @@ class _HassetteBase:
         self.status = ResourceStatus.FAILED
         event = self._create_service_status_event(ResourceStatus.FAILED, exception)
         await self.hassette.send_event(event.topic, event)
-
-    async def handle_running(self) -> None:
-        """Handle a running event for the service."""
-
-        if self._previous_status == ResourceStatus.RUNNING:
-            self.logger.debug("%s '%s' is already running", self.role, self.class_name)
-            return
-
-        self.logger.info("Running %s '%s'", self.role, self.class_name)
-        self.status = ResourceStatus.RUNNING
-        event = self._create_service_status_event(ResourceStatus.RUNNING)
-        await self.hassette.send_event(event.topic, event)
+        self.mark_not_ready("Failed")
 
     @asynccontextmanager
     async def starting(self):
@@ -141,6 +183,21 @@ class _HassetteBase:
         except Exception as e:
             await self.handle_crash(e)
             raise
+
+    async def handle_running(self) -> None:
+        """Handle a running event for the service."""
+
+        # note: we specifically do NOT mark ready here, as the service
+        # should make this decision itself when it is actually ready
+
+        if self._previous_status == ResourceStatus.RUNNING:
+            self.logger.debug("%s '%s' is already running", self.role, self.class_name)
+            return
+
+        self.logger.info("Running %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.RUNNING
+        event = self._create_service_status_event(ResourceStatus.RUNNING)
+        await self.hassette.send_event(event.topic, event)
 
     async def handle_starting(self) -> None:
         """Handle a starting event for the service."""
@@ -161,6 +218,7 @@ class _HassetteBase:
         self.status = ResourceStatus.CRASHED
         event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
         await self.hassette.send_event(event.topic, event)
+        self.mark_not_ready("Crashed")
 
 
 class Resource(_HassetteBase):
