@@ -119,7 +119,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
                         # in case the app does not call its own cleanup
                         # which is honestly a better user experience
-                        await inst._cleanup()
+                        await inst.cleanup()
                     self.logger.info("App %s shutdown successfully", inst.app_config.instance_name)
                 except Exception:
                     self.logger.exception("Failed to shutdown app %s", inst.app_config.instance_name)

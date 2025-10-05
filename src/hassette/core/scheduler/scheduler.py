@@ -72,7 +72,7 @@ class _SchedulerService(Service):
             self._exit_event.set()
             raise
         finally:
-            await self._cleanup()
+            await self.cleanup()
 
     def kick(self):
         """Wake up the scheduler to check for jobs."""

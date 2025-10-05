@@ -52,7 +52,7 @@ class _HealthService(Service):
             await self.handle_crash(e)
             raise
         finally:
-            await self._cleanup()
+            await self.cleanup()
 
     async def startup(self):
         """Start the health HTTP server."""
@@ -73,17 +73,17 @@ class _HealthService(Service):
         self.mark_ready(reason="Health service started")
 
     async def shutdown(self, *args, **kwargs) -> None:
-        await self._cleanup()
+        await self.cleanup()
         return await super().shutdown(*args, **kwargs)
 
-    async def _cleanup(self) -> None:
+    async def cleanup(self) -> None:
         if self._runner:
             await self._runner.cleanup()
             self.logger.debug("Health service stopped")
         if self.status != ResourceStatus.STOPPED:
             await self.handle_stop()
 
-        await super()._cleanup()
+        await super().cleanup()
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         # You can check internals here (e.g., WS status)

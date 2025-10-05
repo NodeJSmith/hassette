@@ -234,7 +234,7 @@ class Resource(_HassetteBase):
         await self.hassette.send_event(event.topic, event)
         self.mark_not_ready("Crashed")
 
-    async def _cleanup(self) -> None:
+    async def cleanup(self) -> None:
         """Cleanup resources owned by the instance.
 
         This method is called during shutdown to ensure that all resources are properly released.

@@ -290,7 +290,7 @@ class Hassette:
 
                 # in case the resource does not call its own cleanup
                 # shouldn't happen, but be safe
-                await resource._cleanup()
+                await resource.cleanup()
             except Exception as e:
                 self.logger.error("Failed to shutdown resource '%s': %s", resource.class_name, e)
 

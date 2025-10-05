@@ -113,7 +113,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
                 await self.handle_crash(e)
                 raise
             finally:
-                await self._cleanup()
+                await self.cleanup()
 
     async def _connect_once(self) -> None:
         """One full connect/auth/subscribe + recv lifecycle. Raise to trigger a retry."""
@@ -181,7 +181,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         # We return our own id as the subscription handle for unsubscribe
         return sub_id
 
-    async def _cleanup(self) -> None:
+    async def cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
 
         # Set exceptions for all pending response futures
@@ -216,7 +216,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
             await self._session.close()
             self.logger.debug("Closed aiohttp session")
 
-        await super()._cleanup()
+        await super().cleanup()
 
     async def send_and_wait(self, **data: Any) -> dict[str, Any]:
         """Send a message and wait for a response.

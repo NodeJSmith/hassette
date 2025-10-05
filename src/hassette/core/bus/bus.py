@@ -129,7 +129,7 @@ class _BusService(Service):
             await self.handle_crash(e)
             raise
         finally:
-            await self._cleanup()
+            await self.cleanup()
 
 
 class Bus(Resource):
