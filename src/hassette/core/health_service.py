@@ -25,6 +25,8 @@ class _HealthService(Service):
 
     def __init__(self, hassette: "Hassette", host: str = "0.0.0.0", port: int | None = None):
         super().__init__(hassette)
+        self.logger.setLevel(self.hassette.config.health_service_log_level)
+
         self.host = host
         self.port = port or hassette.config.health_service_port
 

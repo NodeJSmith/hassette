@@ -13,6 +13,8 @@ class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
 
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette=hassette)
+        self.logger.setLevel(self.hassette.config.service_watcher_log_level)
+
         self.bus = Bus(hassette, owner=self.unique_name)
 
     async def initialize(self, *args, **kwargs) -> None:

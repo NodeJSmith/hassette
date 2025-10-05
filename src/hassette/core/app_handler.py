@@ -56,6 +56,8 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
     def __init__(self, hassette: "Hassette") -> None:
         super().__init__(hassette)
+        self.logger.setLevel(self.hassette.config.app_handler_log_level)
+
         self.apps_config = {}
 
         self.set_apps_configs(self.hassette.config.apps)
@@ -76,7 +78,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         Args:
             apps_config (dict[str, AppManifest]): The new apps configuration.
         """
-        self.logger.info("Updating apps configuration")
+        self.logger.info("Setting apps configuration")
         self.apps_config = deepcopy(apps_config)
         self.only_app = None  # reset only_app, will be recomputed on next initialize
 

@@ -22,6 +22,7 @@ T = TypeVar("T")
 class _SchedulerService(Service):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
+        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
 
         self.lock = asyncio.Lock()
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()
@@ -240,6 +241,7 @@ class _SchedulerService(Service):
 class Scheduler(Resource):
     def __init__(self, hassette: "Hassette", owner: str) -> None:
         super().__init__(hassette)
+        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
 
         self.owner = owner
         """Owner of the scheduler, must be a unique identifier for the owner."""

@@ -1,3 +1,4 @@
+import typing
 from pathlib import Path
 
 from watchfiles import awatch
@@ -6,9 +7,16 @@ from hassette import Service
 
 from .events import FileWatcherEventPayload
 
+if typing.TYPE_CHECKING:
+    from .core import Hassette
+
 
 class _FileWatcher(Service):  # pyright: ignore[reportUnusedClass]
     """Background task to watch for file changes and reload apps."""
+
+    def __init__(self, hassette: "Hassette"):
+        super().__init__(hassette)
+        self.logger.setLevel(self.hassette.config.file_watcher_log_level)
 
     async def run_forever(self) -> None:
         """Watch app directories for changes and trigger reloads."""

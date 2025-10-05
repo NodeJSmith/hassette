@@ -125,7 +125,7 @@ class HassetteConfig(HassetteBaseSettings):
     apps: dict[str, AppManifest] = Field(default_factory=dict)
     """Configuration for Hassette apps, keyed by app name."""
 
-    # Other configurations
+    # Service configurations
     websocket_authentication_timeout_seconds: int = Field(default=10)
     """Length of time to wait for WebSocket authentication to complete."""
 
@@ -173,6 +173,28 @@ class HassetteConfig(HassetteBaseSettings):
 
     task_cancellation_timeout_seconds: int = Field(default=5)
     """Length of time to wait for tasks to cancel before forcing."""
+
+    # Service log levels
+    bus_service_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    """Logging level for the event bus service."""
+
+    scheduler_service_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    """Logging level for the scheduler service."""
+
+    app_handler_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    """Logging level for the app handler service."""
+
+    health_service_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    """Logging level for the health service."""
+
+    websocket_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    """Logging level for the WebSocket service."""
+
+    service_watcher_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    """Logging level for the service watcher."""
+
+    file_watcher_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    """Logging level for the file watcher service."""
 
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
