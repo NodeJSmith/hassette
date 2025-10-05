@@ -18,7 +18,7 @@ CoroLikeT = Coroutine[Any, Any, T]
 class TaskBucket(_HassetteBase):
     """Track and clean up a set of tasks for a service/app."""
 
-    default_task_cancellation_timeout: ClassVar[int | float]
+    default_task_cancellation_timeout: ClassVar[int | float] = 5
     """Default timeout for task cancellation, if not specified in constructor. Will be set by Hassette."""
 
     def __init__(
