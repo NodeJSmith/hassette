@@ -165,6 +165,8 @@ class Api(Resource):
         self.sync = ApiSyncFacade(self)
         """Synchronous facade for the API service."""
 
+        self.mark_ready(reason="API initialized")
+
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""
         return await self._api._ws_conn.send_and_wait(**data)

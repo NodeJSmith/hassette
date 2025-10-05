@@ -8,7 +8,7 @@ if typing.TYPE_CHECKING:
     from .core import Hassette
 
 
-class _ServiceWatcher(Resource):
+class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
     """Watches for service events and handles them."""
 
     def __init__(self, hassette: "Hassette"):
@@ -17,11 +17,12 @@ class _ServiceWatcher(Resource):
 
     async def initialize(self, *args, **kwargs) -> None:
         self._register_internal_event_listeners()
-        return await super().initialize(*args, **kwargs)
+        await super().initialize(*args, **kwargs)
+        self.mark_ready(reason="Service watcher initialized")
 
     async def shutdown(self, *args, **kwargs) -> None:
         self.bus.remove_all_listeners()
-        return await super().shutdown(*args, **kwargs)
+        await super().shutdown(*args, **kwargs)
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Start a service from a service event."""

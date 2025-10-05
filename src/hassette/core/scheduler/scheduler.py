@@ -244,6 +244,8 @@ class Scheduler(Resource):
         self.owner = owner
         """Owner of the scheduler, must be a unique identifier for the owner."""
 
+        self.mark_ready(reason="Scheduler initialized")
+
     @property
     def scheduler_service(self) -> _SchedulerService:
         """Get the internal scheduler instance."""

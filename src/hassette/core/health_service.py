@@ -68,6 +68,8 @@ class _HealthService(Service):
 
         self.logger.info("Health service listening on %s:%s", self.host, self.port)
 
+        self.mark_ready(reason="Health service started")
+
     async def shutdown(self, *args, **kwargs) -> None:
         await self._cleanup()
         return await super().shutdown(*args, **kwargs)

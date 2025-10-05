@@ -142,6 +142,8 @@ class Bus(Resource):
         self.owner = owner
         """Owner of the bus, must be a unique identifier for the owner."""
 
+        self.mark_ready(reason="Bus initialized")
+
     @property
     def bus_service(self) -> _BusService:
         return self.hassette._bus_service
