@@ -104,6 +104,7 @@ class TaskBucket(_HassetteBase):
             exc = t.exception()
             if exc:
                 self.logger.warning("[%s] task %s errored during shutdown: %r", self.name, t.get_name(), exc)
+
         for t in pending:
             self.logger.warning(
                 "[%s] task %s refused to die within %.1fs", self.name, t.get_name(), self.cancel_timeout

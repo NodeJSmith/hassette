@@ -79,7 +79,6 @@ async def test_warns_on_stubborn_tasks(bucket_fixture: tasks.TaskBucket, caplog)
 
     # the task may still be running (ignored cancel), but we should have warned
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    # assert any("refused to die" in m for m in warnings)
     if not any("refused" in m for m in warnings):
         raise AssertionError(f"No stubborn warning; logs were: {warnings}")
 

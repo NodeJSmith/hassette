@@ -147,9 +147,9 @@ async def bucket_fixture(hassette_with_nothing: Hassette):  # pytest-asyncio pro
         # hard cleanup if a test forgot
         await hassette_with_nothing._global_tasks.cancel_all()
         await asyncio.sleep(0)  # let cancellations propagate
+
         # last-resort parachute: fail if anything still running
         current = asyncio.current_task()
-
         leftovers = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
         if leftovers:
             # cancel and wait briefly so the loop can unwind
