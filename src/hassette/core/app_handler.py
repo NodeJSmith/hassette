@@ -250,6 +250,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
                     await inst.initialize()
+                    inst.mark_ready(reason="initialized")
                 self.logger.info("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
             except TimeoutError as e:
                 self.logger.exception(
