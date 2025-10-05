@@ -86,9 +86,6 @@ async def test_warns_on_stubborn_tasks(bucket_fixture: tasks.TaskBucket, caplog)
     if not any("refused" in m for m in warnings):
         raise AssertionError(f"No stubborn warning; logs were: {warnings}")
 
-    with contextlib.suppress(asyncio.TimeoutError):
-        await asyncio.wait_for(event.wait(), timeout=bucket_fixture.cancel_timeout + 0.5)
-
     assert t.done(), f"task should be done after finishing, is {t._state}"
     assert not t.cancelled(), "task should not be cancelled after finishing"
 
