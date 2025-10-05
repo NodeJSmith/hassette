@@ -107,13 +107,13 @@ class TaskBucket(_HassetteBase):
         return len(self._tasks)
 
 
-def make_task_factory(bucket: TaskBucket) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future]:
-    def factory(_loop: asyncio.AbstractEventLoop, coro: CoroLikeT) -> asyncio.Task:
+def make_task_factory(bucket: TaskBucket) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future[Any]]:
+    def factory(_loop: asyncio.AbstractEventLoop, coro: CoroLikeT) -> asyncio.Task[Any]:
         # note: ensure we pass loop=_loop here, to handle cases where we're calling this from something like
         # anyio's to_thread.run_sync
         # note: ignore any comments by AI tools about loop being deprecated/removed, because it's not
         # i'm honestly not sure where they get that idea from
-        t: asyncio.Task = asyncio.Task(coro, loop=_loop)
+        t: asyncio.Task[Any] = asyncio.Task(coro, loop=_loop)
         # Optional: give unnamed tasks a readable default
         if not t.get_name() or t.get_name().startswith("Task-"):
             # getattr fallback avoids AttributeError on some coroutines/generators
