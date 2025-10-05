@@ -11,7 +11,7 @@ from hassette.config import HassetteConfig
 from hassette.core.classes.base import _LoggerMixin
 from hassette.utils import get_traceback_string, wait_for_ready
 
-from .api import Api, _Api
+from .api import Api, _ApiService
 from .app_handler import _AppHandler
 from .bus import Bus, _BusService
 from .classes import Resource, Service, TaskBucket, make_task_factory
@@ -38,8 +38,6 @@ class Hassette(_LoggerMixin):
 
     role: ClassVar[ResourceRole] = ResourceRole.CORE
 
-    _instance: ClassVar["Hassette"] = None  # type: ignore
-
     api: Api
     """API service for handling HTTP requests."""
 
@@ -48,6 +46,8 @@ class Hassette(_LoggerMixin):
 
     shutdown_event: asyncio.Event
     """Event set when the application is starting to shutdown."""
+
+    _instance: ClassVar["Hassette"] = None  # type: ignore
 
     def __init__(self, config: HassetteConfig) -> None:
         """
@@ -76,19 +76,17 @@ class Hassette(_LoggerMixin):
         # private background services
         self._service_watcher = self._register_resource(_ServiceWatcher)
         self._websocket = self._register_resource(_Websocket)
-        self._api = self._register_resource(_Api)
         self._health_service = self._register_resource(_HealthService)
         self._file_watcher = self._register_resource(_FileWatcher)
         self._app_handler = self._register_resource(_AppHandler)
         self._scheduler_service = self._register_resource(_SchedulerService)
         self._bus_service = self._register_resource(_BusService, self._receive_stream.clone())
+        self._api_service = self._register_resource(_ApiService)
 
         # internal instances
         self._bus = self._register_resource(Bus, self.unique_name)
         self._scheduler = self._register_resource(Scheduler, self.unique_name)
-
-        # public services
-        self.api = self._register_resource(Api, self._api)
+        self.api = self._register_resource(Api, self.unique_name)
 
         type(self)._instance = self
 
