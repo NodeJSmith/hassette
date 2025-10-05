@@ -18,17 +18,19 @@ class _HassetteBase:  # pyright: ignore[reportUnusedClass]
     role: typing.ClassVar[ResourceRole] = ResourceRole.BASE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
+    unique_name: str
+    """Unique name for the instance, combining class name and unique ID."""
+
     def __init_subclass__(cls) -> None:
         cls.class_name = cls.__name__
 
-    def __init__(self, hassette: "Hassette", *args, **kwargs) -> None:
+    def __init__(self, hassette: "Hassette", unique_name_prefix: str | None = None) -> None:
         """
         Initialize the class with a reference to the Hassette instance.
 
         Args:
             hassette (Hassette): The Hassette instance this resource belongs to.
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
+            unique_name_prefix (str | None): Optional prefix for the unique name. If None, the class name is used.
         """
 
         self.unique_id = uuid.uuid4().hex
@@ -37,14 +39,17 @@ class _HassetteBase:  # pyright: ignore[reportUnusedClass]
         self.hassette = hassette
         """Reference to the Hassette instance."""
 
-        self.logger = getLogger(f"{type(self).__module__}.{self.class_name}")
+        prefix = unique_name_prefix or self.class_name
+        self.unique_name = f"{prefix}.{self.unique_id[:8]}"
+        """Unique identifier for the instance."""
+
+        self.logger = getLogger(f"hassette.{self.unique_name}")
+        """Logger for the instance."""
 
         self.logger.debug("Creating instance of '%s'", self.class_name)
 
-    @property
-    def unique_name(self) -> str:
-        """Unique identifier for the instance."""
-        return f"{self.class_name}-{self.unique_id}"
+    def __repr__(self) -> str:
+        return f"<{self.class_name} unique_name={self.unique_name}>"
 
     def set_logger_to_level(self, level: typing.Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]) -> None:
         """Configure a logger to log at the specified level independently of its parent."""

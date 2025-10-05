@@ -79,14 +79,7 @@ class App(Generic[AppConfigT], Resource):
             cls._import_exception = e
             LOGGER.exception("Failed to initialize subclass %s", cls.__name__)
 
-    def __init__(
-        self,
-        hassette: "Hassette",
-        app_config: AppConfigT,
-        index: int = 0,
-        *args,
-        **kwargs,
-    ):
+    def __init__(self, hassette: "Hassette", app_config: AppConfigT, index: int = 0):
         """Initialize the App instance. This will generally not be called directly.
 
         Args:
@@ -95,25 +88,13 @@ class App(Generic[AppConfigT], Resource):
             index (int): Index of the app instance, used when multiple instances of the same app are run.
 
         """
+        super().__init__(hassette=hassette, unique_name_prefix=f"{self.class_name}.{app_config.instance_name}")
+
         self.app_config = app_config
         self.index = index
 
-        super().__init__(hassette=hassette, *args, **kwargs)  # noqa: B026
-
-        logger_name = f"hassette.{type(self).__name__}.{self.app_config.instance_name}"
-        self.logger = getLogger(logger_name)
-
-        if self.instance_name == "":
-            # this shouldn't happen, as AppHandler will set a default if not provided
-            raise ValueError("App instance_name cannot be empty.")
-
         self.bus = Bus(self.hassette, owner=self.unique_name)
         self.scheduler = Scheduler(self.hassette, owner=self.unique_name)
-
-    @property
-    def unique_name(self) -> str:
-        """Unique identifier for the instance."""
-        return f"{self.class_name}-{self.instance_name}-{self.unique_id}"
 
     @property
     def instance_name(self) -> str:
