@@ -43,8 +43,14 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 # classify errors once (easy to audit/change later)
-NON_RETRYABLE = (InvalidAuthError, asyncio.CancelledError, CouldNotFindHomeAssistantError)
-RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError)
+NON_RETRYABLE = (InvalidAuthError, asyncio.CancelledError)
+RETRYABLE = (
+    RetryableConnectionClosedError,
+    ServerDisconnectedError,
+    ClientConnectorError,
+    ClientOSError,
+    CouldNotFindHomeAssistantError,
+)
 
 
 class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
