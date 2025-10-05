@@ -1,5 +1,6 @@
 import logging
 import typing
+from asyncio import CancelledError
 from collections.abc import Iterable, Mapping
 from contextlib import AsyncExitStack
 from datetime import datetime
@@ -25,7 +26,15 @@ if typing.TYPE_CHECKING:
     from .websocket import _Websocket
 
 LOGGER = getLogger(__name__)
-NOT_RETRYABLE = (EntityNotFoundError, InvalidAuthError, RuntimeError, ConnectionClosedError, TypeError, AttributeError)
+NOT_RETRYABLE = (
+    EntityNotFoundError,
+    InvalidAuthError,
+    RuntimeError,
+    ConnectionClosedError,
+    TypeError,
+    AttributeError,
+    CancelledError,
+)
 
 
 class _Api(Resource):

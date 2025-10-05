@@ -3,6 +3,8 @@ import typing
 import uuid
 from logging import getLogger
 
+from typing_extensions import deprecated
+
 from hassette.core.enums import ResourceRole
 
 if typing.TYPE_CHECKING:
@@ -64,3 +66,8 @@ class _HassetteBase:  # pyright: ignore[reportUnusedClass]
                 handler = copy.copy(parent_handler)
                 handler.setLevel(level)
                 self.logger.addHandler(handler)
+
+    @deprecated("Use set_logger_to_level('DEBUG') instead")
+    def set_logger_to_debug(self) -> None:
+        """Configure a logger to log at DEBUG level independently of its parent."""
+        self.set_logger_to_level("DEBUG")

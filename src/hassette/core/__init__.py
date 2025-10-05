@@ -1,6 +1,6 @@
 from . import topics
 from .api import Api
-from .bus import Bus, predicates
+from .bus import Bus, Subscription, predicates
 from .bus.predicates import (
     AllOf,
     AnyOf,
@@ -51,6 +51,7 @@ __all__ = [
     "Scheduler",
     "Service",
     "StateChangeEvent",
+    "Subscription",
     "TriggerProtocol",
     "only_app",
     "predicates",
