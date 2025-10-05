@@ -50,7 +50,8 @@ class _SchedulerService(Service):
             self._exit_event = asyncio.Event()
 
             while True:
-                if self._exit_event.is_set():
+                if self._exit_event.is_set() or self.hassette.shutdown_event.is_set():
+                    self.mark_not_ready(reason="Hassette is shutting down")
                     self.logger.debug("Scheduler exiting")
                     return
 

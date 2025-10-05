@@ -118,6 +118,10 @@ class _BusService(Service):
         try:
             async with self.stream:
                 async for event_name, event_data in self.stream:
+                    if self.hassette.shutdown_event.is_set():
+                        self.logger.debug("Hassette is shutting down, exiting bus loop")
+                        self.mark_not_ready(reason="Hassette is shutting down")
+                        break
                     try:
                         await self.dispatch(event_name, event_data)
                     except Exception as e:
