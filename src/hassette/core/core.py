@@ -224,6 +224,7 @@ class Hassette(_LoggerMixin):
     async def run_forever(self) -> None:
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
+        self.loop.set_debug(True)
 
         self._global_tasks = TaskBucket(self, name="hassette", prefix="hassette")
         self.loop.set_task_factory(make_task_factory(self._global_tasks))
