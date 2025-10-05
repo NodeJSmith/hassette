@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Internal
+- Add locking to `_SchedulerService` via `_ScheduledJobQueue` to ensure thread-safe access to the job queue.
+
 ## [0.11.0] - 2025-10-05
 
 ### Added
