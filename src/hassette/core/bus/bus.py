@@ -35,7 +35,7 @@ class _BusService(Service):
 
     def __init__(self, hassette: "Hassette", stream: MemoryObjectReceiveStream["tuple[str, Event[Any]]"]):
         super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.bus_service_log_level)
+        self.set_logger_to_level(self.hassette.config.bus_service_log_level)
 
         self.stream = stream
 
@@ -138,7 +138,7 @@ class Bus(Resource):
     def __init__(self, hassette: "Hassette", owner: str):
         """Initialize the Bus instance."""
         super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.bus_service_log_level)
+        self.set_logger_to_level(self.hassette.config.bus_service_log_level)
 
         self.owner = owner
         """Owner of the bus, must be a unique identifier for the owner."""

@@ -16,7 +16,7 @@ class _FileWatcher(Service):  # pyright: ignore[reportUnusedClass]
 
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.file_watcher_log_level)
+        self.set_logger_to_level(self.hassette.config.file_watcher_log_level)
 
     async def run_forever(self) -> None:
         """Watch app directories for changes and trigger reloads."""

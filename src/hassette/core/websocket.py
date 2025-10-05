@@ -49,7 +49,7 @@ RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError, ClientConn
 class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.websocket_log_level)
+        self.set_logger_to_level(self.hassette.config.websocket_log_level)
         self.hassette = hassette
         self.url = self.hassette.config.ws_url
         self._stack = AsyncExitStack()

@@ -1,5 +1,4 @@
 import copy
-import logging
 import typing
 import uuid
 from logging import getLogger
@@ -45,9 +44,9 @@ class _HassetteBase:  # pyright: ignore[reportUnusedClass]
         """Unique identifier for the instance."""
         return f"{self.class_name}-{self.unique_id}"
 
-    def set_logger_to_debug(self) -> None:
-        """Configure a logger to log DEBUG independently of its parent."""
-        self.logger.setLevel(logging.DEBUG)
+    def set_logger_to_level(self, level: typing.Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]) -> None:
+        """Configure a logger to log at the specified level independently of its parent."""
+        self.logger.setLevel(level)
         self.logger.propagate = False  # avoid parent's filters
 
         # Only add a handler if it doesn't already have one
@@ -63,5 +62,5 @@ class _HassetteBase:  # pyright: ignore[reportUnusedClass]
             for parent_handler in parent_logger.handlers:
                 # This assumes handler can be shallow-copied
                 handler = copy.copy(parent_handler)
-                handler.setLevel(logging.DEBUG)
+                handler.setLevel(level)
                 self.logger.addHandler(handler)
