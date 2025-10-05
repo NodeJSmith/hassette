@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Introduced `TaskBucket` instances for Hassette, services, and apps; configure shutdown grace periods via the new `HassetteConfig.task_cancellation_timeout_seconds` setting.
 - Added `Hassette.wait_for_ready` and `hassette.utils.wait_for_ready` helpers so resources can block on dependencies (for example, the API now waits for the WebSocket).
 - Expanded Home Assistant tuning knobs with `websocket_connection_timeout_seconds`, `websocket_total_timeout_seconds`, `websocket_response_timeout_seconds`, `websocket_heartbeat_interval_seconds`, and `scheduler_min/default/max_delay_seconds`.
+- Add individual log level settings for core services.
 
 ### Changed
 - **Breaking:** Per-owner buses replace the global `hassette.bus`; listener removal must go through `BusService`, which now tracks listeners by owner under a fair async lock for atomic cleanup.
