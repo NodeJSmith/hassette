@@ -17,7 +17,7 @@ from hassette.core.api import Api, _Api
 from hassette.core.app_handler import _AppHandler
 from hassette.core.bus.bus import Bus, _BusService
 from hassette.core.classes.resource import Resource
-from hassette.core.classes.tasks import TaskBucket
+from hassette.core.classes.tasks import TaskBucket, make_task_factory
 from hassette.core.core import Event, Hassette
 from hassette.core.enums import ResourceStatus
 from hassette.core.file_watcher import _FileWatcher
@@ -71,7 +71,7 @@ class _HassetteMock:
         self._thread_pool: ThreadPoolExecutor | None = None
         self._send_stream: MemoryObjectSendStream[tuple[str, Event[Any]]] | None = None
         self._receive_stream: MemoryObjectReceiveStream[tuple[str, Event[Any]]] | None = None
-        self._task_bucket = TaskBucket(cast("Hassette", self), name="hassette", prefix="hassette")
+        self._global_tasks = TaskBucket(cast("Hassette", self), name="hassette", prefix="hassette")
 
         self._api: _Api | None = None
         self.api: Api | None = None
@@ -130,7 +130,7 @@ class _HassetteMock:
                 fut.cancel()
 
     def create_task(self, coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task[Any]:
-        return self._task_bucket.spawn(coro, name=name)
+        return self._global_tasks.spawn(coro, name=name)
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -243,6 +243,8 @@ class HassetteHarness:
     async def start(self) -> "HassetteHarness":
         self.hassette._loop = asyncio.get_running_loop()
         self.hassette._thread_pool = self._thread_pool = ThreadPoolExecutor()
+        self.hassette._global_tasks = TaskBucket(cast("Hassette", self.hassette), name="hassette", prefix="hassette")
+        self.hassette._loop.set_task_factory(make_task_factory(self.hassette._global_tasks))
         Hassette._instance = cast("Hassette", self.hassette)
 
         if self.use_bus:
