@@ -3,7 +3,7 @@ import contextlib
 import logging
 import tracemalloc
 import typing
-from collections.abc import Callable, Coroutine, Iterable
+from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, cast
@@ -13,6 +13,7 @@ from aiohttp import web
 from anyio import create_memory_object_stream
 from yarl import URL
 
+from hassette import HassetteConfig
 from hassette.core.api import Api, _Api
 from hassette.core.app_handler import _AppHandler
 from hassette.core.bus.bus import Bus, _BusService
@@ -25,7 +26,7 @@ from hassette.core.file_watcher import _FileWatcher
 from hassette.core.scheduler.scheduler import Scheduler, _SchedulerService
 from hassette.core.websocket import _Websocket
 from hassette.test_utils.test_server import SimpleTestServer
-from hassette.utils import wait_for_resources_running_or_raise
+from hassette.utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -64,7 +65,7 @@ async def shutdown_resource(res: Resource, *, desc: str) -> None:  # noqa
 class _HassetteMock(_HassetteBase):
     _global_tasks: TaskBucket
 
-    def __init__(self, *, config: Any | None = None) -> None:
+    def __init__(self, *, config: HassetteConfig) -> None:
         self.config = config
         TaskBucket.default_task_cancellation_timeout = (
             self.config.task_cancellation_timeout_seconds if self.config else 0.5
@@ -157,54 +158,19 @@ class _HassetteMock(_HassetteBase):
         self._loop.call_soon_threadsafe(_call)
         return await fut
 
-    async def wait_for_ready(
-        self,
-        resources: list[Resource] | Resource,
-        poll_interval: float = 0.1,
-        timeout: int = 20,
-    ) -> bool:
+    async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: int | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
 
         Args:
-            resources (list[Resource] | Resource): The resources to wait for.
-            poll_interval (float): The interval to poll for resource status.
+            resources (list[Resource] | Resource): The resource(s) to wait for.
             timeout (int): The timeout for the wait operation.
 
         Returns:
-            bool: True if all resources are ready, False if timeout or shutdown.
-
-        Raises:
-            CancelledError: If the wait operation is cancelled.
-            TimeoutError: If the wait operation times out.
+            bool: True if all resources are ready, False if shutdown is requested.
         """
+        timeout = timeout or self.config.startup_timeout_seconds
 
-        resources = resources if isinstance(resources, list) else [resources]
-        deadline = asyncio.get_event_loop().time() + timeout
-        while True:
-            if self.shutdown_event.is_set():
-                return False
-            if all(r.is_ready() for r in resources):
-                return True
-            if asyncio.get_event_loop().time() >= deadline:
-                return False
-            await asyncio.sleep(poll_interval)
-
-    async def wait_for_resources_running(
-        self,
-        resources: Iterable[Resource] | Resource,
-        *,
-        poll_interval: float = 0.1,
-        timeout: int = 5,
-    ) -> bool:
-        from hassette.utils import wait_for_resources_running_or_raise
-
-        if isinstance(resources, Resource) or not isinstance(resources, Iterable):
-            resources = [resources]
-        try:
-            await wait_for_resources_running_or_raise(list(resources), timeout=timeout, poll_interval=poll_interval)
-            return True
-        except TimeoutError:
-            return False
+        return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
 
     def get_app(self, name: str, index: int = 0) -> Any:
         if not self._app_handler:
@@ -214,7 +180,7 @@ class _HassetteMock(_HassetteBase):
 
 @dataclass
 class HassetteHarness:
-    config: Any | None = None
+    config: HassetteConfig
     use_bus: bool = False
     use_scheduler: bool = False
     use_api_mock: bool = False
@@ -281,7 +247,9 @@ class HassetteHarness:
             self.hassette.api.sync = Mock()
 
         self.hassette.ready_event.set()
-        await wait_for_resources_running_or_raise([x for x in self.hassette._resources.values()], timeout=5)
+        await wait_for_ready(
+            [x for x in self.hassette._resources.values()], timeout=1, shutdown_event=self.hassette.shutdown_event
+        )
 
         return self
 
