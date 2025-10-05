@@ -55,4 +55,4 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus) -> None:
     await asyncio.wait_for(fired.wait(), timeout=1)
     await asyncio.sleep(0.1)
 
-    assert not hassette._bus_service._tasks, f"Expected no leftover bus tasks, found {hassette._bus_service._tasks}"
+    assert len(bus.task_bucket) == 0, f"Expected no leftover bus tasks, found {len(bus.task_bucket)}"
