@@ -10,7 +10,7 @@ from typing import Any, ClassVar, ParamSpec, TypeVar
 from anyio import create_memory_object_stream
 
 from hassette.config import HassetteConfig
-from hassette.utils import get_traceback_string, wait_for_resources_running
+from hassette.utils import get_traceback_string, wait_for_ready
 
 from .api import Api, _Api
 from .app_handler import _AppHandler
@@ -221,58 +221,19 @@ class Hassette:
 
         return self._global_tasks.spawn(coro, name=name)
 
-    async def wait_for_ready(
-        self,
-        resources: list[Resource] | Resource,
-        poll_interval: float = 0.1,
-        timeout: int = 20,
-    ) -> bool:
+    async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: int | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
 
         Args:
-            resources (list[Resource] | Resource): The resources to wait for.
-            poll_interval (float): The interval to poll for resource status.
+            resources (list[Resource] | Resource): The resource(s) to wait for.
             timeout (int): The timeout for the wait operation.
 
         Returns:
-            bool: True if all resources are ready, False if timeout or shutdown.
-
-        Raises:
-            CancelledError: If the wait operation is cancelled.
-            TimeoutError: If the wait operation times out.
+            bool: True if all resources are ready, False if shutdown is requested.
         """
+        timeout = timeout or self.config.startup_timeout_seconds
 
-        resources = resources if isinstance(resources, list) else [resources]
-        deadline = asyncio.get_event_loop().time() + timeout
-        while True:
-            if self.shutdown_event.is_set():
-                return False
-            if all(r.is_ready() for r in resources):
-                return True
-            if asyncio.get_event_loop().time() >= deadline:
-                return False
-            await asyncio.sleep(poll_interval)
-
-    async def wait_for_resources_running(
-        self, resources: list[Resource] | Resource, poll_interval: float = 0.1, timeout: int = 20
-    ) -> bool:
-        """Block until all dependent resources are running or shutdown is requested.
-
-        Args:
-            resources (list[Resource] | Resource): The resources to wait for.
-            poll_interval (float): The interval to poll for resource status.
-            timeout (int): The timeout for the wait operation.
-        Returns:
-            bool: True if all resources are running, False if timeout or shutdown.
-        """
-        resources = resources if isinstance(resources, list) else [resources]
-
-        return await wait_for_resources_running(
-            resources,
-            poll_interval=poll_interval,
-            timeout=timeout,
-            shutdown_event=self.shutdown_event,
-        )
+        return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
 
     async def run_forever(self) -> None:
         """Start Hassette and run until shutdown signal is received."""
