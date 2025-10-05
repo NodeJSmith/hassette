@@ -61,7 +61,7 @@ async def test_crash_is_logged(bucket_fixture: tasks.TaskBucket, caplog):
 
 async def stubborn(event: asyncio.Event):
     loop = asyncio.get_running_loop()
-    end = loop.time() + 0.5  # longer than bucket timeout
+    end = loop.time() + 5  # longer than bucket timeout
     while loop.time() < end:
         with contextlib.suppress(asyncio.CancelledError):
             await asyncio.sleep(0.01)
