@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import logging
+import threading
 import tracemalloc
 import typing
 from collections.abc import Callable, Coroutine
@@ -14,7 +15,7 @@ from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette import HassetteConfig
-from hassette.core.api import Api, _Api
+from hassette.core.api import Api, _ApiService
 from hassette.core.app_handler import _AppHandler
 from hassette.core.bus.bus import Bus, _BusService
 from hassette.core.classes.base import _HassetteBase
@@ -75,11 +76,12 @@ class _HassetteMock(_HassetteBase):
         self.shutdown_event = asyncio.Event()
         self._resources: dict[str, Resource] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._loop_thread_id: int | None = None
         self._thread_pool: ThreadPoolExecutor | None = None
         self._send_stream: MemoryObjectSendStream[tuple[str, Event[Any]]] | None = None
         self._receive_stream: MemoryObjectReceiveStream[tuple[str, Event[Any]]] | None = None
 
-        self._api: _Api | None = None
+        self._api_service: _ApiService | None = None
         self.api: Api | None = None
         self._bus_service: _BusService | None = None
         self._bus: Bus | None = None
@@ -213,7 +215,8 @@ class HassetteHarness:
 
     async def start(self) -> "HassetteHarness":
         self.hassette._loop = asyncio.get_running_loop()
-        self.hassette._thread_pool = self._thread_pool = ThreadPoolExecutor()
+        self.hassette._loop_thread_id = threading.get_ident()
+        self.hassette._thread_pool = self._thread_pool = ThreadPoolExecutor(thread_name_prefix="hassette-test-worker-")
         self.hassette._global_tasks = TaskBucket(
             cast("Hassette", self.hassette),
             name="hassette",
@@ -239,8 +242,8 @@ class HassetteHarness:
         # if self.use_websocket:
         #     await self.start_websocket()
 
-        if not self.hassette._api:
-            self.hassette._api = Mock()
+        if not self.hassette._api_service:
+            self.hassette._api_service = Mock()
 
         if not self.hassette.api:
             self.hassette.api = AsyncMock()
@@ -350,10 +353,10 @@ class HassetteHarness:
         self._exit_stack.push_async_callback(site.stop)
 
         rest_url_patch = patch(
-            "hassette.core.api._Api._rest_url", new_callable=PropertyMock, return_value=self.api_base_url
+            "hassette.core.api._ApiService._rest_url", new_callable=PropertyMock, return_value=self.api_base_url
         )
         headers_patch = patch(
-            "hassette.core.api._Api._headers",
+            "hassette.core.api._ApiService._headers",
             new_callable=PropertyMock,
             return_value={"Authorization": "Bearer test_token"},
         )
@@ -364,44 +367,15 @@ class HassetteHarness:
         self.hassette._websocket.ready_event = asyncio.Event()
         self.hassette._websocket.ready_event.set()
 
-        api_service = _Api(cast("Hassette", self.hassette))
-        api = Api(api_service.hassette, api_service)
-        self.hassette._api = api_service
+        self.hassette._api_service = _ApiService(cast("Hassette", self.hassette))
+        api = Api(self.hassette._api_service.hassette)
         self.hassette.api = api
-        self.hassette._resources[_Api.class_name] = api_service
+        self.hassette._resources[_ApiService.class_name] = self.hassette._api_service
         self.hassette._resources[Api.class_name] = api
 
         self.api_mock = mock_server
 
-        self.hassette._api.start()
+        self.hassette._api_service.start()
         self.hassette.api.start()
 
         return
-
-    # async def start_api_real(self) -> None:
-    #     if not self.use_bus:
-    #         raise RuntimeError("API harness requires bus")
-
-    #     if not self.use_websocket:
-    #         raise RuntimeError("API harness requires websocket")
-
-    #     api_service = _Api(cast("Hassette", self.hassette))
-    #     api = Api(api_service.hassette, api_service)
-    #     self.hassette._api = api_service
-    #     self.hassette.api = api
-    #     self.hassette._resources[_Api.class_name] = api_service
-    #     self.hassette._resources[Api.class_name] = api
-    #     api_service.start()
-    #     api.start()
-
-    # async def start_websocket(self) -> None:
-    #     if not self.hassette.config:
-    #         raise RuntimeError("Websocket requires a config")
-
-    #     if not self.use_bus:
-    #         raise RuntimeError("Websocket requires bus")
-
-    #     websocket = _Websocket(cast("Hassette", self.hassette))
-    #     self.hassette._websocket = websocket
-    #     self.hassette._resources[_Websocket.class_name] = websocket
-    #     websocket.start()

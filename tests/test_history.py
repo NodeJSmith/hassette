@@ -65,7 +65,7 @@ async def test_minimal_history_differs_if_not_normalized(hassette_with_mock_api:
     path2, qs2 = SimpleTestServer.make_history_path(["light.entryway"], START, END, minimal=True)
     mock.expect("GET", path2, qs2, json=light_entryway_minimal_history, status=200)
 
-    history_norm = await api._api._get_history_raw(
+    history_norm = await api._api_service._get_history_raw(
         entity_id="light.entryway", start_time=START, end_time=END, minimal_response=False
     )
 
@@ -73,7 +73,7 @@ async def test_minimal_history_differs_if_not_normalized(hassette_with_mock_api:
     # it doesn't get called and that the un-normalized history differs
     with patch("hassette.core.api.normalize_history") as mock_normalize:
         mock_normalize.return_value = lambda x: x
-        history_minimal = await api._api._get_history_raw(
+        history_minimal = await api._api_service._get_history_raw(
             entity_id="light.entryway",
             start_time=START,
             end_time=END,
