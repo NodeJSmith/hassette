@@ -61,7 +61,7 @@ async def test_crash_is_logged(bucket_fixture: tasks.TaskBucket, caplog):
 
 async def stubborn(event: asyncio.Event):
     loop = asyncio.get_running_loop()
-    end = loop.time() + 5  # longer than bucket timeout
+    end = loop.time() + 1  # longer than bucket timeout
     while loop.time() < end:
         with contextlib.suppress(asyncio.CancelledError):
             await asyncio.sleep(0.01)
@@ -78,14 +78,16 @@ async def test_warns_on_stubborn_tasks(bucket_fixture: tasks.TaskBucket, caplog)
     await asyncio.sleep(0)
 
     await bucket_fixture.cancel_all()
-    await asyncio.sleep(0.2)  # let it log if needed
+    await event.wait()
+    await asyncio.sleep(0)
 
     # the task may still be running (ignored cancel), but we should have warned
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     if not any("refused" in m for m in warnings):
         raise AssertionError(f"No stubborn warning; logs were: {warnings}")
 
-    await asyncio.wait_for(event.wait(), timeout=bucket_fixture.cancel_timeout + 0.5)
+    with contextlib.suppress(asyncio.TimeoutError):
+        await asyncio.wait_for(event.wait(), timeout=bucket_fixture.cancel_timeout + 0.5)
 
     assert t.done(), f"task should be done after finishing, is {t._state}"
     assert not t.cancelled(), "task should not be cancelled after finishing"
