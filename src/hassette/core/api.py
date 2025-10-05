@@ -10,10 +10,17 @@ from typing import Any
 
 import aiohttp
 import orjson
-from tenacity import before_sleep_log, retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential_jitter
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    retry_if_not_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 from whenever import Date, Instant, PlainDateTime, SystemDateTime
 
-from hassette.exceptions import ConnectionClosedError, EntityNotFoundError, InvalidAuthError
+from hassette.exceptions import ConnectionClosedError, EntityNotFoundError, InvalidAuthError, ResourceNotReadyError
 from hassette.models.entities import BaseEntity, EntityT
 from hassette.models.history import HistoryEntry, normalize_history
 from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, try_convert_state
@@ -35,6 +42,7 @@ NOT_RETRYABLE = (
     AttributeError,
     CancelledError,
 )
+RETRYABLE = (aiohttp.ClientError, ResourceNotReadyError)
 
 
 class _Api(Resource):
@@ -74,13 +82,6 @@ class _Api(Resource):
         """Get the WebSocket connection for this API instance."""
         return self.hassette._websocket
 
-    @retry(
-        retry=retry_if_not_exception_type(NOT_RETRYABLE),
-        wait=wait_exponential_jitter(),
-        stop=stop_after_attempt(5),
-        before_sleep=before_sleep_log(LOGGER, logging.WARNING),
-        reraise=True,
-    )
     async def _rest_request(
         self,
         method: str,
@@ -92,40 +93,62 @@ class _Api(Resource):
     ) -> aiohttp.ClientResponse:
         """Make a REST request to the Home Assistant API."""
 
-        if self._session is None:
-            raise RuntimeError("Client session is not connected")
+        # inner function to allow retry decorator to use `self`
+        @retry(
+            retry=(retry_if_not_exception_type(NOT_RETRYABLE) | retry_if_exception_type(RETRYABLE)),
+            wait=wait_exponential_jitter(),
+            stop=stop_after_attempt(5),
+            before_sleep=before_sleep_log(self.logger, logging.WARNING),
+            reraise=True,
+        )
+        async def _inner_request(
+            method: str,
+            url: str,
+            params: dict[str, Any] | None = None,
+            data: dict[str, Any] | None = None,
+            suppress_error_message: bool = False,
+            **kwargs,
+        ) -> aiohttp.ClientResponse:
+            if self._session is None:
+                raise RuntimeError("Client session is not connected")
 
-        params = clean_kwargs(**(params or {}))
-        str_data = orjson_dump(data or {})
+            params = clean_kwargs(**(params or {}))
+            str_data = orjson_dump(data or {})
 
-        request_kwargs = {}
+            request_kwargs = {}
 
-        if str_data:
-            request_kwargs["data"] = str_data
-            request_kwargs["headers"] = {"Content-Type": "application/json"}
+            if str_data:
+                request_kwargs["data"] = str_data
+                request_kwargs["headers"] = {"Content-Type": "application/json"}
 
-        if params:
-            request_kwargs["params"] = params
+            if params:
+                request_kwargs["params"] = params
 
-        try:
-            response = await self._session.request(method, url, **request_kwargs, **kwargs)
-            self.logger.debug("Making %s request to %s with data %s", method, response.real_url, str_data)
-            response.raise_for_status()
+            try:
+                response = await self._session.request(method, url, **request_kwargs, **kwargs)
+                self.logger.debug("Making %s request to %s with data %s", method, response.real_url, str_data)
+                response.raise_for_status()
 
-            return response
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
+                return response
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    if not suppress_error_message:
+                        self.logger.error(
+                            "Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2
+                        )
+
+                    raise EntityNotFoundError(f"Entity not found: {url}") from None
+                raise
+
+            except aiohttp.ClientError as e:
                 if not suppress_error_message:
                     self.logger.error("Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2)
 
-                raise EntityNotFoundError(f"Entity not found: {url}") from None
-            raise
+                raise
 
-        except aiohttp.ClientError as e:
-            if not suppress_error_message:
-                self.logger.error("Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2)
-
-            raise
+        return await _inner_request(
+            method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
+        )
 
     async def _get_history_raw(
         self,

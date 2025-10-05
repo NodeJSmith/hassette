@@ -25,6 +25,7 @@ from hassette.exceptions import (
     CouldNotFindHomeAssistantError,
     FailedMessageError,
     InvalidAuthError,
+    ResourceNotReadyError,
     RetryableConnectionClosedError,
 )
 
@@ -230,12 +231,13 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         Raises:
             FailedMessageError: If sending the message fails or times out.
         """
+
         if "id" not in data:
             data["id"] = msg_id = self.get_next_message_id()
         else:
             msg_id = data["id"]
 
-        fut = asyncio.get_running_loop().create_future()
+        fut = self.hassette.loop.create_future()
         self._response_futures[msg_id] = fut
         try:
             await self.send_json(**data)
@@ -275,6 +277,10 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         Raises:
             FailedMessageError: If sending the message fails.
         """
+
+        if not self.ready:
+            raise ResourceNotReadyError("WebSocket is not ready")
+
         self.logger.debug("Sending WebSocket message: %s", data)
 
         if not isinstance(data, dict):
