@@ -6,7 +6,7 @@ from hassette.core.websocket import _Websocket
 from hassette.exceptions import FailedMessageError
 
 
-class _WSOk:
+class _WSOk:  # type: ignore[reportUnusedClass]
     def __init__(self):
         self.sent = []
         self.connected = True
