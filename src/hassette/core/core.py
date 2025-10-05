@@ -167,10 +167,7 @@ class Hassette(_LoggerMixin):
             raise RuntimeError("This sync method was called from within an event loop. Use the async method instead.")
 
         try:
-            if self._loop is None:
-                raise RuntimeError("Event loop is not running")
-
-            fut = asyncio.run_coroutine_threadsafe(fn, self._loop)
+            fut = asyncio.run_coroutine_threadsafe(fn, self.loop)
             return fut.result(timeout=timeout_seconds)
         except TimeoutError:
             self.logger.exception("Sync function '%s' timed out", fn.__name__)
@@ -187,10 +184,7 @@ class Hassette(_LoggerMixin):
 
         This is useful for ensuring that loop-affine code runs in the correct context.
         """
-        if not self._loop:
-            raise RuntimeError("Event loop is not running")
-
-        fut = self._loop.create_future()
+        fut = self.loop.create_future()
 
         def _call():
             try:
@@ -198,7 +192,7 @@ class Hassette(_LoggerMixin):
             except Exception as e:
                 fut.set_exception(e)
 
-        self._loop.call_soon_threadsafe(_call)
+        self.loop.call_soon_threadsafe(_call)
         return await fut
 
     def create_task(self, coro: Coroutine[Any, Any, R], name: str) -> asyncio.Task[R]:
@@ -232,7 +226,7 @@ class Hassette(_LoggerMixin):
         self._loop = asyncio.get_running_loop()
 
         self._global_tasks = TaskBucket(self, name="hassette", prefix="hassette")
-        self._loop.set_task_factory(make_task_factory(self._global_tasks))
+        self.loop.set_task_factory(make_task_factory(self._global_tasks))
 
         self._start_resources()
 
