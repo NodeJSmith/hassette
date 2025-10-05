@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Per-owner buses replace the global `hassette.bus`; listener removal must go through `BusService`, which now tracks listeners by owner under a fair async lock for atomic cleanup.
 - **Breaking:** `@only` becomes `@only_app`, apps must expose a non-empty `instance_name`, and each app now owns its `Bus` and `Scheduler` handles.
 - **Breaking:** The `hassette.core.apps` package moved under `hassette.core.classes.app`, and the service singletons are now `_BusService` and `_SchedulerService`; import apps from `hassette.core`/`hassette.core.classes` and treat the underscored services as private.
-- **Breaking:** `set_logger_to_debug` has been renamed to `set_logger_to_level`, and all core services now default to `INFO` level logging.
+- **Deprecated:** `set_logger_to_debug` has been renamed to `set_logger_to_level`, and all core services now default to `INFO` level logging. `set_logger_to_debug` is still available but will be removed in a future release.
+- App handlers now mark apps as ready after `initialize` completes.
+- The API now waits for WebSocket readiness before creating its session, and classifies common client errors as non-retryable.
 
 ### Fixed
 - App reloads clean up owned listeners and jobs, preventing leaked callbacks between reload cycles.
