@@ -1,15 +1,14 @@
 import asyncio
 import typing
-import uuid
 from asyncio import Future, ensure_future
 from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
-from logging import getLogger
 from typing import Any, ClassVar, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
 
 from hassette.config import HassetteConfig
+from hassette.core.classes.base import _LoggerMixin
 from hassette.utils import get_traceback_string, wait_for_ready
 
 from .api import Api, _Api
@@ -30,7 +29,7 @@ R = TypeVar("R")
 T = TypeVar("T", bound=Resource | Service)
 
 
-class Hassette:
+class Hassette(_LoggerMixin):
     """Main class for the Hassette application.
 
     This class initializes the Hassette instance, manages services, and provides access to the API,
@@ -50,11 +49,6 @@ class Hassette:
     shutdown_event: asyncio.Event
     """Event set when the application is starting to shutdown."""
 
-    @property
-    def unique_name(self) -> str:
-        """Unique identifier for the instance."""
-        return f"{type(self).__name__}-{self.unique_id}"
-
     def __init__(self, config: HassetteConfig) -> None:
         """
         Initialize the Hassette instance.
@@ -63,9 +57,7 @@ class Hassette:
             env_file (str | Path | None): Path to the environment file for configuration.
             config (HassetteConfig | None): Optional pre-loaded configuration.
         """
-        self.unique_id = uuid.uuid4().hex
-
-        self.logger = getLogger(__name__)
+        super().__init__(unique_name_prefix="Hassette")
 
         self.config = config
         TaskBucket.default_task_cancellation_timeout = self.config.task_cancellation_timeout_seconds

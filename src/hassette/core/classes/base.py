@@ -1,7 +1,7 @@
 import copy
 import typing
 import uuid
-from logging import getLogger
+from logging import Logger, getLogger
 
 from typing_extensions import deprecated
 
@@ -11,45 +11,25 @@ if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
 
 
-class _HassetteBase:  # pyright: ignore[reportUnusedClass]
-    class_name: typing.ClassVar[str]
-    """Name of the class, set on subclassing."""
+class _LoggerMixin:
+    """Mixin to provide logging capabilities to classes."""
 
-    role: typing.ClassVar[ResourceRole] = ResourceRole.BASE
-    """Role of the resource, e.g. 'App', 'Service', etc."""
+    unique_id: str
+    """Unique identifier for the instance."""
+
+    logger: Logger
+    """Logger for the instance."""
 
     unique_name: str
-    """Unique name for the instance, combining class name and unique ID."""
+    """Unique name for the instance."""
 
-    def __init_subclass__(cls) -> None:
-        cls.class_name = cls.__name__
-
-    def __init__(self, hassette: "Hassette", unique_name_prefix: str | None = None) -> None:
-        """
-        Initialize the class with a reference to the Hassette instance.
-
-        Args:
-            hassette (Hassette): The Hassette instance this resource belongs to.
-            unique_name_prefix (str | None): Optional prefix for the unique name. If None, the class name is used.
-        """
-
+    def __init__(self, unique_name_prefix: str | None = None) -> None:
         self.unique_id = uuid.uuid4().hex
-        """Unique identifier for the instance."""
-
-        self.hassette = hassette
-        """Reference to the Hassette instance."""
-
-        prefix = unique_name_prefix or self.class_name
-        self.unique_name = f"{prefix}.{self.unique_id[:8]}"
-        """Unique identifier for the instance."""
-
+        self.unique_name = f"{unique_name_prefix or type(self).__name__}.{self.unique_id[:8]}"
         self.logger = getLogger(f"hassette.{self.unique_name}")
-        """Logger for the instance."""
-
-        self.logger.debug("Creating instance of '%s'", self.class_name)
 
     def __repr__(self) -> str:
-        return f"<{self.class_name} unique_name={self.unique_name}>"
+        return f"<{type(self).__name__} unique_name={self.unique_name}>"
 
     def set_logger_to_level(self, level: typing.Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]) -> None:
         """Configure a logger to log at the specified level independently of its parent."""
@@ -76,3 +56,32 @@ class _HassetteBase:  # pyright: ignore[reportUnusedClass]
     def set_logger_to_debug(self) -> None:
         """Configure a logger to log at DEBUG level independently of its parent."""
         self.set_logger_to_level("DEBUG")
+
+
+class _HassetteBase(_LoggerMixin):  # pyright: ignore[reportUnusedClass]
+    class_name: typing.ClassVar[str]
+    """Name of the class, set on subclassing."""
+
+    role: typing.ClassVar[ResourceRole] = ResourceRole.BASE
+    """Role of the resource, e.g. 'App', 'Service', etc."""
+
+    hassette: "Hassette"
+    """Reference to the Hassette instance."""
+
+    def __init_subclass__(cls) -> None:
+        cls.class_name = cls.__name__
+
+    def __init__(self, hassette: "Hassette", unique_name_prefix: str | None = None) -> None:
+        """
+        Initialize the class with a reference to the Hassette instance.
+
+        Args:
+            hassette (Hassette): The Hassette instance this resource belongs to.
+            unique_name_prefix (str | None): Optional prefix for the unique name. If None, the class name is used.
+        """
+        super().__init__(unique_name_prefix=unique_name_prefix)
+        self.hassette = hassette
+        self.logger.debug("Creating instance of '%s'", self.class_name)
+
+    def __repr__(self) -> str:
+        return f"<{self.class_name} unique_name={self.unique_name}>"
