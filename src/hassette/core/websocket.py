@@ -141,7 +141,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         async with self.starting():
             self._session = session
             try:
-                self._ws = await session.ws_connect(self.url, heartbeat=self.hearbeat_interval_seconds)
+                self._ws = await session.ws_connect(self.url, heartbeat=self.heartbeat_interval_seconds)
             except ClientConnectorError as exc:
                 # preserve your special-case mapping
                 if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
