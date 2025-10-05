@@ -28,7 +28,6 @@ class _SchedulerService(Service):
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
-        self._tasks: set[asyncio.Task] = set()
 
     @property
     def min_delay(self) -> float:

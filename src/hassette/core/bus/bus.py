@@ -41,7 +41,6 @@ class _BusService(Service):
 
         self.listener_seq = itertools.count(1)
         self.router = Router()
-        self._tasks: set[asyncio.Task[Any]] = set()
 
     def _log_task_result(self, task: asyncio.Task[Any]) -> None:
         if task.cancelled():
