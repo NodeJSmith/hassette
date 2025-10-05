@@ -39,6 +39,8 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger(__name__)
 
+LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
 # TODO: allow user to specify services/resources to call `set_logger_to_debug` on
 # would be cleaner for me as well, so I don't litter the code with `set_logger_to_debug` calls that should probably
 # not be there when we cut a new version
@@ -89,7 +91,7 @@ class HassetteConfig(HassetteBaseSettings):
     )
 
     # General configuration
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for Hassette."""
 
     config_dir: Path = Field(default_factory=default_config_dir)
@@ -175,25 +177,25 @@ class HassetteConfig(HassetteBaseSettings):
     """Length of time to wait for tasks to cancel before forcing."""
 
     # Service log levels
-    bus_service_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    bus_service_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the event bus service."""
 
-    scheduler_service_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    scheduler_service_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the scheduler service."""
 
-    app_handler_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    app_handler_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the app handler service."""
 
-    health_service_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    health_service_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the health service."""
 
-    websocket_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    websocket_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the WebSocket service."""
 
-    service_watcher_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    service_watcher_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the service watcher."""
 
-    file_watcher_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    file_watcher_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the file watcher service."""
 
     # user config
