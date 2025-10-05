@@ -47,3 +47,7 @@ class UndefinedUserConfigError(TypeError):
 
 class EntityNotFoundError(ValueError):
     """Custom error for handling 404 in the Api"""
+
+
+class ResourceNotReadyError(Exception):
+    """Custom exception to indicate that a resource is not ready for use."""
