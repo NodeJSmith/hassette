@@ -139,7 +139,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
             self.logger.info("No apps configured, skipping initialization")
             return
 
-        if not (await self.hassette.wait_for_resources_running([self.hassette._websocket])):
+        if not (await self.hassette.wait_for_ready(self.hassette._websocket)):
             self.logger.warning("App initialization timed out")
             return
 
