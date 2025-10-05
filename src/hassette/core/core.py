@@ -288,6 +288,8 @@ class Hassette:
         started = await self.wait_for_ready(list(self._resources.values()), timeout=self.config.startup_timeout_seconds)
 
         if not started:
+            not_ready_resources = [r.class_name for r in self._resources.values() if not r.is_ready()]
+            self.logger.error("The following resources failed to start: %s", ", ".join(not_ready_resources))
             self.logger.error("Not all resources started successfully, shutting down")
             await self._shutdown()
             return
