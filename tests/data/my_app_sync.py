@@ -18,12 +18,12 @@ class MyAppUserConfig(AppConfig):
 
 # @only
 class MyAppSync(AppSync):
-    def initialize_sync(self) -> None:
-        self.bus.on_entity("input_button.test", handler=self.handle_event)
-        self.scheduler.run_in(self.test_stuff, 1)
+    # def initialize_sync(self) -> None:
+    #     self.bus.on_entity("input_button.test", handler=self.handle_event)
+    #     self.scheduler.run_in(self.test_stuff, 1)
 
-        self.office_light_exists = self.api.sync.entity_exists("light.office")
-        self.test_button_exists = self.api.sync.entity_exists("input_button.test")
+    #     self.office_light_exists = self.api.sync.entity_exists("light.office")
+    #     self.test_button_exists = self.api.sync.entity_exists("input_button.test")
 
     def test_stuff(self) -> None:
         my_app = self.hassette.get_app("my_app", 0)
