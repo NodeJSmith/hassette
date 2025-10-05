@@ -1,4 +1,5 @@
 import asyncio
+import threading
 import typing
 from asyncio import Future, ensure_future
 from collections.abc import Coroutine
@@ -71,7 +72,8 @@ class Hassette(_LoggerMixin):
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, Event]](1000)
 
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._thread_pool = ThreadPoolExecutor(max_workers=10)
+        self._loop_thread_id: int | None = None
+        self._thread_pool = ThreadPoolExecutor(max_workers=10, thread_name_prefix="hassette-worker-")
 
         # private background services
         self._service_watcher = self._register_resource(_ServiceWatcher)
@@ -150,48 +152,15 @@ class Hassette(_LoggerMixin):
 
         Returns:
             R: The result of the function call.
-
         """
-
-        timeout_seconds = timeout_seconds or self.config.run_sync_timeout_seconds
-
-        # If we're already in an event loop, don't allow blocking calls.
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            pass  # not in a loop -> safe to block
-        else:
-            fn.close()  # close the coroutine to avoid warnings
-            raise RuntimeError("This sync method was called from within an event loop. Use the async method instead.")
-
-        try:
-            fut = asyncio.run_coroutine_threadsafe(fn, self.loop)
-            return fut.result(timeout=timeout_seconds)
-        except TimeoutError:
-            self.logger.exception("Sync function '%s' timed out", fn.__name__)
-            raise
-        except Exception:
-            self.logger.exception("Failed to run sync function '%s'", fn.__name__)
-            raise
-        finally:
-            if not fut.done():
-                fut.cancel()
+        return self._global_tasks.run_sync(fn, timeout_seconds=timeout_seconds)
 
     async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args, **kwargs) -> R:
         """Run a synchronous function on the main event loop thread.
 
         This is useful for ensuring that loop-affine code runs in the correct context.
         """
-        fut = self.loop.create_future()
-
-        def _call():
-            try:
-                fut.set_result(fn(*args, **kwargs))
-            except Exception as e:
-                fut.set_exception(e)
-
-        self.loop.call_soon_threadsafe(_call)
-        return await fut
+        return await self._global_tasks.run_on_loop_thread(fn, *args, **kwargs)
 
     def create_task(self, coro: Coroutine[Any, Any, R], name: str) -> asyncio.Task[R]:
         """Create a task tracked in the global hassette task bucket.
@@ -222,7 +191,8 @@ class Hassette(_LoggerMixin):
     async def run_forever(self) -> None:
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
-        self.loop.set_debug(True)
+        self._loop_thread_id = threading.get_ident()
+        self.loop.set_debug(self.config.dev_mode)
 
         self._global_tasks = TaskBucket(self, name="hassette", prefix="hassette")
         self.loop.set_task_factory(make_task_factory(self._global_tasks))

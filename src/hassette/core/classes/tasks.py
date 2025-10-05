@@ -1,9 +1,11 @@
 import asyncio
 import logging
+import threading
 import typing
 import weakref
 from collections.abc import Callable, Coroutine
-from typing import Any, ClassVar, TypeVar
+from concurrent.futures import Future, TimeoutError
+from typing import Any, ClassVar, ParamSpec, TypeVar
 
 from hassette.core import context
 from hassette.core.classes.base import _HassetteBase
@@ -12,6 +14,8 @@ if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
 
 T = TypeVar("T", covariant=True)
+P = ParamSpec("P")
+R = TypeVar("R")
 
 CoroLikeT = Coroutine[Any, Any, T]
 
@@ -71,8 +75,89 @@ class TaskBucket(_HassetteBase):
             else:
                 self.logger.warning("Tasks should be namespaced with ':' or a prefix should be provided (%s)", name)
 
+        current_thread = threading.get_ident()
+
+        if current_thread == self.hassette._loop_thread_id:
+            # Fast path: already on loop thread
+            with context.use(context.CURRENT_BUCKET, self):
+                return asyncio.create_task(coro, name=name)
+        else:
+            # Dev-mode tracking: log cross-thread spawn
+            if self.hassette.config.dev_mode:  # or a global DEBUG flag
+                self.logger.debug(
+                    "Cross-thread spawn: %s from thread %s (loop thread %s)",
+                    name,
+                    current_thread,
+                    self.hassette._loop_thread_id,
+                )
+            # Cross-thread: create the task on the real loop thread and wait for the handle
+            result: Future[asyncio.Task[Any]] = Future()
+
+            def _create() -> None:
+                try:
+                    with context.use(context.CURRENT_BUCKET, self):
+                        task = asyncio.create_task(coro, name=name)
+                    result.set_result(task)
+                except Exception as e:
+                    result.set_exception(e)
+
+            self.hassette.loop.call_soon_threadsafe(_create)
+            return result.result()  # block this worker thread briefly to hand back the Task
+
+    def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | None = None) -> R:
+        """Run an async function in a synchronous context.
+
+        Args:
+            fn (Coroutine[Any, Any, R]): The async function to run.
+            timeout_seconds (int | None): The timeout for the function call, defaults to 0, to use the config value.
+
+        Returns:
+            R: The result of the function call.
+        """
+
+        timeout_seconds = timeout_seconds or self.hassette.config.run_sync_timeout_seconds
+
+        # If we're already in an event loop, don't allow blocking calls.
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass  # not in a loop -> safe to block
+        else:
+            fn.close()  # close the coroutine to avoid warnings
+            raise RuntimeError("This sync method was called from within an event loop. Use the async method instead.")
+
+        try:
+            fut = asyncio.run_coroutine_threadsafe(fn, self.hassette.loop)
+            return fut.result(timeout=timeout_seconds)
+        except TimeoutError:
+            self.logger.exception("Sync function '%s' timed out", fn.__name__)
+            raise
+        except Exception:
+            self.logger.exception("Failed to run sync function '%s'", fn.__name__)
+            raise
+        finally:
+            if not fut.done():
+                fut.cancel()
+
+    async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args, **kwargs) -> R:
+        """Run a synchronous function on the main event loop thread.
+
+        This is useful for ensuring that loop-affine code runs in the correct context.
+        """
+        fut = self.hassette.loop.create_future()
+
+        def _call():
+            try:
+                fut.set_result(fn(*args, **kwargs))
+            except Exception as e:
+                fut.set_exception(e)
+
+        self.hassette.loop.call_soon_threadsafe(_call)
+        return await fut
+
+    def create_task_on_loop(self, coro, *, name=None) -> asyncio.Task[Any]:
+        """Create a task on the main event loop thread, in this bucket's context."""
         with context.use(context.CURRENT_BUCKET, self):
-            # note: do not call self.add here - the task factory has already done that
             return self.hassette.loop.create_task(coro, name=name)
 
     async def cancel_all(self) -> None:
@@ -111,12 +196,14 @@ class TaskBucket(_HassetteBase):
 def make_task_factory(
     global_bucket: TaskBucket,
 ) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future[Any]]:
-    def factory(_loop: asyncio.AbstractEventLoop, coro: CoroLikeT) -> asyncio.Task[Any]:
-        # note: ensure we pass loop=_loop here, to handle cases where we're calling this from something like
+    def factory(loop: asyncio.AbstractEventLoop, coro: CoroLikeT) -> asyncio.Task[Any]:
+        """A task factory that assigns tasks to the current context's bucket, or a global bucket."""
+
+        # note: ensure we pass loop=loop here, to handle cases where we're calling this from something like
         # anyio's to_thread.run_sync
         # note: ignore any comments by AI tools about loop being deprecated/removed, because it's not
         # i'm honestly not sure where they get that idea from
-        t: asyncio.Task[Any] = asyncio.Task(coro, loop=_loop)
+        t: asyncio.Task[Any] = asyncio.Task(coro, loop=loop)
         # Optional: give unnamed tasks a readable default
         if not t.get_name() or t.get_name().startswith("Task-"):
             # getattr fallback avoids AttributeError on some coroutines/generators
