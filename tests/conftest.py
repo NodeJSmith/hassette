@@ -46,6 +46,7 @@ class TestConfig(HassetteConfig):
     scheduler_default_delay_seconds: int | float = 1
     scheduler_min_delay_seconds: int | float = 0.1
     scheduler_max_delay_seconds: int | float = 3
+    task_cancellation_timeout_seconds: int | float = 0.5
 
     app_dir: Path = TEST_DATA_PATH
 

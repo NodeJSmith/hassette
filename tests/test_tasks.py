@@ -72,6 +72,9 @@ async def test_warns_on_stubborn_tasks(bucket_fixture: tasks.TaskBucket, caplog)
     event = asyncio.Event()
     caplog.set_level(logging.WARNING, logger=bucket_fixture.logger.name)
     t = asyncio.create_task(stubborn(event), name="stubborn")
+
+    assert len(bucket_fixture) >= 1, f"bucket should track at least one task, tracks {len(bucket_fixture)}"
+
     await asyncio.sleep(0)
 
     await bucket_fixture.cancel_all()
