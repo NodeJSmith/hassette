@@ -13,6 +13,7 @@ from .job_queue import _ScheduledJobQueue
 from .triggers import CronTrigger, IntervalTrigger, now
 
 if typing.TYPE_CHECKING:
+    from hassette.core.classes.tasks import TaskBucket
     from hassette.core.core import Hassette
     from hassette.core.types import JobCallable, TriggerProtocol
 
@@ -251,8 +252,15 @@ class _SchedulerService(Service):
 
 
 class Scheduler(Resource):
-    def __init__(self, hassette: "Hassette", owner: str) -> None:
-        super().__init__(hassette)
+    def __init__(
+        self,
+        hassette: "Hassette",
+        owner: str,
+        unique_name_prefix: str | None = None,
+        task_bucket: "TaskBucket | None" = None,
+    ) -> None:
+        """Initialize the Bus instance."""
+        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
         self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
 
         self.owner = owner

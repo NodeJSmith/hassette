@@ -18,6 +18,7 @@ from .routing import Router
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from hassette.core.classes.tasks import TaskBucket
     from hassette.core.core import Hassette
     from hassette.core.events import (
         CallServiceEvent,
@@ -135,9 +136,15 @@ class _BusService(Service):
 class Bus(Resource):
     """Individual event bus instance for a specific owner (e.g., App or Service)."""
 
-    def __init__(self, hassette: "Hassette", owner: str):
+    def __init__(
+        self,
+        hassette: "Hassette",
+        owner: str,
+        unique_name_prefix: str | None = None,
+        task_bucket: "TaskBucket | None" = None,
+    ) -> None:
         """Initialize the Bus instance."""
-        super().__init__(hassette)
+        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
         self.set_logger_to_level(self.hassette.config.bus_service_log_level)
 
         self.owner = owner
