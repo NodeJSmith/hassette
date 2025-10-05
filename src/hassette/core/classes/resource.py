@@ -45,17 +45,21 @@ class Resource(_HassetteBase):
         self._previous_status = self._status
         self._status = value
 
-    def __init__(self, hassette: "Hassette", unique_name_prefix: str | None = None) -> None:
+    def __init__(
+        self, hassette: "Hassette", unique_name_prefix: str | None = None, task_bucket: TaskBucket | None = None
+    ) -> None:
         """
         Initialize the resource.
 
         Args:
             hassette (Hassette): The Hassette instance this resource belongs to.
             unique_name_prefix (str | None): Optional prefix for the unique name. If None, the class name is used.
+            task_bucket (TaskBucket | None): Optional TaskBucket for managing tasks. If None, a new one is created.
+
         """
         super().__init__(hassette, unique_name_prefix=unique_name_prefix)
 
-        self.task_bucket = TaskBucket(self.hassette, name=self.unique_name, prefix=self.class_name)
+        self.task_bucket = task_bucket or TaskBucket(self.hassette, name=self.unique_name, prefix=self.class_name)
         """Task bucket for managing tasks owned by this instance."""
 
         self.ready: asyncio.Event = asyncio.Event()
