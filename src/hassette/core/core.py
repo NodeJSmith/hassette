@@ -300,7 +300,7 @@ class Hassette:
         gather_tasks: list[Future] = []
         for t in tasks:
             try:
-                gather_tasks.append(ensure_future(t))
+                gather_tasks.append(ensure_future(t, loop=self.loop))
             except Exception as e:
                 self.logger.error("Failed to ensure future for task '%s': %s", t, e)
 
