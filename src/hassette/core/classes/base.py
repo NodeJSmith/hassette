@@ -4,6 +4,8 @@ import typing
 import uuid
 from logging import getLogger
 
+from hassette.core.enums import ResourceRole
+
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
 
@@ -11,6 +13,9 @@ if typing.TYPE_CHECKING:
 class _HassetteBase:  # pyright: ignore[reportUnusedClass]
     class_name: typing.ClassVar[str]
     """Name of the class, set on subclassing."""
+
+    role: typing.ClassVar[ResourceRole] = ResourceRole.BASE
+    """Role of the resource, e.g. 'App', 'Service', etc."""
 
     def __init_subclass__(cls) -> None:
         cls.class_name = cls.__name__

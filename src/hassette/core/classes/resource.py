@@ -27,9 +27,6 @@ class Resource(_HassetteBase):
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
-    role: ClassVar[ResourceRole] = ResourceRole.BASE
-    """Role of the resource, e.g. 'App', 'Service', etc."""
-
     _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
     """Previous status of the resource."""
 
@@ -58,7 +55,6 @@ class Resource(_HassetteBase):
             **kwargs: Additional keyword arguments.
         """
         super().__init__(hassette, *args, **kwargs)
-        self.logger.debug("Creating instance of '%s' %s", self.class_name, self.role)
 
         self.task_bucket = TaskBucket(self.hassette, name=self.unique_name, prefix=self.class_name)
         """Task bucket for managing tasks owned by this instance."""
