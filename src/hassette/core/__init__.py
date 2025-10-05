@@ -1,11 +1,22 @@
 from . import topics
 from .api import Api
-from .apps import App, AppConfig, AppConfigT, AppSync, only_app
-from .bus import Bus
-from .bus.predicates import AllOf, AnyOf, AttrChanged, Changed, ChangedFrom, ChangedTo, DomainIs, EntityIs, Guard, Not
+from .bus import Bus, predicates
+from .bus.predicates import (
+    AllOf,
+    AnyOf,
+    AttrChanged,
+    Changed,
+    ChangedFrom,
+    ChangedTo,
+    DomainIs,
+    EntityIs,
+    Guard,
+    Not,
+)
 from .bus.predicates.common import HomeAssistantRestarted
-from .classes import Resource, Service
+from .classes import App, AppConfig, AppConfigT, AppSync, Resource, Service, only_app
 from .enums import ResourceRole, ResourceStatus
+from .events import StateChangeEvent
 from .scheduler import CronTrigger, IntervalTrigger, Scheduler
 from .scheduler.classes import ScheduledJob
 from .types import AsyncHandler, Handler, Predicate, TriggerProtocol
@@ -39,7 +50,9 @@ __all__ = [
     "ScheduledJob",
     "Scheduler",
     "Service",
+    "StateChangeEvent",
     "TriggerProtocol",
     "only_app",
+    "predicates",
     "topics",
 ]

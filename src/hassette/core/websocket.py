@@ -9,18 +9,17 @@ from typing import Any, cast
 
 import aiohttp
 import anyio
-import tenacity
 from aiohttp import ClientConnectorError, ClientOSError, ClientTimeout, ServerDisconnectedError, WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
-from tenacity import AsyncRetrying, before_sleep_log, retry_if_exception_type, retry_if_not_exception_type
-
-from hassette.core.classes import Service
-from hassette.core.events import (
-    HassEventEnvelopeDict,
-    WebsocketConnectedEventPayload,
-    WebsocketDisconnectedEventPayload,
-    create_event_from_hass,
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    retry_if_not_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
 )
+
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -29,15 +28,28 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 
+from .classes.resource import Service
+from .events import (
+    HassEventEnvelopeDict,
+    WebsocketConnectedEventPayload,
+    WebsocketDisconnectedEventPayload,
+    create_event_from_hass,
+)
+
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from .core import Hassette
 
 LOGGER = getLogger(__name__)
 
+# classify errors once (easy to audit/change later)
+NON_RETRYABLE = (InvalidAuthError, asyncio.CancelledError, CouldNotFindHomeAssistantError)
+RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError)
 
-class _Websocket(Service):
+
+class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
+        self.set_logger_to_level(self.hassette.config.websocket_log_level)
         self.hassette = hassette
         self.url = self.hassette.config.ws_url
         self._stack = AsyncExitStack()
@@ -51,8 +63,24 @@ class _Websocket(Service):
         self._connect_lock = asyncio.Lock()  # if you don't already have it
 
     @property
-    def timeout_seconds(self) -> int:
-        return self.hassette.config.websocket_timeout_seconds
+    def resp_timeout_seconds(self) -> int:
+        return self.hassette.config.websocket_response_timeout_seconds
+
+    @property
+    def connection_timeout_seconds(self) -> int:
+        return self.hassette.config.websocket_connection_timeout_seconds
+
+    @property
+    def total_timeout_seconds(self) -> int:
+        return self.hassette.config.websocket_total_timeout_seconds
+
+    @property
+    def heartbeat_interval_seconds(self) -> int:
+        return self.hassette.config.websocket_heartbeat_interval_seconds
+
+    @property
+    def authentication_timeout_seconds(self) -> int:
+        return self.hassette.config.websocket_authentication_timeout_seconds
 
     @property
     def connected(self) -> bool:
@@ -72,68 +100,69 @@ class _Websocket(Service):
         """Connect to the WebSocket and run the receive loop."""
         async with self._connect_lock:
             try:
-                await self._connect_and_run()
+                await self._connect_once()
             except (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError) as e:
+                self.mark_not_ready(reason=f"Connection lost: {type(e).__name__}: {e}")
                 await self._send_connection_lost_event(f"{type(e).__name__}: {e}")
                 await self.handle_failed(e)
             except asyncio.CancelledError:
+                self.mark_not_ready(reason="Connection cancelled")
                 await self._send_connection_lost_event("Connection cancelled")
                 await self.handle_stop()
             except Exception as e:
                 await self.handle_crash(e)
                 raise
             finally:
-                await self._cleanup()
+                await self.cleanup()
 
-    async def _connect_and_run(self) -> None:
-        """Connect to the WebSocket and run the receive loop."""
+    async def _connect_once(self) -> None:
+        """One full connect/auth/subscribe + recv lifecycle. Raise to trigger a retry."""
 
-        # we wait_fixed for 1 second and try 60 times
-        # this lets us (hopefully) get subscribed ASAP after HA is back up
-        # instead of waiting exponential and potentially being seconds behind
-
-        # the reason we want to be ASAP is so we can use events like homeassistant_start(ed) to
-        # adjust behavior in things like the Api class
-
-        timeout = ClientTimeout(connect=5, total=30)
-
-        async for attempt in AsyncRetrying(
-            retry=retry_if_not_exception_type(
-                (InvalidAuthError, asyncio.CancelledError, CouldNotFindHomeAssistantError)
-            )
-            | retry_if_exception_type(
-                (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError)
-            ),
-            wait=tenacity.wait_fixed(1),
-            stop=tenacity.stop_after_attempt(60),
+        # inner function so we can use `self` in the retry decorator
+        @retry(
+            retry=retry_if_not_exception_type(NON_RETRYABLE) | retry_if_exception_type(RETRYABLE),
+            wait=wait_exponential_jitter(initial=1, max=32),
+            stop=stop_after_attempt(5),
             reraise=True,
-            before_sleep=before_sleep_log(LOGGER, logging.WARNING),
-        ):
-            with attempt:
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with self.starting():
-                        self._session = session
-                        try:
-                            self._ws = await session.ws_connect(self.url, heartbeat=30)
-                        except ClientConnectorError as exc:
-                            if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
-                                raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
-                            raise
+            before_sleep=before_sleep_log(self.logger, logging.WARNING),
+        )
+        async def _inner_connect():
+            timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
 
-                        self.logger.debug("Connected to WebSocket at %s", self.url)
-                        await self.authenticate()
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                self._recv_task = await self._make_connection(session)
 
-                        # start the reader first so send_and_wait can get replies
-                        self._recv_task = self.hassette.create_task(self._recv_loop())
+                # announce after we're actually usable
+                event = WebsocketConnectedEventPayload.create_event(url=self.url)
+                await self.hassette.send_event(event.topic, event)
+                self.mark_ready(reason="WebSocket connected and authenticated")
 
-                        sub_all_id = await self._subscribe_events()  # uses send_and_wait internally
-                        self._subscription_ids.add(sub_all_id)
+                # Keep running until recv loop ends (disconnect, error, etc.)
+                await self._recv_task
 
-                        event = WebsocketConnectedEventPayload.create_event(url=self.url)
-                        await self.hassette.send_event(event.topic, event)
+        await _inner_connect()
 
-                    # Keep running until recv loop ends (disconnect, error, etc.)
-                    await self._recv_task
+    async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
+        async with self.starting():
+            self._session = session
+            try:
+                self._ws = await session.ws_connect(self.url, heartbeat=self.heartbeat_interval_seconds)
+            except ClientConnectorError as exc:
+                # preserve your special-case mapping
+                if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
+                    raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
+                raise
+
+            self.logger.debug("Connected to WebSocket at %s", self.url)
+            await self.authenticate()
+
+            # start reader first so send_and_wait can get replies
+            recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
+
+            # subscribe to events
+            self._subscription_ids.add(await self._subscribe_events())
+
+        return recv_task
 
     async def _recv_loop(self) -> None:
         while True:
@@ -152,7 +181,7 @@ class _Websocket(Service):
         # We return our own id as the subscription handle for unsubscribe
         return sub_id
 
-    async def _cleanup(self) -> None:
+    async def cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
 
         # Set exceptions for all pending response futures
@@ -187,6 +216,8 @@ class _Websocket(Service):
             await self._session.close()
             self.logger.debug("Closed aiohttp session")
 
+        await super().cleanup()
+
     async def send_and_wait(self, **data: Any) -> dict[str, Any]:
         """Send a message and wait for a response.
 
@@ -208,9 +239,9 @@ class _Websocket(Service):
         self._response_futures[msg_id] = fut
         try:
             await self.send_json(**data)
-            return await asyncio.wait_for(fut, timeout=self.timeout_seconds)
+            return await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
         except TimeoutError:
-            raise FailedMessageError(f"Response timed out after {self.timeout_seconds}s (data: {data})") from None
+            raise FailedMessageError(f"Response timed out after {self.resp_timeout_seconds}s (data: {data})") from None
         finally:
             self._response_futures.pop(msg_id, None)
 
@@ -276,7 +307,7 @@ class _Websocket(Service):
         truncated_token = self.hassette.config.truncated_token
         ws_url = self.hassette.config.ws_url
 
-        with anyio.fail_after(10):
+        with anyio.fail_after(self.authentication_timeout_seconds):
             msg = await self._ws.receive_json()
             assert msg["type"] == "auth_required"
             await self._ws.send_json({"type": "auth", "access_token": token})

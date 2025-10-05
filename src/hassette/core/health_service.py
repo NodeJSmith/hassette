@@ -2,11 +2,11 @@ import typing
 
 from aiohttp import web
 
-from hassette.core.classes import Service
-from hassette.core.enums import ResourceStatus
+from .classes.resource import Service
+from .enums import ResourceStatus
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from .core import Hassette
 
 _T = typing.TypeVar("_T")
 
@@ -25,6 +25,8 @@ class _HealthService(Service):
 
     def __init__(self, hassette: "Hassette", host: str = "0.0.0.0", port: int | None = None):
         super().__init__(hassette)
+        self.set_logger_to_level(self.hassette.config.health_service_log_level)
+
         self.host = host
         self.port = port or hassette.config.health_service_port
 
@@ -50,7 +52,7 @@ class _HealthService(Service):
             await self.handle_crash(e)
             raise
         finally:
-            await self._cleanup()
+            await self.cleanup()
 
     async def startup(self):
         """Start the health HTTP server."""
@@ -68,16 +70,20 @@ class _HealthService(Service):
 
         self.logger.info("Health service listening on %s:%s", self.host, self.port)
 
+        self.mark_ready(reason="Health service started")
+
     async def shutdown(self, *args, **kwargs) -> None:
-        await self._cleanup()
+        await self.cleanup()
         return await super().shutdown(*args, **kwargs)
 
-    async def _cleanup(self) -> None:
+    async def cleanup(self) -> None:
         if self._runner:
             await self._runner.cleanup()
             self.logger.debug("Health service stopped")
         if self.status != ResourceStatus.STOPPED:
             await self.handle_stop()
+
+        await super().cleanup()
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         # You can check internals here (e.g., WS status)

@@ -1,13 +1,11 @@
 import typing
 from logging import getLogger
 
+from hassette.core.classes.app.app_config import AppConfig, AppConfigT
 from hassette.exceptions import InvalidInheritanceError
 
-from .app_config import AppConfig
-
 if typing.TYPE_CHECKING:
-    from hassette.core.apps import App, AppConfigT
-
+    from hassette.core.classes.app.app import App
 
 LOGGER = getLogger(__name__)
 
@@ -30,7 +28,7 @@ def _get_app_config_class(cls: type["App"]) -> type[AppConfig]:
         would allow for mistakes. If a future user/developer has a better idea, please let me know!
     """
     # avoid circular import
-    from hassette.core.apps.app import App
+    from hassette.core.classes.app.app import App
 
     args = ()
     for base in getattr(cls, "__orig_bases__", ()):
@@ -92,9 +90,9 @@ def _validate_init_method(cls: type["App[AppConfigT]"]) -> None:
         This was added because if you not define your own __init__ method and you inherit from another class\
         before App, (e.g. Pydantic's BaseModel), it will be the __init__ method that gets called, which\
         `AppHandler` does not expect and will not be able to handle. Unsure if this will see much usage, but it\
-        is a good safeguard to have.\
+        is a good safeguard to have.
     """
-    from hassette.core.apps.app import App  # avoid circular import
+    from hassette.core.classes.app.app import App  # avoid circular import
 
     if cls.__module__.startswith("hassette."):
         # skipping internal classes

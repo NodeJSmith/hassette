@@ -34,9 +34,9 @@ async def test_get_histories(hassette_with_mock_api: tuple[Api, SimpleTestServer
         minimal_response=False,
     )
 
-    assert isinstance(history, dict)
-    assert "light.entryway" in history
-    assert "light.office" in history
+    assert isinstance(history, dict), "Expected history to be a dict"
+    assert "light.entryway" in history, "Expected light.entryway in history"
+    assert "light.office" in history, "Expected light.office in history"
 
 
 async def test_history_is_normalized(hassette_with_mock_api: tuple[Api, SimpleTestServer]):
@@ -50,9 +50,9 @@ async def test_history_is_normalized(hassette_with_mock_api: tuple[Api, SimpleTe
     norm = await api.get_history("light.entryway", START, END, minimal_response=False)
     mini = await api.get_history("light.entryway", START, END, minimal_response=True)
 
-    assert mini
-    assert norm
-    assert mini == norm
+    assert mini, "Minimal history should not be empty"
+    assert norm, "Normal history should not be empty"
+    assert mini == norm, "Minimal and normal history should be equal after normalization"
 
 
 async def test_minimal_history_differs_if_not_normalized(hassette_with_mock_api: tuple[Api, SimpleTestServer]) -> None:

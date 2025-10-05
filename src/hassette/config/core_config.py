@@ -39,6 +39,8 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger(__name__)
 
+LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
 # TODO: allow user to specify services/resources to call `set_logger_to_debug` on
 # would be cleaner for me as well, so I don't litter the code with `set_logger_to_debug` calls that should probably
 # not be there when we cut a new version
@@ -89,7 +91,7 @@ class HassetteConfig(HassetteBaseSettings):
     )
 
     # General configuration
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
+    log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for Hassette."""
 
     config_dir: Path = Field(default_factory=default_config_dir)
@@ -125,9 +127,30 @@ class HassetteConfig(HassetteBaseSettings):
     apps: dict[str, AppManifest] = Field(default_factory=dict)
     """Configuration for Hassette apps, keyed by app name."""
 
-    # Other configurations
-    websocket_timeout_seconds: int = Field(default=5)
-    """Timeout for WebSocket requests."""
+    # Service configurations
+    websocket_authentication_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for WebSocket authentication to complete."""
+
+    websocket_response_timeout_seconds: int = Field(default=5)
+    """Length of time to wait for a response from the WebSocket."""
+
+    websocket_connection_timeout_seconds: int = Field(default=5)
+    """Length of time to wait for WebSocket connection to complete. Passed to aiohttp."""
+
+    websocket_total_timeout_seconds: int = Field(default=30)
+    """Total length of time to wait for WebSocket operations to complete. Passed to aiohttp."""
+
+    websocket_heartbeat_interval_seconds: int = Field(default=30)
+    """Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp."""
+
+    scheduler_min_delay_seconds: int = Field(default=1)
+    """Minimum delay between scheduled jobs."""
+
+    scheduler_max_delay_seconds: int = Field(default=30)
+    """Maximum delay between scheduled jobs."""
+
+    scheduler_default_delay_seconds: int = Field(default=15)
+    """Default delay between scheduled jobs."""
 
     run_sync_timeout_seconds: int = Field(default=6)
     """Default timeout for synchronous function calls."""
@@ -138,6 +161,9 @@ class HassetteConfig(HassetteBaseSettings):
     health_service_port: int | None = Field(default=8126)
     """Port to run the health service on, ignored if run_health_service is False."""
 
+    startup_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for all Hassette resources to start before giving up."""
+
     file_watcher_debounce_milliseconds: int = Field(default=3_000)
     """Debounce time for file watcher events in milliseconds."""
 
@@ -146,6 +172,31 @@ class HassetteConfig(HassetteBaseSettings):
 
     watch_files: bool = Field(default=True)
     """Whether to watch files for changes and reload apps automatically."""
+
+    task_cancellation_timeout_seconds: int = Field(default=5)
+    """Length of time to wait for tasks to cancel before forcing."""
+
+    # Service log levels
+    bus_service_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for the event bus service."""
+
+    scheduler_service_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for the scheduler service."""
+
+    app_handler_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for the app handler service."""
+
+    health_service_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for the health service."""
+
+    websocket_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for the WebSocket service."""
+
+    service_watcher_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for the service watcher."""
+
+    file_watcher_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for the file watcher service."""
 
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])

@@ -28,7 +28,7 @@ async def test_service_start_twice_and_shutdown(hassette_with_bus):
     svc.start()
     await asyncio.sleep(0.1)  # allow start to run
 
-    assert svc.is_running()
+    assert svc.is_running(), "Expected service to be running after start()"
 
     with pytest.raises(RuntimeError):
         svc.start()
@@ -36,4 +36,4 @@ async def test_service_start_twice_and_shutdown(hassette_with_bus):
     await svc.shutdown()
     await asyncio.sleep(0.1)  # allow shutdown to run
 
-    assert not svc.is_running()
+    assert not svc.is_running(), "Expected service to not be running after shutdown()"

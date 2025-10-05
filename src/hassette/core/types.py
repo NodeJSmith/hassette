@@ -5,7 +5,7 @@ from typing import Any, Protocol, TypeVar
 from whenever import SystemDateTime
 
 if typing.TYPE_CHECKING:
-    from hassette.core.events import Event
+    from .events import Event
 
 E_contra = TypeVar("E_contra", bound="Event[Any]", contravariant=True)
 

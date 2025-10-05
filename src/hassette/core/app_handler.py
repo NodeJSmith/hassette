@@ -11,19 +11,20 @@ import anyio
 from deepdiff import DeepDiff
 
 from hassette.config.core_config import HassetteConfig
-from hassette.core import Bus
-from hassette.core.apps.app import App, AppSync
-from hassette.core.classes import Resource
-from hassette.core.enums import ResourceStatus
-from hassette.core.events.hassette import HassetteEmptyPayload
-from hassette.core.topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
+
+from .bus import Bus
+from .classes import App, AppSync, Resource
+from .enums import ResourceStatus
+from .events.hassette import HassetteEmptyPayload
+from .topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
 
 if typing.TYPE_CHECKING:
     from hassette.config.app_manifest import AppManifest
-    from hassette.core.apps.app_config import AppConfig
-    from hassette.core.core import Hassette
-    from hassette.core.events import HassetteFileWatcherEvent
+
+    from .classes import AppConfig
+    from .core import Hassette
+    from .events import HassetteFileWatcherEvent
 
 LOGGER = getLogger(__name__)
 FAIL_AFTER_SECONDS = 10
@@ -32,7 +33,7 @@ ROOT_PATH = "root"
 USER_CONFIG_PATH = "user_config"
 
 
-class _AppHandler(Resource):
+class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
     """Manages the lifecycle of apps in Hassette.
 
     - Deterministic storage: apps[app_name][index] -> App
@@ -55,6 +56,8 @@ class _AppHandler(Resource):
 
     def __init__(self, hassette: "Hassette") -> None:
         super().__init__(hassette)
+        self.set_logger_to_level(self.hassette.config.app_handler_log_level)
+
         self.apps_config = {}
 
         self.set_apps_configs(self.hassette.config.apps)
@@ -75,7 +78,7 @@ class _AppHandler(Resource):
         Args:
             apps_config (dict[str, AppManifest]): The new apps configuration.
         """
-        self.logger.info("Updating apps configuration")
+        self.logger.info("Setting apps configuration")
         self.apps_config = deepcopy(apps_config)
         self.only_app = None  # reset only_app, will be recomputed on next initialize
 
@@ -93,11 +96,17 @@ class _AppHandler(Resource):
         """Start handler and initialize configured apps."""
         async with self.starting():
             self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
+            ok = await self.hassette.wait_for_ready(self.hassette._websocket)
+            if not ok:
+                self.logger.warning("WebSocket not ready, skipping app initialization")
+                return
             await self.initialize_apps()
+            self.mark_ready("apps-initialized")
 
     async def shutdown(self) -> None:
         """Shutdown all app instances gracefully."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
+        self.mark_not_ready(reason="shutting-down")
 
         self.bus.remove_all_listeners()
 
@@ -107,6 +116,10 @@ class _AppHandler(Resource):
                 try:
                     with anyio.fail_after(FAIL_AFTER_SECONDS):
                         await inst.shutdown()
+
+                        # in case the app does not call its own cleanup
+                        # which is honestly a better user experience
+                        await inst.cleanup()
                     self.logger.info("App %s shutdown successfully", inst.app_config.instance_name)
                 except Exception:
                     self.logger.exception("Failed to shutdown app %s", inst.app_config.instance_name)
@@ -128,7 +141,7 @@ class _AppHandler(Resource):
             self.logger.info("No apps configured, skipping initialization")
             return
 
-        if not (await self.hassette.wait_for_resources_running([self.hassette._websocket])):
+        if not (await self.hassette.wait_for_ready(self.hassette._websocket)):
             self.logger.warning("App initialization timed out")
             return
 
@@ -233,20 +246,20 @@ class _AppHandler(Resource):
         """
 
         class_name = app_manifest.class_name
-        for idx, isnt in self.apps.get(app_key, {}).items():
+        for idx, inst in self.apps.get(app_key, {}).items():
             try:
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
-                    await isnt.initialize()
-                self.logger.info("App '%s' (%s) initialized successfully", isnt.app_config.instance_name, class_name)
+                    await inst.initialize()
+                self.logger.info("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
             except TimeoutError as e:
                 self.logger.exception(
-                    "Timed out while starting app '%s' (%s)", isnt.app_config.instance_name, class_name
+                    "Timed out while starting app '%s' (%s)", inst.app_config.instance_name, class_name
                 )
-                isnt.status = ResourceStatus.STOPPED
+                inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
             except Exception as e:
-                self.logger.exception("Failed to start app '%s' (%s)", isnt.app_config.instance_name, class_name)
-                isnt.status = ResourceStatus.STOPPED
+                self.logger.exception("Failed to start app '%s' (%s)", inst.app_config.instance_name, class_name)
+                inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
 
     async def handle_change_event(self, event: "HassetteFileWatcherEvent") -> None:

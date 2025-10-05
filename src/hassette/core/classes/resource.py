@@ -1,166 +1,16 @@
 import asyncio
-import copy
-import logging
 import typing
-import uuid
 from abc import abstractmethod
 from contextlib import asynccontextmanager, suppress
-from logging import getLogger
 from typing import ClassVar
 
+from hassette.core.classes.base import _HassetteBase
+from hassette.core.classes.tasks import TaskBucket
 from hassette.core.enums import ResourceRole, ResourceStatus
 from hassette.core.events import ServiceStatusPayload
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
-
-
-class _HassetteBase:
-    logger: ClassVar[logging.Logger]
-    """Logger for the class."""
-
-    class_name: ClassVar[str]
-    """Name of the class."""
-
-    role: ClassVar[ResourceRole] = ResourceRole.BASE
-    """Role of the resource, e.g. 'App', 'Service', etc."""
-
-    # status: ResourceStatus = ResourceStatus.NOT_STARTED
-    # """Current status of the resource."""
-
-    _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
-    """Previous status of the resource."""
-
-    _status: ResourceStatus = ResourceStatus.NOT_STARTED
-    """Current status of the resource."""
-
-    @property
-    def status(self) -> ResourceStatus:
-        """Current status of the resource."""
-        return self._status
-
-    @status.setter
-    def status(self, value: ResourceStatus) -> None:
-        self._previous_status = self._status
-        self._status = value
-
-    def __init__(self, hassette: "Hassette", *args, **kwargs) -> None:
-        """
-        Initialize the class with a reference to the Hassette instance.
-
-        Args:
-            hassette (Hassette): The Hassette instance this resource belongs to.
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-        """
-        self.unique_id = uuid.uuid4().hex
-        """Unique identifier for the instance."""
-
-        self.hassette = hassette
-        """Reference to the Hassette instance."""
-
-    @property
-    def unique_name(self) -> str:
-        """Unique identifier for the instance."""
-        return f"{self.class_name}-{self.unique_id}"
-
-    def __init_subclass__(cls) -> None:
-        """
-        Initialize the subclass with a logger.
-
-        This method is called when a subclass is created, setting up a logger
-        for the class based on its module and name.
-        """
-        cls.class_name = cls.__name__
-        cls.logger = getLogger(f"{cls.__module__}.{cls.__name__}")
-
-    def set_logger_to_debug(self) -> None:
-        """Configure a logger to log DEBUG independently of its parent."""
-        self.logger.setLevel(logging.DEBUG)
-        self.logger.propagate = False  # avoid parent's filters
-
-        # Only add a handler if it doesn't already have one
-
-        parent_logger = self.logger.parent
-        while True:
-            if parent_logger and not parent_logger.handlers:
-                parent_logger = parent_logger.parent
-            else:
-                break
-
-        if not self.logger.handlers and parent_logger and parent_logger.handlers:
-            for parent_handler in parent_logger.handlers:
-                # This assumes handler can be shallow-copied
-                handler = copy.copy(parent_handler)
-                handler.setLevel(logging.DEBUG)
-                self.logger.addHandler(handler)
-
-    def _create_service_status_event(self, status: ResourceStatus, exception: Exception | None = None):
-        return ServiceStatusPayload.create_event(
-            resource_name=self.class_name,
-            role=self.role,
-            status=status,
-            previous_status=self._previous_status,
-            exc=exception,
-        )
-
-    async def handle_stop(self) -> None:
-        """Handle a stop event."""
-
-        self.logger.info("Stopping %s '%s'", self.role, self.class_name)
-        self.status = ResourceStatus.STOPPED
-        event = self._create_service_status_event(ResourceStatus.STOPPED)
-        await self.hassette.send_event(event.topic, event)
-
-    async def handle_failed(self, exception: Exception) -> None:
-        """Handle a failure event."""
-
-        self.logger.error("%s '%s' failed: %s - %s", self.role, self.class_name, type(exception), str(exception))
-        self.status = ResourceStatus.FAILED
-        event = self._create_service_status_event(ResourceStatus.FAILED, exception)
-        await self.hassette.send_event(event.topic, event)
-
-    async def handle_running(self) -> None:
-        """Handle a running event for the service."""
-
-        if self._previous_status == ResourceStatus.RUNNING:
-            self.logger.debug("%s '%s' is already running", self.role, self.class_name)
-            return
-
-        self.logger.info("Running %s '%s'", self.role, self.class_name)
-        self.status = ResourceStatus.RUNNING
-        event = self._create_service_status_event(ResourceStatus.RUNNING)
-        await self.hassette.send_event(event.topic, event)
-
-    @asynccontextmanager
-    async def starting(self):
-        try:
-            await self.handle_starting()
-            yield
-            await self.handle_running()
-        except Exception as e:
-            await self.handle_crash(e)
-            raise
-
-    async def handle_starting(self) -> None:
-        """Handle a starting event for the service."""
-
-        if self.status == ResourceStatus.STARTING:
-            self.logger.debug("%s '%s' is already starting", self.role, self.class_name)
-            return
-
-        self.logger.info("Starting %s '%s'", self.role, self.class_name)
-        self.status = ResourceStatus.STARTING
-        event = self._create_service_status_event(ResourceStatus.STARTING)
-        await self.hassette.send_event(event.topic, event)
-
-    async def handle_crash(self, exception: Exception) -> None:
-        """Handle a crash event."""
-
-        self.logger.exception("%s '%s' crashed", self.role, self.class_name)
-        self.status = ResourceStatus.CRASHED
-        event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
-        await self.hassette.send_event(event.topic, event)
 
 
 class Resource(_HassetteBase):
@@ -177,7 +27,23 @@ class Resource(_HassetteBase):
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
+    _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
+    """Previous status of the resource."""
+
+    _status: ResourceStatus = ResourceStatus.NOT_STARTED
+    """Current status of the resource."""
+
     _task: asyncio.Task | None = None
+
+    @property
+    def status(self) -> ResourceStatus:
+        """Current status of the resource."""
+        return self._status
+
+    @status.setter
+    def status(self, value: ResourceStatus) -> None:
+        self._previous_status = self._status
+        self._status = value
 
     def __init__(self, hassette: "Hassette", *args, **kwargs) -> None:
         """
@@ -189,7 +55,15 @@ class Resource(_HassetteBase):
             **kwargs: Additional keyword arguments.
         """
         super().__init__(hassette, *args, **kwargs)
-        self.logger.debug("Creating instance of '%s' %s", self.class_name, self.role)
+
+        self.task_bucket = TaskBucket(self.hassette, name=self.unique_name, prefix=self.class_name)
+        """Task bucket for managing tasks owned by this instance."""
+
+        self.ready: asyncio.Event = asyncio.Event()
+        """Event to signal readiness of the instance."""
+
+        self._ready_reason: str | None = None
+        """Optional reason for readiness or lack thereof."""
 
     def start(self) -> None:
         """Start the resource."""
@@ -198,7 +72,7 @@ class Resource(_HassetteBase):
             return
 
         self.logger.debug("Starting '%s' %s", self.class_name, self.role)
-        self._task = self.hassette.create_task(self.initialize())
+        self._task = self.task_bucket.spawn(self.initialize(), name="resource:resource_initialize")
 
     def cancel(self) -> None:
         """Stop the resource."""
@@ -241,6 +115,133 @@ class Resource(_HassetteBase):
         await self.shutdown()
         await self.initialize()
 
+    def _create_service_status_event(self, status: ResourceStatus, exception: Exception | None = None):
+        return ServiceStatusPayload.create_event(
+            resource_name=self.class_name,
+            role=self.role,
+            status=status,
+            previous_status=self._previous_status,
+            exc=exception,
+        )
+
+    def mark_ready(self, reason: str | None = None) -> None:
+        """Mark the instance as ready.
+
+        Args:
+            reason (str | None): Optional reason for readiness.
+
+        """
+        self._ready_reason = reason
+        self.ready.set()
+
+    def mark_not_ready(self, reason: str | None = None) -> None:
+        """Mark the instance as not ready.
+
+        Args:
+            reason (str | None): Optional reason for lack of readiness.
+        """
+        if not self.ready.is_set():
+            self.logger.debug("%s is already not ready, skipping reason %s", self.unique_name, reason)
+
+        self._ready_reason = reason
+        self.ready.clear()
+
+    def is_ready(self) -> bool:
+        """Check if the instance is ready.
+
+        Returns:
+            bool: True if the instance is ready, False otherwise.
+        """
+        return self.ready.is_set()
+
+    async def wait_ready(self, timeout: float | None = None) -> None:
+        """Wait until the instance is marked as ready.
+
+        Args:
+            timeout (float | None): Optional timeout in seconds to wait for readiness.
+                                   If None, wait indefinitely.
+
+        Raises:
+            TimeoutError: If the timeout is reached before the instance is ready.
+        """
+        if timeout is None:
+            await self.ready.wait()
+        else:
+            await asyncio.wait_for(self.ready.wait(), timeout)
+
+    async def handle_stop(self) -> None:
+        """Handle a stop event."""
+
+        self.logger.info("Stopping %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.STOPPED
+        event = self._create_service_status_event(ResourceStatus.STOPPED)
+        await self.hassette.send_event(event.topic, event)
+
+        self.mark_not_ready("Stopped")
+
+    async def handle_failed(self, exception: Exception) -> None:
+        """Handle a failure event."""
+
+        self.logger.error("%s '%s' failed: %s - %s", self.role, self.class_name, type(exception), str(exception))
+        self.status = ResourceStatus.FAILED
+        event = self._create_service_status_event(ResourceStatus.FAILED, exception)
+        await self.hassette.send_event(event.topic, event)
+        self.mark_not_ready("Failed")
+
+    @asynccontextmanager
+    async def starting(self):
+        try:
+            await self.handle_starting()
+            yield
+            await self.handle_running()
+        except Exception as e:
+            await self.handle_crash(e)
+            raise
+
+    async def handle_running(self) -> None:
+        """Handle a running event for the service."""
+
+        # note: we specifically do NOT mark ready here, as the service
+        # should make this decision itself when it is actually ready
+
+        if self._previous_status == ResourceStatus.RUNNING:
+            self.logger.debug("%s '%s' is already running", self.role, self.class_name)
+            return
+
+        self.logger.info("Running %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.RUNNING
+        event = self._create_service_status_event(ResourceStatus.RUNNING)
+        await self.hassette.send_event(event.topic, event)
+
+    async def handle_starting(self) -> None:
+        """Handle a starting event for the service."""
+
+        if self.status == ResourceStatus.STARTING:
+            self.logger.debug("%s '%s' is already starting", self.role, self.class_name)
+            return
+
+        self.logger.info("Starting %s '%s'", self.role, self.class_name)
+        self.status = ResourceStatus.STARTING
+        event = self._create_service_status_event(ResourceStatus.STARTING)
+        await self.hassette.send_event(event.topic, event)
+
+    async def handle_crash(self, exception: Exception) -> None:
+        """Handle a crash event."""
+
+        self.logger.exception("%s '%s' crashed", self.role, self.class_name)
+        self.status = ResourceStatus.CRASHED
+        event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
+        await self.hassette.send_event(event.topic, event)
+        self.mark_not_ready("Crashed")
+
+    async def cleanup(self) -> None:
+        """Cleanup resources owned by the instance.
+
+        This method is called during shutdown to ensure that all resources are properly released.
+        """
+        await self.task_bucket.cancel_all()
+        self.logger.debug("Cleaned up resources for %s '%s'", self.role, self.class_name)
+
 
 class Service(Resource):
     """Base class for services in the Hassette framework.
@@ -269,7 +270,7 @@ class Service(Resource):
         """Start the service."""
         if self._task and not self._task.done():
             raise RuntimeError(f"Service '{self.class_name}' is already running")
-        self._task = self.hassette.create_task(self.run_forever())
+        self._task = self.task_bucket.spawn(self.run_forever(), name=f"service:run_forever_{self.class_name}")
 
     async def start_async_on_loop_thread(self) -> None:
         """Start the service asynchronously.

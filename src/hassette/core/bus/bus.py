@@ -6,7 +6,7 @@ from typing import Any
 from anyio.streams.memory import MemoryObjectReceiveStream
 
 from hassette.core import topics
-from hassette.core.classes import Resource, Service
+from hassette.core.classes.resource import Resource, Service
 from hassette.core.enums import ResourceStatus
 
 from .adapters import add_debounce, add_throttle, make_async_handler
@@ -30,34 +30,17 @@ if typing.TYPE_CHECKING:
     from hassette.core.types import Handler, Predicate
 
 
-class BusService(Service):
+class _BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
     def __init__(self, hassette: "Hassette", stream: MemoryObjectReceiveStream["tuple[str, Event[Any]]"]):
         super().__init__(hassette)
+        self.set_logger_to_level(self.hassette.config.bus_service_log_level)
+
         self.stream = stream
 
         self.listener_seq = itertools.count(1)
         self.router = Router()
-        self._tasks: set[asyncio.Task[Any]] = set()
-
-    async def _cleanup(self) -> None:
-        """Cleanup resources after the WebSocket connection is closed."""
-
-        if self._tasks:
-            tasks = list(self._tasks)
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-            self.logger.debug("Cancelled %d pending tasks", len(tasks))
-        self._tasks.clear()
-
-    def _track_task(self, task: asyncio.Task[Any]) -> None:
-        """Track background tasks and surface failures."""
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-        task.add_done_callback(self._log_task_result)
 
     def _log_task_result(self, task: asyncio.Task[Any]) -> None:
         if task.cancelled():
@@ -69,8 +52,7 @@ class BusService(Service):
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""
-        task = self.hassette.create_task(self.router.add_route(listener.topic, listener))
-        self._track_task(task)
+        self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
     def remove_listener(self, listener: Listener) -> None:
         """Remove a listener from the bus."""
@@ -78,13 +60,11 @@ class BusService(Service):
 
     def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
         """Remove a listener by its ID."""
-        task = self.hassette.create_task(self.router.remove_listener_by_id(topic, listener_id))
-        self._track_task(task)
+        self.task_bucket.spawn(self.router.remove_listener_by_id(topic, listener_id), name="bus:remove_listener")
 
     def remove_listeners_by_owner(self, owner: str) -> None:
         """Remove all listeners owned by a specific owner."""
-        task = self.hassette.create_task(self.router.clear_owner(owner))
-        self._track_task(task)
+        self.task_bucket.spawn(self.router.clear_owner(owner), name="bus:remove_listeners_by_owner")
 
     async def dispatch(self, topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
@@ -109,8 +89,7 @@ class BusService(Service):
         self.logger.debug("Listeners for %s: %r", topic, targets)
 
         for listener in targets:
-            task = self.hassette.create_task(self._dispatch(topic, event, listener))
-            self._track_task(task)
+            self.task_bucket.spawn(self._dispatch(topic, event, listener), name="bus:dispatch_listener")
 
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: Listener) -> None:
         try:
@@ -133,6 +112,7 @@ class BusService(Service):
         async with self.starting():
             self.logger.debug("Waiting for Hassette ready event")
             await self.hassette.ready_event.wait()
+            self.mark_ready(reason="Hassette is ready")
 
         try:
             async with self.stream:
@@ -143,12 +123,13 @@ class BusService(Service):
                         self.logger.exception("Error processing event: %s", e)
         except asyncio.CancelledError:
             self.logger.debug("EventBus service cancelled")
+            self.mark_not_ready(reason="EventBus cancelled")
             await self.handle_stop()
         except Exception as e:
             await self.handle_crash(e)
             raise
         finally:
-            await self._cleanup()
+            await self.cleanup()
 
 
 class Bus(Resource):
@@ -156,15 +137,17 @@ class Bus(Resource):
 
     def __init__(self, hassette: "Hassette", owner: str):
         """Initialize the Bus instance."""
-
         super().__init__(hassette)
+        self.set_logger_to_level(self.hassette.config.bus_service_log_level)
 
         self.owner = owner
         """Owner of the bus, must be a unique identifier for the owner."""
 
+        self.mark_ready(reason="Bus initialized")
+
     @property
-    def bus_service(self) -> BusService:
-        return self.hassette.bus_service
+    def bus_service(self) -> _BusService:
+        return self.hassette._bus_service
 
     def add_listener(self, listener: Listener) -> None:
         """Add a listener to the bus."""
@@ -210,7 +193,7 @@ class Bus(Resource):
         handler = make_async_handler(orig)
         # decorate
         if debounce and debounce > 0:
-            handler = add_debounce(handler, debounce, self.hassette)
+            handler = add_debounce(handler, debounce, self.task_bucket)
         if throttle and throttle > 0:
             handler = add_throttle(handler, throttle)
 

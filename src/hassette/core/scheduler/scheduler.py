@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 from whenever import SystemDateTime, TimeDelta
 
 from hassette.async_utils import make_async_adapter
-from hassette.core.classes import Resource, Service
+from hassette.core.classes.resource import Resource, Service
 
 from .classes import HeapQueue, ScheduledJob
 from .triggers import CronTrigger, IntervalTrigger, now
@@ -19,18 +19,27 @@ if typing.TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class SchedulerService(Service):
+class _SchedulerService(Service):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
-
-        self.min_delay = 0.1
-        self.max_delay = 30.0
+        self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
 
         self.lock = asyncio.Lock()
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
-        self._tasks: set[asyncio.Task] = set()
+
+    @property
+    def min_delay(self) -> float:
+        return self.hassette.config.scheduler_min_delay_seconds
+
+    @property
+    def max_delay(self) -> float:
+        return self.hassette.config.scheduler_max_delay_seconds
+
+    @property
+    def default_delay(self) -> float:
+        return self.hassette.config.scheduler_default_delay_seconds
 
     async def run_forever(self):
         """Run the scheduler forever, processing jobs as they become due."""
@@ -38,6 +47,7 @@ class SchedulerService(Service):
         async with self.starting():
             self.logger.debug("Waiting for Hassette ready event")
             await self.hassette.ready_event.wait()
+            self.mark_ready(reason="Hassette is ready")
 
         try:
             self._exit_event = asyncio.Event()
@@ -49,11 +59,11 @@ class SchedulerService(Service):
 
                 while not self._queue.is_empty() and (peek := self._queue.peek()) and peek.next_run <= now():
                     job = self._queue.pop()
-                    task = self.hassette.create_task(self._dispatch_and_log(job))
-                    self._track_task(task)
+                    self.task_bucket.spawn(self._dispatch_and_log(job), name="scheduler:dispatch_scheduled_job")
 
                 await self.sleep()
         except asyncio.CancelledError:
+            self.mark_not_ready(reason="Scheduler cancelled")
             self.logger.debug("Scheduler cancelled, stopping")
             await self.handle_stop()
             self._exit_event.set()
@@ -63,33 +73,6 @@ class SchedulerService(Service):
             raise
         finally:
             await self.cleanup()
-
-    async def cleanup(self) -> None:
-        """Cleanup resources after the WebSocket connection is closed."""
-
-        # Cancel background tasks
-        if self._tasks:
-            tasks_to_cleanup = list(self._tasks)
-            for task in tasks_to_cleanup:
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(*tasks_to_cleanup, return_exceptions=True)
-            self.logger.debug("Cancelled %d pending tasks", len(tasks_to_cleanup))
-        self._tasks.clear()
-
-    def _track_task(self, task: asyncio.Task[Any]) -> None:
-        """Keep track of background tasks and surface failures."""
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-        task.add_done_callback(self._log_task_result)
-
-    def _log_task_result(self, task: asyncio.Task[Any]) -> None:
-        if task.cancelled():
-            return
-
-        exception = task.exception()
-        if exception:
-            self.logger.error("Scheduled job task failed", exc_info=exception)
 
     def kick(self):
         """Wake up the scheduler to check for jobs."""
@@ -121,7 +104,7 @@ class SchedulerService(Service):
             self.logger.debug("Next job scheduled at %s", next_run_time)
             delay = max((next_run_time - now()).in_seconds(), self.min_delay)
         else:
-            delay = 15.0  # or some generous default
+            delay = self.default_delay
 
         # ensure delay isn't over N seconds
         delay = min(delay, self.max_delay)
@@ -257,14 +240,17 @@ class SchedulerService(Service):
 class Scheduler(Resource):
     def __init__(self, hassette: "Hassette", owner: str) -> None:
         super().__init__(hassette)
+        self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
 
         self.owner = owner
         """Owner of the scheduler, must be a unique identifier for the owner."""
 
+        self.mark_ready(reason="Scheduler initialized")
+
     @property
-    def scheduler_service(self) -> SchedulerService:
+    def scheduler_service(self) -> _SchedulerService:
         """Get the internal scheduler instance."""
-        return self.hassette.scheduler_service
+        return self.hassette._scheduler_service
 
     def add_job(self, job: "ScheduledJob") -> "ScheduledJob":
         """Add a job to the scheduler.

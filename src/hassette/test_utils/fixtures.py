@@ -36,18 +36,29 @@ def hassette_harness(
 
 
 @pytest.fixture(scope="module")
+async def hassette_with_nothing(
+    hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
+    test_config: "HassetteConfig",
+) -> "AsyncIterator[Hassette]":
+    async with hassette_harness(config=test_config) as harness:
+        yield cast("Hassette", harness.hassette)
+
+
+@pytest.fixture(scope="module")
 async def hassette_with_bus(
     hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
+    test_config: "HassetteConfig",
 ) -> "AsyncIterator[Hassette]":
-    async with hassette_harness(use_bus=True) as harness:
+    async with hassette_harness(config=test_config, use_bus=True) as harness:
         yield cast("Hassette", harness.hassette)
 
 
 @pytest.fixture(scope="module")
 async def hassette_with_mock_api(
     hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
+    test_config: "HassetteConfig",
 ) -> "AsyncIterator[tuple[Api, SimpleTestServer]]":
-    async with hassette_harness(use_bus=True, use_api_mock=True) as harness:
+    async with hassette_harness(config=test_config, use_bus=True, use_api_mock=True) as harness:
         assert harness.hassette.api is not None
         assert harness.api_mock is not None
         yield harness.hassette.api, harness.api_mock
@@ -68,7 +79,7 @@ async def hassette_scheduler(
     hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
     test_config: "HassetteConfig",
 ) -> "AsyncIterator[Scheduler]":
-    async with hassette_harness(config=test_config, use_scheduler=True) as harness:
+    async with hassette_harness(config=test_config, use_bus=True, use_scheduler=True) as harness:
         assert harness.hassette._scheduler is not None
         yield harness.hassette._scheduler
 
@@ -84,7 +95,7 @@ async def hassette_with_file_watcher(
 
     async with hassette_harness(config=config, use_bus=True, use_file_watcher=True, use_api_mock=True) as harness:
         assert harness.hassette._file_watcher is not None
-        assert harness.hassette.bus_service is not None
+        assert harness.hassette._bus_service is not None
 
         yield cast("Hassette", harness.hassette)
 

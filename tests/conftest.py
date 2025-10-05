@@ -1,9 +1,12 @@
+import asyncio
+import logging
 import tracemalloc
 from pathlib import Path
 
 import pytest
 
 from hassette.config.core_config import HassetteConfig
+from hassette.core.core import Hassette
 
 tracemalloc.start()
 
@@ -33,6 +36,20 @@ class TestConfig(HassetteConfig):
         "env_file": ENV_FILE,
     }
 
+    websocket_connection_timeout_seconds: int | float = 1
+    websocket_authentication_timeout_seconds: int | float = 1
+    websocket_total_timeout_seconds: int | float = 2
+    websocket_response_timeout_seconds: int | float = 1
+    websocket_heartbeat_interval_seconds: int | float = 5
+    run_sync_timeout_seconds: int | float = 2
+    startup_timeout_seconds: int | float = 3
+    scheduler_default_delay_seconds: int | float = 1
+    scheduler_min_delay_seconds: int | float = 0.1
+    scheduler_max_delay_seconds: int | float = 3
+    task_cancellation_timeout_seconds: int | float = 0.5
+
+    app_dir: Path = TEST_DATA_PATH
+
 
 @pytest.fixture(scope="session")
 def test_config_class():
@@ -52,9 +69,7 @@ def test_config(unused_tcp_port_factory):
 
     port = unused_tcp_port_factory()
 
-    tc = TestConfig(
-        websocket_timeout_seconds=1, run_sync_timeout_seconds=2, health_service_port=port, app_dir=TEST_DATA_PATH
-    )
+    tc = TestConfig(health_service_port=port)
 
     return tc
 
@@ -98,12 +113,7 @@ def test_config_with_apps(apps_config_file):
         }
 
     previous_instance: HassetteConfig | None = getattr(HassetteConfig, "_instance", None)
-    config = AppsTestConfig(
-        websocket_timeout_seconds=1,
-        run_sync_timeout_seconds=2,
-        run_health_service=False,
-        app_dir=TEST_DATA_PATH,
-    )
+    config = AppsTestConfig(run_health_service=False, app_dir=TEST_DATA_PATH)
 
     HassetteConfig._instance = config
 
@@ -122,3 +132,29 @@ def my_app_class():
     from data.my_app import MyApp
 
     return MyApp
+
+
+@pytest.fixture
+def caplog_info(caplog):
+    caplog.set_level(logging.INFO)
+    return caplog
+
+
+@pytest.fixture
+async def bucket_fixture(hassette_with_nothing: Hassette):  # pytest-asyncio provides event_loop
+    try:
+        yield hassette_with_nothing._global_tasks
+    finally:
+        # hard cleanup if a test forgot
+        await hassette_with_nothing._global_tasks.cancel_all()
+        await asyncio.sleep(0)  # let cancellations propagate
+
+        # last-resort parachute: fail if anything still running
+        current = asyncio.current_task()
+        leftovers = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
+        if leftovers:
+            # cancel and wait briefly so the loop can unwind
+            for t in leftovers:
+                t.cancel()
+            await asyncio.wait(leftovers, timeout=0.2)
+            raise AssertionError(f"Leftover tasks after test: {[t.get_name() for t in leftovers]}")

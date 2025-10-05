@@ -3,7 +3,7 @@ import contextlib
 import logging
 import tracemalloc
 import typing
-from collections.abc import Callable, Coroutine, Iterable
+from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, cast
@@ -13,22 +13,25 @@ from aiohttp import web
 from anyio import create_memory_object_stream
 from yarl import URL
 
+from hassette import HassetteConfig
 from hassette.core.api import Api, _Api
-from hassette.core.apps.app_handler import _AppHandler
-from hassette.core.bus.bus import Bus, BusService
-from hassette.core.classes import Resource
+from hassette.core.app_handler import _AppHandler
+from hassette.core.bus.bus import Bus, _BusService
+from hassette.core.classes.base import _HassetteBase
+from hassette.core.classes.resource import Resource
+from hassette.core.classes.tasks import TaskBucket, make_task_factory
 from hassette.core.core import Event, Hassette
 from hassette.core.enums import ResourceStatus
 from hassette.core.file_watcher import _FileWatcher
-from hassette.core.scheduler.scheduler import Scheduler, SchedulerService
+from hassette.core.scheduler.scheduler import Scheduler, _SchedulerService
 from hassette.core.websocket import _Websocket
 from hassette.test_utils.test_server import SimpleTestServer
-from hassette.utils import wait_for_resources_running_or_raise
+from hassette.utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-LOGGER = logging.getLogger(__name__)
+
 tracemalloc.start()
 
 
@@ -59,10 +62,15 @@ async def shutdown_resource(res: Resource, *, desc: str) -> None:  # noqa
         await res.shutdown()
 
 
-class _HassetteMock:
-    def __init__(self, *, config: Any | None = None) -> None:
+class _HassetteMock(_HassetteBase):
+    _global_tasks: TaskBucket
+
+    def __init__(self, *, config: HassetteConfig) -> None:
         self.config = config
-        self.logger = logging.getLogger("hassette.test.harness")
+        TaskBucket.default_task_cancellation_timeout = (
+            self.config.task_cancellation_timeout_seconds if self.config else 0.5
+        )
+
         self.ready_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
         self._resources: dict[str, Resource] = {}
@@ -73,9 +81,9 @@ class _HassetteMock:
 
         self._api: _Api | None = None
         self.api: Api | None = None
-        self.bus_service: BusService | None = None
+        self._bus_service: _BusService | None = None
         self._bus: Bus | None = None
-        self.scheduler_service: SchedulerService | None = None
+        self._scheduler_service: _SchedulerService | None = None
         self._scheduler: Scheduler | None = None
         self._file_watcher: _FileWatcher | None = None
         self._app_handler: _AppHandler | None = None
@@ -127,10 +135,14 @@ class _HassetteMock:
             if not fut.done():
                 fut.cancel()
 
-    def create_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+    def create_task(self, coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task[Any]:
+        return self._global_tasks.spawn(coro, name=name)
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
         if not self._loop:
             raise RuntimeError("Event loop is not running")
-        return self._loop.create_task(coro)
+        return self._loop
 
     async def run_on_loop_thread(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if not self._loop:
@@ -146,22 +158,19 @@ class _HassetteMock:
         self._loop.call_soon_threadsafe(_call)
         return await fut
 
-    async def wait_for_resources_running(
-        self,
-        resources: Iterable[Resource] | Resource,
-        *,
-        poll_interval: float = 0.1,
-        timeout: int = 5,
-    ) -> bool:
-        from hassette.utils import wait_for_resources_running_or_raise
+    async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: int | None = None) -> bool:
+        """Block until all dependent resources are ready or shutdown is requested.
 
-        if isinstance(resources, Resource) or not isinstance(resources, Iterable):
-            resources = [resources]
-        try:
-            await wait_for_resources_running_or_raise(list(resources), timeout=timeout, poll_interval=poll_interval)
-            return True
-        except TimeoutError:
-            return False
+        Args:
+            resources (list[Resource] | Resource): The resource(s) to wait for.
+            timeout (int): The timeout for the wait operation.
+
+        Returns:
+            bool: True if all resources are ready, False if shutdown is requested.
+        """
+        timeout = timeout or self.config.startup_timeout_seconds
+
+        return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
 
     def get_app(self, name: str, index: int = 0) -> Any:
         if not self._app_handler:
@@ -171,8 +180,8 @@ class _HassetteMock:
 
 @dataclass
 class HassetteHarness:
-    config: Any | None = None
-    use_bus: bool = True
+    config: HassetteConfig
+    use_bus: bool = False
     use_scheduler: bool = False
     use_api_mock: bool = False
     use_api_real: bool = False
@@ -185,6 +194,7 @@ class HassetteHarness:
         if self.use_api_mock and self.use_api_real:
             raise ValueError("Cannot use both API mock and real API in the same harness")
 
+        self.logger = logging.getLogger(f"hassette.test.harness.{type(self).__name__}")
         self.hassette = _HassetteMock(config=self.config)
         self._tasks: list[tuple[str, asyncio.Task[Any]]] = []
         self._exit_stack = contextlib.AsyncExitStack()
@@ -204,6 +214,13 @@ class HassetteHarness:
     async def start(self) -> "HassetteHarness":
         self.hassette._loop = asyncio.get_running_loop()
         self.hassette._thread_pool = self._thread_pool = ThreadPoolExecutor()
+        self.hassette._global_tasks = TaskBucket(
+            cast("Hassette", self.hassette),
+            name="hassette",
+            prefix="hassette",
+            cancellation_timeout=self.config.task_cancellation_timeout_seconds if self.config else 0.5,
+        )
+        self.hassette._loop.set_task_factory(make_task_factory(self.hassette._global_tasks))
         Hassette._instance = cast("Hassette", self.hassette)
 
         if self.use_bus:
@@ -214,12 +231,13 @@ class HassetteHarness:
             await self._start_file_watcher()
         if self.use_api_mock:
             await self._start_api_mock()
-        if self.use_api_real:
-            await self.start_api_real()
+
+        # if self.use_api_real:
+        #     await self.start_api_real()
         if self.use_app_handler:
             await self._start_app_handler()
-        if self.use_websocket:
-            await self.start_websocket()
+        # if self.use_websocket:
+        #     await self.start_websocket()
 
         if not self.hassette._api:
             self.hassette._api = Mock()
@@ -229,7 +247,9 @@ class HassetteHarness:
             self.hassette.api.sync = Mock()
 
         self.hassette.ready_event.set()
-        await wait_for_resources_running_or_raise([x for x in self.hassette._resources.values()], timeout=5)
+        await wait_for_ready(
+            [x for x in self.hassette._resources.values()], timeout=1, shutdown_event=self.hassette.shutdown_event
+        )
 
         return self
 
@@ -242,7 +262,7 @@ class HassetteHarness:
                 await shutdown_resource(resource, desc=name)
                 await asyncio.sleep(0.05)
         except Exception:
-            LOGGER.exception("Error shutting down resources")
+            self.logger.exception("Error shutting down resources")
 
         try:
             for _, task in reversed(self._tasks):
@@ -250,13 +270,13 @@ class HassetteHarness:
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
         except Exception:
-            LOGGER.exception("Error cancelling tasks")
+            self.logger.exception("Error cancelling tasks")
 
         try:
             if self.api_mock is not None:
                 self.api_mock.assert_clean()
         except Exception:
-            LOGGER.exception("Error checking API mock")
+            self.logger.exception("Error checking API mock")
 
         await self._exit_stack.aclose()
 
@@ -270,27 +290,26 @@ class HassetteHarness:
         send_stream, receive_stream = create_memory_object_stream[tuple[str, Event[Any]]](1000)
         self.hassette._send_stream = send_stream
         self.hassette._receive_stream = receive_stream
-        bus_service = BusService(cast("Hassette", self.hassette), receive_stream.clone())
+        bus_service = _BusService(cast("Hassette", self.hassette), receive_stream.clone())
 
         self._exit_stack.push_async_callback(send_stream.aclose)
         self._exit_stack.push_async_callback(receive_stream.aclose)
 
-        self.hassette.bus_service = bus_service
+        self.hassette._bus_service = bus_service
         self.hassette._bus = Bus(cast("Hassette", self.hassette), owner="Hassette")
         self.hassette._resources[Bus.class_name] = self.hassette._bus
-        self.hassette._resources[BusService.class_name] = bus_service
+        self.hassette._resources[_BusService.class_name] = bus_service
         bus_service.start()
         self.hassette._bus.start()
 
     async def _start_scheduler(self) -> None:
-        scheduler_service = SchedulerService(cast("Hassette", self.hassette))
+        scheduler_service = _SchedulerService(cast("Hassette", self.hassette))
         scheduler = Scheduler(cast("Hassette", self.hassette), owner="Hassette")
-        self.hassette.scheduler_service = scheduler_service
+        self.hassette._scheduler_service = scheduler_service
         self.hassette._scheduler = scheduler
         self.hassette._thread_pool = self._thread_pool
-        self.hassette._resources[SchedulerService.class_name] = scheduler_service
+        self.hassette._resources[_SchedulerService.class_name] = scheduler_service
         self.hassette._resources[Scheduler.class_name] = scheduler
-        scheduler_service.max_delay = 1
         scheduler_service.start()
         scheduler.start()
 
@@ -341,6 +360,10 @@ class HassetteHarness:
         self._exit_stack.enter_context(rest_url_patch)
         self._exit_stack.enter_context(headers_patch)
 
+        self.hassette._websocket = Mock(spec=_Websocket)
+        self.hassette._websocket.ready_event = asyncio.Event()
+        self.hassette._websocket.ready_event.set()
+
         api_service = _Api(cast("Hassette", self.hassette))
         api = Api(api_service.hassette, api_service)
         self.hassette._api = api_service
@@ -355,30 +378,30 @@ class HassetteHarness:
 
         return
 
-    async def start_api_real(self) -> None:
-        if not self.use_bus:
-            raise RuntimeError("API harness requires bus")
+    # async def start_api_real(self) -> None:
+    #     if not self.use_bus:
+    #         raise RuntimeError("API harness requires bus")
 
-        if not self.use_websocket:
-            raise RuntimeError("API harness requires websocket")
+    #     if not self.use_websocket:
+    #         raise RuntimeError("API harness requires websocket")
 
-        api_service = _Api(cast("Hassette", self.hassette))
-        api = Api(api_service.hassette, api_service)
-        self.hassette._api = api_service
-        self.hassette.api = api
-        self.hassette._resources[_Api.class_name] = api_service
-        self.hassette._resources[Api.class_name] = api
-        api_service.start()
-        api.start()
+    #     api_service = _Api(cast("Hassette", self.hassette))
+    #     api = Api(api_service.hassette, api_service)
+    #     self.hassette._api = api_service
+    #     self.hassette.api = api
+    #     self.hassette._resources[_Api.class_name] = api_service
+    #     self.hassette._resources[Api.class_name] = api
+    #     api_service.start()
+    #     api.start()
 
-    async def start_websocket(self) -> None:
-        if not self.hassette.config:
-            raise RuntimeError("Websocket requires a config")
+    # async def start_websocket(self) -> None:
+    #     if not self.hassette.config:
+    #         raise RuntimeError("Websocket requires a config")
 
-        if not self.use_bus:
-            raise RuntimeError("Websocket requires bus")
+    #     if not self.use_bus:
+    #         raise RuntimeError("Websocket requires bus")
 
-        websocket = _Websocket(cast("Hassette", self.hassette))
-        self.hassette._websocket = websocket
-        self.hassette._resources[_Websocket.class_name] = websocket
-        websocket.start()
+    #     websocket = _Websocket(cast("Hassette", self.hassette))
+    #     self.hassette._websocket = websocket
+    #     self.hassette._resources[_Websocket.class_name] = websocket
+    #     websocket.start()

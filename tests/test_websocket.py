@@ -6,7 +6,7 @@ from hassette.core.websocket import _Websocket
 from hassette.exceptions import FailedMessageError
 
 
-class _WSOk:
+class _WSOk:  # type: ignore[reportUnusedClass]
     def __init__(self):
         self.sent = []
         self.connected = True
@@ -34,9 +34,11 @@ class _WSBoom:
 
 async def test_ws_send_json_assigns_id():
     with patch("hassette.core.websocket._Websocket.connected", new_callable=PropertyMock, return_value=True):
-        svc = _Websocket(AsyncMock())
-        svc._ws = AsyncMock()
+        mock = AsyncMock()
+        mock.config.websocket_log_level = "DEBUG"
+        svc = _Websocket(mock)
 
+        svc._ws = AsyncMock()
         await svc.send_json(type="ping")
 
         svc._ws.send_json.assert_called_once_with({"type": "ping", "id": 1})
@@ -44,7 +46,10 @@ async def test_ws_send_json_assigns_id():
 
 async def test_ws_send_json_wraps_errors():
     with patch("hassette.core.websocket._Websocket.connected", new_callable=PropertyMock, return_value=True):
-        svc = _Websocket(AsyncMock())
+        mock = AsyncMock()
+        mock.config.websocket_log_level = "DEBUG"
+        svc = _Websocket(mock)
+
         svc._ws = _WSBoom()  # type: ignore[attr-defined]
         with pytest.raises(FailedMessageError):
             await svc.send_json(type="ping")
