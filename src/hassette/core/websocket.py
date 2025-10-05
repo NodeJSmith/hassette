@@ -126,31 +126,32 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         """One full connect/auth/subscribe + recv lifecycle. Raise to trigger a retry."""
         timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
 
-        async with aiohttp.ClientSession(timeout=timeout) as session, self.starting():
-            self._session = session
-            try:
-                self._ws = await session.ws_connect(self.url, heartbeat=self.hearbeat_interval_seconds)
-            except ClientConnectorError as exc:
-                # preserve your special-case mapping
-                if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
-                    raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
-                raise
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with self.starting():
+                self._session = session
+                try:
+                    self._ws = await session.ws_connect(self.url, heartbeat=self.hearbeat_interval_seconds)
+                except ClientConnectorError as exc:
+                    # preserve your special-case mapping
+                    if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
+                        raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
+                    raise
 
-            self.logger.debug("Connected to WebSocket at %s", self.url)
-            await self.authenticate()
+                self.logger.debug("Connected to WebSocket at %s", self.url)
+                await self.authenticate()
 
-            # start reader first so send_and_wait can get replies
-            self._recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
+                # start reader first so send_and_wait can get replies
+                self._recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
 
-            self._subscription_ids.add(await self._subscribe_events())
+                self._subscription_ids.add(await self._subscribe_events())
 
-            # announce after we're actually usable
-            event = WebsocketConnectedEventPayload.create_event(url=self.url)
-            await self.hassette.send_event(event.topic, event)
-            self.mark_ready(reason="WebSocket connected and authenticated")
+                # announce after we're actually usable
+                event = WebsocketConnectedEventPayload.create_event(url=self.url)
+                await self.hassette.send_event(event.topic, event)
+                self.mark_ready(reason="WebSocket connected and authenticated")
 
-        # Keep running until recv loop ends (disconnect, error, etc.)
-        await self._recv_task
+            # Keep running until recv loop ends (disconnect, error, etc.)
+            await self._recv_task
 
     async def _recv_loop(self) -> None:
         while True:
