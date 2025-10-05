@@ -74,7 +74,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         return self.hassette.config.websocket_total_timeout_seconds
 
     @property
-    def hearbeat_interval_seconds(self) -> int:
+    def heartbeat_interval_seconds(self) -> int:
         return self.hassette.config.websocket_heartbeat_interval_seconds
 
     @property
