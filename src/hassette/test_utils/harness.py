@@ -66,6 +66,10 @@ class _HassetteMock(_HassetteBase):
 
     def __init__(self, *, config: Any | None = None) -> None:
         self.config = config
+        TaskBucket.default_task_cancellation_timeout = (
+            self.config.task_cancellation_timeout_seconds if self.config else 0.5
+        )
+
         self.ready_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
         self._resources: dict[str, Resource] = {}

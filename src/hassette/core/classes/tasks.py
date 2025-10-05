@@ -3,7 +3,7 @@ import logging
 import typing
 import weakref
 from collections.abc import Callable, Coroutine
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from hassette.core.classes.base import _HassetteBase
 
@@ -18,15 +18,22 @@ CoroLikeT = Coroutine[Any, Any, T]
 class TaskBucket(_HassetteBase):
     """Track and clean up a set of tasks for a service/app."""
 
+    default_task_cancellation_timeout: ClassVar[int | float]
+    """Default timeout for task cancellation, if not specified in constructor. Will be set by Hassette."""
+
     def __init__(
-        self, hassette: "Hassette", name: str, cancellation_timeout: float | None = None, prefix: str | None = None
+        self,
+        hassette: "Hassette",
+        name: str,
+        cancellation_timeout: int | float | None = None,
+        prefix: str | None = None,
     ) -> None:
         """Initialize the TaskBucket.
 
         Args:
             hassette (Hassette): The Hassette instance this bucket is associated with.
             name (str): Name of the bucket, used for logging.
-            cancellation_timeout (float | None): Timeout for task cancellation. If None, uses default from config.
+            cancellation_timeout (int | float | None): Timeout for task cancellation. If None, uses default from config.
             prefix (str | None): Optional prefix for task names, if provided name is not namespaced.
         """
 
@@ -35,22 +42,8 @@ class TaskBucket(_HassetteBase):
         self.name = name
         self.prefix = prefix
         self.logger = logging.getLogger(__name__ + f".{name}")
-        self._cancel_timeout = cancellation_timeout
+        self.cancel_timeout = cancellation_timeout or type(self).default_task_cancellation_timeout
         self._tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
-
-    @property
-    def cancel_timeout(self) -> float:
-        """Return the configured task cancellation timeout, or the default from config."""
-
-        # to avoid circular import
-        from hassette.config.core_config import HassetteConfig
-
-        if self._cancel_timeout is not None:
-            return self._cancel_timeout
-
-        self._cancel_timeout = HassetteConfig.get_config().task_cancellation_timeout_seconds
-
-        return self._cancel_timeout
 
     def add(self, task: asyncio.Task[Any]) -> None:
         """Add a task to the bucket and attach exception logging."""
