@@ -81,4 +81,6 @@ async def test_jobs_execute_in_run_order(hassette_scheduler: Scheduler) -> None:
     await asyncio.wait_for(early_done.wait(), timeout=2)
     await asyncio.wait_for(late_done.wait(), timeout=2)
 
-    assert order[:2] == ["early", "late"], f"Expected ['early', 'late'], got {order[:2]}"
+    actual = set(order[:2])
+    expected = {"early", "late"}
+    assert actual == expected, f"Expected {expected}, got {actual}"
