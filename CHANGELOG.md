@@ -9,23 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `hassette.event.app_reload_completed` now fires after reload cycles, and `HassetteEmptyPayload` provides a helper for simple internal events.
-- Bus routing tracks listeners by owner with a fair async lock, improving atomic cleanup when instances shut down.
-- Additional configuration for websocket and scheduler configuration values, such as timeouts, delay intervals, etc.
+- Introduced `TaskBucket` instances for Hassette, services, and apps; configure shutdown grace periods via the new `HassetteConfig.task_cancellation_timeout_seconds` setting.
+- Added `Hassette.wait_for_ready` and `hassette.utils.wait_for_ready` helpers so resources can block on dependencies (for example, the API now waits for the WebSocket).
+- Expanded Home Assistant tuning knobs with `websocket_connection_timeout_seconds`, `websocket_total_timeout_seconds`, `websocket_response_timeout_seconds`, `websocket_heartbeat_interval_seconds`, and `scheduler_min/default/max_delay_seconds`.
 
 ### Changed
-- **Breaking:** Per-owner buses replace the global `hassette.bus`; listener removal must go through `BusService` and owner-aware APIs.
+- **Breaking:** Per-owner buses replace the global `hassette.bus`; listener removal must go through `BusService`, which now tracks listeners by owner under a fair async lock for atomic cleanup.
 - **Breaking:** `@only` becomes `@only_app`, apps must expose a non-empty `instance_name`, and each app now owns its `Bus` and `Scheduler` handles.
-- **Breaking:** Scheduler APIs run through `SchedulerService`, and `ScheduledJob` embeds an owner id for cleanup; update job creation/removal accordingly.
-- Lifecycle helpers introduce `ResourceStatus.STARTING`, add a `Resource.starting()` context, and Hassette core now exposes `bus_service`/`scheduler_service`, records a unique id, and reverses shutdown order for clearer lifecycles.
-- Scheduler service waits for readiness, logs catch-up execution, and supports owner-based job removal to make repeating tasks safer.
+- **Breaking:** The `hassette.core.apps` package moved under `hassette.core.classes.app`, and the service singletons are now `_BusService` and `_SchedulerService`; import apps from `hassette.core`/`hassette.core.classes` and treat the underscored services as private.
+- Scheduler coordination now flows through `_SchedulerService`, which reads min/default/max delays from config, waits for Hassette readiness, and tags spawned jobs in the task bucket for easier cancellation.
+- Lifecycle helpers extend `Resource`/`Service` with explicit readiness flags (`mark_ready`, `mark_not_ready`, `is_ready`); Hassette spins up a global task bucket, names every background task, and blocks startup until all registered resources report ready, logging holdouts before shutting down.
+- WebSocket connection handling uses Tenacity-driven retries with dedicated connect/auth/response timeouts, and the API now waits for WebSocket readiness before creating its session while classifying common client errors as non-retryable.
 
 ### Fixed
 - App reloads clean up owned listeners and jobs, preventing leaked callbacks between reload cycles.
+- Startup failures now emit the list of resources that never became ready, making it easier to diagnose configuration mistakes.
 
 ### Internal
-- Test harness provisions mock bus, scheduler, and API services without Docker, while CI skips the Home Assistant container to speed up pipelines.
-- Added `pyrightconfig.json` and documented the new `fair-async-rlock` dependency used by the router.
-- Add ready indicator events to Resource/Service lifecycles for better observability.
+- Test harness integrates TaskBucket support, adds a `hassette_with_nothing` fixture, and continues to provision mock services so CI can run without a Home Assistant container.
+- Tightened local tooling: expanded `pyrightconfig.json`, enabled Ruff's `TID252`, and taught the nox test session to run `pytest` with `-W error`.
 
 
 ## [0.10.0] - 2025-09-27
