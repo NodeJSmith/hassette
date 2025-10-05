@@ -5,6 +5,7 @@ import weakref
 from collections.abc import Callable, Coroutine
 from typing import Any, ClassVar, TypeVar
 
+from hassette.core import context
 from hassette.core.classes.base import _HassetteBase
 
 if typing.TYPE_CHECKING:
@@ -70,9 +71,9 @@ class TaskBucket(_HassetteBase):
             else:
                 self.logger.warning("Tasks should be namespaced with ':' or a prefix should be provided (%s)", name)
 
-        task = self.hassette.loop.create_task(coro, name=name)
-        self.add(task)
-        return task
+        with context.use(context.CURRENT_BUCKET, self):
+            # note: do not call self.add here - the task factory has already done that
+            return self.hassette.loop.create_task(coro, name=name)
 
     async def cancel_all(self) -> None:
         """Cancel all tracked tasks, wait for them to finish, and log stragglers."""
@@ -107,7 +108,9 @@ class TaskBucket(_HassetteBase):
         return len(self._tasks)
 
 
-def make_task_factory(bucket: TaskBucket) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future[Any]]:
+def make_task_factory(
+    global_bucket: TaskBucket,
+) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future[Any]]:
     def factory(_loop: asyncio.AbstractEventLoop, coro: CoroLikeT) -> asyncio.Task[Any]:
         # note: ensure we pass loop=_loop here, to handle cases where we're calling this from something like
         # anyio's to_thread.run_sync
@@ -120,7 +123,10 @@ def make_task_factory(bucket: TaskBucket) -> Callable[[asyncio.AbstractEventLoop
             name = getattr(coro, "__name__", type(coro).__name__)
             t.set_name(name)
 
-        bucket.add(t)
+        # compare using `is not None` to avoid `__len__` being called to determine truthiness
+        current_bucket = context.CURRENT_BUCKET.get()
+        owner = current_bucket if current_bucket is not None else global_bucket
+        owner.add(t)
         return t
 
     return factory
