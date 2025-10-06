@@ -260,7 +260,14 @@ class Scheduler(Resource):
         unique_name_prefix: str | None = None,
         task_bucket: "TaskBucket | None" = None,
     ) -> None:
-        """Initialize the Bus instance."""
+        """Initialize the Scheduler instance.
+
+        Args:
+            hassette (Hassette): The main Hassette instance.
+            owner (str): Unique identifier for the owner of the scheduler.
+            unique_name_prefix (str | None, optional): Optional unique name prefix.
+            task_bucket (TaskBucket | None, optional): Optional task bucket for scheduling tasks.
+        """
         super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
         self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
 
