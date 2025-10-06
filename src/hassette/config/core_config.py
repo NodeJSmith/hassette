@@ -275,6 +275,14 @@ class HassetteConfig(HassetteBaseSettings):
 
     @model_validator(mode="after")
     def show_details_at_startup(self) -> "HassetteConfig":
+        # TODO: there has to be a cleaner way to do this
+        for field in ("app_handler_log_level", "bus_service_log_level", "scheduler_service_log_level",
+                     "health_service_log_level", "websocket_log_level", "service_watcher_log_level",
+                     "file_watcher_log_level"):
+            if field not in self.model_fields_set:
+                LOGGER.debug("Setting default log level for %s to %s", field, self.log_level)
+                setattr(self, field, self.log_level)
+
         if "debugpy" in sys.modules:
             if "dev_mode" not in self.model_fields_set:
                 LOGGER.warning("Developer mode enabled via debugpy")
