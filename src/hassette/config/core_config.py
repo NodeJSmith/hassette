@@ -274,7 +274,14 @@ class HassetteConfig(HassetteBaseSettings):
         return f"{token_value[:6]}...{token_value[-6:]}"
 
     @model_validator(mode="after")
-    def show_details_at_startup(self) -> "HassetteConfig":
+    def validate_hassette_config(self) -> "HassetteConfig":
+        # Set default log level for all log level fields not explicitly set
+        log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
+        for field in log_level_fields:
+            if field not in self.model_fields_set:
+                LOGGER.debug("Setting default log level for %s to %s", field, self.log_level)
+                setattr(self, field, self.log_level)
+
         if "debugpy" in sys.modules:
             if "dev_mode" not in self.model_fields_set:
                 LOGGER.warning("Developer mode enabled via debugpy")
