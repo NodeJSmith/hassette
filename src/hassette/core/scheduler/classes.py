@@ -1,6 +1,7 @@
 import heapq
 import itertools
 import typing
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
 
@@ -39,6 +40,9 @@ class ScheduledJob:
 
     repeat: bool = field(compare=False, default=False)
     """Whether the job should be rescheduled after running."""
+
+    timeout_seconds: int = field(compare=False, default=30)
+    """Maximum allowed execution time for the job in seconds."""
 
     name: str = field(default="", compare=False)
     """Optional name for the job for easier identification."""
@@ -116,3 +120,28 @@ class HeapQueue(Generic[T]):
     def is_empty(self) -> bool:
         """Check if the queue is empty."""
         return not self._queue
+
+    def remove_where(self, predicate: Callable[[T], bool]) -> int:
+        """Remove all items matching the predicate, returning the number removed."""
+
+        original_length = len(self._queue)
+        if not original_length:
+            return 0
+
+        self._queue = [job for job in self._queue if not predicate(job)]
+        removed = original_length - len(self._queue)
+
+        if removed:
+            heapq.heapify(self._queue)  # pyright: ignore[reportArgumentType]
+
+        return removed
+
+    def remove_item(self, item: T) -> bool:
+        """Remove a specific item from the queue if present."""
+
+        if item not in self._queue:
+            return False
+
+        self._queue.remove(item)
+        heapq.heapify(self._queue)  # pyright: ignore[reportArgumentType]
+        return True

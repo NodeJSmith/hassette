@@ -1,31 +1,28 @@
 import asyncio
-import heapq
 import typing
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any
 
 from whenever import SystemDateTime, TimeDelta
 
 from hassette.async_utils import make_async_adapter
 from hassette.core.classes.resource import Resource, Service
 
-from .classes import HeapQueue, ScheduledJob
+from .classes import ScheduledJob
+from .job_queue import _ScheduledJobQueue
 from .triggers import CronTrigger, IntervalTrigger, now
 
 if typing.TYPE_CHECKING:
+    from hassette.core.classes.tasks import TaskBucket
     from hassette.core.core import Hassette
     from hassette.core.types import JobCallable, TriggerProtocol
-
-T = TypeVar("T")
 
 
 class _SchedulerService(Service):
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
         self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
-
-        self.lock = asyncio.Lock()
-        self._queue: HeapQueue[ScheduledJob] = HeapQueue()
+        self._job_queue = _ScheduledJobQueue(hassette)
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
 
@@ -53,13 +50,20 @@ class _SchedulerService(Service):
             self._exit_event = asyncio.Event()
 
             while True:
-                if self._exit_event.is_set():
+                if self._exit_event.is_set() or self.hassette.shutdown_event.is_set():
+                    self.mark_not_ready(reason="Hassette is shutting down")
                     self.logger.debug("Scheduler exiting")
                     return
 
-                while not self._queue.is_empty() and (peek := self._queue.peek()) and peek.next_run <= now():
-                    job = self._queue.pop()
-                    self.task_bucket.spawn(self._dispatch_and_log(job), name="scheduler:dispatch_scheduled_job")
+                due_jobs = await self._job_queue.pop_due(now())
+
+                if due_jobs:
+                    for job in due_jobs:
+                        self.task_bucket.spawn(
+                            self._dispatch_and_log(job),
+                            name="scheduler:dispatch_scheduled_job",
+                        )
+                    continue
 
                 await self.sleep()
         except asyncio.CancelledError:
@@ -78,6 +82,28 @@ class _SchedulerService(Service):
         """Wake up the scheduler to check for jobs."""
         self._wakeup_event.set()
 
+    async def _enqueue_job(self, job: "ScheduledJob") -> None:
+        """Push a job onto the queue and wake the scheduler."""
+
+        await self._job_queue.add(job)
+        self.kick()
+
+    async def _remove_jobs_by_owner(self, owner: str) -> None:
+        """Remove all jobs for an owner and wake the scheduler if necessary."""
+
+        removed = await self._job_queue.remove_owner(owner)
+
+        if removed:
+            self.kick()
+
+    async def _remove_job(self, job: "ScheduledJob") -> None:
+        """Remove a specific job and wake the scheduler if successful."""
+
+        removed = await self._job_queue.remove_job(job)
+
+        if removed:
+            self.kick()
+
     async def sleep(self):
         """Sleep until the next job is due or a kick is received.
 
@@ -85,7 +111,8 @@ class _SchedulerService(Service):
         If a kick is received, it will wake up immediately.
         """
         try:
-            await asyncio.wait_for(self._wakeup_event.wait(), timeout=self._get_sleep_time().in_seconds())
+            timeout = (await self._get_sleep_time()).in_seconds()
+            await asyncio.wait_for(self._wakeup_event.wait(), timeout=timeout)
             self.logger.debug("Scheduler woke up due to kick")
         except asyncio.CancelledError:
             self.logger.debug("Scheduler sleep cancelled")
@@ -95,12 +122,13 @@ class _SchedulerService(Service):
         finally:
             self._wakeup_event.clear()
 
-    def _get_sleep_time(self) -> TimeDelta:
+    async def _get_sleep_time(self) -> TimeDelta:
         """Get the time to sleep until the next job is due.
         If there are no jobs, return a default sleep time.
         """
-        if not self._queue.is_empty():
-            next_run_time = self._queue.peek_or_raise().next_run
+        next_run_time = await self._job_queue.next_run_time()
+
+        if next_run_time is not None:
             self.logger.debug("Next job scheduled at %s", next_run_time)
             delay = max((next_run_time - now()).in_seconds(), self.min_delay)
         else:
@@ -115,9 +143,7 @@ class _SchedulerService(Service):
 
     def add_job(self, job: "ScheduledJob"):
         """Push a job to the queue."""
-        self._queue.push(job)
-        self.kick()
-        self.logger.debug("Scheduled job: %s", job)
+        self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
 
     async def _dispatch_and_log(self, job: "ScheduledJob"):
         """Dispatch a job and log its execution.
@@ -200,7 +226,7 @@ class _SchedulerService(Service):
                 job.next_run,
                 next_run_time_delta.in_seconds(),
             )
-            self.add_job(job)
+            await self._enqueue_job(job)
 
     def remove_jobs_by_owner(self, owner: str) -> None:
         """Remove all jobs for a given owner.
@@ -208,16 +234,11 @@ class _SchedulerService(Service):
         Args:
             owner (str): The owner of the jobs to remove.
         """
-        original_count = len(self._queue._queue)
-        self._queue._queue = [job for job in self._queue._queue if job.owner != owner]
-        removed_count = original_count - len(self._queue._queue)
 
-        if removed_count > 0:
-            heapq.heapify(self._queue._queue)
-            self.kick()
-            self.logger.debug("Removed %d jobs for owner '%s'", removed_count, owner)
-        else:
-            self.logger.debug("No jobs found for owner '%s' to remove", owner)
+        self.task_bucket.spawn(
+            self._remove_jobs_by_owner(owner),
+            name="scheduler:remove_jobs_by_owner",
+        )
 
     def remove_job(self, job: "ScheduledJob") -> None:
         """Remove a job from the scheduler.
@@ -228,18 +249,26 @@ class _SchedulerService(Service):
         if not isinstance(job, ScheduledJob):
             raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
 
-        if job in self._queue._queue:
-            self._queue._queue.remove(job)
-            heapq.heapify(self._queue._queue)
-            self.kick()
-            self.logger.debug("Removed job: %s", job)
-        else:
-            self.logger.debug("Job not found in queue, cannot remove: %s", job)
+        self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
 
 
 class Scheduler(Resource):
-    def __init__(self, hassette: "Hassette", owner: str) -> None:
-        super().__init__(hassette)
+    def __init__(
+        self,
+        hassette: "Hassette",
+        owner: str,
+        unique_name_prefix: str | None = None,
+        task_bucket: "TaskBucket | None" = None,
+    ) -> None:
+        """Initialize the Scheduler instance.
+
+        Args:
+            hassette (Hassette): The main Hassette instance.
+            owner (str): Unique identifier for the owner of the scheduler.
+            unique_name_prefix (str | None, optional): Optional unique name prefix.
+            task_bucket (TaskBucket | None, optional): Optional task bucket for scheduling tasks.
+        """
+        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
         self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
 
         self.owner = owner

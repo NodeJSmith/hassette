@@ -1,18 +1,18 @@
 import asyncio
+import threading
 import typing
-import uuid
 from asyncio import Future, ensure_future
 from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
-from logging import getLogger
 from typing import Any, ClassVar, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
 
 from hassette.config import HassetteConfig
+from hassette.core.classes.base import _LoggerMixin
 from hassette.utils import get_traceback_string, wait_for_ready
 
-from .api import Api, _Api
+from .api import Api, _ApiService
 from .app_handler import _AppHandler
 from .bus import Bus, _BusService
 from .classes import Resource, Service, TaskBucket, make_task_factory
@@ -30,7 +30,7 @@ R = TypeVar("R")
 T = TypeVar("T", bound=Resource | Service)
 
 
-class Hassette:
+class Hassette(_LoggerMixin):
     """Main class for the Hassette application.
 
     This class initializes the Hassette instance, manages services, and provides access to the API,
@@ -38,8 +38,6 @@ class Hassette:
     """
 
     role: ClassVar[ResourceRole] = ResourceRole.CORE
-
-    _instance: ClassVar["Hassette"] = None  # type: ignore
 
     api: Api
     """API service for handling HTTP requests."""
@@ -50,10 +48,7 @@ class Hassette:
     shutdown_event: asyncio.Event
     """Event set when the application is starting to shutdown."""
 
-    @property
-    def unique_name(self) -> str:
-        """Unique identifier for the instance."""
-        return f"{type(self).__name__}-{self.unique_id}"
+    _instance: ClassVar["Hassette"] = None  # type: ignore
 
     def __init__(self, config: HassetteConfig) -> None:
         """
@@ -63,9 +58,7 @@ class Hassette:
             env_file (str | Path | None): Path to the environment file for configuration.
             config (HassetteConfig | None): Optional pre-loaded configuration.
         """
-        self.unique_id = uuid.uuid4().hex
-
-        self.logger = getLogger(__name__)
+        super().__init__(unique_name_prefix="Hassette")
 
         self.config = config
         TaskBucket.default_task_cancellation_timeout = self.config.task_cancellation_timeout_seconds
@@ -79,24 +72,23 @@ class Hassette:
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, Event]](1000)
 
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._thread_pool = ThreadPoolExecutor(max_workers=10)
+        self._loop_thread_id: int | None = None
+        self._thread_pool = ThreadPoolExecutor(max_workers=10, thread_name_prefix="hassette-worker-")
 
         # private background services
         self._service_watcher = self._register_resource(_ServiceWatcher)
         self._websocket = self._register_resource(_Websocket)
-        self._api = self._register_resource(_Api)
         self._health_service = self._register_resource(_HealthService)
         self._file_watcher = self._register_resource(_FileWatcher)
         self._app_handler = self._register_resource(_AppHandler)
         self._scheduler_service = self._register_resource(_SchedulerService)
         self._bus_service = self._register_resource(_BusService, self._receive_stream.clone())
+        self._api_service = self._register_resource(_ApiService)
 
         # internal instances
         self._bus = self._register_resource(Bus, self.unique_name)
         self._scheduler = self._register_resource(Scheduler, self.unique_name)
-
-        # public services
-        self.api = self._register_resource(Api, self._api)
+        self.api = self._register_resource(Api, self.unique_name)
 
         type(self)._instance = self
 
@@ -160,54 +152,15 @@ class Hassette:
 
         Returns:
             R: The result of the function call.
-
         """
-
-        timeout_seconds = timeout_seconds or self.config.run_sync_timeout_seconds
-
-        # If we're already in an event loop, don't allow blocking calls.
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            pass  # not in a loop -> safe to block
-        else:
-            fn.close()  # close the coroutine to avoid warnings
-            raise RuntimeError("This sync method was called from within an event loop. Use the async method instead.")
-
-        try:
-            if self._loop is None:
-                raise RuntimeError("Event loop is not running")
-
-            fut = asyncio.run_coroutine_threadsafe(fn, self._loop)
-            return fut.result(timeout=timeout_seconds)
-        except TimeoutError:
-            self.logger.exception("Sync function '%s' timed out", fn.__name__)
-            raise
-        except Exception:
-            self.logger.exception("Failed to run sync function '%s'", fn.__name__)
-            raise
-        finally:
-            if not fut.done():
-                fut.cancel()
+        return self._global_tasks.run_sync(fn, timeout_seconds=timeout_seconds)
 
     async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args, **kwargs) -> R:
         """Run a synchronous function on the main event loop thread.
 
         This is useful for ensuring that loop-affine code runs in the correct context.
         """
-        if not self._loop:
-            raise RuntimeError("Event loop is not running")
-
-        fut = self._loop.create_future()
-
-        def _call():
-            try:
-                fut.set_result(fn(*args, **kwargs))
-            except Exception as e:
-                fut.set_exception(e)
-
-        self._loop.call_soon_threadsafe(_call)
-        return await fut
+        return await self._global_tasks.run_on_loop_thread(fn, *args, **kwargs)
 
     def create_task(self, coro: Coroutine[Any, Any, R], name: str) -> asyncio.Task[R]:
         """Create a task tracked in the global hassette task bucket.
@@ -238,9 +191,11 @@ class Hassette:
     async def run_forever(self) -> None:
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
+        self._loop_thread_id = threading.get_ident()
+        self.loop.set_debug(self.config.dev_mode)
 
         self._global_tasks = TaskBucket(self, name="hassette", prefix="hassette")
-        self._loop.set_task_factory(make_task_factory(self._global_tasks))
+        self.loop.set_task_factory(make_task_factory(self._global_tasks))
 
         self._start_resources()
 

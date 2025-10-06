@@ -43,8 +43,14 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 # classify errors once (easy to audit/change later)
-NON_RETRYABLE = (InvalidAuthError, asyncio.CancelledError, CouldNotFindHomeAssistantError)
-RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError)
+NON_RETRYABLE = (InvalidAuthError, asyncio.CancelledError)
+RETRYABLE = (
+    RetryableConnectionClosedError,
+    ServerDisconnectedError,
+    ClientConnectorError,
+    ClientOSError,
+    CouldNotFindHomeAssistantError,
+)
 
 
 class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
@@ -119,6 +125,20 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
     async def _connect_once(self) -> None:
         """One full connect/auth/subscribe + recv lifecycle. Raise to trigger a retry."""
 
+        timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
+
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            self._recv_task = await self._make_connection(session)
+
+            # announce after we're actually usable
+            event = WebsocketConnectedEventPayload.create_event(url=self.url)
+            await self.hassette.send_event(event.topic, event)
+            self.mark_ready(reason="WebSocket connected and authenticated")
+
+            # Keep running until recv loop ends (disconnect, error, etc.)
+            await self._recv_task
+
+    async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
         # inner function so we can use `self` in the retry decorator
         @retry(
             retry=retry_if_not_exception_type(NON_RETRYABLE) | retry_if_exception_type(RETRYABLE),
@@ -128,23 +148,6 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
         )
         async def _inner_connect():
-            timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
-
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                self._recv_task = await self._make_connection(session)
-
-                # announce after we're actually usable
-                event = WebsocketConnectedEventPayload.create_event(url=self.url)
-                await self.hassette.send_event(event.topic, event)
-                self.mark_ready(reason="WebSocket connected and authenticated")
-
-                # Keep running until recv loop ends (disconnect, error, etc.)
-                await self._recv_task
-
-        await _inner_connect()
-
-    async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
-        async with self.starting():
             self._session = session
             try:
                 self._ws = await session.ws_connect(self.url, heartbeat=self.heartbeat_interval_seconds)
@@ -162,8 +165,10 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
 
             # subscribe to events
             self._subscription_ids.add(await self._subscribe_events())
+            return recv_task
 
-        return recv_task
+        async with self.starting():
+            return await _inner_connect()
 
     async def _recv_loop(self) -> None:
         while True:

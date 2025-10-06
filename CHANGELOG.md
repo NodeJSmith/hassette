@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Added a `dev_mode` configuration flag (also auto-enabled when running under a debugger or `python -X dev`) to turn on asyncio debug logging and richer task diagnostics.
+- Task buckets gained context helpers and `run_sync`/`run_on_loop_thread` wrappers so work spawned from worker threads is still tracked and can be cancelled cleanly.
+
+### Changed
+- `_SchedulerService` now delegates scheduling to `_ScheduledJobQueue`, which uses a fair async lock to coordinate concurrent writers before dispatching due jobs.
+- App-owned `Api`, `Bus`, and `Scheduler` instances share the app's task bucket and derive unique name prefixes, giving per-instance loggers and consistent task accounting.
+- `Hassette.run_sync`/`run_on_loop_thread` now route through the global task bucket, and the event loop automatically switches to debug mode when `dev_mode` is enabled.
+
+### Fixed
+- Event bus and scheduler loops respect `shutdown_event`, allowing them to exit promptly during shutdown.
+- WebSocket reconnects treat `CouldNotFindHomeAssistantError` as retryable and properly apply the retry policy, improving cold-start resilience.
+
+### Internal
+- Test harness classes now reference `_ApiService` after the internal service rename.
+
 ## [0.11.0] - 2025-10-05
 
 ### Added

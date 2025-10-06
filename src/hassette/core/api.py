@@ -29,6 +29,7 @@ from .classes.resource import Resource
 from .events import HassContext, HassStateDict
 
 if typing.TYPE_CHECKING:
+    from .classes.tasks import TaskBucket
     from .core import Hassette
     from .websocket import _Websocket
 
@@ -45,7 +46,7 @@ NOT_RETRYABLE = (
 RETRYABLE = (aiohttp.ClientError, ResourceNotReadyError)
 
 
-class _Api(Resource):
+class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
 
@@ -191,21 +192,27 @@ class Api(Resource):
     managing WebSocket connections, and handling entity states.
     """
 
-    def __init__(self, hassette: "Hassette", _api: _Api) -> None:
-        super().__init__(hassette)
-        self._api = _api
-        self.sync = ApiSyncFacade(self)
-        """Synchronous facade for the API service."""
+    sync: "ApiSyncFacade"
+    """Synchronous facade for the API service."""
+
+    def __init__(
+        self, hassette: "Hassette", unique_name_prefix: str | None = None, task_bucket: "TaskBucket | None" = None
+    ) -> None:
+        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
+        self._api_service = self.hassette._api_service
+        self.sync = ApiSyncFacade(
+            self, hassette=self.hassette, unique_name_prefix=f"{self.unique_name}.sync", task_bucket=task_bucket
+        )
 
         self.mark_ready(reason="API initialized")
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""
-        return await self._api._ws_conn.send_and_wait(**data)
+        return await self._api_service._ws_conn.send_and_wait(**data)
 
     async def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response."""
-        await self._api._ws_conn.send_json(**data)
+        await self._api_service._ws_conn.send_json(**data)
 
     async def rest_request(
         self,
@@ -228,7 +235,7 @@ class Api(Resource):
         Returns:
             aiohttp.ClientResponse: The response from the API.
         """
-        return await self._api._rest_request(
+        return await self._api_service._rest_request(
             method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
         )
 
@@ -628,7 +635,7 @@ class Api(Resource):
         if "," in entity_id:
             raise ValueError("Entity ID should not contain commas. Use `get_histories` for multiple entities.")
 
-        entries = await self._api._get_history_raw(
+        entries = await self._api_service._get_history_raw(
             entity_id=entity_id,
             start_time=start_time,
             end_time=end_time,
@@ -672,7 +679,7 @@ class Api(Resource):
         """
         entity_id = ",".join(entity_ids)
 
-        entries = await self._api._get_history_raw(
+        entries = await self._api_service._get_history_raw(
             entity_id=entity_id,
             start_time=start_time,
             end_time=end_time,
@@ -853,9 +860,16 @@ class ApiSyncFacade(Resource):
     within an event loop.
     """
 
-    def __init__(self, api: Api):
-        super().__init__(api.hassette)
+    def __init__(
+        self,
+        api: Api,
+        hassette: "Hassette",
+        unique_name_prefix: str | None = None,
+        task_bucket: "TaskBucket | None" = None,
+    ) -> None:
+        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
         self._api = api
+        self.mark_ready(reason="Synchronous API facade initialized")
 
     def ws_send_and_wait(self, **data: Any):
         """Send a WebSocket message and wait for a response."""
@@ -886,7 +900,7 @@ class ApiSyncFacade(Resource):
         Returns:
             aiohttp.ClientResponse: The response from the API.
         """
-        return self.hassette.run_sync(
+        return self.task_bucket.run_sync(
             self._api.rest_request(
                 method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
             )
@@ -903,7 +917,7 @@ class ApiSyncFacade(Resource):
         Returns:
             aiohttp.ClientResponse: The response from the API.
         """
-        return self.hassette.run_sync(self._api.get_rest_request(url, params=params, **kwargs))
+        return self.task_bucket.run_sync(self._api.get_rest_request(url, params=params, **kwargs))
 
     def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs):
         """Make a POST request to the Home Assistant API.
@@ -916,7 +930,7 @@ class ApiSyncFacade(Resource):
         Returns:
             aiohttp.ClientResponse: The response from the API.
         """
-        return self.hassette.run_sync(self._api.post_rest_request(url, data=data, **kwargs))
+        return self.task_bucket.run_sync(self._api.post_rest_request(url, data=data, **kwargs))
 
     def delete_rest_request(self, url: str, **kwargs):
         """Make a DELETE request to the Home Assistant API.
@@ -928,7 +942,7 @@ class ApiSyncFacade(Resource):
         Returns:
             aiohttp.ClientResponse: The response from the API.
         """
-        return self.hassette.run_sync(self._api.delete_rest_request(url, **kwargs))
+        return self.task_bucket.run_sync(self._api.delete_rest_request(url, **kwargs))
 
     def get_states_raw(self):
         """Get all entities in Home Assistant as raw dictionaries.
@@ -936,7 +950,7 @@ class ApiSyncFacade(Resource):
         Returns:
             list[HassStateDict]: A list of states as dictionaries.
         """
-        return self.hassette.run_sync(self._api.get_states_raw())
+        return self.task_bucket.run_sync(self._api.get_states_raw())
 
     def get_states(self):
         """Get all entities in Home Assistant.
@@ -944,7 +958,7 @@ class ApiSyncFacade(Resource):
         Returns:
             list[StateUnion]: A list of states, either as dictionaries or converted to state objects.
         """
-        return self.hassette.run_sync(self._api.get_states())
+        return self.task_bucket.run_sync(self._api.get_states())
 
     def get_config(self):
         """
@@ -953,7 +967,7 @@ class ApiSyncFacade(Resource):
         Returns:
             dict: The configuration data.
         """
-        return self.hassette.run_sync(self._api.get_config())
+        return self.task_bucket.run_sync(self._api.get_config())
 
     def get_services(self):
         """
@@ -962,7 +976,7 @@ class ApiSyncFacade(Resource):
         Returns:
             dict: The services data.
         """
-        return self.hassette.run_sync(self._api.get_services())
+        return self.task_bucket.run_sync(self._api.get_services())
 
     def get_panels(self):
         """
@@ -971,7 +985,7 @@ class ApiSyncFacade(Resource):
         Returns:
             dict: The panels data.
         """
-        return self.hassette.run_sync(self._api.get_panels())
+        return self.task_bucket.run_sync(self._api.get_panels())
 
     def fire_event(
         self,
@@ -988,7 +1002,7 @@ class ApiSyncFacade(Resource):
         Returns:
             dict: The response from Home Assistant.
         """
-        return self.hassette.run_sync(self._api.fire_event(event_type, event_data))
+        return self.task_bucket.run_sync(self._api.fire_event(event_type, event_data))
 
     def call_service(
         self,
@@ -1011,7 +1025,7 @@ class ApiSyncFacade(Resource):
             HassContext | None: The response from Home Assistant if return_response is True.
                 Otherwise, returns None.
         """
-        return self.hassette.run_sync(self._api.call_service(domain, service, target, return_response, **data))
+        return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))
 
     def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data):
         """
@@ -1024,7 +1038,7 @@ class ApiSyncFacade(Resource):
         Returns:
             HassContext: The response context from Home Assistant.
         """
-        return self.hassette.run_sync(self._api.turn_on(entity_id, domain, **data))
+        return self.task_bucket.run_sync(self._api.turn_on(entity_id, domain, **data))
 
     def turn_off(self, entity_id: str, domain: str = "homeassistant"):
         """
@@ -1037,7 +1051,7 @@ class ApiSyncFacade(Resource):
         Returns:
             HassContext: The response context from Home Assistant.
         """
-        return self.hassette.run_sync(self._api.turn_off(entity_id, domain))
+        return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain))
 
     def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
         """
@@ -1050,7 +1064,7 @@ class ApiSyncFacade(Resource):
         Returns:
             HassContext: The response context from Home Assistant.
         """
-        return self.hassette.run_sync(self._api.toggle_service(entity_id, domain))
+        return self.task_bucket.run_sync(self._api.toggle_service(entity_id, domain))
 
     def get_state_raw(self, entity_id: str):
         """Get the state of a specific entity.
@@ -1061,7 +1075,7 @@ class ApiSyncFacade(Resource):
         Returns:
             HassStateDict: The state of the entity as raw data.
         """
-        return self.hassette.run_sync(self._api.get_state_raw(entity_id))
+        return self.task_bucket.run_sync(self._api.get_state_raw(entity_id))
 
     def entity_exists(self, entity_id: str):
         """Check if a specific entity exists.
@@ -1073,7 +1087,7 @@ class ApiSyncFacade(Resource):
             bool: True if the entity exists, False otherwise.
         """
 
-        return self.hassette.run_sync(self._api.entity_exists(entity_id))
+        return self.task_bucket.run_sync(self._api.entity_exists(entity_id))
 
     def get_entity(self, entity_id: str, model: type[EntityT]):
         """Get an entity object for a specific entity.
@@ -1090,7 +1104,7 @@ class ApiSyncFacade(Resource):
             This call returns an EntityState subclass, which wraps the state object and provides
             api methods for interacting with the entity.
         """
-        return self.hassette.run_sync(self._api.get_entity(entity_id, model))
+        return self.task_bucket.run_sync(self._api.get_entity(entity_id, model))
 
     def get_entity_or_none(self, entity_id: str, model: type[EntityT]):
         """Get an entity object for a specific entity, or None if it does not exist.
@@ -1102,7 +1116,7 @@ class ApiSyncFacade(Resource):
         Returns:
             EntityT | None: The entity object, or None if it does not exist.
         """
-        return self.hassette.run_sync(self._api.get_entity_or_none(entity_id, model))
+        return self.task_bucket.run_sync(self._api.get_entity_or_none(entity_id, model))
 
     def get_state(self, entity_id: str, model: type[StateT]):
         """Get the state of a specific entity.
@@ -1114,7 +1128,7 @@ class ApiSyncFacade(Resource):
         Returns:
             StateT: The state of the entity converted to the specified model type.
         """
-        return self.hassette.run_sync(self._api.get_state(entity_id, model))
+        return self.task_bucket.run_sync(self._api.get_state(entity_id, model))
 
     def get_state_value(self, entity_id: str):
         """Get the state of a specific entity without converting it to a state object.
@@ -1130,7 +1144,7 @@ class ApiSyncFacade(Resource):
             strong typing, this method is designed to return the raw state value,
             as it is likely overkill to convert it to a state object for simple state value retrieval.
         """
-        return self.hassette.run_sync(self._api.get_state_value(entity_id))
+        return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
     def get_state_value_typed(self, entity_id: str, model: type[BaseState[StateValueT]]):
         """Get the state of a specific entity as a converted state object.
@@ -1150,7 +1164,7 @@ class ApiSyncFacade(Resource):
             average user only needs the raw value of the state value, without type safety.
         """
 
-        return self.hassette.run_sync(self._api.get_state_value_typed(entity_id, model))
+        return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id, model))
 
     def get_attribute(self, entity_id: str, attribute: str):
         """Get a specific attribute of an entity.
@@ -1163,7 +1177,7 @@ class ApiSyncFacade(Resource):
             Any: The value of the specified attribute, or None if it does not exist.
         """
 
-        return self.hassette.run_sync(self._api.get_attribute(entity_id, attribute))
+        return self.task_bucket.run_sync(self._api.get_attribute(entity_id, attribute))
 
     def get_history(
         self,
@@ -1189,7 +1203,7 @@ class ApiSyncFacade(Resource):
         Returns:
             list[HistoryEntry]: A list of history entries for the specified entity.
         """
-        return self.hassette.run_sync(
+        return self.task_bucket.run_sync(
             self._api.get_history(
                 entity_id=entity_id,
                 start_time=start_time,
@@ -1224,7 +1238,7 @@ class ApiSyncFacade(Resource):
         Returns:
             dict[str, list[HistoryEntry]]: A dictionary mapping entity IDs to their respective history entries.
         """
-        return self.hassette.run_sync(
+        return self.task_bucket.run_sync(
             self._api.get_histories(
                 entity_ids=entity_ids,
                 start_time=start_time,
@@ -1252,7 +1266,7 @@ class ApiSyncFacade(Resource):
             list[dict]: A list of logbook entries for the specified entity.
         """
 
-        return self.hassette.run_sync(self._api.get_logbook(entity_id, start_time, end_time))
+        return self.task_bucket.run_sync(self._api.get_logbook(entity_id, start_time, end_time))
 
     def set_state(
         self,
@@ -1271,7 +1285,7 @@ class ApiSyncFacade(Resource):
             dict: The response from Home Assistant after setting the state.
         """
 
-        return self.hassette.run_sync(self._api.set_state(entity_id, state, attributes))
+        return self.task_bucket.run_sync(self._api.set_state(entity_id, state, attributes))
 
     def get_camera_image(
         self,
@@ -1289,7 +1303,7 @@ class ApiSyncFacade(Resource):
             bytes: The camera image data.
         """
 
-        return self.hassette.run_sync(self._api.get_camera_image(entity_id, timestamp))
+        return self.task_bucket.run_sync(self._api.get_camera_image(entity_id, timestamp))
 
     def get_calendars(self):
         """Get the list of calendars.
@@ -1298,7 +1312,7 @@ class ApiSyncFacade(Resource):
             list[dict]: The calendars configured in Home Assistant.
         """
 
-        return self.hassette.run_sync(self._api.get_calendars())
+        return self.task_bucket.run_sync(self._api.get_calendars())
 
     def get_calendar_events(
         self,
@@ -1317,7 +1331,7 @@ class ApiSyncFacade(Resource):
             list[dict]: A list of calendar events.
         """
 
-        return self.hassette.run_sync(
+        return self.task_bucket.run_sync(
             self._api.get_calendar_events(
                 calendar_id=calendar_id,
                 start_time=start_time,
@@ -1339,7 +1353,7 @@ class ApiSyncFacade(Resource):
         Returns:
             str: The rendered template result.
         """
-        return self.hassette.run_sync(self._api.render_template(template, variables))
+        return self.task_bucket.run_sync(self._api.render_template(template, variables))
 
     def delete_entity(self, entity_id: str):
         """Delete a specific entity.
@@ -1351,7 +1365,7 @@ class ApiSyncFacade(Resource):
             RuntimeError: If the deletion fails.
         """
 
-        self.hassette.run_sync(self._api.delete_entity(entity_id))
+        self.task_bucket.run_sync(self._api.delete_entity(entity_id))
 
 
 def orjson_dump(data: Any) -> str:

@@ -90,6 +90,9 @@ class HassetteConfig(HassetteBaseSettings):
         validate_by_name=True,
     )
 
+    dev_mode: bool = Field(default=False)
+    """Enable developer mode, which may include additional logging and features."""
+
     # General configuration
     log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for Hassette."""
@@ -272,6 +275,21 @@ class HassetteConfig(HassetteBaseSettings):
 
     @model_validator(mode="after")
     def show_details_at_startup(self) -> "HassetteConfig":
+        if "debugpy" in sys.modules:
+            if "dev_mode" not in self.model_fields_set:
+                LOGGER.warning("Developer mode enabled via debugpy")
+                self.dev_mode = True
+
+        if sys.gettrace() is not None:
+            if "dev_mode" not in self.model_fields_set:
+                LOGGER.warning("Developer mode enabled via debugger")
+                self.dev_mode = True
+
+        if sys.flags.dev_mode:
+            if "dev_mode" not in self.model_fields_set:
+                LOGGER.warning("Developer mode enabled via python -X dev")
+                self.dev_mode = True
+
         LOGGER.debug(
             "Configuration sources: %s",
             json.dumps(type(self).FINAL_SETTINGS_SOURCES, default=str, indent=4, sort_keys=True),
