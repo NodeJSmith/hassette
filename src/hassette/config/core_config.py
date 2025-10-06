@@ -275,16 +275,9 @@ class HassetteConfig(HassetteBaseSettings):
 
     @model_validator(mode="after")
     def show_details_at_startup(self) -> "HassetteConfig":
-        # TODO: there has to be a cleaner way to do this
-        for field in (
-            "app_handler_log_level",
-            "bus_service_log_level",
-            "scheduler_service_log_level",
-            "health_service_log_level",
-            "websocket_log_level",
-            "service_watcher_log_level",
-            "file_watcher_log_level",
-        ):
+        # Set default log level for all log level fields not explicitly set
+        log_level_fields = [name for name in self.model_fields if name.endswith("_log_level")]
+        for field in log_level_fields:
             if field not in self.model_fields_set:
                 LOGGER.debug("Setting default log level for %s to %s", field, self.log_level)
                 setattr(self, field, self.log_level)
