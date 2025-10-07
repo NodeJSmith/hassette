@@ -229,18 +229,22 @@ class Api(Resource):
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
         """
-        payload = {"type": "call_service", "domain": domain, "service": service, "target": target}
+        payload = {
+            "type": "call_service",
+            "domain": domain,
+            "service": service,
+            "target": target,
+            "return_response": return_response,
+        }
 
         payload = {k: v for k, v in payload.items() if v is not None}
+        data = {k: v for k, v in data.items() if v is not None}
 
         if data:
-            data = {k: v for k, v in data.items() if v is not None}
             self.logger.debug("Adding extra data to service call: %s", data)
             payload |= {"service_data": data}
 
         if return_response:
-            if "return_response" not in payload:
-                payload["return_response"] = True
             resp = await self.ws_send_and_wait(**payload)
             return ServiceResponse(**resp)
 
