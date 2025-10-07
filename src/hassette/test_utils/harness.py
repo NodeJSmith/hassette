@@ -14,7 +14,6 @@ from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette import HassetteConfig
-from hassette.core import context
 from hassette.core.resources.api import Api
 from hassette.core.resources.base import Resource, _HassetteBase
 from hassette.core.resources.bus.bus import Bus
@@ -213,12 +212,7 @@ class HassetteHarness:
 
         assert self.hassette._loop is not None, "Event loop is not running"
         assert self.hassette._loop.is_running(), "Event loop is not running"
-
-        with (
-            context.use(context.HASSETTE_INSTANCE, cast("Hassette", self.hassette)),
-            context.use(context.HASSETTE_CONFIG, self.hassette.config),
-        ):
-            yield self
+        return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.stop()
