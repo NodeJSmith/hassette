@@ -1,7 +1,7 @@
 AppDaemon vs Hassette
 ======================
 
-This guide targets [AppDaemon](https://appdaemon.readthedocs.io/en/latest/) users who want to understand where Hassette matches the familiar
+This guide targets `AppDaemon <https://appdaemon.readthedocs.io/en/latest/>`_ users who want to understand where Hassette matches the familiar
 workflow, where it differs, and what the migration effort looks like. It focuses on the core moving
 parts: the bus, scheduler, Home Assistant API, and app configuration.
 
