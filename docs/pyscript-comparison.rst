@@ -1,7 +1,7 @@
 Pyscript vs Hassette
 ====================
 
-This guide targets Pyscript users who want to understand where Hassette matches the familiar
+This guide targets [Pyscript](https://hacs-pyscript.readthedocs.io/en/latest/) users who want to understand where Hassette matches the familiar
 workflow, where it differs, and what the migration effort looks like. It focuses on the core moving
 parts: triggers and the event bus, the scheduler, Home Assistant API access, and app configuration.
 
@@ -57,22 +57,18 @@ App model and configuration
 ---------------------------
 
 Pyscript
-    Scripts live under ``<config>/pyscript`` and load automatically. Reusable packages live in
-    ``pyscript/apps`` and are activated with YAML entries under ``pyscript.apps.<name>`` (see
-    ``docs/reference.rst``). Configuration stays untyped: ``pyscript.app_config`` and
-    ``pyscript.config`` expose plain ``dict`` objects, so validation and secrets are manual. Triggers
-    register at import time via decorators, there is no lifecycle method, and both async coroutines and
-    sync helpers can run as long as they yield to the event loop. File or config changes reload the
-    module; long-running tasks continue unless you cancel them with ``task.unique`` or ``task.cancel``.
+    - Scripts live under ``<config>/pyscript`` and load automatically.
+    - Reusable packages live in ``pyscript/apps`` and are activated with YAML entries under ``pyscript.apps.<name>``.
+    - Configuration stays untyped: ``pyscript.app_config`` and ``pyscript.config`` expose plain ``dict`` objects, so validation and secrets are manual.
+    - Triggers register at import time via decorators, there is no lifecycle method, and both async coroutines and sync helpers can run as long as they yield to the event loop.
+    - File or config changes reload the module; long-running tasks continue unless you cancel them with ``task.unique`` or ``task.cancel``.
 
 Hassette
-    Apps inherit from :class:`hassette.App[MyConfig]` (async) or :class:`hassette.AppSync` (sync
-    bridge). ``initialize`` is ``async`` and should call ``await super().initialize()`` after custom
-    setup. Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables. Each app ships with an
-    :class:`hassette.AppConfig` subclass so Hassette validates input before instantiating the app, and
-    you access ``self.app_config`` with IDE/autocomplete support. Environment variables wire in via
-    Pydantic. Multiple instances use TOML list-of-tables while keeping strong typing, and lifecycle
-    hooks (``initialize``, ``shutdown``) emit bus events for health monitoring.
+    - Apps subclass :class:`hassette.core.resources.app.app.App` (async) or :class:`hassette.core.resources.app.app.AppSync` (sync bridge).
+    - ``initialize`` is ``async`` and should call ``await super().initialize()`` after custom initialization. Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables.
+    - Each app ships with a :class:`hassette.core.resources.app.app_config.AppConfig` subclass, so Hassette validates input before instantiating the app and you access ``self.app_config`` with IDE/autocomplete support.
+    - Environment variables (via Pydantic) are first-class. Multiple instances use TOML list-of-tables, which still map to strongly typed models.
+
 
 .. rubric:: Where Hassette shines
 
@@ -90,80 +86,80 @@ Event bus and callbacks
 -----------------------
 
 Pyscript
-    Decorators bind triggers directly to functions. ``@state_trigger`` watches expressions against Home
-    Assistant state, and options like ``state_hold``/``state_hold_false`` implement debouncing and edge
-    semantics. ``@event_trigger`` targets Home Assistant events (including ``call_service``) with
-    optional boolean expressions. ``@time_active`` and ``@state_active`` act as guards, while
-    ``@mqtt_trigger`` handles MQTT topics. Each trigger run spawns a task and passes keyword arguments
-    such as ``trigger_type`` and ``value``. There is no central bus API or subscription object; the
-    decorator is the binding.
+    - Decorators bind triggers directly to functions.
+    - ``@state_trigger`` watches expressions against Home Assistant state, and options like ``state_hold``/``state_hold_false`` implement debouncing and edge semantics.
+    - ``@event_trigger`` targets Home Assistant events (including ``call_service``) with optional boolean expressions.
+    - ``@time_active`` and ``@state_active`` act as guards, while ``@mqtt_trigger`` handles MQTT topics.
+    - Each trigger run spawns a task and passes keyword arguments such as ``trigger_type`` and ``value``.
+    - There is no central bus API or subscription object; the decorator is the binding.
+    - Everything is stringly typed; decorator arguments are evaluated at runtime, there is no IDE support (for type annotations) or validation.
 
 Hassette
-    ``self.bus`` centralises subscriptions and returns ``Subscription`` handles. Handlers receive a
-    single typed event dataclass (e.g., ``StateChangeEvent[states.LightState]``) and can compose
-    predicates (``ChangedTo``, ``AttrChanged``, ``AnyOf``) alongside ``debounce`` and ``throttle``
-    modifiers. Custom topics (``"hassette.event.my_event"``) use ``bus.on(...)``, and
-    ``unsubscribe()`` removes the listener. Because handlers run inside the app instance they can share
-    state, reuse the scheduler, and call the API without extra globals.
+    - All subscriptions emit a typed event dataclass as a single argument.
+    - ``self.bus.on_entity`` and ``self.bus.on_attribute`` wrap Home Assistant's ``state_changed`` topic
+        - ``self.bus.on_call_service`` exposes service traffic
+        - ``self.bus.on`` lets you subscribe to any topic (including custom events via ``"hassette.event.my_event"``).
+    - Predicates provide composable guards (e.g., ``P.ChangedTo("on")`` & ``P.AnyOf``).
+    - ``debounce`` and ``throttle`` parameters remove boilerplate that AppDaemon typically handles via extra state variables.
+    - Subscription objects expose ``unsubscribe()`` for cleanup.
 
 .. rubric:: Where Hassette shines
 
+- Typed callbacks and registration methods improve IDE support and catch errors early.
 - Typed payloads and single-argument signatures simplify refactors versus unpacking ``**data``.
 - Predicate composition mirrors Pyscript decorators while keeping logic in regular Python.
-- Subscriptions can be stored and removed dynamically without reloading modules.
 
 .. rubric:: Where Hassette lags today
 
 - No built-in ``state_hold`` equivalent -- pair ``debounce`` with scheduler logic for edge cases.
 - No decorator sugar -- subscriptions are manual calls inside ``initialize``.
-- MQTT helpers require custom event parsing today.
+- No native MQTT support yet; Zigbee2MQTT (and potentially others) can bridge to Home Assistant events.
 
 Scheduler differences
 ---------------------
 
 Pyscript
-    ``@time_trigger`` covers cron, once-off, startup/shutdown, and periodic schedules directly on
-    functions, including sunrise/sunset offsets via ``sunrise``/``sunset`` keywords. ``@time_active``
-    limits execution windows and doubles as a rate limiter through ``hold_off``. For ad-hoc waits you
-    ``await task.sleep`` or ``task.wait_until`` inside the running coroutine. There is no persistent job
-    handle; control comes from ``task.unique`` (kill previous runs) or ``task.cancel`` (with a task id).
+    - ``@time_trigger`` covers cron, once-off, startup/shutdown, and periodic schedules directly on functions, including sunrise/sunset offsets via ``sunrise``/``sunset`` keywords.
+    - For ad-hoc waits you ``await task.sleep`` or ``task.wait_until`` inside the running coroutine.
+    - There is no persistent job handle; control comes from ``task.unique`` (kill previous runs) or ``task.cancel`` (with a task id).
+    - Scheduler decorators allow scheduling functions to run when Home Assistant starts or stops.
 
 Hassette
-    The scheduler exposes ``run_in``, ``run_every``, ``run_once``, and ``run_cron``. Each returns a
-    ``ScheduledJob`` with ``next_run`` metadata and ``cancel()``. Helpers accept async/sync callables and
-    rely on ``whenever`` time primitives, so you can pass ``TimeDelta`` or ``SystemDateTime`` objects.
-    There are no first-class sunrise/sunset helpers, but cron covers many needs. Rate limiting lives
-    on the bus via ``debounce``/``throttle`` or in code via scheduler jobs.
+    - The scheduler exposes ``run_in``, ``run_every``, ``run_once``, and ``run_cron``.
+    - Each returns a ``ScheduledJob`` with ``next_run`` metadata and ``cancel()`` method.
+    - Helpers accept async/sync callables and rely on ``whenever`` time primitives, so you can pass ``TimeDelta`` or ``SystemDateTime`` objects.
+    - There are no first-class sunrise/sunset helpers, but cron covers many needs.
+    - Home Assistant start/stop hooks are available via the ``Bus``, not the scheduler.
 
 .. rubric:: Where Hassette shines
 
 - Job handles make cancellation and inspection straightforward compared to tracking task ids.
 - Consistent async execution -- no risk of blocking the event loop with a forgotten synchronous decorator.
-- Cron helpers expose seconds and integrate with naming/logging for easier debugging.
 
 .. rubric:: Where Hassette lags today
+- No ending date time for interval triggers.
 
-- Missing sunrise/sunset convenience built-ins you get from ``@time_trigger``.
-- No decorator syntax; scheduling happens inside ``initialize``.
+.. note::
+
+    At this time there is no plan to surface a sunrise/sunset helper. You can use Home Assistant's
+    ``sun.sun`` entity with an attribute trigger or cron schedule instead.
 
 Home Assistant API surface
 --------------------------
 
 Pyscript
-    Services behave like Python functions (``light.turn_on(...)``) and state reads assign to variables
-    (``binary_sensor.door``). Helper namespaces (``state.get``, ``service.call``, ``event.fire``) support
-    dynamic usage. Everything is stringly typed; conversions are manual, and invalid payloads fail at
-    runtime. You can expose new services with ``@service`` (including YAML docstrings) and bridge to
-    blocking code using ``@pyscript_executor`` or ``task.executor``. Returning data from services is
-    possible when ``supports_response`` is set.
+    - Services behave like Python functions (``light.turn_on(...)``) and state reads assign to variables (``binary_sensor.door``).
+    - Helper namespaces (``state.get``, ``service.call``, ``event.fire``) support dynamic usage.
+    - Everything is stringly typed; conversions are manual, and invalid payloads fail at runtime.
+    - You can expose new services with ``@service`` (including YAML docstrings) and bridge to blocking code using ``@pyscript_executor`` or ``task.executor``.
+    - Returning data from services is possible when ``supports_response`` is set.
 
 Hassette
-    ``self.api`` wraps REST/WebSocket calls with Pydantic models. ``get_state``/``get_states`` convert to
-    ``states.*`` classes, ``get_entity`` begins a roadmap toward entity helpers, and ``call_service``
-    optionally returns ``HassContext``. Typed vs raw methods coexist (``get_state_raw``). Custom
-    endpoints remain reachable via ``rest_request``/``ws_send_and_wait``. There is no decorator-based
-    service registration yet; exposing functions requires listening for custom events or building a
-    dedicated app.
+    - ``self.api`` wraps REST/WebSocket calls with Pydantic models.
+    - ``get_state``/``get_states`` convert to ``states.*`` classes, ``get_entity`` begins a roadmap toward entity helpers, and ``call_service`` optionally returns ``HassContext``.
+    - Typed vs raw methods coexist (``get_state_raw``).
+    - Custom endpoints remain reachable via ``rest_request``/``ws_send_and_wait``.
+    - There is no decorator-based service registration yet; exposing functions requires listening for custom events or building a dedicated app.
 
 .. rubric:: Where Hassette shines
 

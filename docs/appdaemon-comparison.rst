@@ -1,7 +1,7 @@
 AppDaemon vs Hassette
 ======================
 
-This guide targets AppDaemon users who want to understand where Hassette matches the familiar
+This guide targets [AppDaemon](https://appdaemon.readthedocs.io/en/latest/) users who want to understand where Hassette matches the familiar
 workflow, where it differs, and what the migration effort looks like. It focuses on the core moving
 parts: the bus, scheduler, Home Assistant API, and app configuration.
 
@@ -103,18 +103,16 @@ Scheduler differences
 ---------------------
 
 AppDaemon
-    Offers a large toolbox—``run_in``, ``run_once``, ``run_every``, ``run_daily``, ``run_hourly``,
-    ``run_minutely``, ``run_at``, ``run_at_sunrise/sunset``, and cron support. Timers return handles you
-    pass to ``cancel_timer``. Scheduler helpers can pass ``kwargs`` back into the callback so the same
-    function can serve multiple timers. ``info_timer`` exists to inspect the next run time, but it
-    requires an extra API call.
+    - Offers a large toolbox—``run_in``, ``run_once``, ``run_every``, ``run_daily``, ``run_hourly``, ``run_minutely``, ``run_at``, ``run_at_sunrise/sunset``, and cron support.
+    - Timers return handles you pass to ``cancel_timer``.
+    - Scheduler helpers can pass ``kwargs`` back into the callback so the same function can serve multiple timers.
+    - ``info_timer`` exists to inspect the next run time, but it requires an extra API call.
 
 Hassette
-    Consolidates on a smaller set: ``run_in``, ``run_every``, ``run_once``, and ``run_cron``. All
-    helpers accept async or sync callables and return a ``ScheduledJob`` object with ``next_run``
-    metadata and ``cancel()``. Triggers use the ``whenever`` library, so you can express start times
-    and intervals with precise objects (``TimeDelta``, ``SystemDateTime``). Cron covers most repeating
-    needs, but there are not dedicated helpers like ``run_daily`` or ``run_hourly``.
+    - Consolidates on a smaller set: ``run_in``, ``run_every``, ``run_once``, and ``run_cron``.
+    - All helpers accept async or sync callables and return a ``ScheduledJob`` object with ``next_run`` metadata and ``cancel()``.
+    - Triggers use the ``whenever`` library, so you can express start times and intervals with precise objects (``TimeDelta``, ``SystemDateTime``).
+    - Cron covers most repeating needs, but there are not dedicated helpers like ``run_daily`` or ``run_hourly``.
 
 .. rubric:: Where Hassette shines
 
@@ -135,21 +133,20 @@ Home Assistant API surface
 --------------------------
 
 AppDaemon
-    ``get_state``/``set_state``/``call_service``/``fire_event``/``listen_event`` return raw strings or
-    dicts. There is no typing or schema validation, so runtime errors emerge only when Home Assistant
-    rejects a payload. Calls to ``get_state`` access state stored in AppDaemon's internal state tracker
-    and run synchronously. Domain and entity are often provided as a single string separated by a
-    ``/`` (e.g., ``light/turn_on``). Helper functions like ``anyone_home`` or ``notify`` are
-    included.
+    - ``get_state``/``set_state``/``call_service``/``fire_event``/``listen_event`` return raw strings or dicts.
+    - There is no typing or schema validation, so runtime errors emerge only when Home Assistant rejects a payload.
+    - Calls to ``get_state`` access state stored in AppDaemon's internal state tracker and run synchronously.
+    - Domain and entity are often provided as a single string separated by a ``/`` (e.g., ``light/turn_on``).
+    - Helper functions like ``anyone_home`` or ``notify`` are included.
 
 Hassette
-    ``self.api`` is async from top to bottom. ``get_state`` and ``get_states`` coerce responses into
-    Pydantic models (``states.LightState`` etc.), while ``get_state_raw`` mirrors AppDaemon's dict
-    return. ``get_entity`` begins a push toward entity classes, though today only ``BaseEntity`` and
-    ``LightEntity`` ship. ``call_service`` and ``turn_on``/``turn_off`` return the ``HassContext`` when
-    available, which helps with debugging. Low-level ``rest_request`` and ``ws_send_and_wait`` expose
-    the underlying ``aiohttp`` session if you need endpoints Hassette has not wrapped yet. For
-    synchronous apps, ``self.api.sync`` mirrors the async API.
+    - ``self.api`` is async from top to bottom.
+    - ``get_state`` and ``get_states`` coerce responses into Pydantic models (``states.LightState`` etc.)
+        -  ``get_state_raw`` mirrors AppDaemon's dict return.
+    - ``get_entity`` begins a push toward entity classes, though today only ``BaseEntity`` and ``LightEntity`` ship.
+    - ``call_service`` and ``turn_on``/``turn_off`` return the ``HassContext`` when available, which helps with debugging.
+    - Low-level ``rest_request`` and ``ws_send_and_wait`` expose the underlying ``aiohttp`` session if you need endpoints Hassette has not wrapped yet.
+    - For synchronous apps, ``self.api.sync`` mirrors the async API.
 
 .. note::
 
