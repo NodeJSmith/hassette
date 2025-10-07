@@ -13,15 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Individual service log levels can be set via config, with the overall `log_level` being used if not specified.
 
 ### Changed
+- **Breaking:** Public imports now come from the root `hassette` package; the old `hassette.core` paths have been moved under `hassette.core.resources` / `hassette.core.services`, so update any direct `hassette.core...` imports to use the re-exported names on `hassette`.
 - `_SchedulerService` now delegates scheduling to `_ScheduledJobQueue`, which uses a fair async lock to coordinate concurrent writers before dispatching due jobs.
 - App-owned `Api`, `Bus`, and `Scheduler` instances share the app's task bucket and derive unique name prefixes, giving per-instance loggers and consistent task accounting.
 - `Hassette.run_sync`/`run_on_loop_thread` now route through the global task bucket, and the event loop automatically switches to debug mode when `dev_mode` is enabled.
+- `Api.call_service` and the sync facade default to `return_response=False`, and the `turn_on` / `turn_off` / `toggle` are corrected to not pass `return_response` since this is not supported.
 
 ### Fixed
 - Event bus and scheduler loops respect `shutdown_event`, allowing them to exit promptly during shutdown.
 - WebSocket reconnects treat `CouldNotFindHomeAssistantError` as retryable and properly apply the retry policy, improving cold-start resilience.
 - `Api.call_service` now includes `return_response` in the payload when requested, and `ServiceResponse` correctly models the returned data.
-- `Api.turn_on`, `turn_off`, and `toggle` now annotate correctly that they return `None`.
 
 ### Internal
 - Improved documentation:
@@ -29,7 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved formatting of comparison guides.
   - Fixed some references.
 - Reorganized most of the core code into `resources` and `services`
-- `make_async_adapter` now takes `hassette` as a parameter to get the loop and task bucket
 - Use `contextvars` instead of class variables to track global instance of `Hassette` and `HassetteConfig`
 
 ## [0.11.0] - 2025-10-05
