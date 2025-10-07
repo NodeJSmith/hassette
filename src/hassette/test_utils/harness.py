@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import logging
 import threading
-import tracemalloc
 import typing
 from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
@@ -15,7 +14,7 @@ from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette import HassetteConfig
-from hassette.core.core import Hassette
+from hassette.core import context
 from hassette.core.resources.api import Api
 from hassette.core.resources.base import Resource, _HassetteBase
 from hassette.core.resources.bus.bus import Bus
@@ -35,8 +34,7 @@ from hassette.utils.service_utils import wait_for_ready
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-
-tracemalloc.start()
+    from hassette.core.core import Hassette
 
 
 async def wait_for(
@@ -93,6 +91,9 @@ class _HassetteMock(_HassetteBase):
         self._file_watcher: _FileWatcher | None = None
         self._app_handler: _AppHandler | None = None
         self._websocket: _Websocket | None = None
+
+        self.unique_id = "hassette-mock"
+        self.unique_name = "Hassette Mock Instance"
 
     async def send_event(self, topic: str, event: Event[Any]) -> None:
         if not self._send_stream:
@@ -207,11 +208,17 @@ class HassetteHarness:
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
-    async def __aenter__(self) -> "HassetteHarness":
+    async def __aenter__(self):
         await self.start()
+
         assert self.hassette._loop is not None, "Event loop is not running"
         assert self.hassette._loop.is_running(), "Event loop is not running"
-        return self
+
+        with (
+            context.use(context.HASSETTE_INSTANCE, cast("Hassette", self.hassette)),
+            context.use(context.HASSETTE_CONFIG, self.hassette.config),
+        ):
+            yield self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.stop()
@@ -227,7 +234,6 @@ class HassetteHarness:
             cancellation_timeout=self.config.task_cancellation_timeout_seconds if self.config else 0.5,
         )
         self.hassette._loop.set_task_factory(make_task_factory(self.hassette._global_tasks))
-        Hassette._instance = cast("Hassette", self.hassette)
 
         if self.use_bus:
             await self._start_bus()

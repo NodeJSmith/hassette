@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from hassette.config.core_config import HassetteConfig
+from hassette.core import context
 from hassette.core.core import Hassette
 
 tracemalloc.start()
@@ -112,15 +113,15 @@ def test_config_with_apps(apps_config_file):
             "env_file": [ENV_FILE],
         }
 
-    previous_instance: HassetteConfig | None = getattr(HassetteConfig, "_instance", None)
+    previous_instance = context.HASSETTE_CONFIG.get(None)
     config = AppsTestConfig(run_health_service=False, app_dir=TEST_DATA_PATH)
 
-    HassetteConfig._instance = config
+    context.HASSETTE_CONFIG.set(config)
 
     try:
         yield config
     finally:
-        HassetteConfig._instance = previous_instance or HassetteConfig._instance
+        context.HASSETTE_CONFIG.set(previous_instance or context.HASSETTE_CONFIG.get(None))
 
 
 @pytest.fixture
