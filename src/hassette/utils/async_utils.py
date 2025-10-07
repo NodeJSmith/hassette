@@ -1,10 +1,13 @@
 import asyncio
 import functools
 import inspect
+import typing
 from collections.abc import Awaitable, Callable
 from logging import getLogger
 from typing import ParamSpec, TypeVar, cast, overload
 
+if typing.TYPE_CHECKING:
+    from hassette import Hassette
 LOGGER = getLogger(__name__)
 
 
@@ -27,20 +30,20 @@ def _is_async_callable(fn: Callable[..., object]) -> bool:
 
 
 @overload
-def make_async_adapter(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
+def make_async_adapter(hassette: "Hassette", fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
 @overload
-def make_async_adapter(fn: Callable[P, R]) -> Callable[P, Awaitable[R]]: ...
+def make_async_adapter(hassette: "Hassette", fn: Callable[P, R]) -> Callable[P, Awaitable[R]]: ...
 
 
-def make_async_adapter(fn: Callable[P, R] | Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+def make_async_adapter(
+    hassette: "Hassette", fn: Callable[P, R] | Callable[P, Awaitable[R]]
+) -> Callable[P, Awaitable[R]]:
     """
     Normalize a callable (sync or async) into an async callable with the same signature.
 
     - If `fn` is async: await it.
     - If `fn` is sync: run it in Hassette's thread pool executor.
     """
-
-    from hassette.core.core import Hassette
 
     # Keep original metadata for logging/debugging
     def _wrap(meta_src: Callable[..., object], wrapped: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
@@ -57,14 +60,9 @@ def make_async_adapter(fn: Callable[P, R] | Callable[P, Awaitable[R]]) -> Callab
 
     # sync function path
     async def _sync_fn(*args: P.args, **kwargs: P.kwargs) -> R:
-        inst = Hassette.get_instance()
-        loop = inst._loop
-        if not loop:
-            raise RuntimeError("Event loop is not running")
-
         # run_in_executor can't take kwargs; use partial to bind both.
         bound = functools.partial(cast("Callable[P, R]", fn), *args, **kwargs)
-        fut = loop.run_in_executor(inst._thread_pool, bound)
+        fut = hassette.loop.run_in_executor(hassette._thread_pool, bound)
         try:
             return await fut
         except Exception:
