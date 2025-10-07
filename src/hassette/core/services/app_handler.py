@@ -11,7 +11,8 @@ import anyio
 from deepdiff import DeepDiff
 
 from hassette.config.core_config import HassetteConfig
-from hassette.core.resources import App, AppSync, Resource
+from hassette.core.resources.app.app import App, AppSync
+from hassette.core.resources.base import Resource
 from hassette.core.resources.bus.bus import Bus
 from hassette.enums import ResourceStatus
 from hassette.events.hassette import HassetteEmptyPayload

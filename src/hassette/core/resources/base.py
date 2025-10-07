@@ -14,8 +14,7 @@ from hassette.events import ServiceStatusPayload
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
-
-    from .tasks import TaskBucket
+    from hassette.core.resources.tasks import TaskBucket
 
 
 class _LoggerMixin:
@@ -138,7 +137,7 @@ class Resource(_HassetteBase):
             task_bucket (TaskBucket | None): Optional TaskBucket for managing tasks. If None, a new one is created.
 
         """
-        from .tasks import TaskBucket
+        from hassette.core.resources.tasks import TaskBucket
 
         super().__init__(hassette, unique_name_prefix=unique_name_prefix)
 

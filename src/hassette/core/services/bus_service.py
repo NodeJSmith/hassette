@@ -9,7 +9,7 @@ from typing import Any
 from anyio.streams.memory import MemoryObjectReceiveStream
 from fair_async_rlock import FairAsyncRLock
 
-from hassette.core.resources import Service
+from hassette.core.resources.base import Service
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette

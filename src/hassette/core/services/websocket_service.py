@@ -20,7 +20,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from hassette.core.resources import Service
+from hassette.core.resources.base import Service
 from hassette.events import (
     HassEventEnvelopeDict,
     WebsocketConnectedEventPayload,

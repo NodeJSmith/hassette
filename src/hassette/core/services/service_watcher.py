@@ -1,6 +1,7 @@
 import typing
 
-from hassette.core.resources import Bus, Resource
+from hassette.core.resources.base import Resource
+from hassette.core.resources.bus.bus import Bus
 from hassette.events import HassetteServiceEvent
 
 if typing.TYPE_CHECKING:

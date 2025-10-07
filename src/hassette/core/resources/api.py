@@ -5,19 +5,17 @@ from typing import Any
 import aiohttp
 from whenever import Date, PlainDateTime, SystemDateTime
 
+from hassette.core.resources.base import Resource
 from hassette.events import HassContext
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity, EntityT
 from hassette.models.history import HistoryEntry
 from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, try_convert_state
 
-from .base import Resource
-
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
+    from hassette.core.resources.tasks import TaskBucket
     from hassette.events import HassStateDict
-
-    from .tasks import TaskBucket
 
 
 class Api(Resource):
