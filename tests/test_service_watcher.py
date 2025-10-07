@@ -2,10 +2,10 @@ import asyncio
 
 import pytest
 
-from hassette.core.classes import Service
-from hassette.core.enums import ResourceStatus
-from hassette.core.events import ServiceStatusPayload
-from hassette.core.service_watcher import _ServiceWatcher
+from hassette.core.resources.base import Service
+from hassette.core.services.service_watcher import _ServiceWatcher
+from hassette.enums import ResourceStatus
+from hassette.events import ServiceStatusPayload
 
 
 @pytest.fixture

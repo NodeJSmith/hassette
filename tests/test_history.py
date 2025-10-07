@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from whenever import PlainDateTime
 
-from hassette.core.api import Api
+from hassette.core.resources.api import Api
 from hassette.test_utils.test_server import SimpleTestServer
 
 TEST_DATA_PATH = Path.cwd().joinpath("tests", "data")
@@ -71,7 +71,7 @@ async def test_minimal_history_differs_if_not_normalized(hassette_with_mock_api:
 
     # normalize_history is called automatically, so we mock it make sure
     # it doesn't get called and that the un-normalized history differs
-    with patch("hassette.core.api.normalize_history") as mock_normalize:
+    with patch("hassette.core.services.api_service.normalize_history") as mock_normalize:
         mock_normalize.return_value = lambda x: x
         history_minimal = await api._api_service._get_history_raw(
             entity_id="light.entryway",

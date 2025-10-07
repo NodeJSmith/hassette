@@ -30,12 +30,12 @@ seconds and converted into ``TimeDelta`` instances internally. Cron schedules us
 
 Scheduling helpers
 ------------------
-Each helper returns a :class:`~hassette.core.scheduler.scheduler.ScheduledJob` you can keep to inspect
+Each helper returns a :class:`~hassette.core.resources.scheduler.classes.ScheduledJob` you can keep to inspect
 ``next_run`` or cancel it later.
 
 All helpers accept keyword-only parameters ``args`` and ``kwargs`` that are forwarded to your callable when it runs.
 
-.. currentmodule:: hassette.core.scheduler.scheduler
+.. currentmodule:: hassette.core.resources.scheduler
 
 .. automethod:: Scheduler.run_once
 
@@ -52,7 +52,7 @@ The snippet below demonstrates mixed synchronous/async jobs and custom start tim
 .. code-block:: python
 
    from whenever import TimeDelta
-   from hassette.core.scheduler.triggers import now
+   from hassette.utils.date_utils import now
 
    class MorningRoutine(App):
        async def on_start(self) -> None:

@@ -62,7 +62,7 @@ from .weather import WeatherState
 from .zone import ZoneState
 
 if typing.TYPE_CHECKING:
-    from hassette.core.events import HassStateDict
+    from hassette.events import HassStateDict
 
 # _StateUnion does not include BaseState, which is the fallback type if no specific type matches.
 _StateUnion: typing.TypeAlias = (

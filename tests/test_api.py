@@ -1,7 +1,8 @@
 import inspect
 
-from hassette.core.api import Api, ApiSyncFacade, clean_kwargs
+from hassette.core.resources.api import Api, ApiSyncFacade
 from hassette.test_utils import SimpleTestServer
+from hassette.utils.request_utils import clean_kwargs
 
 
 async def test_api_rest_request_sets_body_and_headers(hassette_with_mock_api: tuple[Api, SimpleTestServer]):

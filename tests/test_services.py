@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from hassette.core.classes import Service
-from hassette.core.enums import ResourceStatus
+from hassette.core.resources.base import Service
+from hassette.enums import ResourceStatus
 
 
 class _HoldService(Service):

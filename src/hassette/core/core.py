@@ -9,20 +9,26 @@ from typing import Any, ClassVar, ParamSpec, TypeVar
 from anyio import create_memory_object_stream
 
 from hassette.config import HassetteConfig
-from hassette.core.classes.base import _LoggerMixin
-from hassette.utils import get_traceback_string, wait_for_ready
+from hassette.enums import ResourceRole
+from hassette.utils.exception_utils import get_traceback_string
+from hassette.utils.service_utils import wait_for_ready
 
-from .api import Api, _ApiService
-from .app_handler import _AppHandler
-from .bus import Bus, _BusService
-from .classes import Resource, Service, TaskBucket, make_task_factory
-from .enums import ResourceRole
-from .events import Event
-from .file_watcher import _FileWatcher
-from .health_service import _HealthService
-from .scheduler import Scheduler, _SchedulerService
-from .service_watcher import _ServiceWatcher
-from .websocket import _Websocket
+from .resources.api import Api
+from .resources.base import Resource, Service, _LoggerMixin
+from .resources.bus.bus import Bus
+from .resources.scheduler.scheduler import Scheduler
+from .resources.tasks import TaskBucket, make_task_factory
+from .services.api_service import _ApiService
+from .services.app_handler import _AppHandler
+from .services.bus_service import _BusService
+from .services.file_watcher import _FileWatcher
+from .services.health_service import _HealthService
+from .services.scheduler_service import _SchedulerService
+from .services.service_watcher import _ServiceWatcher
+from .services.websocket_service import _Websocket
+
+if typing.TYPE_CHECKING:
+    from hassette.events import Event
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -69,7 +75,7 @@ class Hassette(_LoggerMixin):
         self.ready_event: asyncio.Event = asyncio.Event()
         self.shutdown_event: asyncio.Event = asyncio.Event()
 
-        self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, Event]](1000)
+        self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event"]](1000)
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
@@ -139,7 +145,7 @@ class Hassette(_LoggerMixin):
             "Hassette is not initialized in the current context. Use `Hassette.run_forever()` to start it."
         )
 
-    async def send_event(self, event_name: str, event: Event[Any]) -> None:
+    async def send_event(self, event_name: str, event: "Event[Any]") -> None:
         """Send an event to the event bus."""
         await self._send_stream.send((event_name, event))
 

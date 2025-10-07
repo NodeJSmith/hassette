@@ -6,8 +6,8 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr
 from hassette.models.states import StateT
 
 if typing.TYPE_CHECKING:
-    from hassette.core.api import Api
     from hassette.core.core import Hassette
+    from hassette.core.resources import Api
 
 
 class BaseEntity(BaseModel, Generic[StateT]):

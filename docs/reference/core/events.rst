@@ -1,7 +1,7 @@
 Events Reference
 ================
 
-.. automodule:: hassette.core.events
+.. automodule:: hassette.events
    :members:
    :undoc-members:
    :show-inheritance:

@@ -19,7 +19,7 @@ Subscribe to state changes and services using the Bus.
 
 Event model
 -----------
-Every message you receive from the bus is a :class:`~hassette.core.events.Event` dataclass. It has two
+Every message you receive from the bus is a :class:`~hassette.events.Event` dataclass. It has two
 fields:
 
 ``topic``
@@ -38,13 +38,13 @@ fields:
 ``payload``
     A typed wrapper around the event data. Hassette uses two flavours of payloads:
 
-    * **Hass payloads** (:mod:`hassette.core.events.hass`) wrap the dictionaries that Home
+    * **Hass payloads** (:mod:`hassette.events.hass`) wrap the dictionaries that Home
       Assistant sends over the WebSocket. The actual state, service call arguments, and other
       details live under ``event.payload.data``.
-    * **Hassette payloads** (:mod:`hassette.core.events.hassette`) represent framework level events
+    * **Hassette payloads** (:mod:`hassette.events.hassette`) represent framework level events
       such as service lifecycle or websocket status updates. They also expose their contents via
       ``payload.data``, but those values are Hassette dataclasses like
-      :class:`~hassette.core.events.hassette.ServiceStatusPayload`.
+      :class:`~hassette.events.hassette.ServiceStatusPayload`.
 
 Because of this structure you can always look at ``event.topic`` to decide what happened and reach
 for ``event.payload.data`` to access the meaningful content. The payload also carries an
@@ -52,7 +52,7 @@ for ``event.payload.data`` to access the meaningful content. The payload also ca
 
 .. code-block:: python
 
-   from hassette.core.events import StateChangeEvent
+   from hassette.events import StateChangeEvent
 
    async def on_motion(self, event: StateChangeEvent) -> None:
        data = event.payload.data  # type: StateChangePayload
@@ -65,7 +65,7 @@ manually. A few practical tips:
 
 * ``event.payload.data`` is where the event-specific fields live.
     * Home Assistant state change events are a dataclass that holds ``entity_id``, ``old_state``, and ``new_state``. ``old_state`` and ``new_state`` are themselves Pydantic models inheriting from :py:class:`~hassette.models.states.BaseState` that represent the full state object, so you can access attributes like ``value`` (which is the state value) and ``attributes`` in a typed manner.
-    * Other Home Assistant events have their own payload dataclasses, such as :class:`~hassette.core.events.hass.ServiceCallPayload` for service calls.
+    * Other Home Assistant events have their own payload dataclasses, such as :class:`~hassette.events.hass.ServiceCallPayload` for service calls.
 * All Hassette event payloads are dataclasses; you still access them through ``payload.data``.
 * Payload objects are immutable dataclasses, so copy information out if you need to modify it later.
 
@@ -98,7 +98,7 @@ Every subscription helper accepts ``where`` (a predicate or list of predicates),
 
 .. code-block:: python
 
-   from hassette.core.bus import predicates as P
+   from hassette import predicates as P
 
    # Door opened events, but ignore noisy transitions from 'unknown'
    self.bus.on_entity(
