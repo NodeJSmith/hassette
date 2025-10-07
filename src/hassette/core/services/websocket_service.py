@@ -37,7 +37,7 @@ from hassette.exceptions import (
 )
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from hassette import Hassette
 
 LOGGER = getLogger(__name__)
 

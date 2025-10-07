@@ -3,7 +3,7 @@ from pathlib import Path
 
 from watchfiles import awatch
 
-from hassette import Service
+from hassette.core.resources.base import Service
 from hassette.events import FileWatcherEventPayload
 
 if typing.TYPE_CHECKING:

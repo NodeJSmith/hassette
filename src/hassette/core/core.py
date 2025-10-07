@@ -13,6 +13,7 @@ from hassette.enums import ResourceRole
 from hassette.utils.exception_utils import get_traceback_string
 from hassette.utils.service_utils import wait_for_ready
 
+from . import context
 from .resources.api import Api
 from .resources.base import Resource, Service, _LoggerMixin
 from .resources.bus.bus import Bus
@@ -54,8 +55,6 @@ class Hassette(_LoggerMixin):
     shutdown_event: asyncio.Event
     """Event set when the application is starting to shutdown."""
 
-    _instance: ClassVar["Hassette"] = None  # type: ignore
-
     def __init__(self, config: HassetteConfig) -> None:
         """
         Initialize the Hassette instance.
@@ -96,7 +95,8 @@ class Hassette(_LoggerMixin):
         self._scheduler = self._register_resource(Scheduler, self.unique_name)
         self.api = self._register_resource(Api, self.unique_name)
 
-        type(self)._instance = self
+        # set class-level instance for access from other modules without circular imports
+        context.HASSETTE_INSTANCE.set(self)
 
     def _register_resource(self, resource: type[T], *args) -> T:
         """Register a service with the Hassette instance."""
@@ -138,8 +138,9 @@ class Hassette(_LoggerMixin):
     def get_instance(cls) -> "Hassette":
         """Get the current instance of Hassette."""
 
-        if cls._instance is not None:
-            return cls._instance
+        inst = context.HASSETTE_INSTANCE.get(None)
+        if inst is not None:
+            return inst
 
         raise RuntimeError(
             "Hassette is not initialized in the current context. Use `Hassette.run_forever()` to start it."

@@ -20,9 +20,8 @@ from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigErro
 from hassette.topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
 
 if typing.TYPE_CHECKING:
+    from hassette import AppConfig, Hassette
     from hassette.config.app_manifest import AppManifest
-    from hassette.core.core import Hassette
-    from hassette.core.resources import AppConfig
     from hassette.events import HassetteFileWatcherEvent
 
 LOGGER = getLogger(__name__)

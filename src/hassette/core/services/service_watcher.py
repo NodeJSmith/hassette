@@ -5,7 +5,7 @@ from hassette.core.resources.bus.bus import Bus
 from hassette.events import HassetteServiceEvent
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from hassette import Hassette
 
 
 class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]

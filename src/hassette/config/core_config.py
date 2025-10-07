@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
 import platformdirs
 from dotenv import load_dotenv
@@ -15,6 +15,7 @@ from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_valid
 from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 from yarl import URL
 
+from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
 
 from .app_manifest import AppManifest
@@ -75,8 +76,6 @@ def default_app_dir() -> Path:
 
 class HassetteConfig(HassetteBaseSettings):
     """Configuration for Hassette."""
-
-    _instance: ClassVar["HassetteConfig"]
 
     model_config = SettingsConfigDict(
         env_prefix="hassette__",
@@ -409,6 +408,8 @@ class HassetteConfig(HassetteBaseSettings):
         return sources
 
     def model_post_init(self, context: Any):
+        ctx.HASSETTE_CONFIG.set(self)
+
         enable_logging(self.log_level)
 
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -419,19 +420,15 @@ class HassetteConfig(HassetteBaseSettings):
             LOGGER.info("Loading environment variables from %s", env)
             load_dotenv(env)
 
-        type(self)._instance = self
-
     @classmethod
     def get_config(cls) -> "HassetteConfig":
         """Get the global configuration instance."""
-        if hasattr(cls, "_instance") and cls._instance is not None:
-            return cls._instance
 
-        # TODO: figure out why this is necessary in some cases
-        # sometimes the identity of HassetteConfig is different when accessed from different modules
-        from hassette.core.core import Hassette
+        inst = ctx.HASSETTE_CONFIG.get(None)
+        if inst is not None:
+            return inst
 
-        return Hassette.get_instance().config  # will raise RuntimeError if not initialized yet
+        raise RuntimeError("HassetteConfig instance not initialized yet.")
 
 
 def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | None | set[Path]) -> set[Path]:

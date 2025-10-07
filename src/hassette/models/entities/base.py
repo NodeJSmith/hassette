@@ -3,11 +3,11 @@ from typing import Generic
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
+from hassette.core import context
 from hassette.models.states import StateT
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
-    from hassette.core.resources import Api
+    from hassette import Api, Hassette
 
 
 class BaseEntity(BaseModel, Generic[StateT]):
@@ -37,9 +37,11 @@ class BaseEntity(BaseModel, Generic[StateT]):
     @property
     def hassette(self) -> "Hassette":
         """Get the HassAPI instance for this state."""
-        from hassette.core.core import Hassette
+        inst = context.HASSETTE_INSTANCE.get(None)
+        if inst is None:
+            raise RuntimeError("Hassette instance not set in context")
 
-        return Hassette.get_instance()
+        return inst
 
     @property
     def api(self) -> "Api":

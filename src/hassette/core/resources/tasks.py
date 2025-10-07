@@ -12,7 +12,7 @@ from hassette.core.resources.base import _HassetteBase
 from .. import context  # noqa: TID252
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from hassette import Hassette
 
 T = TypeVar("T", covariant=True)
 P = ParamSpec("P")

@@ -5,11 +5,13 @@ from contextvars import ContextVar
 from typing import Any, TypeVar
 
 if typing.TYPE_CHECKING:
-    from .resources.tasks import TaskBucket
+    from hassette import Hassette, HassetteConfig, TaskBucket
 
 T = TypeVar("T")
 
 CURRENT_BUCKET: ContextVar["TaskBucket | None"] = ContextVar("CURRENT_BUCKET", default=None)
+HASSETTE_INSTANCE: ContextVar["Hassette | None"] = ContextVar("HASSETTE_INSTANCE", default=None)
+HASSETTE_CONFIG: ContextVar["HassetteConfig | None"] = ContextVar("HASSETTE_CONFIG", default=None)
 
 
 @contextlib.contextmanager

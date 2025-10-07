@@ -13,8 +13,7 @@ from hassette.enums import ResourceRole, ResourceStatus
 from hassette.events import ServiceStatusPayload
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
-    from hassette.core.resources.tasks import TaskBucket
+    from hassette import Hassette, TaskBucket
 
 
 class _LoggerMixin:

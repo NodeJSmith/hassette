@@ -1,12 +1,15 @@
+import asyncio
+import time
 import typing
-from typing import Any
+from typing import Any, cast
 
 from hassette import topics
 from hassette.core.resources.base import Resource
 from hassette.core.services.bus_service import _BusService
 from hassette.enums import ResourceStatus
+from hassette.events.base import Event
+from hassette.utils.async_utils import make_async_adapter
 
-from .adapters import add_debounce, add_throttle, make_async_handler
 from .listeners import Listener, Subscription
 from .predicates import AllOf, AttrChanged, Changed, ChangedFrom, ChangedTo, EntityIs, Guard
 from .predicates.base import SENTINEL, normalize_where
@@ -14,17 +17,15 @@ from .predicates.base import SENTINEL, normalize_where
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from hassette.core.core import Hassette
-    from hassette.core.resources.tasks import TaskBucket
+    from hassette import Hassette, TaskBucket
     from hassette.events import (
         CallServiceEvent,
         ComponentLoadedEvent,
-        Event,
         HassetteServiceEvent,
         ServiceRegisteredEvent,
         StateChangeEvent,
     )
-    from hassette.types import Handler, Predicate
+    from hassette.types import AsyncHandler, E_contra, Handler, Predicate
 
 
 class Bus(Resource):
@@ -91,12 +92,12 @@ class Bus(Resource):
         orig = handler
 
         # ensure-async
-        handler = make_async_handler(orig)
+        handler = self._make_async_handler(orig)
         # decorate
         if debounce and debounce > 0:
-            handler = add_debounce(handler, debounce, self.task_bucket)
+            handler = self._add_debounce(handler, debounce, self.task_bucket)
         if throttle and throttle > 0:
-            handler = add_throttle(handler, throttle)
+            handler = self._add_throttle(handler, throttle)
 
         listener = Listener(
             owner=self.owner,
@@ -454,3 +455,80 @@ class Bus(Resource):
         """
 
         return self.on_hassette_service_status(status=ResourceStatus.RUNNING, handler=handler, where=where, **opts)
+
+    def _make_async_handler(self, fn: "Handler[E_contra]") -> "AsyncHandler[E_contra]":
+        """Wrap a function to ensure it is always called as an async handler.
+
+        If the function is already an async function, it will be called directly.
+        If it is a regular function, it will be run in an executor to avoid blocking the event loop.
+
+        Args:
+            fn (Callable[..., Any]): The function to adapt.
+
+        Returns:
+            AsyncHandler: An async handler that wraps the original function.
+        """
+        return cast("AsyncHandler[E_contra]", make_async_adapter(self.hassette, fn))
+
+    def _add_debounce(
+        self, handler: "AsyncHandler[Event[Any]]", seconds: float, task_bucket: "TaskBucket"
+    ) -> "AsyncHandler[Event[Any]]":
+        """Add a debounce to an async handler.
+
+        This will ensure that the handler is only called after a specified period of inactivity.
+        If a new event comes in before the debounce period has passed, the previous call is cancelled.
+
+        Args:
+            handler (AsyncHandler): The async handler to debounce.
+            seconds (float): The debounce period in seconds.
+
+        Returns:
+            AsyncHandler: A new async handler that applies the debounce logic.
+        """
+        pending: asyncio.Task | None = None
+        last_ev: Event[Any] | None = None
+
+        async def _debounced(event: Event[Any]) -> None:
+            nonlocal pending, last_ev
+            last_ev = event
+            if pending and not pending.done():
+                pending.cancel()
+
+            async def _later():
+                try:
+                    await asyncio.sleep(seconds)
+                    if last_ev is not None:
+                        await handler(last_ev)
+                except asyncio.CancelledError:
+                    pass
+
+            pending = task_bucket.spawn(_later(), name="adapters:debounce_handler")
+
+        return _debounced
+
+    def _add_throttle(self, handler: "AsyncHandler[Event[Any]]", seconds: float) -> "AsyncHandler[Event[Any]]":
+        """Add a throttle to an async handler.
+
+        This will ensure that the handler is only called at most once every specified period of time.
+        If a new event comes in before the throttle period has passed, it will be ignored.
+
+        Args:
+            handler (AsyncHandler): The async handler to throttle.
+            seconds (float): The throttle period in seconds.
+
+        Returns:
+            AsyncHandler: A new async handler that applies the throttle logic.
+        """
+
+        last_time = 0.0
+        lock = asyncio.Lock()
+
+        async def _throttled(event: Event[Any]) -> None:
+            nonlocal last_time
+            async with lock:
+                now = time.monotonic()
+                if now - last_time >= seconds:
+                    last_time = now
+                    await handler(event)
+
+        return _throttled

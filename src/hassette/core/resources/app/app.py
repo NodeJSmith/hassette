@@ -11,13 +11,13 @@ from hassette.core.resources.base import Resource
 from hassette.core.resources.bus.bus import Bus
 from hassette.core.resources.scheduler.scheduler import Scheduler
 from hassette.enums import ResourceRole
-from hassette.events import Event
+from hassette.events.base import Event
 
 from .app_config import AppConfig, AppConfigT
 from .utils import validate_app
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from hassette import Hassette
 
 
 LOGGER = getLogger(__name__)

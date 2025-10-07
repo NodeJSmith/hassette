@@ -2,8 +2,7 @@ import asyncio
 from argparse import ArgumentParser
 from logging import getLogger
 
-from hassette.config import HassetteConfig
-from hassette.core.core import Hassette
+from hassette import Hassette, HassetteConfig
 
 name = "hassette.hass_main" if __name__ == "__main__" else __name__
 

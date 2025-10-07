@@ -112,15 +112,9 @@ def test_config_with_apps(apps_config_file):
             "env_file": [ENV_FILE],
         }
 
-    previous_instance: HassetteConfig | None = getattr(HassetteConfig, "_instance", None)
     config = AppsTestConfig(run_health_service=False, app_dir=TEST_DATA_PATH)
 
-    HassetteConfig._instance = config
-
-    try:
-        yield config
-    finally:
-        HassetteConfig._instance = previous_instance or HassetteConfig._instance
+    return config
 
 
 @pytest.fixture
