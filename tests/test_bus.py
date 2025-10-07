@@ -1,3 +1,5 @@
+# pyright: reportInvalidTypeArguments=none, reportArgumentType=none
+
 import asyncio
 from types import SimpleNamespace
 
