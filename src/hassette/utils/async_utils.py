@@ -1,13 +1,12 @@
 import asyncio
 import functools
 import inspect
-import typing
 from collections.abc import Awaitable, Callable
 from logging import getLogger
 from typing import ParamSpec, TypeVar, cast, overload
 
-if typing.TYPE_CHECKING:
-    from hassette import Hassette
+from hassette.core import context
+
 LOGGER = getLogger(__name__)
 
 
@@ -30,14 +29,12 @@ def _is_async_callable(fn: Callable[..., object]) -> bool:
 
 
 @overload
-def make_async_adapter(hassette: "Hassette", fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
+def make_async_adapter(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
 @overload
-def make_async_adapter(hassette: "Hassette", fn: Callable[P, R]) -> Callable[P, Awaitable[R]]: ...
+def make_async_adapter(fn: Callable[P, R]) -> Callable[P, Awaitable[R]]: ...
 
 
-def make_async_adapter(
-    hassette: "Hassette", fn: Callable[P, R] | Callable[P, Awaitable[R]]
-) -> Callable[P, Awaitable[R]]:
+def make_async_adapter(fn: Callable[P, R] | Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
     """
     Normalize a callable (sync or async) into an async callable with the same signature.
 
@@ -62,6 +59,9 @@ def make_async_adapter(
     async def _sync_fn(*args: P.args, **kwargs: P.kwargs) -> R:
         # run_in_executor can't take kwargs; use partial to bind both.
         bound = functools.partial(cast("Callable[P, R]", fn), *args, **kwargs)
+        hassette = context.HASSETTE_INSTANCE.get()
+        if hassette is None:
+            raise RuntimeError("No active Hassette instance in context; cannot run sync function")
         fut = hassette.loop.run_in_executor(hassette._thread_pool, bound)
         try:
             return await fut

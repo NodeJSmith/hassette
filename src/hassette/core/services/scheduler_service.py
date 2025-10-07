@@ -195,7 +195,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
 
         try:
             self.logger.debug("Running job %s at %s", job, now())
-            async_func = make_async_adapter(self.hassette, func)
+            async_func = make_async_adapter(func)
             await async_func(*job.args, **job.kwargs)
         except asyncio.CancelledError:
             self.logger.debug("Execution cancelled for job %s", job)

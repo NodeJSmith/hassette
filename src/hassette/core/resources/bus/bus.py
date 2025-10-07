@@ -468,7 +468,7 @@ class Bus(Resource):
         Returns:
             AsyncHandler: An async handler that wraps the original function.
         """
-        return cast("AsyncHandler[E_contra]", make_async_adapter(self.hassette, fn))
+        return cast("AsyncHandler[E_contra]", make_async_adapter(fn))
 
     def _add_debounce(
         self, handler: "AsyncHandler[Event[Any]]", seconds: float, task_bucket: "TaskBucket"
