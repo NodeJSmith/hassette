@@ -66,7 +66,7 @@ Pyscript
 Hassette
     - Apps subclass :class:`hassette.App[AppConfigT]` (async) or :class:`hassette.AppSync` (sync bridge).
     - ``initialize`` is ``async`` and should call ``await super().initialize()`` after custom initialization. Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables.
-    - Each app ships with a :class:`hassette.core.resources.app.app_config.AppConfig` subclass, so Hassette validates input before instantiating the app and you access ``self.app_config`` with IDE/autocomplete support.
+    - Each app ships with a :class:`hassette.AppConfig` subclass, so Hassette validates input before instantiating the app and you access ``self.app_config`` with IDE/autocomplete support.
     - Environment variables (via Pydantic) are first-class. Multiple instances use TOML list-of-tables, which still map to strongly typed models.
 
 
