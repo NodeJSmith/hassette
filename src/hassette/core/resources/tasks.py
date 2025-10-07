@@ -1,11 +1,10 @@
 import asyncio
-import logging
 import threading
 import typing
 import weakref
 from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, TimeoutError
-from typing import Any, ClassVar, ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 from hassette.core.resources.base import _HassetteBase
 
@@ -37,13 +36,15 @@ class TaskBucket(_HassetteBase):
             hassette (Hassette): The Hassette instance this bucket is associated with.
             name (str): Name of the bucket, used for logging.
             cancellation_timeout (int | float | None): Timeout for task cancellation. If None, uses default from config.
-            prefix (str | None): Optional prefix for task names, if provided name is not namespaced.
+            prefix (str | None): Optional prefix for task names, if provided task name is not namespaced.
         """
 
-        super().__init__(hassette)
+        super().__init__(hassette, unique_name_prefix=f"{name}.bucket")
 
         self.name = name
         self.prefix = prefix
+        self.set_logger_to_level(self.hassette.config.task_bucket_log_level)
+
         # if we didn't get passed a value, use the config default
         if not cancellation_timeout:
             config_inst = context.HASSETTE_CONFIG.get(None)
@@ -68,7 +69,7 @@ class TaskBucket(_HassetteBase):
             except Exception:
                 return
             if exc:
-                self.logger.error("[%s] task %s crashed", self.name, t.get_name(), exc_info=exc)
+                self.logger.error("[%s] task %s crashed", self.unique_name, t.get_name(), exc_info=exc)
 
         task.add_done_callback(lambda t: self._tasks.discard(t))
         task.add_done_callback(_done)
