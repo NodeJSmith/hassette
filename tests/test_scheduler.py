@@ -3,13 +3,14 @@ from zoneinfo import ZoneInfo
 
 from whenever import SystemDateTime
 
-from hassette.core.resources.scheduler.scheduler import ScheduledJob, Scheduler
+from hassette import Hassette
+from hassette.core.resources.scheduler.scheduler import ScheduledJob
 from hassette.utils.date_utils import now
 
 TZ = ZoneInfo("America/Chicago")
 
 
-async def test_run_in_passes_args_kwargs_async(hassette_scheduler: Scheduler) -> None:
+async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: Hassette) -> None:
     called = asyncio.Event()
     received: list[tuple[int, int, bool]] = []
 
@@ -17,7 +18,7 @@ async def test_run_in_passes_args_kwargs_async(hassette_scheduler: Scheduler) ->
         received.append((a, b, flag))
         called.set()
 
-    job = hassette_scheduler.run_in(target, delay=0.01, args=(1, 2), kwargs={"flag": True})
+    job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01, args=(1, 2), kwargs={"flag": True})
 
     await asyncio.wait_for(called.wait(), timeout=1)
     job.cancel()
@@ -25,7 +26,7 @@ async def test_run_in_passes_args_kwargs_async(hassette_scheduler: Scheduler) ->
     assert received == [(1, 2, True)], f"Expected [(1, 2, True)], got {received}"
 
 
-async def test_run_in_passes_args_kwargs_sync(hassette_scheduler: Scheduler) -> None:
+async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: Hassette) -> None:
     loop = asyncio.get_running_loop()
     called = asyncio.Event()
     received: list[tuple[str, int]] = []
@@ -34,7 +35,7 @@ async def test_run_in_passes_args_kwargs_sync(hassette_scheduler: Scheduler) -> 
         received.append((name, count))
         loop.call_soon_threadsafe(called.set)
 
-    job = hassette_scheduler.run_in(target, delay=0.01, args=("sensor",), kwargs={"count": 3})
+    job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01, args=("sensor",), kwargs={"count": 3})
 
     await asyncio.wait_for(called.wait(), timeout=1)
     job.cancel()
@@ -61,7 +62,7 @@ def test_scheduled_job_copies_args_kwargs() -> None:
     assert job.kwargs == {"alpha": 99}, f"Expected {{'alpha': 99}}, got {job.kwargs}"
 
 
-async def test_jobs_execute_in_run_order(hassette_scheduler: Scheduler) -> None:
+async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> None:
     order: list[str] = []
     early_done = asyncio.Event()
     late_done = asyncio.Event()
@@ -74,8 +75,8 @@ async def test_jobs_execute_in_run_order(hassette_scheduler: Scheduler) -> None:
         return _job
 
     reference = now()
-    hassette_scheduler.run_once(make_job("late", late_done), run_at=reference.add(seconds=0.4))
-    hassette_scheduler.run_once(make_job("early", early_done), run_at=reference.add(seconds=0.1))
+    hassette_with_scheduler._scheduler.run_once(make_job("late", late_done), run_at=reference.add(seconds=0.4))
+    hassette_with_scheduler._scheduler.run_once(make_job("early", early_done), run_at=reference.add(seconds=0.1))
 
     await asyncio.wait_for(early_done.wait(), timeout=2)
     await asyncio.wait_for(late_done.wait(), timeout=2)

@@ -6,11 +6,11 @@ However, if you find them useful, knock yourself out.
 
 from .fixtures import (
     hassette_harness,
-    hassette_scheduler,
     hassette_with_app_handler,
     hassette_with_bus,
     hassette_with_file_watcher,
     hassette_with_mock_api,
+    hassette_with_scheduler,
 )
 from .harness import HassetteHarness
 from .test_server import SimpleTestServer
@@ -19,11 +19,11 @@ __all__ = [
     "HassetteHarness",
     "SimpleTestServer",
     "hassette_harness",
-    "hassette_scheduler",
     "hassette_with_app_handler",
     "hassette_with_bus",
     "hassette_with_file_watcher",
     "hassette_with_mock_api",
+    "hassette_with_scheduler",
 ]
 
 # TODO: clean these up and make them user facing

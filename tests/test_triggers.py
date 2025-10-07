@@ -6,7 +6,8 @@ from zoneinfo import ZoneInfo
 import pytest
 from whenever import SystemDateTime, TimeDelta
 
-from hassette.core.resources.scheduler.scheduler import CronTrigger, IntervalTrigger, Scheduler
+from hassette import Hassette
+from hassette.core.resources.scheduler.scheduler import CronTrigger, IntervalTrigger
 
 TZ = ZoneInfo("America/Chicago")
 
@@ -31,14 +32,16 @@ async def test_cron_trigger_catchup() -> None:
         assert nxt.format_common_iso() == "2025-08-18T00:01:40-05:00", f"Got {nxt.format_common_iso()}"
 
 
-async def test_run_cron_rejects_invalid(hassette_scheduler: Scheduler) -> None:
+async def test_run_cron_rejects_invalid(hassette_with_scheduler: Hassette) -> None:
     with pytest.raises(ValueError, match="Invalid cron expression"):
-        hassette_scheduler.run_cron(lambda: None, second="nope")
+        hassette_with_scheduler._scheduler.run_cron(lambda: None, second="nope")
 
 
-async def test_run_cron_accepts_valid(hassette_scheduler: Scheduler) -> None:
+async def test_run_cron_accepts_valid(hassette_with_scheduler: Hassette) -> None:
     # “every 5 seconds” (fields: sec min hour dom mon dow year)
-    job = hassette_scheduler.run_cron(lambda: None, second="1", start=SystemDateTime(2025, 8, 18, 0, 0, 0))
+    job = hassette_with_scheduler._scheduler.run_cron(
+        lambda: None, second="1", start=SystemDateTime(2025, 8, 18, 0, 0, 0)
+    )
     await asyncio.sleep(0)  # allow scheduling to complete
     job.cancel()
 

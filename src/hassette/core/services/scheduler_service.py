@@ -157,15 +157,19 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
             self.logger.debug("Job %s is cancelled, skipping dispatch", job)
             return
 
+        job_task_name = f"{job.name or job.job_id}"
+        run_task_name = f"scheduler:dispatch_job:{job_task_name}"
+        reschedule_task_name = f"scheduler:reschedule_job:{job_task_name}"
+
         self.logger.debug("Dispatching job: %s", job)
         try:
-            await self.run_job(job)
+            self.task_bucket.spawn(self.run_job(job), name=run_task_name)
         except asyncio.CancelledError:
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
 
         try:
-            await self.reschedule_job(job)
+            self.task_bucket.spawn(self.reschedule_job(job), name=reschedule_task_name)
         except asyncio.CancelledError:
             self.logger.debug("Reschedule cancelled for job %s", job)
             raise
@@ -188,14 +192,12 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
         run_at_delta = job.next_run - now()
         if run_at_delta.in_seconds() < -1:
             self.logger.warning(
-                "Job %s is behind schedule by %s seconds, running now.",
-                job,
-                abs(run_at_delta.in_seconds()),
+                "Job %s is behind schedule by %s seconds, running now.", job, abs(run_at_delta.in_seconds())
             )
 
         try:
             self.logger.debug("Running job %s at %s", job, now())
-            async_func = make_async_adapter(self.hassette, func)
+            async_func = make_async_adapter(func)
             await async_func(*job.args, **job.kwargs)
         except asyncio.CancelledError:
             self.logger.debug("Execution cancelled for job %s", job)
