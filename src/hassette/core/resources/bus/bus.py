@@ -51,17 +51,17 @@ class Bus(Resource):
     def bus_service(self) -> _BusService:
         return self.hassette._bus_service
 
-    def add_listener(self, listener: "Listener") -> None:
+    def add_listener(self, listener: "Listener") -> asyncio.Task:
         """Add a listener to the bus."""
-        self.bus_service.add_listener(listener)
+        return self.bus_service.add_listener(listener)
 
-    def remove_listener(self, listener: "Listener") -> None:
+    def remove_listener(self, listener: "Listener") -> asyncio.Task:
         """Remove a listener from the bus."""
-        self.bus_service.remove_listener(listener)
+        return self.bus_service.remove_listener(listener)
 
-    def remove_all_listeners(self) -> None:
+    def remove_all_listeners(self) -> asyncio.Task:
         """Remove all listeners owned by this bus's owner."""
-        self.bus_service.remove_listeners_by_owner(self.owner)
+        return self.bus_service.remove_listeners_by_owner(self.owner)
 
     def on(
         self,

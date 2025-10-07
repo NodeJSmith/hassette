@@ -6,9 +6,11 @@ from collections import defaultdict
 from copy import deepcopy
 from logging import getLogger
 from pathlib import Path
+from timeit import default_timer as timer
 
 import anyio
 from deepdiff import DeepDiff
+from humanize import precisedelta
 
 from hassette.config.core_config import HassetteConfig
 from hassette.core.resources.app.app import App, AppSync
@@ -392,12 +394,19 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
         for inst in instances.values():
             try:
+                start_time = timer()
                 with anyio.fail_after(FAIL_AFTER_SECONDS):
                     await inst.shutdown()
-                    inst.cleanup_resources()
-                self.logger.info("Stopped app '%s'", inst.app_config.instance_name)
+                    await inst.wait_for_resource_cleanup()
+
+                end_time = timer()
+                friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")
+                self.logger.info("Stopped app '%s' in %s", inst.app_config.instance_name, friendly_time)
+
             except Exception:
-                self.logger.exception("Failed to stop app '%s'", inst.app_config.instance_name)
+                self.logger.exception(
+                    "Failed to stop app '%s' after %s seconds", inst.app_config.instance_name, FAIL_AFTER_SECONDS
+                )
 
     async def _handle_new_apps(self, apps: set[str]) -> None:
         """Start any apps that are in config but not currently running."""

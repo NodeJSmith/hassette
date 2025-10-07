@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import typing
+from collections.abc import Coroutine
 from logging import getLogger
 from typing import Any, ClassVar, Generic
 
@@ -94,6 +96,7 @@ class App(Generic[AppConfigT], Resource):
 
         """
         super().__init__(hassette=hassette, unique_name_prefix=f"{self.class_name}.{app_config.instance_name}")
+        self.set_logger_to_level(self.hassette.config.apps_log_level)
 
         self.app_config = app_config
         self.index = index
@@ -126,14 +129,30 @@ class App(Generic[AppConfigT], Resource):
         """
         await super().shutdown()
 
-    def cleanup_resources(self) -> None:
+    def cleanup_resources(self) -> list[asyncio.Task | Coroutine]:
         """Cleanup resources owned by the app.
 
         This method is called during shutdown to ensure that all resources are properly released.
         """
-        self.scheduler.remove_all_jobs()
-        self.bus.remove_all_listeners()
-        self.logger.debug("Cleaned up resources for app '%s'", self.class_name)
+        sched_task = self.scheduler.remove_all_jobs()
+        bus_task = self.bus.remove_all_listeners()
+        bucket_task = self.task_bucket.cancel_all()
+        self.logger.debug("Triggered resource cleanup for app '%s'", self.class_name)
+        return [sched_task, bus_task, bucket_task]
+
+    async def wait_for_resource_cleanup(self, timeout: int | float = 10) -> None:
+        """Wait for all resources owned by the app to be cleaned up.
+
+        Args:
+            timeout (int | float): Maximum time to wait for cleanup, in seconds.
+        """
+        tasks = self.cleanup_resources()
+        if tasks:
+            results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
+            for result in results:
+                if isinstance(result, Exception):
+                    self.logger.error("Error during resource cleanup for app '%s': %s", self.class_name, result)
+        self.logger.info("All resources cleaned up for app '%s'", self.class_name)
 
 
 class AppSync(App[AppConfigT]):

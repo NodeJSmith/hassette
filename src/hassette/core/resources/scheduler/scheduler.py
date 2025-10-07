@@ -1,3 +1,4 @@
+import asyncio
 import typing
 from collections.abc import Mapping
 from typing import Any
@@ -60,18 +61,18 @@ class Scheduler(Resource):
 
         return job
 
-    def remove_job(self, job: "ScheduledJob") -> None:
+    def remove_job(self, job: "ScheduledJob") -> asyncio.Task:
         """Remove a job from the scheduler.
 
         Args:
             job (ScheduledJob): The job to remove.
         """
 
-        self.scheduler_service.remove_job(job)
+        return self.scheduler_service.remove_job(job)
 
-    def remove_all_jobs(self) -> None:
+    def remove_all_jobs(self) -> asyncio.Task:
         """Remove all jobs for the owner of this scheduler."""
-        self.scheduler_service.remove_jobs_by_owner(self.owner)
+        return self.scheduler_service.remove_jobs_by_owner(self.owner)
 
     def schedule(
         self,
