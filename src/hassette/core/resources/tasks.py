@@ -24,9 +24,6 @@ CoroLikeT = Coroutine[Any, Any, T]
 class TaskBucket(_HassetteBase):
     """Track and clean up a set of tasks for a service/app."""
 
-    default_task_cancellation_timeout: ClassVar[int | float] = 5
-    """Default timeout for task cancellation, if not specified in constructor. Will be set by Hassette."""
-
     def __init__(
         self,
         hassette: "Hassette",
@@ -47,12 +44,20 @@ class TaskBucket(_HassetteBase):
 
         self.name = name
         self.prefix = prefix
-        self.logger = logging.getLogger(__name__ + f".{name}")
-        self.cancel_timeout = cancellation_timeout or type(self).default_task_cancellation_timeout
+        # if we didn't get passed a value, use the config default
+        if not cancellation_timeout:
+            config_inst = context.HASSETTE_CONFIG.get(None)
+            if not config_inst:
+                raise RuntimeError("TaskBucket created outside of Hassette context")
+            cancellation_timeout = config_inst.task_cancellation_timeout_seconds
+
+        self.cancel_timeout = cancellation_timeout
         self._tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
 
     def add(self, task: asyncio.Task[Any]) -> None:
         """Add a task to the bucket and attach exception logging."""
+        self.logger.debug("Adding task %s to bucket %s", task.get_name(), self.unique_name)
+
         self._tasks.add(task)
 
         def _done(t: asyncio.Task[Any]) -> None:
