@@ -286,7 +286,7 @@ class Api(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            HassContext: The response context from Home Assistant.
+            None
         """
         self.logger.debug("Toggling entity %s", entity_id)
         return await self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
