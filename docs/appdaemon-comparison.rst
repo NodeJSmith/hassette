@@ -144,7 +144,7 @@ Hassette
     - ``get_state`` and ``get_states`` coerce responses into Pydantic models (``states.LightState`` etc.)
         -  ``get_state_raw`` mirrors AppDaemon's dict return.
     - ``get_entity`` begins a push toward entity classes, though today only ``BaseEntity`` and ``LightEntity`` ship.
-    - ``call_service`` and ``turn_on``/``turn_off`` return the ``HassContext`` when available, which helps with debugging.
+    - ``turn_on`` and ``turn_off`` now return ``None``. ``call_service`` returns a ``ServiceResponse`` when ``return_response=True``.
     - Low-level ``rest_request`` and ``ws_send_and_wait`` expose the underlying ``aiohttp`` session if you need endpoints Hassette has not wrapped yet.
     - For synchronous apps, ``self.api.sync`` mirrors the async API.
 
