@@ -6,7 +6,7 @@ from hassette.core.resources.base import Service
 from hassette.enums import ResourceStatus
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from hassette import Hassette
 
 _T = typing.TypeVar("_T")
 

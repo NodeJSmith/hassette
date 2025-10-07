@@ -22,7 +22,7 @@ from hassette.models.history import normalize_history
 from hassette.utils.request_utils import clean_kwargs, orjson_dump
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from hassette import Hassette
 
     from .websocket_service import _Websocket
 

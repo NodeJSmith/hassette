@@ -13,7 +13,7 @@ from hassette.utils.async_utils import make_async_adapter
 from hassette.utils.date_utils import now
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
+    from hassette import Hassette
     from hassette.core.resources.scheduler.classes import ScheduledJob
 
 
@@ -195,7 +195,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
 
         try:
             self.logger.debug("Running job %s at %s", job, now())
-            async_func = make_async_adapter(func)
+            async_func = make_async_adapter(self.hassette, func)
             await async_func(*job.args, **job.kwargs)
         except asyncio.CancelledError:
             self.logger.debug("Execution cancelled for job %s", job)

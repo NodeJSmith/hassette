@@ -12,8 +12,7 @@ from fair_async_rlock import FairAsyncRLock
 from hassette.core.resources.base import Service
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
-    from hassette.core.resources import Listener
+    from hassette import Hassette, Listener
     from hassette.events import Event
 
 

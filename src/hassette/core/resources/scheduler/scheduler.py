@@ -10,8 +10,7 @@ from hassette.core.services.scheduler_service import _SchedulerService
 from hassette.utils.date_utils import now
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
-    from hassette.core.resources.tasks import TaskBucket
+    from hassette import Hassette, TaskBucket
     from hassette.types import JobCallable, TriggerProtocol
 
 

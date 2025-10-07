@@ -8,9 +8,7 @@ from .harness import HassetteHarness
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
-    from hassette.config.core_config import HassetteConfig
-    from hassette.core.core import Hassette
-    from hassette.core.resources import Api, Scheduler
+    from hassette import Api, Hassette, HassetteConfig, Scheduler
     from hassette.test_utils.test_server import SimpleTestServer
 
 

@@ -5,7 +5,7 @@ from typing import Any
 from .base import SENTINEL
 
 if typing.TYPE_CHECKING:
-    from hassette.events import StateChangeEvent
+    from hassette import StateChangeEvent
 
 
 @dataclass(frozen=True)
