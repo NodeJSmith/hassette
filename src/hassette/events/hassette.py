@@ -1,10 +1,9 @@
-import itertools
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from hassette.enums import ResourceRole, ResourceStatus
-from hassette.events import Event
+from hassette.events.base import Event, HassettePayload, HassetteT
 from hassette.topics import (
     HASSETTE_EVENT_FILE_WATCHER,
     HASSETTE_EVENT_SERVICE_STATUS,
@@ -12,26 +11,9 @@ from hassette.topics import (
 )
 from hassette.utils.exception_utils import get_traceback_string
 
-HassetteT = TypeVar("HassetteT", covariant=True)
-
-seq = itertools.count(1)
-
-
-def next_id() -> int:
-    return next(seq)
-
 
 def _wrap_hassette_event(*, topic: str, payload: HassetteT, event_type: str) -> "Event[HassettePayload[HassetteT]]":
     return Event(topic=topic, payload=HassettePayload(event_type=event_type, data=payload))
-
-
-@dataclass(slots=True, frozen=True)
-class HassettePayload(Generic[HassetteT]):
-    """Base class for Hassette event payloads."""
-
-    event_type: str
-    event_id: int = field(default_factory=next_id, init=False)
-    data: HassetteT
 
 
 @dataclass(slots=True, frozen=True)

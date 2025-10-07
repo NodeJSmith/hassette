@@ -1,63 +1,12 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Generic, Literal, Self, TypeAlias, TypeVar
-
-from whenever import SystemDateTime
+from typing import Any, Generic, Self, TypeAlias
 
 from hassette import topics
-from hassette.events import Event
+from hassette.events.base import MISSING_VALUE, Event, HassPayload
 from hassette.models.states import StateT, try_convert_state
-from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
 from .raw import HassEventEnvelopeDict, HassStateDict
-
-HassT = TypeVar("HassT", covariant=True)
-MISSING_VALUE = object()  # Used to indicate a missing value in states
-
-
-@dataclass(slots=True, frozen=True)
-class HassContext:
-    """Structure for the context of a state change event."""
-
-    id: str
-    parent_id: str | None
-    user_id: str | None
-
-
-@dataclass(slots=True, frozen=True)
-class HassPayload(Generic[HassT]):
-    """Base class for Home Assistant event payloads."""
-
-    event_type: str
-    data: HassT
-    origin: Literal["LOCAL", "REMOTE"]
-    time_fired: SystemDateTime
-    context: HassContext
-
-    def __post_init__(self):
-        if isinstance(self.time_fired, str):
-            object.__setattr__(self, "time_fired", convert_datetime_str_to_system_tz(self.time_fired))
-
-    @property
-    def entity_id(self) -> str | None:
-        """Return the entity ID if present in the data."""
-        return getattr(self.data, "entity_id", None)
-
-    @property
-    def domain(self) -> str | None:
-        """Return the domain if present in the data."""
-        if hasattr(self.data, "domain"):
-            return getattr(self.data, "domain", None)
-
-        entity_id = self.entity_id
-        if entity_id:
-            return entity_id.split(".")[0]
-        return None
-
-    @property
-    def service(self) -> str | None:
-        """Return the service if present in the data."""
-        return getattr(self.data, "service", None)
 
 
 @dataclass(slots=True, frozen=True)
