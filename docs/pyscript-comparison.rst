@@ -156,7 +156,7 @@ Pyscript
 
 Hassette
     - ``self.api`` wraps REST/WebSocket calls with Pydantic models.
-    - ``get_state``/``get_states`` convert to ``states.*`` classes, ``get_entity`` begins a roadmap toward entity helpers, and ``call_service`` optionally returns ``HassContext``.
+    - ``get_state``/``get_states`` convert to ``states.*`` classes, ``get_entity`` begins a roadmap toward entity helpers, and ``call_service`` optionally returns ``ServiceResponse``.
     - Typed vs raw methods coexist (``get_state_raw``).
     - Custom endpoints remain reachable via ``rest_request``/``ws_send_and_wait``.
     - There is no decorator-based service registration yet; exposing functions requires listening for custom events or building a dedicated app.
