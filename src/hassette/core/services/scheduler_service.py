@@ -251,7 +251,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
         self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
 
 
-class _ScheduledJobQueue(Resource):  # pyright: ignore[reportUnusedClass]
+class _ScheduledJobQueue(Resource):
     """Encapsulates the scheduler heap with fair locking semantics."""
 
     def __init__(self, hassette: "Hassette"):

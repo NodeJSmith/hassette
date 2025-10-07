@@ -1,7 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
-from hassette.core.resources import Bus
+from hassette.core.resources.bus.bus import Bus
 from hassette.events.base import Event
 
 

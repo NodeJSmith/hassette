@@ -4,7 +4,7 @@ from copy import deepcopy
 from unittest.mock import patch
 
 from hassette.core.core import Hassette
-from hassette.core.resources import Listener
+from hassette.core.resources.bus.listeners import Listener
 from hassette.core.services.app_handler import load_app_class
 from hassette.topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED
 

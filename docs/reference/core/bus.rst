@@ -1,7 +1,7 @@
 Bus Reference
 =============
 
-.. automodule:: hassette.core.resources.bus
+.. automodule:: hassette.core.resources.bus.bus
    :members:
    :undoc-members:
    :show-inheritance:
@@ -10,3 +10,4 @@ Bus Reference
    :maxdepth: 1
 
    Predicates <bus/predicates>
+   Listeners <bus/listeners>

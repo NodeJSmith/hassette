@@ -98,7 +98,7 @@ Every subscription helper accepts ``where`` (a predicate or list of predicates),
 
 .. code-block:: python
 
-   from hassette.core.bus import predicates as P
+   from hassette import predicates as P
 
    # Door opened events, but ignore noisy transitions from 'unknown'
    self.bus.on_entity(

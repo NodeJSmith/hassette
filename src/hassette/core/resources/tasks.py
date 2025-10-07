@@ -7,8 +7,9 @@ from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, TimeoutError
 from typing import Any, ClassVar, ParamSpec, TypeVar
 
-from hassette.core import context
 from hassette.core.resources.base import _HassetteBase
+
+from .. import context  # noqa: TID252
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette

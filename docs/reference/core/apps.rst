@@ -1,7 +1,7 @@
 Apps Reference
 ==============
 
-.. automodule:: hassette.core.resources.apps
+.. automodule:: hassette.core.resources.apps.app
    :members:
    :undoc-members:
    :show-inheritance:

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from whenever import SystemDateTime, TimeDelta
 
-from hassette.core.resources import CronTrigger, IntervalTrigger, Scheduler
+from hassette.core.resources.scheduler.scheduler import CronTrigger, IntervalTrigger, Scheduler
 
 TZ = ZoneInfo("America/Chicago")
 

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from hassette.core.resources import Service
+from hassette.core.resources.base import Service
 from hassette.enums import ResourceStatus
 
 

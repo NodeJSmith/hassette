@@ -6,7 +6,10 @@ from typing import Any, ClassVar, Generic
 from anyio import to_thread
 
 from hassette.config.app_manifest import AppManifest
+from hassette.core.resources.api import Api
 from hassette.core.resources.base import Resource
+from hassette.core.resources.bus.bus import Bus
+from hassette.core.resources.scheduler.scheduler import Scheduler
 from hassette.enums import ResourceRole
 from hassette.events import Event
 
@@ -15,7 +18,7 @@ from .utils import validate_app
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette
-    from hassette.core.resources import Api, Bus, Scheduler
+
 
 LOGGER = getLogger(__name__)
 
@@ -90,8 +93,6 @@ class App(Generic[AppConfigT], Resource):
             index (int): Index of the app instance, used when multiple instances of the same app are run.
 
         """
-        from hassette.core import Api, Bus, Scheduler
-
         super().__init__(hassette=hassette, unique_name_prefix=f"{self.class_name}.{app_config.instance_name}")
 
         self.app_config = app_config

@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 from whenever import SystemDateTime
 
-from hassette.core.resources import ScheduledJob, Scheduler
+from hassette.core.resources.scheduler.scheduler import ScheduledJob, Scheduler
 from hassette.utils.date_utils import now
 
 TZ = ZoneInfo("America/Chicago")
