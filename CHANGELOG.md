@@ -20,9 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Event bus and scheduler loops respect `shutdown_event`, allowing them to exit promptly during shutdown.
 - WebSocket reconnects treat `CouldNotFindHomeAssistantError` as retryable and properly apply the retry policy, improving cold-start resilience.
+- `Api.call_service` now includes `return_response` in the payload when requested, and `ServiceResponse` correctly models the returned data.
+- `Api.turn_on`, `turn_off`, and `toggle` now annotate correctly that they return `None`.
 
 ### Internal
-- Test harness classes now reference `_ApiService` after the internal service rename.
+- Improved documentation:
+  - Switched to RTD theme for better readability and navigation.
+  - Improved formatting of comparison guides.
+  - Fixed some references.
+- Reorganized most of the core code into `resources` and `services`
+- `make_async_adapter` now takes `hassette` as a parameter to get the loop and task bucket
+- Use `contextvars` instead of class variables to track global instance of `Hassette` and `HassetteConfig`
 
 ## [0.11.0] - 2025-10-05
 
