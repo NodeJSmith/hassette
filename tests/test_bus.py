@@ -1,8 +1,8 @@
 import asyncio
 from types import SimpleNamespace
 
-from hassette.core.bus import Bus
-from hassette.core.events.base import Event
+from hassette.core.resources import Bus
+from hassette.events.base import Event
 
 
 async def test_once_listener_removed(hassette_with_bus) -> None:

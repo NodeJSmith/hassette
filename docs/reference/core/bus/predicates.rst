@@ -1,7 +1,7 @@
 Predicates Reference
 ====================
 
-.. automodule:: hassette.core.bus.predicates
+.. automodule:: hassette.core.resources.bus.predicates
    :members:
    :undoc-members:
    :show-inheritance:

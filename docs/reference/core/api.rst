@@ -1,7 +1,7 @@
 API Reference
 =============
 
-.. automodule:: hassette.core.api
+.. automodule:: hassette.core.resources.api
    :members:
    :undoc-members:
    :show-inheritance:

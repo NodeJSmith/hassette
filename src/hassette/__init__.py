@@ -1,5 +1,6 @@
 import logging
 
+from . import events, models, topics
 from .config import HassetteConfig
 from .core import (
     Api,
@@ -7,26 +8,21 @@ from .core import (
     AppConfig,
     AppConfigT,
     AppSync,
-    AsyncHandler,
     CronTrigger,
-    Handler,
     HomeAssistantRestarted,
     IntervalTrigger,
     Not,
     Resource,
-    ResourceRole,
-    ResourceStatus,
     ScheduledJob,
     Service,
-    StateChangeEvent,
     Subscription,
-    TriggerProtocol,
-    events,
     only_app,
     predicates,
-    topics,
 )
+from .enums import ResourceRole, ResourceStatus
+from .events import StateChangeEvent
 from .models import entities, states
+from .types import AsyncHandler, Handler, Predicate, TriggerProtocol
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
 
@@ -43,6 +39,7 @@ __all__ = [
     "HomeAssistantRestarted",
     "IntervalTrigger",
     "Not",
+    "Predicate",
     "Resource",
     "ResourceRole",
     "ResourceStatus",
@@ -53,6 +50,7 @@ __all__ = [
     "TriggerProtocol",
     "entities",
     "events",
+    "models",
     "only_app",
     "predicates",
     "states",

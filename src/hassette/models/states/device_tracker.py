@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import Field, field_validator
 from whenever import SystemDateTime
 
-from hassette.utils import convert_datetime_str_to_system_tz
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
 from .base import AttributesBase, StringBaseState
 

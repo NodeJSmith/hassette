@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 
-from hassette.core.websocket import _Websocket
+from hassette.core.services.websocket_service import _Websocket
 from hassette.exceptions import FailedMessageError
 
 
@@ -33,7 +33,9 @@ class _WSBoom:
 
 
 async def test_ws_send_json_assigns_id():
-    with patch("hassette.core.websocket._Websocket.connected", new_callable=PropertyMock, return_value=True):
+    with patch(
+        "hassette.core.services.websocket_service._Websocket.connected", new_callable=PropertyMock, return_value=True
+    ):
         mock = AsyncMock()
         mock.config.websocket_log_level = "DEBUG"
         svc = _Websocket(mock)
@@ -45,7 +47,9 @@ async def test_ws_send_json_assigns_id():
 
 
 async def test_ws_send_json_wraps_errors():
-    with patch("hassette.core.websocket._Websocket.connected", new_callable=PropertyMock, return_value=True):
+    with patch(
+        "hassette.core.services.websocket_service._Websocket.connected", new_callable=PropertyMock, return_value=True
+    ):
         mock = AsyncMock()
         mock.config.websocket_log_level = "DEBUG"
         svc = _Websocket(mock)

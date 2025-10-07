@@ -9,9 +9,8 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
     from hassette.config.core_config import HassetteConfig
-    from hassette.core.api import Api
     from hassette.core.core import Hassette
-    from hassette.core.scheduler import Scheduler
+    from hassette.core.resources import Api, Scheduler
     from hassette.test_utils.test_server import SimpleTestServer
 
 

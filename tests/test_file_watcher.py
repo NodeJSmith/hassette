@@ -5,8 +5,8 @@ from typing import Any
 
 import anyio
 
-from hassette.core.events.hassette import Event
-from hassette.core.topics import HASSETTE_EVENT_FILE_WATCHER
+from hassette.events.hassette import Event
+from hassette.topics import HASSETTE_EVENT_FILE_WATCHER
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette

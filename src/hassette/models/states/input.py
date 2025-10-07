@@ -3,7 +3,7 @@ from typing import Any, Literal
 from pydantic import Field
 from whenever import Instant, SystemDateTime
 
-from hassette.utils import convert_utc_timestamp_to_system_tz
+from hassette.utils.date_utils import convert_utc_timestamp_to_system_tz
 
 from .base import AttributesBase, BoolBaseState, DateTimeBaseState, NumericBaseState, StringBaseState
 

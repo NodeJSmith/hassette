@@ -4,7 +4,7 @@ from typing import Generic, Literal, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, SystemDateTime, Time
 
-from hassette.utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
 DomainLiteral = Literal[
     "automation",

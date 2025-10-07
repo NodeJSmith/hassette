@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import logging
 
-from hassette.core.classes import tasks
+from hassette.core.resources import tasks
 
 
 async def sleeper():

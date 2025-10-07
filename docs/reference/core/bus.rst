@@ -1,7 +1,7 @@
 Bus Reference
 =============
 
-.. automodule:: hassette.core.bus
+.. automodule:: hassette.core.resources.bus
    :members:
    :undoc-members:
    :show-inheritance:

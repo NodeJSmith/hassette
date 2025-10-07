@@ -15,19 +15,19 @@ from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette import HassetteConfig
-from hassette.core.api import Api, _ApiService
-from hassette.core.app_handler import _AppHandler
-from hassette.core.bus.bus import Bus, _BusService
-from hassette.core.classes.base import _HassetteBase
-from hassette.core.classes.resource import Resource
-from hassette.core.classes.tasks import TaskBucket, make_task_factory
-from hassette.core.core import Event, Hassette
-from hassette.core.enums import ResourceStatus
-from hassette.core.file_watcher import _FileWatcher
-from hassette.core.scheduler.scheduler import Scheduler, _SchedulerService
-from hassette.core.websocket import _Websocket
+from hassette.core.core import Hassette
+from hassette.core.resources import Api, Bus, Resource, Scheduler, TaskBucket, make_task_factory
+from hassette.core.resources.base import _HassetteBase
+from hassette.core.services.api_service import _ApiService
+from hassette.core.services.app_handler import _AppHandler
+from hassette.core.services.bus_service import _BusService
+from hassette.core.services.file_watcher import _FileWatcher
+from hassette.core.services.scheduler_service import _SchedulerService
+from hassette.core.services.websocket_service import _Websocket
+from hassette.enums import ResourceStatus
+from hassette.events import Event
 from hassette.test_utils.test_server import SimpleTestServer
-from hassette.utils import wait_for_ready
+from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -353,10 +353,12 @@ class HassetteHarness:
         self._exit_stack.push_async_callback(site.stop)
 
         rest_url_patch = patch(
-            "hassette.core.api._ApiService._rest_url", new_callable=PropertyMock, return_value=self.api_base_url
+            "hassette.core.services.api_service._ApiService._rest_url",
+            new_callable=PropertyMock,
+            return_value=self.api_base_url,
         )
         headers_patch = patch(
-            "hassette.core.api._ApiService._headers",
+            "hassette.core.services.api_service._ApiService._headers",
             new_callable=PropertyMock,
             return_value={"Authorization": "Bearer test_token"},
         )
@@ -368,8 +370,8 @@ class HassetteHarness:
         self.hassette._websocket.ready_event.set()
 
         self.hassette._api_service = _ApiService(cast("Hassette", self.hassette))
-        api = Api(self.hassette._api_service.hassette)
-        self.hassette.api = api
+
+        self.hassette.api = api = Api(self.hassette._api_service.hassette)
         self.hassette._resources[_ApiService.class_name] = self.hassette._api_service
         self.hassette._resources[Api.class_name] = api
 

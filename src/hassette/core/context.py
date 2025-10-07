@@ -5,7 +5,7 @@ from contextvars import ContextVar
 from typing import Any, TypeVar
 
 if typing.TYPE_CHECKING:
-    from .classes.tasks import TaskBucket
+    from .resources.tasks import TaskBucket
 
 T = TypeVar("T")
 

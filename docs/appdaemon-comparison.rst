@@ -60,10 +60,10 @@ AppDaemon
     ``apps.yaml`` that points to the same module/class but tweaks arguments.
 
 Hassette
-    Apps subclass :class:`hassette.App` (async) or :class:`hassette.AppSync` (sync bridge).
+    Apps subclass :class:`hassette.core.resources.apps.app.App` (async) or :class:`hassette.core.resources.apps.app.AppSync` (sync bridge).
     ``initialize`` is ``async`` and should call ``await super().initialize()`` after custom
     initialization. Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables.
-    Each app ships with a :class:`hassette.AppConfig` subclass, so Hassette validates input before
+    Each app ships with a :class:`hassette.core.resources.apps.app_config.AppConfig` subclass, so Hassette validates input before
     instantiating the app and you access ``self.app_config`` with IDE/autocomplete support.
     Environment variables (via Pydantic) are first-class. Multiple instances use TOML
     list-of-tables, which still map to strongly typed models.
