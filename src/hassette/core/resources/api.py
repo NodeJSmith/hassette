@@ -213,7 +213,7 @@ class Api(Resource):
         domain: str,
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
-        return_response: bool | None = False,
+        return_response: bool = False,
         **data,
     ) -> ServiceResponse | None:
         """
