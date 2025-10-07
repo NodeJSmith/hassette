@@ -272,7 +272,7 @@ class Api(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            ServiceResponse: The response context from Home Assistant.
+            None
         """
         self.logger.debug("Turning off entity %s", entity_id)
         return await self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
