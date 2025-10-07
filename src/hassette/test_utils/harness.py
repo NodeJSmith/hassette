@@ -14,6 +14,7 @@ from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette import HassetteConfig
+from hassette.core import context
 from hassette.core.resources.api import Api
 from hassette.core.resources.base import Resource, _HassetteBase
 from hassette.core.resources.bus.bus import Bus
@@ -206,6 +207,9 @@ class HassetteHarness:
         self._thread_pool: ThreadPoolExecutor | None = None
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
+
+        context.HASSETTE_CONFIG.set(self.config)
+        context.HASSETTE_INSTANCE.set(cast("Hassette", self.hassette))
 
     async def __aenter__(self):
         await self.start()

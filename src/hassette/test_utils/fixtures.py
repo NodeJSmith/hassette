@@ -8,7 +8,7 @@ from .harness import HassetteHarness
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
-    from hassette import Api, Hassette, HassetteConfig, Scheduler
+    from hassette import Api, Hassette, HassetteConfig
     from hassette.test_utils.test_server import SimpleTestServer
 
 
@@ -72,13 +72,13 @@ async def hassette_with_real_api(
 
 
 @pytest.fixture(scope="module")
-async def hassette_scheduler(
+async def hassette_with_scheduler(
     hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[Scheduler]":
+) -> "AsyncIterator[Hassette]":
     async with hassette_harness(config=test_config, use_bus=True, use_scheduler=True) as harness:
         assert harness.hassette._scheduler is not None
-        yield harness.hassette._scheduler
+        yield cast("Hassette", harness.hassette)
 
 
 @pytest.fixture(scope="module")
