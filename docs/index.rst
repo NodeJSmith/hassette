@@ -97,7 +97,7 @@ Learn More
   configuration
   apps
   api
-  events
+  bus
   scheduler
   appdaemon-comparison
   pyscript-comparison

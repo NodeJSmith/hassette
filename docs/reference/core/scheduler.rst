@@ -6,7 +6,7 @@ Scheduler Reference
    :undoc-members:
    :show-inheritance:
 
-.. toctree::
-   :maxdepth: 1
+.. .. toctree::
+..    :maxdepth: 1
 
-    Triggers <scheduler/classes>
+..     Triggers <scheduler/classes>
