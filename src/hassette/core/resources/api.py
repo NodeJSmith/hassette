@@ -242,7 +242,7 @@ class Api(Resource):
 
         if data:
             self.logger.debug("Adding extra data to service call: %s", data)
-            payload |= {"service_data": data}
+            payload["service_data"] = data
 
         if return_response:
             resp = await self.ws_send_and_wait(**payload)
