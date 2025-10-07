@@ -188,5 +188,3 @@ to discuss your use case and help prioritize the roadmap.
 ---------------
 
 :sub:`Disclaimer: The above is accurate to the best of my knowledge, please open an issue if you spot anything wrong or missing!`
-
-:sub:`Opinions are, obviously, my own. It is not my intention to disparage AppDaemon - I have the utmost respect for the project and it's maintainers. Hopefully that is clear from the tone of this document.`
