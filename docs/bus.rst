@@ -1,4 +1,4 @@
-Events
+Bus
 ======
 
 Subscribe to state changes and services using the Bus.

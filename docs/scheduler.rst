@@ -101,14 +101,6 @@ Cancelling sets ``job.cancelled`` and the scheduler will skip future executions.
 ``job.next_run`` updates automatically after every run so you can monitor drift or display upcoming
 runs in your UI.
 
-Cron tips
----------
-Cron schedules use the Whenever parser with second-level precision. Some quick reminders:
-
-* Use strings for expressions such as ``"*/10"`` or ``"mon-fri"``.
-* ``day_of_week`` accepts both numbers (0=Monday) and aliases (``"sun"``).
-* Provide ``start`` if you need to delay activation - for example to avoid running until Home
-  Assistant has finished booting.
 
 Best practices
 --------------

@@ -56,7 +56,7 @@ PYDANTIC_IGNORE_FIELDS = [
 
 
 master_doc = "index"
-html_theme = "furo"
+html_theme = "sphinx_rtd_theme"
 templates_path = ["_templates"]
 html_static_path = ["_static"]
 html_theme_options = {

@@ -126,10 +126,9 @@ Use a single config object for one instance, or list-of-tables for many:
 Core Services in Apps
 ---------------------
 - ``self.api``: Async Home Assistant API. In sync apps, use ``self.api.sync``.
-- ``self.bus``: Subscribe to events with filters (see :doc:`events`). Returns ``Subscription``.
-- ``self.scheduler``: Run jobs on intervals or cron (see :doc:`scheduler`). Returns job handles.
+- ``self.bus``: Subscribe to events with filters (see :doc:`bus`). Returns ``Subscription``.
+- ``self.scheduler``: Run jobs on intervals or cron (see :doc:`scheduler`). Returns ``ScheduledJob``.
 - ``self.logger``: Structured logging per app. Use levels: debug/info/warning/error.
-- ``self.hassette``: Access the orchestrator (advanced usage: e.g., run blocking call via ``run_sync``).
 
 .. note::
 
@@ -169,5 +168,6 @@ Subscribing with filters and scheduling work:
 See also
 --------
 - :doc:`configuration` for TOML structure and app_dir import rules
-- :doc:`events` for subscription patterns and predicates
+- :doc:`bus` for subscription patterns and predicates
 - :doc:`api` for service calls, templates, and history
+- :doc:`scheduler` for job scheduling and management

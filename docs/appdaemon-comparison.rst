@@ -54,19 +54,16 @@ App model and configuration
 ---------------------------
 
 AppDaemon
-    Apps subclass ``hass.Hass`` and implement ``initialize`` (synchronous). Configuration is loaded
-    from ``apps.yaml`` with one section per app instance. Every option arrives as an untyped ``dict``
-    on ``self.args``; validation is manual. Reusing an app means adding another section in
-    ``apps.yaml`` that points to the same module/class but tweaks arguments.
+    - Apps subclass ``hass.Hass`` and implement ``initialize`` (synchronous).
+    - Configuration is loaded from ``apps.yaml`` with one section per app instance.
+    - App configuration arrives as an untyped ``dict`` on ``self.args``; validation is manual.
+    - Reusing an app means adding another section in ``apps.yaml`` that points to the same module/class but tweaks arguments.
 
 Hassette
-    Apps subclass :class:`hassette.core.resources.app.app.App` (async) or :class:`hassette.core.resources.app.app.AppSync` (sync bridge).
-    ``initialize`` is ``async`` and should call ``await super().initialize()`` after custom
-    initialization. Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables.
-    Each app ships with a :class:`hassette.core.resources.app.app_config.AppConfig` subclass, so Hassette validates input before
-    instantiating the app and you access ``self.app_config`` with IDE/autocomplete support.
-    Environment variables (via Pydantic) are first-class. Multiple instances use TOML
-    list-of-tables, which still map to strongly typed models.
+    - Apps subclass :class:`hassette.core.resources.app.app.App` (async) or :class:`hassette.core.resources.app.app.AppSync` (sync bridge).
+    - ``initialize`` is ``async`` and should call ``await super().initialize()`` after custom initialization. Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables.
+    - Each app ships with a :class:`hassette.core.resources.app.app_config.AppConfig` subclass, so Hassette validates input before instantiating the app and you access ``self.app_config`` with IDE/autocomplete support.
+    - Environment variables (via Pydantic) are first-class. Multiple instances use TOML list-of-tables, which still map to strongly typed models.
 
 .. rubric:: Where Hassette shines
 
@@ -78,21 +75,19 @@ Event bus and callbacks
 -----------------------
 
 AppDaemon
-    ``listen_state`` (plus variants like ``listen_event`` and ``listen_event("call_service")``) call
-    your handler with several positional arguments (``callback(self, entity, attribute, old, new,
-    kwargs)``). Convenience keyword arguments include ``attribute``, ``new``, ``old``, ``duration``
-    (wait for stable state), ``immediate`` (fire once right away), namespaces, and ``timeout``. You
-    cancel by passing the handle to ``cancel_listen_state``. Filtering by multiple conditions typically
-    involves several keyword arguments or manual logic in the callback.
+    - ``listen_state`` (plus variants like ``listen_event`` and ``listen_event("call_service")``) call your handler with several positional arguments (``callback(self, entity, attribute, old, new, kwargs)``).
+    - Convenience keyword arguments include ``attribute``, ``new``, ``old``, ``duration`` (wait for stable state), ``immediate`` (fire once right away), namespaces, and ``timeout``.
+    - You cancel by passing the handle to ``cancel_listen_state``.
+    - Filtering by multiple conditions typically involves several keyword arguments or manual logic in the callback.
 
 Hassette
-    All subscriptions emit a typed event dataclass as a single argument. ``self.bus.on_entity`` and
-    ``self.bus.on_attribute`` wrap Home Assistant's ``state_changed`` topic; ``self.bus.on_call_service``
-    exposes service traffic; and ``self.bus.on`` lets you subscribe to any topic (including custom
-    events via ``"hassette.event.my_event"``). Predicates provide composable guards (e.g.,
-    ``P.ChangedTo("on")`` & ``P.AnyOf``). ``debounce`` and ``throttle`` parameters remove boilerplate
-    that AppDaemon typically handles via extra state variables. Subscription objects expose
-    ``unsubscribe()`` for cleanup.
+    - All subscriptions emit a typed event dataclass as a single argument.
+    - ``self.bus.on_entity`` and ``self.bus.on_attribute`` wrap Home Assistant's ``state_changed`` topic
+        - ``self.bus.on_call_service`` exposes service traffic
+        - ``self.bus.on`` lets you subscribe to any topic (including custom events via ``"hassette.event.my_event"``).
+    - Predicates provide composable guards (e.g., ``P.ChangedTo("on")`` & ``P.AnyOf``).
+    - ``debounce`` and ``throttle`` parameters remove boilerplate that AppDaemon typically handles via extra state variables.
+    - Subscription objects expose ``unsubscribe()`` for cleanup.
 
 .. rubric:: Where Hassette shines
 

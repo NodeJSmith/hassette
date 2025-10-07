@@ -10,4 +10,4 @@ Bus Reference
    :maxdepth: 1
 
    Predicates <bus/predicates>
-   Listeners <bus/listeners>
+..    Listeners <bus/listeners>
