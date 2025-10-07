@@ -82,9 +82,9 @@ AppDaemon
 
 Hassette
     - All subscriptions emit a typed event dataclass as a single argument.
-    - ``self.bus.on_entity`` and ``self.bus.on_attribute`` wrap Home Assistant's ``state_changed`` topic
-        - ``self.bus.on_call_service`` exposes service traffic
-        - ``self.bus.on`` lets you subscribe to any topic (including custom events via ``"hassette.event.my_event"``).
+    - ``self.bus.on_entity`` and ``self.bus.on_attribute`` wrap Home Assistant's ``state_changed`` topic.
+    - ``self.bus.on_call_service`` exposes service traffic.
+    - ``self.bus.on`` lets you subscribe to any topic (including custom events via ``"hassette.event.my_event"``).
     - Predicates provide composable guards (e.g., ``P.ChangedTo("on")`` & ``P.AnyOf``).
     - ``debounce`` and ``throttle`` parameters remove boilerplate that AppDaemon typically handles via extra state variables.
     - Subscription objects expose ``unsubscribe()`` for cleanup.

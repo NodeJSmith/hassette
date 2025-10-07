@@ -137,6 +137,7 @@ Hassette
 - Consistent async execution -- no risk of blocking the event loop with a forgotten synchronous decorator.
 
 .. rubric:: Where Hassette lags today
+
 - No ending date time for interval triggers.
 
 .. note::
