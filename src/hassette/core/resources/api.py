@@ -1,15 +1,15 @@
 import typing
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal, overload
 
 import aiohttp
 from whenever import Date, PlainDateTime, SystemDateTime
 
 from hassette.core.resources.base import Resource
-from hassette.events.base import HassContext
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity, EntityT
 from hassette.models.history import HistoryEntry
+from hassette.models.services import ServiceResponse
 from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, try_convert_state
 
 if typing.TYPE_CHECKING:
@@ -188,14 +188,34 @@ class Api(Resource):
 
         return await self.ws_send_and_wait(**data)
 
+    @overload
+    async def call_service(
+        self,
+        domain: str,
+        service: str,
+        target: dict[str, str] | dict[str, list[str]] | None,
+        return_response: Literal[True],
+        **data,
+    ) -> ServiceResponse: ...
+
+    @overload
     async def call_service(
         self,
         domain: str,
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
-        return_response: bool | None = None,
+        return_response: typing.Literal[False] | None = None,
         **data,
-    ) -> HassContext | None:
+    ) -> None: ...
+
+    async def call_service(
+        self,
+        domain: str,
+        service: str,
+        target: dict[str, str] | dict[str, list[str]] | None = None,
+        return_response: bool | None = False,
+        **data,
+    ) -> ServiceResponse | None:
         """
         Call a Home Assistant service.
 
@@ -203,17 +223,13 @@ class Api(Resource):
             domain (str): The domain of the service (e.g., "light").
             service (str): The name of the service to call (e.g., "turn_on").
             target (dict[str, str], optional): Target entity IDs or areas.
+            return_response (bool, optional): Whether to return the response from Home Assistant. Defaults to False.
             **kwargs: Additional data to send with the service call.
 
         Returns:
-            HassContext | None: The response from Home Assistant if return_response is True. Otherwise, returns None.
+            ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
         """
-        payload = {
-            "type": "call_service",
-            "domain": domain,
-            "service": service,
-            "target": target,
-        }
+        payload = {"type": "call_service", "domain": domain, "service": service, "target": target}
 
         payload = {k: v for k, v in payload.items() if v is not None}
 
@@ -223,13 +239,15 @@ class Api(Resource):
             payload |= {"service_data": data}
 
         if return_response:
+            if "return_response" not in payload:
+                payload["return_response"] = True
             resp = await self.ws_send_and_wait(**payload)
-            return HassContext(**resp.get("context", {}))
+            return ServiceResponse(**resp)
 
         await self.ws_send_json(**payload)
         return None
 
-    async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data):
+    async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
         """
         Turn on a specific entity in Home Assistant.
 
@@ -238,18 +256,12 @@ class Api(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            HassContext: The response context from Home Assistant.
+            None
         """
         entity_id = str(entity_id)
 
         self.logger.debug("Turning on entity %s", entity_id)
-        return await self.call_service(
-            domain=domain,
-            service="turn_on",
-            target={"entity_id": entity_id},
-            return_response=True,
-            **data,
-        )
+        return await self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
 
     async def turn_off(self, entity_id: str, domain: str = "homeassistant"):
         """
@@ -260,15 +272,10 @@ class Api(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            HassContext: The response context from Home Assistant.
+            ServiceResponse: The response context from Home Assistant.
         """
         self.logger.debug("Turning off entity %s", entity_id)
-        return await self.call_service(
-            domain=domain,
-            service="turn_off",
-            target={"entity_id": entity_id},
-            return_response=True,
-        )
+        return await self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
 
     async def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
         """
@@ -282,12 +289,7 @@ class Api(Resource):
             HassContext: The response context from Home Assistant.
         """
         self.logger.debug("Toggling entity %s", entity_id)
-        return await self.call_service(
-            domain=domain,
-            service="toggle",
-            target={"entity_id": entity_id},
-            return_response=True,
-        )
+        return await self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
 
     async def get_state_raw(self, entity_id: str) -> "HassStateDict":
         """Get the state of a specific entity.
@@ -841,7 +843,7 @@ class ApiSyncFacade(Resource):
         domain: str,
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
-        return_response: bool = True,
+        return_response: bool | None = False,
         **data,
     ):
         """
@@ -851,10 +853,11 @@ class ApiSyncFacade(Resource):
             domain (str): The domain of the service (e.g., "light").
             service (str): The name of the service to call (e.g., "turn_on").
             target (dict[str, str], optional): Target entity IDs or areas.
+            return_response (bool, optional): Whether to return the response from Home Assistant. Defaults to False.
             **kwargs: Additional data to send with the service call.
 
         Returns:
-            HassContext | None: The response from Home Assistant if return_response is True.
+            ServiceResponse | None: The response from Home Assistant if return_response is True.
                 Otherwise, returns None.
         """
         return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))
@@ -868,7 +871,7 @@ class ApiSyncFacade(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            HassContext: The response context from Home Assistant.
+            None
         """
         return self.task_bucket.run_sync(self._api.turn_on(entity_id, domain, **data))
 
@@ -881,7 +884,7 @@ class ApiSyncFacade(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            HassContext: The response context from Home Assistant.
+            None
         """
         return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain))
 
@@ -894,7 +897,7 @@ class ApiSyncFacade(Resource):
             domain (str): The domain of the entity (default: "homeassistant").
 
         Returns:
-            HassContext: The response context from Home Assistant.
+            None
         """
         return self.task_bucket.run_sync(self._api.toggle_service(entity_id, domain))
 

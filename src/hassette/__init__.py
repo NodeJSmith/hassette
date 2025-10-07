@@ -29,6 +29,7 @@ from .core.resources.tasks import TaskBucket
 from .enums import ResourceRole, ResourceStatus
 from .events import StateChangeEvent
 from .models import entities, states
+from .models.services import ServiceResponse
 from .types import AsyncHandler, Handler, Predicate, TriggerProtocol
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
@@ -65,6 +66,7 @@ __all__ = [
     "ScheduledJob",
     "Scheduler",
     "Service",
+    "ServiceResponse",
     "StateChangeEvent",
     "Subscription",
     "TaskBucket",
