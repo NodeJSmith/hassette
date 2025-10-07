@@ -200,6 +200,12 @@ class HassetteConfig(HassetteBaseSettings):
     file_watcher_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the file watcher service."""
 
+    task_bucket_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for task buckets."""
+
+    apps_log_level: LOG_LEVELS = Field(default="INFO")
+    """Default logging level for apps, can be overridden in app initialization."""
+
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
     """User provided secrets that can be referenced in the config."""
