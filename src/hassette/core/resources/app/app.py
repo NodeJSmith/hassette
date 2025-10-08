@@ -96,7 +96,7 @@ class App(Generic[AppConfigT], Resource):
 
         """
         super().__init__(hassette=hassette, unique_name_prefix=f"{self.class_name}.{app_config.instance_name}")
-        self.set_logger_to_level(self.hassette.config.apps_log_level)
+        self.logger.setLevel(self.hassette.config.apps_log_level)
 
         self.app_config = app_config
         self.index = index

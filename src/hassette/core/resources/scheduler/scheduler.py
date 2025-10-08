@@ -32,7 +32,7 @@ class Scheduler(Resource):
             task_bucket (TaskBucket | None, optional): Optional task bucket for scheduling tasks.
         """
         super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
-        self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
+        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
 
         self.owner = owner
         """Owner of the scheduler, must be a unique identifier for the owner."""

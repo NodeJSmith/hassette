@@ -43,7 +43,7 @@ class TaskBucket(_HassetteBase):
 
         self.name = name
         self.prefix = prefix
-        self.set_logger_to_level(self.hassette.config.task_bucket_log_level)
+        self.logger.setLevel(self.hassette.config.task_bucket_log_level)
 
         # if we didn't get passed a value, use the config default
         if not cancellation_timeout:

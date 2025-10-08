@@ -66,7 +66,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
     def __init__(self, hassette: "Hassette") -> None:
         super().__init__(hassette)
-        self.set_logger_to_level(self.hassette.config.app_handler_log_level)
+        self.logger.setLevel(self.hassette.config.app_handler_log_level)
 
         self.apps_config = {}
         self.set_apps_configs(self.hassette.config.apps)

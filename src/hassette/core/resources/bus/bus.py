@@ -40,7 +40,7 @@ class Bus(Resource):
     ) -> None:
         """Initialize the Bus instance."""
         super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
-        self.set_logger_to_level(self.hassette.config.bus_service_log_level)
+        self.logger.setLevel(self.hassette.config.bus_service_log_level)
 
         self.owner = owner
         """Owner of the bus, must be a unique identifier for the owner."""

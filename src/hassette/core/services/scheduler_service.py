@@ -23,7 +23,7 @@ T = TypeVar("T")
 class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
-        self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
+        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
         self._job_queue = _ScheduledJobQueue(hassette)
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
@@ -258,7 +258,7 @@ class _ScheduledJobQueue(Resource):
 
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
-        self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
+        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
 
         self._lock = FairAsyncRLock()
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()

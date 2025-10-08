@@ -24,7 +24,7 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
 
     def __init__(self, hassette: "Hassette", stream: MemoryObjectReceiveStream["tuple[str, Event[Any]]"]):
         super().__init__(hassette)
-        self.set_logger_to_level(self.hassette.config.bus_service_log_level)
+        self.logger.setLevel(self.hassette.config.bus_service_log_level)
 
         self.stream = stream
 
