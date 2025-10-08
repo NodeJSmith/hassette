@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 
+from hassette import Hassette
 from hassette.core.services.websocket_service import _Websocket
 from hassette.exceptions import FailedMessageError
 
@@ -32,7 +33,7 @@ class _WSBoom:
         return True
 
 
-async def test_ws_send_json_assigns_id():
+async def test_ws_send_json_assigns_id(hassette_with_nothing: Hassette):  # noqa
     with patch(
         "hassette.core.services.websocket_service._Websocket.connected", new_callable=PropertyMock, return_value=True
     ):
@@ -47,7 +48,7 @@ async def test_ws_send_json_assigns_id():
         svc._ws.send_json.assert_called_once_with({"type": "ping", "id": 1})
 
 
-async def test_ws_send_json_wraps_errors():
+async def test_ws_send_json_wraps_errors(hassette_with_nothing: Hassette):  # noqa
     with patch(
         "hassette.core.services.websocket_service._Websocket.connected", new_callable=PropertyMock, return_value=True
     ):

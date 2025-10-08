@@ -39,10 +39,10 @@ def enable_logging(
     # don't know why it took me five years to learn this.
     coloredlogs.install(level=logging.NOTSET, logger=logger, fmt=FMT, datefmt=FORMAT_DATETIME)
 
-    # coloredlogs has a bug where instead of adding the handler to the logger we pass it
-    # it sets on the root logger. so we pop it off of there and onto ours.
+    # coloredlogs does something funky to the root logger and i can't figure out what
+    # so for now i'm just resorting to this
     with suppress(IndexError):
-        logger.addHandler(logging.getLogger().handlers.pop(0))
+        logging.getLogger().handlers.pop(0)
 
     # here and below were pulled from Home Assistant
 

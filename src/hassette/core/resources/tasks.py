@@ -57,8 +57,6 @@ class TaskBucket(_HassetteBase):
 
     def add(self, task: asyncio.Task[Any]) -> None:
         """Add a task to the bucket and attach exception logging."""
-        self.logger.debug("Adding task %s to bucket %s", task.get_name(), self.unique_name)
-
         self._tasks.add(task)
 
         def _done(t: asyncio.Task[Any]) -> None:
