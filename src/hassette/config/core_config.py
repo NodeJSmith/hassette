@@ -205,6 +205,12 @@ class HassetteConfig(HassetteBaseSettings):
     apps_log_level: LOG_LEVELS = Field(default="INFO")
     """Default logging level for apps, can be overridden in app initialization."""
 
+    app_startup_timeout_seconds: int = Field(default=20)
+    """Length of time to wait for an app to start before giving up."""
+
+    app_shutdown_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for an app to shut down before giving up."""
+
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
     """User provided secrets that can be referenced in the config."""

@@ -28,7 +28,6 @@ if typing.TYPE_CHECKING:
     from hassette.events import HassetteFileWatcherEvent
 
 LOGGER = getLogger(__name__)
-FAIL_AFTER_SECONDS = 20
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 ROOT_PATH = "root"
 USER_CONFIG_PATH = "user_config"
@@ -118,7 +117,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         for instances in list(self.apps.values()):
             for inst in list(instances.values()):
                 try:
-                    with anyio.fail_after(FAIL_AFTER_SECONDS):
+                    with anyio.fail_after(self.hassette.config.app_shutdown_timeout_seconds):
                         await inst.shutdown()
 
                         # in case the app does not call its own cleanup
@@ -278,7 +277,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         class_name = app_manifest.class_name
         for idx, inst in self.apps.get(app_key, {}).items():
             try:
-                with anyio.fail_after(FAIL_AFTER_SECONDS):
+                with anyio.fail_after(self.hassette.config.app_startup_timeout_seconds):
                     await inst.initialize()
                     inst.mark_ready(reason="initialized")
                 self.logger.info("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
@@ -425,7 +424,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         for inst in instances.values():
             try:
                 start_time = timer()
-                with anyio.fail_after(FAIL_AFTER_SECONDS):
+                with anyio.fail_after(self.hassette.config.app_shutdown_timeout_seconds):
                     await inst.shutdown()
                     await inst.wait_for_resource_cleanup()
 
@@ -435,7 +434,9 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
             except Exception:
                 self.logger.exception(
-                    "Failed to stop app '%s' after %s seconds", inst.app_config.instance_name, FAIL_AFTER_SECONDS
+                    "Failed to stop app '%s' after %s seconds",
+                    inst.app_config.instance_name,
+                    self.hassette.config.app_shutdown_timeout_seconds,
                 )
 
     async def _handle_new_apps(self, apps: set[str]) -> None:

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Using `self.hassette.run_sync` or `self.hassette.run_on_loop_thread` is still supported, but will not track tasks in the app's task bucket.
 - Add `humanize` to support human-friendly duration strings in log messages.
 - Add `log_level` to `AppConfig` so apps can set their own log levels.
+- Add `app_startup_timeout_seconds` and `app_shutdown_timeout_seconds` to `HassetteConfig` to control how long to wait for apps to start and stop before giving up.
 
 ### Changed
 - **Breaking:** Public imports now come from the root `hassette` package; the old `hassette.core` paths have been moved under `hassette.core.resources` / `hassette.core.services`, so update any direct `hassette.core...` imports to use the re-exported names on `hassette`.
