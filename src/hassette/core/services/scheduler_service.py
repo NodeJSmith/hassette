@@ -23,7 +23,7 @@ T = TypeVar("T")
 class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
-        self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
+        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
         self._job_queue = _ScheduledJobQueue(hassette)
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
@@ -145,7 +145,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
 
     def add_job(self, job: "ScheduledJob"):
         """Push a job to the queue."""
-        self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
+        return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
 
     async def _dispatch_and_log(self, job: "ScheduledJob"):
         """Dispatch a job and log its execution.
@@ -232,25 +232,25 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
             )
             await self._enqueue_job(job)
 
-    def remove_jobs_by_owner(self, owner: str) -> None:
+    def remove_jobs_by_owner(self, owner: str) -> asyncio.Task:
         """Remove all jobs for a given owner.
 
         Args:
             owner (str): The owner of the jobs to remove.
         """
 
-        self.task_bucket.spawn(
+        return self.task_bucket.spawn(
             self._remove_jobs_by_owner(owner),
             name="scheduler:remove_jobs_by_owner",
         )
 
-    def remove_job(self, job: "ScheduledJob") -> None:
+    def remove_job(self, job: "ScheduledJob") -> asyncio.Task:
         """Remove a job from the scheduler.
 
         Args:
             job (ScheduledJob): The job to remove.
         """
-        self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
+        return self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
 
 
 class _ScheduledJobQueue(Resource):
@@ -258,7 +258,7 @@ class _ScheduledJobQueue(Resource):
 
     def __init__(self, hassette: "Hassette"):
         super().__init__(hassette)
-        self.set_logger_to_level(self.hassette.config.scheduler_service_log_level)
+        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
 
         self._lock = FairAsyncRLock()
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()

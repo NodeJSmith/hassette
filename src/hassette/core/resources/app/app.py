@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import typing
+from collections.abc import Coroutine
 from logging import getLogger
 from typing import Any, ClassVar, Generic
 
@@ -98,6 +100,16 @@ class App(Generic[AppConfigT], Resource):
         self.app_config = app_config
         self.index = index
 
+        # set appropriate log level
+        if "log_level" in self.app_config.model_fields_set:
+            # if the user set a log level for this app instance, use it
+            self.logger.setLevel(app_config.log_level)
+            self.logger.debug(
+                "Set log level for app '%s' to '%s' from instance config", self.class_name, app_config.log_level
+            )
+        else:
+            self.logger.setLevel(self.hassette.config.apps_log_level)
+
         self.bus = Bus(self.hassette, owner=f"{self.unique_name}.bus", task_bucket=self.task_bucket)
         self.scheduler = Scheduler(self.hassette, owner=f"{self.unique_name}.scheduler", task_bucket=self.task_bucket)
         self.api = Api(self.hassette, unique_name_prefix=f"{self.unique_name}.api", task_bucket=self.task_bucket)
@@ -126,14 +138,30 @@ class App(Generic[AppConfigT], Resource):
         """
         await super().shutdown()
 
-    def cleanup_resources(self) -> None:
+    def cleanup_resources(self) -> list[asyncio.Task | Coroutine]:
         """Cleanup resources owned by the app.
 
         This method is called during shutdown to ensure that all resources are properly released.
         """
-        self.scheduler.remove_all_jobs()
-        self.bus.remove_all_listeners()
-        self.logger.debug("Cleaned up resources for app '%s'", self.class_name)
+        sched_task = self.scheduler.remove_all_jobs()
+        bus_task = self.bus.remove_all_listeners()
+        bucket_task = self.task_bucket.cancel_all()
+        self.logger.debug("Triggered resource cleanup for app '%s'", self.class_name)
+        return [sched_task, bus_task, bucket_task]
+
+    async def wait_for_resource_cleanup(self, timeout: int | float = 10) -> None:
+        """Wait for all resources owned by the app to be cleaned up.
+
+        Args:
+            timeout (int | float): Maximum time to wait for cleanup, in seconds.
+        """
+        tasks = self.cleanup_resources()
+        if tasks:
+            results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
+            for result in results:
+                if isinstance(result, Exception):
+                    self.logger.error("Error during resource cleanup for app '%s': %s", self.class_name, result)
+        self.logger.info("All resources cleaned up for app '%s'", self.class_name)
 
 
 class AppSync(App[AppConfigT]):

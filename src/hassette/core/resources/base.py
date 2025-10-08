@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import typing
 import uuid
 from abc import abstractmethod
@@ -36,31 +35,15 @@ class _LoggerMixin:
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
 
+    @deprecated("Use self.logger.setLevel(...) instead")
     def set_logger_to_level(self, level: typing.Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]) -> None:
         """Configure a logger to log at the specified level independently of its parent."""
         self.logger.setLevel(level)
-        self.logger.propagate = False  # avoid parent's filters
-
-        # Only add a handler if it doesn't already have one
-
-        parent_logger = self.logger.parent
-        while True:
-            if parent_logger and not parent_logger.handlers:
-                parent_logger = parent_logger.parent
-            else:
-                break
-
-        if not self.logger.handlers and parent_logger and parent_logger.handlers:
-            for parent_handler in parent_logger.handlers:
-                # This assumes handler can be shallow-copied
-                handler = copy.copy(parent_handler)
-                handler.setLevel(level)
-                self.logger.addHandler(handler)
 
     @deprecated("Use set_logger_to_level('DEBUG') instead")
     def set_logger_to_debug(self) -> None:
         """Configure a logger to log at DEBUG level independently of its parent."""
-        self.set_logger_to_level("DEBUG")
+        self.logger.setLevel("DEBUG")
 
 
 class _HassetteBase(_LoggerMixin):  # pyright: ignore[reportUnusedClass]

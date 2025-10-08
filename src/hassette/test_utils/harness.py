@@ -69,9 +69,6 @@ class _HassetteMock(_HassetteBase):
 
     def __init__(self, *, config: HassetteConfig) -> None:
         self.config = config
-        TaskBucket.default_task_cancellation_timeout = (
-            self.config.task_cancellation_timeout_seconds if self.config else 0.5
-        )
 
         self.ready_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
@@ -197,6 +194,9 @@ class HassetteHarness:
     unused_tcp_port: int = 0
 
     def __post_init__(self) -> None:
+        # need this for caplog to work properly
+        logging.getLogger("hassette").propagate = True
+
         if self.use_api_mock and self.use_api_real:
             raise ValueError("Cannot use both API mock and real API in the same harness")
 
@@ -225,12 +225,7 @@ class HassetteHarness:
         self.hassette._loop = asyncio.get_running_loop()
         self.hassette._loop_thread_id = threading.get_ident()
         self.hassette._thread_pool = self._thread_pool = ThreadPoolExecutor(thread_name_prefix="hassette-test-worker-")
-        self.hassette._global_tasks = TaskBucket(
-            cast("Hassette", self.hassette),
-            name="hassette",
-            prefix="hassette",
-            cancellation_timeout=self.config.task_cancellation_timeout_seconds if self.config else 0.5,
-        )
+        self.hassette._global_tasks = TaskBucket(cast("Hassette", self.hassette), name="hassette", prefix="hassette")
         self.hassette._loop.set_task_factory(make_task_factory(self.hassette._global_tasks))
 
         if self.use_bus:

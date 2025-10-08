@@ -160,7 +160,7 @@ class ScheduledJob:
     """Unique identifier for the job instance."""
 
     def __repr__(self) -> str:
-        return f"ScheduledJob(name={self.name!r}, next_run={self.next_run})"
+        return f"ScheduledJob(name={self.name!r}, owner={self.owner})"
 
     def __post_init__(self):
         self.set_next_run(self.next_run)

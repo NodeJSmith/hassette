@@ -2,6 +2,8 @@ from typing import TypeVar
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hassette.const.misc import LOG_LEVELS
+
 
 class AppConfig(BaseSettings):
     """Base configuration class for applications in the Hassette framework.
@@ -16,6 +18,9 @@ class AppConfig(BaseSettings):
 
     instance_name: str = ""
     """Name for the instance of the app."""
+
+    log_level: LOG_LEVELS = "INFO"
+    """Log level for the app instance. Defaults to 'INFO'."""
 
 
 AppConfigT = TypeVar("AppConfigT", bound=AppConfig)

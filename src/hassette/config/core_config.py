@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import platformdirs
 from dotenv import load_dotenv
@@ -15,6 +15,7 @@ from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_valid
 from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 from yarl import URL
 
+from hassette.const.misc import LOG_LEVELS
 from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
 
@@ -39,8 +40,6 @@ logging.basicConfig(
 )
 
 LOGGER = logging.getLogger(__name__)
-
-LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 # TODO: allow user to specify services/resources to call `set_logger_to_debug` on
 # would be cleaner for me as well, so I don't litter the code with `set_logger_to_debug` calls that should probably
@@ -199,6 +198,18 @@ class HassetteConfig(HassetteBaseSettings):
 
     file_watcher_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the file watcher service."""
+
+    task_bucket_log_level: LOG_LEVELS = Field(default="INFO")
+    """Logging level for task buckets."""
+
+    apps_log_level: LOG_LEVELS = Field(default="INFO")
+    """Default logging level for apps, can be overridden in app initialization."""
+
+    app_startup_timeout_seconds: int = Field(default=20)
+    """Length of time to wait for an app to start before giving up."""
+
+    app_shutdown_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for an app to shut down before giving up."""
 
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])

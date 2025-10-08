@@ -66,7 +66,6 @@ class Hassette(_LoggerMixin):
         super().__init__(unique_name_prefix="Hassette")
 
         self.config = config
-        TaskBucket.default_task_cancellation_timeout = self.config.task_cancellation_timeout_seconds
 
         # collections
         self._resources: dict[str, Resource | Service] = {}

@@ -24,7 +24,7 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
 
     def __init__(self, hassette: "Hassette", stream: MemoryObjectReceiveStream["tuple[str, Event[Any]]"]):
         super().__init__(hassette)
-        self.set_logger_to_level(self.hassette.config.bus_service_log_level)
+        self.logger.setLevel(self.hassette.config.bus_service_log_level)
 
         self.stream = stream
 
@@ -39,21 +39,21 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
         if exc:
             self.logger.error("Bus background task failed", exc_info=exc)
 
-    def add_listener(self, listener: "Listener") -> None:
+    def add_listener(self, listener: "Listener") -> asyncio.Task:
         """Add a listener to the bus."""
-        self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
+        return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
-    def remove_listener(self, listener: "Listener") -> None:
+    def remove_listener(self, listener: "Listener") -> asyncio.Task:
         """Remove a listener from the bus."""
-        self.remove_listener_by_id(listener.topic, listener.listener_id)
+        return self.remove_listener_by_id(listener.topic, listener.listener_id)
 
-    def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
+    def remove_listener_by_id(self, topic: str, listener_id: int) -> asyncio.Task:
         """Remove a listener by its ID."""
-        self.task_bucket.spawn(self.router.remove_listener_by_id(topic, listener_id), name="bus:remove_listener")
+        return self.task_bucket.spawn(self.router.remove_listener_by_id(topic, listener_id), name="bus:remove_listener")
 
-    def remove_listeners_by_owner(self, owner: str) -> None:
+    def remove_listeners_by_owner(self, owner: str) -> asyncio.Task:
         """Remove all listeners owned by a specific owner."""
-        self.task_bucket.spawn(self.router.clear_owner(owner), name="bus:remove_listeners_by_owner")
+        return self.task_bucket.spawn(self.router.clear_owner(owner), name="bus:remove_listeners_by_owner")
 
     async def dispatch(self, topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""

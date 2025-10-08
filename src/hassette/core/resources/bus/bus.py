@@ -40,7 +40,7 @@ class Bus(Resource):
     ) -> None:
         """Initialize the Bus instance."""
         super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
-        self.set_logger_to_level(self.hassette.config.bus_service_log_level)
+        self.logger.setLevel(self.hassette.config.bus_service_log_level)
 
         self.owner = owner
         """Owner of the bus, must be a unique identifier for the owner."""
@@ -51,17 +51,17 @@ class Bus(Resource):
     def bus_service(self) -> _BusService:
         return self.hassette._bus_service
 
-    def add_listener(self, listener: "Listener") -> None:
+    def add_listener(self, listener: "Listener") -> asyncio.Task:
         """Add a listener to the bus."""
-        self.bus_service.add_listener(listener)
+        return self.bus_service.add_listener(listener)
 
-    def remove_listener(self, listener: "Listener") -> None:
+    def remove_listener(self, listener: "Listener") -> asyncio.Task:
         """Remove a listener from the bus."""
-        self.bus_service.remove_listener(listener)
+        return self.bus_service.remove_listener(listener)
 
-    def remove_all_listeners(self) -> None:
+    def remove_all_listeners(self) -> asyncio.Task:
         """Remove all listeners owned by this bus's owner."""
-        self.bus_service.remove_listeners_by_owner(self.owner)
+        return self.bus_service.remove_listeners_by_owner(self.owner)
 
     def on(
         self,

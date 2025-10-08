@@ -1,3 +1,4 @@
+import asyncio
 import importlib.machinery
 import importlib.util
 import sys
@@ -6,9 +7,11 @@ from collections import defaultdict
 from copy import deepcopy
 from logging import getLogger
 from pathlib import Path
+from timeit import default_timer as timer
 
 import anyio
 from deepdiff import DeepDiff
+from humanize import precisedelta
 
 from hassette.config.core_config import HassetteConfig
 from hassette.core.resources.app.app import App, AppSync
@@ -17,7 +20,7 @@ from hassette.core.resources.bus.bus import Bus
 from hassette.enums import ResourceStatus
 from hassette.events.hassette import HassetteEmptyPayload
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
-from hassette.topics import HASSETTE_EVENT_APP_RELOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
+from hassette.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
@@ -25,7 +28,6 @@ if typing.TYPE_CHECKING:
     from hassette.events import HassetteFileWatcherEvent
 
 LOGGER = getLogger(__name__)
-FAIL_AFTER_SECONDS = 10
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 ROOT_PATH = "root"
 USER_CONFIG_PATH = "user_config"
@@ -52,22 +54,24 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
     apps_config: dict[str, "AppManifest"]
     """Copy of Hassette's config apps"""
 
+    apps: dict[str, dict[int, App["AppConfig"]]]
+    """Running apps"""
+
+    failed_apps: dict[str, list[tuple[int, Exception]]]
+    """Apps we could not start/failed to start"""
+
+    only_app: str | None
+    """If set, only this app will be started (the one marked as only)"""
+
     def __init__(self, hassette: "Hassette") -> None:
         super().__init__(hassette)
-        self.set_logger_to_level(self.hassette.config.app_handler_log_level)
+        self.logger.setLevel(self.hassette.config.app_handler_log_level)
 
         self.apps_config = {}
-
         self.set_apps_configs(self.hassette.config.apps)
-
         self.only_app: str | None = None
-
         self.apps: dict[str, dict[int, App[AppConfig]]] = defaultdict(dict)
-        """Running apps"""
-
         self.failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
-        """Apps we could not start/failed to start"""
-
         self.bus = Bus(hassette, owner=self.unique_name)
 
     def set_apps_configs(self, apps_config: dict[str, "AppManifest"]) -> None:
@@ -98,8 +102,9 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
             if not ok:
                 self.logger.warning("WebSocket not ready, skipping app initialization")
                 return
-            await self.initialize_apps()
-            self.mark_ready("apps-initialized")
+            self.mark_ready("initialized")
+
+        self.task_bucket.spawn(self.initialize_apps())
 
     async def shutdown(self) -> None:
         """Shutdown all app instances gracefully."""
@@ -112,7 +117,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         for instances in list(self.apps.values()):
             for inst in list(instances.values()):
                 try:
-                    with anyio.fail_after(FAIL_AFTER_SECONDS):
+                    with anyio.fail_after(self.hassette.config.app_shutdown_timeout_seconds):
                         await inst.shutdown()
 
                         # in case the app does not call its own cleanup
@@ -135,16 +140,38 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         return [inst for group in self.apps.values() for inst in group.values()]
 
     async def initialize_apps(self) -> None:
+        """Initialize all configured and enabled apps, called at AppHandler startup."""
+
         if not self.apps_config:
             self.logger.info("No apps configured, skipping initialization")
             return
 
-        if not (await self.hassette.wait_for_ready(self.hassette._websocket)):
-            self.logger.warning("App initialization timed out")
+        if not await self.hassette.wait_for_ready(
+            [
+                self.hassette._websocket,
+                self.hassette._api_service,
+                self.hassette._bus_service,
+                self.hassette._scheduler_service,
+            ]
+        ):
+            self.logger.warning("Dependencies never became ready; skipping app startup")
             return
 
         try:
-            await self._initialize_apps()
+            tasks = await self._initialize_apps()
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    self.logger.exception("Error during app initialization: %s", result)
+            if not self.apps:
+                self.logger.warning("No apps were initialized successfully")
+            else:
+                self.logger.info("Initialized %d apps", sum(len(v) for v in self.apps.values()))
+
+            await self.hassette.send_event(
+                HASSETTE_EVENT_APP_LOAD_COMPLETED,
+                HassetteEmptyPayload.create_event(topic=HASSETTE_EVENT_APP_LOAD_COMPLETED),
+            )
         except Exception as e:
             self.logger.exception("Failed to initialize apps")
             await self.handle_crash(e)
@@ -176,9 +203,10 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         self.only_app = only_apps[0]
         self.logger.warning("App %s is marked as only, skipping all others", self.only_app)
 
-    async def _initialize_apps(self, apps: set[str] | None = None) -> None:
-        """Initialize all configured and enabled apps."""
+    async def _initialize_apps(self, apps: set[str] | None = None) -> list[asyncio.Task]:
+        """Initialize all or a subset of apps by key. If apps is None, initialize all enabled apps."""
 
+        tasks: list[asyncio.Task] = []
         await self._set_only_app()
 
         apps = apps if apps is not None else set(self.active_apps_config.keys())
@@ -190,7 +218,6 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
                 continue
             try:
                 self._create_app_instances(app_key, app_manifest)
-                await self._initialize_app_instances(app_key, app_manifest)
             except (UndefinedUserConfigError, InvalidInheritanceError):
                 self.logger.error(
                     "Failed to load app %s due to bad configuration - check previous logs for details", app_key
@@ -199,6 +226,10 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
             except Exception:
                 self.logger.exception("Failed to load app class for %s", app_key)
                 continue
+
+            tasks.append(self.task_bucket.spawn(self._initialize_app_instances(app_key, app_manifest)))
+
+        return tasks
 
     def _create_app_instances(self, app_key: str, app_manifest: "AppManifest", force_reload: bool = False) -> None:
         """Create app instances from a manifest, validating config.
@@ -246,7 +277,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         class_name = app_manifest.class_name
         for idx, inst in self.apps.get(app_key, {}).items():
             try:
-                with anyio.fail_after(FAIL_AFTER_SECONDS):
+                with anyio.fail_after(self.hassette.config.app_startup_timeout_seconds):
                     await inst.initialize()
                     inst.mark_ready(reason="initialized")
                 self.logger.info("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
@@ -305,8 +336,8 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         await self._reload_apps_due_to_config(reload_apps)
 
         await self.hassette.send_event(
-            HASSETTE_EVENT_APP_RELOAD_COMPLETED,
-            HassetteEmptyPayload.create_event(topic=HASSETTE_EVENT_APP_RELOAD_COMPLETED),
+            HASSETTE_EVENT_APP_LOAD_COMPLETED,
+            HassetteEmptyPayload.create_event(topic=HASSETTE_EVENT_APP_LOAD_COMPLETED),
         )
 
     def _calculate_app_changes(
@@ -392,12 +423,21 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
         for inst in instances.values():
             try:
-                with anyio.fail_after(FAIL_AFTER_SECONDS):
+                start_time = timer()
+                with anyio.fail_after(self.hassette.config.app_shutdown_timeout_seconds):
                     await inst.shutdown()
-                    inst.cleanup_resources()
-                self.logger.info("Stopped app '%s'", inst.app_config.instance_name)
+                    await inst.wait_for_resource_cleanup()
+
+                end_time = timer()
+                friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")
+                self.logger.info("Stopped app '%s' in %s", inst.app_config.instance_name, friendly_time)
+
             except Exception:
-                self.logger.exception("Failed to stop app '%s'", inst.app_config.instance_name)
+                self.logger.exception(
+                    "Failed to stop app '%s' after %s seconds",
+                    inst.app_config.instance_name,
+                    self.hassette.config.app_shutdown_timeout_seconds,
+                )
 
     async def _handle_new_apps(self, apps: set[str]) -> None:
         """Start any apps that are in config but not currently running."""

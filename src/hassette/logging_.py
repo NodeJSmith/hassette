@@ -12,7 +12,7 @@ FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
 FMT = "%(asctime)s.%(msecs)03d %(levelname)s %(name)s.%(funcName)s:%(lineno)d ─ %(message)s"
 
 # TODO: remove coloredlogs and roll our own? or use colorlogs
-# coloredlogs is unmaintained and parts of it are broken on Python 3.13+
+# coloredlogs is unmaintained and parts of it are broken on Python >3.13
 
 
 def enable_logging(
@@ -22,15 +22,29 @@ def enable_logging(
 
     logger = logging.getLogger("hassette")
 
-    coloredlogs.install(level=log_level, logger=logger, fmt=FMT, datefmt=FORMAT_DATETIME)
+    # Set the base hassette logger
+    logger.setLevel(log_level)
 
-    # Move the coloredlogs handler to hassette logger, not root
-    # TODO: move off coloredlogs, this stuff is too buggy
+    # don't propagate to root - if someone wants to do a basicConfig on root we don't want
+    # our logs going there too.
+    logger.propagate = False
+
+    # Clear any old handlers
+    logger.handlers.clear()
+
+    # NOTSET - don't clamp child logs
+    # this is the kicker - if the handler is filtered then it doesn't matter what we set the
+    # logger to, it won't log anything lower than the handler's level.
+    # So we set the handler to NOTSET and clamp the logger itself.
+    # don't know why it took me five years to learn this.
+    coloredlogs.install(level=logging.NOTSET, logger=logger, fmt=FMT, datefmt=FORMAT_DATETIME)
+
+    # coloredlogs has a bug where instead of adding the handler to the logger we pass it
+    # it sets on the root logger. so we pop it off of there and onto ours.
     with suppress(IndexError):
         logger.addHandler(logging.getLogger().handlers.pop(0))
 
-    # set hassette log level back to declared level
-    logger.setLevel(log_level)
+    # here and below were pulled from Home Assistant
 
     # Capture warnings.warn(...) and friends messages in logs.
     # The standard destination for them is stderr, which may end up unnoticed.
