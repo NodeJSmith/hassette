@@ -97,11 +97,12 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
     async def initialize(self) -> None:
         """Start handler and initialize configured apps."""
         async with self.starting():
-            self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
-            ok = await self.hassette.wait_for_ready(self.hassette._websocket)
-            if not ok:
-                self.logger.warning("WebSocket not ready, skipping app initialization")
-                return
+            if self.hassette.config.dev_mode:
+                self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
+            else:
+                self.logger.info("Not watching for app changes, dev_mode is disabled")
+
+            await self.hassette.wait_for_ready(self.hassette._websocket)
             self.mark_ready("initialized")
 
         self.task_bucket.spawn(self.initialize_apps())
@@ -178,6 +179,15 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
             raise
 
     async def _set_only_app(self):
+        """Determine if any app is marked as only, and set self.only_app accordingly."""
+
+        if not self.hassette.config.dev_mode:
+            if not self.hassette.config.allow_only_app_in_prod:
+                self.logger.info("Disallowing use of `only_app` decorator in production mode")
+                self.only_app = None
+                return
+            self.logger.info("Allowing use of `only_app` decorator in production mode due to config")
+
         only_apps: list[str] = []
         for app_manifest in self.active_apps_config.values():
             try:

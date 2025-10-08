@@ -211,6 +211,9 @@ class HassetteConfig(HassetteBaseSettings):
     app_shutdown_timeout_seconds: int = Field(default=10)
     """Length of time to wait for an app to shut down before giving up."""
 
+    allow_only_app_in_prod: bool = Field(default=False)
+    """Whether to only allow `only_app` decorator in production mode. Defaults to False."""
+
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
     """User provided secrets that can be referenced in the config."""
