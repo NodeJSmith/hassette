@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import platformdirs
 from dotenv import load_dotenv
@@ -15,6 +15,7 @@ from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_valid
 from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 from yarl import URL
 
+from hassette.const.misc import LOG_LEVELS
 from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
 
@@ -39,8 +40,6 @@ logging.basicConfig(
 )
 
 LOGGER = logging.getLogger(__name__)
-
-LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 # TODO: allow user to specify services/resources to call `set_logger_to_debug` on
 # would be cleaner for me as well, so I don't litter the code with `set_logger_to_debug` calls that should probably

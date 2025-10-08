@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All Apps (and all resources/services) should use `self.task_bucket` to spawn background tasks and to run synchronous code, to ensure proper tracking and cancellation.
   - Using `self.hassette.run_sync` or `self.hassette.run_on_loop_thread` is still supported, but will not track tasks in the app's task bucket.
 - Add `humanize` to support human-friendly duration strings in log messages.
+- Add `log_level` to `AppConfig` so apps can set their own log levels.
 
 ### Changed
 - **Breaking:** Public imports now come from the root `hassette` package; the old `hassette.core` paths have been moved under `hassette.core.resources` / `hassette.core.services`, so update any direct `hassette.core...` imports to use the re-exported names on `hassette`.

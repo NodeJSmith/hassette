@@ -96,10 +96,19 @@ class App(Generic[AppConfigT], Resource):
 
         """
         super().__init__(hassette=hassette, unique_name_prefix=f"{self.class_name}.{app_config.instance_name}")
-        self.logger.setLevel(self.hassette.config.apps_log_level)
 
         self.app_config = app_config
         self.index = index
+
+        # set appropriate log level
+        if "log_level" in self.app_config.model_fields_set:
+            # if the user set a log level for this app instance, use it
+            self.logger.setLevel(app_config.log_level)
+            self.logger.debug(
+                "Set log level for app '%s' to '%s' from instance config", self.class_name, app_config.log_level
+            )
+        else:
+            self.logger.setLevel(self.hassette.config.apps_log_level)
 
         self.bus = Bus(self.hassette, owner=f"{self.unique_name}.bus", task_bucket=self.task_bucket)
         self.scheduler = Scheduler(self.hassette, owner=f"{self.unique_name}.scheduler", task_bucket=self.task_bucket)
