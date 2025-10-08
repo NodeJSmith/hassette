@@ -38,6 +38,7 @@ async def test_ws_send_json_assigns_id():
     ):
         mock = AsyncMock()
         mock.config.websocket_log_level = "DEBUG"
+        mock.config.task_bucket_log_level = "DEBUG"
         svc = _Websocket(mock)
 
         svc._ws = AsyncMock()
@@ -52,6 +53,7 @@ async def test_ws_send_json_wraps_errors():
     ):
         mock = AsyncMock()
         mock.config.websocket_log_level = "DEBUG"
+        mock.config.task_bucket_log_level = "DEBUG"
         svc = _Websocket(mock)
 
         svc._ws = _WSBoom()  # type: ignore[attr-defined]
