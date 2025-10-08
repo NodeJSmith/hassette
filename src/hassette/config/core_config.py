@@ -215,7 +215,7 @@ class HassetteConfig(HassetteBaseSettings):
     """Whether to allow reloading apps in production mode. Defaults to False."""
 
     allow_only_app_in_prod: bool = Field(default=False)
-    """Whether to only allow `only_app` decorator in production mode. Defaults to False."""
+    """Whether to allow the `only_app` decorator in production mode. Defaults to False."""
 
     # user config
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
