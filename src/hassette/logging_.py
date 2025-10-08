@@ -37,12 +37,12 @@ def enable_logging(
     # logger to, it won't log anything lower than the handler's level.
     # So we set the handler to NOTSET and clamp the logger itself.
     # don't know why it took me five years to learn this.
-    coloredlogs.install(level=logging.NOTSET, fmt=FMT, datefmt=FORMAT_DATETIME)
+    coloredlogs.install(level=logging.NOTSET, logger=logger, fmt=FMT, datefmt=FORMAT_DATETIME)
 
-    # coloredlogs installs the handler on the root logger by default,
-    # so we move it from the root logger to our "hassette" logger.
+    # coloredlogs does something funky to the root logger and i can't figure out what
+    # so for now i'm just resorting to this
     with suppress(IndexError):
-        logger.addHandler(logging.getLogger().handlers.pop(0))
+        logging.getLogger().handlers.pop(0)
 
     # here and below were pulled from Home Assistant
 
