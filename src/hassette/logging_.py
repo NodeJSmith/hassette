@@ -39,8 +39,8 @@ def enable_logging(
     # don't know why it took me five years to learn this.
     coloredlogs.install(level=logging.NOTSET, fmt=FMT, datefmt=FORMAT_DATETIME)
 
-    # coloredlogs has a bug where instead of adding the handler to the logger we pass it
-    # it sets on the root logger. so we pop it off of there and onto ours.
+    # coloredlogs installs the handler on the root logger by default,
+    # so we move it from the root logger to our "hassette" logger.
     with suppress(IndexError):
         logger.addHandler(logging.getLogger().handlers.pop(0))
 
