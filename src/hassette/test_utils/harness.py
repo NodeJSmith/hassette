@@ -194,6 +194,9 @@ class HassetteHarness:
     unused_tcp_port: int = 0
 
     def __post_init__(self) -> None:
+        # need this for caplog to work properly
+        logging.getLogger("hassette").propagate = True
+
         if self.use_api_mock and self.use_api_real:
             raise ValueError("Cannot use both API mock and real API in the same harness")
 
