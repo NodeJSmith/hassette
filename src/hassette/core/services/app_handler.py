@@ -97,7 +97,9 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
     async def initialize(self) -> None:
         """Start handler and initialize configured apps."""
         async with self.starting():
-            if self.hassette.config.dev_mode:
+            if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
+                if self.hassette.config.allow_reload_in_prod:
+                    self.logger.warning("Allowing app reloads in production mode due to config")
                 self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
             else:
                 self.logger.info("Not watching for app changes, dev_mode is disabled")
