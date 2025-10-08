@@ -37,7 +37,7 @@ def enable_logging(
     # logger to, it won't log anything lower than the handler's level.
     # So we set the handler to NOTSET and clamp the logger itself.
     # don't know why it took me five years to learn this.
-    coloredlogs.install(level=logging.NOTSET, logger=logger, fmt=FMT, datefmt=FORMAT_DATETIME)
+    coloredlogs.install(level=logging.NOTSET, fmt=FMT, datefmt=FORMAT_DATETIME)
 
     # coloredlogs has a bug where instead of adding the handler to the logger we pass it
     # it sets on the root logger. so we pop it off of there and onto ours.
