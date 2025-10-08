@@ -185,10 +185,10 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
         if not self.hassette.config.dev_mode:
             if not self.hassette.config.allow_only_app_in_prod:
-                self.logger.info("Disallowing use of `only_app` decorator in production mode")
+                self.logger.warning("Disallowing use of `only_app` decorator in production mode")
                 self.only_app = None
                 return
-            self.logger.info("Allowing use of `only_app` decorator in production mode due to config")
+            self.logger.warning("Allowing use of `only_app` decorator in production mode due to config")
 
         only_apps: list[str] = []
         for app_manifest in self.active_apps_config.values():
