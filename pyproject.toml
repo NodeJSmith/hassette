@@ -60,13 +60,16 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 
 
 [dependency-groups]
-dev = ["tomli-w>=1.2.0"]
+dev = [
+    "tomli-w>=1.2.0",
+]
 test = [
     "docker>=7.1.0",
     "nox>=2025.5.1",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
     "pytest-randomly>=3.16.0",
+    "pytest-xdist>=3.8.0",
 ]
 model_gen = ["datamodel-code-generator>=0.30.1"]
 docs = [
