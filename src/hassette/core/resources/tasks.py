@@ -49,6 +49,10 @@ class TaskBucket(Resource):
         self.cancel_timeout = cancellation_timeout
         self._tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
 
+    def __bool__(self) -> bool:
+        # truthiness should not trigger __len__
+        return True
+
     def add(self, task: asyncio.Task[Any]) -> None:
         """Add a task to the bucket and attach exception logging."""
         self._tasks.add(task)
