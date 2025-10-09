@@ -30,7 +30,10 @@ class _LoggerMixin:
     def __init__(self, unique_name_prefix: str | None = None) -> None:
         self.unique_id = uuid.uuid4().hex
         self.unique_name = f"{unique_name_prefix or type(self).__name__}.{self.unique_id[:8]}"
-        self.logger = getLogger(f"hassette.{self.unique_name}")
+        if unique_name_prefix == "hassette":
+            self.logger = getLogger("hassette")
+        else:
+            self.logger = getLogger("hassette").getChild(self.unique_name)
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
