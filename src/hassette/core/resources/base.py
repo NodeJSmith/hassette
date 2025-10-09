@@ -123,7 +123,9 @@ class Resource(_HassetteBase):
 
         super().__init__(hassette, unique_name_prefix=unique_name_prefix)
 
-        self.task_bucket = task_bucket or TaskBucket(self.hassette, name=self.unique_name, prefix=self.class_name)
+        self.task_bucket = task_bucket or TaskBucket(
+            self.hassette, name=self.unique_name, unique_name_prefix=self.class_name
+        )
         """Task bucket for managing tasks owned by this instance."""
 
         self.ready: asyncio.Event = asyncio.Event()

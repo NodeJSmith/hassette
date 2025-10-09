@@ -6,7 +6,7 @@ from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, TimeoutError
 from typing import Any, ParamSpec, TypeVar
 
-from hassette.core.resources.base import _HassetteBase
+from hassette.core.resources.base import Resource
 
 from .. import context  # noqa: TID252
 
@@ -20,7 +20,7 @@ R = TypeVar("R")
 CoroLikeT = Coroutine[Any, Any, T]
 
 
-class TaskBucket(_HassetteBase):
+class TaskBucket(Resource):
     """Track and clean up a set of tasks for a service/app."""
 
     def __init__(
@@ -28,7 +28,7 @@ class TaskBucket(_HassetteBase):
         hassette: "Hassette",
         name: str,
         cancellation_timeout: int | float | None = None,
-        prefix: str | None = None,
+        unique_name_prefix: str | None = None,
     ) -> None:
         """Initialize the TaskBucket.
 
@@ -36,21 +36,15 @@ class TaskBucket(_HassetteBase):
             hassette (Hassette): The Hassette instance this bucket is associated with.
             name (str): Name of the bucket, used for logging.
             cancellation_timeout (int | float | None): Timeout for task cancellation. If None, uses default from config.
-            prefix (str | None): Optional prefix for task names, if provided task name is not namespaced.
+            unique_name_prefix (str | None): Optional prefix for task names, if provided task name is not namespaced.
         """
 
-        super().__init__(hassette, unique_name_prefix=f"{name}.bucket")
+        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=self)
 
         self.name = name
-        self.prefix = prefix
         self.logger.setLevel(self.hassette.config.task_bucket_log_level)
 
-        # if we didn't get passed a value, use the config default
-        if not cancellation_timeout:
-            config_inst = context.HASSETTE_CONFIG.get(None)
-            if not config_inst:
-                raise RuntimeError("TaskBucket created outside of Hassette context")
-            cancellation_timeout = config_inst.task_cancellation_timeout_seconds
+        cancellation_timeout = cancellation_timeout or self.hassette.config.task_cancellation_timeout_seconds
 
         self.cancel_timeout = cancellation_timeout
         self._tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
@@ -74,12 +68,6 @@ class TaskBucket(_HassetteBase):
 
     def spawn(self, coro, *, name: str | None = None) -> asyncio.Task[Any]:
         """Convenience: create and track a new task."""
-        if name and ":" not in name:
-            if self.prefix:
-                name = f"{self.prefix}:{name}"
-            else:
-                self.logger.warning("Tasks should be namespaced with ':' or a prefix should be provided (%s)", name)
-
         current_thread = threading.get_ident()
 
         if current_thread == self.hassette._loop_thread_id:
