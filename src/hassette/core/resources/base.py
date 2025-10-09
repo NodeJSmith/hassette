@@ -15,9 +15,7 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette, TaskBucket
 
 
-class _LoggerMixin:
-    """Mixin to provide logging capabilities to classes."""
-
+class _HassetteBase:
     unique_id: str
     """Unique identifier for the instance."""
 
@@ -27,29 +25,6 @@ class _LoggerMixin:
     unique_name: str
     """Unique name for the instance."""
 
-    def __init__(self, unique_name_prefix: str | None = None) -> None:
-        self.unique_id = uuid.uuid4().hex
-        self.unique_name = f"{unique_name_prefix or type(self).__name__}.{self.unique_id[:8]}"
-        if unique_name_prefix == "hassette":
-            self.logger = getLogger("hassette")
-        else:
-            self.logger = getLogger("hassette").getChild(self.unique_name)
-
-    def __repr__(self) -> str:
-        return f"<{type(self).__name__} unique_name={self.unique_name}>"
-
-    @deprecated("Use self.logger.setLevel(...) instead")
-    def set_logger_to_level(self, level: typing.Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]) -> None:
-        """Configure a logger to log at the specified level independently of its parent."""
-        self.logger.setLevel(level)
-
-    @deprecated("Use set_logger_to_level('DEBUG') instead")
-    def set_logger_to_debug(self) -> None:
-        """Configure a logger to log at DEBUG level independently of its parent."""
-        self.logger.setLevel("DEBUG")
-
-
-class _HassetteBase(_LoggerMixin):  # pyright: ignore[reportUnusedClass]
     class_name: typing.ClassVar[str]
     """Name of the class, set on subclassing."""
 
@@ -70,12 +45,28 @@ class _HassetteBase(_LoggerMixin):  # pyright: ignore[reportUnusedClass]
             hassette (Hassette): The Hassette instance this resource belongs to.
             unique_name_prefix (str | None): Optional prefix for the unique name. If None, the class name is used.
         """
-        super().__init__(unique_name_prefix=unique_name_prefix)
+        self.unique_id = uuid.uuid4().hex
+        self.unique_name = f"{unique_name_prefix or type(self).__name__}.{self.unique_id[:8]}"
+        if unique_name_prefix == "hassette":
+            self.logger = getLogger("hassette")
+        else:
+            self.logger = getLogger("hassette").getChild(self.unique_name)
+
         self.hassette = hassette
         self.logger.debug("Creating instance of '%s'", self.class_name)
 
     def __repr__(self) -> str:
-        return f"<{self.class_name} unique_name={self.unique_name}>"
+        return f"<{type(self).__name__} unique_name={self.unique_name}>"
+
+    @deprecated("Use self.logger.setLevel(...) instead")
+    def set_logger_to_level(self, level: typing.Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]) -> None:
+        """Configure a logger to log at the specified level independently of its parent."""
+        self.logger.setLevel(level)
+
+    @deprecated("Use set_logger_to_level('DEBUG') instead")
+    def set_logger_to_debug(self) -> None:
+        """Configure a logger to log at DEBUG level independently of its parent."""
+        self.logger.setLevel("DEBUG")
 
 
 class Resource(_HassetteBase):
