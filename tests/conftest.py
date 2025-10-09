@@ -138,10 +138,10 @@ def caplog_info(caplog):
 @pytest.fixture
 async def bucket_fixture(hassette_with_nothing: Hassette):  # pytest-asyncio provides event_loop
     try:
-        yield hassette_with_nothing._global_tasks
+        yield hassette_with_nothing.task_bucket
     finally:
         # hard cleanup if a test forgot
-        await hassette_with_nothing._global_tasks.cancel_all()
+        await hassette_with_nothing.task_bucket.cancel_all()
         await asyncio.sleep(0)  # let cancellations propagate
 
         # last-resort parachute: fail if anything still running

@@ -65,7 +65,7 @@ async def shutdown_resource(res: Resource, *, desc: str) -> None:  # noqa
 
 
 class _HassetteMock(_HassetteBase):
-    _global_tasks: TaskBucket
+    task_bucket: TaskBucket
 
     def __init__(self, *, config: HassetteConfig) -> None:
         self.config = config
@@ -139,7 +139,7 @@ class _HassetteMock(_HassetteBase):
                 fut.cancel()
 
     def create_task(self, coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task[Any]:
-        return self._global_tasks.spawn(coro, name=name)
+        return self.task_bucket.spawn(coro, name=name)
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -225,8 +225,10 @@ class HassetteHarness:
         self.hassette._loop = asyncio.get_running_loop()
         self.hassette._loop_thread_id = threading.get_ident()
         self.hassette._thread_pool = self._thread_pool = ThreadPoolExecutor(thread_name_prefix="hassette-test-worker-")
-        self.hassette._global_tasks = TaskBucket(cast("Hassette", self.hassette), name="hassette", prefix="hassette")
-        self.hassette._loop.set_task_factory(make_task_factory(self.hassette._global_tasks))
+        self.hassette.task_bucket = TaskBucket(
+            cast("Hassette", self.hassette), name="hassette", unique_name_prefix="hassette"
+        )
+        self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))
 
         if self.use_bus:
             await self._start_bus()

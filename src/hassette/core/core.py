@@ -15,7 +15,7 @@ from hassette.utils.service_utils import wait_for_ready
 
 from . import context
 from .resources.api import Api
-from .resources.base import Resource, Service, _LoggerMixin
+from .resources.base import Resource, Service
 from .resources.bus.bus import Bus
 from .resources.scheduler.scheduler import Scheduler
 from .resources.tasks import TaskBucket, make_task_factory
@@ -37,7 +37,7 @@ R = TypeVar("R")
 T = TypeVar("T", bound=Resource | Service)
 
 
-class Hassette(_LoggerMixin):
+class Hassette(Resource):
     """Main class for the Hassette application.
 
     This class initializes the Hassette instance, manages services, and provides access to the API,
@@ -63,9 +63,13 @@ class Hassette(_LoggerMixin):
             env_file (str | Path | None): Path to the environment file for configuration.
             config (HassetteConfig | None): Optional pre-loaded configuration.
         """
-        super().__init__(unique_name_prefix="Hassette")
-
         self.config = config
+
+        super().__init__(
+            self,
+            unique_name_prefix="hassette",
+            task_bucket=TaskBucket(self, name="hassette", unique_name_prefix="hassette"),
+        )
 
         # collections
         self._resources: dict[str, Resource | Service] = {}
@@ -159,14 +163,14 @@ class Hassette(_LoggerMixin):
         Returns:
             R: The result of the function call.
         """
-        return self._global_tasks.run_sync(fn, timeout_seconds=timeout_seconds)
+        return self.task_bucket.run_sync(fn, timeout_seconds=timeout_seconds)
 
     async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args, **kwargs) -> R:
         """Run a synchronous function on the main event loop thread.
 
         This is useful for ensuring that loop-affine code runs in the correct context.
         """
-        return await self._global_tasks.run_on_loop_thread(fn, *args, **kwargs)
+        return await self.task_bucket.run_on_loop_thread(fn, *args, **kwargs)
 
     def create_task(self, coro: Coroutine[Any, Any, R], name: str) -> asyncio.Task[R]:
         """Create a task tracked in the global hassette task bucket.
@@ -178,7 +182,7 @@ class Hassette(_LoggerMixin):
             asyncio.Task[R]: The created task.
         """
 
-        return self._global_tasks.spawn(coro, name=name)
+        return self.task_bucket.spawn(coro, name=name)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: int | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
@@ -200,8 +204,7 @@ class Hassette(_LoggerMixin):
         self._loop_thread_id = threading.get_ident()
         self.loop.set_debug(self.config.dev_mode)
 
-        self._global_tasks = TaskBucket(self, name="hassette", prefix="hassette")
-        self.loop.set_task_factory(make_task_factory(self._global_tasks))
+        self.loop.set_task_factory(make_task_factory(self.task_bucket))
 
         self._start_resources()
 
@@ -279,7 +282,7 @@ class Hassette(_LoggerMixin):
         if self._receive_stream is not None:
             await self._receive_stream.aclose()
 
-        await self._global_tasks.cancel_all()
+        await self.task_bucket.cancel_all()
 
     def shutdown(self) -> None:
         """Signal shutdown to the main loop."""
