@@ -8,6 +8,7 @@ from typing import ClassVar
 
 from typing_extensions import deprecated
 
+from hassette.const.misc import LOG_LEVELS
 from hassette.enums import ResourceRole, ResourceStatus
 from hassette.events import ServiceStatusPayload
 
@@ -59,7 +60,7 @@ class _HassetteBase:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
 
     @deprecated("Use self.logger.setLevel(...) instead")
-    def set_logger_to_level(self, level: typing.Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]) -> None:
+    def set_logger_to_level(self, level: LOG_LEVELS) -> None:
         """Configure a logger to log at the specified level independently of its parent."""
         self.logger.setLevel(level)
 
