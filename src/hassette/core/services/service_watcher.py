@@ -17,12 +17,11 @@ class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
 
         self.bus = Bus(hassette, owner=self.unique_name)
 
-    async def on_initialize(self, *args, **kwargs) -> None:
+    async def on_initialize(self) -> None:
         self._register_internal_event_listeners()
-        await super().initialize(*args, **kwargs)
         self.mark_ready(reason="Service watcher initialized")
 
-    async def on_shutdown(self, *args, **kwargs) -> None:
+    async def on_shutdown(self) -> None:
         self.bus.remove_all_listeners()
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
