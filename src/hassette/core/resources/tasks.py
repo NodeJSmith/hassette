@@ -1,10 +1,12 @@
 import asyncio
+import functools
+import inspect
 import threading
 import typing
 import weakref
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future, TimeoutError
-from typing import Any, ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette.core.resources.base import Resource
 
@@ -127,6 +129,37 @@ class TaskBucket(Resource):
 
         return asyncio.to_thread(_call)
 
+    @overload
+    def make_async_adapter(self, fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
+    @overload
+    def make_async_adapter(self, fn: Callable[P, R]) -> Callable[P, Awaitable[R]]: ...
+
+    def make_async_adapter(self, fn: Callable[P, R] | Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        """
+        Normalize a callable (sync or async) into an async callable with the same signature.
+
+        - If `fn` is async: await it.
+        - If `fn` is sync: run it in Hassette's thread pool executor via TaskBucket.run_in_thread.
+        """
+        if _is_async_callable(fn):
+
+            @functools.wraps(cast("Callable[..., object]", fn))
+            async def _async_fn(*args: P.args, **kwargs: P.kwargs) -> R:
+                return await cast("Callable[P, Awaitable[R]]", fn)(*args, **kwargs)
+
+            return _async_fn
+
+        @functools.wraps(cast("Callable[..., object]", fn))
+        async def _sync_fn(*args: P.args, **kwargs: P.kwargs) -> R:
+            try:
+                return await self.run_in_thread(cast("Callable[P, R]", fn), *args, **kwargs)
+            except Exception:
+                # optional: you can re-raise without cancelling; no task to cancel anymore
+                self.logger.exception("Error in sync function '%s'", getattr(fn, "__name__", repr(fn)))
+                raise
+
+        return _sync_fn
+
     def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | None = None) -> R:
         """Run an async function in a synchronous context.
 
@@ -240,3 +273,29 @@ def make_task_factory(
         return t
 
     return factory
+
+
+def _is_async_callable(fn: Callable[..., object] | Any) -> bool:
+    """True for coroutine functions, including async __call__ and partial(async_fn)."""
+    # plain async def foo(...)
+    if inspect.iscoroutinefunction(fn):
+        return True
+
+    # functools.partial of something async
+    if isinstance(fn, functools.partial):
+        return _is_async_callable(fn.func)
+
+    # callable instance with async __call__
+    call = getattr(fn, "__call__", None)  # noqa: B004
+    if call and inspect.iscoroutinefunction(call):
+        return True
+
+    # unwrapped functions (decorated with @wraps)
+    if hasattr(fn, "__wrapped__"):
+        try:
+            unwrapped = inspect.unwrap(fn)  # follows __wrapped__ chain
+        except Exception:
+            return False
+        return inspect.iscoroutinefunction(unwrapped)
+
+    return False
