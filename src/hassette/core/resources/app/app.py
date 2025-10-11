@@ -5,7 +5,7 @@ from logging import getLogger
 from typing import Any, ClassVar, Generic
 
 from hassette.config.app_manifest import AppManifest
-from hassette.core.resources.api import Api
+from hassette.core.resources.api.api import Api
 from hassette.core.resources.base import Resource
 from hassette.core.resources.bus.bus import Bus
 from hassette.core.resources.scheduler.scheduler import Scheduler
@@ -17,7 +17,6 @@ from .utils import validate_app
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-
 
 LOGGER = getLogger(__name__)
 
@@ -71,6 +70,12 @@ class App(Generic[AppConfigT], Resource):
     bus: "Bus"
     """Event bus instance for event handlers owned by this app."""
 
+    app_config: AppConfigT
+    """Configuration for this app instance."""
+
+    index: int
+    """Index of this app instance, used for unique naming."""
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -83,33 +88,35 @@ class App(Generic[AppConfigT], Resource):
             cls._import_exception = e
             LOGGER.exception("Failed to initialize subclass %s", cls.__name__)
 
-    def __init__(self, hassette: "Hassette", app_config: AppConfigT, index: int = 0):
-        """Initialize the App instance. This will generally not be called directly.
-
-        Args:
-            hassette (Hassette): The Hassette instance this app belongs to.
-            app_config (AppConfigT): User configuration for the app, defaults to AppUserConfig.
-            index (int): Index of the app instance, used when multiple instances of the same app are run.
-
-        """
-        super().__init__(hassette=hassette, unique_name_prefix=f"{self.class_name}.{app_config.instance_name}")
-
+    def __init__(self, *args, app_config: AppConfigT, index: int, **kwargs):
         self.app_config = app_config
         self.index = index
+        super().__init__(*args, **kwargs)
 
-        # set appropriate log level
+    @classmethod
+    def create(cls, hassette: "Hassette", app_config: AppConfigT, index: int):
+        inst = cls(hassette=hassette, app_config=app_config, index=index)
+        inst.app_config = app_config
+        inst.index = index
+        inst.api = inst.add_child(Api)
+        inst.scheduler = inst.add_child(Scheduler)
+        inst.bus = inst.add_child(Bus)
+        return inst
+
+    @property
+    def unique_name(self) -> str:
+        """Unique name for the app instance, used for logging and ownership of resources."""
+        if self.app_config.instance_name.startswith(self.class_name):
+            return self.app_config.instance_name
+        return f"{self.class_name}.{self.app_config.instance_name}"
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
         if "log_level" in self.app_config.model_fields_set:
-            # if the user set a log level for this app instance, use it
-            self.logger.setLevel(app_config.log_level)
-            self.logger.debug(
-                "Set log level for app '%s' to '%s' from instance config", self.class_name, app_config.log_level
-            )
-        else:
-            self.logger.setLevel(self.hassette.config.apps_log_level)
-
-        self.bus = Bus(self.hassette, owner=f"{self.unique_name}.bus", task_bucket=self.task_bucket)
-        self.scheduler = Scheduler(self.hassette, owner=f"{self.unique_name}.scheduler", task_bucket=self.task_bucket)
-        self.api = Api(self.hassette, unique_name_prefix=f"{self.unique_name}.api", task_bucket=self.task_bucket)
+            self.logger.debug("Log level for app '%s' set in instance config", self.class_name)
+            return self.app_config.log_level
+        return self.hassette.config.apps_log_level
 
     @property
     def instance_name(self) -> str:
@@ -119,6 +126,10 @@ class App(Generic[AppConfigT], Resource):
     async def send_event(self, event_name: str, event: Event[Any]) -> None:
         """Send an event to the event bus."""
         await self.hassette.send_event(event_name, event)
+
+    async def before_initialize(self) -> None:
+        # update logger level in case our app_config provided a specific level
+        self.logger.setLevel(self.config_log_level)
 
     async def on_shutdown(self, timeout: int | float = 10) -> None:
         """Wait for all resources owned by the app to be cleaned up.

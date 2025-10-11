@@ -20,10 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `app_startup_timeout_seconds` and `app_shutdown_timeout_seconds` to `HassetteConfig` to control how long to wait for apps to start and stop before giving up.
 - Only reload apps when in `dev_mode`, to avoid unexpected reloads in production - overridable with `allow_reload_in_prod` config flag.
 - Only respect `@only_app` decorator when in `dev_mode`, to avoid accidentally running only one app in production - overridable with `allow_only_app_in_prod` config flag.
+- Lifecycle hooks `on/before/after_initialize` and `on/before/after_shutdown` added to `Resource` and `Service` for more granular control over startup and shutdown sequences.
 
 ### Changed
 - **Breaking:** Public imports now come from the root `hassette` package; the old `hassette.core` paths have been moved under `hassette.core.resources` / `hassette.core.services`, so update any direct `hassette.core...` imports to use the re-exported names on `hassette`.
 - **Breaking:** The Scheduler will now spawn tasks to run a job and reschedule a job, so jobs that take longer than their interval will not block subsequent runs.
+- **Breaking:** `App.initialize` and `App.shutdown` have been replaced with `App.on_initialize` and `App.on_shutdown` hooks that do not need to call `super()`.
 - `Api.call_service` and the sync facade default to `return_response=False`, and the `turn_on` / `turn_off` / `toggle` are corrected to not pass `return_response` since this is not supported.
 - Deprecated `set_logger_to_level` - loggers are finally working properly now so the standard `logger.setLevel(...)` should be used instead.
 
@@ -41,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use `contextvars` instead of class variables to track global instance of `Hassette` and `HassetteConfig`
 - `_SchedulerService` now delegates scheduling to `_ScheduledJobQueue`, which uses a fair async lock to coordinate concurrent writers before dispatching due jobs.
 - `Hassette.run_sync`/`run_on_loop_thread` now route through the global task bucket.
+- **Breaking:** The `run_forever` method of the `Service` class has been replaced with `serve`. The new lifecycle hooks are valid for `Service` as well.
 
 ## [0.11.0] - 2025-10-05
 

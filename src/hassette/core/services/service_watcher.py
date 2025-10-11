@@ -11,11 +11,19 @@ if typing.TYPE_CHECKING:
 class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
     """Watches for service events and handles them."""
 
-    def __init__(self, hassette: "Hassette"):
-        super().__init__(hassette=hassette)
-        self.logger.setLevel(self.hassette.config.service_watcher_log_level)
+    bus: Bus
+    """Event bus for inter-service communication."""
 
-        self.bus = Bus(hassette, owner=self.unique_name)
+    @classmethod
+    def create(cls, hassette: "Hassette"):
+        inst = cls(hassette, parent=hassette)
+        inst.bus = inst.add_child(Bus)
+        return inst
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.service_watcher_log_level
 
     async def on_initialize(self) -> None:
         self._register_internal_event_listeners()
@@ -37,14 +45,16 @@ class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
 
             self.logger.info("%s '%s' is being restarted after '%s'", role, name, event.payload.event_type)
 
-            self.logger.info("Starting %s '%s'", role, name)
-            service = self.hassette._resources.get(name)
-            if service is None:
+            services = [child for child in self.hassette.children if child.class_name == name and child.role == role]
+            if not services:
                 self.logger.warning("No %s found for '%s', skipping start", role, name)
                 return
+            if len(services) > 1:
+                self.logger.warning("Multiple %s found for '%s', restarting all", role, name)
 
-            service.cancel()
-            service.start()
+            self.logger.info("Restarting %s '%s'", role, name)
+            for service in services:
+                await service.restart()
 
         except Exception as e:
             self.logger.error("Failed to restart %s '%s': %s", role, name, e)

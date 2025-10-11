@@ -40,10 +40,18 @@ RETRYABLE = (aiohttp.ClientError, ResourceNotReadyError)
 
 
 class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
-    def __init__(self, hassette: "Hassette"):
-        super().__init__(hassette)
+    _stack: AsyncExitStack
+    """Async context stack for managing resources."""
 
-        self._stack = AsyncExitStack()
+    _session: aiohttp.ClientSession | None
+    """HTTP client session for making requests."""
+
+    @classmethod
+    def create(cls, hassette: "Hassette"):
+        inst = cls(hassette, parent=hassette)
+        inst._stack = AsyncExitStack()
+        inst._session = None
+        return inst
 
     async def on_initialize(self):
         """
@@ -58,6 +66,11 @@ class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
 
     async def on_shutdown(self, *args, **kwargs) -> None:
         await self._stack.aclose()
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.log_level
 
     @property
     def _headers(self) -> dict[str, str]:

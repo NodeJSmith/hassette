@@ -28,16 +28,16 @@ FORMAT_TIME = "%H:%M:%S"
 FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
+
+# set up logging as early as possible
 LOG_LEVEL = (
     os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
 ).upper()
 
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s %(levelname)-8s %(name)s:%(lineno)d %(message)s",
-    datefmt=FORMAT_DATETIME,
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
+try:
+    enable_logging(LOG_LEVEL)  # pyright: ignore[reportArgumentType]
+except ValueError:
+    enable_logging("INFO")
 
 LOGGER = logging.getLogger(__name__)
 
@@ -204,6 +204,9 @@ class HassetteConfig(HassetteBaseSettings):
 
     apps_log_level: LOG_LEVELS = Field(default="INFO")
     """Default logging level for apps, can be overridden in app initialization."""
+
+    log_all_events: bool = Field(default=False)
+    """Whether to include all events in bus debug logging. Should be used sparingly. Defaults to False."""
 
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""

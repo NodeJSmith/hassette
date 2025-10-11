@@ -11,38 +11,29 @@ from hassette.core.services.scheduler_service import _SchedulerService
 from hassette.utils.date_utils import now
 
 if typing.TYPE_CHECKING:
-    from hassette import Hassette, TaskBucket
+    from hassette import Hassette
     from hassette.types import JobCallable, TriggerProtocol
 
 
 class Scheduler(Resource):
-    def __init__(
-        self,
-        hassette: "Hassette",
-        owner: str,
-        unique_name_prefix: str | None = None,
-        task_bucket: "TaskBucket | None" = None,
-    ) -> None:
-        """Initialize the Scheduler instance.
+    """Scheduler resource for managing scheduled jobs."""
 
-        Args:
-            hassette (Hassette): The main Hassette instance.
-            owner (str): Unique identifier for the owner of the scheduler.
-            unique_name_prefix (str | None, optional): Optional unique name prefix.
-            task_bucket (TaskBucket | None, optional): Optional task bucket for scheduling tasks.
-        """
-        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
-        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
+    scheduler_service: _SchedulerService
+    """The scheduler service instance."""
 
-        self.owner = owner
-        """Owner of the scheduler, must be a unique identifier for the owner."""
+    @classmethod
+    def create(cls, hassette: "Hassette", parent: "Resource"):
+        inst = cls(hassette=hassette, parent=parent)
+        inst.scheduler_service = inst.hassette._scheduler_service
+        assert inst.scheduler_service is not None, "Scheduler service not initialized"
 
-        self.mark_ready(reason="Scheduler initialized")
+        inst.mark_ready(reason="Scheduler initialized")
+        return inst
 
     @property
-    def scheduler_service(self) -> _SchedulerService:
-        """Get the internal scheduler instance."""
-        return self.hassette._scheduler_service
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.scheduler_service_log_level
 
     def add_job(self, job: "ScheduledJob") -> "ScheduledJob":
         """Add a job to the scheduler.
@@ -72,7 +63,7 @@ class Scheduler(Resource):
 
     def remove_all_jobs(self) -> asyncio.Task:
         """Remove all jobs for the owner of this scheduler."""
-        return self.scheduler_service.remove_jobs_by_owner(self.owner)
+        return self.scheduler_service.remove_jobs_by_owner(self.owner_id)
 
     def schedule(
         self,
@@ -101,7 +92,7 @@ class Scheduler(Resource):
         """
 
         job = ScheduledJob(
-            owner=self.owner,
+            owner=self.owner_id,
             next_run=run_at,
             job=func,
             trigger=trigger,
@@ -135,6 +126,29 @@ class Scheduler(Resource):
         """
 
         return self.schedule(func, run_at, name=name, args=args, kwargs=kwargs)
+
+    def run_at(
+        self,
+        func: "JobCallable",
+        run_at: SystemDateTime,
+        name: str = "",
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+    ) -> "ScheduledJob":
+        """Alias for `run_once`, schedule a job to run at a specific time.
+
+        Args:
+            func (JobCallable): The function to run.
+            run_at (SystemDateTime): The time to run the job.
+            name (str): Optional name for the job.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+        Returns:
+            ScheduledJob: The scheduled job.
+        """
+
+        return self.run_once(func, run_at, name=name, args=args, kwargs=kwargs)
 
     def run_every(
         self,
@@ -197,6 +211,104 @@ class Scheduler(Resource):
 
         run_at = start if start else now().add(seconds=delay_seconds)
         return self.schedule(func, run_at, name=name, args=args, kwargs=kwargs)
+
+    def run_minutely(
+        self,
+        func: "JobCallable",
+        second: int = 0,
+        name: str = "",
+        start: SystemDateTime | None = None,
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+    ) -> "ScheduledJob":
+        """Schedule a job to run minutely at a specific second.
+
+        Args:
+            func (JobCallable): The function to run.
+            second (int): The second of the minute to run the job (0-59).
+            name (str): Optional name for the job.
+            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
+                time. Otherwise it will run at the next occurrence of the specified second.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+
+        Returns:
+            ScheduledJob: The scheduled job.
+        """
+
+        trigger = IntervalTrigger.from_arguments(minutes=1, start=start)
+        first_run = start if start else now().replace(second=second, nanosecond=0)
+        if first_run <= now():
+            first_run = first_run.add(minutes=1)
+
+        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+
+    def run_hourly(
+        self,
+        func: "JobCallable",
+        minute: int = 0,
+        name: str = "",
+        start: SystemDateTime | None = None,
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+    ) -> "ScheduledJob":
+        """Schedule a job to run hourly at a specific minute.
+
+        Args:
+            func (JobCallable): The function to run.
+            minute (int): The minute of the hour to run the job (0-59).
+            name (str): Optional name for the job.
+            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
+                time. Otherwise it will run at the next occurrence of the specified minute.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+
+        Returns:
+            ScheduledJob: The scheduled job.
+        """
+
+        trigger = IntervalTrigger.from_arguments(minutes=60, start=start)
+        first_run = start if start else now().replace(minute=minute, second=0, nanosecond=0)
+        if first_run <= now():
+            first_run = first_run.add(hours=1)
+
+        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+
+    def run_daily(
+        self,
+        func: "JobCallable",
+        hour: int = 0,
+        minute: int = 0,
+        name: str = "",
+        start: SystemDateTime | None = None,
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+    ) -> "ScheduledJob":
+        """Schedule a job to run daily at a specific hour and minute.
+
+        Args:
+            func (JobCallable): The function to run.
+            hour (int): The hour of the day to run the job (0-23).
+            minute (int): The minute of the hour to run the job (0-59).
+            name (str): Optional name for the job.
+            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
+                time. Otherwise it will run at the next occurrence of the specified hour and minute.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+
+        Returns:
+            ScheduledJob: The scheduled job.
+        """
+
+        trigger = IntervalTrigger.from_arguments(hours=24, start=start)
+        first_run = start if start else now().replace(hour=hour, minute=minute, second=0, nanosecond=0)
+        if first_run <= now():
+            first_run = first_run.add(days=1)
+
+        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_cron(
         self,
