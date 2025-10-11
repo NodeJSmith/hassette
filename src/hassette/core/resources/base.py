@@ -74,8 +74,8 @@ class LifecycleMixin(_LifecycleHostStubs):
     _ready_reason: str | None
     """Optional reason for readiness or lack thereof."""
 
-    _task: asyncio.Task | None = None
-    """Main task for the instance, if applicable."""
+    _init_task: asyncio.Task | None = None
+    """Initialization task for the instance."""
 
     _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
     """Previous status of the instance."""
@@ -89,7 +89,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         self._ready_reason = None
         self._previous_status = ResourceStatus.NOT_STARTED
         self._status = ResourceStatus.NOT_STARTED
-        self._task: asyncio.Task | None = None
+        self._init_task: asyncio.Task | None = None
 
     # --------- props
     @property
@@ -103,7 +103,7 @@ class LifecycleMixin(_LifecycleHostStubs):
 
     @property
     def task(self) -> asyncio.Task | None:
-        return self._task
+        return self._init_task
 
     # --------- lifecycle ops
     def start(self) -> None:
@@ -111,17 +111,17 @@ class LifecycleMixin(_LifecycleHostStubs):
         # create a new event each time we start
         self.shutdown_event = asyncio.Event()
 
-        if self._task and not self._task.done():
+        if self._init_task and not self._init_task.done():
             self.logger.warning("%s '%s' is already started or running", self.role, self.class_name, stacklevel=2)
             return
 
         self.logger.debug("Starting '%s' %s", self.class_name, self.role)
-        self._task = self.task_bucket.spawn(self.initialize(), name="resource:resource_initialize")
+        self._init_task = self.task_bucket.spawn(self.initialize(), name="resource:resource_initialize")
 
     def cancel(self) -> None:
         """Cancel the main task of the instance, if it is running."""
-        if self._task and not self._task.done():
-            self._task.cancel()
+        if self._init_task and not self._init_task.done():
+            self._init_task.cancel()
             self.logger.debug("Cancelled '%s' %s task", self.class_name, self.role)
             return
 
@@ -504,6 +504,7 @@ class Service(Resource):
         # Flip any internal flags if you have them; then cancel the loop
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
+            self.logger.info("Cancelled serve() task for %s '%s'", self.role, self.class_name)
             with suppress(asyncio.CancelledError):
                 await self._serve_task
 
