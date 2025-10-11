@@ -53,20 +53,52 @@ RETRYABLE = (
 
 
 class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
-    def __init__(self, hassette: "Hassette"):
-        super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.websocket_log_level)
-        self.hassette = hassette
-        self.url = self.hassette.config.ws_url
-        self._stack = AsyncExitStack()
-        self._session: aiohttp.ClientSession | None = None
-        self._ws: aiohttp.ClientWebSocketResponse | None = None
-        self._response_futures: dict[int, asyncio.Future[Any]] = {}
-        self._seq = count(1)
+    url: str
+    """WebSocket URL to connect to."""
 
-        self._recv_task: asyncio.Task | None = None
-        self._subscription_ids: set[int] = set()
-        self._connect_lock = asyncio.Lock()  # if you don't already have it
+    _stack: AsyncExitStack
+    """Async context stack for managing resources."""
+
+    _session: aiohttp.ClientSession | None
+    """HTTP client session for making requests."""
+
+    _ws: aiohttp.ClientWebSocketResponse | None
+    """WebSocket connection."""
+
+    _response_futures: dict[int, asyncio.Future[Any]]
+    """Mapping of message IDs to futures for awaiting responses."""
+
+    _seq: typing.Iterator[int]
+    """Iterator for generating unique message IDs."""
+
+    _recv_task: asyncio.Task | None
+    """Task for receiving messages from the WebSocket."""
+
+    _subscription_ids: set[int]
+    """Set of active subscription IDs."""
+
+    _connect_lock: asyncio.Lock
+    """Lock to prevent concurrent connection attempts."""
+
+    @classmethod
+    def create(cls, hassette: "Hassette"):
+        inst = cls(hassette=hassette, parent=hassette)
+        inst.url = inst.hassette.config.ws_url
+        inst._stack = AsyncExitStack()
+        inst._session = None
+        inst._ws = None
+        inst._response_futures = {}
+        inst._seq = count(1)
+
+        inst._recv_task = None
+        inst._subscription_ids = set()
+        inst._connect_lock = asyncio.Lock()  # if you don't already have it
+        return inst
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.websocket_log_level
 
     @property
     def resp_timeout_seconds(self) -> int:
@@ -102,39 +134,22 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         """Get the next message ID."""
         return next(self._seq)
 
+    async def _announce_ready(self):
+        await self.handle_running()
+        self.mark_ready(reason="WebSocket connected and authenticated")
+        event = WebsocketConnectedEventPayload.create_event(url=self.url)
+        await self.hassette.send_event(event.topic, event)
+
     async def serve(self) -> None:
         """Connect to the WebSocket and run the receive loop."""
         async with self._connect_lock:
-            try:
-                await self._connect_once()
-            except (RetryableConnectionClosedError, ServerDisconnectedError, ClientConnectorError, ClientOSError) as e:
-                self.mark_not_ready(reason=f"Connection lost: {type(e).__name__}: {e}")
-                await self._send_connection_lost_event(f"{type(e).__name__}: {e}")
-                await self.handle_failed(e)
-            except asyncio.CancelledError:
-                self.mark_not_ready(reason="Connection cancelled")
-                await self._send_connection_lost_event("Connection cancelled")
-                await self.handle_stop()
-            except Exception as e:
-                await self.handle_crash(e)
-                raise
-            finally:
-                await self.cleanup()
+            timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
 
-    async def _connect_once(self) -> None:
-        """One full connect/auth/subscribe + recv lifecycle. Raise to trigger a retry."""
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                self._recv_task = await self._make_connection(session)
 
-        timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
-
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            self._recv_task = await self._make_connection(session)
-
-            # announce after we're actually usable
-            event = WebsocketConnectedEventPayload.create_event(url=self.url)
-            await self.hassette.send_event(event.topic, event)
-
-            # Keep running until recv loop ends (disconnect, error, etc.)
-            await self._recv_task
+                # Keep running until recv loop ends (disconnect, error, etc.)
+                await self._recv_task
 
     async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
         # inner function so we can use `self` in the retry decorator
@@ -157,7 +172,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
 
             self.logger.debug("Connected to WebSocket at %s", self.url)
             await self.authenticate()
-            self.mark_ready(reason="WebSocket connected and authenticated")
+            await self._announce_ready()
 
             # start reader first so send_and_wait can get replies
             recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")

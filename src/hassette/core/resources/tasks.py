@@ -27,31 +27,27 @@ CoroLikeT = Coroutine[Any, Any, T]
 class TaskBucket(Resource):
     """Track and clean up a set of tasks for a service/app."""
 
-    def __init__(
-        self,
-        hassette: "Hassette",
-        name: str,
-        cancellation_timeout: int | float | None = None,
-        unique_name_prefix: str | None = None,
-    ) -> None:
-        """Initialize the TaskBucket.
+    _tasks: "weakref.WeakSet[asyncio.Task[Any]]"
+    """Weak set of tasks tracked by this bucket."""
 
-        Args:
-            hassette (Hassette): The Hassette instance this bucket is associated with.
-            name (str): Name of the bucket, used for logging.
-            cancellation_timeout (int | float | None): Timeout for task cancellation. If None, uses default from config.
-            unique_name_prefix (str | None): Optional prefix for task names, if provided task name is not namespaced.
-        """
+    @classmethod
+    def create(cls, hassette: "Hassette", parent: "Resource"):
+        inst = cls(hassette=hassette, parent=parent)
 
-        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=self)
+        inst._tasks = weakref.WeakSet()
 
-        self.name = name
-        self.logger.setLevel(self.hassette.config.task_bucket_log_level)
+        inst.mark_ready(reason="TaskBucket initialized")
+        return inst
 
-        cancellation_timeout = cancellation_timeout or self.hassette.config.task_cancellation_timeout_seconds
+    @property
+    def config_cancel_timeout(self) -> int | float:
+        """Return the task cancellation timeout from the config."""
+        return self.hassette.config.task_cancellation_timeout_seconds
 
-        self.cancel_timeout = cancellation_timeout
-        self._tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
+    @property
+    def config_log_level(self):
+        """Return the log level from the config."""
+        return self.hassette.config.task_bucket_log_level
 
     def __bool__(self) -> bool:
         # truthiness should not trigger __len__
@@ -76,6 +72,7 @@ class TaskBucket(Resource):
 
     def spawn(self, coro: CoroLikeT, *, name: str | None = None) -> asyncio.Task[Any]:
         """Convenience: create and track a new task."""
+        self.logger.debug("Spawning task %s in bucket %s", name or repr(coro), self.unique_name)
         current_thread = threading.get_ident()
 
         if current_thread == self.hassette._loop_thread_id:
@@ -84,7 +81,7 @@ class TaskBucket(Resource):
                 return asyncio.create_task(coro, name=name)
         else:
             # Dev-mode tracking: log cross-thread spawn
-            if self.hassette.config.dev_mode:  # or a global DEBUG flag
+            if self.hassette.config.dev_mode:
                 self.logger.debug(
                     "Cross-thread spawn: %s from thread %s (loop thread %s)",
                     name,
@@ -223,26 +220,26 @@ class TaskBucket(Resource):
         tasks = [t for t in list(self._tasks) if not t.done() and t is not current]
 
         if not tasks:
-            self.logger.debug("No tasks to cancel in bucket %s", self.name)
+            self.logger.debug("No tasks to cancel in bucket %s", self.unique_name)
             return
 
-        self.logger.debug("Cancelling %d tasks in bucket %s", len(tasks), self.name)
+        self.logger.debug("Cancelling %d tasks in bucket %s", len(tasks), self.unique_name)
         for t in tasks:
             t.cancel()
 
-        done, pending = await asyncio.wait(tasks, timeout=self.cancel_timeout)
-        self.logger.debug("%d tasks done, %d still pending in bucket %s", len(done), len(pending), self.name)
+        done, pending = await asyncio.wait(tasks, timeout=self.config_cancel_timeout)
+        self.logger.debug("%d tasks done, %d still pending in bucket %s", len(done), len(pending), self.unique_name)
 
         for t in done:
             if t.cancelled():
                 continue
             exc = t.exception()
             if exc:
-                self.logger.warning("[%s] task %s errored during shutdown: %r", self.name, t.get_name(), exc)
+                self.logger.warning("[%s] task %s errored during shutdown: %r", self.unique_name, t.get_name(), exc)
 
         for t in pending:
             self.logger.warning(
-                "[%s] task %s refused to die within %.1fs", self.name, t.get_name(), self.cancel_timeout
+                "[%s] task %s refused to die within %.1fs", self.unique_name, t.get_name(), self.config_cancel_timeout
             )
 
     def __len__(self) -> int:

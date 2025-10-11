@@ -2,17 +2,16 @@ import asyncio
 import threading
 import typing
 from collections.abc import Coroutine
-from typing import Any, ClassVar, ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
 
 from hassette.config import HassetteConfig
-from hassette.enums import ResourceRole
 from hassette.utils.exception_utils import get_traceback_string
 from hassette.utils.service_utils import wait_for_ready
 
 from . import context
-from .resources.api import Api
+from .resources.api.api import Api
 from .resources.base import Resource, Service
 from .resources.bus.bus import Bus
 from .resources.scheduler.scheduler import Scheduler
@@ -42,16 +41,12 @@ class Hassette(Resource):
     event bus, app handler, and other core components.
     """
 
-    role: ClassVar[ResourceRole] = ResourceRole.CORE
-
     api: Api
     """API service for handling HTTP requests."""
 
-    ready_event: asyncio.Event
-    """Event set when the application is ready to accept requests."""
-
-    shutdown_event: asyncio.Event
-    """Event set when the application is starting to shutdown."""
+    @property
+    def unique_name(self) -> str:
+        return "Hassette"
 
     def __init__(self, config: HassetteConfig) -> None:
         """
@@ -62,15 +57,8 @@ class Hassette(Resource):
             config (HassetteConfig | None): Optional pre-loaded configuration.
         """
         self.config = config
-
-        super().__init__(
-            self,
-            unique_name_prefix="hassette",
-            task_bucket=TaskBucket(self, name="hassette", unique_name_prefix="hassette"),
-        )
-
-        # collections
-        self._resources: dict[str, Resource | Service] = {}
+        self.unique_id = ""
+        super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
 
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event"]](1000)
 
@@ -78,31 +66,24 @@ class Hassette(Resource):
         self._loop_thread_id: int | None = None
 
         # private background services
-        self._service_watcher = self._register_resource(_ServiceWatcher)
-        self._websocket = self._register_resource(_Websocket)
-        self._health_service = self._register_resource(_HealthService)
-        self._file_watcher = self._register_resource(_FileWatcher)
-        self._app_handler = self._register_resource(_AppHandler)
-        self._scheduler_service = self._register_resource(_SchedulerService)
-        self._bus_service = self._register_resource(_BusService, self._receive_stream.clone())
-        self._api_service = self._register_resource(_ApiService)
+        self._bus_service = self.add_child(_BusService, stream=self._receive_stream.clone())
+
+        self._service_watcher = self.add_child(_ServiceWatcher)
+        self._websocket = self.add_child(_Websocket)
+        self._health_service = self.add_child(_HealthService)
+        self._file_watcher = self.add_child(_FileWatcher)
+        self._app_handler = self.add_child(_AppHandler)
+        self._scheduler_service = self.add_child(_SchedulerService)
+
+        self._api_service = self.add_child(_ApiService)
 
         # internal instances
-        self._bus = self._register_resource(Bus, self.unique_name)
-        self._scheduler = self._register_resource(Scheduler, self.unique_name)
-        self.api = self._register_resource(Api, self.unique_name)
+        self._bus = self.add_child(Bus)
+        self._scheduler = self.add_child(Scheduler)
+        self.api = self.add_child(Api)
 
         # set context variable
         context.HASSETTE_INSTANCE.set(self)
-
-    def _register_resource(self, resource: type[T], *args) -> T:
-        """Register a service with the Hassette instance."""
-
-        if resource.class_name in self._resources:
-            raise ValueError(f"{resource.role} '{resource.class_name}' is already registered in Hassette")
-
-        self._resources[resource.class_name] = inst = resource(self, *args)
-        return inst
 
     @property
     def event_streams_closed(self) -> bool:
@@ -209,10 +190,10 @@ class Hassette(Resource):
 
         self.ready_event.set()
 
-        started = await self.wait_for_ready(list(self._resources.values()), timeout=self.config.startup_timeout_seconds)
+        started = await self.wait_for_ready(list(self.children), timeout=self.config.startup_timeout_seconds)
 
         if not started:
-            not_ready_resources = [r.class_name for r in self._resources.values() if not r.is_ready()]
+            not_ready_resources = [r.class_name for r in self.children if not r.is_ready()]
             self.logger.error("The following resources failed to start: %s", ", ".join(not_ready_resources))
             self.logger.error("Not all resources started successfully, shutting down")
             await self.shutdown()
@@ -239,13 +220,13 @@ class Hassette(Resource):
     def _start_resources(self) -> None:
         """Start background services like websocket, event bus, and scheduler."""
 
-        for service in self._resources.values():
+        for service in self.children:
             service.start()
 
     async def on_shutdown(self) -> None:
         """Shutdown all services gracefully and gather any results."""
 
-        shutdown_tasks = [resource.shutdown() for resource in reversed(self._resources.values())]
+        shutdown_tasks = [resource.shutdown() for resource in self.children]
 
         self.logger.info("Waiting for all resources to finish...")
 

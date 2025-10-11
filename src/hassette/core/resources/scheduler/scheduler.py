@@ -11,38 +11,29 @@ from hassette.core.services.scheduler_service import _SchedulerService
 from hassette.utils.date_utils import now
 
 if typing.TYPE_CHECKING:
-    from hassette import Hassette, TaskBucket
+    from hassette import Hassette
     from hassette.types import JobCallable, TriggerProtocol
 
 
 class Scheduler(Resource):
-    def __init__(
-        self,
-        hassette: "Hassette",
-        owner: str,
-        unique_name_prefix: str | None = None,
-        task_bucket: "TaskBucket | None" = None,
-    ) -> None:
-        """Initialize the Scheduler instance.
+    """Scheduler resource for managing scheduled jobs."""
 
-        Args:
-            hassette (Hassette): The main Hassette instance.
-            owner (str): Unique identifier for the owner of the scheduler.
-            unique_name_prefix (str | None, optional): Optional unique name prefix.
-            task_bucket (TaskBucket | None, optional): Optional task bucket for scheduling tasks.
-        """
-        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
-        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
+    scheduler_service: _SchedulerService
+    """The scheduler service instance."""
 
-        self.owner = owner
-        """Owner of the scheduler, must be a unique identifier for the owner."""
+    @classmethod
+    def create(cls, hassette: "Hassette", parent: "Resource"):
+        inst = cls(hassette=hassette, parent=parent)
+        inst.scheduler_service = inst.hassette._scheduler_service
+        assert inst.scheduler_service is not None, "Scheduler service not initialized"
 
-        self.mark_ready(reason="Scheduler initialized")
+        inst.mark_ready(reason="Scheduler initialized")
+        return inst
 
     @property
-    def scheduler_service(self) -> _SchedulerService:
-        """Get the internal scheduler instance."""
-        return self.hassette._scheduler_service
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.scheduler_service_log_level
 
     def add_job(self, job: "ScheduledJob") -> "ScheduledJob":
         """Add a job to the scheduler.
@@ -72,7 +63,7 @@ class Scheduler(Resource):
 
     def remove_all_jobs(self) -> asyncio.Task:
         """Remove all jobs for the owner of this scheduler."""
-        return self.scheduler_service.remove_jobs_by_owner(self.owner)
+        return self.scheduler_service.remove_jobs_by_owner(self.owner_id)
 
     def schedule(
         self,
@@ -101,7 +92,7 @@ class Scheduler(Resource):
         """
 
         job = ScheduledJob(
-            owner=self.owner,
+            owner=self.owner_id,
             next_run=run_at,
             job=func,
             trigger=trigger,

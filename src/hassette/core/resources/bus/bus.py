@@ -5,7 +5,6 @@ from typing import Any, cast
 
 from hassette import topics
 from hassette.core.resources.base import Resource
-from hassette.core.services.bus_service import _BusService
 from hassette.enums import ResourceStatus
 from hassette.events.base import Event
 
@@ -17,6 +16,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
     from hassette import Hassette, TaskBucket
+    from hassette.core.services.bus_service import _BusService
     from hassette.events import (
         CallServiceEvent,
         ComponentLoadedEvent,
@@ -30,25 +30,21 @@ if typing.TYPE_CHECKING:
 class Bus(Resource):
     """Individual event bus instance for a specific owner (e.g., App or Service)."""
 
-    def __init__(
-        self,
-        hassette: "Hassette",
-        owner: str,
-        unique_name_prefix: str | None = None,
-        task_bucket: "TaskBucket | None" = None,
-    ) -> None:
-        """Initialize the Bus instance."""
-        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=task_bucket)
-        self.logger.setLevel(self.hassette.config.bus_service_log_level)
+    bus_service: "_BusService"
 
-        self.owner = owner
-        """Owner of the bus, must be a unique identifier for the owner."""
+    @classmethod
+    def create(cls, hassette: "Hassette", parent: "Resource"):
+        inst = cls(hassette=hassette, parent=parent)
+        inst.bus_service = inst.hassette._bus_service
 
-        self.mark_ready(reason="Bus initialized")
+        assert inst.bus_service is not None, "Bus service not initialized"
+        inst.mark_ready(reason="Bus initialized")
+        return inst
 
     @property
-    def bus_service(self) -> _BusService:
-        return self.hassette._bus_service
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.bus_service_log_level
 
     def add_listener(self, listener: "Listener") -> asyncio.Task:
         """Add a listener to the bus."""
@@ -60,7 +56,7 @@ class Bus(Resource):
 
     def remove_all_listeners(self) -> asyncio.Task:
         """Remove all listeners owned by this bus's owner."""
-        return self.bus_service.remove_listeners_by_owner(self.owner)
+        return self.bus_service.remove_listeners_by_owner(self.owner_id)
 
     def on(
         self,
@@ -99,7 +95,7 @@ class Bus(Resource):
             handler = self._add_throttle(handler, throttle)
 
         listener = Listener(
-            owner=self.owner,
+            owner=self.owner_id,
             topic=topic,
             orig_handler=orig,
             handler=handler,

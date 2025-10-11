@@ -20,12 +20,25 @@ T = TypeVar("T")
 
 
 class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
-    def __init__(self, hassette: "Hassette"):
-        super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
-        self._job_queue = _ScheduledJobQueue(hassette)
-        self._wakeup_event = asyncio.Event()
-        self._exit_event = asyncio.Event()
+    """Service that manages scheduled jobs."""
+
+    _job_queue: "_ScheduledJobQueue"
+    """Queue of scheduled jobs."""
+
+    _wakeup_event: asyncio.Event
+    """Event to wake the scheduler when a new job is added or jobs are removed."""
+
+    _exit_event: asyncio.Event
+    """Event to signal the scheduler to exit."""
+
+    @classmethod
+    def create(cls, hassette: "Hassette"):
+        inst = cls(hassette, parent=hassette)
+        inst._job_queue = inst.add_child(_ScheduledJobQueue)
+        inst._wakeup_event = asyncio.Event()
+        inst._exit_event = asyncio.Event()
+
+        return inst
 
     @property
     def min_delay(self) -> float:
@@ -38,6 +51,11 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
     @property
     def default_delay(self) -> float:
         return self.hassette.config.scheduler_default_delay_seconds
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.scheduler_service_log_level
 
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")
@@ -247,6 +265,11 @@ class _ScheduledJobQueue(Resource):
         self._queue: HeapQueue[ScheduledJob] = HeapQueue()
 
         self.mark_ready(reason="Queue ready")
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.scheduler_service_log_level
 
     async def add(self, job: "ScheduledJob") -> None:
         """Add a job to the queue."""
