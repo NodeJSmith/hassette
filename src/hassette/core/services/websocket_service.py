@@ -281,7 +281,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
             FailedMessageError: If sending the message fails.
         """
 
-        if not self.ready_event:
+        if not self.ready_event.is_set():
             raise ResourceNotReadyError("WebSocket is not ready")
 
         self.logger.debug("Sending WebSocket message: %s", data)
