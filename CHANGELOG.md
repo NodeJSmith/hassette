@@ -10,20 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Reintroduced `dev_mode` configuration flag (also auto-enabled when running under a debugger or `python -X dev`) to turn on asyncio debug logging and richer task diagnostics.
 - Task buckets gained context helpers and `run_sync`/`run_on_loop_thread` wrappers so work spawned from worker threads is still tracked and can be cancelled cleanly.
+- Task buckets now expose `make_async_adapter`, replacing the old helper in `hassette.utils.async_utils` so sync callables are wrapped with the owning bucket's executor.
 - Individual service log levels can be set via config, with the overall `log_level` being used if not specified.
 - The event loop automatically switches to debug mode when `dev_mode` is enabled.
 - App-owned `Api`, `Bus`, and `Scheduler` instances share the app's task bucket and derive unique name prefixes, giving per-instance loggers and consistent task accounting.
 - All Apps (and all resources/services) should use `self.task_bucket` to spawn background tasks and to run synchronous code, to ensure proper tracking and cancellation.
   - Using `self.hassette.run_sync` or `self.hassette.run_on_loop_thread` is still supported, but will not track tasks in the app's task bucket.
+- Scheduler now includes convenience helpers `run_at`, `run_minutely`, `run_hourly`, and `run_daily` for common cadence patterns.
 - Add `humanize` to support human-friendly duration strings in log messages.
 - Add `log_level` to `AppConfig` so apps can set their own log levels.
 - Add `app_startup_timeout_seconds` and `app_shutdown_timeout_seconds` to `HassetteConfig` to control how long to wait for apps to start and stop before giving up.
 - Only reload apps when in `dev_mode`, to avoid unexpected reloads in production - overridable with `allow_reload_in_prod` config flag.
 - Only respect `@only_app` decorator when in `dev_mode`, to avoid accidentally running only one app in production - overridable with `allow_only_app_in_prod` config flag.
+- Lifecycle hooks `on/before/after_initialize` and `on/before/after_shutdown` added to `Resource` and `Service` for more granular control over startup and shutdown sequences.
 
 ### Changed
 - **Breaking:** Public imports now come from the root `hassette` package; the old `hassette.core` paths have been moved under `hassette.core.resources` / `hassette.core.services`, so update any direct `hassette.core...` imports to use the re-exported names on `hassette`.
 - **Breaking:** The Scheduler will now spawn tasks to run a job and reschedule a job, so jobs that take longer than their interval will not block subsequent runs.
+- **Breaking:** `App.initialize` and `App.shutdown` have been replaced with `App.on_initialize` and `App.on_shutdown` hooks that do not need to call `super()`.
+- Resources now build a parent/child graph via `Resource.add_child` and harmonized `create()` factory methods, so services and sub-resources inherit owners and task buckets automatically.
 - `Api.call_service` and the sync facade default to `return_response=False`, and the `turn_on` / `turn_off` / `toggle` are corrected to not pass `return_response` since this is not supported.
 - Deprecated `set_logger_to_level` - loggers are finally working properly now so the standard `logger.setLevel(...)` should be used instead.
 
@@ -41,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use `contextvars` instead of class variables to track global instance of `Hassette` and `HassetteConfig`
 - `_SchedulerService` now delegates scheduling to `_ScheduledJobQueue`, which uses a fair async lock to coordinate concurrent writers before dispatching due jobs.
 - `Hassette.run_sync`/`run_on_loop_thread` now route through the global task bucket.
+- **Breaking:** The `run_forever` method of the `Service` class has been replaced with `serve`. The new lifecycle hooks are valid for `Service` as well.
 
 ## [0.11.0] - 2025-10-05
 

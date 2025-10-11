@@ -63,16 +63,24 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
     only_app: str | None
     """If set, only this app will be started (the one marked as only)"""
 
-    def __init__(self, hassette: "Hassette") -> None:
-        super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.app_handler_log_level)
+    bus: Bus
+    """Event bus for inter-service communication."""
 
-        self.apps_config = {}
-        self.set_apps_configs(self.hassette.config.apps)
-        self.only_app: str | None = None
-        self.apps: dict[str, dict[int, App[AppConfig]]] = defaultdict(dict)
-        self.failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
-        self.bus = Bus(hassette, owner=self.unique_name)
+    @classmethod
+    def create(cls, hassette: "Hassette"):
+        inst = cls(hassette, parent=hassette)
+        inst.apps_config = {}
+        inst.set_apps_configs(hassette.config.apps)
+        inst.only_app = None
+        inst.apps = defaultdict(dict)
+        inst.failed_apps = defaultdict(list)
+        inst.bus = inst.add_child(Bus)
+        return inst
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.app_handler_log_level
 
     def set_apps_configs(self, apps_config: dict[str, "AppManifest"]) -> None:
         """Set the apps configuration.
@@ -271,7 +279,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
                 raise ValueError(f"App {app_key} instance {idx} is missing instance_name")
             try:
                 validated = app_class.app_config_cls.model_validate(config)
-                app_instance = app_class(self.hassette, app_config=validated, index=idx)
+                app_instance = app_class.create(hassette=self.hassette, app_config=validated, index=idx)
                 self.apps[app_key][idx] = app_instance
             except Exception as e:
                 self.logger.exception("Failed to validate/init config for %s (%s)", instance_name, class_name)

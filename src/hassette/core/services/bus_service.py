@@ -4,17 +4,18 @@ import typing
 from collections import defaultdict
 from collections.abc import Callable
 from fnmatch import fnmatch
+from functools import cached_property
 from typing import Any
 
-from anyio.streams.memory import MemoryObjectReceiveStream
 from fair_async_rlock import FairAsyncRLock
 
 from hassette.core.resources.base import Service
 
 if typing.TYPE_CHECKING:
+    from anyio.streams.memory import MemoryObjectReceiveStream
+
     from hassette import Hassette, Listener
     from hassette.events import Event
-
 
 GLOB_CHARS = "*?["
 
@@ -22,14 +23,33 @@ GLOB_CHARS = "*?["
 class _BusService(Service):  # pyright: ignore[reportUnusedClass]
     """EventBus service that handles event dispatching and listener management."""
 
-    def __init__(self, hassette: "Hassette", stream: MemoryObjectReceiveStream["tuple[str, Event[Any]]"]):
-        super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.bus_service_log_level)
+    stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"
+    """Stream to receive events from."""
 
-        self.stream = stream
+    listener_seq: itertools.count
+    """Sequence generator for listener IDs."""
 
-        self.listener_seq = itertools.count(1)
-        self.router = Router()
+    router: "Router"
+    """Router to manage event listeners."""
+
+    @classmethod
+    def create(cls, hassette: "Hassette", stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"):
+        inst = cls(hassette, parent=hassette)
+        inst.stream = stream
+        inst.listener_seq = itertools.count(1)
+        inst.router = Router()
+
+        return inst
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.bus_service_log_level
+
+    @cached_property
+    def config_log_all_events(self) -> bool:
+        """Return whether to log all events."""
+        return self.hassette.config.log_all_events
 
     def _log_task_result(self, task: asyncio.Task[Any]) -> None:
         if task.cancelled():
@@ -69,7 +89,8 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
 
         targets = await self.router.get_matching_listeners(topic)
 
-        self.logger.debug("Event: %r", event)
+        if self.config_log_all_events:
+            self.logger.debug("Event: %r", event)
 
         if not targets:
             return

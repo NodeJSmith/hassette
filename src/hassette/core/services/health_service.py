@@ -23,14 +23,28 @@ class MyAppKey(web.AppKey[_T]):
 class _HealthService(Service):
     """Tiny HTTP server exposing /healthz for container healthchecks."""
 
-    def __init__(self, hassette: "Hassette", host: str = "0.0.0.0", port: int | None = None):
-        super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.health_service_log_level)
+    host: str
+    """Host to bind the health server to."""
 
-        self.host = host
-        self.port = port or hassette.config.health_service_port
+    port: int
+    """Port to bind the health server to."""
 
-        self._runner: web.AppRunner | None = None
+    _runner: web.AppRunner | None
+    """Aiohttp app runner for the health server."""
+
+    @classmethod
+    def create(cls, hassette: "Hassette", host: str = "0.0.0.0", port: int | None = None):
+        inst = cls(hassette, parent=hassette)
+        inst.host = host
+        inst.port = port or hassette.config.health_service_port or 8126
+        inst._runner = None
+
+        return inst
+
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.health_service_log_level
 
     async def serve(self) -> None:
         if not self.hassette.config.run_health_service:

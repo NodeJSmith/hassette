@@ -3,7 +3,7 @@ import logging
 from . import events, models, topics
 from .config import HassetteConfig
 from .core.core import Hassette
-from .core.resources.api import Api
+from .core.resources.api.api import Api
 from .core.resources.app.app import App, AppSync, only_app
 from .core.resources.app.app_config import AppConfig, AppConfigT
 from .core.resources.base import Resource, Service

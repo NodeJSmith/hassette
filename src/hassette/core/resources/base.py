@@ -1,18 +1,19 @@
 import asyncio
-import logging
+import inspect
 import typing
 import uuid
 from abc import abstractmethod
 from collections.abc import Coroutine
 from contextlib import suppress
 from logging import Logger, getLogger
-from typing import Any, ClassVar, Protocol, TypeVar, final
+from typing import Any, ClassVar, TypeVar, final
 
 from typing_extensions import deprecated
 
 from hassette.const.misc import LOG_LEVELS
-from hassette.enums import ResourceRole, ResourceStatus
-from hassette.events import HassetteServiceEvent, ServiceStatusPayload
+from hassette.enums import ResourceRole
+
+from .mixins import LifecycleMixin
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette, TaskBucket
@@ -20,40 +21,12 @@ if typing.TYPE_CHECKING:
 T = TypeVar("T")
 CoroLikeT = Coroutine[Any, Any, T]
 
-
-class _TaskBucketP(Protocol):
-    def spawn(self, coro: CoroLikeT, *, name: str | None = None) -> asyncio.Task: ...
-    async def cancel_all(self) -> None: ...
-
-
-class _HassetteP(Protocol):
-    async def send_event(self, topic: str, payload: Any) -> None: ...
-
-
-# shim for typing only - LifecycleMixin needs these attributes to be present
-# but we don't want to enforce inheritance from Resource or HassetteBase at runtime
-if typing.TYPE_CHECKING:
-
-    class _LifecycleHostStubs(Protocol):
-        logger: logging.Logger
-        hassette: _HassetteP
-        role: Any
-        class_name: str
-        unique_name: str
-        task_bucket: _TaskBucketP
-
-        def _create_service_status_event(
-            self, status: ResourceStatus, exception: Exception | None = None
-        ) -> HassetteServiceEvent: ...
-
-        async def initialize(self, *args, **kwargs) -> None: ...
-else:
-
-    class _LifecycleHostStubs:  # runtime stub (empty)
-        pass
+_ResourceT = TypeVar("_ResourceT", bound="Resource")
 
 
 class FinalMeta(type):
+    """A metaclass that prevents overriding methods marked with @final."""
+
     def __new__(mcls, name, bases, ns):
         # Collect names of all @final methods on base classes
         finals = {attr for base in bases for attr, val in base.__dict__.items() if getattr(val, "__final__", False)}
@@ -64,201 +37,38 @@ class FinalMeta(type):
         return super().__new__(mcls, name, bases, ns)
 
 
-class LifecycleMixin(_LifecycleHostStubs):
-    ready_event: asyncio.Event
-    """Event to signal readiness of the instance."""
+class Resource(LifecycleMixin, metaclass=FinalMeta):
+    """Base class for resources in the Hassette framework."""
 
-    shutdown_event: asyncio.Event
-    """Event to signal shutdown of the instance."""
+    role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
+    """Role of the resource, e.g. 'App', 'Service', etc."""
 
-    _ready_reason: str | None
-    """Optional reason for readiness or lack thereof."""
+    task_bucket: "TaskBucket"
+    """Task bucket for managing tasks owned by this instance."""
 
-    _init_task: asyncio.Task | None = None
-    """Initialization task for the instance."""
+    parent: "Resource | None" = None
+    """Reference to the parent resource, if any."""
 
-    _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
-    """Previous status of the instance."""
+    children: list["Resource"]
+    """List of child resources."""
 
-    _status: ResourceStatus = ResourceStatus.NOT_STARTED
-    """Current status of the instance."""
+    _shutting_down: bool = False
+    """Flag indicating whether the instance is in the process of shutting down."""
 
-    def __init__(self) -> None:
-        self.ready_event = asyncio.Event()
-        self.shutdown_event = asyncio.Event()
-        self._ready_reason = None
-        self._previous_status = ResourceStatus.NOT_STARTED
-        self._status = ResourceStatus.NOT_STARTED
-        self._init_task: asyncio.Task | None = None
-
-    # --------- props
-    @property
-    def status(self) -> ResourceStatus:
-        return self._status
-
-    @status.setter
-    def status(self, value: ResourceStatus) -> None:
-        self._previous_status = self._status
-        self._status = value
-
-    @property
-    def task(self) -> asyncio.Task | None:
-        return self._init_task
-
-    # --------- lifecycle ops
-    def start(self) -> None:
-        """Start the instance by spawning its initialize method in a task."""
-        # create a new event each time we start
-        self.shutdown_event = asyncio.Event()
-
-        if self._init_task and not self._init_task.done():
-            self.logger.warning("%s '%s' is already started or running", self.role, self.class_name, stacklevel=2)
-            return
-
-        self.logger.debug("Starting '%s' %s", self.class_name, self.role)
-        self._init_task = self.task_bucket.spawn(self.initialize(), name="resource:resource_initialize")
-
-    def cancel(self) -> None:
-        """Cancel the main task of the instance, if it is running."""
-        if self._init_task and not self._init_task.done():
-            self._init_task.cancel()
-            self.logger.debug("Cancelled '%s' %s task", self.class_name, self.role)
-            return
-
-        self.logger.debug("%s '%s' has no running task to cancel", self.role, self.class_name)
-
-    # --------- readiness
-    def mark_ready(self, reason: str | None = None) -> None:
-        """Mark the instance as ready.
-
-        Args:
-            reason (str | None): Optional reason for readiness.
-
-        """
-        self._ready_reason = reason
-        self.ready_event.set()
-
-    def mark_not_ready(self, reason: str | None = None) -> None:
-        """Mark the instance as not ready.
-
-        Args:
-            reason (str | None): Optional reason for lack of readiness.
-        """
-        if not self.ready_event.is_set():
-            self.logger.debug("%s is already not ready, skipping reason %s", self.unique_name, reason)
-
-        self._ready_reason = reason
-        self.ready_event.clear()
-
-    def request_shutdown(self, reason: str | None = None) -> None:
-        """Set the sticky shutdown flag. Idempotent."""
-        if not self.shutdown_event.is_set():
-            self.logger.debug("Shutdown requested for %s (%s)", self.unique_name, reason or "")
-            self.shutdown_event.set()
-        # clear readiness early so callers back off
-        self.mark_not_ready(reason or "shutdown requested")
-
-    def is_ready(self) -> bool:
-        """Check if the instance is ready.
-
-        Returns:
-            bool: True if the instance is ready, False otherwise.
-        """
-        return self.ready_event.is_set()
-
-    async def wait_ready(self, timeout: float | None = None) -> None:
-        """Wait until the instance is marked as ready.
-
-        Args:
-            timeout (float | None): Optional timeout in seconds to wait for readiness.
-                                   If None, wait indefinitely.
-
-        Raises:
-            TimeoutError: If the timeout is reached before the instance is ready.
-        """
-        if timeout is None:
-            await self.ready_event.wait()
-        else:
-            await asyncio.wait_for(self.ready_event.wait(), timeout)
-
-    # --------- transitions
-    async def handle_stop(self) -> None:
-        if self.status == ResourceStatus.STOPPED:
-            self.logger.warning("%s '%s' is already stopped", self.role, self.class_name, stacklevel=2)
-            return
-
-        self.logger.info("Stopping %s '%s'", self.role, self.class_name)
-        self.status = ResourceStatus.STOPPED
-        event = self._create_service_status_event(ResourceStatus.STOPPED)
-        await self.hassette.send_event(event.topic, event)
-        self.mark_not_ready("Stopped")
-
-    async def handle_failed(self, exception: Exception | BaseException) -> None:
-        if self.status == ResourceStatus.FAILED:
-            self.logger.warning("%s '%s' is already in failed state", self.role, self.class_name, stacklevel=2)
-            return
-
-        self.logger.error("%s '%s' failed: %s - %s", self.role, self.class_name, type(exception), str(exception))
-        self.status = ResourceStatus.FAILED
-        event = self._create_service_status_event(ResourceStatus.FAILED, exception)
-        await self.hassette.send_event(event.topic, event)
-        self.mark_not_ready("Failed")
-
-    async def handle_running(self) -> None:
-        if self.status == ResourceStatus.RUNNING:
-            self.logger.warning("%s '%s' is already running", self.role, self.class_name, stacklevel=2)
-            return
-
-        self.logger.info("Running %s '%s'", self.role, self.class_name)
-        self.status = ResourceStatus.RUNNING
-        event = self._create_service_status_event(ResourceStatus.RUNNING)
-        await self.hassette.send_event(event.topic, event)
-
-    async def handle_starting(self) -> None:
-        if self.status == ResourceStatus.STARTING:
-            self.logger.warning("%s '%s' is already starting", self.role, self.class_name, stacklevel=2)
-            return
-        self.logger.info("Starting %s '%s'", self.role, self.class_name)
-        self.status = ResourceStatus.STARTING
-        event = self._create_service_status_event(ResourceStatus.STARTING)
-        await self.hassette.send_event(event.topic, event)
-
-    async def handle_crash(self, exception: Exception) -> None:
-        if self.status == ResourceStatus.CRASHED:
-            self.logger.warning("%s '%s' is already in crashed state", self.role, self.class_name, stacklevel=2)
-            return
-
-        self.logger.exception("%s '%s' crashed", self.role, self.class_name)
-        self.status = ResourceStatus.CRASHED
-        event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
-        await self.hassette.send_event(event.topic, event)
-        self.mark_not_ready("Crashed")
-
-    def _create_service_status_event(self, status: ResourceStatus, exception: Exception | BaseException | None = None):
-        return ServiceStatusPayload.create_event(
-            resource_name=self.class_name,
-            role=self.role,
-            status=status,
-            previous_status=self._previous_status,
-            exc=exception,
-        )
-
-
-class _HassetteBase:
-    unique_id: str
-    """Unique identifier for the instance."""
+    _initializing: bool = False
+    """Flag indicating whether the instance is in the process of starting up."""
 
     logger: Logger
     """Logger for the instance."""
 
-    unique_name: str
+    _unique_name: str
     """Unique name for the instance."""
+
+    unique_id: str
+    """Unique identifier for the instance."""
 
     class_name: typing.ClassVar[str]
     """Name of the class, set on subclassing."""
-
-    role: typing.ClassVar[ResourceRole] = ResourceRole.BASE
-    """Role of the resource, e.g. 'App', 'Service', etc."""
 
     hassette: "Hassette"
     """Reference to the Hassette instance."""
@@ -266,23 +76,68 @@ class _HassetteBase:
     def __init_subclass__(cls) -> None:
         cls.class_name = cls.__name__
 
-    def __init__(self, hassette: "Hassette", unique_name_prefix: str | None = None) -> None:
+    @classmethod
+    def create(
+        cls,
+        hassette: "Hassette",
+        task_bucket: "TaskBucket | None" = None,
+        parent: "Resource | None" = None,
+        **kwargs,
+    ):
+        sig = inspect.signature(cls)
+        # Start with a copy of incoming kwargs to preserve any extra arguments
+        final_kwargs = dict(kwargs)
+        if "hassette" in sig.parameters:
+            final_kwargs["hassette"] = hassette
+        if "task_bucket" in sig.parameters:
+            final_kwargs["task_bucket"] = task_bucket
+        if "parent" in sig.parameters:
+            final_kwargs["parent"] = parent
+        return cls(**final_kwargs)
+
+    def __init__(
+        self,
+        hassette: "Hassette",
+        task_bucket: "TaskBucket | None" = None,
+        parent: "Resource | None" = None,
+    ) -> None:
         """
-        Initialize the class with a reference to the Hassette instance.
+        Initialize the resource.
 
         Args:
             hassette (Hassette): The Hassette instance this resource belongs to.
-            unique_name_prefix (str | None): Optional prefix for the unique name. If None, the class name is used.
+            task_bucket (TaskBucket | None): Optional TaskBucket for managing tasks. If None, a new one is created.
+            parent (Resource | None): Optional parent resource. If None, this resource has no parent.
+
         """
-        self.unique_id = uuid.uuid4().hex
-        self.unique_name = f"{unique_name_prefix or type(self).__name__}.{self.unique_id[:8]}"
-        if unique_name_prefix == "hassette":
-            self.logger = getLogger("hassette")
-        else:
-            self.logger = getLogger("hassette").getChild(self.unique_name)
+        from hassette.core.resources.tasks import TaskBucket
+
+        super().__init__()
+
+        self.unique_id = uuid.uuid4().hex[:8]
 
         self.hassette = hassette
-        self.logger.debug("Creating instance of '%s'", self.class_name)
+        self.parent = parent
+        self.children = []
+
+        self._setup_logger()
+
+        if type(self) is TaskBucket:
+            # TaskBucket is special: it is its own task bucket
+            self.task_bucket = self
+        else:
+            self.task_bucket = task_bucket or TaskBucket.create(self.hassette, parent=self)
+
+    def _setup_logger(self) -> None:
+        logger_name = (
+            self.unique_name[len("Hassette.") :] if self.unique_name.startswith("Hassette.") else self.unique_name
+        )
+        if self.class_name == "Hassette":
+            self.logger = getLogger("hassette")
+        else:
+            self.logger = getLogger("hassette").getChild(logger_name)
+        self.logger.debug("Creating instance")
+        self.logger.setLevel(self.config_log_level)
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
@@ -297,42 +152,52 @@ class _HassetteBase:
         """Configure a logger to log at DEBUG level independently of its parent."""
         self.logger.setLevel("DEBUG")
 
+    @property
+    def unique_name(self) -> str:
+        """Get the unique name of the instance."""
+        if not hasattr(self, "_unique_name") or not self._unique_name:
+            if self.parent:
+                self._unique_name = f"{self.parent.unique_name}.{self.class_name}"
+            else:
+                self._unique_name = f"{self.class_name}.{self.unique_id}"
 
-class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
-    """Base class for resources in the Hassette framework."""
+        return self._unique_name
 
-    role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
-    """Role of the resource, e.g. 'App', 'Service', etc."""
+    @property
+    def owner_id(self) -> str:
+        # nearest App's unique_name, else Hassette's unique_name
+        if self.parent:
+            return self.parent.unique_name
+        return self.unique_name
 
-    task_bucket: "TaskBucket"
-    """Task bucket for managing tasks owned by this instance."""
+    @property
+    def config_log_level(self):
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.log_level
 
-    _shutting_down: bool = False
-    """Flag indicating whether the instance is in the process of shutting down."""
-
-    _initializing: bool = False
-    """Flag indicating whether the instance is in the process of starting up."""
-
-    def __init__(
-        self, hassette: "Hassette", unique_name_prefix: str | None = None, task_bucket: "TaskBucket | None" = None
-    ) -> None:
-        """
-        Initialize the resource.
+    def add_child(self, child_class: type[_ResourceT], **kwargs) -> _ResourceT:
+        """Create and add a child resource to this resource.
 
         Args:
-            hassette (Hassette): The Hassette instance this resource belongs to.
-            unique_name_prefix (str | None): Optional prefix for the unique name. If None, the class name is used.
-            task_bucket (TaskBucket | None): Optional TaskBucket for managing tasks. If None, a new one is created.
+            child (type[Resource]): The class of the child resource to create.
+            **kwargs: Keyword arguments to pass to the child resource's constructor.
 
+        Returns:
+            Resource: The created child resource.
         """
-        from hassette.core.resources.tasks import TaskBucket
+        if "parent" in kwargs:
+            raise ValueError("Cannot specify 'parent' argument when adding a child resource; it is set automatically.")
 
-        _HassetteBase.__init__(self, hassette, unique_name_prefix=unique_name_prefix)
-        LifecycleMixin.__init__(self)
+        sig = inspect.signature(child_class.create)
+        if "parent" in sig.parameters:
+            kwargs["parent"] = self
 
-        self.task_bucket = task_bucket or TaskBucket(
-            self.hassette, name=self.unique_name, unique_name_prefix=self.class_name
-        )
+        if "hassette" not in sig.parameters:
+            raise ValueError("Child resource class must accept 'hassette' argument in its create() method.")
+
+        inst = child_class.create(self.hassette, **kwargs)
+        self.children.append(inst)
+        return inst
 
     # --- developer-facing hooks (override as needed) -------------------
     async def before_initialize(self) -> None:
@@ -354,7 +219,7 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
             return
         self._initializing = True
 
-        self.logger.debug("Initializing '%s' %s", self.class_name, self.role)
+        self.logger.debug("Initializing")
         await self.handle_starting()
 
         try:
@@ -374,9 +239,9 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
                         await self.handle_failed(e)
                     raise
 
+            await self.handle_running()
         finally:
             self._initializing = False
-            await self.handle_running()
 
     # --- developer-facing hooks (override as needed) -------------------
     async def before_shutdown(self) -> None:
@@ -406,16 +271,14 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
                     await method()
 
                 except asyncio.CancelledError:
-                    self.logger.warning(
-                        "%s '%s' shutdown hook was cancelled, forcing cleanup", self.role, self.class_name
-                    )
+                    self.logger.warning("Shutdown hook was cancelled, forcing cleanup")
                     # Cooperative cancellation of hooks; still ensure cleanup + STOPPED
                     with suppress(Exception):
                         await self.handle_failed(asyncio.CancelledError())
                     raise
 
                 except Exception as e:
-                    self.logger.exception("Error during shutdown of %s '%s': %s", self.role, self.class_name, e)
+                    self.logger.exception("Error during shutdown: %s %s", type(e).__name__, e)
                     # Hooks blew up: record failure, but continue to clean up
                     with suppress(Exception):
                         await self.handle_failed(e)
@@ -424,18 +287,16 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
             # Always free tasks; then mark STOPPED and emit event
             try:
                 await self.cleanup()
-            except Exception:
-                self.logger.exception("Error during cleanup of %s '%s'", self.role, self.class_name)
+            except Exception as e:
+                self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
 
             if not self.hassette.event_streams_closed:
                 try:
                     await self.handle_stop()
-                except Exception:
-                    self.logger.exception("Error during stopping of %s '%s'", self.role, self.class_name)
+                except Exception as e:
+                    self.logger.exception("Error during stopping %s %s", type(e).__name__, e)
             else:
-                self.logger.info(
-                    "Skipping STOPPED event for %s '%s' as event streams are closed", self.role, self.class_name
-                )
+                self.logger.info("Skipping STOPPED event as event streams are closed")
 
             self._shutting_down = False
 
@@ -452,7 +313,7 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
         """
         self.cancel()
         await self.task_bucket.cancel_all()
-        self.logger.debug("Cleaned up resources for %s '%s'", self.role, self.class_name)
+        self.logger.debug("Cleaned up resources")
 
 
 class Service(Resource):
@@ -485,7 +346,7 @@ class Service(Resource):
                 await self.handle_stop()
             raise
         except Exception as e:
-            self.logger.exception("%s '%s' serve() task failed", self.role, self.class_name)
+            self.logger.exception("Serve() task failed: %s %s", type(e).__name__, e)
             # Crash/failure path
             await self.handle_failed(e)
 
@@ -494,7 +355,7 @@ class Service(Resource):
         # Flip any internal flags if you have them; then cancel the loop
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
-            self.logger.info("Cancelled serve() task for %s '%s'", self.role, self.class_name)
+            self.logger.info("Cancelled serve() task")
             with suppress(asyncio.CancelledError):
                 await self._serve_task
 

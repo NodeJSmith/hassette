@@ -8,4 +8,4 @@ async def test_run_sync_raises_inside_loop(hassette_with_bus: Hassette) -> None:
         return 42
 
     with pytest.raises(RuntimeError):
-        hassette_with_bus.run_sync(coro())
+        hassette_with_bus.task_bucket.run_sync(coro())
