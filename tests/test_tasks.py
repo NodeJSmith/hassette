@@ -24,7 +24,7 @@ async def test_cancel_all_cancels_cooperative_tasks(bucket_fixture: tasks.TaskBu
     await bucket_fixture.cancel_all()
 
     time = asyncio.get_running_loop().time()
-    end = time + bucket_fixture.cancel_timeout + 0.5
+    end = time + bucket_fixture.config_cancel_timeout + 0.5
     while not t.done() and time < end:
         await asyncio.sleep(0.01)
         time = asyncio.get_running_loop().time()

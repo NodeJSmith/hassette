@@ -20,10 +20,10 @@ def get_dummy_service(called: dict[str, int], hassette) -> Service:
         async def serve(self):
             pass
 
-        def cancel(self):
+        async def on_shutdown(self):
             called["cancel"] += 1
 
-        def start(self):
+        async def on_initialize(self):
             called["start"] += 1
 
     return _Dummy(hassette)
@@ -32,9 +32,8 @@ def get_dummy_service(called: dict[str, int], hassette) -> Service:
 async def test_restart_service_cancels_then_starts(get_service_watcher_mock: _ServiceWatcher):
     called = {"cancel": 0, "start": 0}
 
-    get_service_watcher_mock.hassette._resources["_Dummy"] = svc = get_dummy_service(
-        called, get_service_watcher_mock.hassette
-    )
+    svc = get_dummy_service(called, get_service_watcher_mock.hassette)
+    get_service_watcher_mock.hassette.children.add(svc)
 
     event = ServiceStatusPayload.create_event(
         resource_name=svc.class_name,
