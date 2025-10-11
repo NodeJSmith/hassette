@@ -41,6 +41,7 @@ async def test_ws_send_json_assigns_id(hassette_with_nothing: Hassette):  # noqa
         mock.config.websocket_log_level = "DEBUG"
         mock.config.task_bucket_log_level = "DEBUG"
         svc = _Websocket(mock)
+        svc.ready_event.set()
 
         svc._ws = AsyncMock()
         await svc.send_json(type="ping")
@@ -56,6 +57,7 @@ async def test_ws_send_json_wraps_errors(hassette_with_nothing: Hassette):  # no
         mock.config.websocket_log_level = "DEBUG"
         mock.config.task_bucket_log_level = "DEBUG"
         svc = _Websocket(mock)
+        svc.ready_event.set()
 
         svc._ws = _WSBoom()  # type: ignore[attr-defined]
         with pytest.raises(FailedMessageError):
