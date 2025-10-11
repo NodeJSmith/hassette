@@ -33,7 +33,7 @@ async def test_restart_service_cancels_then_starts(get_service_watcher_mock: _Se
     called = {"cancel": 0, "start": 0}
 
     svc = get_dummy_service(called, get_service_watcher_mock.hassette)
-    get_service_watcher_mock.hassette.children.add(svc)
+    get_service_watcher_mock.hassette.children.append(svc)
 
     event = ServiceStatusPayload.create_event(
         resource_name=svc.class_name,
