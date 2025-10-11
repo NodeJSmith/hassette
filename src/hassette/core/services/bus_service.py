@@ -4,6 +4,7 @@ import typing
 from collections import defaultdict
 from collections.abc import Callable
 from fnmatch import fnmatch
+from functools import cached_property
 from typing import Any
 
 from fair_async_rlock import FairAsyncRLock
@@ -45,6 +46,11 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
         """Return the log level from the config for this resource."""
         return self.hassette.config.bus_service_log_level
 
+    @cached_property
+    def config_log_all_events(self) -> bool:
+        """Return whether to log all events."""
+        return self.hassette.config.log_all_events
+
     def _log_task_result(self, task: asyncio.Task[Any]) -> None:
         if task.cancelled():
             return
@@ -83,7 +89,7 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
 
         targets = await self.router.get_matching_listeners(topic)
 
-        if self.hassette.config.log_all_events:
+        if self.config_log_all_events:
             self.logger.debug("Event: %r", event)
 
         if not targets:
