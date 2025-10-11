@@ -53,8 +53,7 @@ async def wait_for(
 async def start_resource(res: Resource, *, desc: str) -> asyncio.Task[Any] | None:
     res.start()
     task: asyncio.Task[Any] | None = None
-    if hasattr(res, "get_task"):
-        task = res.get_task()
+    task = res.task
     await wait_for(lambda: getattr(res, "status", None) == ResourceStatus.RUNNING, desc=f"{desc} RUNNING")
     return task
 
