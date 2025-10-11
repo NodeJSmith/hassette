@@ -226,7 +226,7 @@ class Hassette(Resource):
     async def on_shutdown(self) -> None:
         """Shutdown all services gracefully and gather any results."""
 
-        shutdown_tasks = [resource.shutdown() for resource in self.children]
+        shutdown_tasks = [resource.shutdown() for resource in reversed(self.children)]
 
         self.logger.info("Waiting for all resources to finish...")
 

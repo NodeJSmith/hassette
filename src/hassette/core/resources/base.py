@@ -5,7 +5,6 @@ import uuid
 from abc import abstractmethod
 from collections.abc import Coroutine
 from contextlib import suppress
-from functools import cached_property
 from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
@@ -13,7 +12,6 @@ from typing_extensions import deprecated
 
 from hassette.const.misc import LOG_LEVELS
 from hassette.enums import ResourceRole
-from hassette.logging_ import ContextFilter
 
 from .mixins import LifecycleMixin
 
@@ -39,7 +37,27 @@ class FinalMeta(type):
         return super().__new__(mcls, name, bases, ns)
 
 
-class _HassetteBase:
+class Resource(LifecycleMixin, metaclass=FinalMeta):
+    """Base class for resources in the Hassette framework."""
+
+    role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
+    """Role of the resource, e.g. 'App', 'Service', etc."""
+
+    task_bucket: "TaskBucket"
+    """Task bucket for managing tasks owned by this instance."""
+
+    parent: "Resource | None" = None
+    """Reference to the parent resource, if any."""
+
+    children: list["Resource"]
+    """List of child resources."""
+
+    _shutting_down: bool = False
+    """Flag indicating whether the instance is in the process of shutting down."""
+
+    _initializing: bool = False
+    """Flag indicating whether the instance is in the process of starting up."""
+
     logger: Logger
     """Logger for the instance."""
 
@@ -52,77 +70,11 @@ class _HassetteBase:
     class_name: typing.ClassVar[str]
     """Name of the class, set on subclassing."""
 
-    role: typing.ClassVar[ResourceRole] = ResourceRole.BASE
-    """Role of the resource, e.g. 'App', 'Service', etc."""
-
     hassette: "Hassette"
     """Reference to the Hassette instance."""
 
     def __init_subclass__(cls) -> None:
         cls.class_name = cls.__name__
-
-    def __init__(self, hassette: "Hassette") -> None:
-        """
-        Initialize the class with a reference to the Hassette instance.
-
-        Args:
-            hassette (Hassette): The Hassette instance this resource belongs to.
-        """
-        self._unique_name = ""
-        self.unique_id = uuid.uuid4().hex[:8]
-        if self.class_name == "Hassette":
-            self.logger = getLogger("hassette")
-        else:
-            self.logger = getLogger("hassette").getChild(type(self).__name__)
-
-        self.hassette = hassette
-
-    @property
-    def unique_name(self) -> str:
-        """Get the unique name of the instance."""
-        if not hasattr(self, "_unique_name") or not self._unique_name:
-            self._unique_name = f"{self.class_name}.{self.unique_id}"
-
-        return self._unique_name
-
-    @unique_name.setter
-    def unique_name(self, value: str) -> None:
-        self._unique_name = value
-
-    def __repr__(self) -> str:
-        return f"<{type(self).__name__} unique_name={self.unique_name}>"
-
-    @deprecated("Use self.logger.setLevel(...) instead")
-    def set_logger_to_level(self, level: LOG_LEVELS) -> None:
-        """Configure a logger to log at the specified level independently of its parent."""
-        self.logger.setLevel(level)
-
-    @deprecated("Use set_logger_to_level('DEBUG') instead")
-    def set_logger_to_debug(self) -> None:
-        """Configure a logger to log at DEBUG level independently of its parent."""
-        self.logger.setLevel("DEBUG")
-
-
-class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
-    """Base class for resources in the Hassette framework."""
-
-    role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
-    """Role of the resource, e.g. 'App', 'Service', etc."""
-
-    task_bucket: "TaskBucket"
-    """Task bucket for managing tasks owned by this instance."""
-
-    parent: "Resource | None" = None
-    """Reference to the parent resource, if any."""
-
-    children: set["Resource"]
-    """List of child resources."""
-
-    _shutting_down: bool = False
-    """Flag indicating whether the instance is in the process of shutting down."""
-
-    _initializing: bool = False
-    """Flag indicating whether the instance is in the process of starting up."""
 
     @classmethod
     def create(
@@ -160,16 +112,15 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
         """
         from hassette.core.resources.tasks import TaskBucket
 
-        _HassetteBase.__init__(self, hassette)
+        super().__init__()
+
+        self.unique_id = uuid.uuid4().hex[:8]
+
+        self.hassette = hassette
         self.parent = parent
-        self.children = set()
+        self.children = []
 
-        self.logger.addFilter(ContextFilter(self))
-        self.logger.debug("Creating instance")
-
-        LifecycleMixin.__init__(self)
-
-        self.logger.setLevel(self.config_log_level)
+        self._setup_logger()
 
         if type(self) is TaskBucket:
             # TaskBucket is special: it is its own task bucket
@@ -177,7 +128,31 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
         else:
             self.task_bucket = task_bucket or TaskBucket.create(self.hassette, parent=self)
 
-    @cached_property
+    def _setup_logger(self) -> None:
+        logger_name = (
+            self.unique_name[len("Hassette.") :] if self.unique_name.startswith("Hassette.") else self.unique_name
+        )
+        if self.class_name == "Hassette":
+            self.logger = getLogger("hassette")
+        else:
+            self.logger = getLogger("hassette").getChild(logger_name)
+        self.logger.debug("Creating instance")
+        self.logger.setLevel(self.config_log_level)
+
+    def __repr__(self) -> str:
+        return f"<{type(self).__name__} unique_name={self.unique_name}>"
+
+    @deprecated("Use self.logger.setLevel(...) instead")
+    def set_logger_to_level(self, level: LOG_LEVELS) -> None:
+        """Configure a logger to log at the specified level independently of its parent."""
+        self.logger.setLevel(level)
+
+    @deprecated("Use set_logger_to_level('DEBUG') instead")
+    def set_logger_to_debug(self) -> None:
+        """Configure a logger to log at DEBUG level independently of its parent."""
+        self.logger.setLevel("DEBUG")
+
+    @property
     def unique_name(self) -> str:
         """Get the unique name of the instance."""
         if not hasattr(self, "_unique_name") or not self._unique_name:
@@ -221,7 +196,7 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
             raise ValueError("Child resource class must accept 'hassette' argument in its create() method.")
 
         inst = child_class.create(self.hassette, **kwargs)
-        self.children.add(inst)
+        self.children.append(inst)
         return inst
 
     # --- developer-facing hooks (override as needed) -------------------

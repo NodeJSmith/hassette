@@ -2,51 +2,17 @@ import logging
 import sys
 import threading
 from contextlib import suppress
-from functools import cached_property
-from typing import Literal, Protocol
+from typing import Literal
 
 import coloredlogs
 
 FORMAT_DATE = "%Y-%m-%d"
 FORMAT_TIME = "%H:%M:%S"
 FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
-FMT = "%(asctime)s.%(msecs)03d %(levelname)s %(name)s.%(funcName)s:%(lineno)d (%(unique_name)s) ─ %(message)s"
+FMT = "%(asctime)s.%(msecs)03d %(levelname)s %(name)s.%(funcName)s:%(lineno)d ─ %(message)s"
 
 # TODO: remove coloredlogs and roll our own? or use colorlogs
 # coloredlogs is unmaintained and parts of it are broken on Python >3.13
-
-old_factory = logging.getLogRecordFactory()
-
-
-def record_factory(*args, **kwargs):
-    record = old_factory(*args, **kwargs)
-    record.unique_name = "unknown"
-    return record
-
-
-logging.setLogRecordFactory(record_factory)
-
-
-class ResourceP(Protocol):
-    @cached_property
-    def unique_name(self) -> str: ...
-
-
-class ContextFilter(logging.Filter):
-    def __init__(self, resource: ResourceP | None = None):
-        super().__init__()
-        self.resource = resource
-
-    def filter(self, record):
-        if not self.resource:
-            return True
-
-        try:
-            record.unique_name = self.resource.unique_name
-        except Exception:
-            record.unique_name = "unknown"
-
-        return True
 
 
 def enable_logging(
