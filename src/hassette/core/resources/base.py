@@ -133,14 +133,15 @@ class Resource(_HassetteBase, LifecycleMixin, metaclass=FinalMeta):
         **kwargs,
     ):
         sig = inspect.signature(cls)
-        kwargs = {}
+        # Start with a copy of incoming kwargs to preserve any extra arguments
+        final_kwargs = dict(kwargs)
         if "hassette" in sig.parameters:
-            kwargs["hassette"] = hassette
+            final_kwargs["hassette"] = hassette
         if "task_bucket" in sig.parameters:
-            kwargs["task_bucket"] = task_bucket
+            final_kwargs["task_bucket"] = task_bucket
         if "parent" in sig.parameters:
-            kwargs["parent"] = parent
-        return cls(**kwargs)
+            final_kwargs["parent"] = parent
+        return cls(**final_kwargs)
 
     def __init__(
         self,
