@@ -94,22 +94,23 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
             enabled_apps = {k: v for k, v in enabled_apps.items() if k == self.only_app}
         return enabled_apps
 
-    async def initialize(self) -> None:
+    async def on_initialize(self) -> None:
         """Start handler and initialize configured apps."""
-        async with self.starting():
-            if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
-                if self.hassette.config.allow_reload_in_prod:
-                    self.logger.warning("Allowing app reloads in production mode due to config")
-                self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
-            else:
-                self.logger.info("Not watching for app changes, dev_mode is disabled")
+        if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
+            if self.hassette.config.allow_reload_in_prod:
+                self.logger.warning("Allowing app reloads in production mode due to config")
+            self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
+        else:
+            self.logger.info("Not watching for app changes, dev_mode is disabled")
 
-            await self.hassette.wait_for_ready(self.hassette._websocket)
-            self.mark_ready("initialized")
+        await self.hassette.wait_for_ready(self.hassette._websocket)
+        self.mark_ready("initialized")
 
+    async def after_initialize(self) -> None:
+        self.logger.info("Scheduling app initialization")
         self.task_bucket.spawn(self.initialize_apps())
 
-    async def shutdown(self) -> None:
+    async def on_shutdown(self) -> None:
         """Shutdown all app instances gracefully."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
         self.mark_not_ready(reason="shutting-down")
@@ -132,7 +133,6 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
         self.apps.clear()
         self.failed_apps.clear()
-        await super().shutdown()
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
         """Get a specific app instance if running."""
@@ -438,7 +438,6 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
                 start_time = timer()
                 with anyio.fail_after(self.hassette.config.app_shutdown_timeout_seconds):
                     await inst.shutdown()
-                    await inst.wait_for_resource_cleanup()
 
                 end_time = timer()
                 friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")

@@ -17,7 +17,7 @@ def get_dummy_service(called: dict[str, int], hassette) -> Service:
     class _Dummy(Service):
         """Does nothing, just tracks calls."""
 
-        async def run_forever(self):
+        async def serve(self):
             pass
 
         def cancel(self):

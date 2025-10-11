@@ -18,7 +18,7 @@ class MyAppUserConfig(AppConfig):
 
 # @only
 class MyAppSync(AppSync):
-    def initialize_sync(self) -> None:
+    def on_initialize_sync(self) -> None:
         self.bus.on_entity("input_button.test", handler=self.handle_event)
         self.scheduler.run_in(self.test_stuff, 1)
 

@@ -6,11 +6,13 @@ from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, TimeoutError
 from typing import Any, ParamSpec, TypeVar
 
-from hassette.core.resources.base import _HassetteBase
+from hassette.core.resources.base import Resource
 
 from .. import context  # noqa: TID252
 
 if typing.TYPE_CHECKING:
+    from types import CoroutineType
+
     from hassette import Hassette
 
 T = TypeVar("T", covariant=True)
@@ -20,7 +22,7 @@ R = TypeVar("R")
 CoroLikeT = Coroutine[Any, Any, T]
 
 
-class TaskBucket(_HassetteBase):
+class TaskBucket(Resource):
     """Track and clean up a set of tasks for a service/app."""
 
     def __init__(
@@ -28,7 +30,7 @@ class TaskBucket(_HassetteBase):
         hassette: "Hassette",
         name: str,
         cancellation_timeout: int | float | None = None,
-        prefix: str | None = None,
+        unique_name_prefix: str | None = None,
     ) -> None:
         """Initialize the TaskBucket.
 
@@ -36,24 +38,22 @@ class TaskBucket(_HassetteBase):
             hassette (Hassette): The Hassette instance this bucket is associated with.
             name (str): Name of the bucket, used for logging.
             cancellation_timeout (int | float | None): Timeout for task cancellation. If None, uses default from config.
-            prefix (str | None): Optional prefix for task names, if provided task name is not namespaced.
+            unique_name_prefix (str | None): Optional prefix for task names, if provided task name is not namespaced.
         """
 
-        super().__init__(hassette, unique_name_prefix=f"{name}.bucket")
+        super().__init__(hassette, unique_name_prefix=unique_name_prefix, task_bucket=self)
 
         self.name = name
-        self.prefix = prefix
         self.logger.setLevel(self.hassette.config.task_bucket_log_level)
 
-        # if we didn't get passed a value, use the config default
-        if not cancellation_timeout:
-            config_inst = context.HASSETTE_CONFIG.get(None)
-            if not config_inst:
-                raise RuntimeError("TaskBucket created outside of Hassette context")
-            cancellation_timeout = config_inst.task_cancellation_timeout_seconds
+        cancellation_timeout = cancellation_timeout or self.hassette.config.task_cancellation_timeout_seconds
 
         self.cancel_timeout = cancellation_timeout
         self._tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
+
+    def __bool__(self) -> bool:
+        # truthiness should not trigger __len__
+        return True
 
     def add(self, task: asyncio.Task[Any]) -> None:
         """Add a task to the bucket and attach exception logging."""
@@ -72,14 +72,8 @@ class TaskBucket(_HassetteBase):
         task.add_done_callback(lambda t: self._tasks.discard(t))
         task.add_done_callback(_done)
 
-    def spawn(self, coro, *, name: str | None = None) -> asyncio.Task[Any]:
+    def spawn(self, coro: CoroLikeT, *, name: str | None = None) -> asyncio.Task[Any]:
         """Convenience: create and track a new task."""
-        if name and ":" not in name:
-            if self.prefix:
-                name = f"{self.prefix}:{name}"
-            else:
-                self.logger.warning("Tasks should be namespaced with ':' or a prefix should be provided (%s)", name)
-
         current_thread = threading.get_ident()
 
         if current_thread == self.hassette._loop_thread_id:
@@ -108,6 +102,30 @@ class TaskBucket(_HassetteBase):
 
             self.hassette.loop.call_soon_threadsafe(_create)
             return result.result()  # block this worker thread briefly to hand back the Task
+
+    def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "CoroutineType[Any, Any, R]":
+        """Run a synchronous function in a separate thread.
+
+        This is a thin wrapper around `asyncio.to_thread`, but ensures that the current TaskBucket context
+        is preserved in the new thread.
+
+        Args:
+            fn (Callable[P, R]): The synchronous function to run.
+            *args (P.args): Positional arguments to pass to the function.
+            **kwargs (P.kwargs): Keyword arguments to pass to the function.
+        Returns:
+            Future[R]: A Future representing the result of the function call.
+        """
+        current_bucket = context.CURRENT_BUCKET.get()
+
+        def _call() -> R:
+            if current_bucket is not None:
+                with context.use(context.CURRENT_BUCKET, current_bucket):
+                    return fn(*args, **kwargs)
+            else:
+                return fn(*args, **kwargs)
+
+        return asyncio.to_thread(_call)
 
     def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | None = None) -> R:
         """Run an async function in a synchronous context.

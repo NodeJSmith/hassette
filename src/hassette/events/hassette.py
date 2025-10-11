@@ -46,7 +46,7 @@ class ServiceStatusPayload:
         role: ResourceRole,
         status: ResourceStatus,
         previous_status: ResourceStatus | None = None,
-        exc: Exception | None = None,
+        exc: Exception | BaseException | None = None,
     ) -> "HassetteServiceEvent":
         payload = cls(
             resource_name=resource_name,

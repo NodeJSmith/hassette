@@ -9,10 +9,8 @@ class MyAppUserConfig(AppConfig):
 
 
 class MyApp(App[MyAppUserConfig]):
-    async def initialize(self) -> None:
-        await super().initialize()
-
-        self.logger.info("MyApp has been initialized")
+    async def on_initialize(self) -> None:
+        self.logger.info("MyApp is initializing")
         self.bus.on_entity("input_button.test", handler=self.handle_event_sync)
         self.scheduler.run_in(self.api.get_states, 1)
         self.scheduler.run_every(

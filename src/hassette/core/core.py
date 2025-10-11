@@ -1,7 +1,6 @@
 import asyncio
 import threading
 import typing
-from asyncio import Future, ensure_future
 from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, ClassVar, ParamSpec, TypeVar
@@ -15,7 +14,7 @@ from hassette.utils.service_utils import wait_for_ready
 
 from . import context
 from .resources.api import Api
-from .resources.base import Resource, Service, _LoggerMixin
+from .resources.base import Resource, Service
 from .resources.bus.bus import Bus
 from .resources.scheduler.scheduler import Scheduler
 from .resources.tasks import TaskBucket, make_task_factory
@@ -37,7 +36,7 @@ R = TypeVar("R")
 T = TypeVar("T", bound=Resource | Service)
 
 
-class Hassette(_LoggerMixin):
+class Hassette(Resource):
     """Main class for the Hassette application.
 
     This class initializes the Hassette instance, manages services, and provides access to the API,
@@ -63,15 +62,16 @@ class Hassette(_LoggerMixin):
             env_file (str | Path | None): Path to the environment file for configuration.
             config (HassetteConfig | None): Optional pre-loaded configuration.
         """
-        super().__init__(unique_name_prefix="Hassette")
-
         self.config = config
+
+        super().__init__(
+            self,
+            unique_name_prefix="hassette",
+            task_bucket=TaskBucket(self, name="hassette", unique_name_prefix="hassette"),
+        )
 
         # collections
         self._resources: dict[str, Resource | Service] = {}
-
-        self.ready_event: asyncio.Event = asyncio.Event()
-        self.shutdown_event: asyncio.Event = asyncio.Event()
 
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event"]](1000)
 
@@ -94,7 +94,7 @@ class Hassette(_LoggerMixin):
         self._scheduler = self._register_resource(Scheduler, self.unique_name)
         self.api = self._register_resource(Api, self.unique_name)
 
-        # set class-level instance for access from other modules without circular imports
+        # set context variable
         context.HASSETTE_INSTANCE.set(self)
 
     def _register_resource(self, resource: type[T], *args) -> T:
@@ -105,6 +105,11 @@ class Hassette(_LoggerMixin):
 
         self._resources[resource.class_name] = inst = resource(self, *args)
         return inst
+
+    @property
+    def event_streams_closed(self) -> bool:
+        """Check if the event streams are closed."""
+        return self._send_stream._closed and self._receive_stream._closed
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -159,14 +164,14 @@ class Hassette(_LoggerMixin):
         Returns:
             R: The result of the function call.
         """
-        return self._global_tasks.run_sync(fn, timeout_seconds=timeout_seconds)
+        return self.task_bucket.run_sync(fn, timeout_seconds=timeout_seconds)
 
     async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args, **kwargs) -> R:
         """Run a synchronous function on the main event loop thread.
 
         This is useful for ensuring that loop-affine code runs in the correct context.
         """
-        return await self._global_tasks.run_on_loop_thread(fn, *args, **kwargs)
+        return await self.task_bucket.run_on_loop_thread(fn, *args, **kwargs)
 
     def create_task(self, coro: Coroutine[Any, Any, R], name: str) -> asyncio.Task[R]:
         """Create a task tracked in the global hassette task bucket.
@@ -178,7 +183,7 @@ class Hassette(_LoggerMixin):
             asyncio.Task[R]: The created task.
         """
 
-        return self._global_tasks.spawn(coro, name=name)
+        return self.task_bucket.spawn(coro, name=name)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: int | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
@@ -200,8 +205,7 @@ class Hassette(_LoggerMixin):
         self._loop_thread_id = threading.get_ident()
         self.loop.set_debug(self.config.dev_mode)
 
-        self._global_tasks = TaskBucket(self, name="hassette", prefix="hassette")
-        self.loop.set_task_factory(make_task_factory(self._global_tasks))
+        self.loop.set_task_factory(make_task_factory(self.task_bucket))
 
         self._start_resources()
 
@@ -213,7 +217,7 @@ class Hassette(_LoggerMixin):
             not_ready_resources = [r.class_name for r in self._resources.values() if not r.is_ready()]
             self.logger.error("The following resources failed to start: %s", ", ".join(not_ready_resources))
             self.logger.error("Not all resources started successfully, shutting down")
-            await self._shutdown()
+            await self.shutdown()
             return
 
         self.logger.info("All resources started successfully")
@@ -221,7 +225,7 @@ class Hassette(_LoggerMixin):
 
         if self.shutdown_event.is_set():
             self.logger.warning("Hassette is shutting down, aborting run loop")
-            await self._shutdown()
+            await self.shutdown()
 
         try:
             await self.shutdown_event.wait()
@@ -230,7 +234,7 @@ class Hassette(_LoggerMixin):
         except Exception as e:
             self.logger.error("Error in Hassette run loop: %s", e)
         finally:
-            await self._shutdown()
+            await self.shutdown()
 
         self.logger.info("Hassette stopped.")
 
@@ -240,32 +244,14 @@ class Hassette(_LoggerMixin):
         for service in self._resources.values():
             service.start()
 
-    async def _shutdown(self) -> None:
+    async def on_shutdown(self) -> None:
         """Shutdown all services gracefully and gather any results."""
-        self.shutdown()  # signal shutdown
 
-        # shutdown each resource
-        for resource in reversed(self._resources.values()):
-            try:
-                await resource.shutdown()
-
-                # in case the resource does not call its own cleanup
-                # shouldn't happen, but be safe
-                await resource.cleanup()
-            except Exception as e:
-                self.logger.error("Failed to shutdown resource '%s': %s", resource.class_name, e)
+        shutdown_tasks = [resource.shutdown() for resource in reversed(self._resources.values())]
 
         self.logger.info("Waiting for all resources to finish...")
 
-        tasks = [task for s in self._resources.values() if (task := s.get_task())]
-        gather_tasks: list[Future] = []
-        for t in tasks:
-            try:
-                gather_tasks.append(ensure_future(t, loop=self.loop))
-            except Exception as e:
-                self.logger.error("Failed to ensure future for task '%s': %s", t, e)
-
-        results = await asyncio.gather(*gather_tasks, return_exceptions=True)
+        results = await asyncio.gather(*shutdown_tasks, return_exceptions=True)
 
         for result in results:
             if isinstance(result, Exception):
@@ -278,10 +264,5 @@ class Hassette(_LoggerMixin):
             await self._send_stream.aclose()
         if self._receive_stream is not None:
             await self._receive_stream.aclose()
-
-        await self._global_tasks.cancel_all()
-
-    def shutdown(self) -> None:
-        """Signal shutdown to the main loop."""
-        self.logger.debug("Shutting down Hassette")
-        self.shutdown_event.set()
+        if self._thread_pool is not None:
+            self._thread_pool.shutdown(wait=True)

@@ -32,32 +32,31 @@ class _HealthService(Service):
 
         self._runner: web.AppRunner | None = None
 
-    async def run_forever(self) -> None:
+    async def serve(self) -> None:
         if not self.hassette.config.run_health_service:
-            self.logger.info("Health service disabled by configuration")
             return
 
         try:
-            async with self.starting():
-                await self.startup()
-
             # Just idle until cancelled
-            await self.hassette.shutdown_event.wait()
+            await self.shutdown_event.wait()
         except OSError as e:
             error_no = e.errno if hasattr(e, "errno") else type(e)
             self.logger.error("Health service failed to start: %s (errno=%s)", e, error_no)
-            await self.handle_failed(e)
             raise
-        except Exception as e:
-            await self.handle_crash(e)
-            raise
-        finally:
-            await self.cleanup()
 
-    async def startup(self):
-        """Start the health HTTP server."""
+    async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()
+
+    async def on_initialize(self):
+        """Start the health HTTP server."""
+
+        if not self.hassette.config.run_health_service:
+            self.logger.info("Health service disabled by configuration")
+            # we don't want to fail startup due to "not ready", as this is not unhealthy, just disabled
+            self.mark_ready(reason="Health service disabled")
+            return
+
         app = web.Application()
         hassette_key = MyAppKey[_HealthService]("health_service", _HealthService)
         app[hassette_key] = self
@@ -72,18 +71,10 @@ class _HealthService(Service):
 
         self.mark_ready(reason="Health service started")
 
-    async def shutdown(self, *args, **kwargs) -> None:
-        await self.cleanup()
-        return await super().shutdown(*args, **kwargs)
-
-    async def cleanup(self) -> None:
+    async def on_shutdown(self) -> None:
         if self._runner:
             await self._runner.cleanup()
             self.logger.debug("Health service stopped")
-        if self.status != ResourceStatus.STOPPED:
-            await self.handle_stop()
-
-        await super().cleanup()
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         # You can check internals here (e.g., WS status)

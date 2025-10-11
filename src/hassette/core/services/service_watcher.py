@@ -17,14 +17,12 @@ class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
 
         self.bus = Bus(hassette, owner=self.unique_name)
 
-    async def initialize(self, *args, **kwargs) -> None:
+    async def on_initialize(self) -> None:
         self._register_internal_event_listeners()
-        await super().initialize(*args, **kwargs)
         self.mark_ready(reason="Service watcher initialized")
 
-    async def shutdown(self, *args, **kwargs) -> None:
+    async def on_shutdown(self) -> None:
         self.bus.remove_all_listeners()
-        await super().shutdown(*args, **kwargs)
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Start a service from a service event."""
@@ -95,7 +93,7 @@ class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
                 event.payload.event_id,
                 data.exception_traceback,
             )
-            self.hassette.shutdown()
+            await self.hassette.shutdown()
         except Exception:
             self.logger.error("Failed to handle %s crash for '%s': %s", role, name)
             raise

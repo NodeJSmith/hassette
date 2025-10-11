@@ -41,8 +41,7 @@ class Battery(App[BatteryConfig]):
     for each one, each receiving their respective configuration.
     """
 
-    async def initialize(self):
-        await super().initialize()
+    async def on_initialize(self):
         self.scheduler.run_in(self.check_batteries, 1)
         assert self.app_config.threshold == 10  # from what is in hassette.toml
 
