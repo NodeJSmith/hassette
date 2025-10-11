@@ -134,10 +134,12 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         """Get the next message ID."""
         return next(self._seq)
 
-    async def _announce_ready(self):
-        await self.handle_running()
-        self.mark_ready(reason="WebSocket connected and authenticated")
+    async def after_initialize(self):
         event = WebsocketConnectedEventPayload.create_event(url=self.url)
+        await self.hassette.send_event(event.topic, event)
+
+    async def before_shutdown(self) -> None:
+        event = WebsocketDisconnectedEventPayload.create_event(error="WebSocket service shutting down")
         await self.hassette.send_event(event.topic, event)
 
     async def serve(self) -> None:
@@ -162,17 +164,19 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         )
         async def _inner_connect():
             self._session = session
+
             try:
                 self._ws = await session.ws_connect(self.url, heartbeat=self.heartbeat_interval_seconds)
             except ClientConnectorError as exc:
-                # preserve your special-case mapping
                 if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
                     raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
                 raise
 
             self.logger.debug("Connected to WebSocket at %s", self.url)
             await self.authenticate()
-            await self._announce_ready()
+
+            # mark ready before subscribing, otherwise we'll raise an exception due to not ready status
+            self.mark_ready(reason="WebSocket connected and authenticated")
 
             # start reader first so send_and_wait can get replies
             recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
