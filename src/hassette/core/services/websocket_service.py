@@ -166,8 +166,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
             self._subscription_ids.add(await self._subscribe_events())
             return recv_task
 
-        async with self.starting():
-            return await _inner_connect()
+        return await _inner_connect()
 
     async def _recv_loop(self) -> None:
         while True:
