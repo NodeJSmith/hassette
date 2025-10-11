@@ -11,6 +11,8 @@ from hassette.core.resources.base import Resource
 from .. import context  # noqa: TID252
 
 if typing.TYPE_CHECKING:
+    from types import CoroutineType
+
     from hassette import Hassette
 
 T = TypeVar("T", covariant=True)
@@ -70,7 +72,7 @@ class TaskBucket(Resource):
         task.add_done_callback(lambda t: self._tasks.discard(t))
         task.add_done_callback(_done)
 
-    def spawn(self, coro, *, name: str | None = None) -> asyncio.Task[Any]:
+    def spawn(self, coro: CoroLikeT, *, name: str | None = None) -> asyncio.Task[Any]:
         """Convenience: create and track a new task."""
         current_thread = threading.get_ident()
 
@@ -100,6 +102,30 @@ class TaskBucket(Resource):
 
             self.hassette.loop.call_soon_threadsafe(_create)
             return result.result()  # block this worker thread briefly to hand back the Task
+
+    def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "CoroutineType[Any, Any, R]":
+        """Run a synchronous function in a separate thread.
+
+        This is a thin wrapper around `asyncio.to_thread`, but ensures that the current TaskBucket context
+        is preserved in the new thread.
+
+        Args:
+            fn (Callable[P, R]): The synchronous function to run.
+            *args (P.args): Positional arguments to pass to the function.
+            **kwargs (P.kwargs): Keyword arguments to pass to the function.
+        Returns:
+            Future[R]: A Future representing the result of the function call.
+        """
+        current_bucket = context.CURRENT_BUCKET.get()
+
+        def _call() -> R:
+            if current_bucket is not None:
+                with context.use(context.CURRENT_BUCKET, current_bucket):
+                    return fn(*args, **kwargs)
+            else:
+                return fn(*args, **kwargs)
+
+        return asyncio.to_thread(_call)
 
     def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | None = None) -> R:
         """Run an async function in a synchronous context.

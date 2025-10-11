@@ -95,34 +95,24 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
             if listener.once:
                 self.remove_listener(listener)
 
-    async def run_forever(self) -> None:
+    async def before_initialize(self) -> None:
+        self.logger.debug("Waiting for Hassette ready event")
+        await self.hassette.ready_event.wait()
+
+    async def serve(self) -> None:
         """Worker loop that processes events from the stream."""
 
-        async with self.starting():
-            self.logger.debug("Waiting for Hassette ready event")
-            await self.hassette.ready_event.wait()
-            self.mark_ready(reason="Hassette is ready")
-
-        try:
-            async with self.stream:
-                async for event_name, event_data in self.stream:
-                    if self.hassette.shutdown_event.is_set():
-                        self.logger.debug("Hassette is shutting down, exiting bus loop")
-                        self.mark_not_ready(reason="Hassette is shutting down")
-                        break
-                    try:
-                        await self.dispatch(event_name, event_data)
-                    except Exception as e:
-                        self.logger.exception("Error processing event: %s", e)
-        except asyncio.CancelledError:
-            self.logger.debug("EventBus service cancelled")
-            self.mark_not_ready(reason="EventBus cancelled")
-            await self.handle_stop()
-        except Exception as e:
-            await self.handle_crash(e)
-            raise
-        finally:
-            await self.cleanup()
+        async with self.stream:
+            self.mark_ready(reason="Stream opened")
+            async for event_name, event_data in self.stream:
+                if self.shutdown_event.is_set():
+                    self.logger.debug("Hassette is shutting down, exiting bus loop")
+                    self.mark_not_ready(reason="Hassette is shutting down")
+                    break
+                try:
+                    await self.dispatch(event_name, event_data)
+                except Exception as e:
+                    self.logger.exception("Error processing event: %s", e)
 
 
 class Router:

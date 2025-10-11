@@ -1,11 +1,8 @@
 import asyncio
 import logging
 import typing
-from collections.abc import Coroutine
 from logging import getLogger
 from typing import Any, ClassVar, Generic
-
-from anyio import to_thread
 
 from hassette.config.app_manifest import AppManifest
 from hassette.core.resources.api import Api
@@ -121,41 +118,19 @@ class App(Generic[AppConfigT], Resource):
 
     async def send_event(self, event_name: str, event: Event[Any]) -> None:
         """Send an event to the event bus."""
-        await self.hassette._send_stream.send((event_name, event))
+        await self.hassette.send_event(event_name, event)
 
-    async def initialize(self) -> None:
-        """Initialize the app.
-
-        This method should be overridden by subclasses to provide custom initialization logic.
-        """
-        await super().initialize()
-        self.logger.info("App '%s' initialized", self.class_name)
-
-    async def shutdown(self) -> None:
-        """Shutdown the app.
-
-        This method should be overridden by subclasses to provide custom shutdown logic.
-        """
-        await super().shutdown()
-
-    def cleanup_resources(self) -> list[asyncio.Task | Coroutine]:
-        """Cleanup resources owned by the app.
-
-        This method is called during shutdown to ensure that all resources are properly released.
-        """
-        sched_task = self.scheduler.remove_all_jobs()
-        bus_task = self.bus.remove_all_listeners()
-        bucket_task = self.task_bucket.cancel_all()
-        self.logger.debug("Triggered resource cleanup for app '%s'", self.class_name)
-        return [sched_task, bus_task, bucket_task]
-
-    async def wait_for_resource_cleanup(self, timeout: int | float = 10) -> None:
+    async def on_shutdown(self, timeout: int | float = 10) -> None:
         """Wait for all resources owned by the app to be cleaned up.
 
         Args:
             timeout (int | float): Maximum time to wait for cleanup, in seconds.
         """
-        tasks = self.cleanup_resources()
+        tasks = []
+
+        tasks.append(self.scheduler.remove_all_jobs())
+        tasks.append(self.bus.remove_all_listeners())
+        tasks.append(self.task_bucket.cancel_all())
         if tasks:
             results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
             for result in results:
@@ -171,32 +146,56 @@ class AppSync(App[AppConfigT]):
     by using anyio's thread management capabilities.
     """
 
-    async def initialize(self) -> None:
-        """Initialize the app in a thread-safe manner."""
-        # Call Resource.initialize() to handle status events
-        await Resource.initialize(self)
+    # --- developer-facing hooks (override as needed) -------------------
+    async def before_shutdown(self) -> None:
+        """Optional: stop accepting new work, signal loops to wind down, etc."""
+        await self.task_bucket.run_in_thread(self.before_shutdown_sync)
 
-        # Run the sync initialize method in a thread
-        await to_thread.run_sync(self.initialize_sync)
+    async def on_shutdown(self) -> None:
+        """Primary hook: release your own stuff (sockets, queues, temp files…)."""
+        await self.task_bucket.run_in_thread(self.on_shutdown_sync)
+        await super().on_shutdown()
 
-    async def shutdown(self) -> None:
-        """Shutdown the app in a thread-safe manner."""
-        # Run the sync shutdown method in a thread
-        await to_thread.run_sync(self.shutdown_sync)
+    async def after_shutdown(self) -> None:
+        """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
+        await self.task_bucket.run_in_thread(self.after_shutdown_sync)
 
-        # Call Resource.shutdown() to handle status events
-        await Resource.shutdown(self)
+    # --- developer-facing hooks (override as needed) -------------------
+    async def before_initialize(self) -> None:
+        """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
+        await self.task_bucket.run_in_thread(self.before_initialize_sync)
 
-    def initialize_sync(self) -> None:
-        """Synchronous initialization method to be overridden by subclasses.
+    async def on_initialize(self) -> None:
+        """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
+        await self.task_bucket.run_in_thread(self.on_initialize_sync)
 
-        This method runs in a separate thread and can safely perform blocking operations.
-        """
-        pass
+    async def after_initialize(self) -> None:
+        """Optional: finalize initialization, signal readiness, etc."""
+        await self.task_bucket.run_in_thread(self.after_initialize_sync)
 
-    def shutdown_sync(self) -> None:
-        """Synchronous shutdown method to be overridden by subclasses.
+    # --- developer-facing hooks (override as needed) -------------------
+    def before_shutdown_sync(self) -> None:
+        """Optional: stop accepting new work, signal loops to wind down, etc."""
+        # Default: cancel an in-flight initialize() task if you used Resource.start()
+        self.cancel()
 
-        This method runs in a separate thread and can safely perform blocking operations.
-        """
-        pass
+    def on_shutdown_sync(self) -> None:
+        """Primary hook: release your own stuff (sockets, queues, temp files…)."""
+        # Default: nothing. Subclasses override when they own resources.
+
+    def after_shutdown_sync(self) -> None:
+        """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
+        # Default: nothing.
+
+    # --- developer-facing hooks (override as needed) -------------------
+    def before_initialize_sync(self) -> None:
+        """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
+        # Default: nothing. Subclasses override when they own resources.
+
+    def on_initialize_sync(self) -> None:
+        """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
+        # Default: nothing. Subclasses override when they own resources.
+
+    def after_initialize_sync(self) -> None:
+        """Optional: finalize initialization, signal readiness, etc."""
+        # Default: nothing. Subclasses override when they own resources.

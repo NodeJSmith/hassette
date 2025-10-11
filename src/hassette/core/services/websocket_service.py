@@ -102,7 +102,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
         """Get the next message ID."""
         return next(self._seq)
 
-    async def run_forever(self) -> None:
+    async def serve(self) -> None:
         """Connect to the WebSocket and run the receive loop."""
         async with self._connect_lock:
             try:
@@ -282,7 +282,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
             FailedMessageError: If sending the message fails.
         """
 
-        if not self.ready:
+        if not self.ready_event:
             raise ResourceNotReadyError("WebSocket is not ready")
 
         self.logger.debug("Sending WebSocket message: %s", data)

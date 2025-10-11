@@ -40,45 +40,29 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
     def default_delay(self) -> float:
         return self.hassette.config.scheduler_default_delay_seconds
 
-    async def run_forever(self):
+    async def before_initialize(self) -> None:
+        self.logger.debug("Waiting for Hassette ready event")
+        await self.hassette.ready_event.wait()
+
+    async def serve(self):
         """Run the scheduler forever, processing jobs as they become due."""
 
-        async with self.starting():
-            self.logger.debug("Waiting for Hassette ready event")
-            await self.hassette.ready_event.wait()
-            self.mark_ready(reason="Hassette is ready")
+        self.mark_ready(reason="Scheduler started")
 
-        try:
-            self._exit_event = asyncio.Event()
+        while True:
+            if self.shutdown_event.is_set():
+                self.mark_not_ready(reason="Hassette is shutting down")
+                self.logger.debug("Scheduler exiting")
+                return
 
-            while True:
-                if self._exit_event.is_set() or self.hassette.shutdown_event.is_set():
-                    self.mark_not_ready(reason="Hassette is shutting down")
-                    self.logger.debug("Scheduler exiting")
-                    return
+            due_jobs = await self._job_queue.pop_due(now())
 
-                due_jobs = await self._job_queue.pop_due(now())
+            if due_jobs:
+                for job in due_jobs:
+                    self.task_bucket.spawn(self._dispatch_and_log(job), name="scheduler:dispatch_scheduled_job")
+                continue
 
-                if due_jobs:
-                    for job in due_jobs:
-                        self.task_bucket.spawn(
-                            self._dispatch_and_log(job),
-                            name="scheduler:dispatch_scheduled_job",
-                        )
-                    continue
-
-                await self.sleep()
-        except asyncio.CancelledError:
-            self.mark_not_ready(reason="Scheduler cancelled")
-            self.logger.debug("Scheduler cancelled, stopping")
-            await self.handle_stop()
-            self._exit_event.set()
-        except Exception as e:
-            await self.handle_crash(e)
-            self._exit_event.set()
-            raise
-        finally:
-            await self.cleanup()
+            await self.sleep()
 
     def kick(self):
         """Wake up the scheduler to check for jobs."""

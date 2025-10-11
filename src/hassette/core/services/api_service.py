@@ -45,21 +45,19 @@ class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
 
         self._stack = AsyncExitStack()
 
-    async def initialize(self):
+    async def on_initialize(self):
         """
         Start the API service.
         """
-        async with self.starting():
-            await self._stack.__aenter__()
-            self._session = await self._stack.enter_async_context(
-                aiohttp.ClientSession(headers=self._headers, base_url=self._rest_url)
-            )
-            await self.hassette.wait_for_ready(self.hassette._websocket)
-            self.mark_ready(reason="API session initialized")
+        await self._stack.__aenter__()
+        self._session = await self._stack.enter_async_context(
+            aiohttp.ClientSession(headers=self._headers, base_url=self._rest_url)
+        )
+        await self.hassette.wait_for_ready(self.hassette._websocket)
+        self.mark_ready(reason="API session initialized")
 
-    async def shutdown(self, *args, **kwargs) -> None:
+    async def on_shutdown(self, *args, **kwargs) -> None:
         await self._stack.aclose()
-        await super().shutdown()
 
     @property
     def _headers(self) -> dict[str, str]:
