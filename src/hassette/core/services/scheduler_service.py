@@ -257,14 +257,21 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
 class _ScheduledJobQueue(Resource):
     """Encapsulates the scheduler heap with fair locking semantics."""
 
-    def __init__(self, hassette: "Hassette"):
-        super().__init__(hassette)
-        self.logger.setLevel(self.hassette.config.scheduler_service_log_level)
+    _lock: FairAsyncRLock
+    """Lock to protect access to the queue."""
 
-        self._lock = FairAsyncRLock()
-        self._queue: HeapQueue[ScheduledJob] = HeapQueue()
+    _queue: "HeapQueue[ScheduledJob]"
+    """The heap queue of scheduled jobs."""
 
-        self.mark_ready(reason="Queue ready")
+    @classmethod
+    def create(cls, hassette: "Hassette", parent: Resource):
+        inst = cls(hassette, parent=parent)
+        inst._lock = FairAsyncRLock()
+        inst._queue = HeapQueue()
+
+        inst.mark_ready(reason="Queue ready")
+
+        return inst
 
     @property
     def config_log_level(self):
