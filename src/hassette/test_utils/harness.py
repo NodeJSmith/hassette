@@ -4,7 +4,6 @@ import logging
 import threading
 import typing
 from collections.abc import Callable, Coroutine
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock, PropertyMock, patch
@@ -74,7 +73,6 @@ class _HassetteMock(_HassetteBase):
         self._resources: dict[str, Resource] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
-        self._thread_pool: ThreadPoolExecutor | None = None
         self._send_stream: MemoryObjectSendStream[tuple[str, Event[Any]]] | None = None
         self._receive_stream: MemoryObjectReceiveStream[tuple[str, Event[Any]]] | None = None
 
@@ -203,7 +201,6 @@ class HassetteHarness:
         self.hassette = _HassetteMock(config=self.config)
         self._tasks: list[tuple[str, asyncio.Task[Any]]] = []
         self._exit_stack = contextlib.AsyncExitStack()
-        self._thread_pool: ThreadPoolExecutor | None = None
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
@@ -223,7 +220,6 @@ class HassetteHarness:
     async def start(self) -> "HassetteHarness":
         self.hassette._loop = asyncio.get_running_loop()
         self.hassette._loop_thread_id = threading.get_ident()
-        self.hassette._thread_pool = self._thread_pool = ThreadPoolExecutor(thread_name_prefix="hassette-test-worker-")
         self.hassette.task_bucket = TaskBucket(
             cast("Hassette", self.hassette), name="hassette", unique_name_prefix="hassette"
         )
@@ -286,10 +282,6 @@ class HassetteHarness:
 
         await self._exit_stack.aclose()
 
-        if self._thread_pool is not None:
-            self._thread_pool.shutdown(wait=True)
-            self._thread_pool = None
-            self.hassette._thread_pool = None
         self.hassette._loop = None
 
     async def _start_bus(self) -> None:
@@ -313,7 +305,6 @@ class HassetteHarness:
         scheduler = Scheduler(cast("Hassette", self.hassette), owner="Hassette")
         self.hassette._scheduler_service = scheduler_service
         self.hassette._scheduler = scheduler
-        self.hassette._thread_pool = self._thread_pool
         self.hassette._resources[_SchedulerService.class_name] = scheduler_service
         self.hassette._resources[Scheduler.class_name] = scheduler
         scheduler_service.start()

@@ -2,7 +2,6 @@ import asyncio
 import threading
 import typing
 from collections.abc import Coroutine
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, ClassVar, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
@@ -77,7 +76,6 @@ class Hassette(Resource):
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
-        self._thread_pool = ThreadPoolExecutor(max_workers=10, thread_name_prefix="hassette-worker-")
 
         # private background services
         self._service_watcher = self._register_resource(_ServiceWatcher)
@@ -264,5 +262,3 @@ class Hassette(Resource):
             await self._send_stream.aclose()
         if self._receive_stream is not None:
             await self._receive_stream.aclose()
-        if self._thread_pool is not None:
-            self._thread_pool.shutdown(wait=True)
