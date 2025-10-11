@@ -8,7 +8,6 @@ from hassette.core.resources.base import Resource
 from hassette.core.services.bus_service import _BusService
 from hassette.enums import ResourceStatus
 from hassette.events.base import Event
-from hassette.utils.async_utils import make_async_adapter
 
 from .listeners import Listener, Subscription
 from .predicates import AllOf, AttrChanged, Changed, ChangedFrom, ChangedTo, EntityIs, Guard
@@ -468,7 +467,7 @@ class Bus(Resource):
         Returns:
             AsyncHandler: An async handler that wraps the original function.
         """
-        return cast("AsyncHandler[E_contra]", make_async_adapter(fn))
+        return cast("AsyncHandler[E_contra]", self.task_bucket.make_async_adapter(fn))
 
     def _add_debounce(
         self, handler: "AsyncHandler[Event[Any]]", seconds: float, task_bucket: "TaskBucket"
