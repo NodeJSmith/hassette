@@ -132,7 +132,6 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
             # announce after we're actually usable
             event = WebsocketConnectedEventPayload.create_event(url=self.url)
             await self.hassette.send_event(event.topic, event)
-            self.mark_ready(reason="WebSocket connected and authenticated")
 
             # Keep running until recv loop ends (disconnect, error, etc.)
             await self._recv_task
@@ -158,6 +157,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
 
             self.logger.debug("Connected to WebSocket at %s", self.url)
             await self.authenticate()
+            self.mark_ready(reason="WebSocket connected and authenticated")
 
             # start reader first so send_and_wait can get replies
             recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
