@@ -4,7 +4,7 @@ import typing
 import uuid
 from abc import abstractmethod
 from collections.abc import Coroutine
-from contextlib import asynccontextmanager, suppress
+from contextlib import suppress
 from logging import Logger, getLogger
 from typing import Any, ClassVar, Protocol, TypeVar, final
 
@@ -203,16 +203,6 @@ class LifecycleMixin(_LifecycleHostStubs):
         event = self._create_service_status_event(ResourceStatus.FAILED, exception)
         await self.hassette.send_event(event.topic, event)
         self.mark_not_ready("Failed")
-
-    @asynccontextmanager
-    async def starting(self):
-        try:
-            await self.handle_starting()
-            yield
-            await self.handle_running()
-        except Exception as e:
-            await self.handle_crash(e)
-            raise
 
     async def handle_running(self) -> None:
         if self.status == ResourceStatus.RUNNING:
