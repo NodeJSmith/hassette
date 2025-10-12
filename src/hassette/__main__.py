@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
+from hassette.exceptions import AppPrecheckFailedError
 
 name = "hassette.hass_main" if __name__ == "__main__" else __name__
 
@@ -64,6 +65,9 @@ def entrypoint() -> None:
         asyncio.run(main())
     except KeyboardInterrupt:
         LOGGER.info("Keyboard interrupt received, shutting down")
+    except AppPrecheckFailedError as e:
+        LOGGER.error("App precheck failed: %s", e)
+        LOGGER.error("Hassette is shutting down due to app precheck failure")
     except Exception as e:
         LOGGER.exception("Unexpected error in Hassette: %s", e)
         raise

@@ -19,7 +19,8 @@ class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
 
         self.enabled = event.payload.data.new_state_value
 
-    async def initialize(self) -> None:
+    async def on_initialize(self) -> None:
+        """Use the `on_initialize` lifecycle hook to set up the app."""
         self.prev_state = await self.api.get_state(self.app_config.light_entity, states.LightState)
         self.light_entity = await self.api.get_entity(self.app_config.light_entity, entities.LightEntity)
 

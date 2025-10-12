@@ -7,6 +7,7 @@ from typing import Any, ParamSpec, TypeVar
 from anyio import create_memory_object_stream
 
 from hassette.config import HassetteConfig
+from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
 from hassette.utils.service_utils import wait_for_ready
 
@@ -57,6 +58,8 @@ class Hassette(Resource):
             config (HassetteConfig | None): Optional pre-loaded configuration.
         """
         self.config = config
+        run_apps_pre_check(self.config)
+
         self.unique_id = ""
         super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
 

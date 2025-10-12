@@ -1,7 +1,4 @@
 import asyncio
-import importlib.machinery
-import importlib.util
-import sys
 import typing
 from collections import defaultdict
 from copy import deepcopy
@@ -13,14 +10,14 @@ import anyio
 from deepdiff import DeepDiff
 from humanize import precisedelta
 
-from hassette.config.core_config import HassetteConfig
-from hassette.core.resources.app.app import App, AppSync
+from hassette.core.resources.app.app import App
 from hassette.core.resources.base import Resource
 from hassette.core.resources.bus.bus import Bus
 from hassette.enums import ResourceStatus
 from hassette.events.hassette import HassetteEmptyPayload
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
+from hassette.utils.app_utils import load_app_class
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
@@ -489,131 +486,3 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
             await self._initialize_app_instances(app_key, manifest)
         except Exception:
             self.logger.exception("Failed to reload app %s", app_key)
-
-
-def load_app_class(app_manifest: "AppManifest", force_reload: bool = False) -> "type[App[AppConfig]]":
-    """Import the app's class with a canonical package/module identity so isinstance works.
-
-    Args:
-        app_manifest (AppManifest): The app manifest containing configuration.
-
-    Returns:
-        type[App]: The app class.
-    """
-    module_path = app_manifest.get_full_path()
-    class_name = app_manifest.class_name
-
-    # cache keyed by (absolute file path, class name)
-    cache_key = (str(module_path), class_name)
-
-    if force_reload and cache_key in LOADED_CLASSES:
-        LOGGER.info("Forcing reload of app class %s from %s", class_name, module_path)
-        del LOADED_CLASSES[cache_key]
-
-    if cache_key in LOADED_CLASSES:
-        return LOADED_CLASSES[cache_key]
-
-    if not module_path or not class_name:
-        raise ValueError(f"App {app_manifest.display_name} is missing filename or class_name")
-
-    pkg_name = HassetteConfig.get_config().app_dir.name
-    _ensure_on_sys_path(app_manifest.app_dir)
-    _ensure_on_sys_path(app_manifest.app_dir.parent)
-
-    # 1) Ensure 'apps' is a namespace package pointing at app_config.app_dir
-    _ensure_namespace_package(app_manifest.app_dir, pkg_name)
-
-    # 2) Compute canonical module name from relative path under app_dir
-    mod_name = _module_name_for(app_manifest.app_dir, module_path, pkg_name)
-
-    # 3) Import or reload the module by canonical name
-    if mod_name in sys.modules:  # noqa: SIM108
-        module = importlib.reload(sys.modules[mod_name])
-    else:
-        module = importlib.import_module(mod_name)
-
-    try:
-        app_class = getattr(module, class_name)
-    except AttributeError:
-        raise AttributeError(f"Class {class_name} not found in module {mod_name} ({module_path})") from None
-
-    if not issubclass(app_class, App | AppSync):
-        raise TypeError(f"Class {class_name} is not a subclass of App or AppSync")
-
-    if app_class._import_exception:
-        raise app_class._import_exception  # surface subclass init errors
-
-    LOADED_CLASSES[cache_key] = app_class
-    return app_class
-
-
-def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
-    """Ensure a namespace package rooted at `root` is importable as `pkg_name`.
-
-    Args:
-      root (Path): Directory to treat as the root of the namespace package.
-      pkg_name (str): The package name to use (e.g. 'apps')
-
-    Returns:
-      None
-
-    - Creates/updates sys.modules[pkg_name] as a namespace package.
-    - Adds `root` to submodule_search_locations so 'pkg_name.*' resolves under this directory.
-    """
-
-    root = root.resolve()
-    if pkg_name in sys.modules and hasattr(sys.modules[pkg_name], "__path__"):
-        ns_pkg = sys.modules[pkg_name]
-        # extend search locations if necessary
-        if str(root) not in ns_pkg.__path__:
-            ns_pkg.__path__.append(str(root))
-        return
-
-    # Synthesize a namespace package
-    spec = importlib.machinery.ModuleSpec(pkg_name, loader=None, is_package=True)
-    ns_pkg = importlib.util.module_from_spec(spec)
-    ns_pkg.__path__ = [str(root)]
-    sys.modules[pkg_name] = ns_pkg
-
-
-def _module_name_for(app_dir: Path, full_path: Path, pkg_name: str) -> str:
-    """
-    Map a file within app_dir to a stable module name under the 'apps' package.
-
-    Args:
-      app_dir (Path): The root directory containing apps (e.g. /path/to/apps)
-      full_path (Path): The full path to the app module file (e.g. /path/to/apps/my_app.py)
-      pkg_name (str): The package name to use (e.g. 'apps')
-
-    Returns:
-      str: The dotted module name (e.g. 'apps.my_app')
-
-    Examples:
-      app_dir=/path/to/apps
-        /path/to/apps/my_app.py         -> apps.my_app
-        /path/to/apps/notifications/email_digest.py -> apps.notifications.email_digest
-    """
-    app_dir = app_dir.resolve()
-    full_path = full_path.resolve()
-    rel = full_path.relative_to(app_dir).with_suffix("")  # drop .py
-    parts = list(rel.parts)
-    return ".".join([pkg_name, *parts])
-
-
-def _ensure_on_sys_path(p: Path) -> None:
-    """Ensure the given path is on sys.path for module resolution.
-
-    Args:
-      p (Path): Directory to add to sys.path
-
-    Note:
-      - Will not add root directories (with <=1 parts) for safety.
-    """
-
-    p = p.resolve()
-    if len(p.parts) <= 1:
-        LOGGER.warning("Refusing to add root directory %s to sys.path", p)
-        return
-
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))

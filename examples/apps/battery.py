@@ -93,18 +93,19 @@ class Battery(App[BatteryConfig]):
 
 
 class BatterySync(AppSync[BatteryConfig]):
-    """If you would prefer to have a fully synchronous app (e.g. have initialize and shutdown be sync)
+    """If you would prefer to have a fully synchronous app (e.g. have on_initialize and on_shutdown be sync)
     you can inherit from AppSync.
 
-    The standard `initialize` is replaced with `initialize_sync`, which is run in a thread, the same
-    with `shutdown` being replaced with `shutdown_sync`.
+    The standard `on_initialize` is replaced with `on_initialize_sync`, which is run in a thread, the same
+    with `on_shutdown` being replaced with `on_shutdown_sync`.
 
     The API is fully available in synchronous form via the `.sync` property on the `api` property.
 
     The Bus and Scheduler can work with sync or async callbacks, so you can use them as normal.
     """
 
-    def initialize_sync(self) -> None:
+    def on_initialize_sync(self) -> None:
+        """Use the `on_initialize` lifecycle hook to set up the app."""
         self.scheduler.run_in(self.check_batteries, 10)
         self.bus.on_entity("*", handler=self.handle_sensor_event)
 

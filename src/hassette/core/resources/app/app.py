@@ -2,7 +2,7 @@ import asyncio
 import logging
 import typing
 from logging import getLogger
-from typing import Any, ClassVar, Generic
+from typing import Any, ClassVar, Generic, final
 
 from hassette.config.app_manifest import AppManifest
 from hassette.core.resources.api.api import Api
@@ -210,3 +210,13 @@ class AppSync(App[AppConfigT]):
     def after_initialize_sync(self) -> None:
         """Optional: finalize initialization, signal readiness, etc."""
         # Default: nothing. Subclasses override when they own resources.
+
+    @final
+    def initialize_sync(self) -> None:
+        """Use on_initialize_sync instead."""
+        raise NotImplementedError("Use on_initialize_sync instead.")
+
+    @final
+    def shutdown_sync(self) -> None:
+        """Use on_shutdown_sync instead."""
+        raise NotImplementedError("Use on_shutdown_sync instead.")

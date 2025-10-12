@@ -208,6 +208,18 @@ class HassetteConfig(HassetteBaseSettings):
     log_all_events: bool = Field(default=False)
     """Whether to include all events in bus debug logging. Should be used sparingly. Defaults to False."""
 
+    log_all_hass_events: bool = Field(default=False)
+    """Whether to include all Home Assistant events in bus debug logging. Defaults to False."""
+
+    log_all_hassette_events: bool = Field(default=False)
+    """Whether to include all Hassette events in bus debug logging. Defaults to False."""
+
+    bus_excluded_domains: tuple[str, ...] = Field(default_factory=tuple)
+    """Domains whose events should be skipped by the bus; supports glob patterns (e.g. 'sensor', 'media_*')."""
+
+    bus_excluded_entities: tuple[str, ...] = Field(default_factory=tuple)
+    """Entity IDs whose events should be skipped by the bus; supports glob patterns."""
+
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
 
@@ -294,25 +306,35 @@ class HassetteConfig(HassetteBaseSettings):
 
     @model_validator(mode="after")
     def validate_hassette_config(self) -> "HassetteConfig":
+        self.app_dir = self.app_dir.resolve()
+        self.config_dir = self.config_dir.resolve()
+        self.data_dir = self.data_dir.resolve()
+
         # Set default log level for all log level fields not explicitly set
         log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
         for field in log_level_fields:
             if field not in self.model_fields_set:
-                LOGGER.debug("Setting default log level for %s to %s", field, self.log_level)
+                LOGGER.debug("Setting '%s' to match 'log_level' (%s)", field, self.log_level)
                 setattr(self, field, self.log_level)
 
-        if "debugpy" in sys.modules:
-            if "dev_mode" not in self.model_fields_set:
+        log_all_fields = [
+            name for name in type(self).model_fields if name.startswith("log_all_") and name != "log_all_events"
+        ]
+        for field in log_all_fields:
+            if field not in self.model_fields_set:
+                LOGGER.debug("Setting '%s' to match 'log_all_events' (%s)", field, self.log_all_events)
+                setattr(self, field, self.log_all_events)
+
+        if "dev_mode" not in self.model_fields_set:
+            if "debugpy" in sys.modules:
                 LOGGER.warning("Developer mode enabled via debugpy")
                 self.dev_mode = True
 
-        if sys.gettrace() is not None:
-            if "dev_mode" not in self.model_fields_set:
+            if sys.gettrace() is not None:
                 LOGGER.warning("Developer mode enabled via debugger")
                 self.dev_mode = True
 
-        if sys.flags.dev_mode:
-            if "dev_mode" not in self.model_fields_set:
+            if sys.flags.dev_mode:
                 LOGGER.warning("Developer mode enabled via python -X dev")
                 self.dev_mode = True
 
@@ -331,6 +353,7 @@ class HassetteConfig(HassetteBaseSettings):
         inactive_apps = [app for app in self.apps.values() if not app.enabled]
         if inactive_apps:
             LOGGER.info("Inactive apps: %s", inactive_apps)
+
         return self
 
     @field_validator("secrets", mode="before")

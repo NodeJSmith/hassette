@@ -23,7 +23,8 @@ class PresenceAppConfig(AppConfig):
 
 
 class Presence(App[PresenceAppConfig]):
-    async def initialize(self):
+    async def on_initialize(self) -> None:
+        """Use the `on_initialize` lifecycle hook to set up the app."""
         # Subscribe to presence changes
 
         self.bus.on_entity("device_tracker.*", handler=self.presence_change)

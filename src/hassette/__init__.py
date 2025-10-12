@@ -2,6 +2,7 @@ import logging
 
 from . import events, models, topics
 from .config import HassetteConfig
+from .core import context
 from .core.core import Hassette
 from .core.resources.api.api import Api
 from .core.resources.app.app import App, AppSync, only_app
@@ -71,6 +72,7 @@ __all__ = [
     "Subscription",
     "TaskBucket",
     "TriggerProtocol",
+    "context",
     "entities",
     "events",
     "models",

@@ -51,3 +51,29 @@ class EntityNotFoundError(ValueError):
 
 class ResourceNotReadyError(Exception):
     """Custom exception to indicate that a resource is not ready for use."""
+
+
+class AppPrecheckFailedError(Exception):
+    """Custom exception to indicate that one or more prechecks for an app failed."""
+
+
+class CannotOverrideFinalError(TypeError):
+    """Custom exception to indicate that a final method or class cannot be overridden."""
+
+    def __init__(
+        self,
+        method_name: str,
+        origin_name: str,
+        subclass_name: str,
+        suggested_alt: str | None = None,
+        location: str | None = None,
+    ):
+        msg = (
+            f"App '{subclass_name}' attempted to override the final lifecycle method "
+            f"'{method_name}' defined in {origin_name!r}. "
+        )
+        if suggested_alt:
+            msg += f"Use '{suggested_alt}' instead."
+        if location:
+            msg += f" (at {location})"
+        super().__init__(msg)
