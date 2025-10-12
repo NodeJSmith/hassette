@@ -12,6 +12,7 @@ from typing_extensions import deprecated
 
 from hassette.const.misc import LOG_LEVELS
 from hassette.enums import ResourceRole
+from hassette.exceptions import CannotOverrideFinalError
 
 from .mixins import LifecycleMixin
 
@@ -25,16 +26,44 @@ _ResourceT = TypeVar("_ResourceT", bound="Resource")
 
 
 class FinalMeta(type):
-    """A metaclass that prevents overriding methods marked with @final."""
+    """Disallow overriding methods marked @final in any ancestor."""
 
-    def __new__(mcls, name, bases, ns):
-        # Collect names of all @final methods on base classes
-        finals = {attr for base in bases for attr, val in base.__dict__.items() if getattr(val, "__final__", False)}
-        # Check for overrides
-        for attr in finals:
-            if attr in ns:
-                raise TypeError(f"Cannot override final method '{attr}' in class '{name}'")
-        return super().__new__(mcls, name, bases, ns)
+    LOADED_CLASSES: ClassVar[set[str]] = set()
+
+    def __init__(cls, name, bases, ns, **kw):
+        super().__init__(name, bases, ns, **kw)
+        subclass_name = f"{cls.__module__}.{cls.__qualname__}"
+        if subclass_name in FinalMeta.LOADED_CLASSES:
+            return
+        FinalMeta.LOADED_CLASSES.add(subclass_name)
+
+        # Collect all methods marked as final from the MRO (excluding object and cls itself)
+        finals: dict[str, type] = {}
+        for ancestor in cls.__mro__[1:]:
+            if ancestor is object:
+                continue
+            for attr, obj in ancestor.__dict__.items():
+                if getattr(obj, "__final__", False):
+                    finals.setdefault(attr, ancestor)
+
+        # Check for overrides in the subclass namespace
+        for method_name, origin in finals.items():
+            if method_name in ns:
+                new_obj = ns[method_name]
+                old_obj = origin.__dict__.get(method_name)
+                if new_obj is old_obj:
+                    continue
+
+                origin_name = f"{origin.__qualname__}"
+                subclass_name = f"{cls.__module__}.{cls.__qualname__}"
+                suggested_alt = f"on_{method_name}" if not method_name.startswith("on_") else method_name
+
+                loc = None
+                code = getattr(new_obj, "__code__", None)
+                if code is not None:
+                    loc = f"{code.co_filename}:{code.co_firstlineno}"
+
+                raise CannotOverrideFinalError(method_name, origin_name, subclass_name, suggested_alt, loc)
 
 
 class Resource(LifecycleMixin, metaclass=FinalMeta):
@@ -78,11 +107,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     @classmethod
     def create(
-        cls,
-        hassette: "Hassette",
-        task_bucket: "TaskBucket | None" = None,
-        parent: "Resource | None" = None,
-        **kwargs,
+        cls, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None, **kwargs
     ):
         sig = inspect.signature(cls)
         # Start with a copy of incoming kwargs to preserve any extra arguments
@@ -96,10 +121,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         return cls(**final_kwargs)
 
     def __init__(
-        self,
-        hassette: "Hassette",
-        task_bucket: "TaskBucket | None" = None,
-        parent: "Resource | None" = None,
+        self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
     ) -> None:
         """
         Initialize the resource.
