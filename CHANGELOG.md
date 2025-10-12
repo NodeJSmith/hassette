@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.12.1] - 2025-10-11
 ### Fixed
-- Fixed `run_minutely` and `run_hourly` scheduler helpers to run every N minutes/hours, not *every* minute/hour at 0th second/minute.
+- Fixed `run_minutely`/`run_hourly`/`run_daily` scheduler helpers to run every N minutes/hours/days, not *every* minute/hour/day at 0th second/minute.
 
 ## [0.12.0] - 2025-10-11
 
