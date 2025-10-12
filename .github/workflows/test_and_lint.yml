@@ -20,22 +20,72 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Set up Python
-              uses: actions/setup-python@v5
-              with:
-                  python-version: ${{ matrix.python-version }}
-
-            - name: Install uv
+            - name: Install uv and set the Python version
               uses: astral-sh/setup-uv@v6
               with:
-                  version: "0.8.14"
-                  activate-environment: true
-                  enable-cache: true
+                  python-version: ${{ matrix.python-version }}
 
             - name: Run lint checks
               run: uvx pre-commit run --all-files
 
             - run: uv sync
 
-            - name: Run tests
-              run: uv run pytest -vvv --durations=10
+            - name: Run tests with coverage
+              run: uv run nox -t coverage -p ${{ matrix.python-version }}
+
+            - name: Upload coverage data
+              uses: actions/upload-artifact@v4
+              with:
+                  name: .coverage.${{ matrix.python-version }}
+                  path: .coverage.${{ matrix.python-version }}
+                  include-hidden-files: true
+
+    combine-and-report:
+        needs: [test]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install uv and set the Python version
+              uses: astral-sh/setup-uv@v6
+              with:
+                  python-version: 3.12
+
+            - name: Install coverage
+              run: |
+                  uv venv
+                  uv pip install -U 'coverage[toml]'
+
+            - uses: actions/download-artifact@v5
+              with:
+                  path: coverage-parts
+                  pattern: .coverage.*
+                  merge-multiple: true
+
+            - name: Combine coverage and report
+              run: |
+                  uv run coverage combine coverage-parts
+                  uv run coverage xml -o coverage.xml
+                  uv run coverage report
+
+            - name: Upload HTML report (artifact)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-html
+                  path: htmlcov
+
+            - name: Upload XML for integrations
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-xml
+                  path: coverage.xml
+
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v4
+              with:
+                  files: coverage.xml
+                  fail_ci_if_error: true
+                  verbose: true
+                  flags: unstructured
+                  name: codecov-${{ github.run_id }}
+                  token: ${{ secrets.CODECOV_TOKEN }}
