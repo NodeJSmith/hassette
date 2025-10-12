@@ -314,21 +314,27 @@ class HassetteConfig(HassetteBaseSettings):
         log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
         for field in log_level_fields:
             if field not in self.model_fields_set:
-                LOGGER.debug("Setting default log level for %s to %s", field, self.log_level)
+                LOGGER.debug("Setting '%s' to match 'log_level' (%s)", field, self.log_level)
                 setattr(self, field, self.log_level)
 
-        if "debugpy" in sys.modules:
-            if "dev_mode" not in self.model_fields_set:
+        log_all_fields = [
+            name for name in type(self).model_fields if name.startswith("log_all_") and name != "log_all_events"
+        ]
+        for field in log_all_fields:
+            if field not in self.model_fields_set:
+                LOGGER.debug("Setting '%s' to match 'log_all_events' (%s)", field, self.log_all_events)
+                setattr(self, field, self.log_all_events)
+
+        if "dev_mode" not in self.model_fields_set:
+            if "debugpy" in sys.modules:
                 LOGGER.warning("Developer mode enabled via debugpy")
                 self.dev_mode = True
 
-        if sys.gettrace() is not None:
-            if "dev_mode" not in self.model_fields_set:
+            if sys.gettrace() is not None:
                 LOGGER.warning("Developer mode enabled via debugger")
                 self.dev_mode = True
 
-        if sys.flags.dev_mode:
-            if "dev_mode" not in self.model_fields_set:
+            if sys.flags.dev_mode:
                 LOGGER.warning("Developer mode enabled via python -X dev")
                 self.dev_mode = True
 
@@ -347,6 +353,7 @@ class HassetteConfig(HassetteBaseSettings):
         inactive_apps = [app for app in self.apps.values() if not app.enabled]
         if inactive_apps:
             LOGGER.info("Inactive apps: %s", inactive_apps)
+
         return self
 
     @field_validator("secrets", mode="before")
