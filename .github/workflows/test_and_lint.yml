@@ -56,11 +56,10 @@ jobs:
                   uv venv
                   uv pip install -U 'coverage[toml]'
 
-            - name: Download coverage data
-              uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v5
               with:
-                  name: .coverage.*
                   path: coverage-parts
+                  merge-multiple: true
 
             - name: Combine coverage and report
               run: |
