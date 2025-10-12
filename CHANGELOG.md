@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.12.0] - 2025-10-11
+
 ### Added
 - Lifecycle:
   - Lifecycle hooks `on/before/after_initialize` and `on/before/after_shutdown` added to `Resource` and `Service` for more granular control over startup and shutdown sequences.
