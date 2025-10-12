@@ -36,8 +36,8 @@ jobs:
             - name: Upload coverage data
               uses: actions/upload-artifact@v4
               with:
-                  name: coverage-data.${{ matrix.python-version }}
-                  path: .coverage.*
+                  name: .coverage.${{ matrix.python-version }}
+                  path: .coverage.${{ matrix.python-version }}
 
     combine-and-report:
         needs: [test]
@@ -56,7 +56,7 @@ jobs:
             - name: Download coverage data
               uses: actions/download-artifact@v4
               with:
-                  name: coverage-data
+                  name: .coverage.*
                   path: coverage-parts
 
             - name: Combine coverage and report
