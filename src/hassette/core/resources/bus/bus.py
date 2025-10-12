@@ -8,7 +8,7 @@ from hassette.core.resources.base import Resource
 from hassette.enums import ResourceStatus
 from hassette.events.base import Event
 
-from .listeners import Listener, Subscription
+from .listeners import Listener, Subscription, callable_short_name
 from .predicates import AllOf, AttrChanged, Changed, ChangedFrom, ChangedTo, EntityIs, Guard
 from .predicates.base import SENTINEL, normalize_where
 
@@ -147,7 +147,7 @@ class Bus(Resource):
             changed_from,
             changed_to,
             where,
-            handler,
+            callable_short_name(handler),
         )
 
         preds: list[Predicate] = [EntityIs(entity)]
@@ -197,7 +197,7 @@ class Bus(Resource):
             changed_from,
             changed_to,
             where,
-            handler,
+            callable_short_name(handler),
         )
 
         preds: list[Predicate] = [EntityIs(entity)]
@@ -259,7 +259,7 @@ class Bus(Resource):
             domain,
             service,
             where,
-            handler,
+            callable_short_name(handler),
         )
 
         preds: list[Predicate] = []
@@ -298,7 +298,7 @@ class Bus(Resource):
             ("Subscribing to component_loaded with component='%s', where='%s' - being handled by '%s'"),
             component,
             where,
-            handler,
+            callable_short_name(handler),
         )
 
         preds: list[Predicate] = []
@@ -338,7 +338,7 @@ class Bus(Resource):
             domain,
             service,
             where,
-            handler,
+            callable_short_name(handler),
         )
 
         preds: list[Predicate] = []
@@ -378,7 +378,7 @@ class Bus(Resource):
             ("Subscribing to hassette.service_status with status='%s', where='%s' - being handled by '%s'"),
             status,
             where,
-            handler,
+            callable_short_name(handler),
         )
 
         preds: list[Predicate] = []

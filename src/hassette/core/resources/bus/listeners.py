@@ -3,7 +3,7 @@ import inspect
 import itertools
 import typing
 from dataclasses import dataclass, field
-from functools import partial
+from functools import lru_cache, partial
 from inspect import isawaitable
 from types import MethodType
 from typing import Any
@@ -22,6 +22,7 @@ def next_id() -> int:
     return next(seq)
 
 
+@lru_cache(maxsize=1024)
 def callable_name(fn: Any) -> str:
     """Get a human-readable name for a callable object.
 
@@ -63,6 +64,11 @@ def callable_name(fn: Any) -> str:
     return repr(fn)
 
 
+def callable_short_name(fn: Any) -> str:
+    full_name = callable_name(fn)
+    return full_name.split(".")[-1]
+
+
 @dataclass(slots=True)
 class Listener:
     """A listener for events with a specific topic and handler."""
@@ -98,6 +104,10 @@ class Listener:
     def handler_name(self) -> str:
         return callable_name(self.orig_handler)
 
+    @property
+    def handler_short_name(self) -> str:
+        return self.handler_name.split(".")[-1]
+
     async def matches(self, ev: "Event[Any]") -> bool:
         if self.predicate is None:
             return True
@@ -114,9 +124,7 @@ class Listener:
             flags.append(f"debounce={self.debounce}")
         if self.throttle:
             flags.append(f"throttle={self.throttle}")
-        flag_s = f" [{', '.join(flags)}]" if flags else ""
-        pred_s = "None" if self.predicate is None else type(self.predicate).__name__
-        return f"Listener<{self.listener_id} {self.topic} handler={self.handler_name} pred={pred_s}{flag_s}>"
+        return f"Listener<{self.owner} - {self.handler_short_name}>"
 
 
 @dataclass(slots=True)

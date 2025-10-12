@@ -11,7 +11,12 @@ if typing.TYPE_CHECKING:
     from hassette.types import Predicate
 
 
-SENTINEL = object()
+class _Sentinel:
+    def __repr__(self) -> str:
+        return "<sentinel>"
+
+
+SENTINEL = _Sentinel()
 T = typing.TypeVar("T")
 
 
@@ -33,7 +38,7 @@ class Guard(typing.Generic[E_contra]):
 
     fn: "Predicate[E_contra]"
 
-    async def __call__(self, event: "Event[E_contra]") -> bool:
+    async def __call__(self, event: "Event[E_contra]") -> bool:  # pyright: ignore[reportInvalidTypeArguments]
         return await _eval(self.fn, event)
 
 
@@ -79,9 +84,7 @@ class Not:
         return not await _eval(self.pred, event)
 
 
-def normalize_where(
-    where: "Predicate | Iterable[Predicate] | None",
-) -> "Predicate | None":
+def normalize_where(where: "Predicate | Iterable[Predicate] | None") -> "Predicate | None":
     if where is None:
         return None
 
