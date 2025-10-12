@@ -215,7 +215,7 @@ class Scheduler(Resource):
     def run_minutely(
         self,
         func: "JobCallable",
-        minute: int = 1,
+        minutes: int = 1,
         name: str = "",
         start: SystemDateTime | None = None,
         *,
@@ -226,7 +226,7 @@ class Scheduler(Resource):
 
         Args:
             func (JobCallable): The function to run.
-            minute (int): The minute interval to run the job.
+            minutes (int): The minute interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
                 time. Otherwise it will run at the top of the next minute interval.
@@ -236,20 +236,20 @@ class Scheduler(Resource):
         Returns:
             ScheduledJob: The scheduled job.
         """
-        if minute < 1:
+        if minutes < 1:
             raise ValueError("Minute interval must be at least 1")
 
-        trigger = IntervalTrigger.from_arguments(minutes=minute, start=start)
+        trigger = IntervalTrigger.from_arguments(minutes=minutes, start=start)
         first_run = start if start else now().replace(second=0, nanosecond=0)
         if first_run <= now():
-            first_run = first_run.add(minutes=minute)
+            first_run = first_run.add(minutes=minutes)
 
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_hourly(
         self,
         func: "JobCallable",
-        hour: int = 1,
+        hours: int = 1,
         name: str = "",
         start: SystemDateTime | None = None,
         *,
@@ -260,7 +260,7 @@ class Scheduler(Resource):
 
         Args:
             func (JobCallable): The function to run.
-            hour (int): The hour interval to run the job.
+            hours (int): The hour interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
                 time. Otherwise, the job will run immediately at the next hour boundary, then repeat every N hours.
@@ -270,20 +270,20 @@ class Scheduler(Resource):
         Returns:
             ScheduledJob: The scheduled job.
         """
-        if hour < 1:
+        if hours < 1:
             raise ValueError("Hour interval must be at least 1")
 
-        trigger = IntervalTrigger.from_arguments(hours=hour, start=start)
+        trigger = IntervalTrigger.from_arguments(hours=hours, start=start)
         first_run = start if start else now().replace(minute=0, second=0, nanosecond=0)
         if first_run <= now():
-            first_run = first_run.add(hours=hour)
+            first_run = first_run.add(hours=hours)
 
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_daily(
         self,
         func: "JobCallable",
-        day: int = 1,
+        days: int = 1,
         name: str = "",
         start: SystemDateTime | None = None,
         *,
@@ -294,7 +294,7 @@ class Scheduler(Resource):
 
         Args:
             func (JobCallable): The function to run.
-            day (int): The day interval to run the job.
+            days (int): The day interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
                 time. Otherwise, the job will run at the next midnight, then repeat every N days.
@@ -304,15 +304,15 @@ class Scheduler(Resource):
         Returns:
             ScheduledJob: The scheduled job.
         """
-        if day < 1:
+        if days < 1:
             raise ValueError("Day interval must be at least 1")
 
-        hours = 24 * day
+        hours = 24 * days
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start)
         first_run = start if start else now().replace(hour=0, minute=0, second=0, nanosecond=0)
         if first_run <= now():
-            first_run = first_run.add(hours=hours)
+            first_run = first_run.add(days=days)
 
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
