@@ -19,7 +19,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
         """Get the office light entity."""
         return self.api.sync.get_state(self.app_config.office_light, states.LightState)
 
-    def initialize_sync(self) -> None:
+    def on_initialize_sync(self) -> None:
         self.enabled = True
 
         self.bus.on_entity(self.app_config.event_action, handler=self.handle_office_button)

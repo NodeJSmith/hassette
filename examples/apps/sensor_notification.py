@@ -27,7 +27,8 @@ class SensorNotificationAppConfig(AppConfig):
 
 
 class SensorNotification(App[SensorNotificationAppConfig]):
-    async def initialize(self):
+    async def on_initialize(self) -> None:
+        """Use the `on_initialize` lifecycle hook to set up the app."""
         if self.app_config.sensor is None:
             return
 
