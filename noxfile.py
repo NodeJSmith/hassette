@@ -42,3 +42,5 @@ def tests_with_coverage(session: "Session"):
         "--cov-report=html",
         external=True,
     )
+
+    session.run("python", "-c", "import coverage; print('Coverage file:', coverage.Coverage().get_data()._filename)")
