@@ -300,6 +300,8 @@ class Scheduler(Resource):
         """
         if days < 1:
             raise ValueError("Day interval must be at least 1")
+        if days > 365:
+            raise ValueError("Day interval must not exceed 365")
 
         hours = 24 * days
 
