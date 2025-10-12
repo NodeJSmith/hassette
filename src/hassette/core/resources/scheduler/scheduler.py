@@ -240,7 +240,7 @@ class Scheduler(Resource):
         trigger = IntervalTrigger.from_arguments(minutes=minute, start=start)
         first_run = start if start else now().replace(second=0, nanosecond=0)
         if first_run <= now():
-            first_run = first_run.add(minutes=1)
+            first_run = first_run.add(minutes=minute)
 
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
