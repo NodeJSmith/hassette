@@ -32,12 +32,19 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
     router: "Router"
     """Router to manage event listeners."""
 
+    _excluded_domains_exact: set[str]
+    _excluded_domain_globs: tuple[str, ...]
+    _excluded_entities_exact: set[str]
+    _excluded_entity_globs: tuple[str, ...]
+    _has_exclusions: bool
+
     @classmethod
     def create(cls, hassette: "Hassette", stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"):
         inst = cls(hassette, parent=hassette)
         inst.stream = stream
         inst.listener_seq = itertools.count(1)
         inst.router = Router()
+        inst._setup_exclusion_filters()
 
         return inst
 
@@ -75,37 +82,52 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
         """Remove all listeners owned by a specific owner."""
         return self.task_bucket.spawn(self.router.clear_owner(owner), name="bus:remove_listeners_by_owner")
 
-    async def dispatch(self, topic: str, event: "Event[Any]") -> None:
-        """Dispatch an event to all matching listeners for the given topic."""
-        try:
-            if (
-                event.payload.event_type == "call_service"
-                and event.payload.data.domain == "system_log"
-                and event.payload.data.service_data.get("level") == "debug"
-            ):
-                return
-        except Exception:
-            pass
-
-        targets = await self.router.get_matching_listeners(topic)
+    def _should_log_event(self, event: "Event[Any]") -> bool:
+        """Determine if an event should be logged based on its type."""
+        if not event.payload:
+            return False
 
         if self.config_log_all_events:
+            return True
+
+        if self.hassette.config.log_all_hass_events and event.topic.startswith("hass."):
+            return True
+
+        if self.hassette.config.log_all_hassette_events and event.topic.startswith("hassette."):  # noqa: SIM103
+            return True
+
+        return False
+
+    async def dispatch(self, topic: str, event: "Event[Any]") -> None:
+        """Dispatch an event to all matching listeners for the given topic."""
+
+        if self._should_skip_event(topic, event):
+            return
+
+        targets = await self._get_matching_listeners(topic, event)
+
+        if self._should_log_event(event):
             self.logger.debug("Event: %r", event)
 
         if not targets:
             return
 
         self.logger.debug("Dispatching %s to %d listeners", topic, len(targets))
-        self.logger.debug("Listeners for %s: %r", topic, targets)
-
         for listener in targets:
             self.task_bucket.spawn(self._dispatch(topic, event, listener), name="bus:dispatch_listener")
 
+    async def _get_matching_listeners(self, topic: str, event: "Event[Any]") -> list["Listener"]:
+        """Get all listeners that match the given event."""
+        all_listeners = await self.router.get_topic_listeners(topic)
+        return [listener for listener in all_listeners if await listener.matches(event)]
+
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
+        """Dispatch an event to a specific listener."""
+
+        # we are assuming matches() has already been called
         try:
-            if await listener.matches(event):
-                self.logger.debug("Dispatching %s -> %r", topic, listener)
-                await listener.handler(event)
+            self.logger.debug("Dispatching %s -> %r", topic, listener)
+            await listener.handler(event)
         except asyncio.CancelledError:
             self.logger.debug("Listener dispatch cancelled (topic=%s, handler=%r)", topic, listener.handler_name)
             raise
@@ -134,6 +156,91 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
                     await self.dispatch(event_name, event_data)
                 except Exception as e:
                     self.logger.exception("Error processing event: %s", e)
+
+    def _setup_exclusion_filters(self) -> None:
+        domains = self.hassette.config.bus_excluded_domains or ()
+        entities = self.hassette.config.bus_excluded_entities or ()
+
+        self._excluded_domains_exact, self._excluded_domain_globs = self._split_exact_and_glob(domains)
+        self._excluded_entities_exact, self._excluded_entity_globs = self._split_exact_and_glob(entities)
+
+        self._has_exclusions = bool(
+            self._excluded_domains_exact
+            or self._excluded_domain_globs
+            or self._excluded_entities_exact
+            or self._excluded_entity_globs
+        )
+
+        if self._has_exclusions:
+            self.logger.debug(
+                "Configured bus exclusions: domains=%s domain_globs=%s entities=%s entity_globs=%s",
+                sorted(self._excluded_domains_exact),
+                self._excluded_domain_globs,
+                sorted(self._excluded_entities_exact),
+                self._excluded_entity_globs,
+            )
+
+    @staticmethod
+    def _split_exact_and_glob(values: typing.Iterable[str]) -> tuple[set[str], tuple[str, ...]]:
+        exact: set[str] = set()
+        globs: list[str] = []
+        for value in values:
+            if any(ch in value for ch in GLOB_CHARS):
+                globs.append(value)
+            else:
+                exact.add(value)
+        return exact, tuple(globs)
+
+    @staticmethod
+    def _matches_globs(value: str, patterns: tuple[str, ...]) -> bool:
+        return any(fnmatch(value, pattern) for pattern in patterns)
+
+    def _should_skip_event(self, topic: str, event: "Event[Any]") -> bool:
+        """Determine if an event should be skipped based on exclusion filters."""
+        if not event.payload:
+            return False
+
+        payload = event.payload
+        entity_id = getattr(payload, "entity_id", None) if payload else None
+        domain = getattr(payload, "domain", None) if payload else None
+
+        try:
+            if (
+                payload.event_type == "call_service"
+                and payload.data.domain == "system_log"
+                and payload.data.service_data.get("level") == "debug"
+            ):
+                return True
+        except Exception:
+            pass
+
+        if not self._has_exclusions:
+            return False
+
+        if not entity_id or not domain:
+            return False
+
+        if typing.TYPE_CHECKING:
+            assert entity_id is not None
+            assert isinstance(entity_id, str)
+            assert domain is not None
+            assert isinstance(domain, str)
+
+        if isinstance(entity_id, str):
+            if entity_id in self._excluded_entities_exact or self._matches_globs(
+                entity_id, self._excluded_entity_globs
+            ):
+                self.logger.debug("Skipping dispatch for %s due to entity exclusion (%s)", topic, entity_id)
+                return True
+            if domain is None and "." in entity_id:
+                domain = entity_id.split(".", 1)[0]
+
+        if isinstance(domain, str) and domain:
+            if domain in self._excluded_domains_exact or self._matches_globs(domain, self._excluded_domain_globs):
+                self.logger.debug("Skipping dispatch for %s due to domain exclusion (%s)", topic, domain)
+                return True
+
+        return False
 
 
 class Router:
@@ -235,7 +342,7 @@ class Router:
 
         await self.remove_route(topic, pred)
 
-    async def get_matching_listeners(self, topic: str) -> list["Listener"]:
+    async def get_topic_listeners(self, topic: str) -> list["Listener"]:
         """Get all listeners that match the given topic.
 
         Args:

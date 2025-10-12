@@ -208,6 +208,18 @@ class HassetteConfig(HassetteBaseSettings):
     log_all_events: bool = Field(default=False)
     """Whether to include all events in bus debug logging. Should be used sparingly. Defaults to False."""
 
+    log_all_hass_events: bool = Field(default=False)
+    """Whether to include all Home Assistant events in bus debug logging. Defaults to False."""
+
+    log_all_hassette_events: bool = Field(default=False)
+    """Whether to include all Hassette events in bus debug logging. Defaults to False."""
+
+    bus_excluded_domains: tuple[str, ...] = Field(default_factory=tuple)
+    """Domains whose events should be skipped by the bus; supports glob patterns (e.g. 'sensor', 'media_*')."""
+
+    bus_excluded_entities: tuple[str, ...] = Field(default_factory=tuple)
+    """Entity IDs whose events should be skipped by the bus; supports glob patterns."""
+
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
 
