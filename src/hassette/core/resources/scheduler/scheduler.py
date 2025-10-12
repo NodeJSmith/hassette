@@ -229,7 +229,7 @@ class Scheduler(Resource):
             minutes (int): The minute interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the top of the next minute interval.
+                time. Otherwise it will run immediately, then repeat every N minutes.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -240,10 +240,7 @@ class Scheduler(Resource):
             raise ValueError("Minute interval must be at least 1")
 
         trigger = IntervalTrigger.from_arguments(minutes=minutes, start=start)
-        first_run = start if start else now().replace(second=0, nanosecond=0)
-        if first_run <= now():
-            first_run = first_run.add(minutes=minutes)
-
+        first_run = start if start else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_hourly(
@@ -263,7 +260,7 @@ class Scheduler(Resource):
             hours (int): The hour interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise, the job will run immediately at the next hour boundary, then repeat every N hours.
+                time. Otherwise, the job will run immediately, then repeat every N hours.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -274,10 +271,7 @@ class Scheduler(Resource):
             raise ValueError("Hour interval must be at least 1")
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start)
-        first_run = start if start else now().replace(minute=0, second=0, nanosecond=0)
-        if first_run <= now():
-            first_run = first_run.add(hours=hours)
-
+        first_run = start if start else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_daily(
@@ -297,7 +291,7 @@ class Scheduler(Resource):
             days (int): The day interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise, the job will run at the next midnight, then repeat every N days.
+                time. Otherwise, the job will run immediately, then repeat every N days.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -310,10 +304,7 @@ class Scheduler(Resource):
         hours = 24 * days
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start)
-        first_run = start if start else now().replace(hour=0, minute=0, second=0, nanosecond=0)
-        if first_run <= now():
-            first_run = first_run.add(days=days)
-
+        first_run = start if start else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_cron(
