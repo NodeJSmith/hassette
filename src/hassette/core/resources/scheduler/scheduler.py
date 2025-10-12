@@ -297,7 +297,7 @@ class Scheduler(Resource):
             day (int): The day interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at midnight plus the day interval.
+                time. Otherwise, the job will run at the next midnight, then repeat every N days.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
