@@ -215,38 +215,6 @@ class Scheduler(Resource):
     def run_minutely(
         self,
         func: "JobCallable",
-        second: int = 0,
-        name: str = "",
-        start: SystemDateTime | None = None,
-        *,
-        args: tuple[Any, ...] | None = None,
-        kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
-        """Schedule a job to run minutely at a specific second.
-
-        Args:
-            func (JobCallable): The function to run.
-            second (int): The second of the minute to run the job (0-59).
-            name (str): Optional name for the job.
-            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the next occurrence of the specified second.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
-
-        Returns:
-            ScheduledJob: The scheduled job.
-        """
-
-        trigger = IntervalTrigger.from_arguments(minutes=1, start=start)
-        first_run = start if start else now().replace(second=second, nanosecond=0)
-        if first_run <= now():
-            first_run = first_run.add(minutes=1)
-
-        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
-
-    def run_hourly(
-        self,
-        func: "JobCallable",
         minute: int = 0,
         name: str = "",
         start: SystemDateTime | None = None,
@@ -254,11 +222,11 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
-        """Schedule a job to run hourly at a specific minute.
+        """Schedule a job to run every N minutes.
 
         Args:
             func (JobCallable): The function to run.
-            minute (int): The minute of the hour to run the job (0-59).
+            minute (int): The minute interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
                 time. Otherwise it will run at the next occurrence of the specified minute.
@@ -269,8 +237,40 @@ class Scheduler(Resource):
             ScheduledJob: The scheduled job.
         """
 
-        trigger = IntervalTrigger.from_arguments(minutes=60, start=start)
-        first_run = start if start else now().replace(minute=minute, second=0, nanosecond=0)
+        trigger = IntervalTrigger.from_arguments(minutes=minute, start=start)
+        first_run = start if start else now().replace(second=0, nanosecond=0)
+        if first_run <= now():
+            first_run = first_run.add(minutes=1)
+
+        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+
+    def run_hourly(
+        self,
+        func: "JobCallable",
+        hour: int = 0,
+        name: str = "",
+        start: SystemDateTime | None = None,
+        *,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+    ) -> "ScheduledJob":
+        """Schedule a job to run every N hours.
+
+        Args:
+            func (JobCallable): The function to run.
+            hour (int): The hour interval to run the job.
+            name (str): Optional name for the job.
+            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
+                time. Otherwise it will run at the next occurrence of the specified hour.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+
+        Returns:
+            ScheduledJob: The scheduled job.
+        """
+
+        trigger = IntervalTrigger.from_arguments(hours=hour, start=start)
+        first_run = start if start else now().replace(minute=0, second=0, nanosecond=0)
         if first_run <= now():
             first_run = first_run.add(hours=1)
 
