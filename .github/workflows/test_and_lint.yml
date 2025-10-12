@@ -37,5 +37,71 @@ jobs:
 
             - run: uv sync
 
-            - name: Run tests
-              run: uv run pytest -vvv --durations=10
+            - name: Run tests with coverage
+              run: uv run nox -t coverage -p ${{ matrix.python-version }}
+
+            - name: Package coverage data
+              run: |
+                  # The .coverage data file may be named .coverage or .coverage.*
+                  # Make it unique per matrix shard to avoid collisions.
+                  mv .coverage ".coverage.${{ matrix.python-version }}"
+
+            - name: Upload coverage data
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-data
+                  path: .coverage.*
+
+    combine-and-report:
+        needs: [test]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: 3.12
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v6
+              with:
+                  version: "0.8.14"
+                  activate-environment: true
+                  enable-cache: true
+
+            - name: Install coverage
+              run: uv pip install -U 'coverage[toml]'
+
+            - name: Download coverage data
+              uses: actions/download-artifact@v4
+              with:
+                  name: coverage-data
+                  path: coverage-parts
+
+            - name: Combine coverage and report
+              run: |
+                  coverage combine coverage-parts
+                  coverage xml -o coverage.xml
+                  coverage report
+
+            - name: Upload HTML report (artifact)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-html
+                  path: htmlcov
+
+            - name: Upload XML for integrations
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-xml
+                  path: coverage.xml
+
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v4
+              with:
+                  files: coverage.xml
+                  fail_ci_if_error: true
+                  verbose: true
+                  flags: unstructured
+                  name: codecov-${{ github.run_id }}
+                  token: ${{ secrets.CODECOV_TOKEN }}

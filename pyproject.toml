@@ -61,6 +61,9 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
+    "coverage[toml]>=7.10.7",
+    "pytest>=8.4.0",
+    "pytest-cov>=7.0.0",
     "tomli-w>=1.2.0",
 ]
 test = [
@@ -95,9 +98,34 @@ default-groups = ["dev", "test", "docs"]
 [project.scripts]
 run-hassette = "hassette.__main__:entrypoint"
 
-
 [tool.pytest.ini_options]
 pythonpath = "src"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+
+[tool.coverage.run]
+branch = true                     # measure branch coverage, not just lines
+source = ["hassette"]             # your packages/modules
+parallel = true                   # enable combining across workers/CI shards
+relative_files = true             # stable paths in CI
+# Measure subprocesses (pytest-cov will set env automatically; this is belt+suspenders):
+concurrency = ["thread", "multiprocessing"]
+omit = ["*/__init__.py", "*/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 85 # local default; CI can override
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"

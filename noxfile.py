@@ -21,3 +21,23 @@ def tests(session: "Session"):
         "error",
         external=True,
     )
+
+
+@nox.session(python=["3.11", "3.12", "3.13"], tags=["coverage"])
+def tests_with_coverage(session: "Session"):
+    session.run(
+        "uv",
+        "run",
+        "--active",
+        "--reinstall-package",
+        "hassette",
+        "pytest",
+        "-W",
+        "error",
+        "--cov=hassette",
+        "--cov-branch",
+        "--cov-report=term-missing:skip-covered",
+        "--cov-report=xml",
+        "--cov-report=html",
+        external=True,
+    )
