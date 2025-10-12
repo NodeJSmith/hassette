@@ -5,89 +5,100 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 ## Big Picture
 
 - Purpose: Framework for building Home Assistant automations with async-first design and strong typing. See `README.md`.
-- Orchestrator: `src/hassette/core/core.py` (`Hassette`) wires services and runs the loop. It registers internal services, then exposes user-facing facades:
-  - WebSocket: `core/websocket.py` connects to HA, authenticates, subscribes to events, and pushes them to the internal event stream.
-  - Event Bus: `core/bus/bus.py` consumes the stream and dispatches to listeners with powerful predicates and decorators.
-  - API: `core/api.py` wraps HA REST and WS calls; `ApiSyncFacade` exposes sync mirrors via `hassette.run_sync`.
-  - Scheduler: `core/scheduler/` provides cron/interval scheduling (croniter/whenever).
-- Data flow: HA WebSocket → `create_event_from_hass` → `Bus.dispatch` → App listeners; API uses both WS and REST.
+- Runtime: `src/hassette/core/core.py` (`Hassette`) builds a tree of `Resource`/`Service` instances defined in `core/resources/base.py`; task orchestration lives in `core/resources/tasks.py` (`TaskBucket`).
+- Background services (`src/hassette/core/services/`): `_Websocket` streams HA events, `_BusService` routes them, `_ApiService` manages REST/WS clients, `_SchedulerService` runs jobs, `_AppHandler` loads user apps, `_FileWatcher` listens for file/config changes, `_ServiceWatcher` supervises dependencies, `_HealthService` exposes status.
+- App-facing resources: each app owns `Api` (`core/resources/api/api.py`), `Bus` (`core/resources/bus/bus.py`), `Scheduler` (`core/resources/scheduler/scheduler.py`), and its own `TaskBucket`.
+- Data flow: `_Websocket` → `events.create_event_from_hass` → `_BusService.dispatch` → per-owner `Bus` resources → app handlers. API calls reuse both the shared WebSocket and REST client managed by `_ApiService`.
 
 ## Configuration & App Loading
 
-- Config model: `config/core_config.py` (`HassetteConfig`). Sources priority (lowest→highest): CLI, init args, TOML (`hassette.toml`), env vars, `.env`, file secrets.
-- URLs and auth headers derived from `base_url`, `api_port`, `token`. Helpers: `ws_url`, `rest_url`, `headers`, `truncated_token`.
-- Apps: Declarative in `hassette.toml` under `[apps.<name>]` validated by `config/app_manifest.py`.
-  - Required: `filename`, `class_name`, `app_dir`. Optional: `enabled`, `display_name`, `config` (dict or list for multiple instances).
-  - Loader: `core/apps/app_handler.py` imports modules under a dynamic namespace: top-level package name is `Path(app_dir).name`. Example: `app_dir="src/apps"` → modules importable as `apps.*`.
-  - Instances are validated using the app’s `AppConfig` class and initialized after WebSocket service is running.
+- Config model: `src/hassette/config/core_config.py` (`HassetteConfig`). Source priority (lowest→highest): CLI args, init kwargs, TOML (`/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`), environment variables, `.env` files, secrets files. `model_post_init` registers the config in `core/context.py`, ensures `config_dir`/`data_dir` exist, and loads additional `.env` files it discovers.
+- Helpers derive URLs and auth headers (`ws_url`, `rest_url`, `headers`, `truncated_token`). Flags such as `allow_reload_in_prod`, `allow_only_app_in_prod`, `log_all_events`, `bus_excluded_domains/entities`, `task_bucket_log_level`, etc. tweak runtime behaviour.
+- Apps live under `[apps.<name>]` in TOML and use `src/hassette/config/app_manifest.py` for validation.
+  - Required keys: `filename`, `class_name`; optional: `app_dir`, `enabled`, `display_name`, `config` (dict or list for multi-instance apps).
+  - Loader (`src/hassette/utils/app_utils.py`) runs `run_apps_pre_check`, builds a namespace named after `config.app_dir.name` (e.g. `apps.*`), caches app classes, and surfaces `CannotOverrideFinalError` if lifecycle methods marked `@final` are overridden.
+  - `_AppHandler` (`core/services/app_handler.py`) waits for core services, honors `@only_app` (dev-mode unless `allow_only_app_in_prod`), listens to `_FileWatcher`, and restarts apps when manifests or env files change.
 
 ## App Pattern (typed)
 
-- Base classes: `core/apps/app.py` exports `App[AppConfigT]` and `AppSync`.
-- Minimal async app:
+- Base classes: `src/hassette/core/resources/app/app.py` exposes `App[AppConfigT]` (async) and `AppSync`. Override lifecycle hooks (`before_initialize`, `on_initialize`, `after_initialize`, and matching shutdown hooks); `initialize()` / `shutdown()` are final.
+- Example async app:
   ```python
-  from hassette import App, AppConfig
-  class MyConfig(AppConfig): pass
+  from hassette import App, AppConfig, topics
+
+  class MyConfig(AppConfig):
+      light: str
+
   class MyApp(App[MyConfig]):
-      async def initialize(self):
-          self.bus.on_entity("light.*", handler=self.changed)
-          await super().initialize()
-      async def changed(self, event):
-          await self.api.turn_on("light.bedroom")
+      async def on_initialize(self):
+          self.bus.on_entity(
+              self.app_config.light,
+              handler=self.on_light_change,
+              changed_to="on",
+          )
+
+      async def on_light_change(self, event):
+          await self.api.call_service("notify", "mobile_app_me", message="Light turned on")
   ```
-- Synchronous apps use `AppSync` and implement `initialize_sync`; use `self.api.sync.*` inside sync code.
+- Sync apps inherit `AppSync` and implement `on_initialize_sync` / `on_shutdown_sync`; use `self.api.sync.*` for blocking calls. `self.task_bucket` offers helpers (`spawn`, `run_in_thread`, `run_sync`) for background work.
 
 ## Event Bus Usage
 
-- Topics: see `core/topics.py` (e.g., `HASS_EVENT_STATE_CHANGED`, `HASSETTE_EVENT_SERVICE_STATUS`).
-- Subscriptions (with predicates, debounce, throttle):
+- Topics are defined in `src/hassette/topics.py` (`HASS_EVENT_STATE_CHANGED`, `HASSETTE_EVENT_SERVICE_STATUS`, `HASSETTE_EVENT_APP_LOAD_COMPLETED`, etc.).
+- `Bus` (`core/resources/bus/bus.py`) fronts `_BusService`; sync handlers are wrapped automatically and subscriptions return `Subscription` handles. Predicates live in `core/resources/bus/predicates`.
+- Useful helpers:
   ```python
   self.bus.on_entity("binary_sensor.motion", handler=self.on_motion, changed_to="on")
-  self.bus.on_attribute("mobile_device.me", "battery_level", handler=self.on_batt)
-  # Custom service call filter
+  self.bus.on_attribute("mobile_device.me", "battery_level", handler=self.on_battery_drop)
   self.bus.on_call_service(domain="light", service="turn_on", handler=self.on_turn_on)
   ```
-- Notes: Bus ignores HA system_log debug events; use `Subscription` returned to unsubscribe if needed.
+- `_BusService` skips HA `system_log` debug spam and respects config exclusions (`bus_excluded_domains`, `bus_excluded_entities`). Service lifecycle events flow over the same topics for observability.
 
 ## API Conventions
 
-- Async-first. Do not call `ApiSyncFacade` methods from inside an event loop; they raise. Use `await self.api.*` inside apps.
-- REST helpers convert params to strings and retry with jitter (tenacity). 404 maps to `EntityNotFoundError`.
-- Useful calls: `get_states()`, `get_state_raw(entity_id)`, `get_state(entity_id, StateType)`, `call_service(domain, service, target=..., **data)`, `fire_event(...)`, `set_state(...)`, history/logbook methods, `render_template(...)`.
+- `Api` (`core/resources/api/api.py`) is async-first; methods cover WS helpers, REST helpers, states, services, events, history/logbook, and template rendering. REST requests retry with jitter and raise `EntityNotFoundError` on 404s.
+- `ApiSyncFacade` (`core/resources/api/sync.py`) provides blocking mirrors via `TaskBucket.run_sync` and raises if invoked inside an active event loop.
+- Frequently used calls: `get_states()`, `get_states_raw()`, typed `get_state(entity_id, StateType)`, `call_service(domain, service, target=..., **data)`, `fire_event(...)`, `set_state(...)`, `render_template(...)`.
 
 ## Scheduler
 
-- Import from `core/scheduler`: `Scheduler`, `CronTrigger`, `IntervalTrigger`.
+- `Scheduler` (`core/resources/scheduler/scheduler.py`) delegates to `_SchedulerService`; jobs are `ScheduledJob` objects from `core/resources/scheduler/classes.py`, with helpers `CronTrigger` and `IntervalTrigger`.
+- APIs: `run_in`, `run_every`, `run_at`/`run_once`, and `schedule` accept sync or async callables plus cron/interval triggers.
   ```python
-  self.scheduler.run_cron(self.daily_job, hour=6)
-  self.scheduler.run_every(self.poll, interval=30)
+  self.scheduler.run_in(self.poll_devices, 30)
+  self.scheduler.run_every(self.flush_cache, interval=300)
+  self.scheduler.run_cron(self.morning_job, hour=6, minute=0, name="wake_up")
   ```
+- Config fields (`scheduler_min_delay_seconds`, `scheduler_max_delay_seconds`, `scheduler_default_delay_seconds`) bound cadence and sleep behaviour.
 
 ## Developer Workflows
 
-- Run the app locally:
+- Run Hassette locally:
   ```bash
   uv pip install -e .
   uv run run-hassette -c ./config/hassette.toml -e ./config/.env
   ```
-- Tests:
+- Tests (start a Home Assistant Docker container via fixtures):
   ```bash
-  # All tests (requires Docker and will start a Home Assistant container)
   uv run nox -s tests
+  uv run nox -s tests_with_coverage
   ```
-- Entry point: `run-hassette` (see `pyproject.toml` -> `project.scripts`). Pinned tool versions in `mise.toml`.
+- Tooling and scripts: entry point `run-hassette` (see `pyproject.toml` → `project.scripts`); tool versions pinned in `mise.toml`; pre-commit hooks in `.pre-commit-config.yaml`; lint/type settings in `ruff.toml` and `pyrightconfig.json`.
 
 ## Conventions & Pitfalls
 
-- `app_dir` determines the import package name (its leaf directory). Keep `app_dir` stable to avoid confusing module names.
-- Provide `AppConfig` to get typed `self.app_config`; Pydantic settings features (env prefixes, validation) are used.
-- Sync API methods block on the main loop; prefer async forms in apps.
-- Service lifecycle events are published on the bus; `Hassette` restarts services on failure and shuts down on crash.
+- Lifecycle hooks only: `initialize()` / `shutdown()` are `@final`; overriding them triggers `CannotOverrideFinalError`. Use `on_initialize`, `before_shutdown`, etc.
+- Use `self.task_bucket.spawn/run_in_thread/run_sync` for background work; Hassette cleans up these tasks on shutdown.
+- `@only_app` (from `hassette.App`) limits execution to a single app; only honored in dev mode unless `allow_only_app_in_prod` is set.
+- File watching is enabled when `watch_files=True` and (`dev_mode` or `allow_reload_in_prod=True`). Watch paths include manifests, `.env` sources, and every configured app module.
+- Log levels cascade: `log_level` seeds per-resource `*_log_level`, and `log_all_events` seeds `log_all_hass_events` / `log_all_hassette_events`. Adjust them in config rather than hardcoding.
+- `app_dir`’s leaf name becomes the import namespace; keep it stable to avoid breaking module paths.
 
 ## Pointers
 
-- Core: `src/hassette/core/{core.py, websocket.py, api.py, bus/bus.py}`
-- Config: `src/hassette/config/{core_config.py, app_manifest.py}`
-- Models: `src/hassette/models/**` (typed states/entities)
-- Examples: `examples/`
-- Tests: `tests/` (see `pytest.ini` markers in `pyproject.toml` and HA fixtures in `tests/conftest.py`)
+- Core runtime: `src/hassette/core/core.py`, `src/hassette/core/resources/{base.py,tasks.py}`, `src/hassette/core/context.py`
+- Services: `src/hassette/core/services/{websocket_service.py,api_service.py,bus_service.py,scheduler_service.py,app_handler.py,file_watcher.py,service_watcher.py,health_service.py}`
+- App resources: `src/hassette/core/resources/{api/api.py,api/sync.py,bus/bus.py,scheduler/scheduler.py,app/app.py}`
+- Config: `src/hassette/config/{core_config.py,app_manifest.py,sources_helper.py}`
+- Events & models: `src/hassette/events/**`, `src/hassette/models/**`, `src/hassette/topics.py`
+- Examples & tests: `examples/`, `tests/` (fixtures in `tests/conftest.py`)
