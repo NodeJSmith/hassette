@@ -64,9 +64,9 @@ jobs:
 
             - name: Combine coverage and report
               run: |
-                  coverage combine coverage-parts
-                  coverage xml -o coverage.xml
-                  coverage report
+                  uv run coverage combine coverage-parts
+                  uv run coverage xml -o coverage.xml
+                  uv run coverage report
 
             - name: Upload HTML report (artifact)
               uses: actions/upload-artifact@v4
