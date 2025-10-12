@@ -215,99 +215,98 @@ class Scheduler(Resource):
     def run_minutely(
         self,
         func: "JobCallable",
-        second: int = 0,
+        minutes: int = 1,
         name: str = "",
         start: SystemDateTime | None = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
-        """Schedule a job to run minutely at a specific second.
+        """Schedule a job to run every N minutes.
 
         Args:
             func (JobCallable): The function to run.
-            second (int): The second of the minute to run the job (0-59).
+            minutes (int): The minute interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the next occurrence of the specified second.
+                time. Otherwise it will run immediately, then repeat every N minutes.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
         """
+        if minutes < 1:
+            raise ValueError("Minute interval must be at least 1")
 
-        trigger = IntervalTrigger.from_arguments(minutes=1, start=start)
-        first_run = start if start else now().replace(second=second, nanosecond=0)
-        if first_run <= now():
-            first_run = first_run.add(minutes=1)
-
+        trigger = IntervalTrigger.from_arguments(minutes=minutes, start=start)
+        first_run = start if start else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_hourly(
         self,
         func: "JobCallable",
-        minute: int = 0,
+        hours: int = 1,
         name: str = "",
         start: SystemDateTime | None = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
-        """Schedule a job to run hourly at a specific minute.
+        """Schedule a job to run every N hours.
 
         Args:
             func (JobCallable): The function to run.
-            minute (int): The minute of the hour to run the job (0-59).
+            hours (int): The hour interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the next occurrence of the specified minute.
+                time. Otherwise, the job will run immediately, then repeat every N hours.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
         """
+        if hours < 1:
+            raise ValueError("Hour interval must be at least 1")
 
-        trigger = IntervalTrigger.from_arguments(minutes=60, start=start)
-        first_run = start if start else now().replace(minute=minute, second=0, nanosecond=0)
-        if first_run <= now():
-            first_run = first_run.add(hours=1)
-
+        trigger = IntervalTrigger.from_arguments(hours=hours, start=start)
+        first_run = start if start else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_daily(
         self,
         func: "JobCallable",
-        hour: int = 0,
-        minute: int = 0,
+        days: int = 1,
         name: str = "",
         start: SystemDateTime | None = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
-        """Schedule a job to run daily at a specific hour and minute.
+        """Schedule a job to run every N days.
 
         Args:
             func (JobCallable): The function to run.
-            hour (int): The hour of the day to run the job (0-23).
-            minute (int): The minute of the hour to run the job (0-59).
+            days (int): The day interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the next occurrence of the specified hour and minute.
+                time. Otherwise, the job will run immediately, then repeat every N days.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
         """
+        if days < 1:
+            raise ValueError("Day interval must be at least 1")
+        if days > 365:
+            raise ValueError("Day interval must not exceed 365")
 
-        trigger = IntervalTrigger.from_arguments(hours=24, start=start)
-        first_run = start if start else now().replace(hour=hour, minute=minute, second=0, nanosecond=0)
-        if first_run <= now():
-            first_run = first_run.add(days=1)
+        hours = 24 * days
 
+        trigger = IntervalTrigger.from_arguments(hours=hours, start=start)
+        first_run = start if start else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_cron(
