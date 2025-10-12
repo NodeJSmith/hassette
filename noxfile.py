@@ -25,6 +25,7 @@ def tests(session: "Session"):
 
 @nox.session(python=["3.11", "3.12", "3.13"], tags=["coverage"])
 def tests_with_coverage(session: "Session"):
+    session.env["COVERAGE_FILE"] = f".coverage.{session.python}"
     session.run(
         "uv",
         "run",

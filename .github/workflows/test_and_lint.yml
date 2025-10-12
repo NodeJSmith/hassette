@@ -33,12 +33,6 @@ jobs:
             - name: Run tests with coverage
               run: uv run nox -t coverage -p ${{ matrix.python-version }}
 
-            - name: Package coverage data
-              run: |
-                  # The .coverage data file may be named .coverage or .coverage.*
-                  # Make it unique per matrix shard to avoid collisions.
-                  mv .coverage ".coverage.${{ matrix.python-version }}"
-
             - name: Upload coverage data
               uses: actions/upload-artifact@v4
               with:
