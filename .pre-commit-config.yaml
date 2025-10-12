@@ -18,3 +18,12 @@ repos:
         args: [--fix]
       # Run the formatter.
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: check-codecov-yml
+        name: Check codecov.yml validity
+        language: system
+        entry: curl --connect-timeout 10 --max-time 60 --fail --data-binary @./.github/codecov.yml https://codecov.io/validate
+        types: [yaml]
+        files: ^\.github/codecov\.yml$
+        pass_filenames: false
