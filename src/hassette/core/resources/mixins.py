@@ -93,20 +93,20 @@ class LifecycleMixin(_LifecycleHostStubs):
         self.shutdown_event = asyncio.Event()
 
         if self._init_task and not self._init_task.done():
-            self.logger.warning("already started or running", stacklevel=2)
+            self.logger.warning("%s already started or running", self.unique_name, stacklevel=2)
             return
 
-        self.logger.debug("Starting")
+        self.logger.debug("%s starting", self.unique_name)
         self._init_task = self.task_bucket.spawn(self.initialize(), name="resource:resource_initialize")
 
     def cancel(self) -> None:
         """Cancel the main task of the instance, if it is running."""
         if self._init_task and not self._init_task.done():
             self._init_task.cancel()
-            self.logger.debug("Cancelled task")
+            self.logger.debug("%s cancelled task", self.unique_name)
             return
 
-        self.logger.debug("No running task to cancel")
+        self.logger.debug("%s no running task to cancel", self.unique_name)
 
     # --------- readiness
     def mark_ready(self, reason: str | None = None) -> None:
@@ -116,7 +116,7 @@ class LifecycleMixin(_LifecycleHostStubs):
             reason (str | None): Optional reason for readiness.
         """
         if self.ready_event.is_set():
-            self.logger.debug("already ready, skipping reason %s", reason)
+            self.logger.debug("%s already ready, skipping reason %s", self.unique_name, reason)
             return
         self.logger.info("ready: %s", reason or "no reason provided")
         self._ready_reason = reason
@@ -129,7 +129,7 @@ class LifecycleMixin(_LifecycleHostStubs):
             reason (str | None): Optional reason for lack of readiness.
         """
         if not self.ready_event.is_set():
-            self.logger.debug("already not ready, skipping reason %s", reason)
+            self.logger.debug("%s already not ready, skipping reason %s", self.unique_name, reason)
 
         self._ready_reason = reason
         self.ready_event.clear()
@@ -137,7 +137,7 @@ class LifecycleMixin(_LifecycleHostStubs):
     def request_shutdown(self, reason: str | None = None) -> None:
         """Set the sticky shutdown flag. Idempotent."""
         if not self.shutdown_event.is_set():
-            self.logger.debug("Shutdown requested: %s", reason or "")
+            self.logger.debug("%s shutdown requested: %s", self.unique_name, reason or "")
             self.shutdown_event.set()
         # clear readiness early so callers back off
         self.mark_not_ready(reason or "shutdown requested")
@@ -168,10 +168,10 @@ class LifecycleMixin(_LifecycleHostStubs):
     # --------- transitions
     async def handle_stop(self) -> None:
         if self.status == ResourceStatus.STOPPED:
-            self.logger.warning("already stopped", stacklevel=2)
+            self.logger.warning("%s already stopped", self.unique_name, stacklevel=2)
             return
 
-        self.logger.info("Stopping", stacklevel=2)
+        self.logger.info("%s stopping", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.STOPPED
         event = self._create_service_status_event(ResourceStatus.STOPPED)
         await self.hassette.send_event(event.topic, event)
@@ -179,10 +179,10 @@ class LifecycleMixin(_LifecycleHostStubs):
 
     async def handle_failed(self, exception: Exception | BaseException) -> None:
         if self.status == ResourceStatus.FAILED:
-            self.logger.warning("already in failed state", stacklevel=2)
+            self.logger.warning("%s already in failed state", self.unique_name, stacklevel=2)
             return
 
-        self.logger.error("failed: %s - %s", type(exception).__name__, str(exception))
+        self.logger.error("%s failed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
         self.status = ResourceStatus.FAILED
         event = self._create_service_status_event(ResourceStatus.FAILED, exception)
         await self.hassette.send_event(event.topic, event)
@@ -190,29 +190,29 @@ class LifecycleMixin(_LifecycleHostStubs):
 
     async def handle_running(self) -> None:
         if self.status == ResourceStatus.RUNNING:
-            self.logger.warning("already running", stacklevel=2)
+            self.logger.warning("%s already running", self.unique_name, stacklevel=2)
             return
 
-        self.logger.info("Running", stacklevel=2)
+        self.logger.info("%s running", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.RUNNING
         event = self._create_service_status_event(ResourceStatus.RUNNING)
         await self.hassette.send_event(event.topic, event)
 
     async def handle_starting(self) -> None:
         if self.status == ResourceStatus.STARTING:
-            self.logger.warning("already starting", stacklevel=2)
+            self.logger.warning("%s already starting", self.unique_name, stacklevel=2)
             return
-        self.logger.info("Starting", stacklevel=2)
+        self.logger.info("%s starting", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.STARTING
         event = self._create_service_status_event(ResourceStatus.STARTING)
         await self.hassette.send_event(event.topic, event)
 
     async def handle_crash(self, exception: Exception) -> None:
         if self.status == ResourceStatus.CRASHED:
-            self.logger.warning("already in crashed state", stacklevel=2)
+            self.logger.warning("%s already in crashed state", self.unique_name, stacklevel=2)
             return
 
-        self.logger.exception("crashed: %s - %s", type(exception).__name__, str(exception))
+        self.logger.exception("%s crashed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
         self.status = ResourceStatus.CRASHED
         event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
         await self.hassette.send_event(event.topic, event)
