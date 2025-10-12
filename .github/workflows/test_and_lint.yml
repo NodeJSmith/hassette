@@ -59,6 +59,7 @@ jobs:
             - uses: actions/download-artifact@v5
               with:
                   path: coverage-parts
+                  pattern: .coverage.*
                   merge-multiple: true
 
             - name: Combine coverage and report
