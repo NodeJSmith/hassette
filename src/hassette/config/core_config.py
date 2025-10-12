@@ -306,6 +306,10 @@ class HassetteConfig(HassetteBaseSettings):
 
     @model_validator(mode="after")
     def validate_hassette_config(self) -> "HassetteConfig":
+        self.app_dir = self.app_dir.resolve()
+        self.config_dir = self.config_dir.resolve()
+        self.data_dir = self.data_dir.resolve()
+
         # Set default log level for all log level fields not explicitly set
         log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
         for field in log_level_fields:
