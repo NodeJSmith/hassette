@@ -263,7 +263,7 @@ class Scheduler(Resource):
             hour (int): The hour interval to run the job.
             name (str): Optional name for the job.
             start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the top of the hour plus the hour interval.
+                time. Otherwise, the job will run immediately at the next hour boundary, then repeat every N hours.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
