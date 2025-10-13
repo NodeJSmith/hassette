@@ -64,8 +64,9 @@ html_theme_options = {
     "navigation_depth": 5,
     "collapse_navigation": False,
     "sticky_navigation": True,
+    "body_max_width": "100%",
 }
-html_css_files = []
+html_css_files = ["style.css"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
@@ -89,3 +90,5 @@ autodoc_pydantic_settings_show_field_summary = False
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_field_list_validators = False
 toc_object_entries_show_parents = "hide"  # Hide parent classes in the table of contents
+
+nitpicky = True

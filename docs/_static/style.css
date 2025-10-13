@@ -1,0 +1,15 @@
+.wy-nav-content {
+    max-width: 1000px;
+}
+
+
+/* Match link-in-code color to normal code-literal red */
+.rst-content a.reference code.literal {
+  color: #e74c3c !important; /* tweak to taste */
+  text-decoration: underline; /* optional — helps signal it's clickable */
+}
+
+/* Optional hover state: slightly darker red for clarity */
+.rst-content a.reference:hover code.literal {
+  color: #a60000 !important; /* tweak to taste */
+}

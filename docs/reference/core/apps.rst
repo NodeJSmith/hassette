@@ -1,11 +1,9 @@
 Apps Reference
 ==============
 
-Attributes
-----------
+.. currentmodule:: hassette.core.resources.app.app
 
-.. autoclass:: hassette.core.resources.app.app::App
-    :no-index:
+.. autoclass:: App
     :exclude-members: __init__, __new__
 
     .. autoattribute:: api
@@ -18,27 +16,30 @@ Attributes
     .. autoattribute:: instance_name
     .. autoattribute:: index
     .. autoattribute:: logger
-    .. automethod:: hassette.core.resources.app.app::App.now
+    .. automethod:: now
+    .. automethod:: App.on_initialize
+    .. automethod:: App.after_initialize
+    .. automethod:: App.before_initialize
+    .. automethod:: App.on_shutdown
+    .. automethod:: App.before_shutdown
+    .. automethod:: App.after_shutdown
+    .. automethod:: App.send_event
 
 
-Async Methods
----------------
+.. autoclass:: AppSync
+    :exclude-members: __init__, __new__
 
-.. automethod:: hassette.core.resources.app.app::App.on_initialize
-.. automethod:: hassette.core.resources.app.app::App.after_initialize
-.. automethod:: hassette.core.resources.app.app::App.before_initialize
-.. automethod:: hassette.core.resources.app.app::App.on_shutdown
-.. automethod:: hassette.core.resources.app.app::App.before_shutdown
-.. automethod:: hassette.core.resources.app.app::App.after_shutdown
-.. automethod:: hassette.core.resources.app.app::App.send_event
-
-
-
-Sync Methods (AppSync class)
------------------------------
-
-.. autoclass:: hassette.core.resources.app.app::AppSync
-
+    .. autoattribute:: api
+    .. autoattribute:: bus
+    .. autoattribute:: scheduler
+    .. autoattribute:: task_bucket
+    .. autoattribute:: hassette
+    .. autoattribute:: app_config_cls
+    .. autoattribute:: app_config
+    .. autoattribute:: instance_name
+    .. autoattribute:: index
+    .. autoattribute:: logger
+    .. automethod:: now
     .. automethod:: on_initialize_sync
     .. automethod:: after_initialize_sync
     .. automethod:: before_initialize_sync
@@ -47,9 +48,9 @@ Sync Methods (AppSync class)
     .. automethod:: after_shutdown_sync
 
 
-App Config
-------------
 
-.. autoclass:: hassette.core.resources.app.app_config::AppConfig
+.. currentmodule:: hassette.core.resources.app.app_config
+
+.. autoclass:: AppConfig
     :members:
     :exclude-members: __init__, __new__, model_config

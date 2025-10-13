@@ -1,19 +1,40 @@
 AppDaemon vs Hassette
-======================
+=====================
 
-This guide targets `AppDaemon <https://appdaemon.readthedocs.io/en/latest/>`_ users who want to understand where Hassette matches the familiar
-workflow, where it differs, and what the migration effort looks like. It focuses on the core moving
-parts: the bus, scheduler, Home Assistant API, and app configuration.
+AppDaemon
+==========
 
-AppDaemon Overview
-------------------
 AppDaemon is a long-running Python process that connects to Home Assistant via WebSocket and REST API.
-It maintains an internal state tracker that caches entity states and attributes. You develop apps by
-in an IDE (e.g., VSCode) and placing them in a configured directory. Configuration lives in ``apps.yaml``
-and ``appdaemon.yaml``. AppDaemon runs apps in separate threads, so you can write synchronous code
-without worrying about blocking the main event loop. The scheduler offers a variety of helpers for
-delayed and recurring tasks. The event bus exposes entity state changes, service calls, and custom
-events. The Home Assistant API is synchronous and returns raw strings or dicts.
+You develop apps by writing Python classes that subclass ``hass.Hass`` and saving them in a configured directory.
+Configuration lives in ``apps.yaml`` and ``appdaemon.yaml``. AppDaemon apps are generally written in an IDE (e.g., VSCode)
+which enables linting and autocompletion as well as debugging and stepping through code.
+
+Key Points
+-----------
+
+- AppDaemon runs apps in separate threads, so you can write synchronous code without worrying about blocking the main event loop.
+- The scheduler offers a variety of helpers for delayed and recurring tasks.
+- The event bus exposes entity state changes, service calls, and custom events.
+- The Home Assistant API is synchronous and returns raw strings or dicts.
+- All access to these features is via methods on ``self`` (the app instance).
+
+Hassette
+==========
+
+Hassette offers similar features but with a different design philosophy. It is async-first, strongly typed, and
+built around composition instead of inheritance. Hassette also connects to Home Assistant via WebSocket and REST API,
+you write apps as Python classes that inherit from :py:class:`~hassette.core.resources.app.app.App`, and configuration lives in ``hassette.toml``.
+Hassette apps are also written in an IDE, offering the same debugging benefits, but is also strongly typed, which enables better autocompletion
+and earlier error detection.
+
+Hassette Key Points
+--------------------
+
+- Hassette apps run in the main event loop, so you write async code. A synchronous bridge class is available for simpler use cases.
+- The scheduler offers similar helpers but uses a consistent API and returns rich job objects.
+- The event bus uses typed events and composable predicates for filtering.
+- The Home Assistant API is async and uses Pydantic models for responses.
+- Features are accessed via composition: ``self.bus``, ``self.scheduler``, and ``self.api``.
 
 Quick reference table
 ---------------------
@@ -28,9 +49,9 @@ Quick reference table
    * - Listen for an entity state change
      - ``self.listen_state(self.on_open, "binary_sensor.door", new="on")``
      - ``self.bus.on_entity("binary_sensor.door", handler=self.on_open, changed_to="on")``
-   * - React to an attribute update
-     - ``self.listen_state(self.on_battery, "sensor.phone", attribute="battery")``
-     - ``self.bus.on_attribute("sensor.phone", "battery", handler=self.on_battery)``
+   * - React to an attribute threshold
+     - ``self.listen_state(self.on_battery, "sensor.phone", attribute="battery", below=20)``
+     - ``self.bus.on_attribute("sensor.phone", "battery", handler=self.on_battery, where=lambda e: (e.payload.data.new_value or 100) < 20)``
    * - Monitor service calls
      - ``self.listen_event(self.on_service, "call_service", domain="light")``
      - ``self.bus.on_call_service(domain="light", handler=self.on_service)``
@@ -44,11 +65,14 @@ Quick reference table
      - ``self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)``
      - ``await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"}, brightness_pct=80)``
    * - Access app configuration
-     - ``self.args["entity"]`` (dict sourced from ``apps.yaml``)
-     - ``self.app_config.entity`` (typed Pydantic model validated from ``hassette.toml``)
-   * - Stop a listener/timer
-     - ``self.cancel_listen_state(handle)`` / ``self.cancel_timer(handle)``
-     - ``subscription.unsubscribe()`` / ``job.cancel()``
+     - ``self.args["entity"]``
+     - ``self.app_config.entity``
+   * - Stop a listener
+     - ``self.cancel_listen_state(handle)``
+     - ``subscription.cancel()``
+   * - Stop a scheduled job
+     - ``self.cancel_timer(handle)``
+     - ``job.cancel()``
 
 App model and configuration
 ---------------------------
@@ -112,7 +136,7 @@ Hassette
     - Similar level of coverage: ``run_in``, ``run_every``, ``run_once``, ``run_minutely``, ``run_hourly``, ``run_daily``, ``run_at``, and ``run_cron``.
     - Can pass ``args`` and ``kwargs`` to the job.
     - All helpers accept async or sync callables and return a ``ScheduledJob`` object with ``next_run`` metadata and ``cancel()``.
-    - Triggers use the ``whenever`` library, so start times are always unambiguous ``SystemDateTime`` instances, although helper methods take multiple input types for convenience. See :doc:`scheduler`.
+    - Triggers use the ``whenever`` library, so start times are always unambiguous ``SystemDateTime`` instances, although helper methods take multiple input types for convenience.
 
 .. rubric:: Where Hassette shines
 

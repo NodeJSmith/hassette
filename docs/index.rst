@@ -99,8 +99,7 @@ Learn More
   api
   bus
   scheduler
-  appdaemon-comparison
-  pyscript-comparison
+  comparisons/index
   reference/index
 
 
