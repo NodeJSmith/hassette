@@ -252,6 +252,20 @@ class Bus(Resource):
 
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
+
+        Examples:
+
+        .. code-block:: python
+
+            # Listen for all service calls
+            bus.on_call_service(handler=my_handler)
+
+            # Listen for calls to the light.turn_on service
+            bus.on_call_service(domain="light", service="turn_on", handler=my_handler)
+
+            # Listen for calls to any service in the light domain
+            bus.on_call_service(domain="light", handler=my_handler)
+
         """
 
         self.logger.debug(
