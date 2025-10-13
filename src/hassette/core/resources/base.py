@@ -8,9 +8,6 @@ from contextlib import suppress
 from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
-from typing_extensions import deprecated
-
-from hassette.const.misc import LOG_LEVELS
 from hassette.enums import ResourceRole
 from hassette.exceptions import CannotOverrideFinalError
 
@@ -164,16 +161,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
 
-    @deprecated("Use self.logger.setLevel(...) instead")
-    def set_logger_to_level(self, level: LOG_LEVELS) -> None:
-        """Configure a logger to log at the specified level independently of its parent."""
-        self.logger.setLevel(level)
-
-    @deprecated("Use set_logger_to_level('DEBUG') instead")
-    def set_logger_to_debug(self) -> None:
-        """Configure a logger to log at DEBUG level independently of its parent."""
-        self.logger.setLevel("DEBUG")
-
     @property
     def unique_name(self) -> str:
         """Get the unique name of the instance."""
@@ -241,6 +228,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             return
         self._initializing = True
 
+        self.logger.setLevel(self.config_log_level)
         self.logger.debug("Initializing")
         await self.handle_starting()
 

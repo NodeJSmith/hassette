@@ -1,7 +1,6 @@
 import asyncio
 import threading
 import typing
-from collections.abc import Coroutine
 from typing import Any, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
@@ -135,37 +134,6 @@ class Hassette(Resource):
     async def send_event(self, event_name: str, event: "Event[Any]") -> None:
         """Send an event to the event bus."""
         await self._send_stream.send((event_name, event))
-
-    def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | None = None) -> R:
-        """Run an async function in a synchronous context.
-
-        Args:
-            fn (Coroutine[Any, Any, R]): The async function to run.
-            timeout_seconds (int | None): The timeout for the function call, defaults to 0, to use the config value.
-
-        Returns:
-            R: The result of the function call.
-        """
-        return self.task_bucket.run_sync(fn, timeout_seconds=timeout_seconds)
-
-    async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args, **kwargs) -> R:
-        """Run a synchronous function on the main event loop thread.
-
-        This is useful for ensuring that loop-affine code runs in the correct context.
-        """
-        return await self.task_bucket.run_on_loop_thread(fn, *args, **kwargs)
-
-    def create_task(self, coro: Coroutine[Any, Any, R], name: str) -> asyncio.Task[R]:
-        """Create a task tracked in the global hassette task bucket.
-
-        Args:
-            coro (Coroutine[Any, Any, R]): The coroutine to run as a task.
-
-        Returns:
-            asyncio.Task[R]: The created task.
-        """
-
-        return self.task_bucket.spawn(coro, name=name)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: int | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
