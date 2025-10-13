@@ -15,7 +15,7 @@ Subscribe to state changes and services using the Bus.
 
          async def on_motion(self, event: StateChangeEvent[states.ButtonState]) -> None:
               data = event.payload.data
-              self.log.info("%s changed from %s to %s", event.topic, data.old_state_value, data.new_state_value)
+              self.logger.info("%s changed from %s to %s", event.topic, data.old_state_value, data.new_state_value)
 
 Event model
 -----------
@@ -56,7 +56,7 @@ for ``event.payload.data`` to access the meaningful content. The payload also ca
 
    async def on_motion(self, event: StateChangeEvent) -> None:
        data = event.payload.data  # type: StateChangePayload
-       self.log.info("%s changed from %s to %s", event.topic, data.old_state_value, data.new_state_value)
+       self.logger.info("%s changed from %s to %s", event.topic, data.old_state_value, data.new_state_value)
 
 Working with payload data
 -------------------------

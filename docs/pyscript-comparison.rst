@@ -39,7 +39,7 @@ Quick reference table
      - ``self.scheduler.run_in(self.turn_off, delay=60)``
    * - Run every morning at 07:30
      - ``@time_trigger("cron(30 7 * * *)")``
-     - ``self.scheduler.run_cron(self.morning, minute=30, hour=7)``
+     - ``self.scheduler.run_daily(self.morning, start=time(7, 30))``
    * - Debounce noisy updates
      - ``@state_trigger("sensor.motion == 'on'", state_hold=2)``
      - ``self.bus.on_entity("sensor.motion", handler=self.on_motion, debounce=2.0)``

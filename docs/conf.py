@@ -58,13 +58,14 @@ PYDANTIC_IGNORE_FIELDS = [
 master_doc = "index"
 html_theme = "sphinx_rtd_theme"
 templates_path = ["_templates"]
-# html_static_path = ["_static"]
+html_static_path = ["_static"]
 html_theme_options = {
     "navigation_with_keys": True,
+    "navigation_depth": 5,
+    "collapse_navigation": False,
+    "sticky_navigation": True,
 }
-html_css_files = [
-    "style.css",
-]
+html_css_files = []
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
@@ -78,8 +79,13 @@ autodoc_default_flags = ["members"]
 autosummary_generate = True
 autosummary_imported_members = True
 autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_settings_show_config_summary = False
 autodoc_pydantic_model_show_validator_summary = False
 autodoc_pydantic_model_show_validator_members = False
+autodoc_pydantic_settings_show_validator_summary = False
 autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_settings_show_validator_members = False
+autodoc_pydantic_settings_show_field_summary = False
 autodoc_pydantic_model_show_json = False
+autodoc_pydantic_field_list_validators = False
 toc_object_entries_show_parents = "hide"  # Hide parent classes in the table of contents

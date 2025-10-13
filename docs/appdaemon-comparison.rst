@@ -39,7 +39,7 @@ Quick reference table
      - ``self.scheduler.run_in(self.turn_off, delay=60)``
    * - Run every morning at 07:30
      - ``self.run_daily(self.morning, time(7, 30, 0))``
-     - ``self.scheduler.run_cron(self.morning, minute=30, hour=7)``
+     - ``self.scheduler.run_daily(self.morning, start=time(7, 30))``
    * - Call a Home Assistant service
      - ``self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)``
      - ``await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"}, brightness_pct=80)``
@@ -103,26 +103,22 @@ Scheduler differences
 ---------------------
 
 AppDaemon
-    - Offers a large toolbox—``run_in``, ``run_once``, ``run_every``, ``run_daily``, ``run_hourly``, ``run_minutely``, ``run_at``, ``run_at_sunrise/sunset``, and cron support.
+    - Offers a large toolbox — ``run_in``, ``run_once``, ``run_every``, ``run_daily``, ``run_hourly``, ``run_minutely``, ``run_at``, ``run_at_sunrise/sunset``, and cron support.
     - Timers return handles you pass to ``cancel_timer``.
     - Scheduler helpers can pass ``kwargs`` back into the callback so the same function can serve multiple timers.
     - ``info_timer`` exists to inspect the next run time, but it requires an extra API call.
 
 Hassette
-    - Consolidates on a smaller set: ``run_in``, ``run_every``, ``run_once``, and ``run_cron``.
+    - Similar level of coverage: ``run_in``, ``run_every``, ``run_once``, ``run_minutely``, ``run_hourly``, ``run_daily``, ``run_at``, and ``run_cron``.
+    - Can pass ``args`` and ``kwargs`` to the job.
     - All helpers accept async or sync callables and return a ``ScheduledJob`` object with ``next_run`` metadata and ``cancel()``.
-    - Triggers use the ``whenever`` library, so you can express start times and intervals with precise objects (``TimeDelta``, ``SystemDateTime``).
-    - Cron covers most repeating needs, but there are not dedicated helpers like ``run_daily`` or ``run_hourly``.
+    - Triggers use the ``whenever`` library, so start times are always unambiguous ``SystemDateTime`` instances, although helper methods take multiple input types for convenience. See :doc:`scheduler`.
 
 .. rubric:: Where Hassette shines
 
 - Async jobs run on the main loop—no background threads required.
 - Cron has second-level precision and shares a consistent API for async/sync functions.
 - ``ScheduledJob`` exposes ``next_run`` without extra API calls.
-
-.. rubric:: Where Hassette lags today
-
-- Missing helpers for common patterns like ``run_daily``.
 
 .. note::
 

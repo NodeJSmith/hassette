@@ -1,12 +1,19 @@
 Scheduler Reference
 ===================
 
-.. automodule:: hassette.core.resources.scheduler.scheduler
+.. autoclass:: hassette.core.resources.scheduler.scheduler.Scheduler
    :members:
    :undoc-members:
-   :show-inheritance:
+   :no-inherited-members:
 
-.. .. toctree::
-..    :maxdepth: 1
+.. automodule:: hassette.core.resources.scheduler.classes
+   :members:
+   :undoc-members:
+   :no-inherited-members:
+   :exclude-members: next_id
 
-..     Triggers <scheduler/classes>
+.. automodule:: hassette.core.services.scheduler_service
+   :members: _SchedulerService, _ScheduledJobQueue, HeapQueue
+   :member-order: bysource
+   :undoc-members:
+   :no-inherited-members:

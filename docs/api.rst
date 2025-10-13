@@ -1,4 +1,4 @@
-API
+Api
 ===
 
 Async-first API for REST and WebSocket interactions. The service wraps Home Assistant's HTTP and
@@ -66,7 +66,7 @@ the raw Home Assistant string, while ``get_state_value_typed`` will coerce into 
    # Target a specific device with a concrete model
    climate = await self.api.get_state("climate.living_room", states.ClimateState)
    if climate.hvac_action == "heating":
-       self.log.debug("Living room is warming up (%.1f°C)", climate.attributes.current_temperature)
+       self.logger.debug("Living room is warming up (%.1f°C)", climate.attributes.current_temperature)
 
    # Raw access
    temperature = await self.api.get_state_value("sensor.outdoor_temp")
@@ -86,7 +86,7 @@ runtime check to be sure you requested the right entity model and returns ``None
 
    maybe = await self.api.get_entity_or_none("light.guest", LightEntity)
    if maybe is None:
-       self.log.warning("Guest light is not registered")
+       self.logger.warning("Guest light is not registered")
 
 .. note::
 
@@ -109,7 +109,7 @@ inspect the HA ``HassContext``.
    )
 
    ctx = await self.api.turn_off("switch.air_purifier")
-   self.log.debug("Service request id=%s", ctx.id if ctx else "n/a")
+   self.logger.debug("Service request id=%s", ctx.id if ctx else "n/a")
 
    # Fire an automation event
    await self.api.fire_event("hassette_custom", {"trigger": "wake"})
@@ -133,7 +133,7 @@ multiple series at once.
    start = PlainDateTime.now().subtract(hours=2)
    history = await self.api.get_history("climate.living_room", start_time=start)
    for entry in history:
-       self.log.debug("%s -> %s", entry.timestamp, entry.state)
+       self.logger.debug("%s -> %s", entry.timestamp, entry.state)
 
    logbook = await self.api.get_logbook("binary_sensor.front_door", start_time=start)
 
