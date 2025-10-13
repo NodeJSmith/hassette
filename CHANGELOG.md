@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- `Subscription` now has ``cancel`` method to unsubscribe from events, to be consistent with ``ScheduledJob``.
+- `App.send_event_sync` method added for synchronous event sending.
+
+### Changed
+- **Breaking:** ``Scheduler.run_once`` has been updated to use ``start`` instead of ``run_at`` to be consistent with other helpers.
+- **Breaking:** ``cleanup`` method is now marked as final and cannot be overridden in subclasses.
+
+### Removed
+- **Breaking:** Removed deprecated `set_logger_to_debug` and `set_logger_to_level` Resource methods.
+- **Breaking:** Removed deprecated `run_sync`, `run_on_loop_thread`, and `create_task` methods from Hassette.
+
+### Internal
+- Remove scheduled jobs that are cancelled or do not repeat, instead of just marking them as cancelled and leaving them in the job queue.
+
+### Documentation
+- Updated Apps and Scheduler documentation to reflect new features and changes.
+- Improved reference docs created with autodoc.
+
 ## [0.12.1] - 2025-10-11
 ### Fixed
 - Fixed `run_minutely`/`run_hourly`/`run_daily` scheduler helpers to run every N minutes/hours/days, not *every* minute/hour/day at 0th second/minute.
