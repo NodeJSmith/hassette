@@ -32,7 +32,9 @@ class AppManifest(BaseModel):
     app_dir: Path = Field(..., examples=["./apps"])
     """Path to the app directory, relative to current working directory or absolute"""
 
-    app_config: dict[str, Any] | list[dict[str, Any]] = Field(default_factory=dict, validation_alias="config")
+    app_config: dict[str, Any] | list[dict[str, Any]] = Field(
+        default_factory=dict, validation_alias="config", validate_default=True
+    )
     """Instance configuration for the app"""
 
     _full_path: Path | None = None  # Cached full path after first access
@@ -103,9 +105,9 @@ class AppManifest(BaseModel):
 
         return v
 
-    def model_post_init(self, context: Any) -> None:
+    def validate_model_extra(self):
         if not self.model_extra:
-            return super().model_post_init(context)
+            return
 
         keys = list(self.model_extra.keys())
         msg = (
@@ -129,4 +131,11 @@ class AppManifest(BaseModel):
 
         warn(msg, stacklevel=5)
 
-        return super().model_post_init(context)
+    def model_post_init(self, context: Any) -> None:
+        self.validate_model_extra()
+
+        # if we don't have app_config then we don't have any apps with config
+        # which means we have, at most, one app
+        # so we can just set the default instance name
+        if not self.app_config:
+            self.app_config = [{"instance_name": f"{self.class_name}.0"}]
