@@ -1,16 +1,15 @@
-AppDaemon vs Hassette
+AppDaemon Comparison
 =====================
 
 AppDaemon
-==========
+-----------
 
 AppDaemon is a long-running Python process that connects to Home Assistant via WebSocket and REST API.
 You develop apps by writing Python classes that subclass ``hass.Hass`` and saving them in a configured directory.
 Configuration lives in ``apps.yaml`` and ``appdaemon.yaml``. AppDaemon apps are generally written in an IDE (e.g., VSCode)
 which enables linting and autocompletion as well as debugging and stepping through code.
 
-Key Points
------------
+.. rubric:: Key Points
 
 - AppDaemon runs apps in separate threads, so you can write synchronous code without worrying about blocking the main event loop.
 - The scheduler offers a variety of helpers for delayed and recurring tasks.
@@ -19,7 +18,7 @@ Key Points
 - All access to these features is via methods on ``self`` (the app instance).
 
 Hassette
-==========
+-----------
 
 Hassette offers similar features but with a different design philosophy. It is async-first, strongly typed, and
 built around composition instead of inheritance. Hassette also connects to Home Assistant via WebSocket and REST API,
@@ -27,8 +26,7 @@ you write apps as Python classes that inherit from :py:class:`~hassette.core.res
 Hassette apps are also written in an IDE, offering the same debugging benefits, but is also strongly typed, which enables better autocompletion
 and earlier error detection.
 
-Hassette Key Points
---------------------
+.. rubric:: Key Points
 
 - Hassette apps run in the main event loop, so you write async code. A synchronous bridge class is available for simpler use cases.
 - The scheduler offers similar helpers but uses a consistent API and returns rich job objects.
@@ -37,7 +35,7 @@ Hassette Key Points
 - Features are accessed via composition: ``self.bus``, ``self.scheduler``, and ``self.api``.
 
 Quick reference table
----------------------
+-----------------------
 
 .. list-table:: Snapshot of common tasks
    :header-rows: 1
@@ -75,8 +73,12 @@ Quick reference table
      - ``job.cancel()``
 
 
+Detailed Comparison
+--------------------
+
+
 AppDaemon Configuration
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 AppDaemon uses two YAML configuration files: ``appdaemon.yaml`` for global settings and ``apps.yaml`` for app-specific configuration. AppDaemon also supports toml files, though YAML is more common.
 
@@ -117,6 +119,7 @@ method that is part of AppDaemon's logging system. Because of the way the logger
 in your output, although there are some magic strings you can use to include these.
 
 .. code-block:: python
+  :linenos:
 
     from appdaemon.plugins.hass import Hass
 
@@ -134,7 +137,7 @@ in your output, although there are some magic strings you can use to include the
 
 
 Hassette Configuration
-----------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Hassette uses a single ``hassette.toml`` file for all configuration, including global settings and app-specific parameters. Each app gets its own section under the ``[apps]`` table.
 
@@ -162,6 +165,7 @@ You access configuration via the typed ``self.app_config`` attribute, which offe
 automatically includes the instance name, method name, and line number. Instance names can be set in the config file or default to ``<ClassName>.<index>``.
 
 .. code-block:: python
+  :linenos:
 
     from pydantic import Field
 
@@ -190,10 +194,13 @@ automatically includes the instance name, method name, and line number. Instance
 
 
 AppDaemon Features
---------------------
+~~~~~~~~~~~~~~~~~~~
 
 AppDaemon apps are able to subscribe to three main types of events: scheduled events (e.g. scheduled jobs), state change events (e.g. entity state changes), and custom events (e.g. service calls or user-defined events). The examples below
 are taken from the AppDaemon documentation and illustrate how to use these features.
+
+Schedule callbacks
+^^^^^^^^^^^^^^^^^^^
 
 Schedule callbacks are expected to have a signature of ``def my_callback(self, **kwargs) -> None:``. The ``kwargs`` dictionary can contain arbitrary data you pass when scheduling the callback, and also includes the internal ``__thread_id`` value.
 
@@ -211,6 +218,7 @@ Schedule callbacks are expected to have a signature of ``def my_callback(self, *
 
 
 .. code-block:: python
+  :linenos:
 
   from appdaemon.plugins.hass import Hass
 
@@ -228,9 +236,13 @@ Schedule callbacks are expected to have a signature of ``def my_callback(self, *
           self.turn_on("light.porch")
 
 
+Event callbacks
+^^^^^^^^^^^^^^^^^^^
+
 Event callbacks are expected to have a signature of ``def my_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:``.
 
 .. code-block:: python
+  :linenos:
 
   from datetime import datetime
   from typing import Any
@@ -249,11 +261,44 @@ Event callbacks are expected to have a signature of ``def my_callback(self, even
           )
 
       def minimal_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:
-          self.log(f"Button pressed")
+          self.log(f"{event_type=}, {data=}, {kwargs=}")
+
+
+.. code-block:: text
+
+   2025-10-14 06:49:34.791752 INFO button_handler:
+       event_type='call_service',
+       data={
+           'domain': 'input_button',
+           'service': 'press',
+           'service_data': {
+               'entity_id': 'input_button.test_button'
+           },
+           'metadata': {
+               'origin': 'LOCAL',
+               'time_fired': '2025-10-14T11:49:34.784540+00:00',
+               'context': {
+                   'id': '01K7H8VSY0Y3VK6MTM5V1MBF8C',
+                   'parent_id': None,
+                   'user_id': 'caa14e06472b499cb00545bb65e56e5a'
+               }
+           }
+       },
+       kwargs={
+           'service': 'press',
+           'entity_id': 'input_button.test_button',
+           '__thread_id': 'thread-1'
+       }
+
+
+
+State change callbacks
+^^^^^^^^^^^^^^^^^^^^^^^
 
 State change callbacks are expected to have a signature of ``def my_callback(self, entity: str, attribute: str, old: str, new: str, **kwargs) -> None:``.
 
 .. code-block:: python
+  :linenos:
 
   from appdaemon.plugins.hass import Hass
 
@@ -264,11 +309,24 @@ State change callbacks are expected to have a signature of ``def my_callback(sel
 
       def button_pressed(self, entity, attribute, old, new, arg1, **kwargs):
           self.log(f"{entity=} {attribute=} {old=} {new=} {arg1=}")
-          # 2025-10-13 19:35:56.976839 INFO button_pressed: entity='input_button.test_button' attribute='state' old='2025-10-14T00:16:04.117097+00:00' new='2025-10-14T00:35:58.240005+00:00' arg1=123
 
-You can get and set entity states using ``self.get_state()`` and ``self.set_state()``. The ``get_state()`` method can return just the state string or a full dictionary with attributes.
+.. code-block:: text
+
+   2025-10-13 19:35:56.976839 INFO button_pressed:
+       entity='input_button.test_button',
+       attribute='state',
+       old='2025-10-14T00:16:04.117097+00:00',
+       new='2025-10-14T00:35:58.240005+00:00',
+       arg1=123
+
+
+Api access
+^^^^^^^^^^^^
+
+You can get and set entity states using ``self.get_state()`` and ``self.set_state()``. The ``get_state()`` method can return just the state string or a full dictionary with attributes. Attempting to access a non-existent entity will return ``None``, no exception is raised.
 
 .. code-block:: python
+  :linenos:
 
   from appdaemon.plugins.hass import Hass
 
@@ -278,18 +336,60 @@ You can get and set entity states using ``self.get_state()`` and ``self.set_stat
           office_light_state = self.get_state("light.office_light_1", attribute="all")
           self.log(f"{office_light_state=}")
 
-          # 2025-10-13 19:38:15.241717 INFO get_state: office_light_state={'entity_id': 'light.office_light_1', 'state': 'on', 'attributes': {'min_color_temp_kelvin': 2000, 'max_color_temp_kelvin': 6535, 'min_mireds': 153, 'max_mireds': 500, 'effect_list': ['blink', 'breathe', 'okay', 'channel_change', 'candle', 'fireplace', 'colorloop', 'finish_effect', 'stop_effect', 'stop_hue_effect'], 'supported_color_modes': ['color_temp', 'xy'], 'effect': None, 'color_mode': 'xy', 'brightness': 255, 'color_temp_kelvin': None, 'color_temp': None, 'hs_color': [0.0, 100.0], 'rgb_color': [255, 0, 0], 'xy_color': [0.701, 0.299], 'friendly_name': 'Office Light 1', 'supported_features': 44}, 'last_changed': '2025-10-13T10:40:17.569005+00:00', 'last_reported': '2025-10-14T00:26:55.317432+00:00', 'last_updated': '2025-10-14T00:26:55.317432+00:00', 'context': {'id': '01K7G1STAQ2PW83YQDZ7YJ65VY', 'parent_id': None, 'user_id': 'a7b56f4dc8ca4a2fa4130263ba7b4b93'}}
+
+.. code-block:: text
+
+   2025-10-13 19:38:15.241717 INFO get_state:
+       office_light_state={
+           'entity_id': 'light.office_light_1',
+           'state': 'on',
+           'attributes': {
+               'min_color_temp_kelvin': 2000,
+               'max_color_temp_kelvin': 6535,
+               'min_mireds': 153,
+               'max_mireds': 500,
+               'effect_list': [
+                   'blink', 'breathe', 'okay', 'channel_change',
+                   'candle', 'fireplace', 'colorloop',
+                   'finish_effect', 'stop_effect', 'stop_hue_effect'
+               ],
+               'supported_color_modes': ['color_temp', 'xy'],
+               'effect': None,
+               'color_mode': 'xy',
+               'brightness': 255,
+               'color_temp_kelvin': None,
+               'color_temp': None,
+               'hs_color': [0.0, 100.0],
+               'rgb_color': [255, 0, 0],
+               'xy_color': [0.701, 0.299],
+               'friendly_name': 'Office Light 1',
+               'supported_features': 44
+           },
+           'last_changed': '2025-10-13T10:40:17.569005+00:00',
+           'last_reported': '2025-10-14T00:26:55.317432+00:00',
+           'last_updated': '2025-10-14T00:26:55.317432+00:00',
+           'context': {
+               'id': '01K7G1STAQ2PW83YQDZ7YJ65VY',
+               'parent_id': None,
+               'user_id': 'a7b56f4dc8ca4a2fa4130263ba7b4b93'
+           }
+       }
 
 
 
 Hassette Features
---------------------
+~~~~~~~~~~~~~~~~~~
 
 Hassette apps have access to the same features, though we refer to them with slightly different terminology. Scheduled events are handled by the scheduler, state change events and custom events are handled by the event bus, and entity state access is provided by the Home Assistant API client. The examples below illustrate how to use these features.
 
-Schedule callbacks do not need to follow a specific signature. They can be either async or sync functions, and can accept arbitrary parameters. The scheduler methods return rich job objects that can be used to manage the scheduled task.
+
+Scheduled Jobs
+^^^^^^^^^^^^^^^^^^^
+
+Scheduled jobs do not need to follow a specific signature. They can be either async or sync functions, and can accept arbitrary parameters. The scheduler methods return rich job objects that can be used to manage the scheduled task.
 
 .. code-block:: python
+  :linenos:
 
   from hassette import App
 
@@ -310,11 +410,15 @@ Schedule callbacks do not need to follow a specific signature. They can be eithe
           await self.api.turn_on("light.office_light_1", color_name="red")
 
 
-Event callbacks can also be either async or sync functions, and currently only accept the event object as a parameter. The event bus uses typed events and composable predicates for filtering.
+Event Handlers
+^^^^^^^^^^^^^^^^
+
+Event handlers can also be either async or sync functions, and currently only accept the event object as a parameter. The event bus uses typed events and composable predicates for filtering.
 There is some definite room for improvement in the ergonomics of this API, but the example below illustrates how to listen for a specific service call event. Note that the ``Guard`` predicate
 is generic, so annotating it with the expected event type enables IDE support and better error detection. In this example, ``data`` is known to be of type ``CallServicePayload``.
 
 .. code-block:: python
+  :linenos:
 
   from hassette.events import CallServiceEvent
 
@@ -334,4 +438,144 @@ is generic, so annotating it with the expected event type enables IDE support an
       def minimal_callback(self, event: CallServiceEvent) -> None:
           self.logger.info(f"Button pressed: {event}")
 
-          # 2025-10-13 20:07:26.735 INFO hassette.ButtonHandler.0.minimal_callback:38 ─ Button pressed: Event(topic='hass.event.call_service', payload=HassPayload(event_type='call_service', data=CallServicePayload(domain='input_button', service='press', service_data={'entity_id': 'input_button.test_button'}, service_call_id=None), origin='LOCAL', time_fired=SystemDateTime(2025-10-13 20:07:26.723688-05:00), context={'id': '01K7G440W3J39SFDHJM0Y50P17', 'parent_id': None, 'user_id': 'caa14e06472b499cb00545bb65e56e5a'}))
+.. code-block:: text
+
+   2025-10-13 20:07:26.735 INFO hassette.ButtonHandler.0.minimal_callback:38 ─ Button pressed:
+       Event(
+           topic='hass.event.call_service',
+           payload=HassPayload(
+               event_type='call_service',
+               data=CallServicePayload(
+                   domain='input_button',
+                   service='press',
+                   service_data={
+                       'entity_id': 'input_button.test_button'
+                   },
+                   service_call_id=None
+               ),
+               origin='LOCAL',
+               time_fired=SystemDateTime(2025-10-13 20:07:26.723688-05:00),
+               context={
+                   'id': '01K7G440W3J39SFDHJM0Y50P17',
+                   'parent_id': None,
+                   'user_id': 'caa14e06472b499cb00545bb65e56e5a'
+               }
+           )
+       )
+
+
+
+State change handlers
+^^^^^^^^^^^^^^^^^^^^^^
+
+State change handlers are the exact same as event handlers, we're only calling them out separately to align with AppDaemon. These can also be either async or sync functions, and currently only accept the event object as a parameter.
+The event bus provides helpers for filtering entities and attributes. You can also provide additional predicates using the ``where`` parameter. In this example, we listen for any state change on the specified entity.
+
+Currently the repr of a StateChangeEvent is quite verbose, but it does show the full old and new state objects, which can be useful for debugging. Cleaning this up is on the roadmap.
+
+
+.. code-block:: python
+  :linenos:
+
+  from hassette import App, StateChangeEvent, states
+
+
+  class ButtonPressed(App):
+      async def on_initialize(self):
+          # Listen for a button press event with a specific entity_id
+          sub = self.bus.on_entity(entity="input_button.test_button", handler=self.button_pressed)
+          self.logger.info(f"Subscribed: {sub}")
+
+      def button_pressed(self, event: StateChangeEvent[states.ButtonState]) -> None:
+          self.logger.info(f"Button pressed: {event}")
+
+
+Note, some output has been truncated for brevity.
+
+.. code-block:: text
+
+   2025-10-13 22:52:35.281 INFO hassette.ButtonPressed.0.button_pressed:11 ─ Button pressed:
+       Event(
+           topic='hass.event.state_changed',
+           payload=HassPayload(
+               event_type='state_changed',
+               data=StateChangePayload(
+                   entity_id='input_button.test_button',
+                   old_state=InputButtonState(
+                       domain='input_button',
+                       entity_id='input_button.test_button',
+                       last_changed=SystemDateTime(2025-10-13 20:07:26.723887-05:00),
+                       ...
+                   ),
+                   new_state=InputButtonState(
+                       domain='input_button',
+                       entity_id='input_button.test_button',
+                       last_changed=SystemDateTime(2025-10-13 22:52:35.268639-05:00),
+                       ...
+                   ),
+               ),
+               origin='LOCAL',
+               time_fired=SystemDateTime(2025-10-13 22:52:35.268639-05:00),
+               context={
+                   'id': '01K7GDJD644YJWJGTRHXBVPQ4P',
+                   'user_id': 'caa14e06472b499cb00545bb65e56e5a'
+               }
+           )
+       )
+
+
+
+Api access
+^^^^^^^^^^^^
+
+Hassette aims to provide a fully typed API client that uses Pydantic models for requests and responses. The client methods are async and return rich objects with attributes. Attempting to access a non-existent entity will raise a ``NotFoundError`` exception.
+
+.. code-block:: python
+  :linenos:
+
+  from hassette.models import states
+
+  from hassette import App
+
+
+  class StateGetter(App):
+      async def on_initialize(self):
+          office_light_state = await self.api.get_state("light.office_light_1", model=states.LightState)
+          self.logger.info(f"{office_light_state=}")
+
+
+.. code-block:: text
+
+   2025-10-14 06:59:35.645 INFO hassette.StateGetter.0.on_initialize:9 ─ office_light_state=
+       LightState(
+           domain='light',
+           entity_id='light.office_light_1',
+           last_changed=SystemDateTime(2025-10-14 05:40:01.31513-05:00),
+           last_reported=SystemDateTime(2025-10-14 06:47:57.195556-05:00),
+           last_updated=SystemDateTime(2025-10-14 06:47:57.195556-05:00),
+           is_unknown=False,
+           is_unavailable=False,
+           value='on',
+           attributes=Attributes(
+               friendly_name='Office Light 1',
+               device_class=None,
+               supported_features=44,
+               min_color_temp_kelvin=2000,
+               max_color_temp_kelvin=6535,
+               min_mireds=153,
+               max_mireds=500,
+               effect_list=[
+                   'blink', 'breathe', 'okay', 'channel_change',
+                   'candle', 'fireplace', 'colorloop', 'finish_effect',
+                   'stop_effect', 'stop_hue_effect'
+               ],
+               supported_color_modes=['color_temp', 'xy'],
+               effect=None,
+               color_mode='xy',
+               brightness=255,
+               color_temp_kelvin=None,
+               hs_color=[0.0, 100.0],
+               rgb_color=[255, 0, 0],
+               xy_color=[0.701, 0.299]
+           )
+       )
