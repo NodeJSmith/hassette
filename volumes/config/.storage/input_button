@@ -7,6 +7,10 @@
       {
         "id": "test",
         "name": "Test"
+      },
+      {
+        "id": "test_button",
+        "name": "test_button"
       }
     ]
   }
