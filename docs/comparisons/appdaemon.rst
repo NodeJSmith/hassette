@@ -74,137 +74,264 @@ Quick reference table
      - ``self.cancel_timer(handle)``
      - ``job.cancel()``
 
-App model and configuration
----------------------------
 
-AppDaemon
-    - Apps subclass ``hass.Hass`` and implement ``initialize`` (synchronous).
-    - Configuration is loaded from ``apps.yaml`` with one section per app instance.
-    - App configuration arrives as an untyped ``dict`` on ``self.args``; validation is manual.
-    - Reusing an app means adding another section in ``apps.yaml`` that points to the same module/class but tweaks arguments.
+AppDaemon Configuration
+------------------------
 
-Hassette
-    - Apps subclass :class:`hassette.core.resources.app.app.App` (async) or :class:`hassette.core.resources.app.app.AppSync` (sync bridge).
-    - ``initialize`` is ``async`` and should call ``await super().initialize()`` after custom initialization. Configuration lives in ``hassette.toml`` under ``[apps.*]`` tables.
-    - Each app ships with a :class:`hassette.core.resources.app.app_config.AppConfig` subclass, so Hassette validates input before instantiating the app and you access ``self.app_config`` with IDE/autocomplete support.
-    - Environment variables (via Pydantic) are first-class. Multiple instances use TOML list-of-tables, which still map to strongly typed models.
+AppDaemon uses two YAML configuration files: ``appdaemon.yaml`` for global settings and ``apps.yaml`` for app-specific configuration. AppDaemon also supports toml files, though YAML is more common.
 
-.. rubric:: Where Hassette shines
+- ``appdaemon.yaml`` specifies the app directory, logging, and connection details for Home Assistant.
+- ``apps.yaml`` defines each app instance with its module, class, and arguments.
 
-- Strongly typed configuration models improve IDE support and reduce runtime errors.
-- Multiple app instances are clearer in ``hassette.toml`` since they share the same table name.
-- Async-first lifecycle keeps all automation logic in the main coroutine context.
+A basic ``appdaemon.yaml`` might look like this:
 
-Event bus and callbacks
------------------------
+.. code-block:: yaml
 
-AppDaemon
-    - ``listen_state`` (plus variants like ``listen_event`` and ``listen_event("call_service")``) call your handler with several positional arguments (``callback(self, entity, attribute, old, new, kwargs)``).
-    - Convenience keyword arguments include ``attribute``, ``new``, ``old``, ``duration`` (wait for stable state), ``immediate`` (fire once right away), namespaces, and ``timeout``.
-    - You cancel by passing the handle to ``cancel_listen_state``.
-    - Filtering by multiple conditions typically involves several keyword arguments or manual logic in the callback.
+  appdaemon:
+    time_zone: America/Chicago
+    latitude: 51.725
+    longitude: 14.3434
+    elevation: 0
+    use_dictionary_unpacking: true
+    plugins:
+      HASS:
+        type: hass
+        ha_url: http://192.168.1.179:8123
+        token: !env_var HOME_ASSISTANT_TOKEN
 
-Hassette
-    - All subscriptions emit a typed event dataclass as a single argument.
-    - ``self.bus.on_entity`` and ``self.bus.on_attribute`` wrap Home Assistant's ``state_changed`` topic.
-    - ``self.bus.on_call_service`` exposes service traffic.
-    - ``self.bus.on`` lets you subscribe to any topic (including custom events via ``"hassette.event.my_event"``).
-    - Predicates provide composable guards (e.g., ``P.ChangedTo("on")`` & ``P.AnyOf``).
-    - ``debounce`` and ``throttle`` parameters remove boilerplate that AppDaemon typically handles via extra state variables.
-    - Subscription objects expose ``unsubscribe()`` for cleanup.
+An app might look like this in ``apps.yaml``:
 
-.. rubric:: Where Hassette shines
+.. code-block:: yaml
 
-- Typed payloads with exact models (``StateChangeEvent[LightState]``) instead of raw dicts.
-- Predicate composition beats nested ``if`` trees and can guard on attributes without extra callbacks.
-
-.. rubric:: Where Hassette lags today
-
-- No built-in equivalent for ``duration``, ``timeout``, or ``immediate`` (on the roadmap).
+  my_app:
+    module: my_app
+    class: MyApp
+    args:
+      entity: light.kitchen
+      brightness: 200
 
 
-Scheduler differences
----------------------
+This would correspond to a Python file ``my_app.py`` in the directory ``./apps`` with a class ``MyApp`` that subclasses ``Hass``.
+Arguments are accessible through the ``self.args`` dictionary, under the ``args`` key. You have access to logging via ``self.log()``, which is a
+method that is part of AppDaemon's logging system. Because of the way the logger is implemented, you cannot easily see the location of the log call
+in your output, although there are some magic strings you can use to include these.
 
-AppDaemon
-    - Offers a large toolbox — ``run_in``, ``run_once``, ``run_every``, ``run_daily``, ``run_hourly``, ``run_minutely``, ``run_at``, ``run_at_sunrise/sunset``, and cron support.
-    - Timers return handles you pass to ``cancel_timer``.
-    - Scheduler helpers can pass ``kwargs`` back into the callback so the same function can serve multiple timers.
-    - ``info_timer`` exists to inspect the next run time, but it requires an extra API call.
+.. code-block:: python
 
-Hassette
-    - Similar level of coverage: ``run_in``, ``run_every``, ``run_once``, ``run_minutely``, ``run_hourly``, ``run_daily``, ``run_at``, and ``run_cron``.
-    - Can pass ``args`` and ``kwargs`` to the job.
-    - All helpers accept async or sync callables and return a ``ScheduledJob`` object with ``next_run`` metadata and ``cancel()``.
-    - Triggers use the ``whenever`` library, so start times are always unambiguous ``SystemDateTime`` instances, although helper methods take multiple input types for convenience.
+    from appdaemon.plugins.hass import Hass
 
-.. rubric:: Where Hassette shines
+    class MyApp(Hass):
+        def initialize(self):
+            self.log(f"{self.args=}")
+            entity = self.args["args"]["entity"]
+            brightness = self.args["args"]["brightness"]
+            self.log(f"My configured entity is {entity!r} (type {type(entity)})")
+            self.log(f"My configured brightness is {brightness!r} (type {type(brightness)})")
 
-- Async jobs run on the main loop—no background threads required.
-- Cron has second-level precision and shares a consistent API for async/sync functions.
-- ``ScheduledJob`` exposes ``next_run`` without extra API calls.
-
-.. note::
-
-    At this time there is no plan to surface a sunrise/sunset helper. You can use Home Assistant's
-    ``sun.sun`` entity with an attribute trigger or cron schedule instead.
-
-Home Assistant API surface
---------------------------
-
-AppDaemon
-    - ``get_state``/``set_state``/``call_service``/``fire_event``/``listen_event`` return raw strings or dicts.
-    - There is no typing or schema validation, so runtime errors emerge only when Home Assistant rejects a payload.
-    - Calls to ``get_state`` access state stored in AppDaemon's internal state tracker and run synchronously.
-    - Domain and entity are often provided as a single string separated by a ``/`` (e.g., ``light/turn_on``).
-    - Helper functions like ``anyone_home`` or ``notify`` are included.
-
-Hassette
-    - ``self.api`` is async from top to bottom.
-    - ``get_state`` and ``get_states`` coerce responses into Pydantic models (``states.LightState`` etc.)
-        -  ``get_state_raw`` mirrors AppDaemon's dict return.
-    - ``get_entity`` begins a push toward entity classes, though today only ``BaseEntity`` and ``LightEntity`` ship.
-    - ``turn_on`` and ``turn_off`` now return ``None``. ``call_service`` returns a ``ServiceResponse`` when ``return_response=True``.
-    - Low-level ``rest_request`` and ``ws_send_and_wait`` expose the underlying ``aiohttp`` session if you need endpoints Hassette has not wrapped yet.
-    - For synchronous apps, ``self.api.sync`` mirrors the async API.
-
-.. note::
-
-    See :ref:`the note on the API page <entity-state-note>` for terminology differences regarding
-    states and entities.
-
-.. rubric:: Where Hassette shines
-
-- Strong typing on read operations: IDEs surface attributes, and Pydantic validates conversions.
-- Explicit separation between entities, states, state values, and attributes.
-- Simple API surface: no deep class hierarchies or plugin layers to trace through.
-
-.. rubric:: Where Hassette lags today
-
-- Service calls are not fully typed yet; you still pass ``**data`` manually.
-- Entity helper classes are nascent (only lights today), so you may need to keep using plain service calls.
-- Currently no built-in helpers like ``notify`` or ``area_devices`` (on the roadmap).
+            # 2025-10-13 18:59:04.820599 INFO my_app: self.args={'name': 'my_app', 'config_path': PosixPath('./apps.yaml'), 'module': 'my_app', 'class': 'MyApp', 'args': {'entity': 'light.kitchen', 'brightness': 200}}
+            # 2025-10-13 18:40:23.676650 INFO my_app: My configured entity is 'light.kitchen' (type <class 'str'>)
+            # 2025-10-13 18:40:23.677422 INFO my_app: My configured brightness is 200 (type <class 'int'>)
 
 
-Migration checklist
--------------------
+Hassette Configuration
+----------------------
 
-- Update class definitions to inherit from ``App[MyConfig]`` (or ``AppSync``) and adjust ``initialize``
-  to be ``async``. Call the ``super()`` lifecycle methods.
-- Replace ``self.args`` access with the typed ``self.app_config`` attribute. Validate secrets via environment
-  variables or ``SettingsConfigDict``.
-- Convert listeners to accept a single event argument.
-- Leverage predicates (``ChangedTo``/``AttrChanged``) instead of keyword filters.
-- Swap scheduler helpers to ``self.scheduler.*``, use ``run_cron`` instead of ``run_daily``/``run_hourly``, and
-  consider ``TimeDelta``/``SystemDateTime`` for intervals and start times.
-- Use ``subscription.unsubscribe()`` and ``job.cancel()`` instead of ``self.cancel_listen_state`` and ``self.cancel_timer``.
-- Change ``self.call_service("domain/service", ...)`` to ``await self.api.call_service("domain", "service", ...)``.
-- Replace synchronous API calls with ``await self.api...`` variants; use ``self.api.sync`` only inside
-  ``AppSync`` code paths.
+Hassette uses a single ``hassette.toml`` file for all configuration, including global settings and app-specific parameters. Each app gets its own section under the ``[apps]`` table.
 
-If you rely on AppDaemon features that Hassette lacks (timeout/duration/immediate, specific helpers), please open an issue
-to discuss your use case and help prioritize the roadmap.
+A basic ``hassette.toml`` might look like this:
 
----------------
+.. code-block:: toml
 
-:sub:`Disclaimer: The above is accurate to the best of my knowledge, please open an issue if you spot anything wrong or missing!`
+  [hassette]
+  base_url = "http://127.0.0.1:8123"
+  api_port = 8123
+
+  [apps.my_app]
+  filename = "my_app.py"
+  class_name = "MyApp"
+
+  [[apps.my_app.config]]
+  entity = "light.kitchen"
+  brightness = 200
+
+
+
+This would correspond to a Python file ``my_app.py`` in the directory ``/apps/`` with a class ``MyApp`` that subclasses :class:`~hassette.core.resources.app.app.App` or :class:`~hassette.core.resources.app.app.AppSync`.
+Because Hassette uses Pydantic models for configuration, you define a subclass of :class:`~hassette.core.resources.app.app_config.AppConfig` to specify expected parameters and their types.
+You access configuration via the typed ``self.app_config`` attribute, which offers IDE support and validation at startup. The logger is part of the base class and uses Python's standard logging library, the log format
+automatically includes the instance name, method name, and line number. Instance names can be set in the config file or default to ``<ClassName>.<index>``.
+
+.. code-block:: python
+
+    from pydantic import Field
+
+    from hassette import App, AppConfig
+
+
+    class MyAppConfig(AppConfig):
+        entity: str = Field(..., description="The entity to monitor")
+        brightness: int = Field(100, ge=0, le=255, description="Brightness level (0-255)")
+
+
+    class MyApp(App[MyAppConfig]):
+        async def on_initialize(self):
+            self.logger.info(f"{self.app_manifest=}")
+            self.logger.info(f"{self.app_config=}")
+            entity = self.app_config.entity
+            self.logger.info("My configured entity is %r (type %s)", entity, type(entity))
+            brightness = self.app_config.brightness
+            self.logger.info("My configured brightness is %r (type %s)", brightness, type(brightness))
+
+
+            # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:13 ─ self.app_manifest=<AppManifest MyApp (MyApp) - enabled=True file=my_app.py>
+            # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:14 ─ self.app_config=MyAppConfig(instance_name='MyApp.0', log_level='INFO', entity='light.kitchen', brightness=200)
+            # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:17 ─ My configured entity is 'light.kitchen' (type <class 'str'>)
+            # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:19 ─ My configured brightness is 200 (type <class 'int'>)
+
+
+AppDaemon Features
+--------------------
+
+AppDaemon apps are able to subscribe to three main types of events: scheduled events (e.g. scheduled jobs), state change events (e.g. entity state changes), and custom events (e.g. service calls or user-defined events). The examples below
+are taken from the AppDaemon documentation and illustrate how to use these features.
+
+Schedule callbacks are expected to have a signature of ``def my_callback(self, **kwargs) -> None:``. The ``kwargs`` dictionary can contain arbitrary data you pass when scheduling the callback, and also includes the internal ``__thread_id`` value.
+
+.. .. note::
+
+..    You do need to be careful about calling methods too quickly upon startup. While writing this documentation I found that calling ``self.run_once(self.run_daily_callback, "now")`` in ``initialize()`` sometimes caused the callback to fail due to the internal states not being fully initialized yet. The error looked like this:
+
+..    .. code-block:: text
+
+..       2025-10-13 19:26:37.041852 WARNING nightlight: Entity light.office_light_1 not found in the default namespace
+..       2025-10-13 19:26:37.042573 ERROR nightlight: =====  NightLight.run_daily_callback for nightlight  ======================
+..       2025-10-13 19:26:37.042678 ERROR nightlight: SchedulerCallbackFail: Scheduled callback failed for app 'nightlight'
+..       2025-10-13 19:26:37.043156 ERROR nightlight:   DomainException: domain 'homeassistant' does not exist in namespace 'default'
+..       2025-10-13 19:26:37.044173 ERROR nightlight:   apps/nightlight.py line 14 in run_daily_callback
+
+
+.. code-block:: python
+
+  from appdaemon.plugins.hass import Hass
+
+
+  # Declare Class
+  class NightLight(Hass):
+      # function which will be called at startup and reload
+      def initialize(self):
+          # Schedule a daily callback that will call run_daily_callback() at 7pm every night
+          self.run_daily(self.run_daily_callback, "19:00:00")
+
+      # Our callback function will be called by the scheduler every day at 7pm
+      def run_daily_callback(self, **kwargs):
+          # Call to Home Assistant to turn the porch light on
+          self.turn_on("light.porch")
+
+
+Event callbacks are expected to have a signature of ``def my_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:``.
+
+.. code-block:: python
+
+  from datetime import datetime
+  from typing import Any
+
+  from appdaemon.adapi import ADAPI
+
+
+  class ButtonHandler(ADAPI):
+      def initialize(self):
+          # Listen for a button press event with a specific entity_id
+          self.listen_event(
+              self.minimal_callback,
+              "call_service",
+              service="press",
+              entity_id="input_button.test_button",
+          )
+
+      def minimal_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:
+          self.log(f"Button pressed")
+
+State change callbacks are expected to have a signature of ``def my_callback(self, entity: str, attribute: str, old: str, new: str, **kwargs) -> None:``.
+
+.. code-block:: python
+
+  from appdaemon.plugins.hass import Hass
+
+
+  class ButtonPressed(Hass):
+      def initialize(self):
+          self.listen_state(self.button_pressed, "input_button.test_button", arg1=123)
+
+      def button_pressed(self, entity, attribute, old, new, arg1, **kwargs):
+          self.log(f"{entity=} {attribute=} {old=} {new=} {arg1=}")
+          # 2025-10-13 19:35:56.976839 INFO button_pressed: entity='input_button.test_button' attribute='state' old='2025-10-14T00:16:04.117097+00:00' new='2025-10-14T00:35:58.240005+00:00' arg1=123
+
+You can get and set entity states using ``self.get_state()`` and ``self.set_state()``. The ``get_state()`` method can return just the state string or a full dictionary with attributes.
+
+.. code-block:: python
+
+  from appdaemon.plugins.hass import Hass
+
+
+  class StateGetter(Hass):
+      def initialize(self):
+          office_light_state = self.get_state("light.office_light_1", attribute="all")
+          self.log(f"{office_light_state=}")
+
+          # 2025-10-13 19:38:15.241717 INFO get_state: office_light_state={'entity_id': 'light.office_light_1', 'state': 'on', 'attributes': {'min_color_temp_kelvin': 2000, 'max_color_temp_kelvin': 6535, 'min_mireds': 153, 'max_mireds': 500, 'effect_list': ['blink', 'breathe', 'okay', 'channel_change', 'candle', 'fireplace', 'colorloop', 'finish_effect', 'stop_effect', 'stop_hue_effect'], 'supported_color_modes': ['color_temp', 'xy'], 'effect': None, 'color_mode': 'xy', 'brightness': 255, 'color_temp_kelvin': None, 'color_temp': None, 'hs_color': [0.0, 100.0], 'rgb_color': [255, 0, 0], 'xy_color': [0.701, 0.299], 'friendly_name': 'Office Light 1', 'supported_features': 44}, 'last_changed': '2025-10-13T10:40:17.569005+00:00', 'last_reported': '2025-10-14T00:26:55.317432+00:00', 'last_updated': '2025-10-14T00:26:55.317432+00:00', 'context': {'id': '01K7G1STAQ2PW83YQDZ7YJ65VY', 'parent_id': None, 'user_id': 'a7b56f4dc8ca4a2fa4130263ba7b4b93'}}
+
+
+
+Hassette Features
+--------------------
+
+Hassette apps have access to the same features, though we refer to them with slightly different terminology. Scheduled events are handled by the scheduler, state change events and custom events are handled by the event bus, and entity state access is provided by the Home Assistant API client. The examples below illustrate how to use these features.
+
+Schedule callbacks do not need to follow a specific signature. They can be either async or sync functions, and can accept arbitrary parameters. The scheduler methods return rich job objects that can be used to manage the scheduled task.
+
+.. code-block:: python
+
+  from hassette import App
+
+
+  # Declare Class
+  class NightLight(App):
+      # function which will be called at startup and reload
+      async def on_initialize(self):
+          # Schedule a daily callback that will call run_daily_callback() at 7pm every night
+          job = self.scheduler.run_daily(self.run_daily_callback, start=(19, 0))
+          self.logger.info(f"Scheduled job: {job}")
+
+          # 2025-10-13 19:57:02.670 INFO hassette.NightLight.0.on_initialize:11 ─ Scheduled job: ScheduledJob(name='run_daily_callback', owner=NightLight.0)
+
+      # Our callback function will be called by the scheduler every day at 7pm
+      async def run_daily_callback(self, **kwargs):
+          # Call to Home Assistant to turn the porch light on
+          await self.api.turn_on("light.office_light_1", color_name="red")
+
+
+Event callbacks can also be either async or sync functions, and currently only accept the event object as a parameter. The event bus uses typed events and composable predicates for filtering.
+There is some definite room for improvement in the ergonomics of this API, but the example below illustrates how to listen for a specific service call event. Note that the ``Guard`` predicate
+is generic, so annotating it with the expected event type enables IDE support and better error detection. In this example, ``data`` is known to be of type ``CallServicePayload``.
+
+.. code-block:: python
+
+  from hassette.events import CallServiceEvent
+
+  from hassette import App, Guard
+
+  where = Guard["CallServiceEvent"](
+      lambda event: event.payload.data.service_data["entity_id"] == "input_button.test_button"
+  )
+
+
+  class ButtonHandler(App):
+      async def on_initialize(self):
+          # Listen for a button press event with a specific entity_id
+          sub = self.bus.on_call_service(service="press", handler=self.minimal_callback, where=where)
+          self.logger.info(f"Subscribed: {sub}")
+
+      def minimal_callback(self, event: CallServiceEvent) -> None:
+          self.logger.info(f"Button pressed: {event}")
+
+          # 2025-10-13 20:07:26.735 INFO hassette.ButtonHandler.0.minimal_callback:38 ─ Button pressed: Event(topic='hass.event.call_service', payload=HassPayload(event_type='call_service', data=CallServicePayload(domain='input_button', service='press', service_data={'entity_id': 'input_button.test_button'}, service_call_id=None), origin='LOCAL', time_fired=SystemDateTime(2025-10-13 20:07:26.723688-05:00), context={'id': '01K7G440W3J39SFDHJM0Y50P17', 'parent_id': None, 'user_id': 'caa14e06472b499cb00545bb65e56e5a'}))
