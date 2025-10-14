@@ -133,7 +133,7 @@ class Scheduler(Resource):
 
         start_dtme = get_start_dtme(start)
         if start_dtme is None:
-            raise ValueError("run_at must be a valid start time")
+            raise ValueError("start must be a valid start time")
 
         return self.schedule(func, start_dtme, name=name, args=args, kwargs=kwargs)
 
