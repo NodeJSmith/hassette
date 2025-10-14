@@ -641,12 +641,12 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.10.18" },
     { name = "packaging", specifier = ">=25.0" },
     { name = "platformdirs", specifier = ">=4.3.8" },
-    { name = "pydantic-settings", specifier = ">=2.9.1" },
+    { name = "pydantic-settings", specifier = ">=2.9.1,<2.11" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "typing-extensions", specifier = ">=4.13.2" },
     { name = "watchfiles", specifier = ">=1.1.0" },
-    { name = "whenever", specifier = ">=0.8.4" },
+    { name = "whenever", specifier = ">=0.8.4,<0.9.0" },
 ]
 
 [package.metadata.requires-dev]
