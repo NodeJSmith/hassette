@@ -58,7 +58,6 @@ Each helper returns a :class:`~hassette.core.resources.scheduler.classes.Schedul
 
 Helper methods include the following:
  - ``run_once``: Run once after a delay, does not accept any additional schedule parameters.
- - ``run_at``: Run once at a specific time - alias for ``run_once``.
  - ``run_in``: Run once after a delay, accepts ``delay`` (``TimeDelta`` or seconds).
  - ``run_every``: Run repeatedly at a fixed interval, accepts ``interval`` (``TimeDelta`` or seconds).
  - ``run_minutely``: Run repeatedly every N minutes, accepts ``minutes`` (int).

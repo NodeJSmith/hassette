@@ -360,9 +360,6 @@ class Scheduler(Resource):
         return self.schedule(func, run_at, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
 
-Scheduler.run_at = Scheduler.run_once  # pyright: ignore[reportAttributeAccessIssue]
-
-
 def get_start_dtme(start: START_TYPE) -> SystemDateTime | None:
     """Convert a start time to a SystemDateTime.
 

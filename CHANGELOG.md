@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - **Breaking:** Removed deprecated `set_logger_to_debug` and `set_logger_to_level` Resource methods.
 - **Breaking:** Removed deprecated `run_sync`, `run_on_loop_thread`, and `create_task` methods from Hassette.
+- **Breaking:** Removed `run_at` alias for `run_once` in Scheduler.
 
 ### Internal
 - Remove scheduled jobs that are cancelled or do not repeat, instead of just marking them as cancelled and leaving them in the job queue.

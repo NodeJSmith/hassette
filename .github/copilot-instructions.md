@@ -63,7 +63,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 ## Scheduler
 
 - `Scheduler` (`core/resources/scheduler/scheduler.py`) delegates to `_SchedulerService`; jobs are `ScheduledJob` objects from `core/resources/scheduler/classes.py`, with helpers `CronTrigger` and `IntervalTrigger`.
-- APIs: `run_in`, `run_every`, `run_minutely`/`hourly`/`daily`, `run_at`/`run_once`, and `schedule` accept sync or async callables plus cron/interval triggers.
+- APIs: `run_in`, `run_every`, `run_minutely`/`hourly`/`daily`, `run_once`, and `schedule` accept sync or async callables plus cron/interval triggers.
   ```python
   self.scheduler.run_in(self.poll_devices, 30)
   self.scheduler.run_every(self.flush_cache, interval=300)
