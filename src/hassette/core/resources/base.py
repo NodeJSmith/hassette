@@ -9,7 +9,7 @@ from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
 from hassette.enums import ResourceRole
-from hassette.exceptions import CannotOverrideFinalError
+from hassette.exceptions import CannotOverrideFinalError, FatalError
 
 from .mixins import LifecycleMixin
 
@@ -355,6 +355,11 @@ class Service(Resource):
             with suppress(Exception):
                 await self.handle_stop()
             raise
+        except FatalError as e:
+            self.logger.error("Serve() task failed with fatal error: %s %s", type(e).__name__, e)
+            # Crash/failure path
+            await self.handle_crash(e)
+
         except Exception as e:
             self.logger.exception("Serve() task failed: %s %s", type(e).__name__, e)
             # Crash/failure path
