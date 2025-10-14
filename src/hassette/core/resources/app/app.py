@@ -143,9 +143,8 @@ class App(Generic[AppConfigT], Resource):
         """
         self.cancel()
         with suppress(asyncio.CancelledError):
-            if typing.TYPE_CHECKING:
-                assert self._init_task is not None
-            await asyncio.wait_for(self._init_task, timeout=timeout)
+            if self._init_task:
+                await asyncio.wait_for(self._init_task, timeout=timeout)
 
         tasks = []
 
