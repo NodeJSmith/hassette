@@ -219,7 +219,7 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             minutes (int): The minute interval to run the job.
             name (str): Optional name for the job.
-            start (SystemDateTime| Time | time | HOUR_MIN | None): Optional start time for the first run. If\
+            start (SystemDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
                 provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
                 N minutes.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
