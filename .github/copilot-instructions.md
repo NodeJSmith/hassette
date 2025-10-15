@@ -48,8 +48,8 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - `Bus` (`core/resources/bus/bus.py`) fronts `_BusService`; sync handlers are wrapped automatically and subscriptions return `Subscription` handles. Predicates live in `core/resources/bus/predicates`.
 - Useful helpers:
   ```python
-  self.bus.on_entity("binary_sensor.motion", handler=self.on_motion, changed_to="on")
-  self.bus.on_attribute("mobile_device.me", "battery_level", handler=self.on_battery_drop)
+  self.bus.on_state_change("binary_sensor.motion", handler=self.on_motion, changed_to="on")
+  self.bus.on_attribute_change("mobile_device.me", "battery_level", handler=self.on_battery_drop)
   self.bus.on_call_service(domain="light", service="turn_on", handler=self.on_turn_on)
   ```
 - `_BusService` skips HA `system_log` debug spam and respects config exclusions (`bus_excluded_domains`, `bus_excluded_entities`). Service lifecycle events flow over the same topics for observability.
