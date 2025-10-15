@@ -66,6 +66,21 @@ class AppManifest(BaseModel):
     def __repr__(self) -> str:
         return f"<AppManifest {self.display_name} ({self.class_name}) - enabled={self.enabled} file={self.filename}>"
 
+    @field_validator("filename", mode="before")
+    @classmethod
+    def validate_filename(cls, v: str) -> str:
+        """Validate the filename."""
+        if not v:
+            raise ValueError("Filename must be set")
+
+        fpath = Path(v)
+        if not fpath.suffix:
+            # No extension, add .py
+            return str(fpath.with_suffix(".py"))
+        if fpath.suffix != ".py":
+            raise ValueError(f"Filename '{v}' has an invalid extension '{fpath.suffix}'. Only '.py' files are allowed.")
+        return v
+
     @model_validator(mode="before")
     @classmethod
     def validate_app_manifest(cls, values: dict[str, Any]) -> dict[str, Any]:

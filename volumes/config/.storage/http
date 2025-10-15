@@ -3,17 +3,17 @@
   "minor_version": 1,
   "key": "http",
   "data": {
-    "use_x_frame_options": true,
-    "login_attempts_threshold": -1,
-    "ssl_profile": "modern",
+    "ip_ban_enabled": true,
+    "server_port": 8123,
     "cors_allowed_origins": [
       "https://cast.home-assistant.io"
     ],
-    "server_port": 8123,
-    "ip_ban_enabled": true,
+    "ssl_profile": "modern",
     "server_host": [
       "0.0.0.0",
       "::"
-    ]
+    ],
+    "login_attempts_threshold": -1,
+    "use_x_frame_options": true
   }
 }

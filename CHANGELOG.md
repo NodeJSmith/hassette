@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Add validation for filename extension in AppManifest - add `.py` if no suffix, raise error if not `.py`
+
 ## [0.13.0] - 2025-10-14
 
 ### Added
