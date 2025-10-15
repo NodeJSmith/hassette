@@ -72,7 +72,7 @@ class StateChanged:
 
     Example:
 
-    ..code-block:: python
+    .. code-block:: python
 
         # Trigger if the state changes to 'on'
         StateChanged(entity_id='light.living_room', to='on')
@@ -111,7 +111,7 @@ class AttrChanged:
 
     Example:
 
-    ..code-block:: python
+    .. code-block:: python
 
         # Trigger if the 'status' attribute changes to 'active'
         AttrChanged(name='status', to='active')
