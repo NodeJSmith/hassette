@@ -306,7 +306,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 except Exception as e:
                     self.logger.exception("Error during stopping %s %s", type(e).__name__, e)
             else:
-                self.logger.info("Skipping STOPPED event as event streams are closed")
+                self.logger.debug("Skipping STOPPED event as event streams are closed")
 
             self._shutting_down = False
 
@@ -370,7 +370,7 @@ class Service(Resource):
         # Flip any internal flags if you have them; then cancel the loop
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
-            self.logger.info("Cancelled serve() task")
+            self.logger.debug("Cancelled serve() task")
             with suppress(asyncio.CancelledError):
                 await self._serve_task
 

@@ -48,9 +48,13 @@ async def main() -> None:
     # the base settings superclass and not for the HassetteConfig class itself
     # (well, there may be, but I can't think of it off the top of my head)
     # note: _env_file is natively supported, but we are passing as env_file to avoid overriding to an empty value
+
+    print(f"Hassette - loading configuration from {args.config_file} and {args.env_file}")
+
     config = HassetteConfig(env_file=args.env_file, config_file=args.config_file)  # type: ignore
 
     core = Hassette(config=config)
+    core.logger.info("Starting Hassette...")
 
     await core.run_forever()
 

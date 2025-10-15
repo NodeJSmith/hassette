@@ -87,6 +87,8 @@ class Hassette(Resource):
         # set context variable
         context.HASSETTE_INSTANCE.set(self)
 
+        self.logger.info("All components registered...")
+
     @property
     def event_streams_closed(self) -> bool:
         """Check if the event streams are closed."""
@@ -158,6 +160,8 @@ class Hassette(Resource):
         self.loop.set_task_factory(make_task_factory(self.task_bucket))
 
         self._start_resources()
+
+        self.logger.info("Waiting for resources to initialize...")
 
         self.ready_event.set()
 

@@ -157,7 +157,7 @@ class App(Generic[AppConfigT], Resource):
             for result in results:
                 if isinstance(result, Exception):
                     self.logger.error("Error during resource cleanup for app '%s': %s", self.class_name, result)
-        self.logger.info("All resources cleaned up for app '%s'", self.class_name)
+        self.logger.debug("All resources cleaned up for app '%s'", self.class_name)
 
 
 class AppSync(App[AppConfigT]):

@@ -21,7 +21,7 @@ class _FileWatcher(Service):  # pyright: ignore[reportUnusedClass]
     async def serve(self) -> None:
         """Watch app directories for changes and trigger reloads."""
         if not self.hassette.config.watch_files:
-            self.logger.info("File watching is disabled")
+            self.logger.warning("File watching is disabled due to configuration")
             return
 
         paths = self.hassette.config.get_watchable_files()
@@ -40,7 +40,7 @@ class _FileWatcher(Service):  # pyright: ignore[reportUnusedClass]
 
             for _, changed_path in changes:
                 changed_path = Path(changed_path).resolve()
-                self.logger.info("Detected change in %s", changed_path)
+                self.logger.debug("Detected change in %s", changed_path)
                 event = FileWatcherEventPayload.create_event(changed_file_path=changed_path)
                 await self.hassette.send_event(event.topic, event)
 

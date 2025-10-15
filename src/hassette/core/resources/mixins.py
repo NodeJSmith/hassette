@@ -93,7 +93,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         self.shutdown_event = asyncio.Event()
 
         if self._init_task and not self._init_task.done():
-            self.logger.warning("%s already started or running", self.unique_name, stacklevel=2)
+            self.logger.debug("%s already started or running", self.unique_name, stacklevel=2)
             return
 
         self.logger.debug("%s starting", self.unique_name)
@@ -118,7 +118,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         if self.ready_event.is_set():
             self.logger.debug("%s already ready, skipping reason %s", self.unique_name, reason)
             return
-        self.logger.info("ready: %s", reason or "no reason provided")
+        self.logger.debug("ready: %s", reason or "no reason provided")
         self._ready_reason = reason
         self.ready_event.set()
 
@@ -168,10 +168,10 @@ class LifecycleMixin(_LifecycleHostStubs):
     # --------- transitions
     async def handle_stop(self) -> None:
         if self.status == ResourceStatus.STOPPED:
-            self.logger.warning("%s already stopped", self.unique_name, stacklevel=2)
+            self.logger.debug("%s already stopped", self.unique_name, stacklevel=2)
             return
 
-        self.logger.info("%s stopping", self.unique_name, stacklevel=2)
+        self.logger.debug("%s stopping", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.STOPPED
         event = self._create_service_status_event(ResourceStatus.STOPPED)
         await self.hassette.send_event(event.topic, event)
@@ -179,7 +179,7 @@ class LifecycleMixin(_LifecycleHostStubs):
 
     async def handle_failed(self, exception: Exception | BaseException) -> None:
         if self.status == ResourceStatus.FAILED:
-            self.logger.warning("%s already in failed state", self.unique_name, stacklevel=2)
+            self.logger.debug("%s already in failed state", self.unique_name, stacklevel=2)
             return
 
         self.logger.error("%s failed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
@@ -190,26 +190,26 @@ class LifecycleMixin(_LifecycleHostStubs):
 
     async def handle_running(self) -> None:
         if self.status == ResourceStatus.RUNNING:
-            self.logger.warning("%s already running", self.unique_name, stacklevel=2)
+            self.logger.debug("%s already running", self.unique_name, stacklevel=2)
             return
 
-        self.logger.info("%s running", self.unique_name, stacklevel=2)
+        self.logger.debug("%s running", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.RUNNING
         event = self._create_service_status_event(ResourceStatus.RUNNING)
         await self.hassette.send_event(event.topic, event)
 
     async def handle_starting(self) -> None:
         if self.status == ResourceStatus.STARTING:
-            self.logger.warning("%s already starting", self.unique_name, stacklevel=2)
+            self.logger.debug("%s already starting", self.unique_name, stacklevel=2)
             return
-        self.logger.info("%s starting", self.unique_name, stacklevel=2)
+        self.logger.debug("%s starting", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.STARTING
         event = self._create_service_status_event(ResourceStatus.STARTING)
         await self.hassette.send_event(event.topic, event)
 
     async def handle_crash(self, exception: Exception) -> None:
         if self.status == ResourceStatus.CRASHED:
-            self.logger.warning("%s already in crashed state", self.unique_name, stacklevel=2)
+            self.logger.debug("%s already in crashed state", self.unique_name, stacklevel=2)
             return
 
         self.logger.exception("%s crashed: %s - %s", self.unique_name, type(exception).__name__, str(exception))

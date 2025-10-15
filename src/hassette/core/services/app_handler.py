@@ -85,7 +85,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         Args:
             apps_config (dict[str, AppManifest]): The new apps configuration.
         """
-        self.logger.info("Setting apps configuration")
+        self.logger.debug("Setting apps configuration")
         self.apps_config = deepcopy(apps_config)
         self.only_app = None  # reset only_app, will be recomputed on next initialize
 
@@ -106,13 +106,13 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
                 self.logger.warning("Allowing app reloads in production mode due to config")
             self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
         else:
-            self.logger.info("Not watching for app changes, dev_mode is disabled")
+            self.logger.warning("Not watching for app changes, dev_mode is disabled")
 
         await self.hassette.wait_for_ready(self.hassette._websocket)
         self.mark_ready("initialized")
 
     async def after_initialize(self) -> None:
-        self.logger.info("Scheduling app initialization")
+        self.logger.debug("Scheduling app initialization")
         self.task_bucket.spawn(self.initialize_apps())
 
     async def on_shutdown(self) -> None:
@@ -132,7 +132,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
                         # in case the app does not call its own cleanup
                         # which is honestly a better user experience
                         await inst.cleanup()
-                    self.logger.info("App %s shutdown successfully", inst.app_config.instance_name)
+                    self.logger.debug("App %s shutdown successfully", inst.app_config.instance_name)
                 except Exception:
                     self.logger.exception("Failed to shutdown app %s", inst.app_config.instance_name)
 
@@ -151,7 +151,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         """Initialize all configured and enabled apps, called at AppHandler startup."""
 
         if not self.apps_config:
-            self.logger.info("No apps configured, skipping initialization")
+            self.logger.debug("No apps configured, skipping initialization")
             return
 
         if not await self.hassette.wait_for_ready(
@@ -297,7 +297,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
                 with anyio.fail_after(self.hassette.config.app_startup_timeout_seconds):
                     await inst.initialize()
                     inst.mark_ready(reason="initialized")
-                self.logger.info("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
+                self.logger.debug("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
             except TimeoutError as e:
                 self.logger.exception(
                     "Timed out while starting app '%s' (%s)", inst.app_config.instance_name, class_name
@@ -404,11 +404,11 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         if not orphans:
             return
 
-        self.logger.info("Apps removed from config: %s", orphans)
+        self.logger.debug("Apps removed from config: %s", orphans)
 
-        self.logger.info("Stopping %d orphaned apps: %s", len(orphans), orphans)
+        self.logger.debug("Stopping %d orphaned apps: %s", len(orphans), orphans)
         for app_key in orphans:
-            self.logger.info("Stopping orphaned app %s", app_key)
+            self.logger.debug("Stopping orphaned app %s", app_key)
             try:
                 await self.stop_app(app_key)
             except Exception:
@@ -426,7 +426,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         if not apps:
             return
 
-        self.logger.info("Apps to reload due to config changes: %s", apps)
+        self.logger.debug("Apps to reload due to config changes: %s", apps)
         for app_key in apps:
             await self.reload_app(app_key)
 
@@ -436,7 +436,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         if not instances:
             self.logger.warning("Cannot stop app %s, not found", app_key)
             return
-        self.logger.info("Stopping %d instances of %s", len(instances), app_key)
+        self.logger.debug("Stopping %d instances of %s", len(instances), app_key)
 
         for inst in instances.values():
             try:
@@ -446,7 +446,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
                 end_time = timer()
                 friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")
-                self.logger.info("Stopped app '%s' in %s", inst.app_config.instance_name, friendly_time)
+                self.logger.debug("Stopped app '%s' in %s", inst.app_config.instance_name, friendly_time)
 
             except Exception:
                 self.logger.exception(
@@ -460,7 +460,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         if not apps:
             return
 
-        self.logger.info("Starting %d new apps: %s", len(apps), list(apps))
+        self.logger.debug("Starting %d new apps: %s", len(apps), list(apps))
         try:
             await self._initialize_apps(apps)
         except Exception:
@@ -468,7 +468,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
     async def reload_app(self, app_key: str, force_reload: bool = False) -> None:
         """Stop and reinitialize a single app by key (based on current config)."""
-        self.logger.info("Reloading app %s", app_key)
+        self.logger.debug("Reloading app %s", app_key)
         try:
             await self.stop_app(app_key)
             # Initialize only that app from the current config if present and enabled
