@@ -11,7 +11,7 @@ class MyAppUserConfig(AppConfig):
 class MyApp(App[MyAppUserConfig]):
     async def on_initialize(self) -> None:
         self.logger.info("MyApp is initializing")
-        self.bus.on_entity("input_button.test", handler=self.handle_event_sync)
+        self.bus.on_state_change("input_button.test", handler=self.handle_event_sync, changed_from_=lambda v: v == "on")
         self.scheduler.run_in(self.api.get_states, 1)
         self.scheduler.run_every(
             self.scheduled_job_example, 10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
@@ -31,7 +31,7 @@ class MyApp(App[MyAppUserConfig]):
             self.button_state = await self.api.get_state("input_button.test", model=InputButtonState)
             self.logger.info("Button state: %s", self.button_state)
 
-    def handle_event_sync(self, event: StateChangeEvent) -> None:
+    def handle_event_sync(self, event: StateChangeEvent[InputButtonState]) -> None:
         self.logger.info("event: %s", event)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)
@@ -43,8 +43,5 @@ class MyApp(App[MyAppUserConfig]):
 
     async def scheduled_job_example(self, test_value: str, test_value2: str, *, kwarg1: str | None = None):
         self.logger.info(
-            "Scheduled job executed with test_value=%s, test_value2=%s, kwarg1=%s",
-            test_value,
-            test_value2,
-            kwarg1,
+            "Scheduled job executed with test_value=%s, test_value2=%s, kwarg1=%s", test_value, test_value2, kwarg1
         )
