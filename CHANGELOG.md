@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.13.0] - 2025-10-14
+
 ### Added
 - `Subscription` now has ``cancel`` method to unsubscribe from events, to be consistent with ``ScheduledJob``.
 - `App.send_event_sync` method added for synchronous event sending.
