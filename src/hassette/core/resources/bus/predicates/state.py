@@ -4,7 +4,6 @@ from typing import Any
 
 from hassette.const.misc import NOT_PROVIDED
 from hassette.types import ChangeType, PredicateCallable
-from hassette.utils.async_utils import is_async_callable
 from hassette.utils.glob_utils import is_glob, matches_globs
 
 if typing.TYPE_CHECKING:
@@ -177,17 +176,13 @@ def _compare_value(predicate: ChangeType, actual: Any) -> bool:
     if predicate is NOT_PROVIDED:
         return True
 
-    if predicate is not NOT_PROVIDED:
-        if callable(predicate) and is_async_callable(predicate):
-            raise ValueError("callable must be synchronous")
+    if not callable(predicate):
+        return actual == predicate
 
-        if callable(predicate) and not isinstance(predicate, PredicateCallable):
-            raise ValueError("callable must be a PredicateCallable")
+    if isinstance(predicate, PredicateCallable):
+        result = predicate(actual)
+        if not isinstance(result, bool):
+            raise TypeError(f"Predicate callable {predicate!r} did not return a boolean (returned {type(result)})")
+        return result
 
-        if isinstance(predicate, PredicateCallable) and not predicate(actual):
-            return False
-
-        if actual != predicate:
-            return False
-
-    return True
+    raise TypeError(f"Predicate {predicate!r} is not a valid type or callable ({type(predicate)})")
