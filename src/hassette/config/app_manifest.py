@@ -77,9 +77,10 @@ class AppManifest(BaseModel):
         if not fpath.suffix:
             # No extension, add .py
             return str(fpath.with_suffix(".py"))
-        elif fpath.suffix != ".py":
+        if fpath.suffix != ".py":
             raise ValueError(f"Filename '{v}' has an invalid extension '{fpath.suffix}'. Only '.py' files are allowed.")
         return v
+
     @model_validator(mode="before")
     @classmethod
     def validate_app_manifest(cls, values: dict[str, Any]) -> dict[str, Any]:
