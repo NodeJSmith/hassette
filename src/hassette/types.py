@@ -1,8 +1,9 @@
 import typing
 from collections.abc import Awaitable, Callable
+from datetime import time
 from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
-from whenever import Date, PlainDateTime, SystemDateTime, Time
+from whenever import Date, PlainDateTime, SystemDateTime, Time, TimeDelta
 
 if typing.TYPE_CHECKING:
     from hassette.const.misc import NOT_PROVIDED
@@ -54,3 +55,7 @@ ChangeType: TypeAlias = "None | NOT_PROVIDED | KnownTypes | PredicateCallable"  
 
 JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
 """Alias for a callable that can be scheduled as a job."""
+
+
+ScheduleStartType = SystemDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
+"""Type for specifying start times."""
