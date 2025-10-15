@@ -10,10 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `Subscription` now has ``cancel`` method to unsubscribe from events, to be consistent with ``ScheduledJob``.
 - `App.send_event_sync` method added for synchronous event sending.
+- `Bus.on_status_change`, `Bus.on_attribute_change`, `Bus.on_service_call` all take sync callables for comparison parameters.
+  - For example, you can pass a lambda to `changed_from` that does a custom comparison.
+- `Bus` now exposes `on_homeassistant_stop` and `on_homeassistant_start` convenience methods for listening to these common events.
+- `Bus` status/attribute change entity_id parameters now accept glob patterns.
 
 ### Changed
-- **Breaking:** ``Scheduler.run_once`` has been updated to use ``start`` instead of ``run_at`` to be consistent with other helpers.
-- **Breaking:** ``cleanup`` method is now marked as final and cannot be overridden in subclasses.
+- **Breaking:** `Scheduler.run_once` has been updated to use `start` instead of `run_at` to be consistent with other helpers.
+- **Breaking:** `cleanup` method is now marked as final and cannot be overridden in subclasses.
+- **Breaking:** `Bus.on_entity` renamed to `Bus.on_status_change` to match naming conventions across the codebase.
+- **Breaking:** `Bus.on_status_change` `entity` parameter renamed to `entity_id` for clarity.
+- **Breaking:** `Bus.on_attribute` renamed to `Bus.on_attribute_change` to match naming conventions across the codebase.
+- **Breaking:** `Bus.on_attribute_change` `entity` parameter renamed to `entity_id` for clarity.
 
 ### Removed
 - **Breaking:** Removed deprecated `set_logger_to_debug` and `set_logger_to_level` Resource methods.
@@ -22,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Internal
 - Remove scheduled jobs that are cancelled or do not repeat, instead of just marking them as cancelled and leaving them in the job queue.
+- Reworked predicates to make more sense and be more composable.
+- Added types for `PredicateCallable`, `KnownTypes`, and `ChangeType`.
+    - `PredicateCallable` is a callable that takes a single argument of any known type and returns a bool.
+    - `KnownTypes` is a union of all types that can be passed to predicates.
+    - `ChangeType` is a union of all types that can be passed to change parameters.
+- Use `Sentinel` from `typing_extensions` for default values.
+- Rename `SENTINEL` to `NOT_PROVIDED` for clarity.
+- Moved `is_async_callable` to `hassette.utils.async_utils`, now being used in more places.
+- Moved glob logic from `Router` to `hassette.utils.glob_utils`, now being used in more places.
 
 ### Documentation
 - Updated Apps and Scheduler documentation to reflect new features and changes.
