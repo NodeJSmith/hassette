@@ -147,3 +147,7 @@ class Subscription:
             yield self
         finally:
             self.unsubscribe()
+
+    def cancel(self) -> None:
+        """Cancel the subscription by calling the unsubscribe function."""
+        self.unsubscribe()

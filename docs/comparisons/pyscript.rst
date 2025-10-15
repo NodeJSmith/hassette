@@ -1,4 +1,4 @@
-Pyscript vs Hassette
+Pyscript Comparison
 ====================
 
 This guide targets `Pyscript <https://hacs-pyscript.readthedocs.io/en/latest/>`_ users who want to understand where Hassette matches the familiar
@@ -7,7 +7,7 @@ parts: triggers and the event bus, the scheduler, Home Assistant API access, and
 
 Pyscript Overview
 ------------------
-Pyscript is a Home Assistant integration that runs Python scripts inside the Home Assistant process. It
+Pyscript is a Home Assistant integration that runs Python code inside the Home Assistant process. It
 exposes decorators to bind functions to triggers (state changes, events, time schedules) and
 automatically reloads modules when files change. Scripts can be synchronous or asynchronous, and
 long-running tasks continue across reloads unless explicitly cancelled. Configuration lives in YAML
@@ -39,19 +39,19 @@ Quick reference table
      - ``self.scheduler.run_in(self.turn_off, delay=60)``
    * - Run every morning at 07:30
      - ``@time_trigger("cron(30 7 * * *)")``
-     - ``self.scheduler.run_cron(self.morning, minute=30, hour=7)``
-   * - Debounce noisy updates
-     - ``@state_trigger("sensor.motion == 'on'", state_hold=2)``
-     - ``self.bus.on_entity("sensor.motion", handler=self.on_motion, debounce=2.0)``
+     - ``self.scheduler.run_daily(self.morning, start=time(7, 30))``
    * - Call a Home Assistant service
      - ``light.turn_on(entity_id="light.kitchen", brightness=200)``
      - ``await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"}, brightness_pct=80)``
    * - Access automation configuration
      - ``pyscript.app_config["entity"]``
      - ``self.app_config.entity``
-   * - Stop a listener or timer
+   * - Stop a listener
      - ``task.cancel(task_id)``
-     - ``subscription.unsubscribe()`` / ``job.cancel()``
+     - ``subscription.cancel()``
+   * - Stop a scheduled job
+     - ``task.cancel(task_id)``
+     - ``job.cancel()``
 
 App model and configuration
 ---------------------------

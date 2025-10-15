@@ -66,7 +66,7 @@ class _HealthService(Service):
         """Start the health HTTP server."""
 
         if not self.hassette.config.run_health_service:
-            self.logger.info("Health service disabled by configuration")
+            self.logger.warning("Health service disabled by configuration")
             # we don't want to fail startup due to "not ready", as this is not unhealthy, just disabled
             self.mark_ready(reason="Health service disabled")
             return
@@ -81,7 +81,7 @@ class _HealthService(Service):
         site = web.TCPSite(self._runner, self.host, self.port)
         await site.start()
 
-        self.logger.info("Health service listening on %s:%s", self.host, self.port)
+        self.logger.debug("Health service listening on %s:%s", self.host, self.port)
 
         self.mark_ready(reason="Health service started")
 

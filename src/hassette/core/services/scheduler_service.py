@@ -186,6 +186,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
 
         if job.cancelled:
             self.logger.debug("Job %s is cancelled, skipping", job)
+            await self._remove_job(job)
             return
 
         func = job.job
@@ -215,6 +216,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
 
         if job.cancelled:
             self.logger.debug("Job %s is cancelled, not rescheduling", job)
+            await self._remove_job(job)
             return
 
         if job.repeat and job.trigger:
@@ -232,6 +234,10 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
                 next_run_time_delta.in_seconds(),
             )
             await self._enqueue_job(job)
+            return
+
+        # One-time job, remove it
+        await self._remove_job(job)
 
     def remove_jobs_by_owner(self, owner: str) -> asyncio.Task:
         """Remove all jobs for a given owner.
@@ -240,10 +246,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
             owner (str): The owner of the jobs to remove.
         """
 
-        return self.task_bucket.spawn(
-            self._remove_jobs_by_owner(owner),
-            name="scheduler:remove_jobs_by_owner",
-        )
+        return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
 
     def remove_job(self, job: "ScheduledJob") -> asyncio.Task:
         """Remove a job from the scheduler.
@@ -327,9 +330,9 @@ class _ScheduledJobQueue(Resource):
 
         if removed:
             self.logger.debug("Removed %d jobs for owner '%s'", removed, owner)
-        else:
-            self.logger.debug("No jobs found for owner '%s' to remove", owner)
+            return removed
 
+        self.logger.debug("No jobs found for owner '%s' to remove", owner)
         return removed
 
     async def remove_job(self, job: "ScheduledJob") -> bool:
@@ -340,9 +343,9 @@ class _ScheduledJobQueue(Resource):
 
         if removed:
             self.logger.debug("Removed job: %s", job)
-        else:
-            self.logger.debug("Job not found in queue, cannot remove: %s", job)
+            return removed
 
+        self.logger.debug("Job not found in queue, cannot remove: %s", job)
         return removed
 
     async def clear(self, predicate: Callable[["ScheduledJob"], bool] | None = None) -> int:

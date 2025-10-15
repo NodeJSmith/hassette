@@ -83,6 +83,7 @@ ignore = [
     "UP046",  # non-pep695-generic-class (UP046)
     "UP047",  # non-pep695-generic-function (UP047)
     "N801",   # invalid-class-name
+    "SIM103",
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.

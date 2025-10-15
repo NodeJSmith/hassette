@@ -21,10 +21,9 @@ Create a Python file in your apps directory (e.g., ``src/apps/my_app.py``):
          pass
 
     class MyApp(App[MyConfig]):
-        async def initialize(self):
+        async def on_initialize(self):
             # React when any light changes
             self.bus.on_entity("light.*", handler=self.changed)
-            await super().initialize()
 
         async def changed(self, event: StateChangeEvent[states.LightState]):
             # Turn on a specific light (demo)

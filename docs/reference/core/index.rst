@@ -7,5 +7,6 @@ Core
    Api <api>
    Apps <apps>
    Bus <bus>
-   Events <events>
    Scheduler <scheduler>
+   Task Bucket <task_bucket>
+   Hassette <hassette>

@@ -1,8 +1,11 @@
 import asyncio
 import logging
 import typing
+from contextlib import suppress
 from logging import getLogger
 from typing import Any, ClassVar, Generic, final
+
+from whenever import SystemDateTime
 
 from hassette.config.app_manifest import AppManifest
 from hassette.core.resources.api.api import Api
@@ -11,6 +14,7 @@ from hassette.core.resources.bus.bus import Bus
 from hassette.core.resources.scheduler.scheduler import Scheduler
 from hassette.enums import ResourceRole
 from hassette.events.base import Event
+from hassette.utils.date_utils import now
 
 from .app_config import AppConfig, AppConfigT
 from .utils import validate_app
@@ -123,31 +127,37 @@ class App(Generic[AppConfigT], Resource):
         """Name for the instance of the app. Used for logging and ownership of resources."""
         return self.app_config.instance_name
 
+    def now(self) -> SystemDateTime:
+        """Return the current date and time."""
+        return now()
+
     async def send_event(self, event_name: str, event: Event[Any]) -> None:
         """Send an event to the event bus."""
         await self.hassette.send_event(event_name, event)
 
-    async def before_initialize(self) -> None:
-        # update logger level in case our app_config provided a specific level
-        self.logger.setLevel(self.config_log_level)
+    @final
+    async def cleanup(self, timeout: int | None = None) -> None:
+        """Cleanup resources owned by the instance.
 
-    async def on_shutdown(self, timeout: int | float = 10) -> None:
-        """Wait for all resources owned by the app to be cleaned up.
-
-        Args:
-            timeout (int | float): Maximum time to wait for cleanup, in seconds.
+        This method is called during shutdown to ensure that all resources are properly released.
         """
+        self.cancel()
+        with suppress(asyncio.CancelledError):
+            if self._init_task:
+                await asyncio.wait_for(self._init_task, timeout=timeout)
+
         tasks = []
 
         tasks.append(self.scheduler.remove_all_jobs())
         tasks.append(self.bus.remove_all_listeners())
         tasks.append(self.task_bucket.cancel_all())
+
         if tasks:
             results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
             for result in results:
                 if isinstance(result, Exception):
                     self.logger.error("Error during resource cleanup for app '%s': %s", self.class_name, result)
-        self.logger.info("All resources cleaned up for app '%s'", self.class_name)
+        self.logger.debug("All resources cleaned up for app '%s'", self.class_name)
 
 
 class AppSync(App[AppConfigT]):
@@ -156,6 +166,10 @@ class AppSync(App[AppConfigT]):
     This class allows synchronous apps to work properly in the async environment
     by using anyio's thread management capabilities.
     """
+
+    def send_event_sync(self, event_name: str, event: Event[Any]) -> None:
+        """Synchronous version of send_event."""
+        self.task_bucket.run_sync(self.send_event(event_name, event))
 
     # --- developer-facing hooks (override as needed) -------------------
     async def before_shutdown(self) -> None:

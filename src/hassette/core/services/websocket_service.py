@@ -352,7 +352,7 @@ class _Websocket(Service):  # pyright: ignore[reportUnusedClass]
                     truncated_token,
                     ws_url,
                 )
-                raise InvalidAuthError(f"Authentication failed - invalid access token ({truncated_token})")
+                raise InvalidAuthError(f"Authentication failed - invalid access token ({truncated_token}) for {ws_url}")
 
             raise RuntimeError(f"Unexpected authentication response: {msg}")
 

@@ -34,11 +34,11 @@ class ApiSyncFacade(Resource):
 
     def ws_send_and_wait(self, **data: Any):
         """Send a WebSocket message and wait for a response."""
-        return self.hassette.run_sync(self._api.ws_send_and_wait(**data))
+        return self.task_bucket.run_sync(self._api.ws_send_and_wait(**data))
 
     def ws_send_json(self, **data: Any):
         """Send a WebSocket message without waiting for a response."""
-        return self.hassette.run_sync(self._api.ws_send_json(**data))
+        return self.task_bucket.run_sync(self._api.ws_send_json(**data))
 
     def rest_request(
         self,

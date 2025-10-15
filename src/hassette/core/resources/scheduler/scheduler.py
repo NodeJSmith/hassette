@@ -1,9 +1,10 @@
 import asyncio
 import typing
 from collections.abc import Mapping
+from datetime import time
 from typing import Any
 
-from whenever import SystemDateTime, TimeDelta
+from whenever import SystemDateTime, Time, TimeDelta
 
 from hassette.core.resources.base import Resource
 from hassette.core.resources.scheduler.classes import CronTrigger, IntervalTrigger, ScheduledJob
@@ -13,6 +14,12 @@ from hassette.utils.date_utils import now
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.types import JobCallable, TriggerProtocol
+
+HOUR_MIN = tuple[int, int]
+"""A tuple representing an hour and minute."""
+
+START_TYPE = SystemDateTime | Time | time | HOUR_MIN | TimeDelta | int | float | None
+"""Type for specifying start times."""
 
 
 class Scheduler(Resource):
@@ -106,41 +113,17 @@ class Scheduler(Resource):
     def run_once(
         self,
         func: "JobCallable",
-        run_at: SystemDateTime,
+        start: START_TYPE,
         name: str = "",
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
-        """Schedule a job to run at a specific time.
+        """Schedule a job to run once at a specific time.
 
         Args:
             func (JobCallable): The function to run.
-            run_at (SystemDateTime): The time to run the job.
-            name (str): Optional name for the job.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
-
-        Returns:
-            ScheduledJob: The scheduled job.
-        """
-
-        return self.schedule(func, run_at, name=name, args=args, kwargs=kwargs)
-
-    def run_at(
-        self,
-        func: "JobCallable",
-        run_at: SystemDateTime,
-        name: str = "",
-        *,
-        args: tuple[Any, ...] | None = None,
-        kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
-        """Alias for `run_once`, schedule a job to run at a specific time.
-
-        Args:
-            func (JobCallable): The function to run.
-            run_at (SystemDateTime): The time to run the job.
+            start (START_TYPE): The time to run the job. Can be a SystemDateTime, Time, time, or (hour, minute) tuple.
             name (str): Optional name for the job.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
@@ -148,14 +131,18 @@ class Scheduler(Resource):
             ScheduledJob: The scheduled job.
         """
 
-        return self.run_once(func, run_at, name=name, args=args, kwargs=kwargs)
+        start_dtme = get_start_dtme(start)
+        if start_dtme is None:
+            raise ValueError("start must be a valid start time")
+
+        return self.schedule(func, start_dtme, name=name, args=args, kwargs=kwargs)
 
     def run_every(
         self,
         func: "JobCallable",
         interval: TimeDelta | float,
         name: str = "",
-        start: SystemDateTime | None = None,
+        start: START_TYPE = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -164,10 +151,10 @@ class Scheduler(Resource):
 
         Args:
             func (JobCallable): The function to run.
-            interval (TimeDelta | float): The interval between runs.
+            interval (TimeDelta | float): The interval between runs. If a float is provided, it is treated as seconds.
             name (str): Optional name for the job.
-            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the current time plus the interval.
+            start (START_TYPE): Optional start time for the first run. If provided the job will run at this time plus\
+                 the interval. Otherwise it will run at the current time plus the interval.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -177,7 +164,9 @@ class Scheduler(Resource):
 
         interval_seconds = interval if isinstance(interval, float | int) else interval.in_seconds()
 
-        first_run = start if start else now().add(seconds=interval_seconds)
+        start_dtme = get_start_dtme(start)
+
+        first_run = start_dtme if start_dtme else now().add(seconds=interval_seconds)
         trigger = IntervalTrigger.from_arguments(seconds=interval_seconds, start=first_run)
 
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
@@ -187,7 +176,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         delay: TimeDelta | float,
         name: str = "",
-        start: SystemDateTime | None = None,
+        start: START_TYPE = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -198,8 +187,8 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             delay (TimeDelta | float): The delay before running the job.
             name (str): Optional name for the job.
-            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the current time plus the delay.
+            start (START_TYPE): Optional start time for the job. If provided the job will run at this time plus the\
+                delay. Otherwise it will run at the current time plus the delay.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -209,7 +198,9 @@ class Scheduler(Resource):
 
         delay_seconds = delay if isinstance(delay, float | int) else delay.in_seconds()
 
-        run_at = start if start else now().add(seconds=delay_seconds)
+        start_dtme = get_start_dtme(start)
+
+        run_at = start_dtme if start_dtme else now().add(seconds=delay_seconds)
         return self.schedule(func, run_at, name=name, args=args, kwargs=kwargs)
 
     def run_minutely(
@@ -217,7 +208,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         minutes: int = 1,
         name: str = "",
-        start: SystemDateTime | None = None,
+        start: START_TYPE = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -228,8 +219,9 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             minutes (int): The minute interval to run the job.
             name (str): Optional name for the job.
-            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run immediately, then repeat every N minutes.
+            start (SystemDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
+                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
+                N minutes.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -239,8 +231,10 @@ class Scheduler(Resource):
         if minutes < 1:
             raise ValueError("Minute interval must be at least 1")
 
-        trigger = IntervalTrigger.from_arguments(minutes=minutes, start=start)
-        first_run = start if start else now()
+        start_dtme = get_start_dtme(start)
+
+        trigger = IntervalTrigger.from_arguments(minutes=minutes, start=start_dtme)
+        first_run = start_dtme if start_dtme else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_hourly(
@@ -248,7 +242,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         hours: int = 1,
         name: str = "",
-        start: SystemDateTime | None = None,
+        start: START_TYPE = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -259,8 +253,9 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             hours (int): The hour interval to run the job.
             name (str): Optional name for the job.
-            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise, the job will run immediately, then repeat every N hours.
+            start (SystemDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
+                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
+                N hours.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -270,8 +265,10 @@ class Scheduler(Resource):
         if hours < 1:
             raise ValueError("Hour interval must be at least 1")
 
-        trigger = IntervalTrigger.from_arguments(hours=hours, start=start)
-        first_run = start if start else now()
+        start_dtme = get_start_dtme(start)
+
+        trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
+        first_run = start_dtme if start_dtme else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_daily(
@@ -279,7 +276,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         days: int = 1,
         name: str = "",
-        start: SystemDateTime | None = None,
+        start: START_TYPE = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -290,8 +287,9 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             days (int): The day interval to run the job.
             name (str): Optional name for the job.
-            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise, the job will run immediately, then repeat every N days.
+            start (SystemDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
+                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
+                N days.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -305,8 +303,10 @@ class Scheduler(Resource):
 
         hours = 24 * days
 
-        trigger = IntervalTrigger.from_arguments(hours=hours, start=start)
-        first_run = start if start else now()
+        start_dtme = get_start_dtme(start)
+
+        trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
+        first_run = start_dtme if start_dtme else now()
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_cron(
@@ -319,7 +319,7 @@ class Scheduler(Resource):
         month: int | str = "*",
         day_of_week: int | str = "*",
         name: str = "",
-        start: SystemDateTime | None = None,
+        start: START_TYPE = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -337,14 +337,16 @@ class Scheduler(Resource):
             month (int | str): Month field of the cron expression.
             day_of_week (int | str): Day of week field of the cron expression.
             name (str): Optional name for the job.
-            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the current time plus the cron schedule.
+            start (START_TYPE): Optional start time for the first run. If provided the job will run at this time.\
+                Otherwise, the job will run at the next scheduled time based on the cron expression.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
         Returns:
             ScheduledJob: The scheduled job.
         """
+        start_dtme = get_start_dtme(start)
+
         trigger = CronTrigger.from_arguments(
             second=second,
             minute=minute,
@@ -352,7 +354,54 @@ class Scheduler(Resource):
             day_of_month=day_of_month,
             month=month,
             day_of_week=day_of_week,
-            start=start,
+            start=start_dtme,
         )
         run_at = trigger.next_run_time()
         return self.schedule(func, run_at, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+
+
+def get_start_dtme(start: START_TYPE) -> SystemDateTime | None:
+    """Convert a start time to a SystemDateTime.
+
+    Args:
+        start (START_TYPE): The start time to convert. Can be a SystemDateTime, Time, time, or (hour, minute) tuple.
+
+    Returns:
+        SystemDateTime | None: The converted start time, or None if no start time was provided.
+
+    Raises:
+        TypeError: If the start time is not a valid type.
+    """
+    start_dtme: SystemDateTime | None = None
+
+    if start is None:
+        return start
+
+    if isinstance(start, SystemDateTime):
+        # provided as a full datetime, just use it
+        return start
+
+    if isinstance(start, TimeDelta):
+        # we can add these directly to get a new SystemDateTime
+        return now() + start
+
+    # if we have time/Time then no change
+    # if we have (hour, minute) tuple then convert to time
+    if isinstance(start, Time | time):
+        start_time = start
+    elif isinstance(start, tuple) and len(start) == 2:
+        if not all(isinstance(x, int) for x in start):
+            raise TypeError(f"Start time tuple must contain two integers (hour, minute), got {start}")
+        start_time = time(*start)
+    elif isinstance(start, int | float):
+        # treat as seconds from now
+        return now().add(seconds=start)
+    else:
+        raise TypeError(f"Start time must be a Time, time, or (hour, minute) tuple, got {type(start).__name__}")
+
+    # convert to SystemDateTime for today at the specified time
+    # if this ends up in the past, the trigger will handle advancing to the next valid time
+    start_dtme = SystemDateTime(
+        year=now().year, month=now().month, day=now().day, hour=start_time.hour, minute=start_time.minute
+    )
+    return start_dtme

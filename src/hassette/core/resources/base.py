@@ -8,11 +8,8 @@ from contextlib import suppress
 from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
-from typing_extensions import deprecated
-
-from hassette.const.misc import LOG_LEVELS
 from hassette.enums import ResourceRole
-from hassette.exceptions import CannotOverrideFinalError
+from hassette.exceptions import CannotOverrideFinalError, FatalError
 
 from .mixins import LifecycleMixin
 
@@ -164,16 +161,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
 
-    @deprecated("Use self.logger.setLevel(...) instead")
-    def set_logger_to_level(self, level: LOG_LEVELS) -> None:
-        """Configure a logger to log at the specified level independently of its parent."""
-        self.logger.setLevel(level)
-
-    @deprecated("Use set_logger_to_level('DEBUG') instead")
-    def set_logger_to_debug(self) -> None:
-        """Configure a logger to log at DEBUG level independently of its parent."""
-        self.logger.setLevel("DEBUG")
-
     @property
     def unique_name(self) -> str:
         """Get the unique name of the instance."""
@@ -241,6 +228,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             return
         self._initializing = True
 
+        self.logger.setLevel(self.config_log_level)
         self.logger.debug("Initializing")
         await self.handle_starting()
 
@@ -318,7 +306,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 except Exception as e:
                     self.logger.exception("Error during stopping %s %s", type(e).__name__, e)
             else:
-                self.logger.info("Skipping STOPPED event as event streams are closed")
+                self.logger.debug("Skipping STOPPED event as event streams are closed")
 
             self._shutting_down = False
 
@@ -367,6 +355,11 @@ class Service(Resource):
             with suppress(Exception):
                 await self.handle_stop()
             raise
+        except FatalError as e:
+            self.logger.error("Serve() task failed with fatal error: %s %s", type(e).__name__, e)
+            # Crash/failure path
+            await self.handle_crash(e)
+
         except Exception as e:
             self.logger.exception("Serve() task failed: %s %s", type(e).__name__, e)
             # Crash/failure path
@@ -377,7 +370,7 @@ class Service(Resource):
         # Flip any internal flags if you have them; then cancel the loop
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
-            self.logger.info("Cancelled serve() task")
+            self.logger.debug("Cancelled serve() task")
             with suppress(asyncio.CancelledError):
                 await self._serve_task
 

@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, ClassVar
@@ -83,7 +84,9 @@ class HassetteBaseSettings(BaseSettings):
         _cli_implicit_flags: bool | None = None,
         _cli_ignore_unknown_args: bool | None = None,
         _cli_kebab_case: bool | None = None,
+        _cli_shortcuts: Mapping[str, str | list[str]] | None = None,
         _secrets_dir: PathType | None = None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         # custom checks
         if init_kwargs.get("config_file"):
@@ -163,6 +166,7 @@ class HassetteBaseSettings(BaseSettings):
             else self.model_config.get("cli_ignore_unknown_args")
         )
         cli_kebab_case = _cli_kebab_case if _cli_kebab_case is not None else self.model_config.get("cli_kebab_case")
+        cli_shortcuts = _cli_shortcuts if _cli_shortcuts is not None else self.model_config.get("cli_shortcuts")
 
         secrets_dir = _secrets_dir if _secrets_dir is not None else self.model_config.get("secrets_dir")
 
@@ -235,6 +239,7 @@ class HassetteBaseSettings(BaseSettings):
                     cli_implicit_flags=cli_implicit_flags,
                     cli_ignore_unknown_args=cli_ignore_unknown_args,
                     cli_kebab_case=cli_kebab_case,
+                    cli_shortcuts=cli_shortcuts,
                     case_sensitive=case_sensitive,
                 )
                 sources = (cli_settings, *sources)

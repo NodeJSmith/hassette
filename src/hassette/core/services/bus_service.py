@@ -10,14 +10,13 @@ from typing import Any
 from fair_async_rlock import FairAsyncRLock
 
 from hassette.core.resources.base import Service
+from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream
 
     from hassette import Hassette, Listener
     from hassette.events import Event
-
-GLOB_CHARS = "*?["
 
 
 class _BusService(Service):  # pyright: ignore[reportUnusedClass]
@@ -93,7 +92,7 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
         if self.hassette.config.log_all_hass_events and event.topic.startswith("hass."):
             return True
 
-        if self.hassette.config.log_all_hassette_events and event.topic.startswith("hassette."):  # noqa: SIM103
+        if self.hassette.config.log_all_hassette_events and event.topic.startswith("hassette."):
             return True
 
         return False
@@ -161,8 +160,8 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
         domains = self.hassette.config.bus_excluded_domains or ()
         entities = self.hassette.config.bus_excluded_entities or ()
 
-        self._excluded_domains_exact, self._excluded_domain_globs = self._split_exact_and_glob(domains)
-        self._excluded_entities_exact, self._excluded_entity_globs = self._split_exact_and_glob(entities)
+        self._excluded_domains_exact, self._excluded_domain_globs = split_exact_and_glob(domains)
+        self._excluded_entities_exact, self._excluded_entity_globs = split_exact_and_glob(entities)
 
         self._has_exclusions = bool(
             self._excluded_domains_exact
@@ -179,21 +178,6 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
                 sorted(self._excluded_entities_exact),
                 self._excluded_entity_globs,
             )
-
-    @staticmethod
-    def _split_exact_and_glob(values: typing.Iterable[str]) -> tuple[set[str], tuple[str, ...]]:
-        exact: set[str] = set()
-        globs: list[str] = []
-        for value in values:
-            if any(ch in value for ch in GLOB_CHARS):
-                globs.append(value)
-            else:
-                exact.add(value)
-        return exact, tuple(globs)
-
-    @staticmethod
-    def _matches_globs(value: str, patterns: tuple[str, ...]) -> bool:
-        return any(fnmatch(value, pattern) for pattern in patterns)
 
     def _should_skip_event(self, topic: str, event: "Event[Any]") -> bool:
         """Determine if an event should be skipped based on exclusion filters."""
@@ -227,16 +211,14 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
             assert isinstance(domain, str)
 
         if isinstance(entity_id, str):
-            if entity_id in self._excluded_entities_exact or self._matches_globs(
-                entity_id, self._excluded_entity_globs
-            ):
+            if entity_id in self._excluded_entities_exact or matches_globs(entity_id, self._excluded_entity_globs):
                 self.logger.debug("Skipping dispatch for %s due to entity exclusion (%s)", topic, entity_id)
                 return True
             if domain is None and "." in entity_id:
                 domain = entity_id.split(".", 1)[0]
 
         if isinstance(domain, str) and domain:
-            if domain in self._excluded_domains_exact or self._matches_globs(domain, self._excluded_domain_globs):
+            if domain in self._excluded_domains_exact or matches_globs(domain, self._excluded_domain_globs):
                 self.logger.debug("Skipping dispatch for %s due to domain exclusion (%s)", topic, domain)
                 return True
 

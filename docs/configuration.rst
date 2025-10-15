@@ -134,7 +134,7 @@ custom prefix - in this case ``Hassette`` is no longer involved and ``pydantic``
        required_secret: SecretStr = Field(...)
 
    class MyApp(App[MyConfig]):
-       async def initialize(self):
+       async def on_initialize(self):
            # self.app_config is fully typed here
               await self.api.turn_on(self.app_config.entity_id, brightness=self.app_config.brightness)
 

@@ -43,7 +43,7 @@ class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
                 self.logger.warning("No %s specified to start, skipping", role)
                 return
 
-            self.logger.info("%s '%s' is being restarted after '%s'", role, name, event.payload.event_type)
+            self.logger.debug("%s '%s' is being restarted after '%s'", role, name, event.payload.event_type)
 
             services = [child for child in self.hassette.children if child.class_name == name and child.role == role]
             if not services:
@@ -52,7 +52,7 @@ class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
             if len(services) > 1:
                 self.logger.warning("Multiple %s found for '%s', restarting all", role, name)
 
-            self.logger.info("Restarting %s '%s'", role, name)
+            self.logger.debug("Restarting %s '%s'", role, name)
             for service in services:
                 await service.restart()
 
@@ -77,7 +77,7 @@ class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
             return
 
         try:
-            self.logger.info(
+            self.logger.debug(
                 "%s '%s' transitioned to status '%s' from '%s'",
                 role,
                 name,

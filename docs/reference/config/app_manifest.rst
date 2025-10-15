@@ -1,4 +1,4 @@
-App Manifest Reference
+App Manifest
 ======================
 
 .. automodule:: hassette.config.app_manifest
