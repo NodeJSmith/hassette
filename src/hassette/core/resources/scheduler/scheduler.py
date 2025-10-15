@@ -390,6 +390,8 @@ def get_start_dtme(start: START_TYPE) -> SystemDateTime | None:
     if isinstance(start, Time | time):
         start_time = start
     elif isinstance(start, tuple) and len(start) == 2:
+        if not all(isinstance(x, int) for x in start):
+            raise TypeError(f"Start time tuple must contain two integers (hour, minute), got {start}")
         start_time = time(*start)
     elif isinstance(start, int | float):
         # treat as seconds from now
