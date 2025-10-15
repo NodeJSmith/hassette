@@ -21,8 +21,8 @@ Why Hassette?
 
 We have detailed comparisons in the docs for the two most popular frameworks. Open an issue or PR if you'd like additional comparisons!
 
-- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/appdaemon-comparison.html)
-- [Pyscript Comparison](https://hassette.readthedocs.io/en/latest/pyscript-comparison.html)
+- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/comparisons/appdaemon.html)
+- [Pyscript Comparison](https://hassette.readthedocs.io/en/latest/comparisons/pyscript.html)
 
 ## 📖 Examples
 
