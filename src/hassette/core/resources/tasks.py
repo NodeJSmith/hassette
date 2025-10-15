@@ -1,6 +1,5 @@
 import asyncio
 import functools
-import inspect
 import threading
 import typing
 import weakref
@@ -9,6 +8,7 @@ from concurrent.futures import Future, TimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette.core.resources.base import Resource
+from hassette.utils.async_utils import is_async_callable
 
 from .. import context  # noqa: TID252
 
@@ -138,7 +138,7 @@ class TaskBucket(Resource):
         - If `fn` is async: await it.
         - If `fn` is sync: run it in Hassette's thread pool executor via TaskBucket.run_in_thread.
         """
-        if _is_async_callable(fn):
+        if is_async_callable(fn):
 
             @functools.wraps(cast("Callable[..., object]", fn))
             async def _async_fn(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -270,29 +270,3 @@ def make_task_factory(
         return t
 
     return factory
-
-
-def _is_async_callable(fn: Callable[..., object] | Any) -> bool:
-    """True for coroutine functions, including async __call__ and partial(async_fn)."""
-    # plain async def foo(...)
-    if inspect.iscoroutinefunction(fn):
-        return True
-
-    # functools.partial of something async
-    if isinstance(fn, functools.partial):
-        return _is_async_callable(fn.func)
-
-    # callable instance with async __call__
-    call = getattr(fn, "__call__", None)  # noqa: B004
-    if call and inspect.iscoroutinefunction(call):
-        return True
-
-    # unwrapped functions (decorated with @wraps)
-    if hasattr(fn, "__wrapped__"):
-        try:
-            unwrapped = inspect.unwrap(fn)  # follows __wrapped__ chain
-        except Exception:
-            return False
-        return inspect.iscoroutinefunction(unwrapped)
-
-    return False

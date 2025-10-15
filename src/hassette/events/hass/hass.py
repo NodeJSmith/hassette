@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 from typing import Any, Generic, Self, TypeAlias
 
 from hassette import topics
-from hassette.events.base import MISSING_VALUE, Event, HassPayload
+from hassette.const.misc import MISSING_VALUE
+from hassette.events.base import Event, HassPayload
 from hassette.models.states import StateT, try_convert_state
 
 from .raw import HassEventEnvelopeDict, HassStateDict
@@ -87,12 +88,12 @@ class StateChangePayload(Generic[StateT]):
         return self.old_state_value != self.new_state_value
 
     @property
-    def new_state_value(self) -> Any:
+    def new_state_value(self) -> Any | MISSING_VALUE:  # pyright: ignore[reportInvalidTypeForm]
         """Return the value of the new state, or MISSING_VALUE if not present."""
         return self.new_state.value if self.new_state is not None else MISSING_VALUE
 
     @property
-    def old_state_value(self) -> Any:
+    def old_state_value(self) -> Any | MISSING_VALUE:  # pyright: ignore[reportInvalidTypeForm]
         """Return the value of the old state, or MISSING_VALUE if not present."""
         return self.old_state.value if self.old_state is not None else MISSING_VALUE
 
@@ -185,14 +186,34 @@ def create_event_from_hass(
 
 
 StateChangeEvent: TypeAlias = Event[HassPayload[StateChangePayload[StateT]]]
+"""Alias for state change events with a specific state type."""
+
 CallServiceEvent: TypeAlias = Event[HassPayload[CallServicePayload]]
+"""Alias for call service events."""
+
 ComponentLoadedEvent: TypeAlias = Event[HassPayload[ComponentLoadedPayload]]
+"""Alias for component loaded events."""
+
 ServiceRegisteredEvent: TypeAlias = Event[HassPayload[ServiceRegisteredPayload]]
+"""Alias for service registered events."""
+
 ServiceRemovedEvent: TypeAlias = Event[HassPayload[ServiceRemovedPayload]]
+"""Alias for service removed events."""
+
 LogbookEntryEvent: TypeAlias = Event[HassPayload[LogbookEntryPayload]]
+"""Alias for logbook entry events."""
+
 UserAddedEvent: TypeAlias = Event[HassPayload[UserAddedPayload]]
+"""Alias for user added events."""
+
 UserRemovedEvent: TypeAlias = Event[HassPayload[UserRemovedPayload]]
+"""Alias for user removed events."""
+
 AutomationTriggeredEvent: TypeAlias = Event[HassPayload[AutomationTriggeredPayload]]
+"""Alias for automation triggered events."""
+
 ScriptStartedEvent: TypeAlias = Event[HassPayload[ScriptStartedPayload]]
+"""Alias for script started events."""
 
 HassEvent: TypeAlias = Event[HassPayload[Any]]
+"""Alias for generic Hass events."""

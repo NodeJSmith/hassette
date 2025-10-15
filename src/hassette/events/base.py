@@ -6,9 +6,6 @@ from whenever import SystemDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
-MISSING_VALUE = object()  # Used to indicate a missing value in states
-
-
 P = TypeVar("P", bound="HassPayload | HassettePayload", covariant=True)
 
 HassT = TypeVar("HassT", covariant=True)

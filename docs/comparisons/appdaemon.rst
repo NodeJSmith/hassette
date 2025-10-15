@@ -414,29 +414,27 @@ Event Handlers
 ^^^^^^^^^^^^^^^^
 
 Event handlers can also be either async or sync functions, and currently only accept the event object as a parameter. The event bus uses typed events and composable predicates for filtering.
-There is some definite room for improvement in the ergonomics of this API, but the example below illustrates how to listen for a specific service call event. Note that the ``Guard`` predicate
-is generic, so annotating it with the expected event type enables IDE support and better error detection. In this example, ``data`` is known to be of type ``CallServicePayload``.
+In this example, we listen for a service call event with a specific entity_id. Behind the scenes, the dictionary passed to ``where`` is converted into a predicate that checks for equality on each key/value pair.
 
 .. code-block:: python
   :linenos:
 
+  from hassette import App
   from hassette.events import CallServiceEvent
-
-  from hassette import App, Guard
-
-  where = Guard["CallServiceEvent"](
-      lambda event: event.payload.data.service_data["entity_id"] == "input_button.test_button"
-  )
 
 
   class ButtonHandler(App):
       async def on_initialize(self):
+          self.logger.setLevel("DEBUG")
           # Listen for a button press event with a specific entity_id
-          sub = self.bus.on_call_service(service="press", handler=self.minimal_callback, where=where)
+          sub = self.bus.on_call_service(
+              service="press", handler=self.minimal_callback, where={"entity_id": "input_button.test_button"}
+          )
           self.logger.info(f"Subscribed: {sub}")
 
       def minimal_callback(self, event: CallServiceEvent) -> None:
-          self.logger.info(f"Button pressed: {event}")
+          self.logger.info(f"Button pressed: {event.payload.data.service_data}")
+
 
 .. code-block:: text
 

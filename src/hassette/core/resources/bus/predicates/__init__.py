@@ -1,19 +1,13 @@
-from .attrs import AttrChanged
 from .base import AllOf, AnyOf, Guard, Not
-from .common import HomeAssistantRestarted
-from .entity import DomainIs, EntityIs
-from .state import Changed, ChangedFrom, ChangedTo
+from .state import AttrChanged, DomainMatches, EntityMatches, StateChanged
 
 __all__ = [
     "AllOf",
     "AnyOf",
     "AttrChanged",
-    "Changed",
-    "ChangedFrom",
-    "ChangedTo",
-    "DomainIs",
-    "EntityIs",
+    "DomainMatches",
+    "EntityMatches",
     "Guard",
-    "HomeAssistantRestarted",
     "Not",
+    "StateChanged",
 ]

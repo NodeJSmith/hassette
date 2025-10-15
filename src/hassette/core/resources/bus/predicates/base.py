@@ -11,23 +11,6 @@ if typing.TYPE_CHECKING:
     from hassette.types import Predicate
 
 
-class _Sentinel:
-    def __repr__(self) -> str:
-        return "<sentinel>"
-
-
-SENTINEL = _Sentinel()
-T = typing.TypeVar("T")
-
-
-def ensure_iterable(where: "Predicate | Iterable[Predicate]") -> Iterable["Predicate"]:
-    if isinstance(where, Iterable) and not callable(where):
-        flat_where = itertools.chain.from_iterable(w.preds if isinstance(w, AllOf | AnyOf) else (w,) for w in where)
-        return flat_where
-
-    return (where,)
-
-
 @dataclass(frozen=True)
 class Guard(typing.Generic[E_contra]):
     """Wraps a predicate function to be used in combinators.
@@ -44,29 +27,34 @@ class Guard(typing.Generic[E_contra]):
 
 @dataclass(frozen=True)
 class AllOf:
-    preds: tuple["Predicate", ...]
+    """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
+
+    predicates: tuple["Predicate", ...]
+    """The predicates to evaluate."""
 
     async def __call__(self, event: "Event") -> bool:
-        for p in self.preds:
+        for p in self.predicates:
             if not await _eval(p, event):
                 return False
         return True
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Iterable[Predicate]") -> "AllOf":
-        # return cls((where,))
         return cls(tuple(ensure_iterable(where)))
 
     def __iter__(self):
-        return iter(self.preds)
+        return iter(self.predicates)
 
 
 @dataclass(frozen=True)
 class AnyOf:
-    preds: tuple["Predicate", ...]
+    """Predicate that evaluates to True if any of the contained predicates evaluate to True."""
+
+    predicates: tuple["Predicate", ...]
+    """The predicates to evaluate."""
 
     async def __call__(self, event: "Event") -> bool:
-        for p in self.preds:
+        for p in self.predicates:
             if await _eval(p, event):
                 return True
         return False
@@ -78,13 +66,24 @@ class AnyOf:
 
 @dataclass(frozen=True)
 class Not:
-    pred: "Predicate"
+    """Negates the result of the predicate."""
+
+    predicate: "Predicate"
 
     async def __call__(self, event: "Event") -> bool:
-        return not await _eval(self.pred, event)
+        return not await _eval(self.predicate, event)
 
 
 def normalize_where(where: "Predicate | Iterable[Predicate] | None") -> "Predicate | None":
+    """Normalize the 'where' clause into a single Predicate or None.
+
+    Args:
+        where (Predicate | Iterable[Predicate] | None): The 'where' clause to normalize.
+
+    Returns:
+        Predicate | None: A single Predicate if 'where' was provided, otherwise None.
+    """
+
     if where is None:
         return None
 
@@ -94,7 +93,28 @@ def normalize_where(where: "Predicate | Iterable[Predicate] | None") -> "Predica
     return where
 
 
+def ensure_iterable(where: "Predicate | Iterable[Predicate]") -> Iterable["Predicate"]:
+    """Ensure that the 'where' clause is an iterable of predicates.
+
+    Args:
+        where (Predicate | Iterable[Predicate]): The 'where' clause to ensure as iterable.
+
+    Returns:
+        Iterable[Predicate]: An iterable of predicates.
+    """
+
+    if isinstance(where, Iterable) and not callable(where):
+        flat_where = itertools.chain.from_iterable(
+            w.predicates if isinstance(w, AllOf | AnyOf) else (w,) for w in where
+        )
+        return flat_where
+
+    return (where,)
+
+
 async def _eval(pred: "Predicate", event: "Event") -> bool:
+    """Evaluate a predicate, handling both synchronous and asynchronous callables."""
+
     res = pred(event)
     if isawaitable(res):
         return await res

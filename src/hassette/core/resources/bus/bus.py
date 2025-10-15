@@ -1,21 +1,25 @@
 import asyncio
 import time
 import typing
+from collections.abc import Mapping
 from typing import Any, cast
 
 from hassette import topics
+from hassette.const.misc import NOT_PROVIDED
 from hassette.core.resources.base import Resource
+from hassette.core.resources.bus.predicates.event import CallServiceEventWrapper, KeyValueMatches
 from hassette.enums import ResourceStatus
 from hassette.events.base import Event
+from hassette.types import Predicate
 
 from .listeners import Listener, Subscription, callable_short_name
-from .predicates import AllOf, AttrChanged, Changed, ChangedFrom, ChangedTo, EntityIs, Guard
-from .predicates.base import SENTINEL, normalize_where
+from .predicates import AllOf, AttrChanged, EntityMatches, Guard, StateChanged
+from .predicates.base import normalize_where
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from hassette import Hassette, TaskBucket
+    from hassette import Hassette, TaskBucket, states
     from hassette.core.services.bus_service import _BusService
     from hassette.events import (
         CallServiceEvent,
@@ -24,7 +28,7 @@ if typing.TYPE_CHECKING:
         ServiceRegisteredEvent,
         StateChangeEvent,
     )
-    from hassette.types import AsyncHandler, E_contra, Handler, Predicate
+    from hassette.types import AsyncHandler, ChangeType, E_contra, Handler
 
 
 class Bus(Resource):
@@ -111,38 +115,54 @@ class Bus(Resource):
         self.add_listener(listener)
         return Subscription(listener, unsubscribe)
 
-    def on_entity(
+    def on_state_change(
         self,
-        entity: str,
+        entity_id: str,
         *,
-        handler: "Handler[StateChangeEvent]",
+        handler: "Handler[StateChangeEvent[states.StateT]]",
         changed: bool | None = True,
-        changed_from: Any | None = SENTINEL,
-        changed_to: Any | None = SENTINEL,
+        changed_from: "ChangeType" = NOT_PROVIDED,
+        changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Iterable[Predicate] | None" = None,
         **opts,
     ) -> Subscription:
-        """Subscribe to events for a specific entity.
+        """Subscribe to state changes for a specific entity.
 
         Args:
-            entity (str): The entity ID to filter events for (e.g., "media_player.living_room_speaker").
+            entity_id (str): The entity ID to filter events for (e.g., "media_player.living_room_speaker").
             handler (Callable): The function to call when the event matches.
             changed (bool | None): If True, only trigger if `old` and `new` states differ.
-            changed_from (Any | None): Filter for state changes from this value.
-            changed_to (Any | None): Filter for state changes to this value.
+            changed_from (ChangeType): A value or callable that will be used to filter state changes *from* this value.
+            changed_to (ChangeType): A value or callable that will be used to filter state changes *to* this value.
             where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events, such as
                 `AttrChanged` or other custom predicates.
             **opts: Additional options like `once`, `debounce` and `throttle`.
 
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
+
+        Examples:
+
+        .. code-block:: python
+
+            # Listen for all state changes on the entity
+            bus.on_state_change("light.living_room", handler=my_handler)
+
+            # Listen for state changes where the state changed from 'off' to 'on'
+            bus.on_state_change("light.living_room", changed_from="off", changed_to="on", handler=my_handler)
+
+            # Listen for a glob match on the entity ID
+            bus.on_state_change("light.*", handler=my_handler)
+
+            # Listen for state changes where integer state changed to >= 20
+            bus.on_state_change("sensor.temperature", changed_to=lambda new: new >= 20, handler=my_handler)
         """
         self.logger.debug(
             (
                 "Subscribing to entity '%s' with changed='%s', changed_from='%s', changed_to='%s', where='%s' -"
                 " being handled by '%s'"
             ),
-            entity,
+            entity_id,
             changed,
             changed_from,
             changed_to,
@@ -150,36 +170,35 @@ class Bus(Resource):
             callable_short_name(handler),
         )
 
-        preds: list[Predicate] = [EntityIs(entity)]
+        preds: list[Predicate] = [EntityMatches(entity_id)]
         if changed:
-            preds.append(Changed())
-        if changed_from != SENTINEL:
-            preds.append(ChangedFrom(changed_from))
-        if changed_to != SENTINEL:
-            preds.append(ChangedTo(changed_to))
+            preds.append(StateChanged(from_=changed_from, to=changed_to))
+
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))  # allow extra guards
+
         return self.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, **opts)
 
-    def on_attribute(
+    def on_attribute_change(
         self,
-        entity: str,
+        entity_id: str,
         attr: str,
         *,
         handler: "Handler[StateChangeEvent]",
-        changed_from: Any | None = SENTINEL,
-        changed_to: Any | None = SENTINEL,
+        changed_from: "ChangeType" = NOT_PROVIDED,
+        changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Iterable[Predicate] | None" = None,
         **opts,
     ) -> Subscription:
-        """Subscribe to attribute changes for a specific entity.
+        """Subscribe to state change events for a specific entity's attribute.
 
         Args:
-            entity (str): The entity ID to filter events for (e.g., "media_player.living_room_speaker").
+            entity_id (str): The entity ID to filter events for (e.g., "media_player.living_room_speaker").
             attr (str): The attribute name to filter changes on (e.g., "volume").
             handler (Callable): The function to call when the event matches.
-            changed_from (Any | None): Filter for attribute changes from this value.
-            changed_to (Any | None): Filter for attribute changes to this value.
+            changed_from (ChangeType): A value or callable that will be used to filter attribute changes *from* this
+                value.
+            changed_to (ChangeType): A value or callable that will be used to filter attribute changes *to* this value.
             where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
@@ -192,7 +211,7 @@ class Bus(Resource):
                 "Subscribing to entity '%s' attribute '%s' with changed_from='%s', changed_to='%s'"
                 ", where='%s' - being handled by '%s'"
             ),
-            entity,
+            entity_id,
             attr,
             changed_from,
             changed_to,
@@ -200,7 +219,7 @@ class Bus(Resource):
             callable_short_name(handler),
         )
 
-        preds: list[Predicate] = [EntityIs(entity)]
+        preds: list[Predicate] = [EntityMatches(entity_id)]
         preds.append(AttrChanged(attr, from_=changed_from, to=changed_to))
 
         if where is not None:
@@ -208,37 +227,13 @@ class Bus(Resource):
 
         return self.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, **opts)
 
-    def on_homeassistant_restart(
-        self,
-        handler: "Handler[CallServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
-    ) -> Subscription:
-        """Subscribe to Home Assistant restart events.
-
-        Args:
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
-
-        Returns:
-            Subscription: A subscription object that can be used to manage the listener.
-        """
-        return self.on_call_service(
-            domain="homeassistant",
-            service="restart",
-            handler=handler,
-            where=where,
-            **opts,
-        )
-
     def on_call_service(
         self,
         domain: str | None = None,
         service: str | None = None,
         *,
         handler: "Handler[CallServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Iterable[Predicate] | Mapping[str, Any | type[Any]] | None" = None,
         **opts,
     ) -> Subscription:
         """Subscribe to service call events.
@@ -247,11 +242,16 @@ class Bus(Resource):
             domain (str | None): The domain to filter service calls (e.g., "light").
             service (str | None): The service to filter service calls (e.g., "turn_on").
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Iterable[Predicate] | Mapping[str, Any | type[Any]] | None): Additional predicates to
+                filter events.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
+
+        You can provide a dictionary to `where` to filter on specific key-value pairs in the service data. You can use
+        `hassette.const.NOT_PROVIDED` or `Any` as the value to only check for the presence of a key, use glob patterns
+        for string values, or provide a callable predicate for more complex matching.
 
         Examples:
 
@@ -265,6 +265,23 @@ class Bus(Resource):
 
             # Listen for calls to any service in the light domain
             bus.on_call_service(domain="light", handler=my_handler)
+
+            # Listen for calls to the light.turn_on service for a specific entity
+            bus.on_call_service(
+                domain="light", service="turn_on", where={"entity_id": "light.living_room"}, handler=my_handler
+                )
+
+            # Listen for calls to the light.turn_on service where brightness is set to 255
+            bus.on_call_service(
+                domain="light", service="turn_on", where={"brightness": 255}, handler=my_handler
+                )
+
+            # Listen for calls to the light.turn_on service where brightness is set to above 200
+            bus.on_call_service(
+                domain="light", service="turn_on",
+                where={"brightness": lambda v: v is not None and v > 200},
+                handler=my_handler
+                )
 
         """
 
@@ -284,7 +301,29 @@ class Bus(Resource):
             preds.append(Guard["CallServiceEvent"](lambda event: event.payload.data.service == service))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))
+            mapping_preds = []
+            if isinstance(where, Mapping):
+                for k, v in where.items():
+                    if not isinstance(k, str):
+                        raise ValueError(f"Mapping keys must be strings, got {type(k)}")
+                    mapping_preds.append(KeyValueMatches(key=k, value=v))
+            elif callable(where) or isinstance(where, Predicate):
+                preds.append(where)
+            else:
+                mappings = [w for w in where if isinstance(w, Mapping)]
+                other = [w for w in where if not isinstance(w, Mapping)]
+
+                for w in mappings:
+                    for k, v in w.items():
+                        if not isinstance(k, str):
+                            raise ValueError(f"Mapping keys must be strings, got {type(k)}")
+                        mapping_preds.append(KeyValueMatches(key=k, value=v))
+
+                if mapping_preds:
+                    service_event_pred = CallServiceEventWrapper(tuple(mapping_preds))
+                    preds.append(service_event_pred)
+
+                preds.append(AllOf.ensure_iterable(other))
 
         return self.on(topic=topics.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, **opts)
 
@@ -367,6 +406,60 @@ class Bus(Resource):
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
 
         return self.on(topic=topics.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, **opts)
+
+    def on_homeassistant_restart(
+        self,
+        handler: "Handler[CallServiceEvent]",
+        where: "Predicate | Iterable[Predicate] | None" = None,
+        **opts,
+    ) -> Subscription:
+        """Subscribe to Home Assistant restart events.
+
+        Args:
+            handler (Callable): The function to call when the event matches.
+            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            Subscription: A subscription object that can be used to manage the listener.
+        """
+        return self.on_call_service(domain="homeassistant", service="restart", handler=handler, where=where, **opts)
+
+    def on_homeassistant_start(
+        self,
+        handler: "Handler[CallServiceEvent]",
+        where: "Predicate | Iterable[Predicate] | None" = None,
+        **opts,
+    ) -> Subscription:
+        """Subscribe to Home Assistant start events.
+
+        Args:
+            handler (Callable): The function to call when the event matches.
+            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            Subscription: A subscription object that can be used to manage the listener.
+        """
+        return self.on_call_service(domain="homeassistant", service="start", handler=handler, where=where, **opts)
+
+    def on_homeassistant_stop(
+        self,
+        handler: "Handler[CallServiceEvent]",
+        where: "Predicate | Iterable[Predicate] | None" = None,
+        **opts,
+    ) -> Subscription:
+        """Subscribe to Home Assistant stop events.
+
+        Args:
+            handler (Callable): The function to call when the event matches.
+            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            Subscription: A subscription object that can be used to manage the listener.
+        """
+        return self.on_call_service(domain="homeassistant", service="stop", handler=handler, where=where, **opts)
 
     def on_hassette_service_status(
         self,
