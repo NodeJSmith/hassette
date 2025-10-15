@@ -46,10 +46,10 @@ Quick reference table
      - Hassette
    * - Listen for an entity state change
      - ``self.listen_state(self.on_open, "binary_sensor.door", new="on")``
-     - ``self.bus.on_entity("binary_sensor.door", handler=self.on_open, changed_to="on")``
+     - ``self.bus.on_state_change("binary_sensor.door", handler=self.on_open, changed_to="on")``
    * - React to an attribute threshold
      - ``self.listen_state(self.on_battery, "sensor.phone", attribute="battery", below=20)``
-     - ``self.bus.on_attribute("sensor.phone", "battery", handler=self.on_battery, where=lambda e: (e.payload.data.new_value or 100) < 20)``
+     - ``self.bus.on_attribute_change("sensor.phone", "battery", handler=self.on_battery, changed_to=lambda v: v < 20)``
    * - Monitor service calls
      - ``self.listen_event(self.on_service, "call_service", domain="light")``
      - ``self.bus.on_call_service(domain="light", handler=self.on_service)``
@@ -61,7 +61,7 @@ Quick reference table
      - ``self.scheduler.run_daily(self.morning, start=time(7, 30))``
    * - Call a Home Assistant service
      - ``self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)``
-     - ``await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"}, brightness_pct=80)``
+     - ``await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"}, brightness=200)``
    * - Access app configuration
      - ``self.args["entity"]``
      - ``self.app_config.entity``

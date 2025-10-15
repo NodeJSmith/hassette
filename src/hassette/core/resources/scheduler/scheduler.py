@@ -13,13 +13,7 @@ from hassette.utils.date_utils import now
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.types import JobCallable, TriggerProtocol
-
-HOUR_MIN = tuple[int, int]
-"""A tuple representing an hour and minute."""
-
-START_TYPE = SystemDateTime | Time | time | HOUR_MIN | TimeDelta | int | float | None
-"""Type for specifying start times."""
+    from hassette.types import JobCallable, ScheduleStartType, TriggerProtocol
 
 
 class Scheduler(Resource):
@@ -113,7 +107,7 @@ class Scheduler(Resource):
     def run_once(
         self,
         func: "JobCallable",
-        start: START_TYPE,
+        start: "ScheduleStartType",
         name: str = "",
         *,
         args: tuple[Any, ...] | None = None,
@@ -142,7 +136,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         interval: TimeDelta | float,
         name: str = "",
-        start: START_TYPE = None,
+        start: "ScheduleStartType" = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -176,7 +170,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         delay: TimeDelta | float,
         name: str = "",
-        start: START_TYPE = None,
+        start: "ScheduleStartType" = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -208,7 +202,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         minutes: int = 1,
         name: str = "",
-        start: START_TYPE = None,
+        start: "ScheduleStartType" = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -242,7 +236,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         hours: int = 1,
         name: str = "",
-        start: START_TYPE = None,
+        start: "ScheduleStartType" = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -276,7 +270,7 @@ class Scheduler(Resource):
         func: "JobCallable",
         days: int = 1,
         name: str = "",
-        start: START_TYPE = None,
+        start: "ScheduleStartType" = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -319,7 +313,7 @@ class Scheduler(Resource):
         month: int | str = "*",
         day_of_week: int | str = "*",
         name: str = "",
-        start: START_TYPE = None,
+        start: "ScheduleStartType" = None,
         *,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -360,7 +354,7 @@ class Scheduler(Resource):
         return self.schedule(func, run_at, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
 
-def get_start_dtme(start: START_TYPE) -> SystemDateTime | None:
+def get_start_dtme(start: "ScheduleStartType") -> SystemDateTime | None:
     """Convert a start time to a SystemDateTime.
 
     Args:
