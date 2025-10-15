@@ -180,9 +180,14 @@ def _compare_value(predicate: ChangeType, actual: Any) -> bool:
     if predicate is not NOT_PROVIDED:
         if callable(predicate) and is_async_callable(predicate):
             raise ValueError("callable must be synchronous")
+
         if callable(predicate) and not isinstance(predicate, PredicateCallable):
             raise ValueError("callable must be a PredicateCallable")
-        if (isinstance(predicate, PredicateCallable) and not predicate(actual)) or actual != predicate:
+
+        if isinstance(predicate, PredicateCallable) and not predicate(actual):
+            return False
+
+        if actual != predicate:
             return False
 
     return True
