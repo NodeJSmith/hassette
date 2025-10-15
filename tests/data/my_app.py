@@ -11,7 +11,7 @@ class MyAppUserConfig(AppConfig):
 class MyApp(App[MyAppUserConfig]):
     async def on_initialize(self) -> None:
         self.logger.info("MyApp is initializing")
-        self.bus.on_state_change("input_button.test", handler=self.handle_event_sync, changed_from_=lambda v: v == "on")
+        self.bus.on_state_change("input_button.test", handler=self.handle_event_sync, changed_from=lambda v: v == "on")
         self.scheduler.run_in(self.api.get_states, 1)
         self.scheduler.run_every(
             self.scheduled_job_example, 10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
