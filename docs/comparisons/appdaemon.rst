@@ -537,7 +537,7 @@ Api access is synchronous, so you can call these methods directly without worryi
 Hassette
 ^^^^^^^^^^
 
-Hassette aims to provide a fully typed API client that uses Pydantic models for requests and responses. The client methods are async and return rich objects with attributes. Attempting to access a non-existent entity will raise a ``NotFoundError`` exception.
+Hassette aims to provide a fully typed API client that uses Pydantic models for requests and responses. The client methods are async and return rich objects with attributes. Attempting to access a non-existent entity will raise a ``EntityNotFoundError`` exception.
 
 The API client is accessed via the ``self.api`` attribute. This client makes direct calls to Home Assistant over REST API, which does require using `await`. A state cache, similar to AppDaemon's, is on the roadmap. When you call `set_state()`,
 it uses the Home Assistant REST API to update the state of the entity.
