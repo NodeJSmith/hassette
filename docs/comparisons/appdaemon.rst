@@ -205,7 +205,7 @@ AppDaemon
 Schedule callbacks are expected to have a signature of ``def my_callback(self, **kwargs) -> None:``. The ``kwargs`` dictionary can contain arbitrary data you pass when scheduling the callback, and also includes the internal ``__thread_id`` value.
 Schedule callbacks can be async or sync functions, although the documentation recommends not using async functions due to the threading model.
 
-Schedule helpers include ``run_in()``, ``run_at()``, ``run_minutely()``, ``run_hourly()``, and ``run_dailyu()``. These methods return a handle that can be used to cancel the scheduled job.
+Schedule helpers include ``run_in()``, ``run_at()``, ``run_minutely()``, ``run_hourly()``, and ``run_daily()``. These methods return a handle that can be used to cancel the scheduled job.
 
 
 .. code-block:: python
