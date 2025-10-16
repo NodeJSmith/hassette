@@ -205,7 +205,7 @@ AppDaemon
 Schedule callbacks are expected to have a signature of ``def my_callback(self, **kwargs) -> None:``. The ``kwargs`` dictionary can contain arbitrary data you pass when scheduling the callback, and also includes the internal ``__thread_id`` value.
 Schedule callbacks can be async or sync functions, although the documentation recommends not using async functions due to the threading model.
 
-Schedule helpers include ``run_in()``, ``run_at()``, ``run_daily()``, ``run_weekly()``, and ``run_monthly()``. These methods return a handle that can be used to cancel the scheduled job.
+Schedule helpers include ``run_in()``, ``run_at()``, ``run_minutely()``, ``run_hourly()``, and ``run_dailyu()``. These methods return a handle that can be used to cancel the scheduled job.
 
 
 .. code-block:: python
@@ -233,7 +233,7 @@ Hassette
 Scheduled jobs do not need to follow a specific signature. They can be either async or sync functions, and can accept arbitrary parameters. The scheduler methods return rich job objects that can be used to manage the scheduled task.
 If an IO or a blocking operation is needed, then you should either use a synchronous method (which will be ran in a thread automatically) or use `self.task_bucket.run_in_thread` to manually offload the work to a thread.
 
-The scheduler is accessed via the ``self.scheduler`` attribute, and offers similar helpers: ``run_in()``, ``run_at()``, ``run_daily()``, ``run_weekly()``, and ``run_monthly()``. These methods return a :class:`~hassette.core.resources.scheduler.classes.ScheduledJob` object that can be used to cancel or inspect the job.
+The scheduler is accessed via the ``self.scheduler`` attribute, and offers similar helpers: ``run_in()``, ``run_at()``, ``run_minutely()``, ``run_hourly()``, and ``run_daily()``. These methods return a :class:`~hassette.core.resources.scheduler.classes.ScheduledJob` object that can be used to cancel or inspect the job.
 
 .. code-block:: python
   :linenos:
