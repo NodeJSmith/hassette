@@ -76,9 +76,11 @@ Quick reference table
 Detailed Comparison
 --------------------
 
+Configuration
+~~~~~~~~~~~~~~~~~
 
-AppDaemon Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~
+AppDaemon
+^^^^^^^^^^^^
 
 AppDaemon uses two YAML configuration files: ``appdaemon.yaml`` for global settings and ``apps.yaml`` for app-specific configuration. AppDaemon also supports toml files, though YAML is more common.
 
@@ -136,8 +138,9 @@ in your output, although there are some magic strings you can use to include the
             # 2025-10-13 18:40:23.677422 INFO my_app: My configured brightness is 200 (type <class 'int'>)
 
 
-Hassette Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~
+
+Hassette
+^^^^^^^^^^
 
 Hassette uses a single ``hassette.toml`` file for all configuration, including global settings and app-specific parameters. Each app gets its own section under the ``[apps]`` table.
 
@@ -193,28 +196,16 @@ automatically includes the instance name, method name, and line number. Instance
             # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:19 ─ My configured brightness is 200 (type <class 'int'>)
 
 
-AppDaemon Features
-~~~~~~~~~~~~~~~~~~~
+Scheduling Jobs/Callbacks
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-AppDaemon apps are able to subscribe to three main types of events: scheduled events (e.g. scheduled jobs), state change events (e.g. entity state changes), and custom events (e.g. service calls or user-defined events). The examples below
-are taken from the AppDaemon documentation and illustrate how to use these features.
-
-Schedule callbacks
-^^^^^^^^^^^^^^^^^^^
+AppDaemon
+^^^^^^^^^^^
 
 Schedule callbacks are expected to have a signature of ``def my_callback(self, **kwargs) -> None:``. The ``kwargs`` dictionary can contain arbitrary data you pass when scheduling the callback, and also includes the internal ``__thread_id`` value.
+Schedule callbacks can be async or sync functions, although the documentation recommends not using async functions due to the threading model.
 
-.. .. note::
-
-..    You do need to be careful about calling methods too quickly upon startup. While writing this documentation I found that calling ``self.run_once(self.run_daily_callback, "now")`` in ``initialize()`` sometimes caused the callback to fail due to the internal states not being fully initialized yet. The error looked like this:
-
-..    .. code-block:: text
-
-..       2025-10-13 19:26:37.041852 WARNING nightlight: Entity light.office_light_1 not found in the default namespace
-..       2025-10-13 19:26:37.042573 ERROR nightlight: =====  NightLight.run_daily_callback for nightlight  ======================
-..       2025-10-13 19:26:37.042678 ERROR nightlight: SchedulerCallbackFail: Scheduled callback failed for app 'nightlight'
-..       2025-10-13 19:26:37.043156 ERROR nightlight:   DomainException: domain 'homeassistant' does not exist in namespace 'default'
-..       2025-10-13 19:26:37.044173 ERROR nightlight:   apps/nightlight.py line 14 in run_daily_callback
+Schedule helpers include ``run_in()``, ``run_at()``, ``run_daily()``, ``run_weekly()``, and ``run_monthly()``. These methods return a handle that can be used to cancel the scheduled job.
 
 
 .. code-block:: python
@@ -236,10 +227,47 @@ Schedule callbacks are expected to have a signature of ``def my_callback(self, *
           self.turn_on("light.porch")
 
 
-Event callbacks
-^^^^^^^^^^^^^^^^^^^
+Hassette
+^^^^^^^^^^^^
 
-Event callbacks are expected to have a signature of ``def my_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:``.
+Scheduled jobs do not need to follow a specific signature. They can be either async or sync functions, and can accept arbitrary parameters. The scheduler methods return rich job objects that can be used to manage the scheduled task.
+If an IO or a blocking operation is needed, then you should either use a synchronous method (which will be ran in a thread automatically) or use `self.task_bucket.run_in_thread` to manually offload the work to a thread.
+
+The scheduler is accessed via the ``self.scheduler`` attribute, and offers similar helpers: ``run_in()``, ``run_at()``, ``run_daily()``, ``run_weekly()``, and ``run_monthly()``. These methods return a :class:`~hassette.core.resources.scheduler.classes.ScheduledJob` object that can be used to cancel or inspect the job.
+
+.. code-block:: python
+  :linenos:
+
+  from hassette import App
+
+
+  # Declare Class
+  class NightLight(App):
+      # function which will be called at startup and reload
+      async def on_initialize(self):
+          # Schedule a daily callback that will call run_daily_callback() at 7pm every night
+          job = self.scheduler.run_daily(self.run_daily_callback, start=(19, 0))
+          self.logger.info(f"Scheduled job: {job}")
+
+          # 2025-10-13 19:57:02.670 INFO hassette.NightLight.0.on_initialize:11 ─ Scheduled job: ScheduledJob(name='run_daily_callback', owner=NightLight.0)
+
+      # Our callback function will be called by the scheduler every day at 7pm
+      async def run_daily_callback(self, **kwargs):
+          # Call to Home Assistant to turn the porch light on
+          await self.api.turn_on("light.office_light_1", color_name="red")
+
+
+Event Handlers/Callbacks
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AppDaemon
+^^^^^^^^^^^^
+
+Event callbacks are expected to have a signature of ``def my_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:``. They can be either async or sync functions, although the documentation
+recommends not using async functions due to the threading model. The ``event_type`` and ``data`` parameters correspond to the event's type and data dictionary, while ``kwargs`` contains additional metadata about the event
+and any arbitrary keyword arguments you passed when subscribing.
+
+You can cancel a subscription using the handle returned by the listen method, e.g., ``self.cancel_listen_event(handle)``.
 
 .. code-block:: python
   :linenos:
@@ -291,130 +319,13 @@ Event callbacks are expected to have a signature of ``def my_callback(self, even
        }
 
 
-
-State change callbacks
-^^^^^^^^^^^^^^^^^^^^^^^
-
-State change callbacks are expected to have a signature of ``def my_callback(self, entity: str, attribute: str, old: str, new: str, **kwargs) -> None:``.
-
-.. code-block:: python
-  :linenos:
-
-  from appdaemon.plugins.hass import Hass
-
-
-  class ButtonPressed(Hass):
-      def initialize(self):
-          self.listen_state(self.button_pressed, "input_button.test_button", arg1=123)
-
-      def button_pressed(self, entity, attribute, old, new, arg1, **kwargs):
-          self.log(f"{entity=} {attribute=} {old=} {new=} {arg1=}")
-
-.. code-block:: text
-
-   2025-10-13 19:35:56.976839 INFO button_pressed:
-       entity='input_button.test_button',
-       attribute='state',
-       old='2025-10-14T00:16:04.117097+00:00',
-       new='2025-10-14T00:35:58.240005+00:00',
-       arg1=123
-
-
-Api access
-^^^^^^^^^^^^
-
-You can get and set entity states using ``self.get_state()`` and ``self.set_state()``. The ``get_state()`` method can return just the state string or a full dictionary with attributes. Attempting to access a non-existent entity will return ``None``, no exception is raised.
-
-.. code-block:: python
-  :linenos:
-
-  from appdaemon.plugins.hass import Hass
-
-
-  class StateGetter(Hass):
-      def initialize(self):
-          office_light_state = self.get_state("light.office_light_1", attribute="all")
-          self.log(f"{office_light_state=}")
-
-
-.. code-block:: text
-
-   2025-10-13 19:38:15.241717 INFO get_state:
-       office_light_state={
-           'entity_id': 'light.office_light_1',
-           'state': 'on',
-           'attributes': {
-               'min_color_temp_kelvin': 2000,
-               'max_color_temp_kelvin': 6535,
-               'min_mireds': 153,
-               'max_mireds': 500,
-               'effect_list': [
-                   'blink', 'breathe', 'okay', 'channel_change',
-                   'candle', 'fireplace', 'colorloop',
-                   'finish_effect', 'stop_effect', 'stop_hue_effect'
-               ],
-               'supported_color_modes': ['color_temp', 'xy'],
-               'effect': None,
-               'color_mode': 'xy',
-               'brightness': 255,
-               'color_temp_kelvin': None,
-               'color_temp': None,
-               'hs_color': [0.0, 100.0],
-               'rgb_color': [255, 0, 0],
-               'xy_color': [0.701, 0.299],
-               'friendly_name': 'Office Light 1',
-               'supported_features': 44
-           },
-           'last_changed': '2025-10-13T10:40:17.569005+00:00',
-           'last_reported': '2025-10-14T00:26:55.317432+00:00',
-           'last_updated': '2025-10-14T00:26:55.317432+00:00',
-           'context': {
-               'id': '01K7G1STAQ2PW83YQDZ7YJ65VY',
-               'parent_id': None,
-               'user_id': 'a7b56f4dc8ca4a2fa4130263ba7b4b93'
-           }
-       }
-
-
-
-Hassette Features
-~~~~~~~~~~~~~~~~~~
-
-Hassette apps have access to the same features, though we refer to them with slightly different terminology. Scheduled events are handled by the scheduler, state change events and custom events are handled by the event bus, and entity state access is provided by the Home Assistant API client. The examples below illustrate how to use these features.
-
-
-Scheduled Jobs
-^^^^^^^^^^^^^^^^^^^
-
-Scheduled jobs do not need to follow a specific signature. They can be either async or sync functions, and can accept arbitrary parameters. The scheduler methods return rich job objects that can be used to manage the scheduled task.
-
-.. code-block:: python
-  :linenos:
-
-  from hassette import App
-
-
-  # Declare Class
-  class NightLight(App):
-      # function which will be called at startup and reload
-      async def on_initialize(self):
-          # Schedule a daily callback that will call run_daily_callback() at 7pm every night
-          job = self.scheduler.run_daily(self.run_daily_callback, start=(19, 0))
-          self.logger.info(f"Scheduled job: {job}")
-
-          # 2025-10-13 19:57:02.670 INFO hassette.NightLight.0.on_initialize:11 ─ Scheduled job: ScheduledJob(name='run_daily_callback', owner=NightLight.0)
-
-      # Our callback function will be called by the scheduler every day at 7pm
-      async def run_daily_callback(self, **kwargs):
-          # Call to Home Assistant to turn the porch light on
-          await self.api.turn_on("light.office_light_1", color_name="red")
-
-
-Event Handlers
-^^^^^^^^^^^^^^^^
+Hassette
+^^^^^^^^^^^
 
 Event handlers can also be either async or sync functions, and currently only accept the event object as a parameter. The event bus uses typed events and composable predicates for filtering.
 In this example, we listen for a service call event with a specific entity_id. Behind the scenes, the dictionary passed to ``where`` is converted into a predicate that checks for equality on each key/value pair.
+
+The event bus is accessed via the ``self.bus`` attribute. You can cancel a subscription using the ``Subscription`` object returned by the listen method, e.g., ``subscription.cancel()``.
 
 .. code-block:: python
   :linenos:
@@ -463,11 +374,48 @@ In this example, we listen for a service call event with a specific entity_id. B
 
 
 
-State change handlers
-^^^^^^^^^^^^^^^^^^^^^^
+State Change Handlers/Callbacks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-State change handlers are the exact same as event handlers, we're only calling them out separately to align with AppDaemon. These can also be either async or sync functions, and currently only accept the event object as a parameter.
+AppDaemon
+^^^^^^^^^^^
+
+State change callbacks are expected to have a signature of ``def my_callback(self, entity: str, attribute: str, old: str, new: str, **kwargs) -> None:``. They can be either async or sync functions, although the documentation
+recommends not using async functions due to the threading model. The ``entity``, ``attribute``, ``old``, and ``new`` parameters correspond to the entity ID, attribute name, old value, and new value of the state change, while ``kwargs`` contains additional metadata about
+the event and any arbitrary keyword arguments you passed when subscribing.
+
+You can cancel a subscription using the handle returned by the listen method, e.g., ``self.cancel_listen_state(handle)``.
+
+.. code-block:: python
+  :linenos:
+
+  from appdaemon.plugins.hass import Hass
+
+
+  class ButtonPressed(Hass):
+      def initialize(self):
+          self.listen_state(self.button_pressed, "input_button.test_button", arg1=123)
+
+      def button_pressed(self, entity, attribute, old, new, arg1, **kwargs):
+          self.log(f"{entity=} {attribute=} {old=} {new=} {arg1=}")
+
+.. code-block:: text
+
+   2025-10-13 19:35:56.976839 INFO button_pressed:
+       entity='input_button.test_button',
+       attribute='state',
+       old='2025-10-14T00:16:04.117097+00:00',
+       new='2025-10-14T00:35:58.240005+00:00',
+       arg1=123
+
+
+Hassette
+^^^^^^^^^^^^^^
+
+State change handlers are the exact same as event handlers - we're only calling them out separately to align with AppDaemon. These can also be either async or sync functions, and currently only accept the event object as a parameter.
 The event bus provides helpers for filtering entities and attributes. You can also provide additional predicates using the ``where`` parameter. In this example, we listen for any state change on the specified entity.
+
+Like other objects, these are typed using Pydantic models - `StateChangeEvent` is a `Generic` that takes a type parameter for the state model, so you can specify exactly what type of entity you're listening for.
 
 Currently the repr of a StateChangeEvent is quite verbose, but it does show the full old and new state objects, which can be useful for debugging. Cleaning this up is on the roadmap.
 
@@ -522,11 +470,77 @@ Note, some output has been truncated for brevity.
        )
 
 
+Api Access
+~~~~~~~~~~~~
 
-Api access
-^^^^^^^^^^^^
+AppDaemon
+^^^^^^^^^^^
+
+You can get and set entity states using ``self.get_state()`` and ``self.set_state()``. The ``get_state()`` method can return just the state string or a full dictionary with attributes.
+Attempting to access a non-existent entity will return ``None``, no exception is raised. AppDaemon contains a proxy service over states, so getting the state of an entity does not make a call
+directly to Home Assistant, but rather returns the last known state from its internal cache. When setting a state, AppDaemon sends a state change event to Home Assistant.
+
+Api access is synchronous, so you can call these methods directly without worrying about async/await.
+
+.. code-block:: python
+  :linenos:
+
+  from appdaemon.plugins.hass import Hass
+
+
+  class StateGetter(Hass):
+      def initialize(self):
+          office_light_state = self.get_state("light.office_light_1", attribute="all")
+          self.log(f"{office_light_state=}")
+
+
+.. code-block:: text
+
+   2025-10-13 19:38:15.241717 INFO get_state:
+       office_light_state={
+           'entity_id': 'light.office_light_1',
+           'state': 'on',
+           'attributes': {
+               'min_color_temp_kelvin': 2000,
+               'max_color_temp_kelvin': 6535,
+               'min_mireds': 153,
+               'max_mireds': 500,
+               'effect_list': [
+                   'blink', 'breathe', 'okay', 'channel_change',
+                   'candle', 'fireplace', 'colorloop',
+                   'finish_effect', 'stop_effect', 'stop_hue_effect'
+               ],
+               'supported_color_modes': ['color_temp', 'xy'],
+               'effect': None,
+               'color_mode': 'xy',
+               'brightness': 255,
+               'color_temp_kelvin': None,
+               'color_temp': None,
+               'hs_color': [0.0, 100.0],
+               'rgb_color': [255, 0, 0],
+               'xy_color': [0.701, 0.299],
+               'friendly_name': 'Office Light 1',
+               'supported_features': 44
+           },
+           'last_changed': '2025-10-13T10:40:17.569005+00:00',
+           'last_reported': '2025-10-14T00:26:55.317432+00:00',
+           'last_updated': '2025-10-14T00:26:55.317432+00:00',
+           'context': {
+               'id': '01K7G1STAQ2PW83YQDZ7YJ65VY',
+               'parent_id': None,
+               'user_id': 'a7b56f4dc8ca4a2fa4130263ba7b4b93'
+           }
+       }
+
+
+
+Hassette
+^^^^^^^^^^
 
 Hassette aims to provide a fully typed API client that uses Pydantic models for requests and responses. The client methods are async and return rich objects with attributes. Attempting to access a non-existent entity will raise a ``NotFoundError`` exception.
+
+The API client is accessed via the ``self.api`` attribute. This client makes direct calls to Home Assistant over REST API, which does require using `await`. A state cache, similar to AppDaemon's, is on the roadmap. When you call `set_state()`,
+it uses the Home Assistant REST API to update the state of the entity.
 
 .. code-block:: python
   :linenos:
