@@ -10,8 +10,10 @@ Pyscript is a Home Assistant integration that runs your Python inside of Home As
 and runs that interpreter inside the Home Assistant event loop. It has similar features to AppDaemon, but does suffer (in my opinion) from being stringly typed, limited IDE support, and too much magic. Pyscript has
 it's own `AppDaemon comparison page <https://github.com/custom-components/pyscript/wiki/Comparing-Pyscript-to-AppDaemon>`__, which is worth a read.
 
+I have spent some time writing up a detailed comparison between AppDaemon and Hassette. At this time, however, I have not done a similar comparison for Pyscript. This is partially because I have not used it enough to feel
+comfortable doing so, and partially because Pyscript's design is fundamentally different from both AppDaemon and Hassette.
+
 .. toctree::
    :maxdepth: 1
 
    AppDaemon Comparison <appdaemon>
-   Pyscript Comparison <pyscript>
