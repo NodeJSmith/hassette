@@ -470,7 +470,7 @@ Note, some output has been truncated for brevity.
        )
 
 
-Api Access
+API Access
 ~~~~~~~~~~~~
 
 AppDaemon
