@@ -262,7 +262,7 @@ class Scheduler(Resource):
         start_dtme = get_start_dtme(start)
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
-        first_run = start_dtme if start_dtme else now().add(hours=1)
+        first_run = start_dtme if start_dtme else now().add(hours=hours)
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_daily(
