@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, Mock
@@ -22,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def websocket_service(hassette_with_bus: Hassette) -> _WebsocketService:
+def websocket_service(hassette_with_bus: "Hassette") -> _WebsocketService:
     """Create a fresh websocket service instance for each test."""
     return _WebsocketService.create(hassette_with_bus)
 
@@ -135,7 +133,7 @@ async def test_send_and_wait_returns_response(websocket_service: _WebsocketServi
     assert websocket_service._response_futures == {}, "Expected future mapping to be cleaned up"
 
 
-async def test_send_and_wait_times_out(websocket_service: _WebsocketService, hassette_with_bus: Hassette) -> None:
+async def test_send_and_wait_times_out(websocket_service: _WebsocketService, hassette_with_bus: "Hassette") -> None:
     """Raise FailedMessageError when the response future times out."""
     hassette_with_bus.config.websocket_response_timeout_seconds = 0
     websocket_service.mark_ready("ready for timeout test")
@@ -148,7 +146,7 @@ async def test_send_and_wait_times_out(websocket_service: _WebsocketService, has
 
 
 async def test_respond_if_necessary_sets_result(
-    websocket_service: _WebsocketService, hassette_with_bus: Hassette
+    websocket_service: _WebsocketService, hassette_with_bus: "Hassette"
 ) -> None:
     """Fulfill waiting futures when result payloads indicate success."""
     pending_future = hassette_with_bus.loop.create_future()
@@ -161,7 +159,7 @@ async def test_respond_if_necessary_sets_result(
 
 
 async def test_respond_if_necessary_sets_exception(
-    websocket_service: _WebsocketService, hassette_with_bus: Hassette
+    websocket_service: _WebsocketService, hassette_with_bus: "Hassette"
 ) -> None:
     """Attach FailedMessageError when result payloads report failure."""
     pending_future = hassette_with_bus.loop.create_future()
@@ -176,7 +174,7 @@ async def test_respond_if_necessary_sets_exception(
     assert isinstance(exception, FailedMessageError)
 
 
-async def test_authenticate_happy_path(websocket_service: _WebsocketService, hassette_with_bus: Hassette) -> None:
+async def test_authenticate_happy_path(websocket_service: _WebsocketService, hassette_with_bus: "Hassette") -> None:
     """Authenticate when Home Assistant replies with auth_ok."""
     fake_ws = _build_fake_ws()
     fake_ws.receive_json = AsyncMock(side_effect=[{"type": "auth_required"}, {"type": "auth_ok"}])
