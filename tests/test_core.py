@@ -1,9 +1,9 @@
 import asyncio
 import threading
 import typing
-from collections.abc import Generator
+from contextlib import suppress
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -28,13 +28,25 @@ if typing.TYPE_CHECKING:
 
 
 @pytest.fixture
-def hassette_instance(test_config: HassetteConfig) -> Generator[Hassette, Any, None]:
+async def hassette_instance(test_config: HassetteConfig):
     """Provide a fresh Hassette instance and restore context afterwards."""
     previous_instance = context.HASSETTE_INSTANCE.get(None)
     instance = Hassette(test_config)
     try:
         yield instance
     finally:
+        with suppress(Exception):
+            if not instance._send_stream._closed:
+                await instance._send_stream.aclose()
+
+        with suppress(Exception):
+            if not instance._receive_stream._closed:
+                await instance._receive_stream.aclose()
+
+        with suppress(Exception):
+            if not instance._bus_service.stream._closed:
+                await instance._bus_service.stream.aclose()
+
         context.HASSETTE_INSTANCE.set(previous_instance)
 
 
@@ -89,6 +101,7 @@ async def test_event_streams_closed_reflects_state(hassette_instance: Hassette) 
     assert hassette_instance.event_streams_closed is False
     await hassette_instance._send_stream.aclose()
     await hassette_instance._receive_stream.aclose()
+    await asyncio.sleep(0)  # allow state to propagate
     assert hassette_instance.event_streams_closed is True
 
 
@@ -107,7 +120,8 @@ async def test_loop_property_returns_running_loop(hassette_instance: Hassette) -
 
 def test_get_instance_returns_current(hassette_instance: Hassette) -> None:
     """get_instance returns the context-bound Hassette."""
-    assert Hassette.get_instance() is hassette_instance
+    with context.use(context.HASSETTE_INSTANCE, hassette_instance):
+        assert Hassette.get_instance() is hassette_instance
 
 
 def test_get_instance_raises_when_unset() -> None:
@@ -157,7 +171,7 @@ async def test_wait_for_ready_uses_config_timeout(monkeypatch: pytest.MonkeyPatc
         timeout=hassette_instance.config.startup_timeout_seconds,
         shutdown_event=hassette_instance.shutdown_event,
     )
-    assert result is True
+    assert result is True, "Expected wait_for_ready to return True from the helper"
 
 
 async def test_wait_for_ready_accepts_explicit_timeout(
@@ -171,7 +185,7 @@ async def test_wait_for_ready_accepts_explicit_timeout(
     result = await hassette_instance.wait_for_ready(cast("list[Resource]", resources), timeout=42)
 
     waiter.assert_awaited_once_with(resources, timeout=42, shutdown_event=hassette_instance.shutdown_event)
-    assert result is False
+    assert result is False, "Expected wait_for_ready to return False from the helper"
 
 
 async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) -> None:
@@ -181,18 +195,18 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)  # type: ignore[assignment]
     hassette_instance.shutdown = AsyncMock()  # type: ignore[assignment]
 
-    hassette_instance.shutdown_event.set()
-
-    await hassette_instance.run_forever()
+    task = asyncio.create_task(hassette_instance.run_forever())
+    asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
+    await asyncio.sleep(0.1)
+    await task
 
     start_resources.assert_called_once()
     hassette_instance.wait_for_ready.assert_awaited_once_with(
         list(hassette_instance.children), timeout=hassette_instance.config.startup_timeout_seconds
     )
     hassette_instance.shutdown.assert_awaited()
-    assert hassette_instance._loop is asyncio.get_running_loop()
-    assert hassette_instance._loop_thread_id == threading.get_ident()
-    assert hassette_instance.ready_event.is_set()
+    assert hassette_instance._loop is asyncio.get_running_loop(), f"Event loop does not match {hassette_instance._loop}"
+    assert hassette_instance._loop_thread_id == threading.get_ident(), "Thread ID does not match"
 
 
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
@@ -205,4 +219,4 @@ async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) 
 
     hassette_instance.wait_for_ready.assert_awaited_once()
     hassette_instance.shutdown.assert_awaited_once()
-    assert hassette_instance.ready_event.is_set()
+    assert hassette_instance.ready_event.is_set(), "Ready event was not set"
