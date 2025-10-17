@@ -61,8 +61,8 @@ class SimpleTestServer:
         minimal: bool = False,
     ):
         ids = ",".join(entity_ids)
-        path = f"/api/history/period/{start.format_common_iso()}"
-        qs = f"filter_entity_id={ids}&end_time={end.format_common_iso()}"
+        path = f"/api/history/period/{start.format_iso()}"
+        qs = f"filter_entity_id={ids}&end_time={end.format_iso()}"
         if minimal:
             qs += "&minimal_response=true"
         # Caller still needs to provide METHOD, so this returns (PATH, QUERY)

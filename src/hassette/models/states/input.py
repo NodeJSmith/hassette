@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
 from pydantic import Field
-from whenever import Instant, SystemDateTime
+from whenever import Instant, ZonedDateTime
 
 from hassette.utils.date_utils import convert_utc_timestamp_to_system_tz
 
@@ -45,7 +45,7 @@ class InputDatetimeState(DateTimeBaseState):
             return Instant.from_timestamp(self.timestamp)
 
         @property
-        def timestamp_as_system_datetime(self) -> SystemDateTime | None:
+        def timestamp_as_system_datetime(self) -> ZonedDateTime | None:
             if self.timestamp is None:
                 return None
             return convert_utc_timestamp_to_system_tz(self.timestamp)

@@ -1,7 +1,7 @@
 from typing import Literal
 
 from pydantic import Field, field_validator
-from whenever import SystemDateTime
+from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
@@ -22,14 +22,14 @@ class DeviceTrackerState(StringBaseState):
         scanner: str | None = Field(default=None)
         area: str | None = Field(default=None)
         mac: str | None = Field(default=None)
-        last_time_reachable: SystemDateTime | None = Field(default=None)
+        last_time_reachable: ZonedDateTime | None = Field(default=None)
         reason: str | None = Field(default=None)
         ip: str | None = Field(default=None)
         host_name: str | None = Field(default=None)
 
         @field_validator("last_time_reachable", mode="before")
         @classmethod
-        def parse_last_triggered(cls, value: SystemDateTime | str | None) -> SystemDateTime | None:
+        def parse_last_triggered(cls, value: ZonedDateTime | str | None) -> ZonedDateTime | None:
             return convert_datetime_str_to_system_tz(value)
 
     domain: Literal["device_tracker"]

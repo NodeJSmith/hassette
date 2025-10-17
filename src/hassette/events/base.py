@@ -2,7 +2,7 @@ import itertools
 from dataclasses import dataclass, field
 from typing import Generic, Literal, TypeVar
 
-from whenever import SystemDateTime
+from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
@@ -48,7 +48,7 @@ class HassPayload(Generic[HassT]):
     event_type: str
     data: HassT
     origin: Literal["LOCAL", "REMOTE"]
-    time_fired: SystemDateTime
+    time_fired: ZonedDateTime
     context: HassContext
 
     def __post_init__(self):

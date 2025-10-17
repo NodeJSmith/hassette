@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from datetime import time
 from typing import Any
 
-from whenever import SystemDateTime, Time, TimeDelta
+from whenever import Time, TimeDelta, ZonedDateTime
 
 from hassette.core.resources.base import Resource
 from hassette.core.resources.scheduler.classes import CronTrigger, IntervalTrigger, ScheduledJob
@@ -69,7 +69,7 @@ class Scheduler(Resource):
     def schedule(
         self,
         func: "JobCallable",
-        run_at: SystemDateTime,
+        run_at: ZonedDateTime,
         trigger: "TriggerProtocol | None" = None,
         repeat: bool = False,
         name: str = "",
@@ -81,7 +81,7 @@ class Scheduler(Resource):
 
         Args:
             func (JobCallable): The function to run.
-            run_at (SystemDateTime): The time to run the job.
+            run_at (ZonedDateTime): The time to run the job.
             trigger (TriggerProtocol | None): Optional trigger for repeating jobs.
             repeat (bool): Whether the job should repeat.
             name (str): Optional name for the job.
@@ -117,7 +117,7 @@ class Scheduler(Resource):
 
         Args:
             func (JobCallable): The function to run.
-            start (START_TYPE): The time to run the job. Can be a SystemDateTime, Time, time, or (hour, minute) tuple.
+            start (START_TYPE): The time to run the job. Can be a ZonedDateTime, Time, time, or (hour, minute) tuple.
             name (str): Optional name for the job.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
@@ -213,7 +213,7 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             minutes (int): The minute interval to run the job.
             name (str): Optional name for the job.
-            start (SystemDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
+            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
                 provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
                 N minutes.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
@@ -247,7 +247,7 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             hours (int): The hour interval to run the job.
             name (str): Optional name for the job.
-            start (SystemDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
+            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
                 provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
                 N hours.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
@@ -281,7 +281,7 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             days (int): The day interval to run the job.
             name (str): Optional name for the job.
-            start (SystemDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
+            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
                 provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
                 N days.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
@@ -354,29 +354,29 @@ class Scheduler(Resource):
         return self.schedule(func, run_at, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
 
-def get_start_dtme(start: "ScheduleStartType") -> SystemDateTime | None:
-    """Convert a start time to a SystemDateTime.
+def get_start_dtme(start: "ScheduleStartType") -> ZonedDateTime | None:
+    """Convert a start time to a ZonedDateTime.
 
     Args:
-        start (START_TYPE): The start time to convert. Can be a SystemDateTime, Time, time, or (hour, minute) tuple.
+        start (START_TYPE): The start time to convert. Can be a ZonedDateTime, Time, time, or (hour, minute) tuple.
 
     Returns:
-        SystemDateTime | None: The converted start time, or None if no start time was provided.
+        ZonedDateTime | None: The converted start time, or None if no start time was provided.
 
     Raises:
         TypeError: If the start time is not a valid type.
     """
-    start_dtme: SystemDateTime | None = None
+    start_dtme: ZonedDateTime | None = None
 
     if start is None:
         return start
 
-    if isinstance(start, SystemDateTime):
+    if isinstance(start, ZonedDateTime):
         # provided as a full datetime, just use it
         return start
 
     if isinstance(start, TimeDelta):
-        # we can add these directly to get a new SystemDateTime
+        # we can add these directly to get a new ZonedDateTime
         return now() + start
 
     # if we have time/Time then no change
@@ -393,9 +393,9 @@ def get_start_dtme(start: "ScheduleStartType") -> SystemDateTime | None:
     else:
         raise TypeError(f"Start time must be a Time, time, or (hour, minute) tuple, got {type(start).__name__}")
 
-    # convert to SystemDateTime for today at the specified time
+    # convert to ZonedDateTime for today at the specified time
     # if this ends up in the past, the trigger will handle advancing to the next valid time
-    start_dtme = SystemDateTime(
+    start_dtme = ZonedDateTime.from_system_tz(
         year=now().year, month=now().month, day=now().day, hour=start_time.hour, minute=start_time.minute
     )
     return start_dtme

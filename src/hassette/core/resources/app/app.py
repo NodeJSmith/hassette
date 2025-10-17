@@ -5,7 +5,7 @@ from contextlib import suppress
 from logging import getLogger
 from typing import Any, ClassVar, Generic, final
 
-from whenever import SystemDateTime
+from whenever import ZonedDateTime
 
 from hassette.config.app_manifest import AppManifest
 from hassette.core.resources.api.api import Api
@@ -127,7 +127,7 @@ class App(Generic[AppConfigT], Resource):
         """Name for the instance of the app. Used for logging and ownership of resources."""
         return self.app_config.instance_name
 
-    def now(self) -> SystemDateTime:
+    def now(self) -> ZonedDateTime:
         """Return the current date and time."""
         return now()
 

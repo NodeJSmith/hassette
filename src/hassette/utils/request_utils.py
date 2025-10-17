@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any
 
 import orjson
-from whenever import Date, Instant, PlainDateTime, SystemDateTime
+from whenever import Date, Instant, PlainDateTime, ZonedDateTime
 
 
 def orjson_dump(data: Any) -> str:
@@ -20,8 +20,8 @@ def clean_kwargs(**kwargs: Any) -> dict[str, Any]:
         if isinstance(val, bool):
             return str(val).lower()
 
-        if isinstance(val, (PlainDateTime | SystemDateTime | Instant | Date)):
-            return val.format_common_iso()
+        if isinstance(val, (PlainDateTime | ZonedDateTime | Instant | Date)):
+            return val.format_iso()
 
         if isinstance(val, (int | float | str)):
             if isinstance(val, str) and not val.strip():
