@@ -1,5 +1,4 @@
 import contextlib
-import functools
 import inspect
 from collections.abc import Callable
 from functools import lru_cache, partial
@@ -29,7 +28,7 @@ def is_async_callable(fn: Callable[..., object] | Any) -> bool:
         return True
 
     # functools.partial of something async
-    if isinstance(fn, functools.partial):
+    if isinstance(fn, partial):
         return is_async_callable(fn.func)
 
     # callable instance with async __call__
