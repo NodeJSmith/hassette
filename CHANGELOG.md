@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tasks.py` renamed to `task_bucket.py` to follow naming conventions
 
 ### Changed
-- **Breaking:** - Renamed `async_utils.py` to `func_utils.py`, added `callable_name` and `short_callable_name` utility functions
+- **Breaking:** - Renamed `async_utils.py` to `func_utils.py`, added `callable_name` and `callable_short_name` utility functions
 
 ### Internal
 - New type for handlers, `HandlerType`, as we now have additional protocols for variadic handlers
