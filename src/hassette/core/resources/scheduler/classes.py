@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Self, TypeVar
 
 from croniter import croniter
-from whenever import SystemDateTime, TimeDelta
+from whenever import TimeDelta, ZonedDateTime
 
 from hassette.utils.date_utils import now
 
@@ -28,7 +28,7 @@ def next_id() -> int:
 class IntervalTrigger:
     """A trigger that runs at a fixed interval."""
 
-    def __init__(self, interval: TimeDelta, start: SystemDateTime | None = None):
+    def __init__(self, interval: TimeDelta, start: ZonedDateTime | None = None):
         self.interval = interval
         self.start = start or now()
 
@@ -38,11 +38,11 @@ class IntervalTrigger:
         hours: float = 0,
         minutes: float = 0,
         seconds: float = 0,
-        start: SystemDateTime | None = None,
+        start: ZonedDateTime | None = None,
     ) -> Self:
         return cls(TimeDelta(hours=hours, minutes=minutes, seconds=seconds), start=start)
 
-    def next_run_time(self) -> SystemDateTime:
+    def next_run_time(self) -> ZonedDateTime:
         # Catch up if we're behind schedule
         while (next_time := self.start.add(seconds=self.interval.in_seconds())) <= now():
             LOGGER.debug("Skipping past interval time %s", next_time)
@@ -57,7 +57,7 @@ class IntervalTrigger:
 class CronTrigger:
     """A trigger that runs based on a cron expression."""
 
-    def __init__(self, cron_expression: str, start: SystemDateTime | None = None):
+    def __init__(self, cron_expression: str, start: ZonedDateTime | None = None):
         self.cron_expression = cron_expression
         base = start or now()
         self.cron_iter = croniter(cron_expression, base.py_datetime(), ret_type=datetime)
@@ -71,7 +71,7 @@ class CronTrigger:
         day_of_month: int | str = "*",
         month: int | str = "*",
         day_of_week: int | str = "*",
-        start: SystemDateTime | None = None,
+        start: ZonedDateTime | None = None,
     ) -> Self:
         """Create a CronTrigger from individual cron fields.
 
@@ -84,7 +84,7 @@ class CronTrigger:
             day_of_month (int | str): Day of month field of the cron expression.
             month (int | str): Month field of the cron expression.
             day_of_week (int | str): Day of week field of the cron expression.
-            start (SystemDateTime | None): Optional start time for the first run. If provided the job will run at this\
+            start (ZonedDateTime | None): Optional start time for the first run. If provided the job will run at this\
                 time. Otherwise it will run at the current time plus the cron schedule.
 
         Returns:
@@ -100,9 +100,9 @@ class CronTrigger:
 
         return cls(cron_expression, start=start)
 
-    def next_run_time(self) -> SystemDateTime:
+    def next_run_time(self) -> ZonedDateTime:
         while (next_time := self.cron_iter.get_next()) <= now().py_datetime():
-            delta = now() - SystemDateTime.from_py_datetime(next_time)
+            delta = now() - ZonedDateTime.from_py_datetime(next_time)
             if delta.in_seconds() > 60:
                 LOGGER.warning(
                     "Cron schedule is more than 1 minute (%s) behind the current time; "
@@ -116,7 +116,7 @@ class CronTrigger:
             LOGGER.debug("Skipping past cron time %s", next_time)
             pass
 
-        return SystemDateTime.from_py_datetime(next_time)
+        return ZonedDateTime.from_py_datetime(next_time)
 
 
 @dataclass(order=True)
@@ -129,7 +129,7 @@ class ScheduledJob:
     owner: str = field(compare=False)
     """Unique string identifier for the owner of the job, e.g., a component or integration name."""
 
-    next_run: SystemDateTime = field(compare=False)
+    next_run: ZonedDateTime = field(compare=False)
     """Timestamp of the next scheduled run."""
 
     job: "JobCallable" = field(compare=False)
@@ -175,7 +175,7 @@ class ScheduledJob:
         """Cancel the scheduled job by setting the cancelled flag to True."""
         self.cancelled = True
 
-    def set_next_run(self, next_run: SystemDateTime) -> None:
+    def set_next_run(self, next_run: ZonedDateTime) -> None:
         """Update the next run timestamp and refresh ordering metadata."""
         rounded_next_run = next_run.round(unit="second")
         self.next_run = rounded_next_run

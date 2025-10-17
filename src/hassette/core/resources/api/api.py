@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Any, Literal, overload
 
 import aiohttp
-from whenever import Date, PlainDateTime, SystemDateTime
+from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.core.resources.api.sync import ApiSyncFacade
 from hassette.core.resources.base import Resource
@@ -456,8 +456,8 @@ class Api(Resource):
     async def get_history(
         self,
         entity_id: str,
-        start_time: PlainDateTime | SystemDateTime | Date | str,
-        end_time: PlainDateTime | SystemDateTime | Date | str | None = None,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str | None = None,
         significant_changes_only: bool = False,
         minimal_response: bool = False,
         no_attributes: bool = False,
@@ -466,9 +466,9 @@ class Api(Resource):
 
         Args:
             entity_id (str): The ID of the entity to get the history for.
-            start_time (PlainDateTime | SystemDateTime | Date | str):
+            start_time (PlainDateTime | ZonedDateTime | Date | str):
                 The start time for the history range.
-            end_time (PlainDateTime | SystemDateTime | Date | str | None, optional):
+            end_time (PlainDateTime | ZonedDateTime | Date | str | None, optional):
                 The end time for the history range.
             significant_changes_only (bool, optional): Whether to only include significant changes.
             minimal_response (bool, optional): Whether to request a minimal response.
@@ -501,8 +501,8 @@ class Api(Resource):
     async def get_histories(
         self,
         entity_ids: list[str],
-        start_time: PlainDateTime | SystemDateTime | Date | str,
-        end_time: PlainDateTime | SystemDateTime | Date | str | None = None,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str | None = None,
         significant_changes_only: bool = False,
         minimal_response: bool = False,
         no_attributes: bool = False,
@@ -511,9 +511,9 @@ class Api(Resource):
 
         Args:
             entity_ids (list[str]): The IDs of the entities to get the history for.
-            start_time (PlainDateTime | SystemDateTime | Date | str):
+            start_time (PlainDateTime | ZonedDateTime | Date | str):
                 The start time for the history range.
-            end_time (PlainDateTime | SystemDateTime | Date | str | None, optional):
+            end_time (PlainDateTime | ZonedDateTime | Date | str | None, optional):
                 The end time for the history range.
             significant_changes_only (bool, optional): Whether to only include significant changes.
             minimal_response (bool, optional): Whether to request a minimal response.
@@ -545,15 +545,15 @@ class Api(Resource):
     async def get_logbook(
         self,
         entity_id: str,
-        start_time: PlainDateTime | SystemDateTime | Date | str,
-        end_time: PlainDateTime | SystemDateTime | Date | str,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str,
     ) -> list[dict]:
         """Get the logbook entries for a specific entity.
 
         Args:
             entity_id (str): The ID of the entity to get the logbook entries for.
-            start_time (PlainDateTime | SystemDateTime | Date | str): The start time for the logbook range.
-            end_time (PlainDateTime | SystemDateTime | Date | str): The end time for the logbook range.
+            start_time (PlainDateTime | ZonedDateTime | Date | str): The start time for the logbook range.
+            end_time (PlainDateTime | ZonedDateTime | Date | str): The end time for the logbook range.
 
         Returns:
             list[dict]: A list of logbook entries for the specified entity.
@@ -603,13 +603,13 @@ class Api(Resource):
     async def get_camera_image(
         self,
         entity_id: str,
-        timestamp: PlainDateTime | SystemDateTime | Date | str | None = None,
+        timestamp: PlainDateTime | ZonedDateTime | Date | str | None = None,
     ) -> bytes:
         """Get the latest camera image for a specific entity.
 
         Args:
             entity_id (str): The ID of the camera entity to get the image for.
-            timestamp (PlainDateTime | SystemDateTime | Date | str | None, optional):
+            timestamp (PlainDateTime | ZonedDateTime | Date | str | None, optional):
                 The timestamp for the image. If None, the latest image is returned.
 
         Returns:
@@ -635,15 +635,15 @@ class Api(Resource):
     async def get_calendar_events(
         self,
         calendar_id: str,
-        start_time: PlainDateTime | SystemDateTime | Date | str,
-        end_time: PlainDateTime | SystemDateTime | Date | str,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str,
     ) -> list[dict]:
         """Get events from a specific calendar.
 
         Args:
             calendar_id (str): The ID of the calendar to get events from.
-            start_time (PlainDateTime | SystemDateTime | Date | str): The start time for the event range.
-            end_time (PlainDateTime | SystemDateTime | Date | str): The end time for the event range.
+            start_time (PlainDateTime | ZonedDateTime | Date | str): The start time for the event range.
+            end_time (PlainDateTime | ZonedDateTime | Date | str): The end time for the event range.
 
         Returns:
             list[dict]: A list of calendar events.

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
 
 from fair_async_rlock import FairAsyncRLock
-from whenever import SystemDateTime, TimeDelta
+from whenever import TimeDelta, ZonedDateTime
 
 from hassette.core.resources.base import Resource, Service
 from hassette.utils.date_utils import now
@@ -289,7 +289,7 @@ class _ScheduledJobQueue(Resource):
 
         self.logger.debug("Queued job %s for %s", job, job.next_run)
 
-    async def pop_due(self, reference_time: SystemDateTime | None = None) -> list["ScheduledJob"]:
+    async def pop_due(self, reference_time: ZonedDateTime | None = None) -> list["ScheduledJob"]:
         """Return and remove all jobs due to run at or before the reference time."""
 
         due_jobs: list[ScheduledJob] = []
@@ -309,7 +309,7 @@ class _ScheduledJobQueue(Resource):
 
         return due_jobs
 
-    async def next_run_time(self) -> SystemDateTime | None:
+    async def next_run_time(self) -> ZonedDateTime | None:
         """Return the next scheduled run time if available."""
 
         async with self._lock:

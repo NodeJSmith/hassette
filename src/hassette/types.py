@@ -4,7 +4,7 @@ from datetime import time
 from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
 from typing_extensions import TypeAliasType
-from whenever import Date, PlainDateTime, SystemDateTime, Time, TimeDelta
+from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
 if typing.TYPE_CHECKING:
     from hassette.const.misc import NOT_PROVIDED
@@ -51,7 +51,7 @@ class AsyncHandlerVariadic(Protocol[E_contra]):
 class TriggerProtocol(Protocol):
     """Protocol for defining triggers."""
 
-    def next_run_time(self) -> SystemDateTime:
+    def next_run_time(self) -> ZonedDateTime:
         """Return the next run time of the trigger."""
         ...
 
@@ -71,7 +71,7 @@ HandlerType = TypeAliasType(
 """Alias for all valid handler types."""
 
 
-KnownTypes: TypeAlias = SystemDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
+KnownTypes: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
 """Alias for all known valid state types."""
 
 ChangeType: TypeAlias = "None | NOT_PROVIDED | KnownTypes | PredicateCallable"  # pyright: ignore[reportInvalidTypeForm]
@@ -80,5 +80,5 @@ ChangeType: TypeAlias = "None | NOT_PROVIDED | KnownTypes | PredicateCallable"  
 JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
 """Alias for a callable that can be scheduled as a job."""
 
-ScheduleStartType = SystemDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
+ScheduleStartType = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
 """Type for specifying start times."""

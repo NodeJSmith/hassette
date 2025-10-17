@@ -1,36 +1,36 @@
-from whenever import OffsetDateTime, SystemDateTime, ZonedDateTime
+from whenever import OffsetDateTime, ZonedDateTime
 
 
-def convert_utc_timestamp_to_system_tz(timestamp: int | float) -> SystemDateTime:
-    """Convert a UTC timestamp to SystemDateTime in system timezone.
+def convert_utc_timestamp_to_system_tz(timestamp: int | float) -> ZonedDateTime:
+    """Convert a UTC timestamp to ZonedDateTime in system timezone.
 
     Args:
         timestamp (int | float): The UTC timestamp.
 
     Returns:
-        SystemDateTime: The converted SystemDateTime.
+        ZonedDateTime: The converted ZonedDateTime.
     """
     return ZonedDateTime.from_timestamp(timestamp, tz="UTC").to_system_tz()
 
 
-def convert_datetime_str_to_system_tz(value: str | SystemDateTime | None) -> SystemDateTime | None:
-    """Convert an ISO 8601 datetime string to SystemDateTime in system timezone.
+def convert_datetime_str_to_system_tz(value: str | ZonedDateTime | None) -> ZonedDateTime | None:
+    """Convert an ISO 8601 datetime string to ZonedDateTime in system timezone.
 
     Args:
-        value (str | SystemDateTime | None): The ISO 8601 datetime string.
+        value (str | ZonedDateTime | None): The ISO 8601 datetime string.
 
     Returns:
-        SystemDateTime | None: The converted SystemDateTime or None if input is None.
+        ZonedDateTime | None: The converted ZonedDateTime or None if input is None.
     """
-    if value is None or isinstance(value, SystemDateTime):
+    if value is None or isinstance(value, ZonedDateTime):
         return value
-    return OffsetDateTime.parse_common_iso(value).to_system_tz()
+    return OffsetDateTime.parse_iso(value).to_system_tz()
 
 
-def now() -> SystemDateTime:
+def now() -> ZonedDateTime:
     """Get the current time.
 
-    This exists to avoid direct calls to SystemDateTime.now() in the codebase, in case we need to change
+    This exists to avoid direct calls to ZonedDateTime.now_in_system_tz() in the codebase, in case we need to change
     the implementation later.
     """
-    return SystemDateTime.now()
+    return ZonedDateTime.now_in_system_tz()

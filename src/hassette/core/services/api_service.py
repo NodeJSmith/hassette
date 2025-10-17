@@ -14,7 +14,7 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential_jitter,
 )
-from whenever import Date, PlainDateTime, SystemDateTime
+from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.core.resources.base import Resource
 from hassette.exceptions import ConnectionClosedError, EntityNotFoundError, InvalidAuthError, ResourceNotReadyError
@@ -158,8 +158,8 @@ class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
     async def _get_history_raw(
         self,
         entity_id: str,
-        start_time: PlainDateTime | SystemDateTime | Date | str,
-        end_time: PlainDateTime | SystemDateTime | Date | str | None = None,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str | None = None,
         significant_changes_only: bool = False,
         minimal_response: bool = False,
         no_attributes: bool = False,

@@ -2,7 +2,7 @@ from logging import getLogger
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Date, PlainDateTime, SystemDateTime, Time
+from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
@@ -101,15 +101,15 @@ class BaseState(BaseModel, Generic[StateValueT]):
     entity_id: str = Field(...)
     """The full entity ID, e.g. 'light.living_room'."""
 
-    last_changed: SystemDateTime | None = Field(None)
+    last_changed: ZonedDateTime | None = Field(None)
     """Time the state changed in the state machine, not updated when only attributes change."""
 
-    last_reported: SystemDateTime | None = Field(None)
+    last_reported: ZonedDateTime | None = Field(None)
     """Time the state was written to the state machine, updated regardless of any changes to the state or
     state attributes.
     """
 
-    last_updated: SystemDateTime | None = Field(None)
+    last_updated: ZonedDateTime | None = Field(None)
     """Time the state or state attributes changed in the state machine, not updated if neither state nor state
     attributes changed.
     """
@@ -183,18 +183,18 @@ class StringBaseState(BaseState[str | None]):
     """Base class for string states."""
 
 
-class DateTimeBaseState(BaseState[SystemDateTime | PlainDateTime | Date | None]):
+class DateTimeBaseState(BaseState[ZonedDateTime | PlainDateTime | Date | None]):
     """Base class for datetime states.
 
-    Valid state values are SystemDateTime, PlainDateTime, Date, or None.
+    Valid state values are ZonedDateTime, PlainDateTime, Date, or None.
     """
 
     @field_validator("value", mode="before")
     @classmethod
     def validate_state(
-        cls, value: SystemDateTime | PlainDateTime | Date | str | None
-    ) -> SystemDateTime | PlainDateTime | Date | None:
-        if isinstance(value, None | SystemDateTime | PlainDateTime | Date):
+        cls, value: ZonedDateTime | PlainDateTime | Date | str | None
+    ) -> ZonedDateTime | PlainDateTime | Date | None:
+        if isinstance(value, None | ZonedDateTime | PlainDateTime | Date):
             return value
         if isinstance(value, str):
             # Try parsing as OffsetDateTime first (most common case)

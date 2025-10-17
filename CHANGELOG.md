@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Breaking:** - Renamed `async_utils.py` to `func_utils.py`, added `callable_name` and `callable_short_name` utility functions
+- **Breaking:** - Upgrade to `whenever==0.9.*` which removed `SystemDateTime` in favor of `ZonedDateTime` - all references in the code base have been updated
 
 ### Internal
 - New type for handlers, `HandlerType`, as we now have additional protocols for variadic handlers

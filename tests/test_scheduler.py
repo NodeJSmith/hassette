@@ -1,7 +1,7 @@
 import asyncio
 from zoneinfo import ZoneInfo
 
-from whenever import SystemDateTime
+from whenever import ZonedDateTime
 
 from hassette import Hassette
 from hassette.core.resources.scheduler.scheduler import ScheduledJob
@@ -49,7 +49,7 @@ def test_scheduled_job_copies_args_kwargs() -> None:
 
     job = ScheduledJob(
         owner="owner",
-        next_run=SystemDateTime(2030, 1, 1, 0, 0, 0),
+        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda *a, **kw: None,  # noqa
         args=args,  # type: ignore
         kwargs=kwargs,
