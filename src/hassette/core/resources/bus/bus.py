@@ -2,7 +2,7 @@ import asyncio
 import time
 import typing
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any, TypedDict, Unpack, cast
 
 from hassette import topics
 from hassette.const.misc import NOT_PROVIDED
@@ -11,8 +11,9 @@ from hassette.core.resources.bus.predicates.event import CallServiceEventWrapper
 from hassette.enums import ResourceStatus
 from hassette.events.base import Event
 from hassette.types import Predicate
+from hassette.utils.func_utils import callable_short_name
 
-from .listeners import Listener, Subscription, callable_short_name
+from .listeners import Listener, Subscription
 from .predicates import AllOf, AttrChanged, EntityMatches, Guard, StateChanged
 from .predicates.base import normalize_where
 
@@ -29,6 +30,17 @@ if typing.TYPE_CHECKING:
         StateChangeEvent,
     )
     from hassette.types import AsyncHandler, ChangeType, E_contra, Handler
+
+
+class Options(TypedDict, total=False):
+    once: bool | None
+    """Whether the listener should be removed after one invocation."""
+
+    debounce: float | None
+    """Debounce interval in seconds, or None if not debounced."""
+
+    throttle: float | None
+    """Throttle interval in seconds, or None if not throttled."""
 
 
 class Bus(Resource):
@@ -68,7 +80,9 @@ class Bus(Resource):
         topic: str,
         handler: "Handler[Event[Any]]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        once: bool = False,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        once: bool | None = False,
         debounce: float | None = None,
         throttle: float | None = None,
     ) -> Subscription:
@@ -78,6 +92,8 @@ class Bus(Resource):
             topic (str): The event topic to listen to.
             handler (Callable): The function to call when the event matches.
             where (Predicate | Iterable[Predicate] | None): Optional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             once (bool): If True, the handler will be called only once and then removed.
             debounce (float | None): If set, applies a debounce to the handler.
             throttle (float | None): If set, applies a throttle to the handler.
@@ -104,6 +120,8 @@ class Bus(Resource):
             orig_handler=orig,
             handler=handler,
             predicate=pred,
+            args=args,
+            kwargs=kwargs,
             once=once,
             debounce=debounce,
             throttle=throttle,
@@ -124,7 +142,9 @@ class Bus(Resource):
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to state changes for a specific entity.
 
@@ -177,7 +197,9 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))  # allow extra guards
 
-        return self.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, **opts)
+        return self.on(
+            topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
+        )
 
     def on_attribute_change(
         self,
@@ -188,7 +210,9 @@ class Bus(Resource):
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to state change events for a specific entity's attribute.
 
@@ -225,7 +249,9 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, **opts)
+        return self.on(
+            topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
+        )
 
     def on_call_service(
         self,
@@ -234,7 +260,9 @@ class Bus(Resource):
         *,
         handler: "Handler[CallServiceEvent]",
         where: "Predicate | Iterable[Predicate] | Mapping[str, Any | type[Any]] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to service call events.
 
@@ -325,7 +353,9 @@ class Bus(Resource):
 
                 preds.append(AllOf.ensure_iterable(other))
 
-        return self.on(topic=topics.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, **opts)
+        return self.on(
+            topic=topics.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
+        )
 
     def on_component_loaded(
         self,
@@ -333,7 +363,9 @@ class Bus(Resource):
         *,
         handler: "Handler[ComponentLoadedEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to component loaded events.
 
@@ -362,7 +394,9 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, **opts)
+        return self.on(
+            topic=topics.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
+        )
 
     def on_service_registered(
         self,
@@ -371,7 +405,9 @@ class Bus(Resource):
         *,
         handler: "Handler[ServiceRegisteredEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to service registered events.
 
@@ -405,13 +441,17 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, **opts)
+        return self.on(
+            topic=topics.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
+        )
 
     def on_homeassistant_restart(
         self,
         handler: "Handler[CallServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant restart events.
 
@@ -423,13 +463,17 @@ class Bus(Resource):
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
         """
-        return self.on_call_service(domain="homeassistant", service="restart", handler=handler, where=where, **opts)
+        return self.on_call_service(
+            domain="homeassistant", service="restart", handler=handler, where=where, args=args, kwargs=kwargs, **opts
+        )
 
     def on_homeassistant_start(
         self,
         handler: "Handler[CallServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant start events.
 
@@ -441,13 +485,17 @@ class Bus(Resource):
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
         """
-        return self.on_call_service(domain="homeassistant", service="start", handler=handler, where=where, **opts)
+        return self.on_call_service(
+            domain="homeassistant", service="start", handler=handler, where=where, args=args, kwargs=kwargs, **opts
+        )
 
     def on_homeassistant_stop(
         self,
         handler: "Handler[CallServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant stop events.
 
@@ -459,7 +507,9 @@ class Bus(Resource):
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
         """
-        return self.on_call_service(domain="homeassistant", service="stop", handler=handler, where=where, **opts)
+        return self.on_call_service(
+            domain="homeassistant", service="stop", handler=handler, where=where, args=args, kwargs=kwargs, **opts
+        )
 
     def on_hassette_service_status(
         self,
@@ -467,7 +517,9 @@ class Bus(Resource):
         *,
         handler: "Handler[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service status events.
 
@@ -496,14 +548,18 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, **opts)
+        return self.on(
+            topic=topics.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
+        )
 
     def on_hassette_service_failed(
         self,
         *,
         handler: "Handler[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service failed events.
 
@@ -516,14 +572,18 @@ class Bus(Resource):
             Subscription: A subscription object that can be used to manage the listener.
         """
 
-        return self.on_hassette_service_status(status=ResourceStatus.FAILED, handler=handler, where=where, **opts)
+        return self.on_hassette_service_status(
+            status=ResourceStatus.FAILED, handler=handler, where=where, args=args, kwargs=kwargs, **opts
+        )
 
     def on_hassette_service_crashed(
         self,
         *,
         handler: "Handler[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service crashed events.
 
@@ -536,14 +596,18 @@ class Bus(Resource):
             Subscription: A subscription object that can be used to manage the listener.
         """
 
-        return self.on_hassette_service_status(status=ResourceStatus.CRASHED, handler=handler, where=where, **opts)
+        return self.on_hassette_service_status(
+            status=ResourceStatus.CRASHED, handler=handler, where=where, args=args, kwargs=kwargs, **opts
+        )
 
     def on_hassette_service_started(
         self,
         *,
         handler: "Handler[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
-        **opts,
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service started events.
 
@@ -556,7 +620,9 @@ class Bus(Resource):
             Subscription: A subscription object that can be used to manage the listener.
         """
 
-        return self.on_hassette_service_status(status=ResourceStatus.RUNNING, handler=handler, where=where, **opts)
+        return self.on_hassette_service_status(
+            status=ResourceStatus.RUNNING, handler=handler, where=where, args=args, kwargs=kwargs, **opts
+        )
 
     def _make_async_handler(self, fn: "Handler[E_contra]") -> "AsyncHandler[E_contra]":
         """Wrap a function to ensure it is always called as an async handler.

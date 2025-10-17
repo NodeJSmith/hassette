@@ -1,6 +1,7 @@
 import contextlib
 import itertools
 import typing
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from inspect import isawaitable
 from typing import Any
@@ -43,7 +44,13 @@ class Listener:
     predicate: "Predicate | None"
     """Predicate to filter events before invoking the handler."""
 
-    once: bool = False
+    args: tuple[Any, ...] | None = None
+    """Positional arguments to pass to the handler."""
+
+    kwargs: Mapping[str, Any] | None = None
+    """Keyword arguments to pass to the handler."""
+
+    once: bool | None = False
     """Whether the listener should be removed after one invocation."""
 
     debounce: float | None = None
