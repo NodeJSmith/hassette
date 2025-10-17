@@ -48,3 +48,20 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus) -> None:
     assert len(hassette._bus.task_bucket) == 0, (
         f"Expected no leftover bus tasks, found {len(hassette._bus.task_bucket)}"
     )
+
+
+async def test_bus_uses_args_kwargs(hassette_with_bus) -> None:
+    hassette = hassette_with_bus
+
+    received: list[str] = []
+
+    def handler(event: Event[SimpleNamespace], prefix: str, suffix: str) -> None:
+        received.append(f"{prefix}{event.payload.value}{suffix}")
+
+    hassette._bus.on(topic="custom.args", handler=handler, args=("Value: ",), kwargs={"suffix": "!"})
+
+    await hassette.send_event("custom.args", Event(topic="custom.args", payload=SimpleNamespace(value="Test")))
+
+    await asyncio.sleep(0.1)
+
+    assert received == ["Value: Test!"], f"Expected handler to receive formatted value, got {received}"
