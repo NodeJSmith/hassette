@@ -24,7 +24,7 @@ from hassette.core.services.app_handler import _AppHandler
 from hassette.core.services.bus_service import _BusService
 from hassette.core.services.file_watcher import _FileWatcher
 from hassette.core.services.scheduler_service import _SchedulerService
-from hassette.core.services.websocket_service import _Websocket
+from hassette.core.services.websocket_service import _WebsocketService
 from hassette.enums import ResourceStatus
 from hassette.events import Event
 from hassette.test_utils.test_server import SimpleTestServer
@@ -85,7 +85,7 @@ class _HassetteMock(Resource):
         self._scheduler: Scheduler | None = None
         self._file_watcher: _FileWatcher | None = None
         self._app_handler: _AppHandler | None = None
-        self._websocket: _Websocket | None = None
+        self._websocket: _WebsocketService | None = None
 
     async def send_event(self, topic: str, event: Event[Any]) -> None:
         if not self._send_stream:
@@ -293,7 +293,7 @@ class HassetteHarness:
         self._exit_stack.enter_context(rest_url_patch)
         self._exit_stack.enter_context(headers_patch)
 
-        self.hassette._websocket = Mock(spec=_Websocket)
+        self.hassette._websocket = Mock(spec=_WebsocketService)
         self.hassette._websocket.ready_event = asyncio.Event()
         self.hassette._websocket.ready_event.set()
 
