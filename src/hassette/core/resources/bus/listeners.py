@@ -9,10 +9,10 @@ from typing import Any
 from hassette.utils.func_utils import callable_name
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Callable
 
     from hassette.events import Event
-    from hassette.types import Predicate
+    from hassette.types import AsyncHandlerType, HandlerType, Predicate
 
 
 seq = itertools.count(1)
@@ -35,10 +35,10 @@ class Listener:
     topic: str
     """Topic the listener is subscribed to."""
 
-    orig_handler: "Callable[[Event[Any]], Any]"
+    orig_handler: "HandlerType"
     """Original handler function provided by the user."""
 
-    handler: "Callable[[Event[Any]], Awaitable[None]]"  # fully wrapped, ready to await
+    handler: "AsyncHandlerType"
     """Wrapped handler function that is always async."""
 
     predicate: "Predicate | None"

@@ -1,8 +1,9 @@
 import typing
 from collections.abc import Awaitable, Callable
 from datetime import time
-from typing import Any, Protocol, TypeAlias, TypeAliasType, TypeVar, runtime_checkable
+from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
+from typing_extensions import TypeAliasType
 from whenever import Date, PlainDateTime, SystemDateTime, Time, TimeDelta
 
 if typing.TYPE_CHECKING:
@@ -54,6 +55,13 @@ class TriggerProtocol(Protocol):
         """Return the next run time of the trigger."""
         ...
 
+
+AsyncHandlerType = TypeAliasType(
+    "AsyncHandlerType",
+    AsyncHandler[E_contra] | AsyncHandlerVariadic[E_contra],
+    type_params=(E_contra,),
+)
+"""Alias for all valid async handler types."""
 
 HandlerType = TypeAliasType(
     "HandlerType",
