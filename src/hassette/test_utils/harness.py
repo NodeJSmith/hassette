@@ -18,7 +18,7 @@ from hassette.core.resources.api.api import Api
 from hassette.core.resources.base import Resource
 from hassette.core.resources.bus.bus import Bus
 from hassette.core.resources.scheduler.scheduler import Scheduler
-from hassette.core.resources.tasks import TaskBucket, make_task_factory
+from hassette.core.resources.task_bucket import TaskBucket, make_task_factory
 from hassette.core.services.api_service import _ApiService
 from hassette.core.services.app_handler import _AppHandler
 from hassette.core.services.bus_service import _BusService
