@@ -50,7 +50,7 @@ class Listener:
     kwargs: Mapping[str, Any] | None = None
     """Keyword arguments to pass to the handler."""
 
-    once: bool | None = False
+    once: bool = False
     """Whether the listener should be removed after one invocation."""
 
     debounce: float | None = None

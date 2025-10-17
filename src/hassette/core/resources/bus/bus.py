@@ -37,7 +37,7 @@ R = TypeVar("R")
 
 
 class Options(TypedDict, total=False):
-    once: bool | None
+    once: bool
     """Whether the listener should be removed after one invocation."""
 
     debounce: float | None
@@ -86,7 +86,7 @@ class Bus(Resource):
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-        once: bool | None = False,
+        once: bool = False,
         debounce: float | None = None,
         throttle: float | None = None,
     ) -> Subscription:
