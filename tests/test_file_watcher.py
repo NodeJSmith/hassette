@@ -20,7 +20,7 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
     file_event_received = asyncio.Event()
 
     async def handler(event: Event[Any]) -> None:
-        file_event_received.set()
+        hassette_with_file_watcher.task_bucket.post_to_loop(file_event_received.set)
         assert event.topic == HASSETTE_EVENT_FILE_WATCHER, f"Unexpected topic: {event.topic}"
 
     hassette_instance._bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=handler)

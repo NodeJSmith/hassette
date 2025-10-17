@@ -17,7 +17,7 @@ async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: Hassette
 
     async def target(a: int, b: int, *, flag: bool) -> None:
         captured_arguments.append((a, b, flag))
-        job_executed.set()
+        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
     scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01, args=(1, 2), kwargs={"flag": True})
 
@@ -74,7 +74,7 @@ async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> N
     def make_job(label: str, signal: asyncio.Event):
         def _job() -> None:
             execution_order.append(label)
-            signal.set()
+            hassette_with_scheduler.task_bucket.post_to_loop(signal.set)
 
         return _job
 

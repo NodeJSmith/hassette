@@ -141,7 +141,7 @@ async def test_once_listener_removed(hassette_with_bus) -> None:
 
     async def handler(event: Event[SimpleNamespace]) -> None:
         received_payloads.append(event.payload.value)
-        first_invocation.set()
+        hassette_with_bus.task_bucket.post_to_loop(first_invocation.set)
 
     hassette._bus.on(topic="custom.once", handler=handler, once=True)
 
@@ -164,7 +164,7 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus) -> None:
     event_received = asyncio.Event()
 
     async def handler(event: Event[SimpleNamespace]) -> None:  # noqa
-        event_received.set()
+        hassette_with_bus.task_bucket.post_to_loop(event_received.set)
 
     hassette._bus.on(topic="custom.cleanup", handler=handler, once=True)
 
@@ -187,7 +187,7 @@ async def test_bus_uses_args_kwargs(hassette_with_bus) -> None:
 
     def handler(event: Event[SimpleNamespace], prefix: str, suffix: str) -> None:
         formatted_messages.append(f"{prefix}{event.payload.value}{suffix}")
-        event_processed.set()
+        hassette_with_bus.task_bucket.post_to_loop(event_processed.set)
 
     hassette._bus.on(topic="custom.args", handler=handler, args=("Value: ",), kwargs={"suffix": "!"})
 

@@ -99,7 +99,7 @@ async def test_factory_tracks_rogue_create_task(bucket_fixture: task_bucket.Task
     rogue_task_started = asyncio.Event()
 
     async def rogue():
-        rogue_task_started.set()
+        bucket_fixture.post_to_loop(rogue_task_started.set)
         await asyncio.sleep(10)
 
     rogue_task_handle = asyncio.create_task(rogue(), name="rogue")
