@@ -2,7 +2,7 @@ import asyncio
 import time
 import typing
 from collections.abc import Mapping
-from typing import Any, TypedDict, Unpack, cast
+from typing import Any, ParamSpec, TypedDict, TypeVar, Unpack, cast
 
 from hassette import topics
 from hassette.const.misc import NOT_PROVIDED
@@ -10,7 +10,7 @@ from hassette.core.resources.base import Resource
 from hassette.core.resources.bus.predicates.event import CallServiceEventWrapper, KeyValueMatches
 from hassette.enums import ResourceStatus
 from hassette.events.base import Event
-from hassette.types import Predicate
+from hassette.types import HandlerType, Predicate
 from hassette.utils.func_utils import callable_short_name
 
 from .listeners import Listener, Subscription
@@ -29,7 +29,11 @@ if typing.TYPE_CHECKING:
         ServiceRegisteredEvent,
         StateChangeEvent,
     )
-    from hassette.types import AsyncHandler, ChangeType, E_contra, Handler
+    from hassette.types import AsyncHandler, ChangeType, E_contra
+
+T = TypeVar("T", covariant=True)
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 class Options(TypedDict, total=False):
@@ -78,7 +82,7 @@ class Bus(Resource):
         self,
         *,
         topic: str,
-        handler: "Handler[Event[Any]]",
+        handler: "HandlerType[Event[Any]]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -137,7 +141,7 @@ class Bus(Resource):
         self,
         entity_id: str,
         *,
-        handler: "Handler[StateChangeEvent[states.StateT]]",
+        handler: "HandlerType[StateChangeEvent[states.StateT]]",
         changed: bool | None = True,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
@@ -206,7 +210,7 @@ class Bus(Resource):
         entity_id: str,
         attr: str,
         *,
-        handler: "Handler[StateChangeEvent]",
+        handler: "HandlerType[StateChangeEvent]",
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Iterable[Predicate] | None" = None,
@@ -258,7 +262,7 @@ class Bus(Resource):
         domain: str | None = None,
         service: str | None = None,
         *,
-        handler: "Handler[CallServiceEvent]",
+        handler: "HandlerType[CallServiceEvent]",
         where: "Predicate | Iterable[Predicate] | Mapping[str, Any | type[Any]] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -361,7 +365,7 @@ class Bus(Resource):
         self,
         component: str | None = None,
         *,
-        handler: "Handler[ComponentLoadedEvent]",
+        handler: "HandlerType[ComponentLoadedEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -403,7 +407,7 @@ class Bus(Resource):
         domain: str | None = None,
         service: str | None = None,
         *,
-        handler: "Handler[ServiceRegisteredEvent]",
+        handler: "HandlerType[ServiceRegisteredEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -447,7 +451,7 @@ class Bus(Resource):
 
     def on_homeassistant_restart(
         self,
-        handler: "Handler[CallServiceEvent]",
+        handler: "HandlerType[CallServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -469,7 +473,7 @@ class Bus(Resource):
 
     def on_homeassistant_start(
         self,
-        handler: "Handler[CallServiceEvent]",
+        handler: "HandlerType[CallServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -491,7 +495,7 @@ class Bus(Resource):
 
     def on_homeassistant_stop(
         self,
-        handler: "Handler[CallServiceEvent]",
+        handler: "HandlerType[CallServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -515,7 +519,7 @@ class Bus(Resource):
         self,
         status: ResourceStatus | None = None,
         *,
-        handler: "Handler[HassetteServiceEvent]",
+        handler: "HandlerType[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -555,7 +559,7 @@ class Bus(Resource):
     def on_hassette_service_failed(
         self,
         *,
-        handler: "Handler[HassetteServiceEvent]",
+        handler: "HandlerType[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -579,7 +583,7 @@ class Bus(Resource):
     def on_hassette_service_crashed(
         self,
         *,
-        handler: "Handler[HassetteServiceEvent]",
+        handler: "HandlerType[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -603,7 +607,7 @@ class Bus(Resource):
     def on_hassette_service_started(
         self,
         *,
-        handler: "Handler[HassetteServiceEvent]",
+        handler: "HandlerType[HassetteServiceEvent]",
         where: "Predicate | Iterable[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -624,7 +628,7 @@ class Bus(Resource):
             status=ResourceStatus.RUNNING, handler=handler, where=where, args=args, kwargs=kwargs, **opts
         )
 
-    def _make_async_handler(self, fn: "Handler[E_contra]") -> "AsyncHandler[E_contra]":
+    def _make_async_handler(self, fn: "HandlerType[E_contra]") -> "AsyncHandler[E_contra]":
         """Wrap a function to ensure it is always called as an async handler.
 
         If the function is already an async function, it will be called directly.
@@ -656,7 +660,7 @@ class Bus(Resource):
         pending: asyncio.Task | None = None
         last_ev: Event[Any] | None = None
 
-        async def _debounced(event: Event[Any]) -> None:
+        async def _debounced(event: Event[Any], *args: P.args, **kwargs: P.kwargs) -> None:
             nonlocal pending, last_ev
             last_ev = event
             if pending and not pending.done():
@@ -666,7 +670,7 @@ class Bus(Resource):
                 try:
                     await asyncio.sleep(seconds)
                     if last_ev is not None:
-                        await handler(last_ev)
+                        await handler(last_ev, *args, **kwargs)
                 except asyncio.CancelledError:
                     pass
 
@@ -691,12 +695,12 @@ class Bus(Resource):
         last_time = 0.0
         lock = asyncio.Lock()
 
-        async def _throttled(event: Event[Any]) -> None:
+        async def _throttled(event: Event[Any], *args: P.args, **kwargs: P.kwargs) -> None:
             nonlocal last_time
             async with lock:
                 now = time.monotonic()
                 if now - last_time >= seconds:
                     last_time = now
-                    await handler(event)
+                    await handler(event, *args, **kwargs)
 
         return _throttled

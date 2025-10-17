@@ -1,7 +1,7 @@
 import typing
 from collections.abc import Awaitable, Callable
 from datetime import time
-from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
+from typing import Any, Protocol, TypeAlias, TypeAliasType, TypeVar, runtime_checkable
 
 from whenever import Date, PlainDateTime, SystemDateTime, Time, TimeDelta
 
@@ -20,16 +20,31 @@ class Predicate(Protocol[E_contra]):
     def __call__(self, event: E_contra) -> bool | Awaitable[bool]: ...
 
 
+@runtime_checkable
+class PredicateCallable(Protocol):
+    """Protocol for defining callables that evaluate values."""
+
+    def __call__(self, value: "KnownTypes") -> bool: ...
+
+
 class Handler(Protocol[E_contra]):
     """Protocol for defining event handlers."""
 
     def __call__(self, event: E_contra) -> Awaitable[None] | None: ...
 
 
+class HandlerVariadic(Protocol[E_contra]):
+    def __call__(self, event: E_contra, *args: object, **kwargs: Any) -> Awaitable[None] | None: ...
+
+
 class AsyncHandler(Protocol[E_contra]):
     """Protocol for defining asynchronous event handlers."""
 
     def __call__(self, event: E_contra) -> Awaitable[None]: ...
+
+
+class AsyncHandlerVariadic(Protocol[E_contra]):
+    def __call__(self, event: E_contra, *args: object, **kwargs: Any) -> Awaitable[None]: ...
 
 
 class TriggerProtocol(Protocol):
@@ -40,11 +55,12 @@ class TriggerProtocol(Protocol):
         ...
 
 
-@runtime_checkable
-class PredicateCallable(Protocol):
-    """Protocol for defining callables that evaluate values."""
-
-    def __call__(self, value: "KnownTypes") -> bool: ...
+HandlerType = TypeAliasType(
+    "HandlerType",
+    Handler[E_contra] | HandlerVariadic[E_contra] | AsyncHandler[E_contra] | AsyncHandlerVariadic[E_contra],
+    type_params=(E_contra,),
+)
+"""Alias for all valid handler types."""
 
 
 KnownTypes: TypeAlias = SystemDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
@@ -55,7 +71,6 @@ ChangeType: TypeAlias = "None | NOT_PROVIDED | KnownTypes | PredicateCallable"  
 
 JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
 """Alias for a callable that can be scheduled as a job."""
-
 
 ScheduleStartType = SystemDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
 """Type for specifying start times."""

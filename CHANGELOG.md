@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Add validation for filename extension in AppManifest - add `.py` if no suffix, raise error if not `.py`
+- Bus handlers can now accept args and kwargs to be passed to the callback when the event is fired
+- `tasks.py` renamed to `task_bucket.py` to follow naming conventions
+
+### Changed
+- **Breaking:** - Renamed `async_utils.py` to `func_utils.py`, added `callable_name` and `short_callable_name` utility functions
+
+### Internal
+- New type for handlers, `HandlerType`, as we now have additional protocols for variadic handlers
+
+
 
 ## [0.13.0] - 2025-10-14
 
