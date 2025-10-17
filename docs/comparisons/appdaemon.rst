@@ -322,7 +322,7 @@ You can cancel a subscription using the handle returned by the listen method, e.
 Hassette
 ^^^^^^^^^^^
 
-Event handlers can also be either async or sync functions, and currently only accept the event object as a parameter. The event bus uses typed events and composable predicates for filtering.
+Event handlers can also be either async or sync functions, and accept the event object and optional args and kwargs variadic parameters. The event bus uses typed events and composable predicates for filtering.
 In this example, we listen for a service call event with a specific entity_id. Behind the scenes, the dictionary passed to ``where`` is converted into a predicate that checks for equality on each key/value pair.
 
 The event bus is accessed via the ``self.bus`` attribute. You can cancel a subscription using the ``Subscription`` object returned by the listen method, e.g., ``subscription.cancel()``.
@@ -412,7 +412,7 @@ You can cancel a subscription using the handle returned by the listen method, e.
 Hassette
 ^^^^^^^^^^^^^^
 
-State change handlers are the exact same as event handlers - we're only calling them out separately to align with AppDaemon. These can also be either async or sync functions, and currently only accept the event object as a parameter.
+State change handlers are the exact same as event handlers - we're only calling them out separately to align with AppDaemon. These can also be either async or sync functions and accept the event object and optional args and kwargs variadic parameters.
 The event bus provides helpers for filtering entities and attributes. You can also provide additional predicates using the ``where`` parameter. In this example, we listen for any state change on the specified entity.
 
 Like other objects, these are typed using Pydantic models - `StateChangeEvent` is a `Generic` that takes a type parameter for the state model, so you can specify exactly what type of entity you're listening for.
