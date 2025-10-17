@@ -5,7 +5,8 @@ Subscribe to state changes and services using the Bus.
 
 .. note::
 
-    Unlike AppDaemon, your callable will only receive **one argument** representing the event, the typed event dataclass.
+    Unlike AppDaemon, your callable will not receive multiple specific keyword arguments. Instead, it will receive one argument representing the event,
+    and may also receive ``*args`` and ``**kwargs`` if you specified those in your subscription.
     The event object will have everything you need for handling the event. For state change events it will include the old and new states, and for
     service calls it will include the service data, etc. More details are provided below.
 
