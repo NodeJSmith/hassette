@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Internal
 - New type for handlers, `HandlerType`, as we now have additional protocols for variadic handlers
 
+### Fixed
+- Correct scheduler helpers `run_minutely`, `run_hourly`, and `run_daily` to not start immediately if no `start` was provided, but to start on the next interval instead.
 
 
 ## [0.13.0] - 2025-10-14
