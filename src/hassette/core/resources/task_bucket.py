@@ -126,6 +126,10 @@ class TaskBucket(Resource):
 
         return asyncio.to_thread(_call)
 
+    def post_to_loop(self, fn, *args, **kwargs) -> None:
+        """Schedule a callable on the event loop from any thread."""
+        self.hassette.loop.call_soon_threadsafe(fn, *args, **kwargs)
+
     @overload
     def make_async_adapter(self, fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
     @overload

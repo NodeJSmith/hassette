@@ -63,7 +63,7 @@ class TestApps:
         event = asyncio.Event()
 
         async def handler(*args, **kwargs):  # noqa
-            event.set()
+            self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
             Listener(
@@ -103,7 +103,7 @@ class TestApps:
         event = asyncio.Event()
 
         async def handler(*args, **kwargs):  # noqa
-            event.set()
+            self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
             Listener(

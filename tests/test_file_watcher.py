@@ -13,37 +13,37 @@ if typing.TYPE_CHECKING:
 
 
 async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassette"):
-    # make these shorter for convenience
-    hassette = hassette_with_file_watcher
-    file_watcher = hassette._file_watcher
+    """File watcher emits an event when a tracked file changes."""
+    hassette_instance = hassette_with_file_watcher
+    file_watcher_service = hassette_instance._file_watcher
 
-    # we're going to wait for this to be set
-    called_event = asyncio.Event()
+    file_event_received = asyncio.Event()
 
-    # our handler for the file watcher event
     async def handler(event: Event[Any]) -> None:
-        called_event.set()
+        hassette_with_file_watcher.task_bucket.post_to_loop(file_event_received.set)
         assert event.topic == HASSETTE_EVENT_FILE_WATCHER, f"Unexpected topic: {event.topic}"
 
-    hassette._bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=handler)
+    hassette_instance._bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=handler)
 
-    # wait a moment to ensure everything is settled
+    # Allow watcher to settle before touching files.
     await asyncio.sleep(0.2)
 
-    touched_files = []
-    for f in file_watcher.hassette.config.get_watchable_files():
-        if f.is_file():
-            f.write_text(f.read_text())
-            touched_files.append(f)
+    updated_files: list[Any] = []
+    for candidate_path in file_watcher_service.hassette.config.get_watchable_files():
+        if candidate_path.is_file():
+            candidate_path.write_text(candidate_path.read_text())
+            updated_files.append(candidate_path)
             break
 
-    assert touched_files, "No toml files found to touch in test_event_emitted_on_file_change"
+    assert updated_files, "No watchable files found to touch in test_event_emitted_on_file_change"
     await asyncio.sleep(0.2)
 
-    # can be flaky, try a couple of times
+    # Event emission can be racy, so retry briefly.
     for _ in range(2):
         with contextlib.suppress(asyncio.TimeoutError):
             with anyio.fail_after(1):
-                await called_event.wait()
-                assert called_event.is_set(), f"Expected called_event to be set, got {called_event.is_set()}"
+                await file_event_received.wait()
+                assert file_event_received.is_set(), (
+                    f"Expected file_event_received to be set, got {file_event_received.is_set()}"
+                )
                 return

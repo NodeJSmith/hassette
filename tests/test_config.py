@@ -6,9 +6,7 @@ from hassette.config.core_config import HassetteConfig
 
 
 def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) -> None:
-    """
-    Test that the overrides in the HassetteConfig are used correctly.
-    """
+    """Configuration values honour overrides from the test TOML and .env."""
 
     expected_token = dotenv.get_key(env_file_path, "hassette__token")
 
@@ -21,9 +19,9 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
 
 
 def test_env_overrides_are_used(test_config_class, monkeypatch):
-    """
-    Test that environment variable overrides are used correctly.
-    """
+    """Environment overrides win when constructing a HassetteConfig."""
     monkeypatch.setenv("hassette__app_dir", "/custom/apps")
-    config = test_config_class()
-    assert config.app_dir == Path("/custom/apps"), f"Expected /custom/apps, got {config.app_dir}"
+    config_with_env_override = test_config_class()
+    assert config_with_env_override.app_dir == Path("/custom/apps"), (
+        f"Expected /custom/apps, got {config_with_env_override.app_dir}"
+    )

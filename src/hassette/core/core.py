@@ -23,7 +23,7 @@ from .services.file_watcher import _FileWatcher
 from .services.health_service import _HealthService
 from .services.scheduler_service import _SchedulerService
 from .services.service_watcher import _ServiceWatcher
-from .services.websocket_service import _Websocket
+from .services.websocket_service import _WebsocketService
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -71,7 +71,7 @@ class Hassette(Resource):
         self._bus_service = self.add_child(_BusService, stream=self._receive_stream.clone())
 
         self._service_watcher = self.add_child(_ServiceWatcher)
-        self._websocket = self.add_child(_Websocket)
+        self._websocket = self.add_child(_WebsocketService)
         self._health_service = self.add_child(_HealthService)
         self._file_watcher = self.add_child(_FileWatcher)
         self._app_handler = self.add_child(_AppHandler)
