@@ -10,6 +10,7 @@ from hassette.events import ServiceStatusPayload
 
 @pytest.fixture
 def get_service_watcher_mock(hassette_with_bus):
+    """Return a fresh service watcher for each test."""
     return _ServiceWatcher(hassette_with_bus)
 
 
@@ -30,14 +31,15 @@ def get_dummy_service(called: dict[str, int], hassette) -> Service:
 
 
 async def test_restart_service_cancels_then_starts(get_service_watcher_mock: _ServiceWatcher):
-    called = {"cancel": 0, "start": 0}
+    """Restarting a failed service cancels and reinitializes it."""
+    call_counts = {"cancel": 0, "start": 0}
 
-    svc = get_dummy_service(called, get_service_watcher_mock.hassette)
-    get_service_watcher_mock.hassette.children.append(svc)
+    dummy_service = get_dummy_service(call_counts, get_service_watcher_mock.hassette)
+    get_service_watcher_mock.hassette.children.append(dummy_service)
 
     event = ServiceStatusPayload.create_event(
-        resource_name=svc.class_name,
-        role=svc.role,
+        resource_name=dummy_service.class_name,
+        role=dummy_service.role,
         status=ResourceStatus.FAILED,
         exc=Exception("test"),
     )
@@ -45,4 +47,6 @@ async def test_restart_service_cancels_then_starts(get_service_watcher_mock: _Se
     await get_service_watcher_mock.restart_service(event)
     await asyncio.sleep(0.1)  # allow restart to run
 
-    assert called == {"cancel": 1, "start": 1}, f"Expected cancel and start to be called once each, got {called}"
+    assert call_counts == {"cancel": 1, "start": 1}, (
+        f"Expected cancel and start to be called once each, got {call_counts}"
+    )
