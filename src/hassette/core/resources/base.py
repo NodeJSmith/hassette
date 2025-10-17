@@ -129,7 +129,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             parent (Resource | None): Optional parent resource. If None, this resource has no parent.
 
         """
-        from hassette.core.resources.tasks import TaskBucket
+        from hassette.core.resources.task_bucket import TaskBucket
 
         super().__init__()
 

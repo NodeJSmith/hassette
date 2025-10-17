@@ -15,7 +15,7 @@ from .resources.api.api import Api
 from .resources.base import Resource, Service
 from .resources.bus.bus import Bus
 from .resources.scheduler.scheduler import Scheduler
-from .resources.tasks import TaskBucket, make_task_factory
+from .resources.task_bucket import TaskBucket, make_task_factory
 from .services.api_service import _ApiService
 from .services.app_handler import _AppHandler
 from .services.bus_service import _BusService

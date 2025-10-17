@@ -5,8 +5,9 @@ Subscribe to state changes and services using the Bus.
 
 .. note::
 
-    Unlike AppDaemon, your callable will only receive **one argument**, the event object. The event object
-    will have everything you need. For state change events it will include the old and new states, and for
+    Unlike AppDaemon, your callable will not receive multiple specific keyword arguments. Instead, it will receive one argument representing the event,
+    and may also receive ``*args`` and ``**kwargs`` if you specified those in your subscription.
+    The event object will have everything you need for handling the event. For state change events it will include the old and new states, and for
     service calls it will include the service data, etc. More details are provided below.
 
     .. code-block:: python
@@ -148,4 +149,4 @@ for each incoming event, keeping your own code simple.
 .. note::
 
    For truly custom patterns (e.g., multiple unrelated prefixes in one subscription), you can
-   use ``self.bus.on(...)`` with predicates like ``DomainIs`` or a custom ``Guard``.
+   use ``self.bus.on(...)`` with predicates like ``DomainMatches`` or a custom ``Guard``.

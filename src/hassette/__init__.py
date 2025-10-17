@@ -23,7 +23,7 @@ from .core.resources.bus.predicates import (
 )
 from .core.resources.scheduler.classes import CronTrigger, IntervalTrigger, ScheduledJob
 from .core.resources.scheduler.scheduler import Scheduler
-from .core.resources.tasks import TaskBucket
+from .core.resources.task_bucket import TaskBucket
 from .enums import ResourceRole, ResourceStatus
 from .events import StateChangeEvent
 from .models import entities, states

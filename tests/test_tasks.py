@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import logging
 
-from hassette.core.resources import tasks
+from hassette.core.resources import task_bucket
 
 
 async def sleeper():
@@ -14,7 +14,7 @@ async def sleeper():
         raise
 
 
-async def test_cancel_all_cancels_cooperative_tasks(bucket_fixture: tasks.TaskBucket):
+async def test_cancel_all_cancels_cooperative_tasks(bucket_fixture: task_bucket.TaskBucket):
     t = asyncio.create_task(sleeper(), name="cooperative")
     # factory should auto-register; no explicit bucket.add/spawn needed
     await asyncio.sleep(0)  # let it start
@@ -39,7 +39,7 @@ async def boom(event: asyncio.Event):
     raise RuntimeError("boom")
 
 
-async def test_crash_is_logged(bucket_fixture: tasks.TaskBucket, caplog):
+async def test_crash_is_logged(bucket_fixture: task_bucket.TaskBucket, caplog):
     event = asyncio.Event()
     caplog.set_level(logging.DEBUG, logger=bucket_fixture.logger.name)
     t = asyncio.create_task(boom(event), name="exploder")
@@ -68,7 +68,7 @@ async def stubborn(event: asyncio.Event):
     event.set()
 
 
-async def test_warns_on_stubborn_tasks(bucket_fixture: tasks.TaskBucket, caplog):
+async def test_warns_on_stubborn_tasks(bucket_fixture: task_bucket.TaskBucket, caplog):
     event = asyncio.Event()
     caplog.set_level(logging.WARNING, logger=bucket_fixture.logger.name)
     t = asyncio.create_task(stubborn(event), name="stubborn")
@@ -90,7 +90,7 @@ async def test_warns_on_stubborn_tasks(bucket_fixture: tasks.TaskBucket, caplog)
     assert not t.cancelled(), "task should not be cancelled after finishing"
 
 
-async def test_factory_tracks_rogue_create_task(bucket_fixture: tasks.TaskBucket):
+async def test_factory_tracks_rogue_create_task(bucket_fixture: task_bucket.TaskBucket):
     ran = asyncio.Event()
 
     async def rogue():

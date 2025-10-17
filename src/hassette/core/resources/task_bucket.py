@@ -8,7 +8,7 @@ from concurrent.futures import Future, TimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette.core.resources.base import Resource
-from hassette.utils.async_utils import is_async_callable
+from hassette.utils.func_utils import is_async_callable
 
 from .. import context  # noqa: TID252
 
