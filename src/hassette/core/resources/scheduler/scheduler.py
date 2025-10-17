@@ -228,7 +228,7 @@ class Scheduler(Resource):
         start_dtme = get_start_dtme(start)
 
         trigger = IntervalTrigger.from_arguments(minutes=minutes, start=start_dtme)
-        first_run = start_dtme if start_dtme else now()
+        first_run = start_dtme if start_dtme else now().add(minutes=minutes)
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_hourly(
@@ -262,7 +262,7 @@ class Scheduler(Resource):
         start_dtme = get_start_dtme(start)
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
-        first_run = start_dtme if start_dtme else now()
+        first_run = start_dtme if start_dtme else now().add(hours=1)
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_daily(
@@ -300,7 +300,7 @@ class Scheduler(Resource):
         start_dtme = get_start_dtme(start)
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
-        first_run = start_dtme if start_dtme else now()
+        first_run = start_dtme if start_dtme else now().add(hours=hours)
         return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
 
     def run_cron(
