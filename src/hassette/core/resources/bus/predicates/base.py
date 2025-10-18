@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from hassette.types import E_contra
 
-from .utils import ensure_tuple, evaluate_predicate
+from .utils import ensure_tuple
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
@@ -22,8 +22,8 @@ class Guard(typing.Generic[E_contra]):
 
     fn: "Predicate[E_contra]"
 
-    async def __call__(self, event: "Event[E_contra]") -> bool:  # pyright: ignore[reportInvalidTypeArguments]
-        return await evaluate_predicate(self.fn, event)
+    def __call__(self, event: "E_contra") -> bool:
+        return self.fn(event)
 
 
 @dataclass(frozen=True)
@@ -33,11 +33,8 @@ class AllOf:
     predicates: tuple["Predicate", ...]
     """The predicates to evaluate."""
 
-    async def __call__(self, event: "Event") -> bool:
-        for p in self.predicates:
-            if not await evaluate_predicate(p, event):
-                return False
-        return True
+    def __call__(self, event: "Event") -> bool:
+        return all(p(event) for p in self.predicates)
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Iterable[Predicate]") -> "AllOf":
@@ -54,11 +51,8 @@ class AnyOf:
     predicates: tuple["Predicate", ...]
     """The predicates to evaluate."""
 
-    async def __call__(self, event: "Event") -> bool:
-        for p in self.predicates:
-            if await evaluate_predicate(p, event):
-                return True
-        return False
+    def __call__(self, event: "Event") -> bool:
+        return any(p(event) for p in self.predicates)
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Iterable[Predicate]") -> "AnyOf":
@@ -71,5 +65,5 @@ class Not:
 
     predicate: "Predicate"
 
-    async def __call__(self, event: "Event") -> bool:
-        return not await evaluate_predicate(self.predicate, event)
+    def __call__(self, event: "Event") -> bool:
+        return not self.predicate(event)
