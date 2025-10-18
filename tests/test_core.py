@@ -50,16 +50,6 @@ async def hassette_instance(test_config: HassetteConfig):
         context.HASSETTE_INSTANCE.set(previous_instance)
 
 
-async def test_run_sync_raises_inside_loop(hassette_with_bus: Hassette) -> None:
-    """run_sync rejects being invoked inside the running event loop."""
-
-    async def sample_coroutine():
-        return 42
-
-    with pytest.raises(RuntimeError):
-        hassette_with_bus.task_bucket.run_sync(sample_coroutine())
-
-
 def test_unique_name_is_constant(hassette_instance: Hassette) -> None:
     """unique_name always returns the static identifier."""
     assert hassette_instance.unique_name == "Hassette"
