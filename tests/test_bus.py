@@ -34,8 +34,8 @@ async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus
     remove_listener_mock = Mock()
     original_service = bus_instance.bus_service
     original_remove = bus_instance.remove_listener
-    bus_instance.bus_service = Mock(add_listener=add_listener_mock)  # type: ignore[assignment]
-    bus_instance.remove_listener = remove_listener_mock  # type: ignore[assignment]
+    bus_instance.bus_service = Mock(add_listener=add_listener_mock)
+    bus_instance.remove_listener = remove_listener_mock
 
     try:
         subscription = bus_instance.on(
@@ -66,8 +66,8 @@ async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus
         subscription.unsubscribe()
         remove_listener_mock.assert_called_once_with(listener)
     finally:
-        bus_instance.bus_service = original_service  # type: ignore[assignment]
-        bus_instance.remove_listener = original_remove  # type: ignore[assignment]
+        bus_instance.bus_service = original_service
+        bus_instance.remove_listener = original_remove
 
 
 async def test_on_state_change_builds_predicates(bus_instance: "Bus") -> None:
