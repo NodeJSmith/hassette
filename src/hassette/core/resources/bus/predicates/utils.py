@@ -1,10 +1,8 @@
 import itertools
 import typing
 from collections.abc import Iterable
-from inspect import isawaitable
 
 if typing.TYPE_CHECKING:
-    from hassette.events import Event
     from hassette.types import Predicate
 
 
@@ -46,12 +44,3 @@ def ensure_tuple(where: "Predicate | Iterable[Predicate]") -> tuple["Predicate",
         return tuple(flat_where)
 
     return (where,)
-
-
-async def evaluate_predicate(pred: "Predicate", event: "Event") -> bool:
-    """Evaluate a predicate, handling both synchronous and asynchronous callables."""
-
-    res = pred(event)
-    if isawaitable(res):
-        return await res
-    return bool(res)

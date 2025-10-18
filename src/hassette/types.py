@@ -18,7 +18,7 @@ E_contra = TypeVar("E_contra", bound="Event[Any]", contravariant=True)
 class Predicate(Protocol[E_contra]):
     """Protocol for defining predicates that evaluate events."""
 
-    def __call__(self, event: E_contra) -> bool | Awaitable[bool]: ...
+    def __call__(self, event: E_contra) -> bool: ...
 
 
 @runtime_checkable
