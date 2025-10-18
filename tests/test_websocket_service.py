@@ -77,7 +77,7 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: _W
     websocket_service.mark_ready("test ready")
 
     await websocket_service.send_json(type="pong", id=41)
-    second_payload = fake_ws.send_json.await_args_list[1].args[0]  # pyright: ignore
+    second_payload = fake_ws.send_json.await_args_list[0].args[0]  # pyright: ignore
     assert second_payload["id"] == 41, "Expected explicit message id to be preserved"
 
 
