@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
     from hassette import Predicate
 
 
-@dataclass
+@dataclass(frozen=True)
 class CallServiceEventWrapper:
     """Wraps a CallServiceEvent to allow predicates to evaluate its service_data."""
 
