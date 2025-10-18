@@ -24,15 +24,15 @@ class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
         self.prev_state = await self.api.get_state(self.app_config.light_entity, states.LightState)
         self.light_entity = await self.api.get_entity(self.app_config.light_entity, entities.LightEntity)
 
-        self.bus.on_entity(self.app_config.motion_entity, handler=self.motion_detected, changed_to="on")
-        self.bus.on_entity(self.app_config.motion_entity, handler=self.motion_cleared, changed_to="off")
+        self.bus.on_state_change(self.app_config.motion_entity, handler=self.motion_detected, changed_to="on")
+        self.bus.on_state_change(self.app_config.motion_entity, handler=self.motion_cleared, changed_to="off")
 
         await self.set_enabled()
 
     async def set_enabled(self):
         try:
             self.enabled = (await self.api.get_state_value(self.toggle_entity)) == "on"
-            self.bus.on_entity(self.toggle_entity, handler=self.toggle_enabled)
+            self.bus.on_state_change(self.toggle_entity, handler=self.toggle_enabled)
         except Exception:
             self.logger.exception("Error setting initial enabled state")
             self.enabled = True

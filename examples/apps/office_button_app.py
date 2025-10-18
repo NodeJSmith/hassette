@@ -22,7 +22,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
     def on_initialize_sync(self) -> None:
         self.enabled = True
 
-        self.bus.on_entity(self.app_config.event_action, handler=self.handle_office_button)
+        self.bus.on_state_change(self.app_config.event_action, handler=self.handle_office_button)
 
         attributes = self.get_office_light().attributes
         if not isinstance(attributes.entity_id, list):
@@ -35,7 +35,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
         for entity_id in self.get_office_light().attributes.entity_id:  # type: ignore
             entity = self.api.sync.get_state(entity_id, states.LightState)
             self.lights[entity_id] = entity
-            self.bus.on_entity(entity_id, handler=self.log_light_changes)
+            self.bus.on_state_change(entity_id, handler=self.log_light_changes)
 
     def log_light_changes(self, event: StateChangeEvent[states.LightState]) -> None:
         """Log changes to light entities."""

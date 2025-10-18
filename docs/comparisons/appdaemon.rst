@@ -429,7 +429,7 @@ Currently the repr of a StateChangeEvent is quite verbose, but it does show the 
   class ButtonPressed(App):
       async def on_initialize(self):
           # Listen for a button press event with a specific entity_id
-          sub = self.bus.on_entity(entity="input_button.test_button", handler=self.button_pressed)
+          sub = self.bus.on_state_change(entity="input_button.test_button", handler=self.button_pressed)
           self.logger.info(f"Subscribed: {sub}")
 
       def button_pressed(self, event: StateChangeEvent[states.ButtonState]) -> None:

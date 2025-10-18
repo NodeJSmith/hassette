@@ -31,7 +31,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 
   class MyApp(App[MyConfig]):
       async def on_initialize(self):
-          self.bus.on_entity(
+          self.bus.on_state_change(
               self.app_config.light,
               handler=self.on_light_change,
               changed_to="on",
