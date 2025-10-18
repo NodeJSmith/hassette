@@ -1,69 +1,11 @@
-import asyncio
+# pyright: reportInvalidTypeArguments=none, reportArgumentType=none
 from types import SimpleNamespace
 from typing import Any
 
 from hassette.const.misc import NOT_PROVIDED
-from hassette.core.resources.bus.predicates import AttrChanged, EntityMatches, Guard, StateChanged
-from hassette.core.resources.bus.predicates.base import (
-    AllOf,
-    AnyOf,
-    Not,
-    ensure_iterable,
-    normalize_where,
-)
+from hassette.core.resources.bus.predicates import AttrChanged, EntityMatches, StateChanged
 from hassette.core.resources.bus.predicates.event import CallServiceEventWrapper, KeyValueMatches
 from hassette.core.resources.bus.predicates.state import check_from_to
-
-
-async def test_allof_waits_for_all_predicates() -> None:
-    """AllOf evaluates every predicate and only succeeds when all succeed."""
-    event = SimpleNamespace(flag=True)
-
-    async def async_predicate(evt: Any) -> bool:
-        await asyncio.sleep(0)
-        return evt.flag
-
-    predicate = AllOf((lambda _: True, async_predicate))
-    assert await predicate(event) is True
-
-
-async def test_anyof_passes_when_any_predicate_matches() -> None:
-    """AnyOf resolves true as soon as one predicate passes."""
-    event = SimpleNamespace(value=2)
-    predicate = AnyOf((lambda evt: evt.value == 2, lambda evt: evt.value == 3))
-    assert await predicate(event) is True
-
-
-async def test_not_inverts_predicate_result() -> None:
-    """Not negates the wrapped predicate."""
-    event = SimpleNamespace(active=False)
-    predicate = Not(lambda evt: evt.active)
-    assert await predicate(event) is True
-
-
-async def test_guard_wraps_callable() -> None:
-    """Guard wraps arbitrary callables and supports async evaluation."""
-
-    async def async_checker(evt: Any) -> bool:
-        await asyncio.sleep(0)
-        return evt.status == "ok"
-
-    guard = Guard(async_checker)
-    event = SimpleNamespace(status="ok")
-    assert await guard(event) is True
-
-
-def test_normalize_where_handles_sequences() -> None:
-    """normalize_where consolidates iterables into AllOf."""
-    predicate = normalize_where([lambda _: True, lambda _: False])
-    assert isinstance(predicate, AllOf)
-
-
-def test_ensure_iterable_flattens_nested_collections() -> None:
-    """ensure_iterable flattens nested AllOf/AnyOf containers."""
-    nested = AllOf((lambda _: True, lambda _: True))
-    flattened = list(ensure_iterable([nested, lambda _: False]))
-    assert len(flattened) == 3
 
 
 def _make_state_event(old_value: Any, new_value: Any) -> Any:

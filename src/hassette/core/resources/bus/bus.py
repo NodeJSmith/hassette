@@ -15,7 +15,7 @@ from hassette.utils.func_utils import callable_short_name
 
 from .listeners import Listener, Subscription
 from .predicates import AllOf, AttrChanged, EntityMatches, Guard, StateChanged
-from .predicates.base import normalize_where
+from .predicates.utils import normalize_where
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
