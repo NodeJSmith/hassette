@@ -58,7 +58,7 @@ async def test_connected_reflects_websocket_state(websocket_service: _WebsocketS
     assert websocket_service.connected is False
 
 
-async def test_send_json_injects_message_id(websocket_service: _WebsocketService) -> None:
+async def test_send_json_injects_message_id_when_abset(websocket_service: _WebsocketService) -> None:
     """Ensure send_json injects a message id and forwards the payload."""
     fake_ws = _build_fake_ws()
     websocket_service._ws = fake_ws
@@ -68,6 +68,13 @@ async def test_send_json_injects_message_id(websocket_service: _WebsocketService
     payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
     assert payload["type"] == "ping", "Expected original payload to be forwarded"
     assert payload["id"] == 1, "Expected send_json to add a message id when absent"
+
+
+async def test_send_json_preserves_message_id_when_present(websocket_service: _WebsocketService) -> None:
+    """Ensure send_json preserves a message id when present."""
+    fake_ws = _build_fake_ws()
+    websocket_service._ws = fake_ws
+    websocket_service.mark_ready("test ready")
 
     await websocket_service.send_json(type="pong", id=41)
     second_payload = fake_ws.send_json.await_args_list[1].args[0]  # pyright: ignore
@@ -133,9 +140,9 @@ async def test_send_and_wait_returns_response(websocket_service: _WebsocketServi
     assert websocket_service._response_futures == {}, "Expected future mapping to be cleaned up"
 
 
-async def test_send_and_wait_times_out(websocket_service: _WebsocketService, hassette_with_bus: "Hassette") -> None:
+async def test_send_and_wait_times_out(websocket_service: _WebsocketService) -> None:
     """Raise FailedMessageError when the response future times out."""
-    hassette_with_bus.config.websocket_response_timeout_seconds = 0
+    websocket_service.hassette.config.websocket_response_timeout_seconds = 0
     websocket_service.mark_ready("ready for timeout test")
     websocket_service.send_json = AsyncMock(return_value=None)
 
@@ -145,11 +152,9 @@ async def test_send_and_wait_times_out(websocket_service: _WebsocketService, has
     assert websocket_service._response_futures == {}, "Expected future mapping to be cleared after timeout"
 
 
-async def test_respond_if_necessary_sets_result(
-    websocket_service: _WebsocketService, hassette_with_bus: "Hassette"
-) -> None:
+async def test_respond_if_necessary_sets_result(websocket_service: _WebsocketService) -> None:
     """Fulfill waiting futures when result payloads indicate success."""
-    pending_future = hassette_with_bus.loop.create_future()
+    pending_future = websocket_service.hassette.loop.create_future()
     websocket_service._response_futures[5] = pending_future
 
     websocket_service._respond_if_necessary({"type": "result", "id": 5, "success": True, "result": {"value": 7}})
@@ -158,11 +163,9 @@ async def test_respond_if_necessary_sets_result(
     assert pending_future.result() == {"value": 7}
 
 
-async def test_respond_if_necessary_sets_exception(
-    websocket_service: _WebsocketService, hassette_with_bus: "Hassette"
-) -> None:
+async def test_respond_if_necessary_sets_exception(websocket_service: _WebsocketService) -> None:
     """Attach FailedMessageError when result payloads report failure."""
-    pending_future = hassette_with_bus.loop.create_future()
+    pending_future = websocket_service.hassette.loop.create_future()
     websocket_service._response_futures[9] = pending_future
 
     websocket_service._respond_if_necessary(
@@ -174,7 +177,7 @@ async def test_respond_if_necessary_sets_exception(
     assert isinstance(exception, FailedMessageError)
 
 
-async def test_authenticate_happy_path(websocket_service: _WebsocketService, hassette_with_bus: "Hassette") -> None:
+async def test_authenticate_happy_path(websocket_service: _WebsocketService) -> None:
     """Authenticate when Home Assistant replies with auth_ok."""
     fake_ws = _build_fake_ws()
     fake_ws.receive_json = AsyncMock(side_effect=[{"type": "auth_required"}, {"type": "auth_ok"}])
@@ -185,7 +188,7 @@ async def test_authenticate_happy_path(websocket_service: _WebsocketService, has
     sent_payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
     assert sent_payload == {
         "type": "auth",
-        "access_token": hassette_with_bus.config.token.get_secret_value(),
+        "access_token": websocket_service.hassette.config.token.get_secret_value(),
     }, "Expected authentication payload to contain the configured token"
 
 
@@ -212,7 +215,7 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
     monkeypatch.setattr(websocket_module, "create_event_from_hass", mock_create)
 
     send_event_mock = AsyncMock()
-    websocket_service.hassette.send_event = send_event_mock  # type: ignore[assignment]
+    websocket_service.hassette.send_event = send_event_mock
 
     data = {
         "type": "event",
