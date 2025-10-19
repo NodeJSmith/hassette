@@ -93,7 +93,6 @@ __all__ = [
     "ServiceResponse",
     "StartsWith",
     "StateChangeEvent",
-    "StateChanged",
     "StateDidChange",
     "Subscription",
     "TaskBucket",
