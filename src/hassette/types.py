@@ -11,14 +11,14 @@ if typing.TYPE_CHECKING:
 
     from .events import Event
 
-E_contra = TypeVar("E_contra", bound="Event[Any]", contravariant=True)
+EventT = TypeVar("EventT", bound="Event[Any]", contravariant=True)
 
 
 @runtime_checkable
-class Predicate(Protocol[E_contra]):
+class Predicate(Protocol[EventT]):
     """Protocol for defining predicates that evaluate events."""
 
-    def __call__(self, event: E_contra) -> bool: ...
+    def __call__(self, event: EventT) -> bool: ...
 
 
 @runtime_checkable
@@ -28,24 +28,24 @@ class PredicateCallable(Protocol):
     def __call__(self, value: "KnownTypes") -> bool: ...
 
 
-class Handler(Protocol[E_contra]):
+class Handler(Protocol[EventT]):
     """Protocol for defining event handlers."""
 
-    def __call__(self, event: E_contra) -> Awaitable[None] | None: ...
+    def __call__(self, event: EventT) -> Awaitable[None] | None: ...
 
 
-class HandlerVariadic(Protocol[E_contra]):
-    def __call__(self, event: E_contra, *args: object, **kwargs: Any) -> Awaitable[None] | None: ...
+class HandlerVariadic(Protocol[EventT]):
+    def __call__(self, event: EventT, *args: object, **kwargs: Any) -> Awaitable[None] | None: ...
 
 
-class AsyncHandler(Protocol[E_contra]):
+class AsyncHandler(Protocol[EventT]):
     """Protocol for defining asynchronous event handlers."""
 
-    def __call__(self, event: E_contra) -> Awaitable[None]: ...
+    def __call__(self, event: EventT) -> Awaitable[None]: ...
 
 
-class AsyncHandlerVariadic(Protocol[E_contra]):
-    def __call__(self, event: E_contra, *args: object, **kwargs: Any) -> Awaitable[None]: ...
+class AsyncHandlerVariadic(Protocol[EventT]):
+    def __call__(self, event: EventT, *args: object, **kwargs: Any) -> Awaitable[None]: ...
 
 
 class TriggerProtocol(Protocol):
@@ -58,15 +58,15 @@ class TriggerProtocol(Protocol):
 
 AsyncHandlerType = TypeAliasType(
     "AsyncHandlerType",
-    AsyncHandler[E_contra] | AsyncHandlerVariadic[E_contra],
-    type_params=(E_contra,),
+    AsyncHandler[EventT] | AsyncHandlerVariadic[EventT],
+    type_params=(EventT,),
 )
 """Alias for all valid async handler types."""
 
 HandlerType = TypeAliasType(
     "HandlerType",
-    Handler[E_contra] | HandlerVariadic[E_contra] | AsyncHandler[E_contra] | AsyncHandlerVariadic[E_contra],
-    type_params=(E_contra,),
+    Handler[EventT] | HandlerVariadic[EventT] | AsyncHandler[EventT] | AsyncHandlerVariadic[EventT],
+    type_params=(EventT,),
 )
 """Alias for all valid handler types."""
 
