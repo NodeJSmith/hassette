@@ -73,7 +73,7 @@ KnownTypeScalar: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None 
 KnownType: TypeAlias = KnownTypeScalar | Sequence[KnownTypeScalar] | Mapping[str, KnownTypeScalar]
 """Alias for all known valid state types."""
 
-ChangeType: TypeAlias = "None | Sentinel | V | Condition[V | Sentinel]"
+ChangeType = TypeAliasType("ChangeType", None | Sentinel | V | Condition[V | Sentinel], type_params=(V,))
 """Alias for types that can be used to specify changes in predicates."""
 
 JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
