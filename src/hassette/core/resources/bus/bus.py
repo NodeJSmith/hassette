@@ -1,7 +1,7 @@
 import asyncio
 import time
 import typing
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any, ParamSpec, TypedDict, TypeVar, Unpack, cast
 
 from hassette import topics
@@ -173,6 +173,8 @@ class Bus(Resource):
             changed_to (ChangeType): A value or callable that will be used to filter state changes *to* this value.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events, such as
                 `AttrChanged` or other custom predicates.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce` and `throttle`.
 
         Returns:
@@ -248,6 +250,8 @@ class Bus(Resource):
                 value.
             changed_to (ChangeType): A value or callable that will be used to filter attribute changes *to* this value.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -304,6 +308,8 @@ class Bus(Resource):
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | Mapping[str, ChangeType] | None): Additional predicates to
                 filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -394,6 +400,8 @@ class Bus(Resource):
             component (str | None): The component to filter load events (e.g., "light").
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -437,6 +445,8 @@ class Bus(Resource):
             service (str | None): The service to filter service registrations (e.g., "turn_on").
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -479,6 +489,8 @@ class Bus(Resource):
         Args:
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -501,6 +513,8 @@ class Bus(Resource):
         Args:
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -523,6 +537,8 @@ class Bus(Resource):
         Args:
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -548,6 +564,8 @@ class Bus(Resource):
             status (ResourceStatus | None): The status to filter events (e.g., ResourceStatus.STARTED).
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -587,6 +605,8 @@ class Bus(Resource):
         Args:
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -611,6 +631,8 @@ class Bus(Resource):
         Args:
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -635,6 +657,8 @@ class Bus(Resource):
         Args:
             handler (Callable): The function to call when the event matches.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
