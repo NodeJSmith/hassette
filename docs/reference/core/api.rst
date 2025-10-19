@@ -29,6 +29,6 @@ Services
    :undoc-members:
 
 
-.. autoclass:: hassette.core.services.websocket_service._Websocket
+.. autoclass:: hassette.core.services.websocket_service._WebsocketService
    :members:
    :undoc-members:
