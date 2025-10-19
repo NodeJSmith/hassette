@@ -198,32 +198,6 @@ class NotIn:
 
 
 @dataclass(frozen=True)
-class IsOrContains:
-    """Condition that checks if a value is equal to or contained in a given collection.
-
-    Examples
-    --------
-    Basic::
-
-        ValueIs(source=get_entity_id, condition=IsOrContains(collection=["light.kitchen", "light.living"]))
-
-    """
-
-    collection: Sequence[Any]
-
-    def __post_init__(self) -> None:
-        if isinstance(self.collection, str):
-            raise ValueError("collection must be a sequence of values, not a string")
-
-        object.__setattr__(self, "collection", self.collection)
-
-    def __call__(self, value: Any) -> bool:
-        if isinstance(value, Sequence):
-            return any(item in self.collection for item in value)
-        return value in self.collection
-
-
-@dataclass(frozen=True)
 class Intersects:
     """Condition that checks if a collection value intersects with a given collection.
 
@@ -275,3 +249,25 @@ class NotIntersects:
             return True
         # not using actual set operations to allow unhashable items
         return all(item not in self.collection for item in value)
+
+
+@dataclass(frozen=True)
+class IsOrContains:
+    """Condition that checks if a value is equal to or contained in a given collection.
+
+    Examples
+    --------
+    Basic::
+
+        # check if the entity_id is either "light.kitchen" or a list containing it
+
+        ValueIs(source=get_entity_id, condition=IsOrContains("light.kitchen"))
+
+    """
+
+    condition: str
+
+    def __call__(self, value: Sequence[Any] | Any) -> bool:
+        if isinstance(value, Sequence) and not isinstance(value, str):
+            return any(item == self.condition for item in value)
+        return value == self.condition

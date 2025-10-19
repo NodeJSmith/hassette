@@ -176,7 +176,7 @@ def test_is_or_contains() -> None:
 
     predicate = ValueIs(
         source=lambda event: event.payload.data.service_data.get("entity_id", MISSING_VALUE),
-        condition=IsOrContains(["light.kitchen"]),
+        condition=IsOrContains("light.kitchen"),
     )
 
     assert predicate(event) is True, "Expected predicate to match when value is in collection"
