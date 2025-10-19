@@ -71,7 +71,7 @@ with event data:
   - ``.last_changed`` and ``.last_updated`` - timestamps
   - ``.domain`` and ``.entity_id`` - computed properties
 
-* **Service calls**: ``event.payload.data`` is :class:`~hassette.events.hass.CallServicePayload`
+* **Service calls**: ``event.payload.data`` is :class:`~hassette.events.hass.hass.CallServicePayload`
   with ``domain``, ``service``, and ``service_data`` fields.
 
 * **All payloads are immutable**: Copy out any data you need to modify later.
@@ -180,16 +180,7 @@ the ``where`` parameter on any subscription method.
        where=P.Guard(is_workday)
    )
 
-Available predicates include:
-
-* **Logical**: ``AllOf``, ``AnyOf``, ``Not``
-* **State conditions**: ``StateFrom``, ``StateTo``, ``StateDidChange``
-* **Attribute conditions**: ``AttrFrom``, ``AttrTo``, ``AttrDidChange``
-* **Entity/Domain matching**: ``EntityMatches``, ``DomainMatches``
-* **Value conditions**: ``ValueIs``, ``DidChange``
-* **Presence checks**: ``IsPresent``, ``IsMissing``
-* **String matching**: ``Glob``, ``Regex``, ``StartsWith``, ``EndsWith``, ``Contains``
-* **Custom logic**: ``Guard``
+See :mod:`~hassette.core.resources.bus.predicates.predicates` for a full list of built-in predicates.
 
 Debounce and throttle
 ---------------------
@@ -220,7 +211,7 @@ Control the rate of handler invocations to handle noisy sensors or prevent spam:
 
 
 Matching multiple entities
--------------------------
+----------------------------
 Use glob patterns in entity IDs to match families of devices without listing them individually.
 Hassette automatically expands globs into efficient predicate checks.
 
@@ -298,21 +289,35 @@ For complex logic, use predicate classes directly:
 
 .. code-block:: python
 
-   from hassette.core.resources.bus.predicates import ServiceDataWhere
+    from hassette import predicates as P
 
    # Multiple conditions with custom logic
    self.bus.on_call_service(
        domain="notify",
-       where=ServiceDataWhere.from_kwargs(
+       where=P.ServiceDataWhere.from_kwargs(
            message=lambda msg: "urgent" in msg.lower(),
            title=P.Not(P.StartsWith("DEBUG"))
        ),
        handler=self.on_urgent_notification
    )
 
-Dictionary conditions work with scalars, lists, and sets. For example,
-``{"entity_id": "light.kitchen"}`` matches both ``"light.kitchen"`` and
-``["light.kitchen", "light.dining"]`` in the service data.
+You can compose conditions to do more advanced filtering as needed.
+
+.. code-block:: python
+
+   from hassette import predicates as P
+
+   # Multiple conditions with custom logic
+   self.bus.on_call_service(
+       domain="notify",
+       where=P.ServiceDataWhere.from_kwargs(
+           entity_id=P.IsIn(["sensor.door", "sensor.window"]),
+           message=lambda msg: "urgent" in msg.lower(),
+           title=P.Not(P.StartsWith("DEBUG"))
+       ),
+       handler=self.on_urgent_notification
+   )
+
 
 Unsubscribing
 -------------
