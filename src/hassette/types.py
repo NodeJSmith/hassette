@@ -74,10 +74,10 @@ KnownType: TypeAlias = KnownTypeScalar | Sequence[KnownTypeScalar] | Mapping[str
 """Alias for all known valid state types."""
 
 ChangeType: TypeAlias = "None | Sentinel | V | Condition[V | Sentinel]"
-"""Alias for types that can be used to specify state or attribute changes."""
+"""Alias for types that can be used to specify changes in predicates."""
 
-JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
+JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
 """Alias for a callable that can be scheduled as a job."""
 
-ScheduleStartType = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
+ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
 """Type for specifying start times."""
