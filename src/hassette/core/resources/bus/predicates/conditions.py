@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -146,3 +147,101 @@ class Missing:
 
     def __call__(self, value: Any) -> bool:
         return value is MISSING_VALUE
+
+
+@dataclass(frozen=True)
+class IsIn:
+    """Condition that checks if a value is in a given collection.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
+
+    """
+
+    collection: Sequence[Any]
+
+    def __call__(self, value: Any) -> bool:
+        return value in self.collection
+
+
+@dataclass(frozen=True)
+class NotIn:
+    """Condition that checks if a value is not in a given collection.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_entity_id, condition=NotIn(collection=["light.kitchen", "light.living"]))
+
+    """
+
+    collection: Sequence[Any]
+
+    def __call__(self, value: Any) -> bool:
+        return value not in self.collection
+
+
+@dataclass(frozen=True)
+class IsOrContains:
+    """Condition that checks if a value is equal to or contained in a given collection.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_entity_id, condition=IsOrContains(collection=["light.kitchen", "light.living"]))
+
+    """
+
+    collection: Sequence[Any]
+
+    def __call__(self, value: Any) -> bool:
+        if isinstance(value, Sequence):
+            return any(item in self.collection for item in value)
+        return value in self.collection
+
+
+@dataclass(frozen=True)
+class Intersects:
+    """Condition that checks if a collection value intersects with a given collection.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_tags, condition=Intersects(collection=["kitchen", "living"]))
+
+    """
+
+    collection: Sequence[Any]
+
+    def __call__(self, value: Any) -> bool:
+        if not isinstance(value, Sequence):
+            return False
+        # not using actual set operations to allow unhashable items
+        return any(item in self.collection for item in value)
+
+
+@dataclass(frozen=True)
+class NotIntersects:
+    """Condition that checks if a collection value does not intersect with a given collection.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_tags, condition=NotIntersects(collection=["kitchen", "living"]))
+
+    """
+
+    collection: Sequence[Any]
+
+    def __call__(self, value: Any) -> bool:
+        if not isinstance(value, Sequence):
+            return True
+        # not using actual set operations to allow unhashable items
+        return all(item not in self.collection for item in value)

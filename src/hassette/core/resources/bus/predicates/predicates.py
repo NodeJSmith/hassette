@@ -1,3 +1,31 @@
+"""Predicates combine accessors and conditions to form reusable boolean functions.
+
+A predicate takes a ``source`` callable that extracts a value from an event, and a ``condition`` that
+tests the extracted value. The condition may be a literal value, a callable, or a more complex condition object.
+Conditions can be composed of other conditions to form complex logic.
+
+Examples
+--------
+Basic value comparison::
+    ValueIs(source=get_entity_id, condition="light.kitchen")
+
+With a callable condition::
+    def is_kitchen_light(entity_id: str) -> bool:
+        return entity_id == "light.kitchen"
+
+    ValueIs(source=get_entity_id, condition=is_kitchen_light)
+
+With a condition object::
+    ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
+
+Combining multiple predicates::
+    AllOf(predicates=[
+        DomainMatches("light"),
+        EntityMatches("light.kitchen"),
+        StateTo("on"),
+    ])
+"""
+
 import typing
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -251,9 +279,11 @@ class ServiceDataWhere:
 
         ServiceDataWhere({"entity_id": "light.*"})
 
-    Explicit matcher (no auto-glob required)::
+    Using conditions::
 
         ServiceDataWhere({"entity_id": Glob("switch.*")})
+
+        ServiceDataWhere({"brightness": IsIn([100, 200, 255])})
     """
 
     spec: Mapping[str, ChangeType]
@@ -264,17 +294,17 @@ class ServiceDataWhere:
         preds: list[Predicate[CallServiceEvent]] = []
 
         for k, cond in self.spec.items():
+            source = get_service_data_key(k)
             # presence check
             if cond is NOT_PROVIDED:
                 c: ChangeType = Present()
-
             # auto-glob wrapping
             elif self.auto_glob and isinstance(cond, str) and is_glob(cond):
                 c = Glob(cond)
             # literal or callable condition
             else:
                 c = cond
-            preds.append(ValueIs(source=get_service_data_key(k), condition=c))
+            preds.append(ValueIs(source=source, condition=c))
 
         object.__setattr__(self, "_predicates", tuple(preds))
 

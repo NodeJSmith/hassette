@@ -4,7 +4,15 @@ import typing
 from types import SimpleNamespace
 
 from hassette.const.misc import MISSING_VALUE
-from hassette.core.resources.bus.predicates.conditions import Contains, EndsWith, Missing, Present, StartsWith
+from hassette.core.resources.bus.predicates import ValueIs
+from hassette.core.resources.bus.predicates.conditions import (
+    Contains,
+    EndsWith,
+    IsOrContains,
+    Missing,
+    Present,
+    StartsWith,
+)
 from hassette.core.resources.bus.predicates.predicates import DidChange, IsMissing, IsPresent, ServiceMatches
 
 
@@ -154,3 +162,22 @@ def test_is_missing_predicate() -> None:
     # Missing value
     predicate = IsMissing(source_missing)
     assert predicate(mock_event) is True
+
+
+def test_is_or_contains() -> None:
+    """Test IsOrContains condition with single values and collections."""
+    event = SimpleNamespace(
+        payload=SimpleNamespace(data=SimpleNamespace(service_data={"entity_id": ["light.kitchen"]}))
+    )
+
+    non_matching_event = SimpleNamespace(
+        payload=SimpleNamespace(data=SimpleNamespace(service_data={"entity_id": ["light.other"]}))
+    )
+
+    predicate = ValueIs(
+        source=lambda event: event.payload.data.service_data.get("entity_id", MISSING_VALUE),
+        condition=IsOrContains("light.kitchen"),
+    )
+
+    assert predicate(event) is True, "Expected predicate to match when value is in collection"
+    assert predicate(non_matching_event) is False, "Expected predicate to not match when value is not in collection"

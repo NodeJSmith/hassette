@@ -12,17 +12,6 @@ def _make_event(service_data: dict[str, typing.Any]) -> Event:
     return typing.cast("Event", SimpleNamespace(payload=payload))
 
 
-def test_service_data_where_matches_list_values() -> None:
-    """Test that ServiceDataWhere can match values within list/array service data."""
-    predicate = ServiceDataWhere({"entity_id": "light.kitchen"})
-
-    matching_event = _make_event({"entity_id": ["light.kitchen"]})
-    non_matching_event = _make_event({"entity_id": ["light.other"]})
-
-    assert predicate(matching_event) is True
-    assert predicate(non_matching_event) is False
-
-
 def test_service_data_where_not_provided_requires_presence() -> None:
     """Test that ServiceDataWhere with NOT_PROVIDED requires key presence."""
     predicate = ServiceDataWhere({"required": NOT_PROVIDED})

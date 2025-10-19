@@ -17,6 +17,7 @@ from hassette.core.resources.bus.predicates import (
     ServiceDataWhere,
     StateDidChange,
 )
+from hassette.core.resources.bus.predicates.conditions import IsOrContains
 from hassette.events.base import Event
 
 if typing.TYPE_CHECKING:
@@ -197,7 +198,7 @@ async def test_on_call_service_handles_mapping_predicates(bus_instance: "Bus") -
         domain="light",
         service="turn_on",
         handler=AsyncMock(),
-        where=[{"entity_id": "light.kitchen"}, extra_guard],
+        where=[{"entity_id": IsOrContains("light.kitchen")}, extra_guard],
     )
 
     listener = subscription.listener

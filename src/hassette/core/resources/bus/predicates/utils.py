@@ -1,7 +1,7 @@
 import typing
 from collections.abc import Mapping, Sequence
 from inspect import isawaitable, iscoroutinefunction
-from typing import Any
+from typing import Any, TypeGuard
 
 from boltons.iterutils import is_collection
 
@@ -9,6 +9,26 @@ from hassette.const.misc import NOT_PROVIDED
 
 if typing.TYPE_CHECKING:
     from hassette.types import ChangeType, Predicate
+
+
+def is_collection_guard(obj: Any) -> TypeGuard[Sequence[Any]]:
+    """Type guard to check if an object is a collection of predicates.
+
+    We treat only list/tuple/set/frozenset-like things as collections of predicates.
+    We explicitly DO NOT recurse into:
+      - mappings (those feed ServiceDataWhere elsewhere),
+      - strings/bytes,
+      - callables (predicates are callables; don't explode them),
+      - None.
+    """
+    if obj is None:
+        return False
+    if callable(obj):
+        return False
+    if isinstance(obj, (str, bytes, Mapping)):
+        return False
+    # boltons.is_collection filters out scalars for us; we just fence off types we don't want
+    return is_collection(obj)
 
 
 def _is_predicate_collection(obj: Any) -> bool:
@@ -73,8 +93,8 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
     """Compare an actual value against a condition.
 
     Args:
-        actual: The actual value extracted from the event.
-        condition: The condition to compare against.
+        actual (Any): The actual value to compare.
+        condition (ChangeType): The condition to compare against. Can be a literal value or a callable.
 
     Returns:
         bool: True if the actual value matches the condition, False otherwise.
@@ -82,20 +102,17 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
     Behavior:
         - If condition is NOT_PROVIDED, treat as 'no constraint' (True).
         - If condition is a non-callable, compare for equality (or membership for collections).
-        - If condition is a PredicateCallable, call and ensure bool.
+        - If condition is a callable, call and ensure bool.
         - Async/coroutine predicates are explicitly disallowed (raise).
+
+    Warnings:
+        - This function does not handle collections any differently than other literals, it will compare
+            them for equality only. Use specific conditions like IsIn/NotIn/Intersects for collection membership tests.
     """
     if condition is NOT_PROVIDED:
         return True
 
     if not callable(condition):
-        # Treat sequences/sets as collections where membership constitutes a match.
-        if isinstance(actual, (set, frozenset)):
-            return condition in actual
-
-        if isinstance(actual, Sequence) and not isinstance(actual, (str, bytes, bytearray)):
-            return condition in actual
-
         return actual == condition
 
     # Disallow async predicates to keep filters pure/fast.

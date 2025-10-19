@@ -12,18 +12,22 @@ from hassette.core.resources.bus.predicates import (
     AttrDidChange,
     AttrFrom,
     AttrTo,
+    Contains,
     DomainMatches,
+    EndsWith,
     EntityMatches,
+    Glob,
     Guard,
     Not,
+    Present,
+    Regex,
     ServiceDataWhere,
     ServiceMatches,
+    StartsWith,
     StateDidChange,
     StateFrom,
     StateTo,
     ValueIs,
-)
-from hassette.core.resources.bus.predicates.accessors import (
     get_attr_new,
     get_attr_old,
     get_domain,
@@ -33,7 +37,6 @@ from hassette.core.resources.bus.predicates.accessors import (
     get_state_value_new,
     get_state_value_old,
 )
-from hassette.core.resources.bus.predicates.conditions import Contains, EndsWith, Glob, Present, Regex, StartsWith
 from hassette.core.resources.bus.predicates.utils import compare_value, ensure_tuple, normalize_where
 from hassette.events import CallServiceEvent, Event
 
@@ -433,14 +436,6 @@ def test_compare_value_with_literals() -> None:
     assert compare_value("exact", "different") is False
     assert compare_value(42, 42) is True
     assert compare_value(42, 43) is False
-
-
-def test_compare_value_with_sequences() -> None:
-    """Test compare_value with sequence membership."""
-    assert compare_value(["target", "other"], "target") is True
-    assert compare_value(["target", "other"], "missing") is False
-    assert compare_value({"target", "other"}, "target") is True
-    assert compare_value({"target", "other"}, "missing") is False
 
 
 def test_compare_value_with_not_provided() -> None:
