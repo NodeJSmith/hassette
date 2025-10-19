@@ -101,9 +101,17 @@ def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | Sentinel:
     """Return the service_data dict (or empty dict if missing).
 
     Returns:
-        dict[str, Any]: The service data payload for a call_service event.
+        dict[str, Any] | Sentinel: The service_data dict, or MISSING_VALUE if not present.
     """
-    return get_path("payload.data.service_data")(event) or {}
+    result = get_path("payload.data.service_data")(event)
+
+    if result is MISSING_VALUE:
+        return MISSING_VALUE
+
+    if typing.TYPE_CHECKING:
+        assert not isinstance(result, Sentinel)
+
+    return result
 
 
 def get_service_data_key(key: str) -> "Callable[[CallServiceEvent], Any]":
