@@ -28,6 +28,7 @@ from hassette.core.resources.bus.predicates.accessors import (
     get_attr_old,
     get_domain,
     get_entity_id,
+    get_path,
     get_service_data_key,
     get_state_value_new,
     get_state_value_old,
@@ -575,3 +576,182 @@ def test_get_service_data_key_accessor() -> None:
     # Missing key
     accessor = get_service_data_key("missing")
     assert accessor(event) == MISSING_VALUE
+
+
+def test_get_path_accessor() -> None:
+    """Test get_path accessor function with various path expressions."""
+    # Create a complex nested object structure
+    test_obj = SimpleNamespace(
+        simple_attr="simple_value",
+        nested=SimpleNamespace(
+            level1=SimpleNamespace(
+                level2="nested_value",
+                number=42,
+                flag=True,
+            ),
+            array=[1, 2, 3, {"key": "array_value"}],
+            dict_attr={"dict_key": "dict_value", "nested_dict": {"deep": "deep_value"}},
+        ),
+        list_attr=["item1", "item2", {"list_item_key": "list_item_value"}],
+        dict_with_spaces={"key with spaces": "spaced_value"},
+        none_value=None,
+    )
+
+    # Test simple attribute access
+    accessor = get_path("simple_attr")
+    assert accessor(test_obj) == "simple_value"
+
+    # Test nested attribute access
+    accessor = get_path("nested.level1.level2")
+    assert accessor(test_obj) == "nested_value"
+
+    # Test nested numeric access
+    accessor = get_path("nested.level1.number")
+    assert accessor(test_obj) == 42
+
+    # Test nested boolean access
+    accessor = get_path("nested.level1.flag")
+    assert accessor(test_obj) is True
+
+    # Test array/list indexing
+    accessor = get_path("nested.array.0")
+    assert accessor(test_obj) == 1
+
+    accessor = get_path("list_attr.2.list_item_key")
+    assert accessor(test_obj) == "list_item_value"
+
+    # Test dictionary key access
+    accessor = get_path("nested.dict_attr.dict_key")
+    assert accessor(test_obj) == "dict_value"
+
+    # Test deeply nested dictionary access
+    accessor = get_path("nested.dict_attr.nested_dict.deep")
+    assert accessor(test_obj) == "deep_value"
+
+    # Test accessing None values
+    accessor = get_path("none_value")
+    assert accessor(test_obj) is None
+
+    # Test accessing non-existent paths - should return MISSING_VALUE
+    accessor = get_path("nonexistent")
+    assert accessor(test_obj) is MISSING_VALUE
+
+    accessor = get_path("nested.nonexistent")
+    assert accessor(test_obj) is MISSING_VALUE
+
+    accessor = get_path("nested.level1.nonexistent")
+    assert accessor(test_obj) is MISSING_VALUE
+
+    # Test invalid array index
+    accessor = get_path("list_attr.10")
+    assert accessor(test_obj) is MISSING_VALUE
+
+    # Test accessing attribute on None
+    accessor = get_path("none_value.some_attr")
+    assert accessor(test_obj) is MISSING_VALUE
+
+
+def test_get_path_with_dict_objects() -> None:
+    """Test get_path with dictionary objects instead of SimpleNamespace."""
+    test_dict = {
+        "top_level": "value",
+        "nested": {
+            "inner": {
+                "deep": "deep_value",
+                "list": [{"item": "list_item"}],
+            },
+            "simple": "simple_value",
+        },
+        "array": [1, 2, {"nested_in_array": "array_nested"}],
+    }
+
+    # Test dictionary key access
+    accessor = get_path("top_level")
+    assert accessor(test_dict) == "value"
+
+    # Test nested dictionary access
+    accessor = get_path("nested.inner.deep")
+    assert accessor(test_dict) == "deep_value"
+
+    accessor = get_path("nested.simple")
+    assert accessor(test_dict) == "simple_value"
+
+    # Test mixed dictionary and list access
+    accessor = get_path("nested.inner.list.0.item")
+    assert accessor(test_dict) == "list_item"
+
+    accessor = get_path("array.2.nested_in_array")
+    assert accessor(test_dict) == "array_nested"
+
+    # Test missing keys
+    accessor = get_path("missing_key")
+    assert accessor(test_dict) is MISSING_VALUE
+
+    accessor = get_path("nested.missing")
+    assert accessor(test_dict) is MISSING_VALUE
+
+
+def test_get_path_error_handling() -> None:
+    """Test get_path error handling for various edge cases."""
+    # Test with invalid object types
+    accessor = get_path("some.path")
+
+    # Should return MISSING_VALUE for non-dict/object types
+    assert accessor("string") is MISSING_VALUE
+    assert accessor(123) is MISSING_VALUE
+    assert accessor([1, 2, 3]) is MISSING_VALUE  # List without proper path
+    assert accessor(None) is MISSING_VALUE
+
+    # Test with empty path strings
+    accessor = get_path("")
+    test_obj = {"key": "value"}
+    # Empty path causes glom to raise an exception, so should return MISSING_VALUE
+    assert accessor(test_obj) is MISSING_VALUE
+
+    # Test with malformed paths that cause glom to fail
+    test_obj = SimpleNamespace(attr="value")
+
+    # These should all return MISSING_VALUE due to exceptions
+    accessor = get_path("attr.nonexistent.deep")
+    assert accessor(test_obj) is MISSING_VALUE
+
+    # Test accessing methods/attributes that don't exist
+    accessor = get_path("nonexistent_method()")
+    assert accessor(test_obj) is MISSING_VALUE
+
+
+def test_get_path_with_real_event_structure() -> None:
+    """Test get_path with realistic event-like structures."""
+    # Simulate a Home Assistant event structure
+    event = SimpleNamespace(
+        topic="hass.event.state_changed",
+        payload=SimpleNamespace(
+            data=SimpleNamespace(
+                entity_id="light.kitchen",
+                domain="light",
+                old_state_value="off",
+                new_state_value="on",
+                service_data={"brightness": 255, "transition": 2},
+            )
+        ),
+    )
+
+    # Test paths similar to what's used in the codebase
+    accessor = get_path("payload.data.entity_id")
+    assert accessor(event) == "light.kitchen"
+
+    accessor = get_path("payload.data.domain")
+    assert accessor(event) == "light"
+
+    accessor = get_path("payload.data.service_data.brightness")
+    assert accessor(event) == 255
+
+    accessor = get_path("topic")
+    assert accessor(event) == "hass.event.state_changed"
+
+    # Test missing paths on realistic structure
+    accessor = get_path("payload.data.nonexistent")
+    assert accessor(event) is MISSING_VALUE
+
+    accessor = get_path("payload.metadata.missing")
+    assert accessor(event) is MISSING_VALUE
