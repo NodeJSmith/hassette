@@ -163,6 +163,12 @@ class IsIn:
 
     collection: Sequence[Any]
 
+    def __post_init__(self) -> None:
+        if isinstance(self.collection, str):
+            raise ValueError("collection must be a sequence of values, not a string")
+
+        object.__setattr__(self, "collection", self.collection)
+
     def __call__(self, value: Any) -> bool:
         return value in self.collection
 
@@ -181,6 +187,12 @@ class NotIn:
 
     collection: Sequence[Any]
 
+    def __post_init__(self) -> None:
+        if isinstance(self.collection, str):
+            raise ValueError("collection must be a sequence of values, not a string")
+
+        object.__setattr__(self, "collection", self.collection)
+
     def __call__(self, value: Any) -> bool:
         return value not in self.collection
 
@@ -198,6 +210,12 @@ class IsOrContains:
     """
 
     collection: Sequence[Any]
+
+    def __post_init__(self) -> None:
+        if isinstance(self.collection, str):
+            raise ValueError("collection must be a sequence of values, not a string")
+
+        object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
         if isinstance(value, Sequence):
@@ -219,6 +237,12 @@ class Intersects:
 
     collection: Sequence[Any]
 
+    def __post_init__(self) -> None:
+        if isinstance(self.collection, str):
+            raise ValueError("collection must be a sequence of values, not a string")
+
+        object.__setattr__(self, "collection", self.collection)
+
     def __call__(self, value: Any) -> bool:
         if not isinstance(value, Sequence):
             return False
@@ -239,6 +263,12 @@ class NotIntersects:
     """
 
     collection: Sequence[Any]
+
+    def __post_init__(self) -> None:
+        if isinstance(self.collection, str):
+            raise ValueError("collection must be a sequence of values, not a string")
+
+        object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
         if not isinstance(value, Sequence):
