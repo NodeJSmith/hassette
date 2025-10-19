@@ -6,10 +6,9 @@ from typing import Any
 from boltons.iterutils import is_collection
 
 from hassette.const.misc import NOT_PROVIDED
-from hassette.types import ChangeType, Predicate
 
 if typing.TYPE_CHECKING:
-    from hassette.types import Predicate
+    from hassette.types import ChangeType, Predicate
 
 
 def _is_predicate_collection(obj: Any) -> bool:
@@ -70,7 +69,7 @@ def ensure_tuple(where: "Predicate | Sequence[Predicate]") -> tuple["Predicate",
     return (typing.cast("Predicate", where),)
 
 
-def compare_value(condition: ChangeType, actual: Any) -> bool:
+def compare_value(condition: "ChangeType", actual: Any) -> bool:
     """Compare a 'condition' (literal or predicate) against an actual value.
 
     - If condition is NOT_PROVIDED, treat as 'no constraint' (True).
