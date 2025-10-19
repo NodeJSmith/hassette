@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import time
 from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
@@ -70,8 +70,9 @@ HandlerType = TypeAliasType(
 )
 """Alias for all valid handler types."""
 
+_KnownTypes: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
 
-KnownTypes: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
+KnownTypes: TypeAlias = _KnownTypes | Sequence[_KnownTypes] | Mapping[str, _KnownTypes]
 """Alias for all known valid state types."""
 
 ChangeType: TypeAlias = "None | NOT_PROVIDED | KnownTypes | PredicateCallable"  # pyright: ignore[reportInvalidTypeForm]
