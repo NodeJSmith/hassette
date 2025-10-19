@@ -65,9 +65,10 @@ HandlerType = TypeAliasType(
 )
 """Alias for all valid handler types."""
 
-_KnownType: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
+KnownTypeScalar: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
+"""Alias for all known valid scalar state types."""
 
-KnownType: TypeAlias = _KnownType | Sequence[_KnownType] | Mapping[str, _KnownType]
+KnownType: TypeAlias = KnownTypeScalar | Sequence[KnownTypeScalar] | Mapping[str, KnownTypeScalar]
 """Alias for all known valid state types."""
 
 ChangeType: TypeAlias = "None | Sentinel | KnownType | Condition"
