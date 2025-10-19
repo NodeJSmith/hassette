@@ -29,7 +29,7 @@ class Presence(App[PresenceAppConfig]):
 
         self.bus.on_state_change("device_tracker.*", handler=self.presence_change)
         self.bus.on_state_change(
-            "gro.on_state_changeices", handler=self.everyone_left, changed_from="home", changed_to="not_home"
+            "group.all_devices", handler=self.everyone_left, changed_from="home", changed_to="not_home"
         )
         self.bus.on_state_change(
             "group.all_devices", handler=self.someone_home, changed_from="not_home", changed_to="home"
