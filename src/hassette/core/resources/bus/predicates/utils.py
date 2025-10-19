@@ -6,7 +6,7 @@ from typing import Any
 from boltons.iterutils import is_collection
 
 from hassette.const.misc import NOT_PROVIDED
-from hassette.types import ChangeType, Predicate, PredicateCallable
+from hassette.types import ChangeType, Predicate
 
 if typing.TYPE_CHECKING:
     from hassette.types import Predicate
@@ -99,11 +99,6 @@ def compare_value(condition: ChangeType, actual: Any) -> bool:
 
     if isawaitable(result):
         raise TypeError("Predicate returned an awaitable; make it return bool.")
-
-    if isinstance(condition, PredicateCallable):
-        if not isinstance(result, bool):
-            raise TypeError(f"Predicate callable {condition!r} did not return a boolean (returned {type(result)})")
-        return result
 
     # Fallback: callable but not declared as PredicateCallable; still require bool.
     if not isinstance(result, bool):

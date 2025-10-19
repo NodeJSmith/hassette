@@ -3,12 +3,10 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import time
 from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
-from typing_extensions import TypeAliasType
+from typing_extensions import Sentinel, TypeAliasType
 from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
 if typing.TYPE_CHECKING:
-    from hassette.const.misc import NOT_PROVIDED
-
     from .events import Event
 
 EventT = TypeVar("EventT", bound="Event[Any]", contravariant=True)
@@ -21,11 +19,10 @@ class Predicate(Protocol[EventT]):
     def __call__(self, event: EventT) -> bool: ...
 
 
-@runtime_checkable
-class PredicateCallable(Protocol):
-    """Protocol for defining callables that evaluate values."""
+class Condition(Protocol):
+    """Protocol for defining conditions on known types."""
 
-    def __call__(self, value: "KnownTypes") -> bool: ...
+    def __call__(self, value: "KnownType") -> bool: ...
 
 
 class Handler(Protocol[EventT]):
@@ -57,9 +54,7 @@ class TriggerProtocol(Protocol):
 
 
 AsyncHandlerType = TypeAliasType(
-    "AsyncHandlerType",
-    AsyncHandler[EventT] | AsyncHandlerVariadic[EventT],
-    type_params=(EventT,),
+    "AsyncHandlerType", AsyncHandler[EventT] | AsyncHandlerVariadic[EventT], type_params=(EventT,)
 )
 """Alias for all valid async handler types."""
 
@@ -70,12 +65,12 @@ HandlerType = TypeAliasType(
 )
 """Alias for all valid handler types."""
 
-_KnownTypes: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
+_KnownType: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
 
-KnownTypes: TypeAlias = _KnownTypes | Sequence[_KnownTypes] | Mapping[str, _KnownTypes]
+KnownType: TypeAlias = _KnownType | Sequence[_KnownType] | Mapping[str, _KnownType]
 """Alias for all known valid state types."""
 
-ChangeType: TypeAlias = "None | NOT_PROVIDED | KnownTypes | PredicateCallable"  # pyright: ignore[reportInvalidTypeForm]
+ChangeType: TypeAlias = "None | Sentinel | KnownType | Condition"
 """Alias for types that can be used to specify state or attribute changes."""
 
 JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
