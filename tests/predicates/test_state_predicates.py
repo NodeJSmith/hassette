@@ -1,3 +1,4 @@
+import typing
 from types import SimpleNamespace
 
 from hassette.core.resources.bus.predicates import (
@@ -9,6 +10,7 @@ from hassette.core.resources.bus.predicates import (
     StateDidChange,
     To,
 )
+from hassette.events import Event
 
 
 class _Attrs:
@@ -26,7 +28,7 @@ def _state_event(
     new_value: object,
     old_attrs: dict[str, object] | None = None,
     new_attrs: dict[str, object] | None = None,
-) -> SimpleNamespace:
+) -> Event:
     data = SimpleNamespace(
         entity_id=entity_id,
         old_state_value=old_value,
@@ -35,22 +37,25 @@ def _state_event(
         new_state=SimpleNamespace(attributes=_Attrs(new_attrs or {})),
     )
     payload = SimpleNamespace(data=data)
-    return SimpleNamespace(topic="hass.event.state_changed", payload=payload)
+    return typing.cast("Event", SimpleNamespace(topic="hass.event.state_changed", payload=payload))
 
 
 def test_state_did_change_detects_transitions() -> None:
+    """Test that StateDidChange predicate detects when state values change."""
     predicate = StateDidChange()
     event = _state_event(entity_id="sensor.kitchen", old_value="off", new_value="on")
     assert predicate(event) is True
 
 
 def test_state_did_change_false_when_unchanged() -> None:
+    """Test that StateDidChange predicate returns False when state values are unchanged."""
     predicate = StateDidChange()
     event = _state_event(entity_id="sensor.kitchen", old_value="idle", new_value="idle")
     assert predicate(event) is False
 
 
 def test_attr_did_change_detects_attribute_modifications() -> None:
+    """Test that AttrDidChange predicate detects when specified attributes change."""
     predicate = AttrDidChange("brightness")
     event = _state_event(
         entity_id="light.office",
@@ -63,6 +68,7 @@ def test_attr_did_change_detects_attribute_modifications() -> None:
 
 
 def test_attr_from_to_predicates_apply_conditions() -> None:
+    """Test that AttrFrom and AttrTo predicates correctly match old and new attribute values."""
     event = _state_event(
         entity_id="light.office",
         old_value=None,
@@ -79,6 +85,7 @@ def test_attr_from_to_predicates_apply_conditions() -> None:
 
 
 def test_from_to_predicates_match_state_values() -> None:
+    """Test that From and To predicates correctly match old and new state values."""
     event = _state_event(entity_id="light.office", old_value="off", new_value="on")
 
     from_pred = From("off")
@@ -89,6 +96,73 @@ def test_from_to_predicates_match_state_values() -> None:
 
 
 def test_entity_matches_supports_globs() -> None:
+    """Test that EntityMatches predicate supports glob pattern matching."""
     predicate = EntityMatches("sensor.*")
     event = _state_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
     assert predicate(event) is True
+
+
+def test_entity_matches_exact_match() -> None:
+    """Test that EntityMatches predicate supports exact entity ID matching."""
+    predicate = EntityMatches("sensor.kitchen")
+
+    # Exact match
+    event = _state_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
+    assert predicate(event) is True
+
+    # No match
+    event = _state_event(entity_id="sensor.living", old_value=None, new_value=None)
+    assert predicate(event) is False
+
+
+def test_attr_did_change_false_when_unchanged() -> None:
+    """Test that AttrDidChange returns False when specified attribute is unchanged."""
+    predicate = AttrDidChange("brightness")
+    event = _state_event(
+        entity_id="light.office",
+        old_value="on",
+        new_value="on",
+        old_attrs={"brightness": 100},
+        new_attrs={"brightness": 100},
+    )
+    assert predicate(event) is False
+
+
+def test_attr_from_to_with_callable_conditions() -> None:
+    """Test that AttrFrom and AttrTo predicates work with callable conditions."""
+    event = _state_event(
+        entity_id="light.office",
+        old_value="on",
+        new_value="on",
+        old_attrs={"brightness": 100},
+        new_attrs={"brightness": 200},
+    )
+
+    def gt_50(value: int) -> bool:
+        return value > 50
+
+    def gt_150(value: int) -> bool:
+        return value > 150
+
+    attr_from = AttrFrom("brightness", gt_50)
+    attr_to = AttrTo("brightness", gt_150)
+
+    assert attr_from(event) is True
+    assert attr_to(event) is True
+
+
+def test_from_to_with_callable_conditions() -> None:
+    """Test that From and To predicates work with callable conditions."""
+    event = _state_event(entity_id="sensor.temp", old_value=20, new_value=25)
+
+    def gt_15(value: int) -> bool:
+        return value > 15
+
+    def gt_20(value: int) -> bool:
+        return value > 20
+
+    from_pred = From(gt_15)
+    to_pred = To(gt_20)
+
+    assert from_pred(event) is True
+    assert to_pred(event) is True
