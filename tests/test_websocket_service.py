@@ -58,7 +58,7 @@ async def test_connected_reflects_websocket_state(websocket_service: _WebsocketS
     assert websocket_service.connected is False
 
 
-async def test_send_json_injects_message_id_when_abset(websocket_service: _WebsocketService) -> None:
+async def test_send_json_injects_message_id_when_absent(websocket_service: _WebsocketService) -> None:
     """Ensure send_json injects a message id and forwards the payload."""
     fake_ws = _build_fake_ws()
     websocket_service._ws = fake_ws
