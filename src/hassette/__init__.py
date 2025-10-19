@@ -51,8 +51,6 @@ logging.getLogger("hassette").addHandler(logging.NullHandler())
 
 __all__ = [
     "AllOf",
-    "AllOf",
-    "AnyOf",
     "AnyOf",
     "Api",
     "App",
