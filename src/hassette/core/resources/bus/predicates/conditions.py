@@ -1,5 +1,6 @@
+import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from hassette.const.misc import MISSING_VALUE
@@ -123,11 +124,13 @@ class Regex:
     """
 
     pattern: str
+    _compiled: re.Pattern = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_compiled", re.compile(self.pattern))
 
     def __call__(self, value: Any) -> bool:
-        import re
-
-        return isinstance(value, str) and re.match(self.pattern, value) is not None
+        return isinstance(value, str) and self._compiled.match(value) is not None
 
     def __repr__(self) -> str:
         return f"Regex({self.pattern!r})"
