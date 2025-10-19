@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.14.0] - 2025-10-19
+
 ### Added
 - Add validation for filename extension in AppManifest - add `.py` if no suffix, raise error if not `.py`
 - Bus handlers can now accept args and kwargs to be passed to the callback when the event is fired
