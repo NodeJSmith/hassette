@@ -81,7 +81,7 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
 
     Behavior:
         - If condition is NOT_PROVIDED, treat as 'no constraint' (True).
-        - If condition is a non-callable, compare for equality (or membership for collections).
+        - If condition is a non-callable, compare for equality only.
         - If condition is a callable, call and ensure bool.
         - Async/coroutine predicates are explicitly disallowed (raise).
 
