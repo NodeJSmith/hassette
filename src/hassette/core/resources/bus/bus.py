@@ -9,7 +9,6 @@ from hassette.const.misc import NOT_PROVIDED
 from hassette.core.resources.base import Resource
 from hassette.enums import ResourceStatus
 from hassette.events.base import Event
-from hassette.types import HandlerType, Predicate
 from hassette.utils.func_utils import callable_short_name
 
 from .listeners import Listener, Subscription
@@ -43,7 +42,7 @@ if typing.TYPE_CHECKING:
         ServiceRegisteredEvent,
         StateChangeEvent,
     )
-    from hassette.types import AsyncHandler, ChangeType, EventT
+    from hassette.types import AsyncHandler, ChangeType, EventT, HandlerType, Predicate
 
 T = TypeVar("T", covariant=True)
 P = ParamSpec("P")
@@ -368,7 +367,7 @@ class Bus(Resource):
         if where is not None:
             if isinstance(where, Mapping):
                 preds.append(ServiceDataWhere(where))
-            elif callable(where) or isinstance(where, Predicate):
+            elif callable(where):
                 preds.append(where)
             else:
                 mappings = [w for w in where if isinstance(w, Mapping)]
