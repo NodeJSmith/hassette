@@ -11,27 +11,7 @@ if typing.TYPE_CHECKING:
     from hassette.types import ChangeType, Predicate
 
 
-def is_collection_guard(obj: Any) -> TypeGuard[Sequence[Any]]:
-    """Type guard to check if an object is a collection of predicates.
-
-    We treat only list/tuple/set/frozenset-like things as collections of predicates.
-    We explicitly DO NOT recurse into:
-      - mappings (those feed ServiceDataWhere elsewhere),
-      - strings/bytes,
-      - callables (predicates are callables; don't explode them),
-      - None.
-    """
-    if obj is None:
-        return False
-    if callable(obj):
-        return False
-    if isinstance(obj, (str, bytes, Mapping)):
-        return False
-    # boltons.is_collection filters out scalars for us; we just fence off types we don't want
-    return is_collection(obj)
-
-
-def _is_predicate_collection(obj: Any) -> bool:
+def _is_predicate_collection(obj: Any) -> TypeGuard[Sequence["Predicate"]]:
     """Return True for *predicate collections* we want to recurse into.
 
     We treat only list/tuple/set/frozenset-like things as collections of predicates.
