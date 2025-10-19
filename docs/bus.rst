@@ -106,7 +106,7 @@ Every subscription helper accepts ``where`` (a predicate or list of predicates),
       "binary_sensor.front_door",
       handler=self.on_open,
       changed_to="on",
-      where=P.Not(P.ChangedFrom("unknown")),
+      where=P.Not(P.From("unknown")),
       debounce=0.5,
    )
 
@@ -114,7 +114,7 @@ Every subscription helper accepts ``where`` (a predicate or list of predicates),
    self.bus.on_state_change(
       "media_player.living_room",
       handler=self.on_media_change,
-      where=P.AnyOf((P.ChangedTo("playing"), P.ChangedTo("paused"))),
+      where=P.To(["playing", "paused"]),
    )
 
 Unsubscribing
@@ -150,3 +150,34 @@ for each incoming event, keeping your own code simple.
 
    For truly custom patterns (e.g., multiple unrelated prefixes in one subscription), you can
    use ``self.bus.on(...)`` with predicates like ``DomainMatches`` or a custom ``Guard``.
+
+Filtering service data
+----------------------
+``on_call_service`` accepts dictionaries or predicate instances via ``where``. Under the hood, any
+mapping is converted into :class:`~hassette.core.resources.bus.predicates.ServiceDataWhere`, so the
+examples below are equivalent. Using ``NOT_PROVIDED`` or ``typing.Any`` as a value now enforces key
+presence instead of silently allowing missing data.
+
+.. code-block:: python
+
+   from hassette import ServiceDataWhere
+   from hassette.const.misc import NOT_PROVIDED
+
+   # Basic literal filters using a mapping
+   self.bus.on_call_service(
+       domain="light",
+       service="turn_on",
+       handler=self.on_turn_on,
+       where={"entity_id": "light.living_room", "brightness": NOT_PROVIDED},
+   )
+
+   # Equivalent explicit predicate form
+   self.bus.on_call_service(
+       domain="light",
+       handler=self.on_any_light_service,
+       where=ServiceDataWhere.from_kwargs(entity_id="light.*"),
+   )
+
+The underlying predicate compares literal conditions against scalars, sets, or lists, so ``entity_id:
+"light.kitchen"`` will match both ``"light.kitchen"`` and ``["light.kitchen", "light.hall"]`` service
+payloads.
