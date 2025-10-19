@@ -54,7 +54,6 @@ __all__ = [
     "models",
     "only_app",
     "predicates",
-    "predicates",
     "states",
     "topics",
 ]
