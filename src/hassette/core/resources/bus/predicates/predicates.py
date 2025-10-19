@@ -102,7 +102,7 @@ class ValueIs(Generic[EventT, V]):
         if self.condition is NOT_PROVIDED:
             return True
         value = self.source(event)
-        return compare_value(self.condition, value)
+        return compare_value(value, self.condition)
 
 
 @dataclass(frozen=True)

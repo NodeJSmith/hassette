@@ -437,15 +437,15 @@ def test_compare_value_with_literals() -> None:
 
 def test_compare_value_with_sequences() -> None:
     """Test compare_value with sequence membership."""
-    assert compare_value("target", ["target", "other"]) is True
-    assert compare_value("missing", ["target", "other"]) is False
-    assert compare_value("target", {"target", "other"}) is True
-    assert compare_value("missing", {"target", "other"}) is False
+    assert compare_value(["target", "other"], "target") is True
+    assert compare_value(["target", "other"], "missing") is False
+    assert compare_value({"target", "other"}, "target") is True
+    assert compare_value({"target", "other"}, "missing") is False
 
 
 def test_compare_value_with_not_provided() -> None:
     """Test compare_value with NOT_PROVIDED sentinel."""
-    assert compare_value(NOT_PROVIDED, "any_value") is True
+    assert compare_value("any_value", NOT_PROVIDED) is True
 
 
 def test_compare_value_with_callable() -> None:
@@ -454,8 +454,8 @@ def test_compare_value_with_callable() -> None:
     def gt_ten(value: int) -> bool:
         return value > 10
 
-    assert compare_value(gt_ten, 15) is True
-    assert compare_value(gt_ten, 5) is False
+    assert compare_value(15, gt_ten) is True
+    assert compare_value(5, gt_ten) is False
 
 
 def test_compare_value_error_handling() -> None:
@@ -466,14 +466,14 @@ def test_compare_value_error_handling() -> None:
         return True
 
     with pytest.raises(TypeError, match="Async predicates are not supported"):
-        compare_value(async_predicate, "value")
+        compare_value("value", async_predicate)
 
     # Non-bool return should raise
     def non_bool_predicate(value):  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
         return "not_bool"
 
     with pytest.raises(TypeError, match="Predicate must return bool"):
-        compare_value(non_bool_predicate, "value")
+        compare_value("value", non_bool_predicate)
 
 
 def test_ensure_tuple_flattening() -> None:

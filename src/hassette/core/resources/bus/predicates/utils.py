@@ -69,13 +69,21 @@ def ensure_tuple(where: "Predicate | Sequence[Predicate]") -> tuple["Predicate",
     return (typing.cast("Predicate", where),)
 
 
-def compare_value(condition: "ChangeType", actual: Any) -> bool:
-    """Compare a 'condition' (literal or predicate) against an actual value.
+def compare_value(actual: Any, condition: "ChangeType") -> bool:
+    """Compare an actual value against a condition.
 
-    - If condition is NOT_PROVIDED, treat as 'no constraint' (True).
-    - If condition is a non-callable, compare for equality (or membership for collections).
-    - If condition is a PredicateCallable, call and ensure bool.
-    - Async/coroutine predicates are explicitly disallowed (raise).
+    Args:
+        actual: The actual value extracted from the event.
+        condition: The condition to compare against.
+
+    Returns:
+        bool: True if the actual value matches the condition, False otherwise.
+
+    Behavior:
+        - If condition is NOT_PROVIDED, treat as 'no constraint' (True).
+        - If condition is a non-callable, compare for equality (or membership for collections).
+        - If condition is a PredicateCallable, call and ensure bool.
+        - Async/coroutine predicates are explicitly disallowed (raise).
     """
     if condition is NOT_PROVIDED:
         return True

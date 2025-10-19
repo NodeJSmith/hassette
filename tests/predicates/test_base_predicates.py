@@ -1,8 +1,7 @@
 from types import SimpleNamespace
 
-from hassette.const.misc import NOT_PROVIDED
 from hassette.core.resources.bus.predicates import AllOf, AnyOf, Guard, Not
-from hassette.core.resources.bus.predicates.utils import compare_value, ensure_tuple, normalize_where
+from hassette.core.resources.bus.predicates.utils import ensure_tuple, normalize_where
 
 
 def test_allof_requires_all_predicates_true() -> None:
@@ -80,38 +79,3 @@ def test_ensure_tuple_handles_single_predicate() -> None:
     result = ensure_tuple(predicate)  # pyright: ignore[reportArgumentType]
     assert result == (predicate,)
     assert len(result) == 1
-
-
-def test_compare_value_supports_membership_for_lists() -> None:
-    """Test that compare_value supports membership testing for list/sequence values."""
-    assert compare_value("light.kitchen", ["light.kitchen", "light.hall"]) is True
-    assert compare_value("light.kitchen", ["light.lounge"]) is False
-
-
-def test_compare_value_supports_membership_for_sets() -> None:
-    """Test that compare_value supports membership testing for set values."""
-    assert compare_value("sensor.temp", {"sensor.temp", "sensor.humidity"}) is True
-    assert compare_value("sensor.pressure", {"sensor.temp", "sensor.humidity"}) is False
-
-
-def test_compare_value_allows_not_provided_sentinel() -> None:
-    """Test that compare_value returns True for NOT_PROVIDED values (no constraint)."""
-    assert compare_value(NOT_PROVIDED, "anything") is True
-
-
-def test_compare_value_with_callable_condition() -> None:
-    """Test that compare_value correctly applies callable conditions."""
-
-    def condition(x: int) -> bool:
-        return x > 10
-
-    assert compare_value(condition, 15) is True  # pyright: ignore[reportArgumentType]
-    assert compare_value(condition, 5) is False  # pyright: ignore[reportArgumentType]
-
-
-def test_compare_value_equality_for_non_collections() -> None:
-    """Test that compare_value performs equality comparison for non-collection values."""
-    assert compare_value("exact_match", "exact_match") is True
-    assert compare_value("no_match", "exact_match") is False
-    assert compare_value(42, 42) is True
-    assert compare_value(42, 43) is False
