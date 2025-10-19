@@ -363,7 +363,7 @@ class Bus(Resource):
             preds.append(DomainMatches(domain))
 
         if service is not None:
-            preds.append(ValueIs(source=get_path("payload.data.service"), condition=service))
+            preds.append(ServiceMatches(service))
 
         if where is not None:
             if isinstance(where, Mapping):
