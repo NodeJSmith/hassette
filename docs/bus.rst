@@ -167,7 +167,7 @@ the ``where`` parameter on any subscription method.
    self.bus.on_state_change(
       "media_player.living_room",
       handler=self.on_media_change,
-      where=P.StateTo(["playing", "paused"])  # state is in ["playing", "paused"]
+      where=P.StateTo(P.IsIn(["playing", "paused"]))  # state is in ["playing", "paused"]
    )
 
    # Custom predicates with Guard
