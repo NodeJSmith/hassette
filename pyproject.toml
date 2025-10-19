@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.13.0"
+version = "0.14.0"
 description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -39,6 +39,7 @@ dependencies = [
     "croniter>=6.0.0",
     "deepdiff>=8.6.1",
     "fair-async-rlock>=1.0.7",
+    "glom>=24.11.0",
     "humanize>=4.13.0",
     "orjson>=3.10.18",
     "packaging>=25.0",

@@ -5,6 +5,8 @@ from typing import ClassVar
 from deepdiff import DeepDiff
 
 from hassette import AppConfig, AppSync, StateChangeEvent, entities, states
+from hassette import predicates as P
+from hassette.events import CallServiceEvent
 
 
 class OfficeButtonAppConfig(AppConfig):
@@ -22,7 +24,12 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
     def on_initialize_sync(self) -> None:
         self.enabled = True
 
-        self.bus.on_entity(self.app_config.event_action, handler=self.handle_office_button)
+        self.bus.on_state_change(self.app_config.event_action, handler=self.handle_office_button)
+        self.bus.on_call_service(
+            domain="light",
+            handler=self.log_manual_light_service,
+            where=P.ServiceDataWhere.from_kwargs(entity_id=P.IsOrContains(self.app_config.office_light)),
+        )
 
         attributes = self.get_office_light().attributes
         if not isinstance(attributes.entity_id, list):
@@ -35,7 +42,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
         for entity_id in self.get_office_light().attributes.entity_id:  # type: ignore
             entity = self.api.sync.get_state(entity_id, states.LightState)
             self.lights[entity_id] = entity
-            self.bus.on_entity(entity_id, handler=self.log_light_changes)
+            self.bus.on_state_change(entity_id, handler=self.log_light_changes)
 
     def log_light_changes(self, event: StateChangeEvent[states.LightState]) -> None:
         """Log changes to light entities."""
@@ -55,6 +62,16 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
             self.lights[new_state.entity_id] = new_state
         else:
             self.logger.debug("No significant changes for light %r", new_state.entity_id)
+
+    def log_manual_light_service(self, event: CallServiceEvent) -> None:
+        """Log light-related service calls that include the configured office light."""
+        service_data = event.payload.data.service_data
+        self.logger.debug(
+            "Observed %s.%s for %s",
+            event.payload.data.domain,
+            event.payload.data.service,
+            service_data.get("entity_id"),
+        )
 
     async def handle_office_button(self, event: StateChangeEvent[states.EventState]) -> None:
         """Handle the office button action."""

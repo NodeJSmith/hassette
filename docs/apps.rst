@@ -29,7 +29,7 @@ Example
 
    class MyApp(App[MyAppConfig]):
        async def on_initialize(self):
-           self.on_change_listener = self.bus.on_entity(self.app_config.light, handler=self.on_change)
+           self.on_change_listener = self.bus.on_state_change(self.app_config.light, handler=self.on_change)
            self.minutely_logger = self.scheduler.run_minutely(self.log_every_minute)
 
        async def on_change(self, event: StateChangeEvent[states.LightState]):
@@ -54,7 +54,7 @@ App Capabilities
   - ``self.app_config``: The parsed config for this app instance, typed as the app's ``AppConfig`` class.
   - ``self.index``: The index of this app instance in the config list, or 0 if only a single instance.
   - ``self.instance_name``: The name of this app instance as set in the config, or ``<ClassName>.[index]`` if not set.
-  - ``self.now()``: Get the current time as ``SystemDateTime``.
+  - ``self.now()``: Get the current time as ``ZonedDateTime``.
 
 Advanced Capabilities
 ---------------------
@@ -136,7 +136,7 @@ The base AppConfig class includes two fields by default:
 
    class Presence(App[PresenceConfig]):
        async def on_initialize(self):
-           self.bus.on_entity(self.app_config.motion_sensor, handler=self.on_motion, changed_to="on")
+           self.bus.on_state_change(self.app_config.motion_sensor, handler=self.on_motion, changed_to="on")
 
        async def on_motion(self, event):
            for light in self.app_config.lights:

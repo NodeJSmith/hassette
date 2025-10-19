@@ -363,7 +363,7 @@ The event bus is accessed via the ``self.bus`` attribute. You can cancel a subsc
                    service_call_id=None
                ),
                origin='LOCAL',
-               time_fired=SystemDateTime(2025-10-13 20:07:26.723688-05:00),
+               time_fired=ZonedDateTime(2025-10-13 20:07:26.723688-05:00[America/Chicago]),
                context={
                    'id': '01K7G440W3J39SFDHJM0Y50P17',
                    'parent_id': None,
@@ -429,7 +429,7 @@ Currently the repr of a StateChangeEvent is quite verbose, but it does show the 
   class ButtonPressed(App):
       async def on_initialize(self):
           # Listen for a button press event with a specific entity_id
-          sub = self.bus.on_entity(entity="input_button.test_button", handler=self.button_pressed)
+          sub = self.bus.on_state_change(entity="input_button.test_button", handler=self.button_pressed)
           self.logger.info(f"Subscribed: {sub}")
 
       def button_pressed(self, event: StateChangeEvent[states.ButtonState]) -> None:
@@ -450,18 +450,18 @@ Note, some output has been truncated for brevity.
                    old_state=InputButtonState(
                        domain='input_button',
                        entity_id='input_button.test_button',
-                       last_changed=SystemDateTime(2025-10-13 20:07:26.723887-05:00),
+                       last_changed=ZonedDateTime(2025-10-13 20:07:26.723887-05:00[America/Chicago]),
                        ...
                    ),
                    new_state=InputButtonState(
                        domain='input_button',
                        entity_id='input_button.test_button',
-                       last_changed=SystemDateTime(2025-10-13 22:52:35.268639-05:00),
+                       last_changed=ZonedDateTime(2025-10-13 22:52:35.268639-05:00[America/Chicago]),
                        ...
                    ),
                ),
                origin='LOCAL',
-               time_fired=SystemDateTime(2025-10-13 22:52:35.268639-05:00),
+               time_fired=ZonedDateTime(2025-10-13 22:52:35.268639-05:00[America/Chicago]),
                context={
                    'id': '01K7GDJD644YJWJGTRHXBVPQ4P',
                    'user_id': 'caa14e06472b499cb00545bb65e56e5a'
@@ -562,9 +562,9 @@ it uses the Home Assistant REST API to update the state of the entity.
        LightState(
            domain='light',
            entity_id='light.office_light_1',
-           last_changed=SystemDateTime(2025-10-14 05:40:01.31513-05:00),
-           last_reported=SystemDateTime(2025-10-14 06:47:57.195556-05:00),
-           last_updated=SystemDateTime(2025-10-14 06:47:57.195556-05:00),
+           last_changed=ZonedDateTime(2025-10-14 05:40:01.31513-05:00[America/Chicago]),
+           last_reported=ZonedDateTime(2025-10-14 06:47:57.195556-05:00[America/Chicago]),
+           last_updated=ZonedDateTime(2025-10-14 06:47:57.195556-05:00[America/Chicago]),
            is_unknown=False,
            is_unavailable=False,
            value='on',

@@ -3,7 +3,6 @@ import itertools
 import typing
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from inspect import isawaitable
 from typing import Any
 
 from hassette.utils.func_utils import callable_name
@@ -70,19 +69,9 @@ class Listener:
     async def matches(self, ev: "Event[Any]") -> bool:
         if self.predicate is None:
             return True
-        res = self.predicate(ev)  # type: ignore
-        if isawaitable(res):
-            return await res
-        return bool(res)
+        return self.predicate(ev)
 
     def __repr__(self) -> str:
-        flags = []
-        if self.once:
-            flags.append("once")
-        if self.debounce:
-            flags.append(f"debounce={self.debounce}")
-        if self.throttle:
-            flags.append(f"throttle={self.throttle}")
         return f"Listener<{self.owner} - {self.handler_short_name}>"
 
 

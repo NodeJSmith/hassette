@@ -7,18 +7,31 @@ from typing import Any, ParamSpec, TypedDict, TypeVar, Unpack, cast
 from hassette import topics
 from hassette.const.misc import NOT_PROVIDED
 from hassette.core.resources.base import Resource
-from hassette.core.resources.bus.predicates.event import CallServiceEventWrapper, KeyValueMatches
 from hassette.enums import ResourceStatus
 from hassette.events.base import Event
-from hassette.types import HandlerType, Predicate
 from hassette.utils.func_utils import callable_short_name
 
 from .listeners import Listener, Subscription
-from .predicates import AllOf, AttrChanged, EntityMatches, Guard, StateChanged
-from .predicates.base import normalize_where
+from .predicates import (
+    AllOf,
+    AttrDidChange,
+    AttrFrom,
+    AttrTo,
+    DomainMatches,
+    EntityMatches,
+    Guard,
+    ServiceDataWhere,
+    ServiceMatches,
+    StateDidChange,
+    StateFrom,
+    StateTo,
+    ValueIs,
+    get_path,
+)
+from .predicates.utils import normalize_where
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Sequence
 
     from hassette import Hassette, TaskBucket, states
     from hassette.core.services.bus_service import _BusService
@@ -29,7 +42,7 @@ if typing.TYPE_CHECKING:
         ServiceRegisteredEvent,
         StateChangeEvent,
     )
-    from hassette.types import AsyncHandler, ChangeType, E_contra
+    from hassette.types import AsyncHandler, ChangeType, EventT, HandlerType, Predicate
 
 T = TypeVar("T", covariant=True)
 P = ParamSpec("P")
@@ -83,7 +96,7 @@ class Bus(Resource):
         *,
         topic: str,
         handler: "HandlerType[Event[Any]]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         once: bool = False,
@@ -95,7 +108,7 @@ class Bus(Resource):
         Args:
             topic (str): The event topic to listen to.
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Optional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Optional predicates to filter events.
             args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             once (bool): If True, the handler will be called only once and then removed.
@@ -142,10 +155,10 @@ class Bus(Resource):
         entity_id: str,
         *,
         handler: "HandlerType[StateChangeEvent[states.StateT]]",
-        changed: bool | None = True,
+        changed: bool = True,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -158,8 +171,10 @@ class Bus(Resource):
             changed (bool | None): If True, only trigger if `old` and `new` states differ.
             changed_from (ChangeType): A value or callable that will be used to filter state changes *from* this value.
             changed_to (ChangeType): A value or callable that will be used to filter state changes *to* this value.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events, such as
-                `AttrChanged` or other custom predicates.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events, such as
+                `IsIn`, `Regex`, or custom callables.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce` and `throttle`.
 
         Returns:
@@ -196,7 +211,13 @@ class Bus(Resource):
 
         preds: list[Predicate] = [EntityMatches(entity_id)]
         if changed:
-            preds.append(StateChanged(from_=changed_from, to=changed_to))
+            preds.append(StateDidChange())
+
+        if changed_from is not NOT_PROVIDED:
+            preds.append(StateFrom(condition=changed_from))
+
+        if changed_to is not NOT_PROVIDED:
+            preds.append(StateTo(condition=changed_to))
 
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))  # allow extra guards
@@ -211,9 +232,10 @@ class Bus(Resource):
         attr: str,
         *,
         handler: "HandlerType[StateChangeEvent]",
+        changed: bool = True,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -227,7 +249,9 @@ class Bus(Resource):
             changed_from (ChangeType): A value or callable that will be used to filter attribute changes *from* this
                 value.
             changed_to (ChangeType): A value or callable that will be used to filter attribute changes *to* this value.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -248,7 +272,15 @@ class Bus(Resource):
         )
 
         preds: list[Predicate] = [EntityMatches(entity_id)]
-        preds.append(AttrChanged(attr, from_=changed_from, to=changed_to))
+
+        if changed:
+            preds.append(AttrDidChange(attr))
+
+        if changed_from is not NOT_PROVIDED:
+            preds.append(AttrFrom(attr, condition=changed_from))
+
+        if changed_to is not NOT_PROVIDED:
+            preds.append(AttrTo(attr, condition=changed_to))
 
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
@@ -263,7 +295,7 @@ class Bus(Resource):
         service: str | None = None,
         *,
         handler: "HandlerType[CallServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | Mapping[str, Any | type[Any]] | None" = None,
+        where: "Predicate | Sequence[Predicate] | Mapping[str, ChangeType] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -274,15 +306,17 @@ class Bus(Resource):
             domain (str | None): The domain to filter service calls (e.g., "light").
             service (str | None): The service to filter service calls (e.g., "turn_on").
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | Mapping[str, Any | type[Any]] | None): Additional predicates to
+            where (Predicate | Sequence[Predicate] | Mapping[str, ChangeType] | None): Additional predicates to
                 filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
 
         You can provide a dictionary to `where` to filter on specific key-value pairs in the service data. You can use
-        `hassette.const.NOT_PROVIDED` or `Any` as the value to only check for the presence of a key, use glob patterns
+        `hassette.const.NOT_PROVIDED` as the value to only check for the presence of a key, use glob patterns
         for string values, or provide a callable predicate for more complex matching.
 
         Examples:
@@ -327,35 +361,24 @@ class Bus(Resource):
 
         preds: list[Predicate] = []
         if domain is not None:
-            preds.append(Guard["CallServiceEvent"](lambda event: event.payload.data.domain == domain))
+            preds.append(DomainMatches(domain))
 
         if service is not None:
-            preds.append(Guard["CallServiceEvent"](lambda event: event.payload.data.service == service))
+            preds.append(ServiceMatches(service))
 
         if where is not None:
-            mapping_preds = []
             if isinstance(where, Mapping):
-                for k, v in where.items():
-                    if not isinstance(k, str):
-                        raise ValueError(f"Mapping keys must be strings, got {type(k)}")
-                    mapping_preds.append(KeyValueMatches(key=k, value=v))
-            elif callable(where) or isinstance(where, Predicate):
+                preds.append(ServiceDataWhere(where))
+            elif callable(where):
                 preds.append(where)
             else:
                 mappings = [w for w in where if isinstance(w, Mapping)]
                 other = [w for w in where if not isinstance(w, Mapping)]
 
-                for w in mappings:
-                    for k, v in w.items():
-                        if not isinstance(k, str):
-                            raise ValueError(f"Mapping keys must be strings, got {type(k)}")
-                        mapping_preds.append(KeyValueMatches(key=k, value=v))
+                preds.extend(ServiceDataWhere(w) for w in mappings)
 
-                if mapping_preds:
-                    service_event_pred = CallServiceEventWrapper(tuple(mapping_preds))
-                    preds.append(service_event_pred)
-
-                preds.append(AllOf.ensure_iterable(other))
+                if other:
+                    preds.append(AllOf.ensure_iterable(other))
 
         return self.on(
             topic=topics.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -366,7 +389,7 @@ class Bus(Resource):
         component: str | None = None,
         *,
         handler: "HandlerType[ComponentLoadedEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -376,7 +399,9 @@ class Bus(Resource):
         Args:
             component (str | None): The component to filter load events (e.g., "light").
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -393,7 +418,7 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if component is not None:
-            preds.append(Guard["ComponentLoadedEvent"](lambda event: event.payload.data.component == component))
+            preds.append(ValueIs(source=get_path("payload.data.component"), condition=component))
 
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
@@ -408,7 +433,7 @@ class Bus(Resource):
         service: str | None = None,
         *,
         handler: "HandlerType[ServiceRegisteredEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -419,7 +444,9 @@ class Bus(Resource):
             domain (str | None): The domain to filter service registrations (e.g., "light").
             service (str | None): The service to filter service registrations (e.g., "turn_on").
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -437,10 +464,10 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if domain is not None:
-            preds.append(Guard["ServiceRegisteredEvent"](lambda event: event.payload.data.domain == domain))
+            preds.append(DomainMatches(domain))
 
         if service is not None:
-            preds.append(Guard["ServiceRegisteredEvent"](lambda event: event.payload.data.service == service))
+            preds.append(ServiceMatches(service))
 
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))
@@ -452,7 +479,7 @@ class Bus(Resource):
     def on_homeassistant_restart(
         self,
         handler: "HandlerType[CallServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -461,7 +488,9 @@ class Bus(Resource):
 
         Args:
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -474,7 +503,7 @@ class Bus(Resource):
     def on_homeassistant_start(
         self,
         handler: "HandlerType[CallServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -483,7 +512,9 @@ class Bus(Resource):
 
         Args:
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -496,7 +527,7 @@ class Bus(Resource):
     def on_homeassistant_stop(
         self,
         handler: "HandlerType[CallServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -505,7 +536,9 @@ class Bus(Resource):
 
         Args:
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -520,7 +553,7 @@ class Bus(Resource):
         status: ResourceStatus | None = None,
         *,
         handler: "HandlerType[HassetteServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -530,7 +563,9 @@ class Bus(Resource):
         Args:
             status (ResourceStatus | None): The status to filter events (e.g., ResourceStatus.STARTED).
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -560,7 +595,7 @@ class Bus(Resource):
         self,
         *,
         handler: "HandlerType[HassetteServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -569,7 +604,9 @@ class Bus(Resource):
 
         Args:
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -584,7 +621,7 @@ class Bus(Resource):
         self,
         *,
         handler: "HandlerType[HassetteServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -593,7 +630,9 @@ class Bus(Resource):
 
         Args:
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -608,7 +647,7 @@ class Bus(Resource):
         self,
         *,
         handler: "HandlerType[HassetteServiceEvent]",
-        where: "Predicate | Iterable[Predicate] | None" = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
@@ -617,7 +656,9 @@ class Bus(Resource):
 
         Args:
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Iterable[Predicate] | None): Additional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
+            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
+            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -628,7 +669,7 @@ class Bus(Resource):
             status=ResourceStatus.RUNNING, handler=handler, where=where, args=args, kwargs=kwargs, **opts
         )
 
-    def _make_async_handler(self, fn: "HandlerType[E_contra]") -> "AsyncHandler[E_contra]":
+    def _make_async_handler(self, fn: "HandlerType[EventT]") -> "AsyncHandler[EventT]":
         """Wrap a function to ensure it is always called as an async handler.
 
         If the function is already an async function, it will be called directly.
@@ -640,7 +681,7 @@ class Bus(Resource):
         Returns:
             AsyncHandler: An async handler that wraps the original function.
         """
-        return cast("AsyncHandler[E_contra]", self.task_bucket.make_async_adapter(fn))
+        return cast("AsyncHandler[EventT]", self.task_bucket.make_async_adapter(fn))
 
     def _add_debounce(
         self, handler: "AsyncHandler[Event[Any]]", seconds: float, task_bucket: "TaskBucket"

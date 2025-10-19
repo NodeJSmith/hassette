@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.14.0] - 2025-10-19
+
 ### Added
 - Add validation for filename extension in AppManifest - add `.py` if no suffix, raise error if not `.py`
 - Bus handlers can now accept args and kwargs to be passed to the callback when the event is fired
@@ -23,6 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Correct scheduler helpers `run_minutely`, `run_hourly`, and `run_daily` to not start immediately if no `start` was provided, but to start on the next interval instead.
 
+### Bus/Predicate Refactor
+- Refactored predicates to use composable `Predicates`, `Conditions`, and `Accessors`
+  - `Predicate` is a callable that takes an event and returns a bool
+    - E.g. `AttrFrom`, `AttrTo`, `DomainMatches`, `EntityMatches`, `ValueIs`, etc.
+  - `Condition` is a callable that takes a value and returns a bool
+    - E.g. `Glob`, `Contains`, `IsIn`, `IsOrContains`, `Intersects`, etc.
+  - `Accessor` is a callable that takes an event and returns a value
+    - E.g. `get_domain`, `get_entity_id`, `get_service_data`, `get_path`, etc.
+- Updated Bus methods to use new predicate system
+  - Only implementation changes, public API remains the same
+- Updated tests to use new predicate system
+- Add/update types for predicates, conditions, and accessors
+- Updated documentation for predicates and bus event listening to reflect new system
 
 ## [0.13.0] - 2025-10-14
 

@@ -34,7 +34,7 @@ class SensorNotification(App[SensorNotificationAppConfig]):
 
         sensors = self.app_config.sensor if isinstance(self.app_config.sensor, list) else [self.app_config.sensor]
         for sensor in sensors:
-            self.bus.on_entity(sensor, handler=self.state_change)
+            self.bus.on_state_change(sensor, handler=self.state_change)
 
     async def state_change(self, event: StateChangeEvent[states.SensorState]):
         data = event.payload.data

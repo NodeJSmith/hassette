@@ -107,7 +107,7 @@ class BatterySync(AppSync[BatteryConfig]):
     def on_initialize_sync(self) -> None:
         """Use the `on_initialize` lifecycle hook to set up the app."""
         self.scheduler.run_in(self.check_batteries, 10)
-        self.bus.on_entity("*", handler=self.handle_sensor_event)
+        self.bus.on_state_change("*", handler=self.handle_sensor_event)
 
     def handle_sensor_event(self, event: StateChangeEvent[states.SensorState]) -> None:
         self.logger.info("Sensor event: %s", event)

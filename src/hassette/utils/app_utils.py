@@ -61,7 +61,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         """
         try:
             err = _root_cause(exc)
-            tb_list = traceback.extract_tb(err.__traceback__)  # type: ignore[arg-type]
+            tb_list = traceback.extract_tb(err.__traceback__)
             if not tb_list:
                 return None
 

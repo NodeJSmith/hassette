@@ -34,7 +34,7 @@ def only_app(app_cls: type[AppT]) -> type[AppT]:
     This is useful for development and testing, where you may want to run only a specific app without
     modifying configuration files.
     """
-    app_cls._only_app = True  # type: ignore[attr-defined]
+    app_cls._only_app = True
     return app_cls
 
 

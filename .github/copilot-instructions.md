@@ -23,6 +23,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 
 - Base classes: `src/hassette/core/resources/app/app.py` exposes `App[AppConfigT]` (async) and `AppSync`. Override lifecycle hooks (`before_initialize`, `on_initialize`, `after_initialize`, and matching shutdown hooks); `initialize()` / `shutdown()` are final.
 - Example async app:
+
   ```python
   from hassette import App, AppConfig
 
@@ -31,7 +32,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 
   class MyApp(App[MyConfig]):
       async def on_initialize(self):
-          self.bus.on_entity(
+          self.bus.on_state_change(
               self.app_config.light,
               handler=self.on_light_change,
               changed_to="on",
@@ -40,6 +41,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
       async def on_light_change(self, event):
           await self.api.call_service("notify", "mobile_app_me", message="Light turned on")
   ```
+
 - Sync apps inherit `AppSync` and implement `on_initialize_sync` / `on_shutdown_sync`; use `self.api.sync.*` for blocking calls. `self.task_bucket` offers helpers (`spawn`, `run_in_thread`, `run_sync`) for background work.
 
 ## Event Bus Usage
@@ -102,3 +104,11 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - Config: `src/hassette/config/{core_config.py,app_manifest.py,sources_helper.py}`
 - Events & models: `src/hassette/events/**`, `src/hassette/models/**`, `src/hassette/topics.py`
 - Examples & tests: `examples/`, `tests/` (fixtures in `tests/conftest.py`)
+
+## Code Conventions
+
+- Type hints: Strong typing is a first-class citizen. Use `typing` and `typing_extensions` features liberally (e.g. `TypeVar`, `Generic`, `Protocol`, `runtime_checkable`, `final`, `Literal`, `TypedDict`, etc.). Leverage existing types in `src/hassette/types.py` and domain-specific models in `src/hassette/models/`.
+- Pyrigh and Ruff: Type checking is enforced via Pyright (`pyrightconfig.json`) and linting via Ruff (`ruff.toml`). Follow their rules and fix violations promptly. Do not use mypy style type comments.
+- Docstrings: Document all public classes, methods, and functions with clear docstrings. Follow the Google style guide for consistency.
+- Examples: Include usage examples in docstrings where applicable, especially for complex methods or classes.
+- Documentation is written in reStructuredText (`.rst`) format and lives in the `docs/` directory. Update docs alongside code changes to keep them in sync. Docstring examples should be formatted for inclusion in the docs.

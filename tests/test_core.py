@@ -50,16 +50,6 @@ async def hassette_instance(test_config: HassetteConfig):
         context.HASSETTE_INSTANCE.set(previous_instance)
 
 
-async def test_run_sync_raises_inside_loop(hassette_with_bus: Hassette) -> None:
-    """run_sync rejects being invoked inside the running event loop."""
-
-    async def sample_coroutine():
-        return 42
-
-    with pytest.raises(RuntimeError):
-        hassette_with_bus.task_bucket.run_sync(sample_coroutine())
-
-
 def test_unique_name_is_constant(hassette_instance: Hassette) -> None:
     """unique_name always returns the static identifier."""
     assert hassette_instance.unique_name == "Hassette"
@@ -98,11 +88,11 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
 
 async def test_event_streams_closed_reflects_state(hassette_instance: Hassette) -> None:
     """event_streams_closed mirrors the underlying stream lifecycle."""
-    assert hassette_instance.event_streams_closed is False
+    assert hassette_instance.event_streams_closed is False, "Streams should start open"
     await hassette_instance._send_stream.aclose()
     await hassette_instance._receive_stream.aclose()
     await asyncio.sleep(0)  # allow state to propagate
-    assert hassette_instance.event_streams_closed is True
+    assert hassette_instance.event_streams_closed is True, "Streams should close after aclose"
 
 
 def test_loop_property_raises_when_not_started(hassette_instance: Hassette) -> None:
@@ -115,7 +105,7 @@ async def test_loop_property_returns_running_loop(hassette_instance: Hassette) -
     """loop property returns the configured loop once set."""
     running_loop = asyncio.get_running_loop()
     hassette_instance._loop = running_loop
-    assert hassette_instance.loop is running_loop
+    assert hassette_instance.loop is running_loop, "loop property should return the configured loop"
 
 
 def test_get_instance_returns_current(hassette_instance: Hassette) -> None:
@@ -132,20 +122,20 @@ def test_get_instance_raises_when_unset() -> None:
 
 def test_apps_property_forwards_to_handler(hassette_instance: Hassette) -> None:
     """apps property proxies to the app handler."""
-    hassette_instance._app_handler = SimpleNamespace(apps={"demo": []})  # type: ignore[assignment]
-    assert hassette_instance.apps == {"demo": []}
+    hassette_instance._app_handler = SimpleNamespace(apps={"demo": []})  # pyright: ignore[reportAttributeAccessIssue]
+    assert hassette_instance.apps == {"demo": []}, "apps property should forward to handler"
 
 
 def test_get_app_forwards_to_handler(hassette_instance: Hassette) -> None:
     """get_app delegates to the handler's get method."""
     handler = SimpleNamespace()
-    handler.get = Mock(return_value="app-instance")  # type: ignore[attr-defined]
-    hassette_instance._app_handler = handler  # type: ignore[assignment]
+    handler.get = Mock(return_value="app-instance")
+    hassette_instance._app_handler = handler  # pyright: ignore[reportAttributeAccessIssue]
 
     retrieved = hassette_instance.get_app("demo", index=2)
 
-    handler.get.assert_called_once_with("demo", 2)  # type: ignore[attr-defined]
-    assert retrieved == "app-instance"
+    handler.get.assert_called_once_with("demo", 2)
+    assert retrieved == "app-instance", "get_app should return the handler's result"
 
 
 async def test_send_event_writes_to_stream(hassette_instance: Hassette) -> None:
@@ -154,8 +144,8 @@ async def test_send_event_writes_to_stream(hassette_instance: Hassette) -> None:
     await hassette_instance.send_event("topic.demo", cast("Event", payload))
 
     received_topic, received_event = await hassette_instance._receive_stream.receive()
-    assert received_topic == "topic.demo"
-    assert received_event is payload
+    assert received_topic == "topic.demo", "send_event should push correct topic"
+    assert received_event is payload, "send_event should push correct payload"
 
 
 async def test_wait_for_ready_uses_config_timeout(monkeypatch: pytest.MonkeyPatch, hassette_instance: Hassette) -> None:
@@ -191,9 +181,9 @@ async def test_wait_for_ready_accepts_explicit_timeout(
 async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) -> None:
     """run_forever starts resources, waits for readiness, and shuts down when signalled."""
     start_resources = Mock()
-    hassette_instance._start_resources = start_resources  # type: ignore[assignment]
-    hassette_instance.wait_for_ready = AsyncMock(return_value=True)  # type: ignore[assignment]
-    hassette_instance.shutdown = AsyncMock()  # type: ignore[assignment]
+    hassette_instance._start_resources = start_resources
+    hassette_instance.wait_for_ready = AsyncMock(return_value=True)
+    hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
     task = asyncio.create_task(hassette_instance.run_forever())
     asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
@@ -211,9 +201,9 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown when resources fail to become ready."""
-    hassette_instance._start_resources = Mock()  # type: ignore[assignment]
-    hassette_instance.wait_for_ready = AsyncMock(return_value=False)  # type: ignore[assignment]
-    hassette_instance.shutdown = AsyncMock()  # type: ignore[assignment]
+    hassette_instance._start_resources = Mock()
+    hassette_instance.wait_for_ready = AsyncMock(return_value=False)
+    hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
     await hassette_instance.run_forever()
 

@@ -2,6 +2,8 @@ import asyncio
 import contextlib
 import logging
 
+import pytest
+
 from hassette.core.resources import task_bucket
 
 
@@ -111,3 +113,13 @@ async def test_factory_tracks_rogue_create_task(bucket_fixture: task_bucket.Task
     await bucket_fixture.cancel_all()
     assert rogue_task_handle.done(), f"task should be done after cancel_all, is {rogue_task_handle._state}"
     assert rogue_task_handle.cancelled(), "task should be cancelled after cancel_all"
+
+
+async def test_run_sync_raises_inside_loop(bucket_fixture: task_bucket.TaskBucket) -> None:
+    """run_sync rejects being invoked inside the running event loop."""
+
+    async def sample_coroutine():
+        return 42
+
+    with pytest.raises(RuntimeError):
+        bucket_fixture.run_sync(sample_coroutine())
