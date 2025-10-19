@@ -74,7 +74,7 @@ def compare_value(condition: ChangeType, actual: Any) -> bool:
     """Compare a 'condition' (literal or predicate) against an actual value.
 
     - If condition is NOT_PROVIDED, treat as 'no constraint' (True).
-    - If condition is a non-callable, compare by equality.
+    - If condition is a non-callable, compare for equality (or membership for collections).
     - If condition is a PredicateCallable, call and ensure bool.
     - Async/coroutine predicates are explicitly disallowed (raise).
     """
@@ -82,6 +82,13 @@ def compare_value(condition: ChangeType, actual: Any) -> bool:
         return True
 
     if not callable(condition):
+        # Treat sequences/sets as collections where membership constitutes a match.
+        if isinstance(actual, (set, frozenset)):
+            return condition in actual
+
+        if isinstance(actual, Sequence) and not isinstance(actual, (str, bytes, bytearray)):
+            return condition in actual
+
         return actual == condition
 
     # Disallow async predicates to keep filters pure/fast.
