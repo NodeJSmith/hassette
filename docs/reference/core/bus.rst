@@ -20,9 +20,24 @@ Bus Reference
    :undoc-members:
    :no-inherited-members:
 
+
 Predicates
 ~~~~~~~~~~~
 
-.. automodule:: hassette.core.resources.bus.predicates
+.. automodule:: hassette.core.resources.bus.predicates.predicates
+   :members:
+   :undoc-members:
+
+Conditions
+~~~~~~~~~~
+
+.. automodule:: hassette.core.resources.bus.predicates.conditions
+   :members:
+   :undoc-members:
+
+Accessors
+~~~~~~~~~
+
+.. automodule:: hassette.core.resources.bus.predicates.accessors
    :members:
    :undoc-members:
