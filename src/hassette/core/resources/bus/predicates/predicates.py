@@ -24,6 +24,7 @@ Combining multiple predicates::
         EntityMatches("light.kitchen"),
         StateTo("on"),
     ])
+
 """
 
 import typing
