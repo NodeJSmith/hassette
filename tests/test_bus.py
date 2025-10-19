@@ -9,8 +9,14 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from hassette.core.resources.bus.listeners import Subscription
-from hassette.core.resources.bus.predicates import AllOf, AttrChanged, EntityMatches, Guard, StateChanged
-from hassette.core.resources.bus.predicates.event import CallServiceEventWrapper, KeyValueMatches
+from hassette.core.resources.bus.predicates import (
+    AllOf,
+    AttrDidChange,
+    EntityMatches,
+    Guard,
+    ServiceDataWhere,
+    StateDidChange,
+)
 from hassette.events.base import Event
 
 if typing.TYPE_CHECKING:
@@ -22,6 +28,46 @@ if typing.TYPE_CHECKING:
 def bus_instance(hassette_with_bus: "Hassette") -> "Bus":
     """Return the Bus resource for the running Hassette harness."""
     return hassette_with_bus._bus
+
+
+class _Attrs:
+    def __init__(self, values: dict[str, typing.Any]):
+        self._values = values
+
+    def model_dump(self) -> dict[str, typing.Any]:
+        return self._values
+
+
+def _state_change_event(
+    *,
+    entity_id: str,
+    old_value: typing.Any,
+    new_value: typing.Any,
+    old_attrs: dict[str, typing.Any] | None = None,
+    new_attrs: dict[str, typing.Any] | None = None,
+    topic: str = "hass.event.state_changed",
+) -> typing.Any:
+    data = SimpleNamespace(
+        entity_id=entity_id,
+        old_state_value=old_value,
+        new_state_value=new_value,
+        old_state=SimpleNamespace(attributes=_Attrs(old_attrs or {})),
+        new_state=SimpleNamespace(attributes=_Attrs(new_attrs or {})),
+    )
+    payload = SimpleNamespace(data=data)
+    return SimpleNamespace(topic=topic, payload=payload)
+
+
+def _call_service_event(
+    *,
+    domain: str,
+    service: str,
+    service_data: dict[str, typing.Any] | None = None,
+    topic: str = "hass.event.call_service",
+) -> typing.Any:
+    data = SimpleNamespace(domain=domain, service=service, service_data=service_data or {})
+    payload = SimpleNamespace(data=data)
+    return SimpleNamespace(topic=topic, payload=payload)
 
 
 async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus") -> None:
@@ -72,7 +118,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus
 
 async def test_on_state_change_builds_predicates(bus_instance: "Bus") -> None:
     """on_state_change composes entity, state, and extra predicates."""
-    extra_guard = Guard(lambda event: event.payload.topic == "any")
+    extra_guard = Guard(lambda event: event.topic == "any")
 
     subscription = bus_instance.on_state_change(
         "sensor.kitchen",
@@ -86,14 +132,30 @@ async def test_on_state_change_builds_predicates(bus_instance: "Bus") -> None:
 
     listener = subscription.listener
     assert isinstance(listener.predicate, AllOf)
-    predicate_types = {type(pred) for pred in listener.predicate.predicates}
-    assert EntityMatches in predicate_types
-    assert StateChanged in predicate_types
-    assert extra_guard in listener.predicate.predicates
+    preds = listener.predicate.predicates
+    assert any(isinstance(pred, EntityMatches) for pred in preds)
+    assert any(isinstance(pred, StateDidChange) for pred in preds)
+    assert extra_guard in preds
+
+    matching_event = _state_change_event(
+        entity_id="sensor.kitchen",
+        old_value="off",
+        new_value="on",
+        topic="any",
+    )
+    assert listener.predicate(matching_event) is True
+
+    non_matching_event = _state_change_event(
+        entity_id="sensor.kitchen",
+        old_value="off",
+        new_value="off",
+        topic="any",
+    )
+    assert listener.predicate(non_matching_event) is False
 
 
 async def test_on_attribute_change_targets_attribute(bus_instance: "Bus") -> None:
-    """on_attribute_change adds AttrChanged predicate for the supplied attribute."""
+    """on_attribute_change adds AttrDidChange predicate for the supplied attribute."""
     subscription = bus_instance.on_attribute_change(
         "light.office",
         "brightness",
@@ -104,32 +166,65 @@ async def test_on_attribute_change_targets_attribute(bus_instance: "Bus") -> Non
 
     listener = subscription.listener
     assert isinstance(listener.predicate, AllOf)
-    attr_predicates = [pred for pred in listener.predicate.predicates if isinstance(pred, AttrChanged)]
-    assert attr_predicates, "Expected AttrChanged predicate to be included"
+    attr_predicates = [pred for pred in listener.predicate.predicates if isinstance(pred, AttrDidChange)]
+    assert attr_predicates, "Expected AttrDidChange predicate to be included"
     attr_pred = attr_predicates[0]
-    assert attr_pred.name == "brightness"
-    assert attr_pred.from_ == 100
-    assert attr_pred.to == 200
+    assert attr_pred.attr_name == "brightness"
+
+    matching_event = _state_change_event(
+        entity_id="light.office",
+        old_value=0,
+        new_value=0,
+        old_attrs={"brightness": 100},
+        new_attrs={"brightness": 200},
+    )
+    assert listener.predicate(matching_event) is True
+
+    non_matching_event = _state_change_event(
+        entity_id="light.office",
+        old_value=0,
+        new_value=0,
+        old_attrs={"brightness": 90},
+        new_attrs={"brightness": 200},
+    )
+    assert listener.predicate(non_matching_event) is False
 
 
 async def test_on_call_service_handles_mapping_predicates(bus_instance: "Bus") -> None:
-    """on_call_service wraps mapping filters as KeyValueMatches within a CallServiceEventWrapper."""
+    """on_call_service composes domain/service guards with ServiceDataWhere and extra predicates."""
+    extra_guard = Guard(lambda event: event.payload.data.service_data.get("brightness", 0) > 150)
     subscription = bus_instance.on_call_service(
         domain="light",
         service="turn_on",
         handler=AsyncMock(),
-        where=[{"entity_id": "light.kitchen"}, lambda data: data.get("brightness", 0) > 150],
+        where=[{"entity_id": "light.kitchen"}, extra_guard],
     )
 
     listener = subscription.listener
     assert isinstance(listener.predicate, AllOf)
 
-    predicate_types = {type(pred) for pred in listener.predicate.predicates}
-    assert Guard in predicate_types, "Expected domain/service guards"
-    assert CallServiceEventWrapper in predicate_types, "Expected wrapper for mapping predicates"
+    assert any(isinstance(pred, ServiceDataWhere) for pred in listener.predicate.predicates)
 
-    wrapper = next(pred for pred in listener.predicate.predicates if isinstance(pred, CallServiceEventWrapper))
-    assert any(isinstance(pred, KeyValueMatches) for pred in wrapper.predicates)
+    matching_event = _call_service_event(
+        domain="light",
+        service="turn_on",
+        service_data={"entity_id": ["light.kitchen"], "brightness": 255},
+    )
+    assert listener.predicate(matching_event) is True
+
+    wrong_entity_event = _call_service_event(
+        domain="light",
+        service="turn_on",
+        service_data={"entity_id": ["light.other"], "brightness": 255},
+    )
+    assert listener.predicate(wrong_entity_event) is False
+
+    wrong_service_event = _call_service_event(
+        domain="light",
+        service="turn_off",
+        service_data={"entity_id": ["light.kitchen"], "brightness": 255},
+    )
+    assert listener.predicate(wrong_service_event) is False
 
 
 async def test_once_listener_removed(hassette_with_bus) -> None:

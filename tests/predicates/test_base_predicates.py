@@ -1,81 +1,64 @@
-# pyright: reportInvalidTypeArguments=none, reportArgumentType=none
-import asyncio
 from types import SimpleNamespace
-from typing import Any
 
-from hassette.core.resources.bus.predicates import Guard
-from hassette.core.resources.bus.predicates.base import AllOf, AnyOf, Not
-from hassette.core.resources.bus.predicates.utils import normalize_where
-
-
-async def test_allof_waits_for_all_predicates() -> None:
-    """AllOf evaluates every predicate and only succeeds when all succeed."""
-    event = SimpleNamespace(flag=True)
-
-    async def async_predicate(evt: Any) -> bool:
-        await asyncio.sleep(0)
-        return evt.flag
-
-    predicate = AllOf((lambda _: True, async_predicate))
-    assert await predicate(event) is True
+from hassette.const.misc import NOT_PROVIDED
+from hassette.core.resources.bus.predicates import AllOf, AnyOf, Guard, Not
+from hassette.core.resources.bus.predicates.utils import compare_value, ensure_tuple, normalize_where
 
 
-async def test_allof_is_false_if_any_predicate_fails() -> None:
-    """AllOf evaluates every predicate and fails if any fail."""
-    event = SimpleNamespace(flag=False)
-
-    async def async_predicate(evt: Any) -> bool:
-        await asyncio.sleep(0)
-        return evt.flag
-
-    predicate = AllOf((lambda _: True, async_predicate))
-    assert await predicate(event) is False
+def test_allof_requires_all_predicates_true() -> None:
+    predicate = AllOf((lambda _: True, lambda _: True))
+    assert predicate(SimpleNamespace()) is True
 
 
-async def test_anyof_passes_when_any_predicate_matches() -> None:
-    """AnyOf resolves true as soon as one predicate passes."""
-    event = SimpleNamespace(value=2)
-    predicate = AnyOf((lambda evt: evt.value == 2, lambda evt: evt.value == 3))
-    assert await predicate(event) is True
+def test_allof_returns_false_when_any_predicate_fails() -> None:
+    predicate = AllOf((lambda _: True, lambda _: False))
+    assert predicate(SimpleNamespace()) is False
 
 
-async def test_anyof_fails_when_no_predicates_match() -> None:
-    """AnyOf resolves false when all predicates fail."""
-    event = SimpleNamespace(value=1)
-    predicate = AnyOf((lambda evt: evt.value == 2, lambda evt: evt.value == 3))
-    assert await predicate(event) is False
+def test_anyof_succeeds_when_any_predicate_matches() -> None:
+    predicate = AnyOf((lambda _: False, lambda _: True))
+    assert predicate(SimpleNamespace()) is True
 
 
-async def test_not_inverts_predicate_result() -> None:
-    """Not negates the wrapped predicate."""
-    event = SimpleNamespace(active=False)
-    predicate = Not(lambda evt: evt.active)
-    assert await predicate(event) is True
+def test_anyof_returns_false_when_all_predicates_fail() -> None:
+    predicate = AnyOf((lambda _: False, lambda _: False))
+    assert predicate(SimpleNamespace()) is False
 
 
-async def test_guard_wraps_callable() -> None:
-    """Guard wraps arbitrary callables and supports async evaluation."""
-
-    async def async_checker(evt: Any) -> bool:
-        await asyncio.sleep(0)
-        return evt.status == "ok"
-
-    guard = Guard(async_checker)
-    event = SimpleNamespace(status="ok")
-    assert await guard(event) is True
+def test_not_inverts_predicate_result() -> None:
+    predicate = Not(lambda _: True)
+    assert predicate(SimpleNamespace()) is False
 
 
-def test_normalize_where_handles_sequences() -> None:
-    """normalize_where consolidates iterables into AllOf."""
-    predicate = normalize_where([lambda _: True, lambda _: False])
+def test_guard_wraps_callable_and_executes_it() -> None:
+    sentinel = object()
+    guard = Guard(lambda event: event is sentinel)
+    assert guard(sentinel) is True
+    assert guard(object()) is False
+
+
+def test_normalize_where_returns_allof_for_sequences() -> None:
+    predicate = normalize_where([lambda _: True, lambda _: True])
     assert isinstance(predicate, AllOf)
 
 
-def test_normalize_where_handles_single_predicate() -> None:
-    """normalize_where returns single predicates as-is."""
-
-    def single(_: Any) -> bool:
+def test_normalize_where_returns_single_predicate() -> None:
+    def single() -> bool:
         return True
 
     predicate = normalize_where(single)
     assert predicate is single
+
+
+def test_ensure_tuple_flattens_nested_sequences() -> None:
+    predicates = ensure_tuple([lambda _: True, (lambda _: False, lambda _: True)])
+    assert len(predicates) == 3
+
+
+def test_compare_value_supports_membership_for_lists() -> None:
+    assert compare_value("light.kitchen", ["light.kitchen", "light.hall"]) is True
+    assert compare_value("light.kitchen", ["light.lounge"]) is False
+
+
+def test_compare_value_allows_not_provided_sentinel() -> None:
+    assert compare_value(NOT_PROVIDED, "anything") is True
