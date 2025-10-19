@@ -54,9 +54,7 @@ from .utils import compare_value, ensure_tuple
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hassette import StateChangeEvent
     from hassette.events import Event, HassEvent
-    from hassette.models import states
     from hassette.types import Predicate
 
 V = TypeVar("V")
@@ -177,28 +175,46 @@ class IsMissing:
         return self.source(event) is MISSING_VALUE
 
 
-def StateFrom(condition: ChangeType) -> "ValueIs[StateChangeEvent[states.StateUnion], Any]":  # noqa: N802
+@dataclass(frozen=True)
+class StateFrom(Generic[EventT]):
     """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'old' value."""
-    return ValueIs(source=get_state_value_old, condition=condition)
+
+    condition: ChangeType
+
+    def __call__(self, event: EventT) -> bool:
+        return ValueIs(source=get_state_value_old, condition=self.condition)(event)
 
 
-def StateTo(condition: ChangeType) -> "ValueIs[StateChangeEvent[states.StateUnion], Any]":  # noqa: N802
+@dataclass(frozen=True)
+class StateTo(Generic[EventT]):
     """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'new' value."""
-    return ValueIs(source=get_state_value_new, condition=condition)
+
+    condition: ChangeType
+
+    def __call__(self, event: EventT) -> bool:
+        return ValueIs(source=get_state_value_new, condition=self.condition)(event)
 
 
-def AttrFrom(name: str, condition: ChangeType) -> "ValueIs[StateChangeEvent[states.StateUnion], Any]":  # noqa: N802
-    """Predicate that checks if an attribute extracted from a StateChangeEvent satisfies a
-    condition on the 'old' value.
-    """
-    return ValueIs(source=get_attr_old(name), condition=condition)
+@dataclass(frozen=True)
+class AttrFrom(Generic[EventT]):
+    """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
+
+    attr_name: str
+    condition: ChangeType
+
+    def __call__(self, event: EventT) -> bool:
+        return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(event)
 
 
-def AttrTo(name: str, condition: ChangeType) -> "ValueIs[StateChangeEvent[states.StateUnion], Any]":  # noqa: N802
-    """Predicate that checks if an attribute extracted from a StateChangeEvent satisfies a
-    condition on the 'new' value.
-    """
-    return ValueIs(source=get_attr_new(name), condition=condition)
+@dataclass(frozen=True)
+class AttrTo(Generic[EventT]):
+    """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
+
+    attr_name: str
+    condition: ChangeType
+
+    def __call__(self, event: EventT) -> bool:
+        return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
