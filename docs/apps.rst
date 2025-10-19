@@ -54,7 +54,7 @@ App Capabilities
   - ``self.app_config``: The parsed config for this app instance, typed as the app's ``AppConfig`` class.
   - ``self.index``: The index of this app instance in the config list, or 0 if only a single instance.
   - ``self.instance_name``: The name of this app instance as set in the config, or ``<ClassName>.[index]`` if not set.
-  - ``self.now()``: Get the current time as ``SystemDateTime``.
+  - ``self.now()``: Get the current time as ``ZonedDateTime``.
 
 Advanced Capabilities
 ---------------------
