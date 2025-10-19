@@ -74,19 +74,6 @@ with event data:
 * **Service calls**: ``event.payload.data`` is :class:`~hassette.events.hass.hass.CallServicePayload`
   with ``domain``, ``service``, and ``service_data`` fields.
 
-* **All payloads are immutable**: Copy out any data you need to modify later.
-
-.. code-block:: python
-
-   async def on_light_change(self, event: StateChangeEvent) -> None:
-       data = event.payload.data
-
-       # Check if brightness attribute changed
-       old_brightness = data.old_state.attributes.get("brightness")
-       new_brightness = data.new_state.attributes.get("brightness")
-
-       if old_brightness != new_brightness:
-           self.logger.info("Brightness changed from %s to %s", old_brightness, new_brightness)
 
 Basic subscriptions
 -------------------
