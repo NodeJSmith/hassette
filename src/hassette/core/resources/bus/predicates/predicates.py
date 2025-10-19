@@ -217,7 +217,7 @@ class EntityMatches:
         return f"EntityMatches(entity_id={self.entity_id!r})"
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True)
 class ServiceMatches:
     """Predicate that checks if the event service matches a specific value."""
 
