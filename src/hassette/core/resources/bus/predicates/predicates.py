@@ -26,7 +26,9 @@ from .utils import compare_value, ensure_tuple
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from hassette import StateChangeEvent
     from hassette.events import Event, HassEvent
+    from hassette.models import states
     from hassette.types import Predicate
 
 V = TypeVar("V")
@@ -147,24 +149,24 @@ class IsMissing:
         return self.source(event) is MISSING_VALUE
 
 
-def From(condition: ChangeType):  # noqa: N802
+def StateFrom(condition: ChangeType) -> "ValueIs[StateChangeEvent[states.StateUnion], Any]":  # noqa: N802
     """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'old' value."""
     return ValueIs(source=get_state_value_old, condition=condition)
 
 
-def To(condition: ChangeType):  # noqa: N802
+def StateTo(condition: ChangeType) -> "ValueIs[StateChangeEvent[states.StateUnion], Any]":  # noqa: N802
     """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'new' value."""
     return ValueIs(source=get_state_value_new, condition=condition)
 
 
-def AttrFrom(name: str, condition: ChangeType):  # noqa: N802
+def AttrFrom(name: str, condition: ChangeType) -> "ValueIs[StateChangeEvent[states.StateUnion], Any]":  # noqa: N802
     """Predicate that checks if an attribute extracted from a StateChangeEvent satisfies a
     condition on the 'old' value.
     """
     return ValueIs(source=get_attr_old(name), condition=condition)
 
 
-def AttrTo(name: str, condition: ChangeType):  # noqa: N802
+def AttrTo(name: str, condition: ChangeType) -> "ValueIs[StateChangeEvent[states.StateUnion], Any]":  # noqa: N802
     """Predicate that checks if an attribute extracted from a StateChangeEvent satisfies a
     condition on the 'new' value.
     """

@@ -19,12 +19,12 @@ from .predicates import (
     AttrTo,
     DomainMatches,
     EntityMatches,
-    From,
     Guard,
     ServiceDataWhere,
     ServiceMatches,
     StateDidChange,
-    To,
+    StateFrom,
+    StateTo,
     ValueIs,
     get_path,
 )
@@ -216,10 +216,10 @@ class Bus(Resource):
             preds.append(StateDidChange())
 
         if changed_from is not NOT_PROVIDED:
-            preds.append(From(condition=changed_from))
+            preds.append(StateFrom(condition=changed_from))
 
         if changed_to is not NOT_PROVIDED:
-            preds.append(To(condition=changed_to))
+            preds.append(StateTo(condition=changed_to))
 
         if where is not None:
             preds.append(where if callable(where) else AllOf.ensure_iterable(where))  # allow extra guards

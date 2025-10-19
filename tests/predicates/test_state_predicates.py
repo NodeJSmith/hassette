@@ -6,9 +6,9 @@ from hassette.core.resources.bus.predicates import (
     AttrFrom,
     AttrTo,
     EntityMatches,
-    From,
     StateDidChange,
-    To,
+    StateFrom,
+    StateTo,
 )
 from hassette.events import Event
 
@@ -85,11 +85,11 @@ def test_attr_from_to_predicates_apply_conditions() -> None:
 
 
 def test_from_to_predicates_match_state_values() -> None:
-    """Test that From and To predicates correctly match old and new state values."""
+    """Test that StateFrom and StateTo predicates correctly match old and new state values."""
     event = _state_event(entity_id="light.office", old_value="off", new_value="on")
 
-    from_pred = From("off")
-    to_pred = To("on")
+    from_pred = StateFrom("off")
+    to_pred = StateTo("on")
 
     assert from_pred(event) is True
     assert to_pred(event) is True
@@ -152,7 +152,7 @@ def test_attr_from_to_with_callable_conditions() -> None:
 
 
 def test_from_to_with_callable_conditions() -> None:
-    """Test that From and To predicates work with callable conditions."""
+    """Test that StateFrom and StateTo predicates work with callable conditions."""
     event = _state_event(entity_id="sensor.temp", old_value=20, new_value=25)
 
     def gt_15(value: int) -> bool:
@@ -161,8 +161,8 @@ def test_from_to_with_callable_conditions() -> None:
     def gt_20(value: int) -> bool:
         return value > 20
 
-    from_pred = From(gt_15)
-    to_pred = To(gt_20)
+    from_pred = StateFrom(gt_15)
+    to_pred = StateTo(gt_20)
 
     assert from_pred(event) is True
     assert to_pred(event) is True

@@ -14,13 +14,13 @@ from hassette.core.resources.bus.predicates import (
     AttrTo,
     DomainMatches,
     EntityMatches,
-    From,
     Guard,
     Not,
     ServiceDataWhere,
     ServiceMatches,
     StateDidChange,
-    To,
+    StateFrom,
+    StateTo,
     ValueIs,
 )
 from hassette.core.resources.bus.predicates.accessors import (
@@ -182,20 +182,20 @@ def test_value_is_with_not_provided() -> None:
 
 
 # From/To predicates
-def test_from_predicate() -> None:
-    """Test From predicate for old state values."""
+def test_state_from_predicate() -> None:
+    """Test StateFrom predicate for old state values."""
     event = _create_state_event(entity_id="light.living", old_value="off", new_value="on")
 
-    assert From("off")(event) is True
-    assert From("on")(event) is False
+    assert StateFrom("off")(event) is True
+    assert StateFrom("on")(event) is False
 
 
-def test_to_predicate() -> None:
-    """Test To predicate for new state values."""
+def test_state_to_predicate() -> None:
+    """Test StateTo predicate for new state values."""
     event = _create_state_event(entity_id="light.living", old_value="off", new_value="on")
 
-    assert To("on")(event) is True
-    assert To("off")(event) is False
+    assert StateTo("on")(event) is True
+    assert StateTo("off")(event) is False
 
 
 def test_attr_from_predicate() -> None:

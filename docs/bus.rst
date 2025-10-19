@@ -158,7 +158,7 @@ the ``where`` parameter on any subscription method.
       handler=self.on_door_open,
       changed_to="on",
       where=[
-          P.Not(P.From("unknown")),  # Ignore transitions from unknown
+          P.Not(P.StateFrom("unknown")),  # Ignore transitions from unknown
           P.AttrTo("battery_level", lambda x: x is not None and x > 20)  # Only if battery OK
       ]
    )
@@ -167,7 +167,7 @@ the ``where`` parameter on any subscription method.
    self.bus.on_state_change(
       "media_player.living_room",
       handler=self.on_media_change,
-      where=P.To(["playing", "paused"])  # state is in ["playing", "paused"]
+      where=P.StateTo(["playing", "paused"])  # state is in ["playing", "paused"]
    )
 
    # Custom predicates with Guard
@@ -183,7 +183,7 @@ the ``where`` parameter on any subscription method.
 Available predicates include:
 
 * **Logical**: ``AllOf``, ``AnyOf``, ``Not``
-* **State conditions**: ``From``, ``To``, ``StateDidChange``
+* **State conditions**: ``StateFrom``, ``StateTo``, ``StateDidChange``
 * **Attribute conditions**: ``AttrFrom``, ``AttrTo``, ``AttrDidChange``
 * **Entity/Domain matching**: ``EntityMatches``, ``DomainMatches``
 * **Value conditions**: ``ValueIs``, ``DidChange``
