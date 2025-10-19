@@ -4,7 +4,8 @@ from typing import ClassVar
 
 from deepdiff import DeepDiff
 
-from hassette import AppConfig, AppSync, StateChangeEvent, entities, states
+from hassette import AppConfig, AppSync, ServiceDataWhere, StateChangeEvent, entities, states
+from hassette.events import CallServiceEvent
 
 
 class OfficeButtonAppConfig(AppConfig):
@@ -23,6 +24,11 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
         self.enabled = True
 
         self.bus.on_state_change(self.app_config.event_action, handler=self.handle_office_button)
+        self.bus.on_call_service(
+            domain="light",
+            handler=self.log_manual_light_service,
+            where=ServiceDataWhere.from_kwargs(entity_id=self.app_config.office_light),
+        )
 
         attributes = self.get_office_light().attributes
         if not isinstance(attributes.entity_id, list):
@@ -55,6 +61,16 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
             self.lights[new_state.entity_id] = new_state
         else:
             self.logger.debug("No significant changes for light %r", new_state.entity_id)
+
+    def log_manual_light_service(self, event: CallServiceEvent) -> None:
+        """Log light-related service calls that include the configured office light."""
+        service_data = event.payload.data.service_data
+        self.logger.debug(
+            "Observed %s.%s for %s",
+            event.payload.data.domain,
+            event.payload.data.service,
+            service_data.get("entity_id"),
+        )
 
     async def handle_office_button(self, event: StateChangeEvent[states.EventState]) -> None:
         """Handle the office button action."""
