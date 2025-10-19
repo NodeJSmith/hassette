@@ -172,7 +172,7 @@ class Bus(Resource):
             changed_from (ChangeType): A value or callable that will be used to filter state changes *from* this value.
             changed_to (ChangeType): A value or callable that will be used to filter state changes *to* this value.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events, such as
-                `AttrChanged` or other custom predicates.
+                `IsIn`, `Regex`, or custom callables.
             args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce` and `throttle`.
