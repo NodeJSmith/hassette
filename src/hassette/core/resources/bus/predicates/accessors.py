@@ -15,7 +15,7 @@ if typing.TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 
-def get_path(path: str):
+def get_path(path: str) -> Callable[..., Any | Sentinel]:
     """Return a callable that extracts a nested value, returning MISSING_VALUE on failure."""
 
     def _inner(obj):
