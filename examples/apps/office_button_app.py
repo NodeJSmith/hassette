@@ -28,7 +28,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
         self.bus.on_call_service(
             domain="light",
             handler=self.log_manual_light_service,
-            where=P.ServiceDataWhere.from_kwargs(entity_id=self.app_config.office_light),
+            where=P.ServiceDataWhere.from_kwargs(entity_id=P.IsOrContains([self.app_config.office_light])),
         )
 
         attributes = self.get_office_light().attributes
