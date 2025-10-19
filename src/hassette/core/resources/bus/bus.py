@@ -50,9 +50,6 @@ R = TypeVar("R")
 
 
 class Options(TypedDict, total=False):
-    immediate: bool
-    """Whether to invoke the handler immediately when registered, instead of waiting for the first event."""
-
     once: bool
     """Whether the listener should be removed after one invocation."""
 
@@ -105,7 +102,6 @@ class Bus(Resource):
         once: bool = False,
         debounce: float | None = None,
         throttle: float | None = None,
-        immediate: bool = False,  # not yet implemented
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
