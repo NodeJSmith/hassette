@@ -20,7 +20,7 @@ from .accessors import (
     get_state_value_old,
     get_state_value_old_new,
 )
-from .conditions import Glob
+from .conditions import Glob, Present
 from .utils import compare_value, ensure_tuple
 
 if typing.TYPE_CHECKING:
@@ -262,7 +262,16 @@ class ServiceDataWhere:
         preds: list[Predicate[CallServiceEvent]] = []
 
         for k, cond in self.spec.items():
-            c = Glob(cond) if (self.auto_glob and isinstance(cond, str) and is_glob(cond)) else cond
+            # presence check
+            if cond is NOT_PROVIDED:
+                c: ChangeType = Present()
+
+            # auto-glob wrapping
+            elif self.auto_glob and isinstance(cond, str) and is_glob(cond):
+                c = Glob(cond)
+            # literal or callable condition
+            else:
+                c = cond
             preds.append(ValueIs(source=get_service_data_key(k), condition=c))
 
         object.__setattr__(self, "_predicates", tuple(preds))
