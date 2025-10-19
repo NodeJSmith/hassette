@@ -1,8 +1,9 @@
+import logging
 import typing
 from collections.abc import Callable
 from typing import Any
 
-from glom import glom
+from glom import PathAccessError, glom
 from typing_extensions import Sentinel
 
 from hassette.const.misc import MISSING_VALUE
@@ -11,6 +12,8 @@ if typing.TYPE_CHECKING:
     from hassette import states
     from hassette.events import CallServiceEvent, HassEvent, StateChangeEvent
 
+LOGGER = logging.getLogger(__name__)
+
 
 def get_path(path: str):
     """Return a callable that extracts a nested value, returning MISSING_VALUE on failure."""
@@ -18,7 +21,11 @@ def get_path(path: str):
     def _inner(obj):
         try:
             return glom(obj, path)
-        except Exception:
+        except PathAccessError:
+            # no logging for regular PathAccessError; just return MISSING_VALUE
+            return MISSING_VALUE
+        except Exception as e:
+            LOGGER.error("Error accessing path %r: %s - %s", path, type(e).__name__, e)
             return MISSING_VALUE
 
     return _inner
