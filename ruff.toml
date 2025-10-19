@@ -64,7 +64,6 @@ ignore = [
     "RET504", # flake8-return - unnecessary-assign
     "SIM102", # flake8-simplify - collapsible-if
     "PTH123", # flake8-use-pathlib - builtin-open
-    "PD901",  # pandas-vet - pandas-df-variable-name
     "RUF015", # ruff - unnecessary-iterable-allocation-for-first-element
     "PTH118", # flake8-use-pathlib - os-path-join
     "DTZ001", # call-datetime-without-tzinfo (DTZ001)
