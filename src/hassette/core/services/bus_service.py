@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from fnmatch import fnmatch
 from functools import cached_property
-from typing import Any
+from typing import Any, cast
 
 from fair_async_rlock import FairAsyncRLock
 
@@ -17,6 +17,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import Hassette, Listener
     from hassette.events import Event
+    from hassette.types import AsyncHandlerTypeEvent, AsyncHandlerTypeNoEvent
 
 
 class _BusService(Service):  # pyright: ignore[reportUnusedClass]
@@ -126,7 +127,12 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
         # we are assuming matches() has already been called
         try:
             self.logger.debug("Dispatching %s -> %r", topic, listener)
-            await listener.handler(event, *(listener.args or ()), **(listener.kwargs or {}))
+            if listener.receives_event_arg:
+                hdlr = cast("AsyncHandlerTypeEvent", listener.handler)
+                await hdlr(event, *(listener.args or ()), **(listener.kwargs or {}))
+            else:
+                hdlr = cast("AsyncHandlerTypeNoEvent", listener.handler)
+                await hdlr(*(listener.args or ()), **(listener.kwargs or {}))
         except asyncio.CancelledError:
             self.logger.debug("Listener dispatch cancelled (topic=%s, handler=%r)", topic, listener.handler_name)
             raise
