@@ -5,38 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from hassette import accessors as A
+from hassette import conditions as C
+from hassette import predicates as P
 from hassette.const.misc import MISSING_VALUE, NOT_PROVIDED
-from hassette.core.resources.bus.predicates import (
-    AllOf,
-    AnyOf,
-    AttrDidChange,
-    AttrFrom,
-    AttrTo,
-    Contains,
-    DomainMatches,
-    EndsWith,
-    EntityMatches,
-    Glob,
-    Guard,
-    Not,
-    Present,
-    Regex,
-    ServiceDataWhere,
-    ServiceMatches,
-    StartsWith,
-    StateDidChange,
-    StateFrom,
-    StateTo,
-    ValueIs,
-    get_attr_new,
-    get_attr_old,
-    get_domain,
-    get_entity_id,
-    get_path,
-    get_service_data_key,
-    get_state_value_new,
-    get_state_value_old,
-)
 from hassette.core.resources.bus.predicates.utils import compare_value, ensure_tuple, normalize_where
 from hassette.events import CallServiceEvent, Event
 
@@ -98,15 +70,15 @@ def test_allof_evaluates_all_predicates() -> None:
     mock_event = SimpleNamespace()
 
     # All true
-    predicate = AllOf((always_true, always_true))
+    predicate = P.AllOf((always_true, always_true))
     assert predicate(mock_event) is True  # pyright: ignore[reportArgumentType]
 
     # Mixed
-    predicate = AllOf((always_true, always_false))
+    predicate = P.AllOf((always_true, always_false))
     assert predicate(mock_event) is False  # pyright: ignore[reportArgumentType]
 
     # All false
-    predicate = AllOf((always_false, always_false))
+    predicate = P.AllOf((always_false, always_false))
     assert predicate(mock_event) is False  # pyright: ignore[reportArgumentType]
 
 
@@ -116,11 +88,11 @@ def test_anyof_evaluates_any_predicate() -> None:
     mock_event = SimpleNamespace()
 
     # Any true
-    predicate = AnyOf((always_false, always_true))
+    predicate = P.AnyOf((always_false, always_true))
     assert predicate(mock_event) is True  # pyright: ignore[reportArgumentType]
 
     # All false
-    predicate = AnyOf((always_false, always_false))
+    predicate = P.AnyOf((always_false, always_false))
     assert predicate(mock_event) is False  # pyright: ignore[reportArgumentType]
 
 
@@ -129,8 +101,8 @@ def test_not_inverts_predicate() -> None:
 
     mock_event = SimpleNamespace()
 
-    assert Not(always_true)(mock_event) is False  # pyright: ignore[reportArgumentType]
-    assert Not(always_false)(mock_event) is True  # pyright: ignore[reportArgumentType]
+    assert P.Not(always_true)(mock_event) is False  # pyright: ignore[reportArgumentType]
+    assert P.Not(always_false)(mock_event) is True  # pyright: ignore[reportArgumentType]
 
 
 def test_guard_wraps_callable() -> None:
@@ -140,7 +112,7 @@ def test_guard_wraps_callable() -> None:
     def check_identity(event) -> bool:
         return event is sentinel
 
-    guard = Guard(check_identity)
+    guard = P.Guard(check_identity)
     assert guard(sentinel) is True
     assert guard(object()) is False
 
@@ -151,14 +123,14 @@ def test_value_is_with_literal_condition() -> None:
     event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
     # Test old state value
-    predicate = ValueIs(source=get_state_value_old, condition="off")
+    predicate = P.ValueIs(source=A.get_state_value_old, condition="off")
     assert predicate(event) is True  # pyright: ignore[reportArgumentType]
 
-    predicate = ValueIs(source=get_state_value_old, condition="on")
+    predicate = P.ValueIs(source=A.get_state_value_old, condition="on")
     assert predicate(event) is False  # pyright: ignore[reportArgumentType]
 
     # Test new state value
-    predicate = ValueIs(source=get_state_value_new, condition="on")
+    predicate = P.ValueIs(source=A.get_state_value_new, condition="on")
     assert predicate(event) is True  # pyright: ignore[reportArgumentType]
 
 
@@ -169,10 +141,10 @@ def test_value_is_with_callable_condition() -> None:
     def gt_twenty(value: int) -> bool:
         return value > 20
 
-    predicate = ValueIs(source=get_state_value_new, condition=gt_twenty)
+    predicate = P.ValueIs(source=A.get_state_value_new, condition=gt_twenty)
     assert predicate(event) is True  # pyright: ignore[reportArgumentType]
 
-    predicate = ValueIs(source=get_state_value_old, condition=gt_twenty)
+    predicate = P.ValueIs(source=A.get_state_value_old, condition=gt_twenty)
     assert predicate(event) is False  # pyright: ignore[reportArgumentType]
 
 
@@ -180,7 +152,7 @@ def test_value_is_with_not_provided() -> None:
     """Test ValueIs with NOT_PROVIDED (no constraint)."""
     event = _create_state_event(entity_id="any.entity", old_value="any", new_value="any")
 
-    predicate = ValueIs(source=get_state_value_new, condition=NOT_PROVIDED)
+    predicate = P.ValueIs(source=A.get_state_value_new, condition=NOT_PROVIDED)
     assert predicate(event) is True
 
 
@@ -189,16 +161,16 @@ def test_state_from_predicate() -> None:
     """Test StateFrom predicate for old state values."""
     event = _create_state_event(entity_id="light.living", old_value="off", new_value="on")
 
-    assert StateFrom("off")(event) is True
-    assert StateFrom("on")(event) is False
+    assert P.StateFrom("off")(event) is True
+    assert P.StateFrom("on")(event) is False
 
 
 def test_state_to_predicate() -> None:
     """Test StateTo predicate for new state values."""
     event = _create_state_event(entity_id="light.living", old_value="off", new_value="on")
 
-    assert StateTo("on")(event) is True
-    assert StateTo("off")(event) is False
+    assert P.StateTo("on")(event) is True
+    assert P.StateTo("off")(event) is False
 
 
 def test_attr_from_predicate() -> None:
@@ -211,8 +183,8 @@ def test_attr_from_predicate() -> None:
         new_attrs={"brightness": 200},
     )
 
-    assert AttrFrom("brightness", 100)(event) is True
-    assert AttrFrom("brightness", 200)(event) is False
+    assert P.AttrFrom("brightness", 100)(event) is True
+    assert P.AttrFrom("brightness", 200)(event) is False
 
 
 def test_attr_to_predicate() -> None:
@@ -225,8 +197,8 @@ def test_attr_to_predicate() -> None:
         new_attrs={"brightness": 200},
     )
 
-    assert AttrTo("brightness", 200)(event) is True
-    assert AttrTo("brightness", 100)(event) is False
+    assert P.AttrTo("brightness", 200)(event) is True
+    assert P.AttrTo("brightness", 100)(event) is False
 
 
 # Change detection predicates
@@ -234,7 +206,7 @@ def test_state_did_change() -> None:
     """Test StateDidChange predicate detects state transitions."""
     # State changed
     event = _create_state_event(entity_id="sensor.temp", old_value=20, new_value=25)
-    predicate = StateDidChange()
+    predicate = P.StateDidChange()
     assert predicate(event) is True
 
     # State unchanged
@@ -252,7 +224,7 @@ def test_attr_did_change() -> None:
         old_attrs={"brightness": 100},
         new_attrs={"brightness": 200},
     )
-    predicate = AttrDidChange("brightness")
+    predicate = P.AttrDidChange("brightness")
     assert predicate(event) is True
 
     # Attribute unchanged
@@ -272,18 +244,18 @@ def test_entity_matches() -> None:
     event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
     # Exact match
-    predicate = EntityMatches("light.kitchen")
+    predicate = P.EntityMatches("light.kitchen")
     assert predicate(event) is True
 
     # No match
-    predicate = EntityMatches("light.living")
+    predicate = P.EntityMatches("light.living")
     assert predicate(event) is False
 
     # Glob match
-    predicate = EntityMatches("light.*")
+    predicate = P.EntityMatches("light.*")
     assert predicate(event) is True
 
-    predicate = EntityMatches("sensor.*")
+    predicate = P.EntityMatches("sensor.*")
     assert predicate(event) is False
 
 
@@ -292,11 +264,11 @@ def test_domain_matches() -> None:
     event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
     # Exact match
-    predicate = DomainMatches("light")
+    predicate = P.DomainMatches("light")
     assert predicate(event) is True
 
     # No match
-    predicate = DomainMatches("sensor")
+    predicate = P.DomainMatches("sensor")
     assert predicate(event) is False
 
 
@@ -305,15 +277,15 @@ def test_service_matches() -> None:
     event = _create_service_event(domain="light", service="turn_on")
 
     # Exact match
-    predicate = ServiceMatches("turn_on")
+    predicate = P.ServiceMatches("turn_on")
     assert predicate(event) is True
 
     # No match
-    predicate = ServiceMatches("turn_off")
+    predicate = P.ServiceMatches("turn_off")
     assert predicate(event) is False
 
     # Glob match
-    predicate = ServiceMatches("turn_*")
+    predicate = P.ServiceMatches("turn_*")
     assert predicate(event) is True
 
 
@@ -324,10 +296,10 @@ def test_service_data_where_exact_match() -> None:
         domain="light", service="turn_on", service_data={"entity_id": "light.kitchen", "brightness": 255}
     )
 
-    predicate = ServiceDataWhere({"entity_id": "light.kitchen", "brightness": 255})
+    predicate = P.ServiceDataWhere({"entity_id": "light.kitchen", "brightness": 255})
     assert predicate(event) is True
 
-    predicate = ServiceDataWhere({"entity_id": "light.living"})
+    predicate = P.ServiceDataWhere({"entity_id": "light.living"})
     assert predicate(event) is False
 
 
@@ -338,7 +310,7 @@ def test_service_data_where_with_callable() -> None:
     def brightness_gt_200(value: int) -> bool:
         return value > 200
 
-    predicate = ServiceDataWhere({"brightness": brightness_gt_200})
+    predicate = P.ServiceDataWhere({"brightness": brightness_gt_200})
     assert predicate(event) is True
 
 
@@ -347,11 +319,11 @@ def test_service_data_where_with_not_provided() -> None:
     event = _create_service_event(domain="light", service="turn_on", service_data={"entity_id": "light.kitchen"})
 
     # Key exists
-    predicate = ServiceDataWhere({"entity_id": NOT_PROVIDED})
+    predicate = P.ServiceDataWhere({"entity_id": NOT_PROVIDED})
     assert predicate(event) is True
 
     # Key missing
-    predicate = ServiceDataWhere({"brightness": NOT_PROVIDED})
+    predicate = P.ServiceDataWhere({"brightness": NOT_PROVIDED})
     assert predicate(event) is False
 
 
@@ -359,17 +331,17 @@ def test_service_data_where_with_globs() -> None:
     """Test ServiceDataWhere with automatic glob pattern handling."""
     event = _create_service_event(domain="light", service="turn_on", service_data={"entity_id": "light.kitchen"})
 
-    predicate = ServiceDataWhere({"entity_id": "light.*"})
+    predicate = P.ServiceDataWhere({"entity_id": "light.*"})
     assert predicate(event) is True
 
-    predicate = ServiceDataWhere({"entity_id": "sensor.*"})
+    predicate = P.ServiceDataWhere({"entity_id": "sensor.*"})
     assert predicate(event) is False
 
 
 # Condition tests
 def test_glob_condition() -> None:
     """Test Glob condition matcher."""
-    glob = Glob("light.*")
+    glob = C.Glob("light.*")
 
     assert glob("light.kitchen") is True
     assert glob("light.living") is True
@@ -379,7 +351,7 @@ def test_glob_condition() -> None:
 
 def test_startswith_condition() -> None:
     """Test StartsWith condition matcher."""
-    condition = StartsWith("light.")
+    condition = C.StartsWith("light.")
 
     assert condition("light.kitchen") is True
     assert condition("light.living") is True
@@ -389,7 +361,7 @@ def test_startswith_condition() -> None:
 
 def test_endswith_condition() -> None:
     """Test EndsWith condition matcher."""
-    condition = EndsWith(".kitchen")
+    condition = C.EndsWith(".kitchen")
 
     assert condition("light.kitchen") is True
     assert condition("sensor.kitchen") is True
@@ -399,7 +371,7 @@ def test_endswith_condition() -> None:
 
 def test_contains_condition() -> None:
     """Test Contains condition matcher."""
-    condition = Contains("kitchen")
+    condition = C.Contains("kitchen")
 
     assert condition("light.kitchen") is True
     assert condition("sensor.kitchen_temp") is True
@@ -409,7 +381,7 @@ def test_contains_condition() -> None:
 
 def test_regex_condition() -> None:
     """Test Regex condition matcher."""
-    condition = Regex(r"light\..*kitchen")
+    condition = C.Regex(r"light\..*kitchen")
 
     assert condition("light.main_kitchen") is True
     assert condition("light.back_kitchen") is True
@@ -420,7 +392,7 @@ def test_regex_condition() -> None:
 
 def test_present_condition() -> None:
     """Test Present condition matcher."""
-    condition = Present()
+    condition = C.Present()
 
     assert condition("any_value") is True
     assert condition(0) is True
@@ -509,7 +481,7 @@ def test_normalize_where_handling() -> None:
 
     # Sequence of predicates
     result = normalize_where([always_true, always_false])
-    assert isinstance(result, AllOf)
+    assert isinstance(result, P.AllOf)
     assert len(result.predicates) == 2
 
 
@@ -518,22 +490,22 @@ def test_get_entity_id_accessor() -> None:
     """Test get_entity_id accessor function."""
     event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
-    assert get_entity_id(event) == "light.kitchen"
+    assert A.get_entity_id(event) == "light.kitchen"
 
 
 def test_get_domain_accessor() -> None:
     """Test get_domain accessor function."""
     event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
-    assert get_domain(event) == "light"
+    assert A.get_domain(event) == "light"
 
 
 def test_get_state_value_accessors() -> None:
     """Test state value accessor functions."""
     event = _create_state_event(entity_id="sensor.temp", old_value=20, new_value=25)
 
-    assert get_state_value_old(event) == 20
-    assert get_state_value_new(event) == 25
+    assert A.get_state_value_old(event) == 20
+    assert A.get_state_value_new(event) == 25
 
 
 def test_get_attr_accessors() -> None:
@@ -546,14 +518,14 @@ def test_get_attr_accessors() -> None:
         new_attrs={"brightness": 200, "color": "blue"},
     )
 
-    assert get_attr_old("brightness")(event) == 100
-    assert get_attr_new("brightness")(event) == 200
-    assert get_attr_old("color")(event) == "red"
-    assert get_attr_new("color")(event) == "blue"
+    assert A.get_attr_old("brightness")(event) == 100
+    assert A.get_attr_new("brightness")(event) == 200
+    assert A.get_attr_old("color")(event) == "red"
+    assert A.get_attr_new("color")(event) == "blue"
 
     # Missing attribute
-    assert get_attr_old("missing")(event) == MISSING_VALUE
-    assert get_attr_new("missing")(event) == MISSING_VALUE
+    assert A.get_attr_old("missing")(event) == MISSING_VALUE
+    assert A.get_attr_new("missing")(event) == MISSING_VALUE
 
 
 def test_get_service_data_key_accessor() -> None:
@@ -562,14 +534,14 @@ def test_get_service_data_key_accessor() -> None:
         domain="light", service="turn_on", service_data={"entity_id": "light.kitchen", "brightness": 255}
     )
 
-    accessor = get_service_data_key("entity_id")
+    accessor = A.get_service_data_key("entity_id")
     assert accessor(event) == "light.kitchen"
 
-    accessor = get_service_data_key("brightness")
+    accessor = A.get_service_data_key("brightness")
     assert accessor(event) == 255
 
     # Missing key
-    accessor = get_service_data_key("missing")
+    accessor = A.get_service_data_key("missing")
     assert accessor(event) == MISSING_VALUE
 
 
@@ -593,56 +565,56 @@ def test_get_path_accessor() -> None:
     )
 
     # Test simple attribute access
-    accessor = get_path("simple_attr")
+    accessor = A.get_path("simple_attr")
     assert accessor(test_obj) == "simple_value"
 
     # Test nested attribute access
-    accessor = get_path("nested.level1.level2")
+    accessor = A.get_path("nested.level1.level2")
     assert accessor(test_obj) == "nested_value"
 
     # Test nested numeric access
-    accessor = get_path("nested.level1.number")
+    accessor = A.get_path("nested.level1.number")
     assert accessor(test_obj) == 42
 
     # Test nested boolean access
-    accessor = get_path("nested.level1.flag")
+    accessor = A.get_path("nested.level1.flag")
     assert accessor(test_obj) is True
 
     # Test array/list indexing
-    accessor = get_path("nested.array.0")
+    accessor = A.get_path("nested.array.0")
     assert accessor(test_obj) == 1
 
-    accessor = get_path("list_attr.2.list_item_key")
+    accessor = A.get_path("list_attr.2.list_item_key")
     assert accessor(test_obj) == "list_item_value"
 
     # Test dictionary key access
-    accessor = get_path("nested.dict_attr.dict_key")
+    accessor = A.get_path("nested.dict_attr.dict_key")
     assert accessor(test_obj) == "dict_value"
 
     # Test deeply nested dictionary access
-    accessor = get_path("nested.dict_attr.nested_dict.deep")
+    accessor = A.get_path("nested.dict_attr.nested_dict.deep")
     assert accessor(test_obj) == "deep_value"
 
     # Test accessing None values
-    accessor = get_path("none_value")
+    accessor = A.get_path("none_value")
     assert accessor(test_obj) is None
 
     # Test accessing non-existent paths - should return MISSING_VALUE
-    accessor = get_path("nonexistent")
+    accessor = A.get_path("nonexistent")
     assert accessor(test_obj) is MISSING_VALUE
 
-    accessor = get_path("nested.nonexistent")
+    accessor = A.get_path("nested.nonexistent")
     assert accessor(test_obj) is MISSING_VALUE
 
-    accessor = get_path("nested.level1.nonexistent")
+    accessor = A.get_path("nested.level1.nonexistent")
     assert accessor(test_obj) is MISSING_VALUE
 
     # Test invalid array index
-    accessor = get_path("list_attr.10")
+    accessor = A.get_path("list_attr.10")
     assert accessor(test_obj) is MISSING_VALUE
 
     # Test accessing attribute on None
-    accessor = get_path("none_value.some_attr")
+    accessor = A.get_path("none_value.some_attr")
     assert accessor(test_obj) is MISSING_VALUE
 
 
@@ -661,35 +633,35 @@ def test_get_path_with_dict_objects() -> None:
     }
 
     # Test dictionary key access
-    accessor = get_path("top_level")
+    accessor = A.get_path("top_level")
     assert accessor(test_dict) == "value"
 
     # Test nested dictionary access
-    accessor = get_path("nested.inner.deep")
+    accessor = A.get_path("nested.inner.deep")
     assert accessor(test_dict) == "deep_value"
 
-    accessor = get_path("nested.simple")
+    accessor = A.get_path("nested.simple")
     assert accessor(test_dict) == "simple_value"
 
     # Test mixed dictionary and list access
-    accessor = get_path("nested.inner.list.0.item")
+    accessor = A.get_path("nested.inner.list.0.item")
     assert accessor(test_dict) == "list_item"
 
-    accessor = get_path("array.2.nested_in_array")
+    accessor = A.get_path("array.2.nested_in_array")
     assert accessor(test_dict) == "array_nested"
 
     # Test missing keys
-    accessor = get_path("missing_key")
+    accessor = A.get_path("missing_key")
     assert accessor(test_dict) is MISSING_VALUE
 
-    accessor = get_path("nested.missing")
+    accessor = A.get_path("nested.missing")
     assert accessor(test_dict) is MISSING_VALUE
 
 
 def test_get_path_error_handling() -> None:
     """Test get_path error handling for various edge cases."""
     # Test with invalid object types
-    accessor = get_path("some.path")
+    accessor = A.get_path("some.path")
 
     # Should return MISSING_VALUE for non-dict/object types
     assert accessor("string") is MISSING_VALUE
@@ -698,7 +670,7 @@ def test_get_path_error_handling() -> None:
     assert accessor(None) is MISSING_VALUE
 
     # Test with empty path strings
-    accessor = get_path("")
+    accessor = A.get_path("")
     test_obj = {"key": "value"}
     # Empty path causes glom to raise an exception, so should return MISSING_VALUE
     assert accessor(test_obj) is MISSING_VALUE
@@ -707,11 +679,11 @@ def test_get_path_error_handling() -> None:
     test_obj = SimpleNamespace(attr="value")
 
     # These should all return MISSING_VALUE due to exceptions
-    accessor = get_path("attr.nonexistent.deep")
+    accessor = A.get_path("attr.nonexistent.deep")
     assert accessor(test_obj) is MISSING_VALUE
 
     # Test accessing methods/attributes that don't exist
-    accessor = get_path("nonexistent_method()")
+    accessor = A.get_path("nonexistent_method()")
     assert accessor(test_obj) is MISSING_VALUE
 
 
@@ -732,21 +704,21 @@ def test_get_path_with_real_event_structure() -> None:
     )
 
     # Test paths similar to what's used in the codebase
-    accessor = get_path("payload.data.entity_id")
+    accessor = A.get_path("payload.data.entity_id")
     assert accessor(event) == "light.kitchen"
 
-    accessor = get_path("payload.data.domain")
+    accessor = A.get_path("payload.data.domain")
     assert accessor(event) == "light"
 
-    accessor = get_path("payload.data.service_data.brightness")
+    accessor = A.get_path("payload.data.service_data.brightness")
     assert accessor(event) == 255
 
-    accessor = get_path("topic")
+    accessor = A.get_path("topic")
     assert accessor(event) == "hass.event.state_changed"
 
     # Test missing paths on realistic structure
-    accessor = get_path("payload.data.nonexistent")
+    accessor = A.get_path("payload.data.nonexistent")
     assert accessor(event) is MISSING_VALUE
 
-    accessor = get_path("payload.metadata.missing")
+    accessor = A.get_path("payload.metadata.missing")
     assert accessor(event) is MISSING_VALUE

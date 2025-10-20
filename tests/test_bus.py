@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from hassette.core.resources.bus.listeners import Subscription
-from hassette.core.resources.bus.predicates import (
+from hassette.core.resources.bus.predicates.conditions import IsOrContains
+from hassette.core.resources.bus.predicates.predicates import (
     AllOf,
     AttrDidChange,
     EntityMatches,
@@ -17,7 +18,6 @@ from hassette.core.resources.bus.predicates import (
     ServiceDataWhere,
     StateDidChange,
 )
-from hassette.core.resources.bus.predicates.conditions import IsOrContains
 from hassette.events.base import Event
 
 if typing.TYPE_CHECKING:
