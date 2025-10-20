@@ -18,7 +18,7 @@ from .enums import ResourceRole, ResourceStatus
 from .events import StateChangeEvent
 from .models import entities, states
 from .models.services import ServiceResponse
-from .types import AsyncHandler, Handler, Predicate, TriggerProtocol
+from .types import AsyncHandlerType, Predicate, TriggerProtocol
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
 
@@ -28,10 +28,9 @@ __all__ = [
     "AppConfig",
     "AppConfigT",
     "AppSync",
-    "AsyncHandler",
+    "AsyncHandlerType",
     "Bus",
     "CronTrigger",
-    "Handler",
     "Hassette",
     "HassetteConfig",
     "IntervalTrigger",
