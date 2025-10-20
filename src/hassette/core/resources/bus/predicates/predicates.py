@@ -16,13 +16,13 @@ With a callable condition::
     ValueIs(source=get_entity_id, condition=is_kitchen_light)
 
 With a condition object::
-    ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
+    ValueIs(source=get_entity_id, condition=C.IsIn(collection=["light.kitchen", "light.living"]))
 
 Combining multiple predicates::
-    AllOf(predicates=[
-        DomainMatches("light"),
-        EntityMatches("light.kitchen"),
-        StateTo("on"),
+    P.AllOf(predicates=[
+        P.DomainMatches("light"),
+        P.EntityMatches("light.kitchen"),
+        P.StateTo("on"),
     ])
 
 """
@@ -34,7 +34,7 @@ from typing import Any, Generic, TypeVar
 
 from hassette.const.misc import MISSING_VALUE, NOT_PROVIDED
 from hassette.events import CallServiceEvent
-from hassette.types import ChangeType, EventT
+from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils.glob_utils import is_glob
 
 from .accessors import (
