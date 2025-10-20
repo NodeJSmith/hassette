@@ -8,9 +8,9 @@ from .core.resources.api.api import Api
 from .core.resources.app.app import App, AppSync, only_app
 from .core.resources.app.app_config import AppConfig, AppConfigT
 from .core.resources.base import Resource, Service
-from .core.resources.bus import predicates
 from .core.resources.bus.bus import Bus
 from .core.resources.bus.listeners import Listener, Subscription
+from .core.resources.bus.predicates import accessors, conditions, predicates
 from .core.resources.scheduler.classes import CronTrigger, IntervalTrigger, ScheduledJob
 from .core.resources.scheduler.scheduler import Scheduler
 from .core.resources.task_bucket import TaskBucket
@@ -48,6 +48,8 @@ __all__ = [
     "Subscription",
     "TaskBucket",
     "TriggerProtocol",
+    "accessors",
+    "conditions",
     "context",
     "entities",
     "events",
