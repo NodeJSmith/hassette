@@ -298,7 +298,7 @@ class Bus(Resource):
             Subscription: A subscription object that can be used to manage the listener.
 
         You can provide a dictionary to `where` to filter on specific key-value pairs in the service data. You can use
-        `hassette.const.NOT_PROVIDED` as the value to only check for the presence of a key, use glob patterns
+        `hassette.const.misc.NOT_PROVIDED` as the value to only check for the presence of a key, use glob patterns
         for string values, or provide a callable predicate for more complex matching.
 
         Examples:
@@ -343,24 +343,24 @@ class Bus(Resource):
 
         preds: list[Predicate] = []
         if domain is not None:
-            preds.append(DomainMatches(domain))
+            preds.append(P.DomainMatches(domain))
 
         if service is not None:
-            preds.append(ServiceMatches(service))
+            preds.append(P.ServiceMatches(service))
 
         if where is not None:
             if isinstance(where, Mapping):
-                preds.append(ServiceDataWhere(where))
+                preds.append(P.ServiceDataWhere(where))
             elif callable(where):
                 preds.append(where)
             else:
                 mappings = [w for w in where if isinstance(w, Mapping)]
                 other = [w for w in where if not isinstance(w, Mapping)]
 
-                preds.extend(ServiceDataWhere(w) for w in mappings)
+                preds.extend(P.ServiceDataWhere(w) for w in mappings)
 
                 if other:
-                    preds.append(AllOf.ensure_iterable(other))
+                    preds.append(P.AllOf.ensure_iterable(other))
 
         return self.on(
             topic=topics.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -400,10 +400,10 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if component is not None:
-            preds.append(ValueIs(source=get_path("payload.data.component"), condition=component))
+            preds.append(P.ValueIs(source=get_path("payload.data.component"), condition=component))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
         return self.on(
             topic=topics.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -446,13 +446,13 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if domain is not None:
-            preds.append(DomainMatches(domain))
+            preds.append(P.DomainMatches(domain))
 
         if service is not None:
-            preds.append(ServiceMatches(service))
+            preds.append(P.ServiceMatches(service))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
         return self.on(
             topic=topics.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -564,10 +564,10 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if status is not None:
-            preds.append(Guard["HassetteServiceEvent"](lambda event: event.payload.data.status == status))
+            preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
         return self.on(
             topic=topics.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
