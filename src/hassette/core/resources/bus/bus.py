@@ -118,25 +118,12 @@ class Bus(Resource):
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
         """
-
-        pred = normalize_where(where)
-
-        orig = handler
-
-        # ensure-async
-        handler = self._make_async_handler(orig)
-        # decorate
-        if debounce and debounce > 0:
-            handler = self._add_debounce(handler, debounce, self.task_bucket)
-        if throttle and throttle > 0:
-            handler = self._add_throttle(handler, throttle)
-
-        listener = Listener(
+        listener = Listener.create(
+            task_bucket=self.task_bucket,
             owner=self.owner_id,
             topic=topic,
-            orig_handler=orig,
             handler=handler,
-            predicate=pred,
+            where=where,
             args=args,
             kwargs=kwargs,
             once=once,
@@ -668,80 +655,3 @@ class Bus(Resource):
         return self.on_hassette_service_status(
             status=ResourceStatus.RUNNING, handler=handler, where=where, args=args, kwargs=kwargs, **opts
         )
-
-    def _make_async_handler(self, fn: "HandlerType[EventT]") -> "AsyncHandler[EventT]":
-        """Wrap a function to ensure it is always called as an async handler.
-
-        If the function is already an async function, it will be called directly.
-        If it is a regular function, it will be run in an executor to avoid blocking the event loop.
-
-        Args:
-            fn (Callable[..., Any]): The function to adapt.
-
-        Returns:
-            AsyncHandler: An async handler that wraps the original function.
-        """
-        return cast("AsyncHandler[EventT]", self.task_bucket.make_async_adapter(fn))
-
-    def _add_debounce(
-        self, handler: "AsyncHandler[Event[Any]]", seconds: float, task_bucket: "TaskBucket"
-    ) -> "AsyncHandler[Event[Any]]":
-        """Add a debounce to an async handler.
-
-        This will ensure that the handler is only called after a specified period of inactivity.
-        If a new event comes in before the debounce period has passed, the previous call is cancelled.
-
-        Args:
-            handler (AsyncHandler): The async handler to debounce.
-            seconds (float): The debounce period in seconds.
-
-        Returns:
-            AsyncHandler: A new async handler that applies the debounce logic.
-        """
-        pending: asyncio.Task | None = None
-        last_ev: Event[Any] | None = None
-
-        async def _debounced(event: Event[Any], *args: P.args, **kwargs: P.kwargs) -> None:
-            nonlocal pending, last_ev
-            last_ev = event
-            if pending and not pending.done():
-                pending.cancel()
-
-            async def _later():
-                try:
-                    await asyncio.sleep(seconds)
-                    if last_ev is not None:
-                        await handler(last_ev, *args, **kwargs)
-                except asyncio.CancelledError:
-                    pass
-
-            pending = task_bucket.spawn(_later(), name="adapters:debounce_handler")
-
-        return _debounced
-
-    def _add_throttle(self, handler: "AsyncHandler[Event[Any]]", seconds: float) -> "AsyncHandler[Event[Any]]":
-        """Add a throttle to an async handler.
-
-        This will ensure that the handler is only called at most once every specified period of time.
-        If a new event comes in before the throttle period has passed, it will be ignored.
-
-        Args:
-            handler (AsyncHandler): The async handler to throttle.
-            seconds (float): The throttle period in seconds.
-
-        Returns:
-            AsyncHandler: A new async handler that applies the throttle logic.
-        """
-
-        last_time = 0.0
-        lock = asyncio.Lock()
-
-        async def _throttled(event: Event[Any], *args: P.args, **kwargs: P.kwargs) -> None:
-            nonlocal last_time
-            async with lock:
-                now = time.monotonic()
-                if now - last_time >= seconds:
-                    last_time = now
-                    await handler(event, *args, **kwargs)
-
-        return _throttled
