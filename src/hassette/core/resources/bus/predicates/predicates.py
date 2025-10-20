@@ -197,6 +197,16 @@ class StateTo(Generic[EventT]):
 
 
 @dataclass(frozen=True)
+class StateComparison(Generic[EventT]):
+    """Predicate that checks if a comparison between from_state and to_state satisfies a condition."""
+
+    condition: ComparisonCondition
+
+    def __call__(self, event: EventT) -> bool:
+        return self.condition(get_state_value_old(event), get_state_value_new(event))
+
+
+@dataclass(frozen=True)
 class AttrFrom(Generic[EventT]):
     """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
 
@@ -216,6 +226,19 @@ class AttrTo(Generic[EventT]):
 
     def __call__(self, event: EventT) -> bool:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
+
+
+@dataclass(frozen=True)
+class AttrComparison(Generic[EventT]):
+    """Predicate that checks if a comparison between from_attr and to_attr satisfies a condition."""
+
+    attr_name: str
+    condition: ComparisonCondition
+
+    def __call__(self, event: EventT) -> bool:
+        old_attr = get_attr_old(self.attr_name)(event)
+        new_attr = get_attr_new(self.attr_name)(event)
+        return self.condition(old_attr, new_attr)
 
 
 @dataclass(frozen=True)

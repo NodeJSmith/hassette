@@ -274,3 +274,78 @@ class IsOrContains:
         if isinstance(value, Sequence) and not isinstance(value, str):
             return any(item == self.condition for item in value)
         return value == self.condition
+
+
+@dataclass(frozen=True)
+class IsNone:
+    """Condition that checks if a value is None.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_attribute, condition=IsNone())
+
+    """
+
+    def __call__(self, value: Any) -> bool:
+        return value is None
+
+
+@dataclass(frozen=True)
+class IsNotNone:
+    """Condition that checks if a value is not None.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_attribute, condition=IsNotNone())
+
+    """
+
+    def __call__(self, value: Any) -> bool:
+        return value is not None
+
+
+@dataclass(frozen=True)
+class Increased:
+    """Comparison condition that checks if a numeric value has increased compared to the previous value.
+
+    Expected to be used with predicates that provide both old and new values, such as StateComparison and
+    AttrComparison.
+
+    Examples
+    --------
+    Basic::
+
+        self.on_state_change("zone.home", changed=Increased())
+
+    """
+
+    def __call__(self, old_value: Any, new_value: Any) -> bool:
+        try:
+            return float(new_value) > float(old_value)
+        except (TypeError, ValueError):
+            return False
+
+
+@dataclass(frozen=True)
+class Decreased:
+    """Comparison condition that checks if a numeric value has decreased compared to the previous value.
+
+    Expected to be used with predicates that provide both old and new values, such as StateComparison and
+    AttrComparison.
+
+    Examples
+    --------
+    Basic::
+
+        self.on_state_change("zone.home", changed=Decreased())
+    """
+
+    def __call__(self, old_value: Any, new_value: Any) -> bool:
+        try:
+            return float(new_value) < float(old_value)
+        except (TypeError, ValueError):
+            return False
