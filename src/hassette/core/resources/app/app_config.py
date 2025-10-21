@@ -2,7 +2,7 @@ from typing import TypeVar
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from hassette.const.misc import LOG_LEVELS
+from hassette.const import LOG_LEVELS
 
 
 class AppConfig(BaseSettings):

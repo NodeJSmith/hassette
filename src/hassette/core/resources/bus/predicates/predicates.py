@@ -32,7 +32,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
-from hassette.const.misc import MISSING_VALUE, NOT_PROVIDED
+from hassette.const import MISSING_VALUE, NOT_PROVIDED
 from hassette.events import CallServiceEvent
 from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils.glob_utils import is_glob

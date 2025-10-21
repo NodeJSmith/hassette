@@ -237,7 +237,7 @@ Pass a dictionary to ``where`` to filter on service data keys and values:
 
 .. code-block:: python
 
-   from hassette.const.misc import NOT_PROVIDED
+   from hassette.const import NOT_PROVIDED
 
    # Basic literal matching
    self.bus.on_call_service(

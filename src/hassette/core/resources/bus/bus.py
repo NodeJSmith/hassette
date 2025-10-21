@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from typing import Any, TypedDict, TypeVar, Unpack
 
 from hassette import topics
-from hassette.const.misc import NOT_PROVIDED
+from hassette.const import NOT_PROVIDED
 from hassette.core.resources.base import Resource
 from hassette.enums import ResourceStatus
 from hassette.types import ComparisonCondition
@@ -298,7 +298,7 @@ class Bus(Resource):
             Subscription: A subscription object that can be used to manage the listener.
 
         You can provide a dictionary to `where` to filter on specific key-value pairs in the service data. You can use
-        `hassette.const.misc.NOT_PROVIDED` as the value to only check for the presence of a key, use glob patterns
+        `hassette.const.NOT_PROVIDED` as the value to only check for the presence of a key, use glob patterns
         for string values, or provide a callable predicate for more complex matching.
 
         Examples:

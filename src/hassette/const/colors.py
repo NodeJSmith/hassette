@@ -151,5 +151,7 @@ Color = Literal[
     "yellowgreen",
     "homeassistant",
 ]
+"""Literal type for supported color names."""
 
 COLORS = list(sorted(set(get_args(Color))))
+"""List of supported color names."""

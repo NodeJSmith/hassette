@@ -3,7 +3,7 @@
 import typing
 from types import SimpleNamespace
 
-from hassette.const.misc import MISSING_VALUE
+from hassette.const import MISSING_VALUE
 from hassette.core.resources.bus.predicates.conditions import (
     Contains,
     EndsWith,

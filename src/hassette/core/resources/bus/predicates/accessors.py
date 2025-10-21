@@ -6,7 +6,7 @@ from typing import Any
 from glom import PathAccessError, glom
 from typing_extensions import Sentinel
 
-from hassette.const.misc import MISSING_VALUE
+from hassette.const import MISSING_VALUE
 
 if typing.TYPE_CHECKING:
     from hassette import states

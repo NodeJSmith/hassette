@@ -5,7 +5,7 @@ from typing import Any, TypeGuard
 
 from boltons.iterutils import is_collection
 
-from hassette.const.misc import NOT_PROVIDED
+from hassette.const import NOT_PROVIDED
 
 if typing.TYPE_CHECKING:
     from hassette.types import ChangeType, Predicate

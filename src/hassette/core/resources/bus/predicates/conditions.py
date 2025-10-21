@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from hassette.const.misc import MISSING_VALUE
+from hassette.const import MISSING_VALUE
 from hassette.utils.glob_utils import matches_globs
 
 
