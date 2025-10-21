@@ -6,7 +6,6 @@ import time
 import typing
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from inspect import Signature
 from typing import Any, ParamSpec, TypeVar, cast
 
 from hassette.utils.func_utils import callable_name
@@ -53,11 +52,8 @@ class Listener:
     orig_handler: "HandlerType"
     """Original handler function provided by the user."""
 
-    signature: Signature
-    """Signature of the original handler function."""
-
-    handler: "AsyncHandlerType"
-    """Wrapped handler function that is always async."""
+    adapter: "HandlerAdapter"
+    """Handler adapter that manages signature normalization and rate limiting."""
 
     predicate: "Predicate | None"
     """Predicate to filter events before invoking the handler."""
@@ -70,12 +66,6 @@ class Listener:
 
     once: bool = False
     """Whether the listener should be removed after one invocation."""
-
-    debounce: float | None = None
-    """Debounce interval in seconds, or None if not debounced."""
-
-    throttle: float | None = None
-    """Throttle interval in seconds, or None if not throttled."""
 
     @property
     def handler_name(self) -> str:
@@ -93,13 +83,19 @@ class Listener:
         check if the first parameter is named 'event'.
 
         """
-        return receives_event_arg(self.signature)
+        return self.adapter.expects_event
 
     async def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
         if self.predicate is None:
             return True
         return self.predicate(ev)
+
+    async def invoke(self, event: "Event[Any]") -> None:
+        """Invoke the handler through the adapter."""
+        args = self.args or ()
+        kwargs = self.kwargs or {}
+        await self.adapter.call(event, *args, **kwargs)
 
     def __repr__(self) -> str:
         return f"Listener<{self.owner} - {self.handler_short_name}>"
@@ -119,33 +115,105 @@ class Listener:
         throttle: float | None = None,
     ) -> "Listener":
         pred = normalize_where(where)
+        signature = inspect.signature(handler)
 
-        orig = handler
+        # Create async handler
+        async_handler = make_async_handler(handler, task_bucket)
 
-        signature = inspect.signature(orig)
-
-        # ensure-async
-        handler = make_async_handler(orig, task_bucket)
-
-        # decorate
-        if debounce and debounce > 0:
-            handler = add_debounce(handler, debounce, signature, task_bucket)
-        if throttle and throttle > 0:
-            handler = add_throttle(handler, throttle, signature)
+        # Create adapter with rate limiting
+        adapter = HandlerAdapter(async_handler, signature, task_bucket, debounce=debounce, throttle=throttle)
 
         return cls(
             owner=owner,
             topic=topic,
-            orig_handler=orig,
-            handler=handler,
-            signature=signature,
+            orig_handler=handler,
+            adapter=adapter,
             predicate=pred,
             args=args,
             kwargs=kwargs,
             once=once,
-            debounce=debounce,
-            throttle=throttle,
         )
+
+
+class HandlerAdapter:
+    """Unified handler adapter that handles signature normalization and rate limiting."""
+
+    def __init__(
+        self,
+        handler: "AsyncHandlerType",
+        signature: inspect.Signature,
+        task_bucket: "TaskBucket",
+        debounce: float | None = None,
+        throttle: float | None = None,
+    ):
+        if debounce and throttle:
+            raise ValueError("Cannot specify both debounce and throttle")
+
+        self.handler = handler
+        self.signature = signature
+        self.task_bucket = task_bucket
+        self.expects_event = self._receives_event_arg()
+
+        # Rate limiting state
+        self._debounce_task: asyncio.Task | None = None
+        self._throttle_last_time = 0.0
+        self._throttle_lock = asyncio.Lock()
+
+        # Apply rate limiting
+        if debounce and debounce > 0:
+            self.call = self._make_debounced_call(debounce)
+        elif throttle and throttle > 0:
+            self.call = self._make_throttled_call(throttle)
+        else:
+            self.call = self._direct_call
+
+    def _receives_event_arg(self) -> bool:
+        """Check if handler expects an event argument."""
+        params = list(self.signature.parameters.values())
+        if not params:
+            return False
+        first_param = params[0]
+        return first_param.name == "event"
+
+    async def _direct_call(self, event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
+        """Call handler directly with appropriate signature."""
+        if self.expects_event:
+            handler = cast("AsyncHandlerTypeEvent[Event[Any]]", self.handler)
+            await handler(event, *args, **kwargs)
+        else:
+            handler = cast("AsyncHandlerTypeNoEvent", self.handler)
+            await handler(*args, **kwargs)
+
+    def _make_debounced_call(self, seconds: float):
+        """Create a debounced version of the call method."""
+
+        async def debounced_call(event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
+            # Cancel previous debounce
+            if self._debounce_task and not self._debounce_task.done():
+                self._debounce_task.cancel()
+
+            async def delayed_call():
+                try:
+                    await asyncio.sleep(seconds)
+                    await self._direct_call(event, *args, **kwargs)
+                except asyncio.CancelledError:
+                    pass
+
+            self._debounce_task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
+
+        return debounced_call
+
+    def _make_throttled_call(self, seconds: float):
+        """Create a throttled version of the call method."""
+
+        async def throttled_call(event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
+            async with self._throttle_lock:
+                now = time.monotonic()
+                if now - self._throttle_last_time >= seconds:
+                    self._throttle_last_time = now
+                    await self._direct_call(event, *args, **kwargs)
+
+        return throttled_call
 
 
 @dataclass(slots=True)
@@ -187,97 +255,3 @@ def make_async_handler(fn: "HandlerType[EventT]", task_bucket: "TaskBucket") -> 
         AsyncHandlerType: An async handler that wraps the original function.
     """
     return cast("AsyncHandlerType[EventT]", task_bucket.make_async_adapter(fn))
-
-
-def add_debounce(
-    handler: "AsyncHandlerType[Event[Any]]", seconds: float, signature: inspect.Signature, task_bucket: "TaskBucket"
-) -> "AsyncHandlerType[Event[Any]]":
-    """Add a debounce to an async handler.
-
-    This will ensure that the handler is only called after a specified period of inactivity.
-    If a new event comes in before the debounce period has passed, the previous call is cancelled.
-
-    Args:
-        handler (AsyncHandlerType): The async handler to debounce.
-        seconds (float): The debounce period in seconds.
-        signature (inspect.Signature): The signature of the original handler.
-        task_bucket (TaskBucket): The task bucket to use for spawning tasks.
-
-    Returns:
-        AsyncHandlerType: A new async handler that applies the debounce logic.
-    """
-    pending: asyncio.Task | None = None
-    last_ev: Event[Any] | None = None
-
-    async def _debounced(event: "Event[Any]", *args: PS.args, **kwargs: PS.kwargs) -> None:
-        nonlocal pending, last_ev
-        last_ev = event
-        if pending and not pending.done():
-            pending.cancel()
-
-        async def _later():
-            try:
-                await asyncio.sleep(seconds)
-                if last_ev is not None:
-                    if receives_event_arg(signature):
-                        hdlr = cast("AsyncHandlerTypeEvent[Event[Any]]", handler)
-                        await hdlr(last_ev, *args, **kwargs)
-                    else:
-                        hdlr = cast("AsyncHandlerTypeNoEvent", handler)
-                        await hdlr(*args, **kwargs)
-            except asyncio.CancelledError:
-                pass
-
-        pending = task_bucket.spawn(_later(), name="adapters:debounce_handler")
-
-    return _debounced
-
-
-def add_throttle(
-    handler: "AsyncHandlerType[Event[Any]]", seconds: float, signature: inspect.Signature
-) -> "AsyncHandlerType[Event[Any]]":
-    """Add a throttle to an async handler.
-
-    This will ensure that the handler is only called at most once every specified period of time.
-    If a new event comes in before the throttle period has passed, it will be ignored.
-
-    Args:
-        handler (AsyncHandlerType): The async handler to throttle.
-        seconds (float): The throttle period in seconds.
-        signature (inspect.Signature): The signature of the original handler.
-
-    Returns:
-        AsyncHandlerType: A new async handler that applies the throttle logic.
-    """
-
-    last_time = 0.0
-    lock = asyncio.Lock()
-
-    async def _throttled(event: "Event[Any]", *args: PS.args, **kwargs: PS.kwargs) -> None:
-        nonlocal last_time
-        async with lock:
-            now = time.monotonic()
-            if now - last_time >= seconds:
-                last_time = now
-                if receives_event_arg(signature):
-                    hdlr = cast("AsyncHandlerTypeEvent[Event[Any]]", handler)
-                    await hdlr(event, *args, **kwargs)
-                else:
-                    hdlr = cast("AsyncHandlerTypeNoEvent", handler)
-                    await hdlr(*args, **kwargs)
-
-    return _throttled
-
-
-def receives_event_arg(signature: inspect.Signature) -> bool:
-    """Determine if the handler function expects the event argument.
-
-    If the handler takes no parameters, it does not receive the event. Otherwise,
-    check if the first parameter is named 'event'.
-
-    """
-    params = list(signature.parameters.values())
-    if not params:
-        return False
-    first_param = params[0]
-    return first_param.name == "event"

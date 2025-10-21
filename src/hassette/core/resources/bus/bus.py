@@ -37,10 +37,10 @@ class Options(TypedDict, total=False):
     """Whether the listener should be removed after one invocation."""
 
     debounce: float | None
-    """Debounce interval in seconds, or None if not debounced."""
+    """Length of time in seconds to wait before invoking the handler, resetting if another event is received."""
 
     throttle: float | None
-    """Throttle interval in seconds, or None if not throttled."""
+    """Length of time in seconds to wait before allowing the handler to be invoked again."""
 
 
 class Bus(Resource):

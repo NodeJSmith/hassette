@@ -102,12 +102,10 @@ async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus
 
         assert listener.topic == "demo.topic"
         assert listener.orig_handler is handler
-        assert asyncio.iscoroutinefunction(listener.handler)
+        assert asyncio.iscoroutinefunction(listener.adapter.handler)
         assert listener.args == ("prefix",)
         assert listener.kwargs == {"suffix": "!"}
         assert listener.once is True
-        assert listener.debounce == 0.1
-        assert listener.throttle == 0.2
         assert isinstance(listener.predicate, AllOf)
 
         subscription.unsubscribe()
