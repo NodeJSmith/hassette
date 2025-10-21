@@ -17,12 +17,11 @@ Why Hassette?
 - 🔍 **Simple, transparent framework** with minimal magic and clear extension points
 - 🎯 **Focused mission**: does one thing well — run user-defined apps that interact with Home Assistant
 
-## Comparison to Other Frameworks
+## AppDaemon User?
 
-We have detailed comparisons in the docs for the two most popular frameworks. Open an issue or PR if you'd like additional comparisons!
+We have a dedicated comparison guide for AppDaemon users considering Hassette:
 
 - [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/comparisons/appdaemon.html)
-- [Pyscript Comparison](https://hassette.readthedocs.io/en/latest/comparisons/pyscript.html)
 
 ## 📖 Examples
 
