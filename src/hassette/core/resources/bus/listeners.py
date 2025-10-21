@@ -173,7 +173,13 @@ class HandlerAdapter:
         if not params:
             return False
         first_param = params[0]
-        return first_param.name == "event"
+        return (
+            first_param.name == "event"
+            and first_param.kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        )
 
     async def _direct_call(self, event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
         """Call handler directly with appropriate signature."""
