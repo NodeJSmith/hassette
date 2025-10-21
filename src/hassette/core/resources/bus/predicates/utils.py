@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from inspect import isawaitable, iscoroutinefunction
 from typing import Any, TypeGuard
 
@@ -98,6 +98,9 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
     # Disallow async predicates to keep filters pure/fast.
     if iscoroutinefunction(condition):
         raise TypeError("Async predicates are not supported; make the condition synchronous.")
+
+    if typing.TYPE_CHECKING:
+        condition = typing.cast("Callable[[Any], bool]", condition)
 
     result = condition(actual)
 
