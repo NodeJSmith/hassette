@@ -24,7 +24,7 @@ class Condition(Protocol[V_contra]):
 
 
 class ComparisonCondition(Protocol[V_contra]):
-    """Alias for a comparison condition callable that takes two values or Sentinels and returns a bool."""
+    """Protocol for a comparison condition callable that takes two values and returns a bool."""
 
     def __call__(self, old_value: V_contra, new_value: V_contra, /) -> bool: ...
 
