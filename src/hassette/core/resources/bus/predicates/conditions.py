@@ -313,7 +313,7 @@ class Increased:
     """Comparison condition that checks if a numeric value has increased compared to the previous value.
 
     Expected to be used with predicates that provide both old and new values, such as StateComparison and
-    AttrComparison.
+    AttrComparison. Returns False on type conversion errors.
 
     Examples
     --------
@@ -335,7 +335,7 @@ class Decreased:
     """Comparison condition that checks if a numeric value has decreased compared to the previous value.
 
     Expected to be used with predicates that provide both old and new values, such as StateComparison and
-    AttrComparison.
+    AttrComparison. Returns False on type conversion errors.
 
     Examples
     --------

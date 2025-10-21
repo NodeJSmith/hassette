@@ -147,7 +147,7 @@ class HandlerAdapter:
         throttle: float | None = None,
     ):
         if debounce and throttle:
-            raise ValueError("Cannot specify both debounce and throttle")
+            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
 
         self.handler = handler
         self.signature = signature
@@ -173,12 +173,9 @@ class HandlerAdapter:
         if not params:
             return False
         first_param = params[0]
-        return (
-            first_param.name == "event"
-            and first_param.kind in (
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            )
+        return first_param.name == "event" and first_param.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
         )
 
     async def _direct_call(self, event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
