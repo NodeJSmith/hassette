@@ -75,16 +75,6 @@ class Listener:
     def handler_short_name(self) -> str:
         return self.handler_name.split(".")[-1]
 
-    @property
-    def receives_event_arg(self) -> bool:
-        """Determine if the handler function expects the event argument.
-
-        If the handler takes no parameters, it does not receive the event. Otherwise,
-        check if the first parameter is named 'event'.
-
-        """
-        return self.adapter.expects_event
-
     async def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
         if self.predicate is None:
