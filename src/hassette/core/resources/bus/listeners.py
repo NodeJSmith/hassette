@@ -120,7 +120,7 @@ class Listener:
         # Create async handler
         async_handler = make_async_handler(handler, task_bucket)
 
-        # Create adapter with rate limiting
+        # Create an adapter with rate limiting and signature informed calling
         adapter = HandlerAdapter(async_handler, signature, task_bucket, debounce=debounce, throttle=throttle)
 
         return cls(

@@ -13,85 +13,43 @@ V = TypeVar("V")  # value type from the accessor
 V_contra = TypeVar("V_contra", contravariant=True)
 
 
-class SyncHandlerNoEvent(Protocol):
-    """Protocol for defining event handlers that do not take an event argument."""
+class SyncHandlerTypeNoEvent(Protocol):
+    """Protocol for sync handlers that do not take an event argument."""
 
-    def __call__(self) -> Awaitable[None] | None: ...
-
-
-class SyncHandlerNoEventVariadic(Protocol):
-    """Protocol for defining event handlers that do not take an event argument and accept variadic parameters."""
-
-    def __call__(self, *args: object, **kwargs: Any) -> Awaitable[None] | None: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
 class SyncHandler(Protocol[EventT]):
-    """Protocol for defining event handlers that accept a single event parameter."""
+    """Protocol for sync handlers that take an event as first parameter."""
 
-    def __call__(self, event: EventT) -> Awaitable[None] | None: ...
-
-
-class SyncHandlerVariadic(Protocol[EventT]):
-    """Protocol for defining event handlers that accept variadic parameters."""
-
-    def __call__(self, event: EventT, *args: object, **kwargs: Any) -> Awaitable[None] | None: ...
+    def __call__(self, event: EventT, *args: Any, **kwargs: Any) -> Any: ...
 
 
-class AsyncHandlerNoEvent(Protocol):
-    """Protocol for defining async event handlers that do not take an event argument."""
+class AsyncHandlerTypeNoEvent(Protocol):
+    """Protocol for async handlers that do not take an event argument."""
 
-    def __call__(self) -> Awaitable[None]: ...
-
-
-class AsyncHandlerNoEventVariadic(Protocol):
-    """Protocol for defining async event handlers that do not take an event argument and accept variadic parameters."""
-
-    def __call__(self, *args: object, **kwargs: Any) -> Awaitable[None]: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> Awaitable[None]: ...
 
 
 class AsyncHandler(Protocol[EventT]):
-    """Protocol for defining async event handlers."""
+    """Protocol for async handlers that take an event as first parameter."""
 
-    def __call__(self, event: EventT) -> Awaitable[None]: ...
-
-
-class AsyncHandlerVariadic(Protocol[EventT]):
-    """Protocol for defining async event handlers that accept variadic parameters."""
-
-    def __call__(self, event: EventT, *args: object, **kwargs: Any) -> Awaitable[None]: ...
+    def __call__(self, event: EventT, *args: Any, **kwargs: Any) -> Awaitable[None]: ...
 
 
-## Sync Handler Types ##
+## Type Aliases ##
 
-SyncHandlerTypeNoEvent = SyncHandlerNoEvent | SyncHandlerNoEventVariadic
-"""Alias for sync handler types that do not take an event argument."""
+SyncHandlerTypeEvent = TypeAliasType("SyncHandlerTypeEvent", SyncHandler[EventT], type_params=(EventT,))
+"""Alias for sync handler types that take an event argument."""
 
-SyncHandlerTypeEvent = TypeAliasType(
-    "SyncHandlerTypeEvent", SyncHandler[EventT] | SyncHandlerVariadic[EventT], type_params=(EventT,)
-)
-"""Alias for all valid sync handler types."""
 
-SyncHandlerType = TypeAliasType(
-    "SyncHandlerType", SyncHandlerTypeEvent[EventT] | SyncHandlerTypeNoEvent, type_params=(EventT,)
-)
-"""Alias for all valid sync handler types."""
-
-## Async Handler Types ##
-
-AsyncHandlerTypeNoEvent = AsyncHandlerNoEvent | AsyncHandlerNoEventVariadic
-"""Alias for async handler types that do not take an event argument."""
-
-AsyncHandlerTypeEvent = TypeAliasType(
-    "AsyncHandlerTypeEvent", AsyncHandler[EventT] | AsyncHandlerVariadic[EventT], type_params=(EventT,)
-)
-"""Alias for all valid async handler types."""
+AsyncHandlerTypeEvent = TypeAliasType("AsyncHandlerTypeEvent", AsyncHandler[EventT], type_params=(EventT,))
+"""Alias for async handler types that take an event argument."""
 
 AsyncHandlerType = TypeAliasType(
     "AsyncHandlerType", AsyncHandlerTypeEvent[EventT] | AsyncHandlerTypeNoEvent, type_params=(EventT,)
 )
 """Alias for all valid async handler types."""
-
-## Combined Handler Types ##
 
 HandlerTypeNoEvent = SyncHandlerTypeNoEvent | AsyncHandlerTypeNoEvent
 """Alias for all valid handler types that do not take an event argument."""

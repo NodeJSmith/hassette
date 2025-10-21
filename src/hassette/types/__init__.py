@@ -5,7 +5,6 @@ from .handler import (
     EventT,
     HandlerType,
     HandlerTypeNoEvent,
-    SyncHandlerType,
 )
 from .types import (
     ChangeType,
@@ -32,6 +31,5 @@ __all__ = [
     "KnownTypeScalar",
     "Predicate",
     "ScheduleStartType",
-    "SyncHandlerType",
     "TriggerProtocol",
 ]
