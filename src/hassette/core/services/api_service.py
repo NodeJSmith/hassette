@@ -24,7 +24,6 @@ from hassette.utils.request_utils import clean_kwargs, orjson_dump
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
-    from .websocket_service import _Websocket
 
 LOGGER = getLogger(__name__)
 NOT_RETRYABLE = (
@@ -61,7 +60,7 @@ class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
         self._session = await self._stack.enter_async_context(
             aiohttp.ClientSession(headers=self._headers, base_url=self._rest_url)
         )
-        await self.hassette.wait_for_ready(self.hassette._websocket)
+        await self.hassette.wait_for_ready(self.hassette._websocket_service)
         self.mark_ready(reason="API session initialized")
 
     async def on_shutdown(self, *args, **kwargs) -> None:
@@ -83,9 +82,9 @@ class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
         return self.hassette.config.rest_url
 
     @property
-    def _ws_conn(self) -> "_Websocket":
+    def _ws_conn(self):
         """Get the WebSocket connection for this API instance."""
-        return self.hassette._websocket
+        return self.hassette._websocket_service
 
     async def _rest_request(
         self,

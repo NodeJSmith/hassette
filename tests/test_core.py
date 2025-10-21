@@ -59,7 +59,7 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
     """Constructor wires up expected services and resources."""
     assert isinstance(hassette_instance._bus_service, _BusService)
     assert isinstance(hassette_instance._service_watcher, _ServiceWatcher)
-    assert isinstance(hassette_instance._websocket, _WebsocketService)
+    assert isinstance(hassette_instance._websocket_service, _WebsocketService)
     assert isinstance(hassette_instance._health_service, _HealthService)
     assert isinstance(hassette_instance._file_watcher, _FileWatcher)
     assert isinstance(hassette_instance._app_handler, _AppHandler)
@@ -72,7 +72,7 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
     expected_children = [
         hassette_instance._bus_service,
         hassette_instance._service_watcher,
-        hassette_instance._websocket,
+        hassette_instance._websocket_service,
         hassette_instance._health_service,
         hassette_instance._file_watcher,
         hassette_instance._app_handler,

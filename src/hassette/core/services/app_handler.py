@@ -108,7 +108,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         else:
             self.logger.warning("Not watching for app changes, dev_mode is disabled")
 
-        await self.hassette.wait_for_ready(self.hassette._websocket)
+        await self.hassette.wait_for_ready(self.hassette._websocket_service)
         self.mark_ready("initialized")
 
     async def after_initialize(self) -> None:
@@ -156,7 +156,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
         if not await self.hassette.wait_for_ready(
             [
-                self.hassette._websocket,
+                self.hassette._websocket_service,
                 self.hassette._api_service,
                 self.hassette._bus_service,
                 self.hassette._scheduler_service,

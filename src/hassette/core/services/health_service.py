@@ -92,7 +92,7 @@ class _HealthService(Service):
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         # You can check internals here (e.g., WS status)
-        ws_running = self.hassette._websocket.status == ResourceStatus.RUNNING
+        ws_running = self.hassette._websocket_service.status == ResourceStatus.RUNNING
         if ws_running:
             self.logger.debug("Health check OK")
             return web.json_response({"status": "ok", "ws": "connected"})

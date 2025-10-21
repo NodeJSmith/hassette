@@ -71,7 +71,7 @@ class Hassette(Resource):
         self._bus_service = self.add_child(_BusService, stream=self._receive_stream.clone())
 
         self._service_watcher = self.add_child(_ServiceWatcher)
-        self._websocket = self.add_child(_WebsocketService)
+        self._websocket_service = self.add_child(_WebsocketService)
         self._health_service = self.add_child(_HealthService)
         self._file_watcher = self.add_child(_FileWatcher)
         self._app_handler = self.add_child(_AppHandler)

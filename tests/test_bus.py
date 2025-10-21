@@ -71,7 +71,10 @@ def _call_service_event(
     return SimpleNamespace(topic=topic, payload=payload)
 
 
-async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus") -> None:
+@pytest.mark.parametrize(("debounce", "throttle"), [(0.1, None), (None, 0.1), (None, None)])
+async def test_on_registers_listener_and_supports_unsubscribe(
+    bus_instance: "Bus", debounce: float | None, throttle: float | None
+) -> None:
     """Bus.on wraps handlers, normalises predicates, and wires subscription cleanup."""
 
     async def handler(event):  # noqa
@@ -92,8 +95,8 @@ async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus
             args=("prefix",),
             kwargs={"suffix": "!"},
             once=True,
-            debounce=0.1,
-            throttle=0.2,
+            debounce=debounce,
+            throttle=throttle,
         )
 
         assert isinstance(subscription, Subscription)

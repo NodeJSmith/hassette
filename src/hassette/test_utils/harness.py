@@ -85,7 +85,7 @@ class _HassetteMock(Resource):
         self._scheduler: Scheduler | None = None
         self._file_watcher: _FileWatcher | None = None
         self._app_handler: _AppHandler | None = None
-        self._websocket: _WebsocketService | None = None
+        self._websocket_service: _WebsocketService | None = None
 
     async def send_event(self, topic: str, event: Event[Any]) -> None:
         if not self._send_stream:
@@ -260,8 +260,8 @@ class HassetteHarness:
             raise RuntimeError("App handler requires bus")
 
         self.hassette._app_handler = self.hassette.add_child(_AppHandler)
-        self.hassette._websocket = Mock()
-        self.hassette._websocket.status = ResourceStatus.RUNNING
+        self.hassette._websocket_service = Mock()
+        self.hassette._websocket_service.status = ResourceStatus.RUNNING
 
         return
 
@@ -293,9 +293,9 @@ class HassetteHarness:
         self._exit_stack.enter_context(rest_url_patch)
         self._exit_stack.enter_context(headers_patch)
 
-        self.hassette._websocket = Mock(spec=_WebsocketService)
-        self.hassette._websocket.ready_event = asyncio.Event()
-        self.hassette._websocket.ready_event.set()
+        self.hassette._websocket_service = Mock(spec=_WebsocketService)
+        self.hassette._websocket_service.ready_event = asyncio.Event()
+        self.hassette._websocket_service.ready_event.set()
 
         self.hassette._api_service = self.hassette.add_child(_ApiService)
         self.hassette.api = self.hassette.add_child(Api)
