@@ -3,8 +3,7 @@
 import typing
 from types import SimpleNamespace
 
-from hassette.const.misc import MISSING_VALUE
-from hassette.core.resources.bus.predicates import ValueIs
+from hassette.const import MISSING_VALUE
 from hassette.core.resources.bus.predicates.conditions import (
     Contains,
     EndsWith,
@@ -13,7 +12,7 @@ from hassette.core.resources.bus.predicates.conditions import (
     Present,
     StartsWith,
 )
-from hassette.core.resources.bus.predicates.predicates import DidChange, IsMissing, IsPresent, ServiceMatches
+from hassette.core.resources.bus.predicates.predicates import DidChange, IsMissing, IsPresent, ServiceMatches, ValueIs
 
 
 def test_contains_condition_comprehensive() -> None:

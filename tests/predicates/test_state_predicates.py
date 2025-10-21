@@ -1,15 +1,7 @@
 import typing
 from types import SimpleNamespace
 
-from hassette.core.resources.bus.predicates import (
-    AttrDidChange,
-    AttrFrom,
-    AttrTo,
-    EntityMatches,
-    StateDidChange,
-    StateFrom,
-    StateTo,
-)
+from hassette import predicates as P
 from hassette.events import Event
 
 
@@ -42,21 +34,21 @@ def _state_event(
 
 def test_state_did_change_detects_transitions() -> None:
     """Test that StateDidChange predicate detects when state values change."""
-    predicate = StateDidChange()
+    predicate = P.StateDidChange()
     event = _state_event(entity_id="sensor.kitchen", old_value="off", new_value="on")
     assert predicate(event) is True
 
 
 def test_state_did_change_false_when_unchanged() -> None:
     """Test that StateDidChange predicate returns False when state values are unchanged."""
-    predicate = StateDidChange()
+    predicate = P.StateDidChange()
     event = _state_event(entity_id="sensor.kitchen", old_value="idle", new_value="idle")
     assert predicate(event) is False
 
 
 def test_attr_did_change_detects_attribute_modifications() -> None:
     """Test that AttrDidChange predicate detects when specified attributes change."""
-    predicate = AttrDidChange("brightness")
+    predicate = P.AttrDidChange("brightness")
     event = _state_event(
         entity_id="light.office",
         old_value=None,
@@ -77,8 +69,8 @@ def test_attr_from_to_predicates_apply_conditions() -> None:
         new_attrs={"brightness": 150},
     )
 
-    attr_from = AttrFrom("brightness", 100)
-    attr_to = AttrTo("brightness", 150)
+    attr_from = P.AttrFrom("brightness", 100)
+    attr_to = P.AttrTo("brightness", 150)
 
     assert attr_from(event) is True
     assert attr_to(event) is True
@@ -88,8 +80,8 @@ def test_from_to_predicates_match_state_values() -> None:
     """Test that StateFrom and StateTo predicates correctly match old and new state values."""
     event = _state_event(entity_id="light.office", old_value="off", new_value="on")
 
-    from_pred = StateFrom("off")
-    to_pred = StateTo("on")
+    from_pred = P.StateFrom("off")
+    to_pred = P.StateTo("on")
 
     assert from_pred(event) is True
     assert to_pred(event) is True
@@ -97,14 +89,14 @@ def test_from_to_predicates_match_state_values() -> None:
 
 def test_entity_matches_supports_globs() -> None:
     """Test that EntityMatches predicate supports glob pattern matching."""
-    predicate = EntityMatches("sensor.*")
+    predicate = P.EntityMatches("sensor.*")
     event = _state_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
     assert predicate(event) is True
 
 
 def test_entity_matches_exact_match() -> None:
     """Test that EntityMatches predicate supports exact entity ID matching."""
-    predicate = EntityMatches("sensor.kitchen")
+    predicate = P.EntityMatches("sensor.kitchen")
 
     # Exact match
     event = _state_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
@@ -117,7 +109,7 @@ def test_entity_matches_exact_match() -> None:
 
 def test_attr_did_change_false_when_unchanged() -> None:
     """Test that AttrDidChange returns False when specified attribute is unchanged."""
-    predicate = AttrDidChange("brightness")
+    predicate = P.AttrDidChange("brightness")
     event = _state_event(
         entity_id="light.office",
         old_value="on",
@@ -144,8 +136,8 @@ def test_attr_from_to_with_callable_conditions() -> None:
     def gt_150(value: int) -> bool:
         return value > 150
 
-    attr_from = AttrFrom("brightness", gt_50)
-    attr_to = AttrTo("brightness", gt_150)
+    attr_from = P.AttrFrom("brightness", gt_50)
+    attr_to = P.AttrTo("brightness", gt_150)
 
     assert attr_from(event) is True
     assert attr_to(event) is True
@@ -161,8 +153,8 @@ def test_from_to_with_callable_conditions() -> None:
     def gt_20(value: int) -> bool:
         return value > 20
 
-    from_pred = StateFrom(gt_15)
-    to_pred = StateTo(gt_20)
+    from_pred = P.StateFrom(gt_15)
+    to_pred = P.StateTo(gt_20)
 
     assert from_pred(event) is True
     assert to_pred(event) is True

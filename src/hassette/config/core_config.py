@@ -15,7 +15,7 @@ from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_valid
 from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 from yarl import URL
 
-from hassette.const.misc import LOG_LEVELS
+from hassette.const import LOG_LEVELS
 from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
 

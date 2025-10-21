@@ -1,4 +1,5 @@
-"""Predicates combine accessors and conditions to form reusable boolean functions.
+"""
+Predicates combine accessors and conditions to form reusable boolean functions.
 
 A predicate takes a ``source`` callable that extracts a value from an event, and a ``condition`` that
 tests the extracted value. The condition may be a literal value, a callable, or a more complex condition object.
@@ -16,13 +17,13 @@ With a callable condition::
     ValueIs(source=get_entity_id, condition=is_kitchen_light)
 
 With a condition object::
-    ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
+    ValueIs(source=get_entity_id, condition=C.IsIn(collection=["light.kitchen", "light.living"]))
 
 Combining multiple predicates::
-    AllOf(predicates=[
-        DomainMatches("light"),
-        EntityMatches("light.kitchen"),
-        StateTo("on"),
+    P.AllOf(predicates=[
+        P.DomainMatches("light"),
+        P.EntityMatches("light.kitchen"),
+        P.StateTo("on"),
     ])
 
 """
@@ -32,9 +33,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
-from hassette.const.misc import MISSING_VALUE, NOT_PROVIDED
+from hassette.const import MISSING_VALUE, NOT_PROVIDED
 from hassette.events import CallServiceEvent
-from hassette.types import ChangeType, EventT
+from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils.glob_utils import is_glob
 
 from .accessors import (
@@ -197,6 +198,16 @@ class StateTo(Generic[EventT]):
 
 
 @dataclass(frozen=True)
+class StateComparison(Generic[EventT]):
+    """Predicate that checks if a comparison between from_state and to_state satisfies a condition."""
+
+    condition: ComparisonCondition
+
+    def __call__(self, event: EventT) -> bool:
+        return self.condition(get_state_value_old(event), get_state_value_new(event))
+
+
+@dataclass(frozen=True)
 class AttrFrom(Generic[EventT]):
     """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
 
@@ -216,6 +227,19 @@ class AttrTo(Generic[EventT]):
 
     def __call__(self, event: EventT) -> bool:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
+
+
+@dataclass(frozen=True)
+class AttrComparison(Generic[EventT]):
+    """Predicate that checks if a comparison between from_attr and to_attr satisfies a condition."""
+
+    attr_name: str
+    condition: ComparisonCondition
+
+    def __call__(self, event: EventT) -> bool:
+        old_attr = get_attr_old(self.attr_name)(event)
+        new_attr = get_attr_new(self.attr_name)(event)
+        return self.condition(old_attr, new_attr)
 
 
 @dataclass(frozen=True)

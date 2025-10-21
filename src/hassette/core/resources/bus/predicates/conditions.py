@@ -1,9 +1,41 @@
+"""
+Conditions receive one or more values extracted from an event and return a boolean indicating
+whether the condition is met.
+
+These are the building blocks for more complex predicates used in event listeners. Any callable
+that takes a single value (or two values for comparison conditions) and returns a boolean can be
+used as a condition, so you can also implement your own custom conditions or pass lambda functions.
+
+Examples
+--------
+Basic usage with lambda::
+
+    self.bus.on_attribute_change("light.kitchen","brightness", handler=handler,changed_to=lambda x: x > 200)
+
+Using comparison conditions::
+
+    from hassette import conditions as C
+
+    self.bus.on_state_change("zone.home", handler=handler, changed=C.Increased())
+
+Regex matching::
+
+    from hassette import conditions as C
+
+    self.bus.on_state_change("sensor.my_phone_location", handler=handler, changed=C.Regex(r"^1101 Main .*"))
+
+Value is in a collection::
+
+    self.bus.on_state_change("sensor.my_phone_activity", handler=handler, changed=C.IsIn(["walking", "running"]))
+
+"""
+
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from hassette.const.misc import MISSING_VALUE
+from hassette.const import MISSING_VALUE
 from hassette.utils.glob_utils import matches_globs
 
 
@@ -274,3 +306,78 @@ class IsOrContains:
         if isinstance(value, Sequence) and not isinstance(value, str):
             return any(item == self.condition for item in value)
         return value == self.condition
+
+
+@dataclass(frozen=True)
+class IsNone:
+    """Condition that checks if a value is None.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_attribute, condition=IsNone())
+
+    """
+
+    def __call__(self, value: Any) -> bool:
+        return value is None
+
+
+@dataclass(frozen=True)
+class IsNotNone:
+    """Condition that checks if a value is not None.
+
+    Examples
+    --------
+    Basic::
+
+        ValueIs(source=get_attribute, condition=IsNotNone())
+
+    """
+
+    def __call__(self, value: Any) -> bool:
+        return value is not None
+
+
+@dataclass(frozen=True)
+class Increased:
+    """Comparison condition that checks if a numeric value has increased compared to the previous value.
+
+    Expected to be used with predicates that provide both old and new values, such as StateComparison and
+    AttrComparison. Returns False on type conversion errors.
+
+    Examples
+    --------
+    Basic::
+
+        self.on_state_change("zone.home", changed=Increased())
+
+    """
+
+    def __call__(self, old_value: Any, new_value: Any) -> bool:
+        try:
+            return float(new_value) > float(old_value)
+        except (TypeError, ValueError):
+            return False
+
+
+@dataclass(frozen=True)
+class Decreased:
+    """Comparison condition that checks if a numeric value has decreased compared to the previous value.
+
+    Expected to be used with predicates that provide both old and new values, such as StateComparison and
+    AttrComparison. Returns False on type conversion errors.
+
+    Examples
+    --------
+    Basic::
+
+        self.on_state_change("zone.home", changed=Decreased())
+    """
+
+    def __call__(self, old_value: Any, new_value: Any) -> bool:
+        try:
+            return float(new_value) < float(old_value)
+        except (TypeError, ValueError):
+            return False

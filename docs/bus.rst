@@ -17,6 +17,10 @@ The Bus is Hassette's event system for subscribing to Home Assistant events and 
               data = event.payload.data
               self.logger.info("%s changed from %s to %s", event.topic, data.old_state.value, data.new_state.value)
 
+
+    If you have a handler that does not need the event object, you can simply leave the event parameter out, and Hassette will not pass it.
+
+
 Event model
 -----------
 Every event you receive from the bus is an :class:`~hassette.events.base.Event` dataclass with two main fields:
@@ -237,7 +241,7 @@ Pass a dictionary to ``where`` to filter on service data keys and values:
 
 .. code-block:: python
 
-   from hassette.const.misc import NOT_PROVIDED
+   from hassette.const import NOT_PROVIDED
 
    # Basic literal matching
    self.bus.on_call_service(

@@ -66,12 +66,12 @@ class TestApps:
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
-            Listener(
+            Listener.create(
+                self.app_handler.task_bucket,
                 owner="test",
                 topic=HASSETTE_EVENT_APP_LOAD_COMPLETED,
-                orig_handler=handler,
                 handler=handler,
-                predicate=None,
+                where=None,
             )
         )
 
@@ -106,12 +106,12 @@ class TestApps:
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
-            Listener(
+            Listener.create(
+                self.app_handler.task_bucket,
                 owner="test",
                 topic=HASSETTE_EVENT_APP_LOAD_COMPLETED,
-                orig_handler=handler,
                 handler=handler,
-                predicate=None,
+                where=None,
             )
         )
 

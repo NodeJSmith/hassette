@@ -1,39 +1,23 @@
 import asyncio
-import time
 import typing
 from collections.abc import Mapping
-from typing import Any, ParamSpec, TypedDict, TypeVar, Unpack, cast
+from typing import Any, TypedDict, TypeVar, Unpack
 
 from hassette import topics
-from hassette.const.misc import NOT_PROVIDED
+from hassette.const import NOT_PROVIDED
 from hassette.core.resources.base import Resource
 from hassette.enums import ResourceStatus
-from hassette.events.base import Event
+from hassette.types import ComparisonCondition
 from hassette.utils.func_utils import callable_short_name
 
 from .listeners import Listener, Subscription
-from .predicates import (
-    AllOf,
-    AttrDidChange,
-    AttrFrom,
-    AttrTo,
-    DomainMatches,
-    EntityMatches,
-    Guard,
-    ServiceDataWhere,
-    ServiceMatches,
-    StateDidChange,
-    StateFrom,
-    StateTo,
-    ValueIs,
-    get_path,
-)
-from .predicates.utils import normalize_where
+from .predicates import predicates as P
+from .predicates.accessors import get_path
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hassette import Hassette, TaskBucket, states
+    from hassette import Hassette, states
     from hassette.core.services.bus_service import _BusService
     from hassette.events import (
         CallServiceEvent,
@@ -42,11 +26,10 @@ if typing.TYPE_CHECKING:
         ServiceRegisteredEvent,
         StateChangeEvent,
     )
-    from hassette.types import AsyncHandler, ChangeType, EventT, HandlerType, Predicate
+    from hassette.events.base import Event
+    from hassette.types import ChangeType, HandlerType, Predicate
 
 T = TypeVar("T", covariant=True)
-P = ParamSpec("P")
-R = TypeVar("R")
 
 
 class Options(TypedDict, total=False):
@@ -54,10 +37,10 @@ class Options(TypedDict, total=False):
     """Whether the listener should be removed after one invocation."""
 
     debounce: float | None
-    """Debounce interval in seconds, or None if not debounced."""
+    """Length of time in seconds to wait before invoking the handler, resetting if another event is received."""
 
     throttle: float | None
-    """Throttle interval in seconds, or None if not throttled."""
+    """Length of time in seconds to wait before allowing the handler to be invoked again."""
 
 
 class Bus(Resource):
@@ -118,25 +101,12 @@ class Bus(Resource):
         Returns:
             Subscription: A subscription object that can be used to manage the listener.
         """
-
-        pred = normalize_where(where)
-
-        orig = handler
-
-        # ensure-async
-        handler = self._make_async_handler(orig)
-        # decorate
-        if debounce and debounce > 0:
-            handler = self._add_debounce(handler, debounce, self.task_bucket)
-        if throttle and throttle > 0:
-            handler = self._add_throttle(handler, throttle)
-
-        listener = Listener(
+        listener = Listener.create(
+            task_bucket=self.task_bucket,
             owner=self.owner_id,
             topic=topic,
-            orig_handler=orig,
             handler=handler,
-            predicate=pred,
+            where=where,
             args=args,
             kwargs=kwargs,
             once=once,
@@ -155,7 +125,7 @@ class Bus(Resource):
         entity_id: str,
         *,
         handler: "HandlerType[StateChangeEvent[states.StateT]]",
-        changed: bool = True,
+        changed: bool | ComparisonCondition = True,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Sequence[Predicate] | None" = None,
@@ -168,7 +138,8 @@ class Bus(Resource):
         Args:
             entity_id (str): The entity ID to filter events for (e.g., "media_player.living_room_speaker").
             handler (Callable): The function to call when the event matches.
-            changed (bool | None): If True, only trigger if `old` and `new` states differ.
+            changed (bool | ComparisonCondition): Whether to filter only events where the state changed. If a
+                ComparisonCondition is provided, it will be used to compare the old and new state values.
             changed_from (ChangeType): A value or callable that will be used to filter state changes *from* this value.
             changed_to (ChangeType): A value or callable that will be used to filter state changes *to* this value.
             where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events, such as
@@ -195,6 +166,9 @@ class Bus(Resource):
 
             # Listen for state changes where integer state changed to >= 20
             bus.on_state_change("sensor.temperature", changed_to=lambda new: new >= 20, handler=my_handler)
+
+            # Listen for state changes where the state increased
+            bus.on_state_change("sensor.temperature", changed=Increased(), handler=my_handler)
         """
         self.logger.debug(
             (
@@ -209,18 +183,21 @@ class Bus(Resource):
             callable_short_name(handler),
         )
 
-        preds: list[Predicate] = [EntityMatches(entity_id)]
+        preds: list[Predicate] = [P.EntityMatches(entity_id)]
         if changed:
-            preds.append(StateDidChange())
+            if changed is True:
+                preds.append(P.StateDidChange())
+            else:
+                preds.append(P.StateComparison(condition=changed))
 
         if changed_from is not NOT_PROVIDED:
-            preds.append(StateFrom(condition=changed_from))
+            preds.append(P.StateFrom(condition=changed_from))
 
         if changed_to is not NOT_PROVIDED:
-            preds.append(StateTo(condition=changed_to))
+            preds.append(P.StateTo(condition=changed_to))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))  # allow extra guards
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))  # allow extra guards
 
         return self.on(
             topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -232,7 +209,7 @@ class Bus(Resource):
         attr: str,
         *,
         handler: "HandlerType[StateChangeEvent]",
-        changed: bool = True,
+        changed: bool | ComparisonCondition = True,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Sequence[Predicate] | None" = None,
@@ -246,6 +223,8 @@ class Bus(Resource):
             entity_id (str): The entity ID to filter events for (e.g., "media_player.living_room_speaker").
             attr (str): The attribute name to filter changes on (e.g., "volume").
             handler (Callable): The function to call when the event matches.
+            changed (bool | ComparisonCondition): Whether to filter only events where the attribute changed. If a
+                ComparisonCondition is provided, it will be used to compare the old and new attribute values.
             changed_from (ChangeType): A value or callable that will be used to filter attribute changes *from* this
                 value.
             changed_to (ChangeType): A value or callable that will be used to filter attribute changes *to* this value.
@@ -271,19 +250,22 @@ class Bus(Resource):
             callable_short_name(handler),
         )
 
-        preds: list[Predicate] = [EntityMatches(entity_id)]
+        preds: list[Predicate] = [P.EntityMatches(entity_id)]
 
         if changed:
-            preds.append(AttrDidChange(attr))
+            if changed is True:
+                preds.append(P.AttrDidChange(attr))
+            else:
+                preds.append(P.AttrComparison(attr, condition=changed))
 
         if changed_from is not NOT_PROVIDED:
-            preds.append(AttrFrom(attr, condition=changed_from))
+            preds.append(P.AttrFrom(attr, condition=changed_from))
 
         if changed_to is not NOT_PROVIDED:
-            preds.append(AttrTo(attr, condition=changed_to))
+            preds.append(P.AttrTo(attr, condition=changed_to))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
         return self.on(
             topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -361,24 +343,24 @@ class Bus(Resource):
 
         preds: list[Predicate] = []
         if domain is not None:
-            preds.append(DomainMatches(domain))
+            preds.append(P.DomainMatches(domain))
 
         if service is not None:
-            preds.append(ServiceMatches(service))
+            preds.append(P.ServiceMatches(service))
 
         if where is not None:
             if isinstance(where, Mapping):
-                preds.append(ServiceDataWhere(where))
+                preds.append(P.ServiceDataWhere(where))
             elif callable(where):
                 preds.append(where)
             else:
                 mappings = [w for w in where if isinstance(w, Mapping)]
                 other = [w for w in where if not isinstance(w, Mapping)]
 
-                preds.extend(ServiceDataWhere(w) for w in mappings)
+                preds.extend(P.ServiceDataWhere(w) for w in mappings)
 
                 if other:
-                    preds.append(AllOf.ensure_iterable(other))
+                    preds.append(P.AllOf.ensure_iterable(other))
 
         return self.on(
             topic=topics.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -418,10 +400,10 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if component is not None:
-            preds.append(ValueIs(source=get_path("payload.data.component"), condition=component))
+            preds.append(P.ValueIs(source=get_path("payload.data.component"), condition=component))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
         return self.on(
             topic=topics.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -464,13 +446,13 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if domain is not None:
-            preds.append(DomainMatches(domain))
+            preds.append(P.DomainMatches(domain))
 
         if service is not None:
-            preds.append(ServiceMatches(service))
+            preds.append(P.ServiceMatches(service))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
         return self.on(
             topic=topics.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -582,10 +564,10 @@ class Bus(Resource):
         preds: list[Predicate] = []
 
         if status is not None:
-            preds.append(Guard["HassetteServiceEvent"](lambda event: event.payload.data.status == status))
+            preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
         if where is not None:
-            preds.append(where if callable(where) else AllOf.ensure_iterable(where))
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
         return self.on(
             topic=topics.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, args=args, kwargs=kwargs, **opts
@@ -668,80 +650,3 @@ class Bus(Resource):
         return self.on_hassette_service_status(
             status=ResourceStatus.RUNNING, handler=handler, where=where, args=args, kwargs=kwargs, **opts
         )
-
-    def _make_async_handler(self, fn: "HandlerType[EventT]") -> "AsyncHandler[EventT]":
-        """Wrap a function to ensure it is always called as an async handler.
-
-        If the function is already an async function, it will be called directly.
-        If it is a regular function, it will be run in an executor to avoid blocking the event loop.
-
-        Args:
-            fn (Callable[..., Any]): The function to adapt.
-
-        Returns:
-            AsyncHandler: An async handler that wraps the original function.
-        """
-        return cast("AsyncHandler[EventT]", self.task_bucket.make_async_adapter(fn))
-
-    def _add_debounce(
-        self, handler: "AsyncHandler[Event[Any]]", seconds: float, task_bucket: "TaskBucket"
-    ) -> "AsyncHandler[Event[Any]]":
-        """Add a debounce to an async handler.
-
-        This will ensure that the handler is only called after a specified period of inactivity.
-        If a new event comes in before the debounce period has passed, the previous call is cancelled.
-
-        Args:
-            handler (AsyncHandler): The async handler to debounce.
-            seconds (float): The debounce period in seconds.
-
-        Returns:
-            AsyncHandler: A new async handler that applies the debounce logic.
-        """
-        pending: asyncio.Task | None = None
-        last_ev: Event[Any] | None = None
-
-        async def _debounced(event: Event[Any], *args: P.args, **kwargs: P.kwargs) -> None:
-            nonlocal pending, last_ev
-            last_ev = event
-            if pending and not pending.done():
-                pending.cancel()
-
-            async def _later():
-                try:
-                    await asyncio.sleep(seconds)
-                    if last_ev is not None:
-                        await handler(last_ev, *args, **kwargs)
-                except asyncio.CancelledError:
-                    pass
-
-            pending = task_bucket.spawn(_later(), name="adapters:debounce_handler")
-
-        return _debounced
-
-    def _add_throttle(self, handler: "AsyncHandler[Event[Any]]", seconds: float) -> "AsyncHandler[Event[Any]]":
-        """Add a throttle to an async handler.
-
-        This will ensure that the handler is only called at most once every specified period of time.
-        If a new event comes in before the throttle period has passed, it will be ignored.
-
-        Args:
-            handler (AsyncHandler): The async handler to throttle.
-            seconds (float): The throttle period in seconds.
-
-        Returns:
-            AsyncHandler: A new async handler that applies the throttle logic.
-        """
-
-        last_time = 0.0
-        lock = asyncio.Lock()
-
-        async def _throttled(event: Event[Any], *args: P.args, **kwargs: P.kwargs) -> None:
-            nonlocal last_time
-            async with lock:
-                now = time.monotonic()
-                if now - last_time >= seconds:
-                    last_time = now
-                    await handler(event, *args, **kwargs)
-
-        return _throttled

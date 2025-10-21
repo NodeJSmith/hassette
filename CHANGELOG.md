@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## Added
+- `ComparisonCondition`s for comparing old and new values in state and attribute change listeners.
+  - `Increased` and `Decreased` conditions added for numeric comparisons.
+- Added `IsNone` and `IsNotNone` conditions for checking if a value is `None` or not.
+
+## Changed
+- You can now pass `ComparisonCondition`s to the `changed` parameter on `on_state_change` and `on_attribute_change` methods.
+  - This allows for comparing the old and new values to each other, rather than checking each independently.
+- You are now able to register event handlers that take no arguments, for events where you don't care about the event data.
+  - The handler will simply be called without any parameters when the event is fired.
+  - This works for all bus listener methods, e.g. `on_event`, `on_entity`, `on_status_change`, etc.
+  - When you do require the event to be passed, you only need to ensure it is the first parameter and the name is `event`.
+- No longer export anything through `predicates` module
+  - Recommendation now is to import like
+    - `from hassette import predicates as P`
+    - `from hassette import conditions as C`
+    - `from hassette import accessors as A`
+
+### Internal
+- Refactor listener and add adapter to handle debounce, throttle, and variadic/no-arg handlers more cleanly.
+- Rename `Hasette._websocket` to `Hassette._websocket_service` to match naming conventions.
+- Refactor handler types and move types into `types` module instead of single file for better organization.
+
 ## [0.14.0] - 2025-10-19
 
 ### Added

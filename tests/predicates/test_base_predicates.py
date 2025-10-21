@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from hassette.core.resources.bus.predicates import AllOf, AnyOf, Guard, Not
+from hassette.core.resources.bus.predicates.predicates import AllOf, AnyOf, Guard, Not
 from hassette.core.resources.bus.predicates.utils import ensure_tuple, normalize_where
 
 

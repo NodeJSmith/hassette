@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from hassette.core.resources.bus.listeners import Subscription
-from hassette.core.resources.bus.predicates import (
+from hassette.core.resources.bus.predicates.conditions import IsOrContains
+from hassette.core.resources.bus.predicates.predicates import (
     AllOf,
     AttrDidChange,
     EntityMatches,
@@ -17,7 +18,6 @@ from hassette.core.resources.bus.predicates import (
     ServiceDataWhere,
     StateDidChange,
 )
-from hassette.core.resources.bus.predicates.conditions import IsOrContains
 from hassette.events.base import Event
 
 if typing.TYPE_CHECKING:
@@ -71,7 +71,10 @@ def _call_service_event(
     return SimpleNamespace(topic=topic, payload=payload)
 
 
-async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus") -> None:
+@pytest.mark.parametrize(("debounce", "throttle"), [(0.1, None), (None, 0.1), (None, None)])
+async def test_on_registers_listener_and_supports_unsubscribe(
+    bus_instance: "Bus", debounce: float | None, throttle: float | None
+) -> None:
     """Bus.on wraps handlers, normalises predicates, and wires subscription cleanup."""
 
     async def handler(event):  # noqa
@@ -92,8 +95,8 @@ async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus
             args=("prefix",),
             kwargs={"suffix": "!"},
             once=True,
-            debounce=0.1,
-            throttle=0.2,
+            debounce=debounce,
+            throttle=throttle,
         )
 
         assert isinstance(subscription, Subscription)
@@ -102,12 +105,10 @@ async def test_on_registers_listener_and_supports_unsubscribe(bus_instance: "Bus
 
         assert listener.topic == "demo.topic"
         assert listener.orig_handler is handler
-        assert asyncio.iscoroutinefunction(listener.handler)
+        assert asyncio.iscoroutinefunction(listener.adapter.handler)
         assert listener.args == ("prefix",)
         assert listener.kwargs == {"suffix": "!"}
         assert listener.once is True
-        assert listener.debounce == 0.1
-        assert listener.throttle == 0.2
         assert isinstance(listener.predicate, AllOf)
 
         subscription.unsubscribe()

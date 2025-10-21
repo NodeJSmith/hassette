@@ -126,7 +126,7 @@ class _BusService(Service):  # pyright: ignore[reportUnusedClass]
         # we are assuming matches() has already been called
         try:
             self.logger.debug("Dispatching %s -> %r", topic, listener)
-            await listener.handler(event, *(listener.args or ()), **(listener.kwargs or {}))
+            await listener.invoke(event)
         except asyncio.CancelledError:
             self.logger.debug("Listener dispatch cancelled (topic=%s, handler=%r)", topic, listener.handler_name)
             raise
