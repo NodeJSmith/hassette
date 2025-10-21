@@ -21,7 +21,7 @@ Why Hassette?
 
 We have a dedicated comparison guide for AppDaemon users considering Hassette:
 
-- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/comparisons/appdaemon.html)
+- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/comparisons/index.html)
 
 ## 📖 Examples
 
