@@ -14,6 +14,9 @@ ADD . /app
 
 ENV UV_LINK_MODE=copy
 
+# Set timezone to UTC as a default, user can override at runtime
+ENV TZ=UTC
+
 # Install deps (without project)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-editable --active
