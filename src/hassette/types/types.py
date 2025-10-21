@@ -5,7 +5,7 @@ from typing import Any, Protocol, TypeAlias, TypeVar
 from typing_extensions import Sentinel, TypeAliasType
 from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
-from .handler import EventT
+from .event import EventT
 
 V = TypeVar("V")  # value type from the accessor
 V_contra = TypeVar("V_contra", contravariant=True)

@@ -1,8 +1,8 @@
+from .event import EventT
 from .handler import (
     AsyncHandlerType,
     AsyncHandlerTypeEvent,
     AsyncHandlerTypeNoEvent,
-    EventT,
     HandlerType,
     HandlerTypeNoEvent,
 )

@@ -1,16 +1,9 @@
-import typing
 from collections.abc import Awaitable
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol
 
 from typing_extensions import TypeAliasType
 
-if typing.TYPE_CHECKING:
-    from hassette.events import Event
-
-EventT = TypeVar("EventT", bound="Event[Any]", contravariant=True)
-
-V = TypeVar("V")  # value type from the accessor
-V_contra = TypeVar("V_contra", contravariant=True)
+from .event import EventT
 
 
 class SyncHandlerTypeNoEvent(Protocol):
