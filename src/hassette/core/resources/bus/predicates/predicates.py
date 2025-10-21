@@ -1,4 +1,5 @@
-"""Predicates combine accessors and conditions to form reusable boolean functions.
+"""
+Predicates combine accessors and conditions to form reusable boolean functions.
 
 A predicate takes a ``source`` callable that extracts a value from an event, and a ``condition`` that
 tests the extracted value. The condition may be a literal value, a callable, or a more complex condition object.

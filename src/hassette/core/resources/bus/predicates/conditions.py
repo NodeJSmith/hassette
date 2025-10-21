@@ -1,3 +1,35 @@
+"""
+Conditions receive one or more values extracted from an event and return a boolean indicating
+whether the condition is met.
+
+These are the building blocks for more complex predicates used in event listeners. Any callable
+that takes a single value (or two values for comparison conditions) and returns a boolean can be
+used as a condition, so you can also implement your own custom conditions or pass lambda functions.
+
+Examples
+--------
+Basic usage with lambda::
+
+    self.bus.on_attribute_change("light.kitchen","brightness", handler=handler,changed_to=lambda x: x > 200)
+
+Using comparison conditions::
+
+    from hassette import conditions as C
+
+    self.bus.on_state_change("zone.home", handler=handler, changed=C.Increased())
+
+Regex matching::
+
+    from hassette import conditions as C
+
+    self.bus.on_state_change("sensor.my_phone_location", handler=handler, changed=C.Regex(r"^1101 Main .*"))
+
+Value is in a collection::
+
+    self.bus.on_state_change("sensor.my_phone_activity", handler=handler, changed=C.IsIn(["walking", "running"]))
+
+"""
+
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field

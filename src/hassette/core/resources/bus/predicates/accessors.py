@@ -1,3 +1,26 @@
+"""
+Accessors are combined with predicates to easily and cleanly extract values from events. Instead of writing
+a lambda like `lambda e: e.payload.data.old_state.state`, you can use the accessor `get_state_value_old` or
+use `get_path("payload.data.old_state.state")` for a more generic solution.
+
+You generally will not need to use these directly - the main bus helpers use these under the hood to provide
+the relevant data to predicates. For example, `on_state_change` uses `get_state_value_old` and
+`get_state_value_new` to provide the old and new state values to predicates like `StateFrom` and `StateTo`.
+
+Examples
+--------
+Extracting timestamp from `call_service` service data::
+
+    from hassette import accessors as A
+
+    ValueIs(source=A.get_service_data_key("timestamp"), condition=lambda ts: ts > 1622505600)
+
+Extracting a nested value using a glom path::
+
+    ValueIs(source=A.get_path("payload.data.new_state.attributes.geolocation.locality"), condition="San Francisco")
+
+"""
+
 import logging
 import typing
 from collections.abc import Callable
