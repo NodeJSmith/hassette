@@ -214,17 +214,23 @@ class HassetteConfig(HassetteBaseSettings):
     log_all_hassette_events: bool = Field(default=False)
     """Whether to include all Hassette events in bus debug logging. Defaults to False."""
 
+    # event bus filters
+
     bus_excluded_domains: tuple[str, ...] = Field(default_factory=tuple)
     """Domains whose events should be skipped by the bus; supports glob patterns (e.g. 'sensor', 'media_*')."""
 
     bus_excluded_entities: tuple[str, ...] = Field(default_factory=tuple)
     """Entity IDs whose events should be skipped by the bus; supports glob patterns."""
 
+    # timeouts
+
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
 
     app_shutdown_timeout_seconds: int = Field(default=10)
     """Length of time to wait for an app to shut down before giving up."""
+
+    # production mode settings
 
     allow_reload_in_prod: bool = Field(default=False)
     """Whether to allow reloading apps in production mode. Defaults to False."""
@@ -233,6 +239,7 @@ class HassetteConfig(HassetteBaseSettings):
     """Whether to allow the `only_app` decorator in production mode. Defaults to False."""
 
     # user config
+
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
     """User provided secrets that can be referenced in the config."""
 
