@@ -330,6 +330,8 @@ class HassetteConfig(HassetteBaseSettings):
         self.config_dir = self.config_dir.resolve()
         self.data_dir = self.data_dir.resolve()
 
+        self._set_dev_mode()
+
         # Set default log level for all log level fields not explicitly set
         log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
         for field in log_level_fields:
@@ -344,19 +346,6 @@ class HassetteConfig(HassetteBaseSettings):
             if field not in self.model_fields_set:
                 LOGGER.debug("Setting '%s' to match 'log_all_events' (%s)", field, self.log_all_events)
                 setattr(self, field, self.log_all_events)
-
-        if "dev_mode" not in self.model_fields_set:
-            if "debugpy" in sys.modules:
-                LOGGER.warning("Developer mode enabled via debugpy")
-                self.dev_mode = True
-
-            if sys.gettrace() is not None:
-                LOGGER.warning("Developer mode enabled via debugger")
-                self.dev_mode = True
-
-            if sys.flags.dev_mode:
-                LOGGER.warning("Developer mode enabled via python -X dev")
-                self.dev_mode = True
 
         LOGGER.debug(
             "Configuration sources: %s",
@@ -375,6 +364,25 @@ class HassetteConfig(HassetteBaseSettings):
             LOGGER.info("Inactive apps: %s", inactive_apps)
 
         return self
+
+    def _set_dev_mode(self):
+        if "dev_mode" in self.model_fields_set:
+            return
+
+        if "debugpy" in sys.modules:
+            LOGGER.warning("Developer mode enabled via debugpy")
+            self.dev_mode = True
+            return
+
+        if sys.gettrace() is not None:
+            LOGGER.warning("Developer mode enabled via debugger")
+            self.dev_mode = True
+            return
+
+        if sys.flags.dev_mode:
+            LOGGER.warning("Developer mode enabled via python -X dev")
+            self.dev_mode = True
+            return
 
     @field_validator("secrets", mode="before")
     @classmethod
