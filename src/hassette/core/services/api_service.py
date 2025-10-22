@@ -79,7 +79,7 @@ class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
     @property
     def _rest_url(self) -> str:
         """Get the REST URL for this API instance."""
-        return self.hassette.config.rest_url
+        return self.hassette.rest_url
 
     @property
     def _ws_conn(self):

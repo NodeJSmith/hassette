@@ -4,6 +4,7 @@ import typing
 from typing import Any, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
+from yarl import URL
 
 from hassette.config import HassetteConfig
 from hassette.utils.app_utils import run_apps_pre_check
@@ -88,6 +89,62 @@ class Hassette(Resource):
         context.HASSETTE_INSTANCE.set(self)
 
         self.logger.info("All components registered...")
+
+    def _parse_base_url(self) -> URL:
+        """Parse and normalize the base_url into a yarl URL object.
+
+        Ensures the URL has a proper scheme to avoid yarl parsing issues
+        with naked hostnames.
+        """
+        raw = (self.config.base_url or "").strip()
+        if "://" not in raw:
+            raw = f"http://{raw}"
+        return URL(raw)
+
+    def _get_effective_port(self, parsed_url: URL) -> int:
+        """Determine the effective port to use for API connections.
+
+        Uses the port from the parsed URL if explicitly set in base_url,
+        otherwise falls back to api_port.
+        """
+        # Check if port was explicitly set in the original base_url
+        port_explicitly_set = ":" in self.config.base_url and self.config.base_url.split("://", 1)[-1].count(":") > 0
+        return parsed_url.port if port_explicitly_set and parsed_url.port is not None else self.config.api_port
+
+    def _get_effective_host(self, parsed_url: URL) -> str:
+        """Extract the effective hostname from the parsed URL.
+
+        Falls back to parsing the base_url directly if yarl parsing fails.
+        """
+        return (
+            parsed_url.host
+            or parsed_url.raw_host
+            or (self.config.base_url.split(":")[0] if self.config.base_url else "")
+        )
+
+    def _get_websocket_scheme(self, http_scheme: str) -> str:
+        """Convert HTTP scheme to appropriate WebSocket scheme."""
+        return "wss" if http_scheme == "https" else "ws"
+
+    @property
+    def ws_url(self) -> str:
+        """Construct the WebSocket URL for Home Assistant."""
+        parsed_url = self._parse_base_url()
+        scheme = self._get_websocket_scheme(parsed_url.scheme)
+        host = self._get_effective_host(parsed_url)
+        port = self._get_effective_port(parsed_url)
+
+        return str(URL.build(scheme=scheme, host=host, port=port, path="/api/websocket"))
+
+    @property
+    def rest_url(self) -> str:
+        """Construct the REST API URL for Home Assistant."""
+        parsed_url = self._parse_base_url()
+        scheme = parsed_url.scheme or "http"
+        host = self._get_effective_host(parsed_url)
+        port = self._get_effective_port(parsed_url)
+
+        return str(URL.build(scheme=scheme, host=host, port=port, path="/api/"))
 
     @property
     def event_streams_closed(self) -> bool:

@@ -3,6 +3,7 @@ from pathlib import Path
 import dotenv
 
 from hassette.config.core_config import HassetteConfig
+from hassette.core.core import Hassette
 
 
 def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) -> None:
@@ -10,8 +11,11 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
 
     expected_token = dotenv.get_key(env_file_path, "hassette__token")
 
-    assert test_config.ws_url == "ws://127.0.0.1:8123/api/websocket", (
-        f"Expected ws://127.0.0.1:8123/api/websocket, got {test_config.ws_url}"
+    # Create a Hassette instance to test URL functionality
+    hassette = Hassette(test_config)
+
+    assert hassette.ws_url == "ws://127.0.0.1:8123/api/websocket", (
+        f"Expected ws://127.0.0.1:8123/api/websocket, got {hassette.ws_url}"
     )
     assert test_config.token.get_secret_value() == expected_token, (
         f"Expected token to be {expected_token}, got {test_config.token.get_secret_value()}"
