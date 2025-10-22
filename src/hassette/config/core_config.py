@@ -265,24 +265,44 @@ class HassetteConfig(HassetteBaseSettings):
     @property
     def ws_url(self) -> str:
         """Construct the WebSocket URL for Home Assistant."""
-        yurl = URL(self.base_url)
-        scheme = yurl.scheme if yurl.scheme else "ws"
-        if "http" in scheme:
-            scheme = scheme.replace("http", "ws")
+        # Ensure we parse the base_url with an explicit scheme so yarl doesn't
+        # treat a naked host (e.g. "localhost") as the scheme.
+        raw = (self.base_url or "").strip()
+        if "://" not in raw:
+            raw = f"http://{raw}"
+        yurl = URL(raw)
 
-        port = yurl.port if yurl.port else self.api_port
-        host = yurl.host if yurl.host else self.base_url.split(":")[0]
+        # For websocket, http -> ws and https -> wss. Any other scheme falls
+        # back to 'ws'.
+        if yurl.scheme == "https":
+            scheme = "wss"
+        elif yurl.scheme == "http":
+            scheme = "ws"
+        else:
+            scheme = "ws"
+
+        # Use explicit port from URL, or default to api_port if no port was specified
+        # Check if port was explicitly in the original base_url
+        port_explicitly_set = ":" in self.base_url and self.base_url.split("://", 1)[-1].count(":") > 0
+        port = yurl.port if port_explicitly_set else self.api_port
+        host = yurl.host or yurl.raw_host or (self.base_url.split(":")[0] if self.base_url else "")
 
         return str(URL.build(scheme=scheme, host=host, port=port, path="/api/websocket"))
 
     @property
     def rest_url(self) -> str:
         """Construct the REST API URL for Home Assistant."""
-        yurl = URL(self.base_url)
+        raw = (self.base_url or "").strip()
+        if "://" not in raw:
+            raw = f"http://{raw}"
+        yurl = URL(raw)
 
-        port = yurl.port if yurl.port else self.api_port
+        # Use explicit port from URL, or default to api_port if no port was specified
+        # Check if port was explicitly in the original base_url
+        port_explicitly_set = ":" in self.base_url and self.base_url.split("://", 1)[-1].count(":") > 0
+        port = yurl.port if port_explicitly_set else self.api_port
         scheme = yurl.scheme if yurl.scheme else "http"
-        host = yurl.host if yurl.host else self.base_url.split(":")[0]
+        host = yurl.host or yurl.raw_host or (self.base_url.split(":")[0] if self.base_url else "")
 
         return str(URL.build(scheme=scheme, host=host, port=port, path="/api/"))
 
