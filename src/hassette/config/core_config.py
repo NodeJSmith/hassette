@@ -1,3 +1,4 @@
+import inspect
 import json
 import logging
 import os
@@ -16,7 +17,9 @@ from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, Set
 
 from hassette.const import LOG_LEVELS
 from hassette.core import context as ctx
+from hassette.core.resources.app.app import App, AppSync
 from hassette.logging_ import enable_logging
+from hassette.utils.app_utils import import_module
 
 from .app_manifest import AppManifest
 from .sources_helper import HassetteBaseSettings, HassetteTomlConfigSettingsSource
@@ -125,6 +128,19 @@ class HassetteConfig(HassetteBaseSettings):
     """Configuration for Hassette apps, keyed by app name."""
 
     # Service configurations
+
+    auto_detect_apps: bool = Field(default=True)
+    """Whether to automatically detect apps in the app directory."""
+
+    startup_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for all Hassette resources to start before giving up."""
+
+    app_startup_timeout_seconds: int = Field(default=20)
+    """Length of time to wait for an app to start before giving up."""
+
+    app_shutdown_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for an app to shut down before giving up."""
+
     websocket_authentication_timeout_seconds: int = Field(default=10)
     """Length of time to wait for WebSocket authentication to complete."""
 
@@ -158,9 +174,6 @@ class HassetteConfig(HassetteBaseSettings):
     health_service_port: int | None = Field(default=8126)
     """Port to run the health service on, ignored if run_health_service is False."""
 
-    startup_timeout_seconds: int = Field(default=10)
-    """Length of time to wait for all Hassette resources to start before giving up."""
-
     file_watcher_debounce_milliseconds: int = Field(default=3_000)
     """Debounce time for file watcher events in milliseconds."""
 
@@ -174,6 +187,7 @@ class HassetteConfig(HassetteBaseSettings):
     """Length of time to wait for tasks to cancel before forcing."""
 
     # Service log levels
+
     bus_service_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the event bus service."""
 
@@ -217,14 +231,6 @@ class HassetteConfig(HassetteBaseSettings):
 
     bus_excluded_entities: tuple[str, ...] = Field(default_factory=tuple)
     """Entity IDs whose events should be skipped by the bus; supports glob patterns."""
-
-    # timeouts
-
-    app_startup_timeout_seconds: int = Field(default=20)
-    """Length of time to wait for an app to start before giving up."""
-
-    app_shutdown_timeout_seconds: int = Field(default=10)
-    """Length of time to wait for an app to shut down before giving up."""
 
     # production mode settings
 
@@ -395,6 +401,9 @@ class HassetteConfig(HassetteBaseSettings):
         app_dir = info.data.get("app_dir")
         if not app_dir:
             return values
+
+        paths: set[Path] = set()
+
         for k, v in values.items():
             if not isinstance(v, dict):
                 continue
@@ -402,6 +411,24 @@ class HassetteConfig(HassetteBaseSettings):
             if "app_dir" not in v or not v["app_dir"]:
                 LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
                 v["app_dir"] = app_dir
+            path = Path(v["app_dir"]) / v["filename"]
+            paths.add(path.resolve())
+
+        if not values.get("auto_detect_apps"):
+            return values
+
+        auto_detected_apps = auto_detect_app_manifests(app_dir, paths)
+        for k, v in auto_detected_apps.items():
+            full_path = v.app_dir / v.filename
+            LOGGER.info("Auto-detected app %s from %s", k, full_path)
+            values[k] = {
+                "filename": v.filename,
+                "class_name": v.class_name,
+                "app_dir": v.app_dir,
+                "app_key": v.app_key,
+                "enabled": v.enabled,
+            }
+
         return values
 
     @field_validator("log_level", mode="before")
@@ -479,3 +506,42 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     paths = set(p for p in paths if p.exists())
 
     return paths
+
+
+def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str, AppManifest]:
+    """Auto-detect app manifests in the provided app directory.
+
+    Args:
+        app_dir (Path): Directory to search for app manifests.
+
+    Returns:
+        dict[str, AppManifest]: Detected app manifests, keyed by app name.
+    """
+
+    app_manifests: dict[str, AppManifest] = {}
+
+    py_files = app_dir.rglob("*.py")
+    for py_file in py_files:
+        full_path = py_file.resolve()
+        if full_path in known_paths:
+            LOGGER.debug("Skipping auto-detected app %s as it is already configured", py_file.stem)
+            continue
+        try:
+            module = import_module(app_dir, py_file, app_dir.name)
+            classes = inspect.getmembers(module, inspect.isclass)
+            for class_name, cls in classes:
+                if issubclass(cls, (App, AppSync)) and cls not in (App, AppSync):
+                    app_key = f"{py_file.stem}.{class_name}"
+                    app_manifest = AppManifest(
+                        filename=py_file.name,
+                        class_name=class_name,
+                        app_dir=app_dir,
+                        app_key=app_key,
+                        enabled=True,
+                    )
+                    app_manifests[app_key] = app_manifest
+                    LOGGER.info("Auto-detected app manifest: %s", app_manifest)
+        except Exception:
+            LOGGER.exception("Error auto-detecting app in %s", py_file)
+
+    return app_manifests

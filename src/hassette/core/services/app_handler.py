@@ -17,7 +17,7 @@ from hassette.enums import ResourceStatus
 from hassette.events.hassette import HassetteEmptyPayload
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
-from hassette.utils.app_utils import load_app_class
+from hassette.utils.app_utils import load_app_class_from_manifest
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
@@ -198,7 +198,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         only_apps: list[str] = []
         for app_manifest in self.active_apps_config.values():
             try:
-                app_class = load_app_class(app_manifest)
+                app_class = load_app_class_from_manifest(app_manifest)
                 if app_class._only_app:
                     only_apps.append(app_manifest.app_key)
             except (UndefinedUserConfigError, InvalidInheritanceError):
@@ -256,7 +256,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
             app_manifest (AppManifest): The manifest containing configuration.
         """
         try:
-            app_class = load_app_class(app_manifest, force_reload=force_reload)
+            app_class = load_app_class_from_manifest(app_manifest, force_reload=force_reload)
         except Exception as e:
             self.logger.exception("Failed to load app class for %s", app_key)
             self.failed_apps[app_key].append((0, e))

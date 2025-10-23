@@ -16,6 +16,8 @@ from hassette.exceptions import (
 )
 
 if typing.TYPE_CHECKING:
+    from types import ModuleType
+
     from hassette import AppConfig, HassetteConfig
     from hassette.config.app_manifest import AppManifest
 
@@ -103,7 +105,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
             continue
 
         try:
-            load_app_class(app_manifest)
+            load_app_class_from_manifest(app_manifest=app_manifest)
 
         except CannotOverrideFinalError as e:
             # Already a great, app-aware message
@@ -125,17 +127,42 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         raise AppPrecheckFailedError("At least one app failed to load — see previous logs for details")
 
 
-def load_app_class(app_manifest: "AppManifest", force_reload: bool = False) -> "type[App[AppConfig]]":
-    """Import the app's class with a canonical package/module identity so isinstance works.
+def load_app_class_from_manifest(app_manifest: "AppManifest", force_reload: bool = False) -> "type[App[AppConfig]]":
+    """Load the app class specified by the given manifest.
 
     Args:
-        app_manifest (AppManifest): The app manifest containing configuration.
+        app_manifest (AppManifest): The app manifest.
+        force_reload (bool): Whether to force reloading the module if already loaded.
 
     Returns:
         type[App]: The app class.
     """
-    module_path = app_manifest.get_full_path()
-    class_name = app_manifest.class_name
+    return load_app_class(
+        app_dir=app_manifest.app_dir,
+        module_path=app_manifest.get_full_path(),
+        class_name=app_manifest.class_name,
+        display_name=app_manifest.display_name,
+        force_reload=force_reload,
+    )
+
+
+def load_app_class(
+    app_dir: Path, module_path: Path, class_name: str, display_name: str | None = None, force_reload: bool = False
+) -> "type[App[AppConfig]]":
+    """Import the app's class with a canonical package/module identity so isinstance works.
+
+    Args:
+        app_dir (Path): The root directory containing apps.
+        module_path (Path): The full path to the app module file.
+        class_name (str): The name of the app class to load.
+        display_name (str | None): Optional display name for logging.
+        force_reload (bool): Whether to force reloading the module if already loaded.
+
+    Returns:
+        type[App]: The app class.
+    """
+
+    display_name = display_name or class_name
 
     # cache keyed by (absolute file path, class name)
     cache_key = (str(module_path), class_name)
@@ -148,26 +175,15 @@ def load_app_class(app_manifest: "AppManifest", force_reload: bool = False) -> "
         return LOADED_CLASSES[cache_key]
 
     if not module_path or not class_name:
-        raise ValueError(f"App {app_manifest.display_name} is missing filename or class_name")
+        raise ValueError(f"App {display_name} is missing filename or class_name")
 
     config = context.HASSETTE_CONFIG.get(None)
     if not config:
         raise RuntimeError("HassetteConfig is not available in context")
+
     pkg_name = config.app_dir.name
-    _ensure_on_sys_path(app_manifest.app_dir)
-    _ensure_on_sys_path(app_manifest.app_dir.parent)
-
-    # 1) Ensure 'apps' is a namespace package pointing at app_config.app_dir
-    _ensure_namespace_package(app_manifest.app_dir, pkg_name)
-
-    # 2) Compute canonical module name from relative path under app_dir
-    mod_name = _module_name_for(app_manifest.app_dir, module_path, pkg_name)
-
-    # 3) Import or reload the module by canonical name
-    if mod_name in sys.modules:  # noqa: SIM108
-        module = importlib.reload(sys.modules[mod_name])
-    else:
-        module = importlib.import_module(mod_name)
+    mod_name = _module_name_for(app_dir, module_path, pkg_name)
+    module = import_module(app_dir, module_path, pkg_name)
 
     try:
         app_class = getattr(module, class_name)
@@ -182,6 +198,36 @@ def load_app_class(app_manifest: "AppManifest", force_reload: bool = False) -> "
 
     LOADED_CLASSES[cache_key] = app_class
     return app_class
+
+
+def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> "ModuleType":
+    """Import (or reload) a module from the given path under the 'apps' namespace package.
+
+    Args:
+      app_dir (Path): The root directory containing apps.
+      module_path (Path): The full path to the app module file.
+      pkg_name (str): The package name to use (e.g. 'apps')
+
+    Returns:
+      ModuleType: The imported module.
+    """
+
+    _ensure_on_sys_path(app_dir)
+    _ensure_on_sys_path(app_dir.parent)
+
+    # 1) Ensure 'apps' is a namespace package pointing at app_config.app_dir
+    _ensure_namespace_package(app_dir, pkg_name)
+
+    # 2) Compute canonical module name from relative path under app_dir
+    mod_name = _module_name_for(app_dir, module_path, pkg_name)
+
+    # 3) Import or reload the module by canonical name
+    if mod_name in sys.modules:  # noqa: SIM108
+        module = importlib.reload(sys.modules[mod_name])
+    else:
+        module = importlib.import_module(mod_name)
+
+    return module
 
 
 def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
