@@ -412,7 +412,7 @@ class HassetteConfig(HassetteBaseSettings):
             if "app_dir" not in v or not v["app_dir"]:
                 LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
                 v["app_dir"] = app_dir
-            path = Path(v["app_dir"]) / v["filename"]
+            path = Path(v["app_dir"]) / str(v["filename"])
             paths.add(path.resolve())
 
         if not info.data.get("auto_detect_apps"):
@@ -422,6 +422,9 @@ class HassetteConfig(HassetteBaseSettings):
         for k, v in auto_detected_apps.items():
             full_path = v.app_dir / v.filename
             LOGGER.info("Auto-detected app %s from %s", k, full_path)
+            if k in values:
+                LOGGER.debug("Skipping auto-detected app %s as it is already configured or would conflict", k)
+                continue
             values[k] = {
                 "filename": v.filename,
                 "class_name": v.class_name,
@@ -514,6 +517,7 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
 
     Args:
         app_dir (Path): Directory to search for app manifests.
+        known_paths (set[Path]): Set of paths that are already known/configured.
 
     Returns:
         dict[str, AppManifest]: Detected app manifests, keyed by app name.
@@ -537,7 +541,11 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
                 if class_module != module_name:
                     continue
                 if issubclass(cls, (App, AppSync)) and cls not in (App, AppSync):
-                    app_key = f"{py_file.stem}.{class_name}"
+                    rel_path = py_file.relative_to(app_dir)
+                    rel_parts = rel_path.parts[:-1]  # exclude filename
+                    app_key_parts = [*list(rel_parts), py_file.stem, class_name]
+                    app_key = ".".join(app_key_parts)
+
                     app_manifest = AppManifest(
                         filename=py_file.name,
                         class_name=class_name,
