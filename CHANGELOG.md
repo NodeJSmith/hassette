@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `from hassette import predicates as P`
     - `from hassette import conditions as C`
     - `from hassette import accessors as A`
+- **Breaking:** - `base_url` now requires an explicit schema (http:// or https://)
+  - If no schema is provided, a `SchemeRequiredInBaseUrlError` will be raised during config validation
+  - This is to avoid having to guess the intended scheme, which can lead to confusion and errors
 
 ### Internal
 - Refactor listener and add adapter to handle debounce, throttle, and variadic/no-arg handlers more cleanly.
