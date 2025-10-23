@@ -9,7 +9,7 @@ class BaseUrlRequiredError(FatalError):
     """Custom exception to indicate that the base_url configuration is required."""
 
 
-class IPV6NotSupportedError(ValueError):
+class IPV6NotSupportedError(FatalError):
     """Custom exception to indicate that IPv6 addresses are not supported in base_url."""
 
 
