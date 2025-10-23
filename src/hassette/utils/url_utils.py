@@ -17,7 +17,7 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | 
         config (HassetteConfig): Hassette configuration containing base_url and api_port
 
     Returns:
-        tuple[str, str, int | None]: (scheme, hostname)
+        tuple[str, str, int | None]: (scheme, hostname, port)
 
     Raises:
         BaseUrlRequiredError: If base_url is not set in the configuration.
