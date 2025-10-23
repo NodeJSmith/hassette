@@ -60,8 +60,6 @@ Hassette expects a ``hassette.toml`` file to set basic options and declare your 
 
 - ``base_url``: Home Assistant URL (default ``http://127.0.0.1:8123``)
     - Set this to your HA address. If it includes a port, that port is used for API requests and WebSocket connections.
-    - If no port is given, the default 8123 is used.
-    - If a non-default port is needed, it can be set in the URL (e.g., ``http://host:port``) or via ``api_port``.
 - ``app_dir``: Directory of your app modules; determines import package name
     - This should point to the directory where your app Python files live, such as ``src/apps``.
     - If you have a file named ``my_app.py``, Hassette will attempt to find it in ``src/apps/my_app.py`` and import it as ``apps.my_app``.

@@ -10,14 +10,14 @@ if typing.TYPE_CHECKING:
     from hassette.config.core_config import HassetteConfig
 
 
-def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int]:
+def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | None]:
     """Parse base_url and extract normalized components.
 
     Args:
         config (HassetteConfig): Hassette configuration containing base_url and api_port
 
     Returns:
-        tuple[str, str, int]: (scheme, hostname, port)
+        tuple[str, str, int | None]: (scheme, hostname)
 
     Raises:
         BaseUrlRequiredError: If base_url is not set in the configuration.
@@ -39,9 +39,7 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int]:
     if yurl.host is None:
         raise BaseUrlRequiredError("base_url must include a valid hostname.")
 
-    port = yurl.explicit_port or config.api_port
-
-    return yurl.scheme, yurl.host, port
+    return yurl.scheme, yurl.host, yurl.explicit_port
 
 
 def build_ws_url(config: "HassetteConfig") -> str:

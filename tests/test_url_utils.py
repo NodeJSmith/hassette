@@ -4,8 +4,8 @@ import pytest
 from pydantic import SecretStr
 
 from hassette.config.core_config import HassetteConfig
-from hassette.exceptions import IPV6NotSupportedError, SchemeRequiredInBaseUrlError
-from hassette.utils.url_utils import build_rest_url, build_ws_url
+from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
+from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url
 
 
 def _make_config(base_url: str, api_port: int = 8123) -> HassetteConfig:
@@ -29,8 +29,8 @@ def test_https_scheme_conversion():
     """Test that HTTPS scheme correctly converts to WSS for WebSocket URLs."""
     config = _make_config("https://example.com")
 
-    assert build_ws_url(config) == "wss://example.com:8123/api/websocket"
-    assert build_rest_url(config) == "https://example.com:8123/api/"
+    assert build_ws_url(config) == "wss://example.com/api/websocket"
+    assert build_rest_url(config) == "https://example.com/api/"
 
 
 def test_custom_port_in_url_overrides_api_port():
@@ -47,6 +47,25 @@ def test_https_with_custom_port():
 
     assert build_ws_url(config) == "wss://hass.example.com:8443/api/websocket"
     assert build_rest_url(config) == "https://hass.example.com:8443/api/"
+
+
+@pytest.mark.parametrize(
+    ("base_url", "expected_port"),
+    [
+        ("http://test.local", None),
+        ("https://test.local", None),
+        ("http://192.168.1.1", None),
+        ("http://localhost:8000", 8000),
+        ("http://127.0.0.1:8000", 8000),
+    ],
+)
+def test_no_port_added_if_not_provided(base_url: str, expected_port: int | None):
+    """Test that no port is added if not provided in the URL."""
+    config = _make_config(base_url)
+
+    _, _, port = _parse_and_normalize_url(config)
+
+    assert port == expected_port
 
 
 @pytest.mark.parametrize(
@@ -73,7 +92,7 @@ def test_config_with_empty_base_url_raises(func):
     """Test that an exception is raised for URLs without schemes."""
     config = _make_config("")
 
-    with pytest.raises(SchemeRequiredInBaseUrlError):
+    with pytest.raises(BaseUrlRequiredError):
         func(config)
 
 
