@@ -51,7 +51,7 @@ def test_https_with_custom_port():
 
 @pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])
 def test_no_scheme_raises_exception(func):
-    """Test that bare hostname uses api_port when no port in URL."""
+    """Test that an exception is raised for URLs without schemes."""
     config = _make_config("example.com", api_port=9123)
 
     with pytest.raises(SchemeRequiredInBaseUrlError):
