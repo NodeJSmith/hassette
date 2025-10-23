@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** - `base_url` now requires an explicit schema (http:// or https://)
   - If no schema is provided, a `SchemeRequiredInBaseUrlError` will be raised during config validation
   - This is to avoid having to guess the intended scheme, which can lead to confusion and errors
+- **Breaking:** - `base_url` must have `port` included if your instance requires the port
+  - Previously, we would default to port 8123 if no port was provided
+  - This is not always correct, as some instances may be running on a different port, be behind a reverse proxy, or use nabu casa and not require a port at all
 
 ### Internal
 - Refactor listener and add adapter to handle debounce, throttle, and variadic/no-arg handlers more cleanly.
