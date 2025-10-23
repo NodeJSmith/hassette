@@ -9,6 +9,7 @@ from hassette.config import HassetteConfig
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
 from hassette.utils.service_utils import wait_for_ready
+from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from . import context
 from .resources.api.api import Api
@@ -88,6 +89,16 @@ class Hassette(Resource):
         context.HASSETTE_INSTANCE.set(self)
 
         self.logger.info("All components registered...")
+
+    @property
+    def ws_url(self) -> str:
+        """Construct the WebSocket URL for Home Assistant."""
+        return build_ws_url(self.config)
+
+    @property
+    def rest_url(self) -> str:
+        """Construct the REST API URL for Home Assistant."""
+        return build_rest_url(self.config)
 
     @property
     def event_streams_closed(self) -> bool:

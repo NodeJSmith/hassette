@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 from packaging.version import Version
 from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
-from yarl import URL
 
 from hassette.const import LOG_LEVELS
 from hassette.core import context as ctx
@@ -214,17 +213,23 @@ class HassetteConfig(HassetteBaseSettings):
     log_all_hassette_events: bool = Field(default=False)
     """Whether to include all Hassette events in bus debug logging. Defaults to False."""
 
+    # event bus filters
+
     bus_excluded_domains: tuple[str, ...] = Field(default_factory=tuple)
     """Domains whose events should be skipped by the bus; supports glob patterns (e.g. 'sensor', 'media_*')."""
 
     bus_excluded_entities: tuple[str, ...] = Field(default_factory=tuple)
     """Entity IDs whose events should be skipped by the bus; supports glob patterns."""
 
+    # timeouts
+
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
 
     app_shutdown_timeout_seconds: int = Field(default=10)
     """Length of time to wait for an app to shut down before giving up."""
+
+    # production mode settings
 
     allow_reload_in_prod: bool = Field(default=False)
     """Whether to allow reloading apps in production mode. Defaults to False."""
@@ -233,6 +238,7 @@ class HassetteConfig(HassetteBaseSettings):
     """Whether to allow the `only_app` decorator in production mode. Defaults to False."""
 
     # user config
+
     secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
     """User provided secrets that can be referenced in the config."""
 
@@ -263,30 +269,6 @@ class HassetteConfig(HassetteBaseSettings):
         return files
 
     @property
-    def ws_url(self) -> str:
-        """Construct the WebSocket URL for Home Assistant."""
-        yurl = URL(self.base_url)
-        scheme = yurl.scheme if yurl.scheme else "ws"
-        if "http" in scheme:
-            scheme = scheme.replace("http", "ws")
-
-        port = yurl.port if yurl.port else self.api_port
-        host = yurl.host if yurl.host else self.base_url.split(":")[0]
-
-        return str(URL.build(scheme=scheme, host=host, port=port, path="/api/websocket"))
-
-    @property
-    def rest_url(self) -> str:
-        """Construct the REST API URL for Home Assistant."""
-        yurl = URL(self.base_url)
-
-        port = yurl.port if yurl.port else self.api_port
-        scheme = yurl.scheme if yurl.scheme else "http"
-        host = yurl.host if yurl.host else self.base_url.split(":")[0]
-
-        return str(URL.build(scheme=scheme, host=host, port=port, path="/api/"))
-
-    @property
     def auth_headers(self) -> dict[str, str]:
         """Return the headers required for authentication."""
         return {"Authorization": f"Bearer {self.token.get_secret_value()}"}
@@ -310,6 +292,8 @@ class HassetteConfig(HassetteBaseSettings):
         self.config_dir = self.config_dir.resolve()
         self.data_dir = self.data_dir.resolve()
 
+        self._set_dev_mode()
+
         # Set default log level for all log level fields not explicitly set
         log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
         for field in log_level_fields:
@@ -324,19 +308,6 @@ class HassetteConfig(HassetteBaseSettings):
             if field not in self.model_fields_set:
                 LOGGER.debug("Setting '%s' to match 'log_all_events' (%s)", field, self.log_all_events)
                 setattr(self, field, self.log_all_events)
-
-        if "dev_mode" not in self.model_fields_set:
-            if "debugpy" in sys.modules:
-                LOGGER.warning("Developer mode enabled via debugpy")
-                self.dev_mode = True
-
-            if sys.gettrace() is not None:
-                LOGGER.warning("Developer mode enabled via debugger")
-                self.dev_mode = True
-
-            if sys.flags.dev_mode:
-                LOGGER.warning("Developer mode enabled via python -X dev")
-                self.dev_mode = True
 
         LOGGER.debug(
             "Configuration sources: %s",
@@ -355,6 +326,25 @@ class HassetteConfig(HassetteBaseSettings):
             LOGGER.info("Inactive apps: %s", inactive_apps)
 
         return self
+
+    def _set_dev_mode(self):
+        if "dev_mode" in self.model_fields_set:
+            return
+
+        if "debugpy" in sys.modules:
+            LOGGER.warning("Developer mode enabled via debugpy")
+            self.dev_mode = True
+            return
+
+        if sys.gettrace() is not None:
+            LOGGER.warning("Developer mode enabled via debugger")
+            self.dev_mode = True
+            return
+
+        if sys.flags.dev_mode:
+            LOGGER.warning("Developer mode enabled via python -X dev")
+            self.dev_mode = True
+            return
 
     @field_validator("secrets", mode="before")
     @classmethod

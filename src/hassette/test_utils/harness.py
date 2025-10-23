@@ -29,6 +29,7 @@ from hassette.enums import ResourceStatus
 from hassette.events import Event
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.utils.service_utils import wait_for_ready
+from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -86,6 +87,16 @@ class _HassetteMock(Resource):
         self._file_watcher: _FileWatcher | None = None
         self._app_handler: _AppHandler | None = None
         self._websocket_service: _WebsocketService | None = None
+
+    @property
+    def ws_url(self) -> str:
+        """Construct the WebSocket URL for Home Assistant."""
+        return build_ws_url(self.config)
+
+    @property
+    def rest_url(self) -> str:
+        """Construct the REST API URL for Home Assistant."""
+        return build_rest_url(self.config)
 
     async def send_event(self, topic: str, event: Event[Any]) -> None:
         if not self._send_stream:

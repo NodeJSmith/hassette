@@ -83,7 +83,7 @@ class _WebsocketService(Service):  # pyright: ignore[reportUnusedClass]
     @classmethod
     def create(cls, hassette: "Hassette"):
         inst = cls(hassette=hassette, parent=hassette)
-        inst.url = inst.hassette.config.ws_url
+        inst.url = inst.hassette.ws_url
         inst._stack = AsyncExitStack()
         inst._session = None
         inst._ws = None
@@ -333,7 +333,7 @@ class _WebsocketService(Service):  # pyright: ignore[reportUnusedClass]
         assert self._ws, "WebSocket must be initialized before authenticating"
         token = self.hassette.config.token.get_secret_value()
         truncated_token = self.hassette.config.truncated_token
-        ws_url = self.hassette.config.ws_url
+        ws_url = self.hassette.ws_url
 
         with anyio.fail_after(self.authentication_timeout_seconds):
             msg = await self._ws.receive_json()
