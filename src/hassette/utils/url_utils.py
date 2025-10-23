@@ -1,7 +1,10 @@
 """URL utilities for constructing Home Assistant API endpoints."""
 
 import typing
-from urllib.parse import urlparse
+
+from yarl import URL
+
+from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
 
 if typing.TYPE_CHECKING:
     from hassette.config.core_config import HassetteConfig
@@ -15,25 +18,30 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int]:
 
     Returns:
         tuple[str, str, int]: (scheme, hostname, port)
+
+    Raises:
+        BaseUrlRequiredError: If base_url is not set in the configuration.
+        IPV6NotSupportedError: If base_url contains an IPv6 address.
+        SchemeRequiredInBaseUrlError: If base_url does not include a scheme.
     """
-    base_url = (config.base_url or "").strip()
 
-    # Ensure URL has a scheme for proper parsing
-    if "://" not in base_url:
-        base_url = f"http://{base_url}"
+    if not config.base_url:
+        raise BaseUrlRequiredError("base_url must be set in the configuration.")
 
-    parsed = urlparse(base_url)
+    if "::" in config.base_url:
+        raise IPV6NotSupportedError("IPv6 addresses are not supported in base_url.")
 
-    # Extract scheme, defaulting to http
-    scheme = parsed.scheme or "http"
+    base_url = config.base_url.strip()
 
-    # Extract hostname
-    hostname = parsed.hostname or base_url.split("://")[-1].split(":")[0]
+    yurl = URL(base_url)
 
-    # Determine effective port: use URL port if specified, otherwise api_port
-    port = parsed.port if parsed.port is not None else config.api_port
+    if not yurl.scheme:
+        raise SchemeRequiredInBaseUrlError("base_url must include a scheme (http:// or https://).")
 
-    return scheme, hostname, port
+    port = yurl.explicit_port if yurl.explicit_port else config.api_port
+    host = yurl.host if yurl.host else config.base_url.split(":")[0]
+
+    return yurl.scheme, host, port
 
 
 def build_ws_url(config: "HassetteConfig") -> str:
@@ -50,7 +58,8 @@ def build_ws_url(config: "HassetteConfig") -> str:
     # Convert HTTP scheme to WebSocket scheme
     ws_scheme = "wss" if scheme == "https" else "ws"
 
-    return f"{ws_scheme}://{hostname}:{port}/api/websocket"
+    yurl = URL.build(scheme=ws_scheme, host=hostname, port=port, path="/api/websocket")
+    return str(yurl)
 
 
 def build_rest_url(config: "HassetteConfig") -> str:
@@ -64,4 +73,6 @@ def build_rest_url(config: "HassetteConfig") -> str:
     """
     scheme, hostname, port = _parse_and_normalize_url(config)
 
-    return f"{scheme}://{hostname}:{port}/api/"
+    yurl = URL.build(scheme=scheme, host=hostname, port=port, path="/api/")
+
+    return str(yurl)

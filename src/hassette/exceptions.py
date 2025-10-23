@@ -5,6 +5,18 @@ class FatalError(Exception):
     """
 
 
+class BaseUrlRequiredError(FatalError):
+    """Custom exception to indicate that the base_url configuration is required."""
+
+
+class IPV6NotSupportedError(ValueError):
+    """Custom exception to indicate that IPv6 addresses are not supported in base_url."""
+
+
+class SchemeRequiredInBaseUrlError(FatalError):
+    """Custom exception to indicate that the base_url must include a scheme (http:// or https://)."""
+
+
 class ConnectionClosedError(Exception):
     """Custom exception to indicate that the WebSocket connection was closed unexpectedly."""
 
