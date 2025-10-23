@@ -107,9 +107,6 @@ class HassetteConfig(HassetteBaseSettings):
     base_url: str = Field(default="http://127.0.0.1:8123")
     """Base URL of the Home Assistant instance"""
 
-    api_port: int = Field(default=8123)
-    """API port for Home Assistant, overriden by port in base_url if present"""
-
     token: SecretStr = Field(
         default=...,
         validation_alias=AliasChoices(
