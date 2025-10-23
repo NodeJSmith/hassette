@@ -4,7 +4,7 @@ import pytest
 from pydantic import SecretStr
 
 from hassette.config.core_config import HassetteConfig
-from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
+from hassette.exceptions import IPV6NotSupportedError, SchemeRequiredInBaseUrlError
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 
@@ -49,24 +49,6 @@ def test_https_with_custom_port():
     assert build_rest_url(config) == "https://hass.example.com:8443/api/"
 
 
-@pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])
-def test_no_scheme_raises_exception(func):
-    """Test that an exception is raised for URLs without schemes."""
-    config = _make_config("example.com", api_port=9123)
-
-    with pytest.raises(SchemeRequiredInBaseUrlError):
-        func(config)
-
-
-@pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])
-def test_ipv6_address(func):
-    """Test IPv6 address handling."""
-    config = _make_config("http://[::1]:8123")
-
-    with pytest.raises(IPV6NotSupportedError):
-        func(config)
-
-
 @pytest.mark.parametrize(
     ("base_url", "expected_ws_scheme", "expected_rest_scheme"),
     [
@@ -86,23 +68,28 @@ def test_scheme_conversion_parametrized(base_url: str, expected_ws_scheme: str, 
     assert rest_url.startswith(f"{expected_rest_scheme}://")
 
 
-def test_config_with_none_base_url_raises_on_ws_url():
-    """Test behavior when base_url is None."""
-    config = HassetteConfig.model_construct(_fields_set=set())
-    config.token = SecretStr("test-token")
-    config.base_url = None  # type: ignore[assignment]
-    config.api_port = 8123
+@pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])
+def test_config_with_empty_base_url_raises(func):
+    """Test that an exception is raised for URLs without schemes."""
+    config = _make_config("")
 
-    with pytest.raises(BaseUrlRequiredError):
-        build_ws_url(config)
+    with pytest.raises(SchemeRequiredInBaseUrlError):
+        func(config)
 
 
-def test_config_with_none_base_url_raises_on_rest_url():
-    """Test behavior when base_url is None."""
-    config = HassetteConfig.model_construct(_fields_set=set())
-    config.token = SecretStr("test-token")
-    config.base_url = None  # type: ignore[assignment]
-    config.api_port = 8123
+@pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])
+def test_ipv6_address(func):
+    """Test IPv6 address handling."""
+    config = _make_config("http://[::1]:8123")
 
-    with pytest.raises(BaseUrlRequiredError):
-        build_rest_url(config)
+    with pytest.raises(IPV6NotSupportedError):
+        func(config)
+
+
+@pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])
+def test_no_scheme_raises_exception(func):
+    """Test that an exception is raised for URLs without schemes."""
+    config = _make_config("example.com", api_port=9123)
+
+    with pytest.raises(SchemeRequiredInBaseUrlError):
+        func(config)
