@@ -123,14 +123,15 @@ class HassetteConfig(HassetteBaseSettings):
     )
     """Access token for Home Assistant instance"""
 
+    # has to be before apps to allow auto-detection
+    auto_detect_apps: bool = Field(default=True)
+    """Whether to automatically detect apps in the app directory."""
+
     # App configurations
     apps: dict[str, AppManifest] = Field(default_factory=dict)
     """Configuration for Hassette apps, keyed by app name."""
 
     # Service configurations
-
-    auto_detect_apps: bool = Field(default=True)
-    """Whether to automatically detect apps in the app directory."""
 
     startup_timeout_seconds: int = Field(default=10)
     """Length of time to wait for all Hassette resources to start before giving up."""
@@ -414,7 +415,7 @@ class HassetteConfig(HassetteBaseSettings):
             path = Path(v["app_dir"]) / v["filename"]
             paths.add(path.resolve())
 
-        if not values.get("auto_detect_apps"):
+        if not info.data.get("auto_detect_apps"):
             return values
 
         auto_detected_apps = auto_detect_app_manifests(app_dir, paths)
@@ -528,8 +529,13 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
             continue
         try:
             module = import_module(app_dir, py_file, app_dir.name)
+            module_name = module.__name__
             classes = inspect.getmembers(module, inspect.isclass)
             for class_name, cls in classes:
+                class_module = cls.__module__
+                # ensure the class is defined in this module
+                if class_module != module_name:
+                    continue
                 if issubclass(cls, (App, AppSync)) and cls not in (App, AppSync):
                     app_key = f"{py_file.stem}.{class_name}"
                     app_manifest = AppManifest(
