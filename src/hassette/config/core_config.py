@@ -474,7 +474,7 @@ def validate_apps(values: dict[str, Any], app_dir: Path | None, auto_detect: boo
         # handle missing file extensions
         if not filename.suffix:
             LOGGER.debug("Filename %s for app %s has no extension, assuming .py", v["filename"], v["app_key"])
-            v["filename"] = filename.with_suffix(".py")
+            v["filename"] = filename.with_suffix(".py").as_posix()
 
         if "app_dir" not in v or not v["app_dir"]:
             LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
