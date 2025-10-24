@@ -288,7 +288,8 @@ class HassetteConfig(HassetteBaseSettings):
         self.config_dir = self.config_dir.resolve()
         self.data_dir = self.data_dir.resolve()
 
-        self._set_dev_mode()
+        if "dev_mode" not in self.model_fields_set:
+            self.dev_mode = set_dev_mode(self.model_fields_set)
 
         # Set default log level for all log level fields not explicitly set
         log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
@@ -322,25 +323,6 @@ class HassetteConfig(HassetteBaseSettings):
             LOGGER.info("Inactive apps: %s", inactive_apps)
 
         return self
-
-    def _set_dev_mode(self):
-        if "dev_mode" in self.model_fields_set:
-            return
-
-        if "debugpy" in sys.modules:
-            LOGGER.warning("Developer mode enabled via debugpy")
-            self.dev_mode = True
-            return
-
-        if sys.gettrace() is not None:
-            LOGGER.warning("Developer mode enabled via debugger")
-            self.dev_mode = True
-            return
-
-        if sys.flags.dev_mode:
-            LOGGER.warning("Developer mode enabled via python -X dev")
-            self.dev_mode = True
-            return
 
     @field_validator("secrets", mode="before")
     @classmethod
@@ -378,54 +360,7 @@ class HassetteConfig(HassetteBaseSettings):
     @classmethod
     def validate_apps(cls, values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
         """Sets the app_dir in each app manifest if not already set."""
-        required_keys = {"filename", "class_name"}
-        missing_required = {
-            k: v for k, v in values.items() if isinstance(v, dict) and not required_keys.issubset(v.keys())
-        }
-        if missing_required:
-            LOGGER.warning(
-                "The following apps are missing required keys (%s) and will be ignored: %s",
-                ", ".join(required_keys),
-                list(missing_required.keys()),
-            )
-            for k in missing_required:
-                values.pop(k)
-
-        app_dir = info.data.get("app_dir")
-        if not app_dir:
-            return values
-
-        paths: set[Path] = set()
-
-        for k, v in values.items():
-            if not isinstance(v, dict):
-                continue
-            v["app_key"] = k
-            if "app_dir" not in v or not v["app_dir"]:
-                LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
-                v["app_dir"] = app_dir
-            path = Path(v["app_dir"]) / str(v["filename"])
-            paths.add(path.resolve())
-
-        if not info.data.get("auto_detect_apps"):
-            return values
-
-        auto_detected_apps = auto_detect_app_manifests(app_dir, paths)
-        for k, v in auto_detected_apps.items():
-            full_path = v.app_dir / v.filename
-            LOGGER.info("Auto-detected app %s from %s", k, full_path)
-            if k in values:
-                LOGGER.debug("Skipping auto-detected app %s as it is already configured or would conflict", k)
-                continue
-            values[k] = {
-                "filename": v.filename,
-                "class_name": v.class_name,
-                "app_dir": v.app_dir,
-                "app_key": v.app_key,
-                "enabled": v.enabled,
-            }
-
-        return values
+        return validate_apps(values, info)
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -551,3 +486,97 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
             LOGGER.exception("Error auto-detecting app in %s", py_file)
 
     return app_manifests
+
+
+def validate_apps(values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
+    """Sets the app_dir in each app manifest if not already set.
+
+    Args:
+        values (dict[str, Any]): The app configurations to validate.
+        info (ValidationInfo): Validation information.
+
+    Returns:
+        dict[str, Any]: The validated app configurations.
+
+    This is separated from the HassetteConfig class to allow easier testing.
+
+    """
+    required_keys = {"filename", "class_name"}
+    missing_required = {k: v for k, v in values.items() if isinstance(v, dict) and not required_keys.issubset(v.keys())}
+    if missing_required:
+        LOGGER.warning(
+            "The following apps are missing required keys (%s) and will be ignored: %s",
+            ", ".join(required_keys),
+            list(missing_required.keys()),
+        )
+        for k in missing_required:
+            values.pop(k)
+
+    app_dir = info.data.get("app_dir")
+    if not app_dir:
+        return values
+
+    paths: set[Path] = set()
+
+    for k, v in values.items():
+        if not isinstance(v, dict):
+            continue
+        v["app_key"] = k
+        if "app_dir" not in v or not v["app_dir"]:
+            LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
+            v["app_dir"] = app_dir
+        path = Path(v["app_dir"]) / str(v["filename"])
+        paths.add(path.resolve())
+
+    if not info.data.get("auto_detect_apps"):
+        return values
+
+    auto_detected_apps = auto_detect_app_manifests(app_dir, paths)
+    for k, v in auto_detected_apps.items():
+        full_path = v.app_dir / v.filename
+        LOGGER.info("Auto-detected app %s from %s", k, full_path)
+        if k in values:
+            LOGGER.debug("Skipping auto-detected app %s as it is already configured or would conflict", k)
+            continue
+        values[k] = {
+            "filename": v.filename,
+            "class_name": v.class_name,
+            "app_dir": v.app_dir,
+            "app_key": v.app_key,
+            "enabled": v.enabled,
+        }
+
+    return values
+
+
+def set_dev_mode(model_fields_set: set[str]):
+    """Determine if developer mode should be enabled.
+
+    Args:
+        model_fields_set (set[str]): Set of fields that were explicitly set in the model.
+
+    Returns:
+        bool: True if developer mode should be enabled, False otherwise.
+
+    Raises:
+        RuntimeError: If 'dev_mode' is already set in the model fields set.
+
+    This is separated from the HassetteConfig class to allow easier testing.
+
+    """
+    if "dev_mode" in model_fields_set:
+        raise RuntimeError("dev_mode already set in model fields set")
+
+    if "debugpy" in sys.modules:
+        LOGGER.warning("Developer mode enabled via debugpy")
+        return True
+
+    if sys.gettrace() is not None:
+        LOGGER.warning("Developer mode enabled via debugger")
+        return True
+
+    if sys.flags.dev_mode:
+        LOGGER.warning("Developer mode enabled via python -X dev")
+        return True
+
+    return False
