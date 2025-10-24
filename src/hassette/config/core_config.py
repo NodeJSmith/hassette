@@ -450,7 +450,7 @@ def validate_apps(values: dict[str, Any], app_dir: Path | None, auto_detect: boo
 
     """
     required_keys = {"filename", "class_name"}
-    missing_required = {k: v for k, v in values.items() if isinstance(v, dict) and not required_keys.issubset(v.keys())}
+    missing_required = {k: v for k, v in values.items() if isinstance(v, dict) and not required_keys.issubset(v)}
     if missing_required:
         LOGGER.warning(
             "The following apps are missing required keys (%s) and will be ignored: %s",
