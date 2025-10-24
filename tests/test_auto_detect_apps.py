@@ -4,6 +4,8 @@ from pathlib import Path
 from textwrap import dedent
 from unittest.mock import patch
 
+import pytest
+
 from hassette.config.app_manifest import AppManifest
 from hassette.config.core_config import HassetteConfig, auto_detect_app_manifests, validate_apps
 
@@ -566,8 +568,14 @@ class TestAutoDetectIntegration:
         # Should not auto-detect any apps
         assert len(config.apps) == 0, f"Expected 0 apps, got {len(config.apps)}"
 
-    def test_hassette_config_manual_apps_take_precedence(self, tmp_path: Path):
-        """Test that manually configured apps take precedence over auto-detected ones."""
+    @pytest.mark.parametrize("ext", [".py", ""])
+    def test_defined_filename_without_extension_is_handled(self, tmp_path: Path, ext: str):
+        """If we define something in hassette.toml but forget the .py extension, we shouldn't load it twice.
+
+        We handle the missing .py in the AppManifest, but we need to make sure that the auto-detect
+        logic also handles this case correctly.
+
+        """
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -579,6 +587,45 @@ class TestAutoDetectIntegration:
 
             class MyConfig(AppConfig):
                 custom: str = "auto-app"
+
+            class AutoDetectedApp(App[AppConfig]): ...
+        """)
+        )
+
+        # Create config with manual app configuration that conflicts
+        config = HassetteConfig(
+            token="test-token",
+            app_dir=app_dir,
+            apps={
+                "AutoDetectedApp": {
+                    "filename": f"priority_app{ext}",
+                    "class_name": "AutoDetectedApp",
+                    "enabled": True,  # Different from auto-detect default
+                    "config": {"custom": "value"},
+                }
+            },
+            cli_parse_args=False,
+        )
+
+        # Should have the manual configuration, not auto-detected
+        assert len(config.apps) == 1, f"Expected 1 app, got {len(config.apps)}"
+        assert "AutoDetectedApp" in config.apps, "Expected to find 'priority_app.AutoDetectedApp' in detected apps"
+        manifest = config.apps["AutoDetectedApp"]
+        assert manifest.enabled is True, f"Expected enabled to be True, got {manifest.enabled}"
+        assert manifest.app_config[0]["custom"] == "value", (
+            f"Expected custom config to be 'value', got {manifest.app_config[0]['custom']}"
+        )
+
+    def test_hassette_config_manual_apps_take_precedence(self, tmp_path: Path):
+        """Test that manually configured apps take precedence over auto-detected ones."""
+        # Create a temporary app directory with an app
+        app_dir = tmp_path / "apps"
+        app_dir.mkdir()
+
+        app_file = app_dir / "priority_app.py"
+        app_file.write_text(
+            dedent("""
+            from hassette import App, AppConfig
 
             class AutoDetectedApp(App[AppConfig]): ...
         """)

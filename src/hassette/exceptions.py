@@ -1,3 +1,6 @@
+from yarl import URL
+
+
 class FatalError(Exception):
     """Custom exception to indicate a fatal error in the application.
 
@@ -25,7 +28,11 @@ class CouldNotFindHomeAssistantError(FatalError):
     """Custom exception to indicate that the Home Assistant instance could not be found."""
 
     def __init__(self, url: str):
-        super().__init__(f"Could not find Home Assistant instance at {url}, ensure it is running and accessible")
+        yurl = URL(url)
+        msg = f"Could not find Home Assistant instance at {url}, ensure it is running and accessible"
+        if not yurl.explicit_port:
+            msg += " and that the port is specified if necessary"
+        super().__init__(msg)
 
 
 class RetryableConnectionClosedError(ConnectionClosedError):
