@@ -611,7 +611,7 @@ class TestAutoDetectIntegration:
         assert len(config.apps) == 1, f"Expected 1 app, got {len(config.apps)}"
         assert "AutoDetectedApp" in config.apps, "Expected to find 'priority_app.AutoDetectedApp' in detected apps"
         manifest = config.apps["AutoDetectedApp"]
-        assert manifest.enabled is True, f"Expected enabled to be False, got {manifest.enabled}"
+        assert manifest.enabled is True, f"Expected enabled to be True, got {manifest.enabled}"
         assert manifest.app_config[0]["custom"] == "value", (
             f"Expected custom config to be 'value', got {manifest.app_config[0]['custom']}"
         )
