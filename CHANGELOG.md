@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ComparisonCondition`s for comparing old and new values in state and attribute change listeners.
   - `Increased` and `Decreased` conditions added for numeric comparisons.
 - Added `IsNone` and `IsNotNone` conditions for checking if a value is `None` or not.
+- Hassette will now attempt to automatically detect apps and register them without any configuration being required.
+  - This can be disabled by setting `auto_detect_apps = false` in the config.
+  - Manually configured apps will still be loaded as normal and take precedence over auto-detected apps.
+  - You cannot use auto-detect apps if you have a configuration with required values (unless they are being populated from environment variables or secrets).
+    - In this case, you must manually configure the app to provide the required values.
+
+## Fixed
+- Fixed missing tzdata in Alpine-based Docker image causing timezone issues.
 
 ## Changed
 - You can now pass `ComparisonCondition`s to the `changed` parameter on `on_state_change` and `on_attribute_change` methods.

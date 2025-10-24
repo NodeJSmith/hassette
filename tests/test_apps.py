@@ -7,7 +7,7 @@ import pytest
 
 from hassette.core.core import Hassette
 from hassette.core.resources.bus.listeners import Listener
-from hassette.core.services.app_handler import _AppHandler, load_app_class
+from hassette.core.services.app_handler import _AppHandler, load_app_class_from_manifest
 from hassette.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED
 
 if typing.TYPE_CHECKING:
@@ -40,7 +40,7 @@ class TestApps:
         app = self.app_handler.get("my_app", 0)
         assert app is not None, "App instance should be found"
 
-        my_app_class = load_app_class(app.app_manifest)
+        my_app_class = load_app_class_from_manifest(app.app_manifest)
 
         assert isinstance(app, my_app_class), "App instance should be of type MyApp"
 

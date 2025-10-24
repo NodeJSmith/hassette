@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import platformdirs
-from dotenv import load_dotenv
 from packaging.version import Version
 from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
@@ -17,14 +16,11 @@ from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, Set
 from hassette.const import LOG_LEVELS
 from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
+from hassette.utils.app_utils import auto_detect_app_manifests
 
 from .app_manifest import AppManifest
 from .sources_helper import HassetteBaseSettings, HassetteTomlConfigSettingsSource
 
-# Date/Time formats
-FORMAT_DATE = "%Y-%m-%d"
-FORMAT_TIME = "%H:%M:%S"
-FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
 
@@ -39,10 +35,6 @@ except ValueError:
     enable_logging("INFO")
 
 LOGGER = logging.getLogger(__name__)
-
-# TODO: allow user to specify services/resources to call `set_logger_to_debug` on
-# would be cleaner for me as well, so I don't litter the code with `set_logger_to_debug` calls that should probably
-# not be there when we cut a new version
 
 
 def default_config_dir() -> Path:
@@ -120,11 +112,25 @@ class HassetteConfig(HassetteBaseSettings):
     )
     """Access token for Home Assistant instance"""
 
+    # has to be before apps to allow auto-detection
+    auto_detect_apps: bool = Field(default=True)
+    """Whether to automatically detect apps in the app directory."""
+
     # App configurations
     apps: dict[str, AppManifest] = Field(default_factory=dict)
     """Configuration for Hassette apps, keyed by app name."""
 
     # Service configurations
+
+    startup_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for all Hassette resources to start before giving up."""
+
+    app_startup_timeout_seconds: int = Field(default=20)
+    """Length of time to wait for an app to start before giving up."""
+
+    app_shutdown_timeout_seconds: int = Field(default=10)
+    """Length of time to wait for an app to shut down before giving up."""
+
     websocket_authentication_timeout_seconds: int = Field(default=10)
     """Length of time to wait for WebSocket authentication to complete."""
 
@@ -158,9 +164,6 @@ class HassetteConfig(HassetteBaseSettings):
     health_service_port: int | None = Field(default=8126)
     """Port to run the health service on, ignored if run_health_service is False."""
 
-    startup_timeout_seconds: int = Field(default=10)
-    """Length of time to wait for all Hassette resources to start before giving up."""
-
     file_watcher_debounce_milliseconds: int = Field(default=3_000)
     """Debounce time for file watcher events in milliseconds."""
 
@@ -174,6 +177,7 @@ class HassetteConfig(HassetteBaseSettings):
     """Length of time to wait for tasks to cancel before forcing."""
 
     # Service log levels
+
     bus_service_log_level: LOG_LEVELS = Field(default="INFO")
     """Logging level for the event bus service."""
 
@@ -217,14 +221,6 @@ class HassetteConfig(HassetteBaseSettings):
 
     bus_excluded_entities: tuple[str, ...] = Field(default_factory=tuple)
     """Entity IDs whose events should be skipped by the bus; supports glob patterns."""
-
-    # timeouts
-
-    app_startup_timeout_seconds: int = Field(default=20)
-    """Length of time to wait for an app to start before giving up."""
-
-    app_shutdown_timeout_seconds: int = Field(default=10)
-    """Length of time to wait for an app to shut down before giving up."""
 
     # production mode settings
 
@@ -289,7 +285,8 @@ class HassetteConfig(HassetteBaseSettings):
         self.config_dir = self.config_dir.resolve()
         self.data_dir = self.data_dir.resolve()
 
-        self._set_dev_mode()
+        if "dev_mode" not in self.model_fields_set:
+            self.dev_mode = set_dev_mode(self.model_fields_set)
 
         # Set default log level for all log level fields not explicitly set
         log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
@@ -323,25 +320,6 @@ class HassetteConfig(HassetteBaseSettings):
             LOGGER.info("Inactive apps: %s", inactive_apps)
 
         return self
-
-    def _set_dev_mode(self):
-        if "dev_mode" in self.model_fields_set:
-            return
-
-        if "debugpy" in sys.modules:
-            LOGGER.warning("Developer mode enabled via debugpy")
-            self.dev_mode = True
-            return
-
-        if sys.gettrace() is not None:
-            LOGGER.warning("Developer mode enabled via debugger")
-            self.dev_mode = True
-            return
-
-        if sys.flags.dev_mode:
-            LOGGER.warning("Developer mode enabled via python -X dev")
-            self.dev_mode = True
-            return
 
     @field_validator("secrets", mode="before")
     @classmethod
@@ -379,30 +357,7 @@ class HassetteConfig(HassetteBaseSettings):
     @classmethod
     def validate_apps(cls, values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
         """Sets the app_dir in each app manifest if not already set."""
-        required_keys = {"filename", "class_name"}
-        missing_required = {
-            k: v for k, v in values.items() if isinstance(v, dict) and not required_keys.issubset(v.keys())
-        }
-        if missing_required:
-            LOGGER.warning(
-                "The following apps are missing required keys (%s) and will be ignored: %s",
-                ", ".join(required_keys),
-                list(missing_required.keys()),
-            )
-            for k in missing_required:
-                values.pop(k)
-
-        app_dir = info.data.get("app_dir")
-        if not app_dir:
-            return values
-        for k, v in values.items():
-            if not isinstance(v, dict):
-                continue
-            v["app_key"] = k
-            if "app_dir" not in v or not v["app_dir"]:
-                LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
-                v["app_dir"] = app_dir
-        return values
+        return validate_apps(values, info.data.get("app_dir"), info.data.get("auto_detect_apps", True))
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -445,10 +400,9 @@ class HassetteConfig(HassetteBaseSettings):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
-        envs = set(self.config_dir.rglob("*.env"))
-        for env in envs:
-            LOGGER.info("Loading environment variables from %s", env)
-            load_dotenv(env)
+        tz = os.getenv("TZ")
+        if tz:
+            LOGGER.info("Using timezone from environment variable TZ: %s", tz)
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":
@@ -479,3 +433,97 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     paths = set(p for p in paths if p.exists())
 
     return paths
+
+
+def validate_apps(values: dict[str, Any], app_dir: Path | None, auto_detect: bool) -> dict[str, Any]:
+    """Sets the app_dir in each app manifest if not already set.
+
+    Args:
+        values (dict[str, Any]): The app configurations to validate.
+        app_dir (Path | None): The application directory.
+        auto_detect (bool): Whether to automatically detect apps.
+
+    Returns:
+        dict[str, Any]: The validated app configurations.
+
+    This is separated from the HassetteConfig class to allow easier testing.
+
+    """
+    required_keys = {"filename", "class_name"}
+    missing_required = {k: v for k, v in values.items() if isinstance(v, dict) and not required_keys.issubset(v)}
+    if missing_required:
+        LOGGER.warning(
+            "The following apps are missing required keys (%s) and will be ignored: %s",
+            ", ".join(required_keys),
+            list(missing_required.keys()),
+        )
+        for k in missing_required:
+            values.pop(k)
+
+    if not app_dir:
+        return values
+
+    paths: set[Path] = set()
+
+    for k, v in values.items():
+        if not isinstance(v, dict):
+            continue
+        v["app_key"] = k
+        if "app_dir" not in v or not v["app_dir"]:
+            LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
+            v["app_dir"] = app_dir
+        path = Path(v["app_dir"]) / str(v["filename"])
+        paths.add(path.resolve())
+
+    if not auto_detect:
+        return values
+
+    auto_detected_apps = auto_detect_app_manifests(app_dir, paths)
+    for k, v in auto_detected_apps.items():
+        full_path = v.app_dir / v.filename
+        LOGGER.info("Auto-detected app %s from %s", k, full_path)
+        if k in values:
+            LOGGER.debug("Skipping auto-detected app %s as it conflicts with manually configured app", k)
+            continue
+        values[k] = {
+            "filename": v.filename,
+            "class_name": v.class_name,
+            "app_dir": v.app_dir,
+            "app_key": v.app_key,
+            "enabled": v.enabled,
+        }
+
+    return values
+
+
+def set_dev_mode(model_fields_set: set[str]):
+    """Determine if developer mode should be enabled.
+
+    Args:
+        model_fields_set (set[str]): Set of fields that were explicitly set in the model.
+
+    Returns:
+        bool: True if developer mode should be enabled, False otherwise.
+
+    Raises:
+        RuntimeError: If 'dev_mode' is already set in the model fields set.
+
+    This is separated from the HassetteConfig class to allow easier testing.
+
+    """
+    if "dev_mode" in model_fields_set:
+        raise RuntimeError("dev_mode already set in model fields set")
+
+    if "debugpy" in sys.modules:
+        LOGGER.warning("Developer mode enabled via 'debugpy'")
+        return True
+
+    if sys.gettrace() is not None:
+        LOGGER.warning("Developer mode enabled via 'sys.gettrace()'")
+        return True
+
+    if sys.flags.dev_mode:
+        LOGGER.warning("Developer mode enabled via 'python -X dev'")
+        return True
+
+    return False

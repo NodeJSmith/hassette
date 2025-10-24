@@ -39,6 +39,9 @@ def enable_logging(
     # don't know why it took me five years to learn this.
     coloredlogs.install(level=logging.NOTSET, logger=logger, fmt=FMT, datefmt=FORMAT_DATETIME)
 
+    # reset hassette logger to desired level, as coloredlogs.install sets it to WARNING
+    logger.setLevel(log_level)
+
     # coloredlogs does something funky to the root logger and i can't figure out what
     # so for now i'm just resorting to this
     with suppress(IndexError):
