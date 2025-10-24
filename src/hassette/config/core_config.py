@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import platformdirs
-from dotenv import load_dotenv
 from packaging.version import Version
 from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
@@ -402,11 +401,6 @@ class HassetteConfig(HassetteBaseSettings):
 
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.config_dir.mkdir(parents=True, exist_ok=True)
-
-        envs = set(self.config_dir.rglob("*.env"))
-        for env in envs:
-            LOGGER.info("Loading environment variables from %s", env)
-            load_dotenv(env)
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":
