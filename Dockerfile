@@ -15,7 +15,6 @@ ADD . /app
 ENV UV_LINK_MODE=copy
 
 # Set timezone to UTC as a default, user can override at runtime
-ENV TZ=UTC
 
 # Install deps (without project)
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -29,11 +28,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM python:3.12-alpine
 
 # System packages you want available at runtime
-RUN apk add --no-cache curl tini
+RUN apk add --no-cache curl tini tzdata
 
 WORKDIR /app
 
 ENV UV_CACHE_DIR=/uv_cache
+ENV TZ=UTC
 
 # Create non-root user first
 RUN addgroup -S hassette \
