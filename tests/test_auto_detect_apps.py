@@ -708,5 +708,3 @@ class TestAutoDetectIntegration:
         # Auto-detected app should have default config
         auto_manifest = config.apps["auto_app.AutoApp"]
         assert auto_manifest.enabled is True, f"Expected enabled to be True, got {auto_manifest.enabled}"
-
-
