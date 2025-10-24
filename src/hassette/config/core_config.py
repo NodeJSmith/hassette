@@ -400,6 +400,10 @@ class HassetteConfig(HassetteBaseSettings):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
+        tz = os.getenv("TZ")
+        if tz:
+            LOGGER.info("Using timezone from environment variable TZ: %s", tz)
+
     @classmethod
     def get_config(cls) -> "HassetteConfig":
         """Get the global configuration instance."""
