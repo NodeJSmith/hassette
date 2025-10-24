@@ -483,7 +483,7 @@ def validate_apps(values: dict[str, Any], app_dir: Path | None, auto_detect: boo
         full_path = v.app_dir / v.filename
         LOGGER.info("Auto-detected app %s from %s", k, full_path)
         if k in values:
-            LOGGER.debug("Skipping auto-detected app %s as it is already configured or would conflict", k)
+            LOGGER.debug("Skipping auto-detected app %s as it conflicts with manually configured app", k)
             continue
         values[k] = {
             "filename": v.filename,

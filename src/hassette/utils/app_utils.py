@@ -146,7 +146,7 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
     for py_file in py_files:
         full_path = py_file.resolve()
         if full_path in known_paths:
-            LOGGER.debug("Skipping auto-detected app %s as it is already configured", py_file.stem)
+            LOGGER.debug("Skipping auto-detected app at %s as it is already configured", full_path)
             continue
         try:
             module = import_module(app_dir, py_file, app_dir.name)
@@ -173,7 +173,7 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
                     app_manifests[app_key] = app_manifest
                     LOGGER.info("Auto-detected app manifest: %s", app_manifest)
         except Exception:
-            LOGGER.exception("Error auto-detecting app in %s", py_file)
+            LOGGER.exception("Failed to auto-detect app classes in %s", py_file)
 
     return app_manifests
 
