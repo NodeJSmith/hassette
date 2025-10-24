@@ -24,10 +24,6 @@ from hassette.utils.app_utils import import_module
 from .app_manifest import AppManifest
 from .sources_helper import HassetteBaseSettings, HassetteTomlConfigSettingsSource
 
-# Date/Time formats
-FORMAT_DATE = "%Y-%m-%d"
-FORMAT_TIME = "%H:%M:%S"
-FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
 
@@ -42,10 +38,6 @@ except ValueError:
     enable_logging("INFO")
 
 LOGGER = logging.getLogger(__name__)
-
-# TODO: allow user to specify services/resources to call `set_logger_to_debug` on
-# would be cleaner for me as well, so I don't litter the code with `set_logger_to_debug` calls that should probably
-# not be there when we cut a new version
 
 
 def default_config_dir() -> Path:
