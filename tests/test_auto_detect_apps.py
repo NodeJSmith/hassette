@@ -627,9 +627,6 @@ class TestAutoDetectIntegration:
             dedent("""
             from hassette import App, AppConfig
 
-            class MyConfig(AppConfig):
-                custom: str = "auto-app"
-
             class AutoDetectedApp(App[AppConfig]): ...
         """)
         )
