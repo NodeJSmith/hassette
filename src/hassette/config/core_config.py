@@ -360,7 +360,7 @@ class HassetteConfig(HassetteBaseSettings):
     @classmethod
     def validate_apps(cls, values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
         """Sets the app_dir in each app manifest if not already set."""
-        return validate_apps(values, info)
+        return validate_apps(values, info.data.get("app_dir"), info.data.get("auto_detect_apps", True))
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -488,12 +488,13 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
     return app_manifests
 
 
-def validate_apps(values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
+def validate_apps(values: dict[str, Any], app_dir: Path | None, auto_detect: bool) -> dict[str, Any]:
     """Sets the app_dir in each app manifest if not already set.
 
     Args:
         values (dict[str, Any]): The app configurations to validate.
-        info (ValidationInfo): Validation information.
+        app_dir (Path | None): The application directory.
+        auto_detect (bool): Whether to automatically detect apps.
 
     Returns:
         dict[str, Any]: The validated app configurations.
@@ -512,7 +513,6 @@ def validate_apps(values: dict[str, Any], info: ValidationInfo) -> dict[str, Any
         for k in missing_required:
             values.pop(k)
 
-    app_dir = info.data.get("app_dir")
     if not app_dir:
         return values
 
@@ -528,7 +528,7 @@ def validate_apps(values: dict[str, Any], info: ValidationInfo) -> dict[str, Any
         path = Path(v["app_dir"]) / str(v["filename"])
         paths.add(path.resolve())
 
-    if not info.data.get("auto_detect_apps"):
+    if not auto_detect:
         return values
 
     auto_detected_apps = auto_detect_app_manifests(app_dir, paths)
