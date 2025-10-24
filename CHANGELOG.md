@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - You cannot use auto-detect apps if you have a configuration with required values (unless they are being populated from environment variables or secrets).
     - In this case, you must manually configure the app to provide the required values.
 
+## Fixed
+- Fixed missing tzdata in Alpine-based Docker image causing timezone issues.
+
 ## Changed
 - You can now pass `ComparisonCondition`s to the `changed` parameter on `on_state_change` and `on_attribute_change` methods.
   - This allows for comparing the old and new values to each other, rather than checking each independently.
