@@ -562,15 +562,15 @@ def set_dev_mode(model_fields_set: set[str]):
         raise RuntimeError("dev_mode already set in model fields set")
 
     if "debugpy" in sys.modules:
-        LOGGER.warning("Developer mode enabled via debugpy")
+        LOGGER.warning("Developer mode enabled via 'debugpy'")
         return True
 
     if sys.gettrace() is not None:
-        LOGGER.warning("Developer mode enabled via debugger")
+        LOGGER.warning("Developer mode enabled via 'sys.gettrace()'")
         return True
 
     if sys.flags.dev_mode:
-        LOGGER.warning("Developer mode enabled via python -X dev")
+        LOGGER.warning("Developer mode enabled via 'python -X dev'")
         return True
 
     return False
