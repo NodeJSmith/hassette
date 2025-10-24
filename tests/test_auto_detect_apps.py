@@ -710,5 +710,3 @@ class TestAutoDetectIntegration:
         assert auto_manifest.enabled is True, f"Expected enabled to be True, got {auto_manifest.enabled}"
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-k", "test_defined_filename_without_extension_is_handled", "-s"])
