@@ -1,11 +1,13 @@
 import importlib.machinery
 import importlib.util
+import inspect
 import sys
 import traceback
 import typing
 from logging import getLogger
 from pathlib import Path
 
+from hassette.config.app_manifest import AppManifest
 from hassette.core import context
 from hassette.core.resources.app.app import App, AppSync
 from hassette.exceptions import (
@@ -19,7 +21,7 @@ if typing.TYPE_CHECKING:
     from types import ModuleType
 
     from hassette import AppConfig, HassetteConfig
-    from hassette.config.app_manifest import AppManifest
+
 
 LOGGER = getLogger(__name__)
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
@@ -125,6 +127,55 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
 
     if had_errors:
         raise AppPrecheckFailedError("At least one app failed to load — see previous logs for details")
+
+
+def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str, AppManifest]:
+    """Auto-detect app manifests in the provided app directory.
+
+    Args:
+        app_dir (Path): Directory to search for app manifests.
+        known_paths (set[Path]): Set of paths that are already known/configured.
+
+    Returns:
+        dict[str, AppManifest]: Detected app manifests, keyed by app name.
+    """
+
+    app_manifests: dict[str, AppManifest] = {}
+
+    py_files = app_dir.rglob("*.py")
+    for py_file in py_files:
+        full_path = py_file.resolve()
+        if full_path in known_paths:
+            LOGGER.debug("Skipping auto-detected app %s as it is already configured", py_file.stem)
+            continue
+        try:
+            module = import_module(app_dir, py_file, app_dir.name)
+            module_name = module.__name__
+            classes = inspect.getmembers(module, inspect.isclass)
+            for class_name, cls in classes:
+                class_module = cls.__module__
+                # ensure the class is defined in this module
+                if class_module != module_name:
+                    continue
+                if issubclass(cls, (App, AppSync)) and cls not in (App, AppSync):
+                    rel_path = py_file.relative_to(app_dir)
+                    rel_parts = rel_path.parts[:-1]  # exclude filename
+                    app_key_parts = [*list(rel_parts), py_file.stem, class_name]
+                    app_key = ".".join(app_key_parts)
+
+                    app_manifest = AppManifest(
+                        filename=py_file.name,
+                        class_name=class_name,
+                        app_dir=app_dir,
+                        app_key=app_key,
+                        enabled=True,
+                    )
+                    app_manifests[app_key] = app_manifest
+                    LOGGER.info("Auto-detected app manifest: %s", app_manifest)
+        except Exception:
+            LOGGER.exception("Error auto-detecting app in %s", py_file)
+
+    return app_manifests
 
 
 def load_app_class_from_manifest(app_manifest: "AppManifest", force_reload: bool = False) -> "type[App[AppConfig]]":
