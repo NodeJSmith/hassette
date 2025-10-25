@@ -212,7 +212,7 @@ class LifecycleMixin(_LifecycleHostStubs):
             self.logger.debug("%s already in crashed state", self.unique_name, stacklevel=2)
             return
 
-        self.logger.exception("%s crashed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
+        self.logger.error("%s crashed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
         self.status = ResourceStatus.CRASHED
         event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
         await self.hassette.send_event(event.topic, event)
