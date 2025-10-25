@@ -404,6 +404,11 @@ class HassetteConfig(HassetteBaseSettings):
         if tz:
             LOGGER.info("Using timezone from environment variable TZ: %s", tz)
 
+    def reload(self):
+        """Reload the configuration from all sources."""
+        # we don't need to pass the base_config here, since it's already set on self
+        self.__init__()  # type: ignore
+
     @classmethod
     def get_config(cls) -> "HassetteConfig":
         """Get the global configuration instance."""
