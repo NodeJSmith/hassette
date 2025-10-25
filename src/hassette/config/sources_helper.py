@@ -57,6 +57,43 @@ class HassetteBaseSettings(BaseSettings):
     FINAL_SETTINGS_SOURCES: ClassVar[dict[str, Any]] = {}
     init_kwargs: ClassVar[dict[str, Any]] = {}
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.FINAL_SETTINGS_SOURCES = {}
+        cls.SETTINGS_SOURCES_DATA = {}
+        cls.init_kwargs = {}
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type["HassetteBaseSettings"],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # note: the docs make it sound like the first source returned here is the highest priority
+        # but that's not correct (or I'm reading their docs wrong) - the last source to set a value wins
+        # so the order here is from lowest priority to highest priority
+        #
+        # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#changing-priority
+        # "The order of the returned callables decides the priority of inputs; first item is the highest priority."
+
+        sources = (
+            init_settings,
+            HassetteTomlConfigSettingsSource(settings_cls),  # let env, dot_env, and secrets override toml
+            env_settings,
+            dotenv_settings,  # env file override (if provided) already set in `_settings_build_values`
+            file_secret_settings,
+            # put CLI last - if someone passes something at the CLI, it *should* override everything else
+            # no idea why pydantic doesn't have this by default
+            # we also ignore unknown args to allow other CLI tools to work alongside
+            # additionally, we use two different CliSettingsSource instances to allow both kebab-case and snake_case
+            CliSettingsSource(settings_cls, cli_ignore_unknown_args=True, cli_parse_args=True, cli_kebab_case=True),
+            CliSettingsSource(settings_cls, cli_ignore_unknown_args=True, cli_parse_args=True),
+        )
+        return sources
+
     def _settings_build_values(
         self,
         init_kwargs: dict[str, Any],
