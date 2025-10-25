@@ -38,6 +38,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 def default_config_dir() -> Path:
+    """Return the first found config directory based on environment variables or defaults.
+
+    Will return the first of:
+    - HASSETTE__CONFIG_DIR environment variable
+    - HASSETTE_CONFIG_DIR environment variable
+    - /config (for docker)
+    - platformdirs user config path
+
+    """
+
     if env := os.getenv("HASSETTE__CONFIG_DIR", os.getenv("HASSETTE_CONFIG_DIR")):
         return Path(env)
     docker = Path("/config")
@@ -47,6 +57,16 @@ def default_config_dir() -> Path:
 
 
 def default_data_dir() -> Path:
+    """Return the first found data directory based on environment variables or defaults.
+
+    Will return the first of:
+    - HASSETTE__DATA_DIR environment variable
+    - HASSETTE_DATA_DIR environment variable
+    - /data (for docker)
+    - platformdirs user data path
+
+    """
+
     if env := os.getenv("HASSETTE__DATA_DIR", os.getenv("HASSETTE_DATA_DIR")):
         return Path(env)
     docker = Path("/data")
@@ -56,6 +76,16 @@ def default_data_dir() -> Path:
 
 
 def default_app_dir() -> Path:
+    """Return the first found app directory based on environment variables or defaults.
+
+    Will return the first of:
+    - HASSETTE__APP_DIR environment variable
+    - HASSETTE_APP_DIR environment variable
+    - /apps (for docker)
+    - platformdirs user app path
+
+    """
+
     if env := os.getenv("HASSETTE__APP_DIR", os.getenv("HASSETTE_APP_DIR")):
         return Path(env)
     docker = Path("/apps")
