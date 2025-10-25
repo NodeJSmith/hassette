@@ -14,7 +14,7 @@ def get_parser() -> ArgumentParser:
     """
     Parse command line arguments for the Hassette application.
     """
-    parser = ArgumentParser(description="Hassette - A Home Assistant integration")
+    parser = ArgumentParser(description="Hassette - A Home Assistant integration", add_help=False)
     parser.add_argument(
         "--config-file",
         "--config_file",
