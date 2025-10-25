@@ -34,7 +34,8 @@ try:
 except ValueError:
     enable_logging("INFO")
 
-LOGGER = logging.getLogger(__name__)
+LOGGER_NAME = "hassette.config.core_config" if __name__ == "__main__" else __name__
+LOGGER = logging.getLogger(LOGGER_NAME)
 
 
 def default_config_dir() -> Path:
