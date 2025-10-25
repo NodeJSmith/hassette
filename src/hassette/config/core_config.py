@@ -11,7 +11,7 @@ from typing import Any
 import platformdirs
 from packaging.version import Version
 from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
-from pydantic_settings import CliSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from hassette.config.app_manifest import AppManifest
 from hassette.config.sources_helper import HassetteBaseSettings
@@ -94,7 +94,7 @@ def default_app_dir() -> Path:
     return Path.cwd() / "apps"  # relative to where the program is run
 
 
-class HassetteConfig(HassetteBaseSettings):
+class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
     """Configuration for Hassette."""
 
     model_config = SettingsConfigDict(
@@ -104,9 +104,10 @@ class HassetteConfig(HassetteBaseSettings):
         env_ignore_empty=True,
         extra="allow",
         env_nested_delimiter="__",
-        cli_parse_args=True,
         coerce_numbers_to_str=True,
         validate_by_name=True,
+        use_attribute_docstrings=True,
+        cli_shortcuts={"token": ["t"], "base-url": ["u", "url"]},
     )
 
     dev_mode: bool = Field(default=False)
@@ -131,14 +132,7 @@ class HassetteConfig(HassetteBaseSettings):
 
     token: SecretStr = Field(
         default=...,
-        validation_alias=AliasChoices(
-            "token",
-            "hassette__token",
-            "ha_token",
-            "home_assistant_token",
-            "t",  # for cli
-        ),
-        serialization_alias="token",
+        validation_alias=AliasChoices("token", "hassette__token", "ha_token", "home_assistant_token"),
     )
     """Access token for Home Assistant instance"""
 
@@ -394,34 +388,6 @@ class HassetteConfig(HassetteBaseSettings):
     def log_level_to_uppercase(cls, v: str) -> str:
         return v.upper()
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[HassetteBaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        # note: the docs make it sound like the first source returned here is the highest priority
-        # but that's not correct (or I'm reading their docs wrong) - the last source to set a value wins
-        # so the order here is from lowest priority to highest priority
-        #
-        # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#changing-priority
-        # "The order of the returned callables decides the priority of inputs; first item is the highest priority."
-
-        sources = (
-            # we don't error if unknown args are passed, since other things may be passed in CLI
-            # that aren't for us (plus it's just very freaking annoying, like damn, not everything's about you)
-            CliSettingsSource(settings_cls, cli_ignore_unknown_args=True),
-            init_settings,
-            HassetteTomlConfigSettingsSource(settings_cls),  # let env, dot_env, and secrets override toml
-            env_settings,
-            dotenv_settings,  # env file override (if provided) already set in `_settings_build_values`
-            file_secret_settings,
-        )
-        return sources
-
     def model_post_init(self, context: Any):
         ctx.HASSETTE_CONFIG.set(self)
 
@@ -569,3 +535,9 @@ def set_dev_mode(model_fields_set: set[str]):
         return True
 
     return False
+
+
+if __name__ == "__main__":
+    # quick test
+    config = HassetteConfig()
+    print(config.model_dump_json(indent=4))
