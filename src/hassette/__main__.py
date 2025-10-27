@@ -17,10 +17,7 @@ def get_parser() -> ArgumentParser:
     parser = ArgumentParser(description="Hassette - A Home Assistant integration", add_help=False)
     parser.add_argument(
         "--config-file",
-        "--config_file",
         "-c",
-        "--hassette-config",
-        "--hassette_config",
         type=str,
         default=None,
         help="Path to the settings file",
@@ -28,7 +25,6 @@ def get_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--env-file",
-        "--env_file",
         "--env",
         "-e",
         type=str,
@@ -44,14 +40,13 @@ async def main() -> None:
 
     args = get_parser().parse_known_args()[0]
 
-    # using type: ignore because there's no good way to tell pyright that these are being passed in for
-    # the base settings superclass and not for the HassetteConfig class itself
-    # (well, there may be, but I can't think of it off the top of my head)
-    # note: _env_file is natively supported, but we are passing as env_file to avoid overriding to an empty value
+    if args.env_file:
+        HassetteConfig.model_config["env_file"] = args.env_file
 
-    print(f"Hassette - loading configuration from {args.config_file} and {args.env_file}")
+    if args.config_file:
+        HassetteConfig.model_config["toml_file"] = args.config_file
 
-    config = HassetteConfig(env_file=args.env_file, config_file=args.config_file)  # type: ignore
+    config = HassetteConfig()
 
     core = Hassette(config=config)
     core.logger.info("Starting Hassette...")
