@@ -12,7 +12,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 
 ## Configuration & App Loading
 
-- Config model: `src/hassette/config/core_config.py` (`HassetteConfig`). Source priority (lowest→highest): CLI args, init kwargs, TOML (`/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`), environment variables, `.env` files, secrets files. `model_post_init` registers the config in `core/context.py`, ensures `config_dir`/`data_dir` exist, and loads additional `.env` files it discovers.
+- Config model: `src/hassette/config/core_config.py` (`HassetteConfig`). Source priority (highest→lowest): CLI args, init kwargs, environment variables, `.env` files, secrets files, TOML (`/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`). `model_post_init` registers the config in `core/context.py`, ensures `config_dir`/`data_dir` exist.
 - Helpers derive URLs and auth headers (`ws_url`, `rest_url`, `headers`, `truncated_token`). Flags such as `allow_reload_in_prod`, `allow_only_app_in_prod`, `log_all_events`, `bus_excluded_domains/entities`, `task_bucket_log_level`, etc. tweak runtime behaviour.
 - Apps live under `[apps.<name>]` in TOML and use `src/hassette/config/app_manifest.py` for validation.
   - Required keys: `filename`, `class_name`; optional: `app_dir`, `enabled`, `display_name`, `config` (dict or list for multi-instance apps).
