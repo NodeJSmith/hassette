@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 - Fixed missing tzdata in Alpine-based Docker image causing timezone issues.
+- Cli parsing working now, so any/all settings can be passed to override config file or env vars, using `--help` works correctly, etc.
+
+## Removed
+- Setting sources custom tracking removed, so debug level logging will no longer show where each config value was set from.
+  - This was originally added due to my own confusion around config precedence, but maintaining it is not worth the extra complexity.
+- Secrets can no longer be set in ``hassette.toml`` to be accessible in app config
+  - This never actually made much sense, I just didn't actually think about that when adding the feature
 
 ## Changed
 - You can now pass `ComparisonCondition`s to the `changed` parameter on `on_state_change` and `on_attribute_change` methods.
@@ -43,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor listener and add adapter to handle debounce, throttle, and variadic/no-arg handlers more cleanly.
 - Rename `Hasette._websocket` to `Hassette._websocket_service` to match naming conventions.
 - Refactor handler types and move types into `types` module instead of single file for better organization.
+- Remove extra wrappers around `pydantic-settings`, made some improvements so these are no longer necessary.
 
 ## [0.14.0] - 2025-10-19
 
