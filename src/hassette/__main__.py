@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
-from hassette.exceptions import AppPrecheckFailedError
+from hassette.exceptions import AppPrecheckFailedError, FatalError
 
 name = "hassette.hass_main" if __name__ == "__main__" else __name__
 
@@ -67,6 +67,9 @@ def entrypoint() -> None:
     except AppPrecheckFailedError as e:
         LOGGER.error("App precheck failed: %s", e)
         LOGGER.error("Hassette is shutting down due to app precheck failure")
+    except FatalError as e:
+        LOGGER.error("Fatal error occurred: %s", e)
+        LOGGER.error("Hassette is shutting down due to a fatal error")
     except Exception as e:
         LOGGER.exception("Unexpected error in Hassette: %s", e)
         raise
