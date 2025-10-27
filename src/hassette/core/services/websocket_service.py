@@ -331,7 +331,7 @@ class _WebsocketService(Service):  # pyright: ignore[reportUnusedClass]
         """Authenticate with the Home Assistant WebSocket API."""
 
         assert self._ws, "WebSocket must be initialized before authenticating"
-        token = self.hassette.config.token.get_secret_value()
+        token = self.hassette.config.token
         truncated_token = self.hassette.config.truncated_token
         ws_url = self.hassette.ws_url
 
