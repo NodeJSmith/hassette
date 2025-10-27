@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import sys
@@ -6,15 +5,15 @@ from collections.abc import Sequence
 from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import platformdirs
 from packaging.version import Version
-from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator, model_validator
-from pydantic_settings import SettingsConfigDict
+from pydantic import AliasChoices, BeforeValidator, Field, ValidationInfo, field_validator, model_validator
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette.config.app_manifest import AppManifest
-from hassette.config.sources_helper import HassetteBaseSettings
+from hassette.config.sources_helper import HassetteTomlConfigSettingsSource
 from hassette.const import LOG_LEVELS
 from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
@@ -35,6 +34,27 @@ except ValueError:
 
 LOGGER_NAME = "hassette.config.core_config" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
+
+
+def get_dev_mode():
+    """Check if developer mode should be enabled.
+
+    Returns:
+        bool: True if developer mode is enabled, False otherwise.
+    """
+    if "debugpy" in sys.modules:
+        LOGGER.warning("Developer mode enabled via 'debugpy'")
+        return True
+
+    if sys.gettrace() is not None:
+        LOGGER.warning("Developer mode enabled via 'sys.gettrace()'")
+        return True
+
+    if sys.flags.dev_mode:
+        LOGGER.warning("Developer mode enabled via 'python -X dev'")
+        return True
+
+    return False
 
 
 def default_config_dir() -> Path:
@@ -94,7 +114,7 @@ def default_app_dir() -> Path:
     return Path.cwd() / "apps"  # relative to where the program is run
 
 
-class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
+class HassetteConfig(BaseSettings):
     """Configuration for Hassette."""
 
     model_config = SettingsConfigDict(
@@ -107,14 +127,42 @@ class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
         coerce_numbers_to_str=True,
         validate_by_name=True,
         use_attribute_docstrings=True,
-        cli_shortcuts={"token": ["t"], "base-url": ["u", "url"]},
+        cli_prog_name="hassette",
+        cli_ignore_unknown_args=True,
+        cli_parse_args=True,
+        cli_kebab_case=True,
+        cli_shortcuts={"token": ["t"], "base-url": ["u", "url"], "config-file": ["c"], "env-file": ["e", "env"]},
     )
 
-    dev_mode: bool = Field(default=False)
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type["BaseSettings"],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        sources = (
+            init_settings,
+            HassetteTomlConfigSettingsSource(settings_cls),
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )
+        return sources
+
+    config_file: Path | str | None = Field(default=Path("hassette.toml"))
+    """Path to the configuration file."""
+
+    env_file: Path | str | None = Field(default=Path(".env"))
+    """Path to the environment file."""
+
+    dev_mode: bool = Field(default_factory=get_dev_mode)
     """Enable developer mode, which may include additional logging and features."""
 
     # General configuration
-    log_level: LOG_LEVELS = Field(default="INFO")
+    log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(default="INFO")
     """Logging level for Hassette."""
 
     config_dir: Path = Field(default_factory=default_config_dir)
@@ -202,41 +250,62 @@ class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
 
     # Service log levels
 
-    bus_service_log_level: LOG_LEVELS = Field(default="INFO")
-    """Logging level for the event bus service."""
+    bus_service_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Logging level for the event bus service. Defaults to INFO or the value of log_level."""
 
-    scheduler_service_log_level: LOG_LEVELS = Field(default="INFO")
-    """Logging level for the scheduler service."""
+    scheduler_service_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Logging level for the scheduler service. Defaults to INFO or the value of log_level."""
 
-    app_handler_log_level: LOG_LEVELS = Field(default="INFO")
-    """Logging level for the app handler service."""
+    app_handler_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Logging level for the app handler service. Defaults to INFO or the value of log_level."""
 
-    health_service_log_level: LOG_LEVELS = Field(default="INFO")
-    """Logging level for the health service."""
+    health_service_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Logging level for the health service. Defaults to INFO or the value of log_level."""
 
-    websocket_log_level: LOG_LEVELS = Field(default="INFO")
-    """Logging level for the WebSocket service."""
+    websocket_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Logging level for the WebSocket service. Defaults to INFO or the value of log_level."""
 
-    service_watcher_log_level: LOG_LEVELS = Field(default="INFO")
-    """Logging level for the service watcher."""
+    service_watcher_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Logging level for the service watcher. Defaults to INFO or the value of log_level."""
 
-    file_watcher_log_level: LOG_LEVELS = Field(default="INFO")
-    """Logging level for the file watcher service."""
+    file_watcher_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Logging level for the file watcher service. Defaults to INFO or the value of log_level."""
 
-    task_bucket_log_level: LOG_LEVELS = Field(default="INFO")
-    """Logging level for task buckets."""
+    task_bucket_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Logging level for task buckets. Defaults to INFO or the value of log_level."""
 
-    apps_log_level: LOG_LEVELS = Field(default="INFO")
-    """Default logging level for apps, can be overridden in app initialization."""
+    apps_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
+        default_factory=lambda data: data.get("log_level", "INFO")
+    )
+    """Default logging level for apps, can be overridden in app initialization. Defaults to INFO or the value\
+        of log_level."""
 
     log_all_events: bool = Field(default=False)
     """Whether to include all events in bus debug logging. Should be used sparingly. Defaults to False."""
 
-    log_all_hass_events: bool = Field(default=False)
-    """Whether to include all Home Assistant events in bus debug logging. Defaults to False."""
+    log_all_hass_events: bool = Field(default_factory=lambda data: data.get("log_all_events", False))
+    """Whether to include all Home Assistant events in bus debug logging. Defaults to False or the\
+        value of log_all_events."""
 
-    log_all_hassette_events: bool = Field(default=False)
-    """Whether to include all Hassette events in bus debug logging. Defaults to False."""
+    log_all_hassette_events: bool = Field(default_factory=lambda data: data.get("log_all_events", False))
+    """Whether to include all Hassette events in bus debug logging. Defaults to False or the
+        value of log_all_events."""
 
     # event bus filters
 
@@ -253,11 +322,6 @@ class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
 
     allow_only_app_in_prod: bool = Field(default=False)
     """Whether to allow the `only_app` decorator in production mode. Defaults to False."""
-
-    # user config
-
-    secrets: dict[str, SecretStr] = Field(default_factory=dict, examples=["['my_secret','another_secret']"])
-    """User provided secrets that can be referenced in the config."""
 
     @property
     def env_files(self) -> set[Path]:
@@ -308,29 +372,9 @@ class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
         self.config_dir = self.config_dir.resolve()
         self.data_dir = self.data_dir.resolve()
 
-        if "dev_mode" not in self.model_fields_set:
-            self.dev_mode = set_dev_mode(self.model_fields_set)
-
-        # Set default log level for all log level fields not explicitly set
-        log_level_fields = [name for name in type(self).model_fields if name.endswith("_log_level")]
-        for field in log_level_fields:
-            if field not in self.model_fields_set:
-                LOGGER.debug("Setting '%s' to match 'log_level' (%s)", field, self.log_level)
-                setattr(self, field, self.log_level)
-
-        log_all_fields = [
-            name for name in type(self).model_fields if name.startswith("log_all_") and name != "log_all_events"
-        ]
-        for field in log_all_fields:
-            if field not in self.model_fields_set:
-                LOGGER.debug("Setting '%s' to match 'log_all_events' (%s)", field, self.log_all_events)
-                setattr(self, field, self.log_all_events)
-
-        LOGGER.debug(
-            "Configuration sources: %s",
-            json.dumps(type(self).FINAL_SETTINGS_SOURCES, default=str, indent=4, sort_keys=True),
-        )
         LOGGER.info("Hassette version: %s", VERSION)
+
+        LOGGER.debug("Hassette configuration: %s", self.model_dump_json(indent=4))
 
         active_apps = [app for app in self.apps.values() if app.enabled]
         if active_apps:
@@ -344,48 +388,11 @@ class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
 
         return self
 
-    @field_validator("secrets", mode="before")
-    @classmethod
-    def validate_secrets(cls, values: list[str]) -> dict[str, str]:
-        """Convert list of secret names to dict of secret values from config sources."""
-        if not values:
-            return {}
-
-        output = {}
-
-        for k in values:
-            if k not in cls.FINAL_SETTINGS_SOURCES:
-                if os.getenv(k):
-                    LOGGER.info("Filling secret %r from environment variable", k)
-                    output[k] = os.getenv(k)
-                    cls.FINAL_SETTINGS_SOURCES[f"secrets.{k}"] = "environment variable"
-                    continue
-                LOGGER.warning("Secret %r not found in any configuration sources, leaving as empty.", k)
-                continue
-
-            source_name = cls.FINAL_SETTINGS_SOURCES[k]
-            source_data = cls.SETTINGS_SOURCES_DATA.get(source_name, {})
-            if k in source_data:
-                if source_data[k]:
-                    LOGGER.info("Filling empty secret %r from source %r", k, source_name)
-                    output[k] = source_data[k]
-                    cls.FINAL_SETTINGS_SOURCES[f"secrets.{k}"] = source_name
-                    del cls.FINAL_SETTINGS_SOURCES[k]  # delete the non `secrets.` key
-                    continue
-                LOGGER.warning("Secret %r is empty in source %r, leaving as empty.", k, source_name)
-
-        return output
-
     @field_validator("apps", mode="before")
     @classmethod
     def validate_apps(cls, values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
         """Sets the app_dir in each app manifest if not already set."""
         return validate_apps(values, info.data.get("app_dir"), info.data.get("auto_detect_apps", True))
-
-    @field_validator("log_level", mode="before")
-    @classmethod
-    def log_level_to_uppercase(cls, v: str) -> str:
-        return v.upper()
 
     def model_post_init(self, context: Any):
         ctx.HASSETTE_CONFIG.set(self)
@@ -501,39 +508,6 @@ def validate_apps(values: dict[str, Any], app_dir: Path | None, auto_detect: boo
         }
 
     return values
-
-
-def set_dev_mode(model_fields_set: set[str]):
-    """Determine if developer mode should be enabled.
-
-    Args:
-        model_fields_set (set[str]): Set of fields that were explicitly set in the model.
-
-    Returns:
-        bool: True if developer mode should be enabled, False otherwise.
-
-    Raises:
-        RuntimeError: If 'dev_mode' is already set in the model fields set.
-
-    This is separated from the HassetteConfig class to allow easier testing.
-
-    """
-    if "dev_mode" in model_fields_set:
-        raise RuntimeError("dev_mode already set in model fields set")
-
-    if "debugpy" in sys.modules:
-        LOGGER.warning("Developer mode enabled via 'debugpy'")
-        return True
-
-    if sys.gettrace() is not None:
-        LOGGER.warning("Developer mode enabled via 'sys.gettrace()'")
-        return True
-
-    if sys.flags.dev_mode:
-        LOGGER.warning("Developer mode enabled via 'python -X dev'")
-        return True
-
-    return False
 
 
 if __name__ == "__main__":
