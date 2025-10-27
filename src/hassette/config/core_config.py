@@ -152,9 +152,11 @@ class HassetteConfig(BaseSettings):
         )
         return sources
 
+    # note - not actually used here, reflects the options in __main__ argparser for --help
     config_file: Path | str | None = Field(default=Path("hassette.toml"))
     """Path to the configuration file."""
 
+    # note - not actually used here, reflects the options in __main__ argparser for --help
     env_file: Path | str | None = Field(default=Path(".env"))
     """Path to the environment file."""
 
