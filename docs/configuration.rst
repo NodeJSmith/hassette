@@ -23,7 +23,7 @@ By default, Hassette looks for ``hassette.toml`` in one of three locations (in o
 The same locations are checked for a ``.env`` file, which can contain environment variables (e.g., for secrets).
 
 If you want to use a different path for the config file, you can pass it via the CLI flag ``-c`` or
-``--hassette-config``. You can also pass a different path for the ``.env`` file via ``-e`` or ``--env-file``.
+``--config-file``. You can also pass a different path for the ``.env`` file via ``-e`` or ``--env-file``.
 
 .. code-block:: bash
 
@@ -150,29 +150,6 @@ custom prefix - in this case ``Hassette`` is no longer involved and ``pydantic``
     # OR
     export HASSETTE__APPS__MY_APP__CONFIG__REQUIRED_SECRET="s3cr3t"
 
-Managing secrets
-----------------
-
-Use environment variables or ``.env`` to set secrets required by ``Hassette`` or your apps configuration. If you want to have any secrets set on the
-``HassetteConfig`` instance, you may also list secret keys in ``[hassette].secrets``; the config layer will attempt to fill them from available sources.
-
-.. code-block:: toml
-
-   [hassette]
-   secrets = ["MY_WEBHOOK_URL", "MY_PASSWORD"]
-
-.. code-block:: bash
-
-   # In your environment or .env file
-   export MY_WEBHOOK_URL="https://..."
-   export MY_PASSWORD="s3cr3t"
-
-.. code-block:: python
-
-    from hassette import HassetteConfig
-
-    url = HassetteConfig.get_config().secrets["MY_WEBHOOK_URL"]
-
 
 Common pitfalls (and quick fixes)
 ---------------------------------
@@ -182,24 +159,20 @@ Common pitfalls (and quick fixes)
 - Token in TOML → move it to env/.env
 
 
-
 Configuration sources (what wins?)
 ----------------------------------
-Hassette merges configuration from multiple places (last writer wins):
+Hassette merges configuration from multiple places (first writer wins):
 
-1. CLI flags (e.g., ``-c``, ``--hassette-config``, ``--token``)
-2. Init args (if you pass a prebuilt config to ``Hassette(config=...)``)
-3. TOML files: ``/config/hassette.toml``, ``./hassette.toml``, ``./config/hassette.toml``
-4. Environment variables (prefer ``HASSETTE__*``)
-5. .env files: ``/config/.env``, ``.env``, ``./config/.env``
-6. File secrets (if used)
+#. CLI flags (e.g., ``-c``, ``--config``, ``--token``)
+#. Environment variables (prefer ``HASSETTE__*``)
+#. .env files:
+
+    #. Will check ``/config/.env``, ``.env``, ``./config/.env`` by default
+    #. If ``--config`` or ``-c`` is provided then this will take priority and the other locations will be skipped
+#. File secrets (if used)
+#. TOML files:
+
+    #. Will check ``/config/hassette.toml``, ``./hassette.toml``, ``./config/hassette.toml`` by default
+    #. If ``--config`` or ``-c`` is provided then this will take priority and the other locations will be skipped
 
 Best practice: use env vars (or .env) for tokens and secrets; keep TOML non-secret.
-
-.. hint::
-
-    Set ``HASSETTE__LOG_LEVEL=DEBUG`` to log which source provided each setting
-    at startup. This is helpful when values aren't what you expect.
-
-    Warning: this can print sensitive values in logs. Use only during setup and
-    never share these logs publicly.
