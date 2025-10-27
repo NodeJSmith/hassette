@@ -154,20 +154,15 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
             LOGGER.debug("Skipping auto-detected app at %s as it is already configured", full_path)
             continue
         try:
-            module = import_module(app_dir, py_file, app_dir.name)
-            module_name = module.__name__
+            path_str, module = import_module(app_dir, py_file, app_dir.name)
             classes = inspect.getmembers(module, inspect.isclass)
             for class_name, cls in classes:
                 class_module = cls.__module__
                 # ensure the class is defined in this module
-                if class_module != module_name:
+                if class_module != module.__name__:
                     continue
                 if issubclass(cls, (App, AppSync)) and cls not in (App, AppSync):
-                    rel_path = py_file.relative_to(app_dir)
-                    rel_parts = rel_path.parts[:-1]  # exclude filename
-                    app_key_parts = [*list(rel_parts), py_file.stem, class_name]
-                    app_key = ".".join(app_key_parts)
-
+                    app_key = f"{path_str}.{class_name}"
                     app_manifest = AppManifest(
                         filename=py_file.name,
                         class_name=class_name,
@@ -238,13 +233,12 @@ def load_app_class(
         raise RuntimeError("HassetteConfig is not available in context")
 
     pkg_name = config.app_dir.name
-    mod_name = _module_name_for(app_dir, module_path, pkg_name)
-    module = import_module(app_dir, module_path, pkg_name)
+    path_str, module = import_module(app_dir, module_path, pkg_name)
 
     try:
         app_class = getattr(module, class_name)
     except AttributeError:
-        raise AttributeError(f"Class {class_name} not found in module {mod_name} ({module_path})") from None
+        raise AttributeError(f"Class {class_name} not found in module {path_str} ({module_path})") from None
 
     if not issubclass(app_class, App | AppSync):
         raise TypeError(f"Class {class_name} is not a subclass of App or AppSync")
@@ -256,7 +250,7 @@ def load_app_class(
     return app_class
 
 
-def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> "ModuleType":
+def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str, "ModuleType"]:
     """Import (or reload) a module from the given path under the 'apps' namespace package.
 
     Args:
@@ -265,7 +259,7 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> "ModuleTyp
       pkg_name (str): The package name to use (e.g. 'apps')
 
     Returns:
-      ModuleType: The imported module.
+      tuple[str, ModuleType]: The formatted relative path and the imported module.
     """
 
     _ensure_on_sys_path(app_dir)
@@ -292,7 +286,7 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> "ModuleTyp
             )
             raise e
 
-    return module
+    return mod_name, module
 
 
 def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
@@ -341,8 +335,15 @@ def _module_name_for(app_dir: Path, full_path: Path, pkg_name: str) -> str:
         /path/to/apps/my_app.py         -> apps.my_app
         /path/to/apps/notifications/email_digest.py -> apps.notifications.email_digest
     """
+    if not full_path.exists():
+        raise FileNotFoundError(f"Module path does not exist: {full_path}")
+
+    if full_path.is_dir():
+        raise IsADirectoryError(f"Module path is a directory, expected a file: {full_path}")
+
     app_dir = app_dir.resolve()
     full_path = full_path.resolve()
+
     rel = full_path.relative_to(app_dir).with_suffix("")  # drop .py
     parts = list(rel.parts)
     if pkg_name == "":
