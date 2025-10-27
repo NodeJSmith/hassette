@@ -145,10 +145,10 @@ class HassetteConfig(BaseSettings):
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         sources = (
             init_settings,
-            HassetteTomlConfigSettingsSource(settings_cls),
             env_settings,
             dotenv_settings,
             file_secret_settings,
+            HassetteTomlConfigSettingsSource(settings_cls),
         )
         return sources
 
