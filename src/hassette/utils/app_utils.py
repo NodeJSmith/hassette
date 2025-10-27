@@ -142,9 +142,14 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
 
     app_manifests: dict[str, AppManifest] = {}
 
+    default_exclude_dirs = {".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".git"}
+
     py_files = app_dir.rglob("*.py")
     for py_file in py_files:
         full_path = py_file.resolve()
+        if any(part in default_exclude_dirs for part in full_path.parts):
+            LOGGER.debug("Excluding auto-detected app at %s due to excluded directory", full_path)
+            continue
         if full_path in known_paths:
             LOGGER.debug("Skipping auto-detected app at %s as it is already configured", full_path)
             continue
@@ -273,10 +278,19 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> "ModuleTyp
     mod_name = _module_name_for(app_dir, module_path, pkg_name)
 
     # 3) Import or reload the module by canonical name
-    if mod_name in sys.modules:  # noqa: SIM108
+    if mod_name in sys.modules:
         module = importlib.reload(sys.modules[mod_name])
     else:
-        module = importlib.import_module(mod_name)
+        try:
+            module = importlib.import_module(mod_name)
+        except Exception as e:
+            LOGGER.error(
+                "Error importing module %s from %s: %s",
+                mod_name,
+                module_path,
+                traceback.format_exc(limit=1),
+            )
+            raise e
 
     return module
 
@@ -331,6 +345,8 @@ def _module_name_for(app_dir: Path, full_path: Path, pkg_name: str) -> str:
     full_path = full_path.resolve()
     rel = full_path.relative_to(app_dir).with_suffix("")  # drop .py
     parts = list(rel.parts)
+    if pkg_name == "":
+        return ".".join(parts)
     return ".".join([pkg_name, *parts])
 
 
