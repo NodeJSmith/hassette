@@ -130,7 +130,7 @@ class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
     base_url: str = Field(default="http://127.0.0.1:8123")
     """Base URL of the Home Assistant instance"""
 
-    token: SecretStr = Field(
+    token: str = Field(
         default=...,
         validation_alias=AliasChoices("token", "hassette__token", "ha_token", "home_assistant_token"),
     )
@@ -288,7 +288,7 @@ class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
     @property
     def auth_headers(self) -> dict[str, str]:
         """Return the headers required for authentication."""
-        return {"Authorization": f"Bearer {self.token.get_secret_value()}"}
+        return {"Authorization": f"Bearer {self.token}"}
 
     @property
     def headers(self) -> dict[str, str]:
@@ -300,8 +300,7 @@ class HassetteConfig(HassetteBaseSettings, cli_prog_name="hassette"):
     @property
     def truncated_token(self) -> str:
         """Return a truncated version of the token for display purposes."""
-        token_value = self.token.get_secret_value()
-        return f"{token_value[:6]}...{token_value[-6:]}"
+        return f"{self.token[:6]}...{self.token[-6:]}"
 
     @model_validator(mode="after")
     def validate_hassette_config(self) -> "HassetteConfig":

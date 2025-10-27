@@ -17,9 +17,7 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
     assert hassette.ws_url == "ws://127.0.0.1:8123/api/websocket", (
         f"Expected ws://127.0.0.1:8123/api/websocket, got {hassette.ws_url}"
     )
-    assert test_config.token.get_secret_value() == expected_token, (
-        f"Expected token to be {expected_token}, got {test_config.token.get_secret_value()}"
-    )
+    assert test_config.token == expected_token, f"Expected token to be {expected_token}, got {test_config.token}"
 
 
 def test_env_overrides_are_used(test_config_class, monkeypatch):
