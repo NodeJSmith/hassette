@@ -76,13 +76,14 @@ Each app has access to:
 ## Configuration System
 
 ### Configuration Hierarchy
-Source priority (lowest → highest):
+Source priority (highest → lowest):
 1. CLI args
 2. Init kwargs
-3. TOML files (`/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`)
-4. Environment variables
-5. `.env` files
-6. Secrets files
+3. Environment variables
+4. `.env` files
+5. Secrets files
+6. TOML files (`/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`)
+
 
 ### App Configuration
 Apps are defined under `[apps.<name>]` in TOML:
