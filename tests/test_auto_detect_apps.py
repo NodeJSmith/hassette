@@ -10,6 +10,73 @@ from hassette.config.app_manifest import AppManifest
 from hassette.config.core_config import HassetteConfig, auto_detect_app_manifests, validate_apps
 
 
+class TestAutoDetectAppManifestsCurrDir:
+    """Test the auto_detect_app_manifests function with current directory.
+
+    This ensures we do not attempt to, for example, read every file in .venv
+    or similar directories. It also checks that we handle importing files when we do not have a
+    standard package directory structure.
+    """
+
+    def test_auto_detect_in_current_directory(self, tmp_path: Path):
+        """Test auto-detection of apps in the current directory."""
+        # Create a simple app file in the temp directory
+        app_file = tmp_path / "current_dir_app.py"
+        app_file.write_text(
+            dedent("""
+            from hassette import App, AppConfig
+
+            class CurrentDirApp(App[AppConfig]): ...
+        """)
+        )
+        expected = f"{tmp_path.name}.current_dir_app.CurrentDirApp"
+
+        known_paths = set()
+        result = auto_detect_app_manifests(tmp_path, known_paths)
+        assert len(result) == 1, f"Expected 1 app, got {len(result)}"
+        assert expected in result, f"Expected to find '{expected}' in detected apps"
+
+    def test_auto_detect_ignores_venv_directory(self, tmp_path: Path):
+        """Test that auto-detection ignores .venv directory."""
+        # Create a .venv directory with an app file
+        venv_dir = tmp_path / ".venv"
+        venv_dir.mkdir()
+
+        app_file = venv_dir / "venv_app.py"
+        app_file.write_text(
+            dedent("""
+            from hassette import App, AppConfig
+
+            class VenvApp(App[AppConfig]): ...
+        """)
+        )
+
+        known_paths = set()
+        result = auto_detect_app_manifests(tmp_path, known_paths)
+        assert len(result) == 0, f"Expected 0 apps, got {len(result)}"
+        assert "venv_app.VenvApp" not in result, "Did not expect to find 'venv_app.VenvApp' in detected apps"
+
+    def test_auto_detect_ignores_hidden_directories(self, tmp_path: Path):
+        """Test that auto-detection ignores hidden directories."""
+        # Create a hidden directory with an app file
+        hidden_dir = tmp_path / ".hidden"
+        hidden_dir.mkdir()
+
+        app_file = hidden_dir / "hidden_app.py"
+        app_file.write_text(
+            dedent("""
+            from hassette import App, AppConfig
+
+            class HiddenApp(App[AppConfig]): ...
+        """)
+        )
+
+        known_paths = set()
+        result = auto_detect_app_manifests(tmp_path, known_paths)
+        assert len(result) == 0, f"Expected 0 apps, got {len(result)}"
+        assert "hidden_app.HiddenApp" not in result, "Did not expect to find 'hidden_app.HiddenApp' in detected apps"
+
+
 class TestAutoDetectAppManifests:
     """Test the auto_detect_app_manifests function."""
 
@@ -35,13 +102,15 @@ class TestAutoDetectAppManifests:
         result = auto_detect_app_manifests(app_dir, known_paths)
 
         assert len(result) == 1
-        assert "simple_app.SimpleApp" in result
+        assert "apps.simple_app.SimpleApp" in result
 
-        manifest = result["simple_app.SimpleApp"]
+        manifest = result["apps.simple_app.SimpleApp"]
         assert manifest.filename == "simple_app.py", f"Expected 'simple_app.py', got '{manifest.filename}'"
         assert manifest.class_name == "SimpleApp", f"Expected 'SimpleApp', got '{manifest.class_name}'"
         assert manifest.app_dir == app_dir, f"Expected '{app_dir}', got '{manifest.app_dir}'"
-        assert manifest.app_key == "simple_app.SimpleApp", f"Expected 'simple_app.SimpleApp', got '{manifest.app_key}'"
+        assert manifest.app_key == "apps.simple_app.SimpleApp", (
+            f"Expected 'apps.simple_app.SimpleApp', got '{manifest.app_key}'"
+        )
         assert manifest.enabled is True, f"Expected 'True', got '{manifest.enabled}'"
 
     def test_auto_detect_sync_app(self, tmp_path: Path):
@@ -66,9 +135,9 @@ class TestAutoDetectAppManifests:
         result = auto_detect_app_manifests(app_dir, known_paths)
 
         assert len(result) == 1
-        assert "sync_app.MySyncApp" in result, "Expected to find 'sync_app.MySyncApp' in detected apps"
+        assert "apps.sync_app.MySyncApp" in result, "Expected to find 'apps.sync_app.MySyncApp' in detected apps"
 
-        manifest = result["sync_app.MySyncApp"]
+        manifest = result["apps.sync_app.MySyncApp"]
         assert manifest.filename == "sync_app.py", f"Expected 'sync_app.py', got '{manifest.filename}'"
         assert manifest.class_name == "MySyncApp", f"Expected 'MySyncApp', got '{manifest.class_name}'"
 
@@ -96,13 +165,13 @@ class TestAutoDetectAppManifests:
         result = auto_detect_app_manifests(app_dir, known_paths)
 
         assert len(result) == 2, f"Expected 2 apps, got {len(result)}"
-        assert "multi_apps.FirstApp" in result, "Expected to find 'multi_apps.FirstApp' in detected apps"
-        assert "multi_apps.SecondApp" in result, "Expected to find 'multi_apps.SecondApp' in detected apps"
+        assert "apps.multi_apps.FirstApp" in result, "Expected to find 'apps.multi_apps.FirstApp' in detected apps"
+        assert "apps.multi_apps.SecondApp" in result, "Expected to find 'apps.multi_apps.SecondApp' in detected apps"
 
-        first_manifest = result["multi_apps.FirstApp"]
+        first_manifest = result["apps.multi_apps.FirstApp"]
         assert first_manifest.class_name == "FirstApp", f"Expected 'FirstApp', got '{first_manifest.class_name}'"
 
-        second_manifest = result["multi_apps.SecondApp"]
+        second_manifest = result["apps.multi_apps.SecondApp"]
         assert second_manifest.class_name == "SecondApp", f"Expected 'SecondApp', got '{second_manifest.class_name}'"
 
     def test_auto_detect_nested_directory(self, tmp_path: Path):
@@ -130,15 +199,15 @@ class TestAutoDetectAppManifests:
         result = auto_detect_app_manifests(app_dir, known_paths)
 
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
-        assert "notifications.email_notifier.EmailNotifier" in result, (
-            "Expected to find 'notifications.email_notifier.EmailNotifier' in detected apps"
+        assert "apps.notifications.email_notifier.EmailNotifier" in result, (
+            "Expected to find 'apps.notifications.email_notifier.EmailNotifier' in detected apps"
         )
 
-        manifest = result["notifications.email_notifier.EmailNotifier"]
+        manifest = result["apps.notifications.email_notifier.EmailNotifier"]
         assert manifest.filename == "email_notifier.py", f"Expected 'email_notifier.py', got '{manifest.filename}'"
         assert manifest.class_name == "EmailNotifier", f"Expected 'EmailNotifier', got '{manifest.class_name}'"
-        assert manifest.app_key == "notifications.email_notifier.EmailNotifier", (
-            f"Expected 'notifications.email_notifier.EmailNotifier', got '{manifest.app_key}'"
+        assert manifest.app_key == "apps.notifications.email_notifier.EmailNotifier", (
+            f"Expected 'apps.notifications.email_notifier.EmailNotifier', got '{manifest.app_key}'"
         )
 
     def test_auto_detect_skips_known_paths(self, tmp_path: Path):
@@ -184,7 +253,7 @@ class TestAutoDetectAppManifests:
 
         # Should only find RealApp, not App or AppSync
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
-        assert "base_classes.RealApp" in result, "Expected to find 'base_classes.RealApp' in detected apps"
+        assert "apps.base_classes.RealApp" in result, "Expected to find 'apps.base_classes.RealApp' in detected apps"
 
     def test_auto_detect_ignores_imported_classes(self, tmp_path: Path):
         """Test that auto-detection ignores classes imported from other modules."""
@@ -217,10 +286,12 @@ class TestAutoDetectAppManifests:
 
         # Should find both apps, but each in their own module
         assert len(result) == 2, f"Expected 2 apps, got {len(result)}"
-        assert "my_module.ModuleApp" in result, "Expected to find 'my_module.ModuleApp' in detected apps"
-        assert "importer.LocalApp" in result, "Expected to find 'importer.LocalApp' in detected apps"
+        assert "apps.my_module.ModuleApp" in result, "Expected to find 'apps.my_module.ModuleApp' in detected apps"
+        assert "apps.importer.LocalApp" in result, "Expected to find 'apps.importer.LocalApp' in detected apps"
         # ModuleApp should NOT be detected in importer.py
-        assert "importer.ModuleApp" not in result, "Did not expect to find 'importer.ModuleApp' in detected apps"
+        assert "apps.importer.ModuleApp" not in result, (
+            "Did not expect to find 'apps.importer.ModuleApp' in detected apps"
+        )
 
     def test_auto_detect_handles_import_errors(self, tmp_path: Path):
         """Test that auto-detection gracefully handles files with import errors."""
@@ -253,11 +324,13 @@ class TestAutoDetectAppManifests:
 
         # Should only find the good app, not the broken one - this is the key functional test
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
-        assert "good_app.GoodApp" in result, "Expected to find 'good_app.GoodApp' in detected apps"
-        assert "broken_app.BrokenApp" not in result, "Did not expect to find 'broken_app.BrokenApp' in detected apps"
+        assert "apps.good_app.GoodApp" in result, "Expected to find 'apps.good_app.GoodApp' in detected apps"
+        assert "apps.broken_app.BrokenApp" not in result, (
+            "Did not expect to find 'apps.broken_app.BrokenApp' in detected apps"
+        )
 
         # Verify the detected app has correct properties
-        good_manifest = result["good_app.GoodApp"]
+        good_manifest = result["apps.good_app.GoodApp"]
         assert good_manifest.filename == "good_app.py", f"Expected 'good_app.py', got '{good_manifest.filename}'"
         assert good_manifest.class_name == "GoodApp", f"Expected 'GoodApp', got '{good_manifest.class_name}'"
 
@@ -287,7 +360,9 @@ class TestAutoDetectAppManifests:
 
         # Should only find the actual app class
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
-        assert "mixed_classes.ActualApp" in result, "Expected to find 'mixed_classes.ActualApp' in detected apps"
+        assert "apps.mixed_classes.ActualApp" in result, (
+            "Expected to find 'apps.mixed_classes.ActualApp' in detected apps"
+        )
 
 
 class TestValidateApps:
@@ -536,8 +611,8 @@ class TestAutoDetectIntegration:
         )
 
         # Should auto-detect the app
-        assert "test_app.TestApp" in config.apps, "Expected to find 'test_app.TestApp' in detected apps"
-        manifest = config.apps["test_app.TestApp"]
+        assert "apps.test_app.TestApp" in config.apps, "Expected to find 'apps.test_app.TestApp' in detected apps"
+        manifest = config.apps["apps.test_app.TestApp"]
         assert manifest.filename == "test_app.py", f"Expected filename to be 'test_app.py', got {manifest.filename}"
         assert manifest.class_name == "TestApp", f"Expected class_name to be 'TestApp', got {manifest.class_name}"
         assert manifest.enabled is True, f"Expected enabled to be True, got {manifest.enabled}"
@@ -694,7 +769,7 @@ class TestAutoDetectIntegration:
         # Should have both manual and auto-detected apps
         assert len(config.apps) == 2, f"Expected 2 apps, got {len(config.apps)}"
         assert "manual_app" in config.apps, "Expected to find 'manual_app' in detected apps"
-        assert "auto_app.AutoApp" in config.apps, "Expected to find 'auto_app.AutoApp' in detected apps"
+        assert "apps.auto_app.AutoApp" in config.apps, "Expected to find 'apps.auto_app.AutoApp' in detected apps"
 
         # Manual app should preserve config
         manual_manifest = config.apps["manual_app"]
@@ -703,5 +778,5 @@ class TestAutoDetectIntegration:
         )
 
         # Auto-detected app should have default config
-        auto_manifest = config.apps["auto_app.AutoApp"]
+        auto_manifest = config.apps["apps.auto_app.AutoApp"]
         assert auto_manifest.enabled is True, f"Expected enabled to be True, got {auto_manifest.enabled}"
