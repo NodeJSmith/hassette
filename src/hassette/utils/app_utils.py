@@ -134,7 +134,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         raise AppPrecheckFailedError("At least one app failed to load — see previous logs for details")
 
 
-def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path):
+def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
     filename = Path(app_dict["filename"])
 
     # handle missing file extensions
