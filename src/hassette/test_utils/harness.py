@@ -167,6 +167,8 @@ class HassetteHarness:
         context.HASSETTE_CONFIG.set(self.config)
         context.HASSETTE_INSTANCE.set(cast("Hassette", self.hassette))
 
+        self.config.set_validated_app_manifests()
+
     async def __aenter__(self):
         await self.start()
 

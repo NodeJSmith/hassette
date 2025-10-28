@@ -20,10 +20,10 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
     assert test_config.token == expected_token, f"Expected token to be {expected_token}, got {test_config.token}"
 
 
-def test_env_overrides_are_used(test_config_class, monkeypatch):
+def test_env_overrides_are_used(test_config_class, monkeypatch, tmp_path):
     """Environment overrides win when constructing a HassetteConfig."""
-    monkeypatch.setenv("hassette__app_dir", "/custom/apps")
+    app_dir = tmp_path / "custom/apps"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("hassette__app_dir", str(app_dir))
     config_with_env_override = test_config_class()
-    assert config_with_env_override.app_dir == Path("/custom/apps"), (
-        f"Expected /custom/apps, got {config_with_env_override.app_dir}"
-    )
+    assert config_with_env_override.app_dir == app_dir, f"Expected {app_dir}, got {config_with_env_override.app_dir}"

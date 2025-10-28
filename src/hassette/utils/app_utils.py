@@ -7,7 +7,6 @@ import typing
 from logging import getLogger
 from pathlib import Path
 
-from hassette.config.app_manifest import AppManifest
 from hassette.core import context
 from hassette.core.resources.app.app import App, AppSync
 from hassette.exceptions import (
@@ -16,11 +15,13 @@ from hassette.exceptions import (
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
+from hassette.types.types import AppDict, RawAppDict
 
 if typing.TYPE_CHECKING:
     from types import ModuleType
 
     from hassette import AppConfig, HassetteConfig
+    from hassette.config.app_manifest import AppManifest
 
 
 LOGGER = getLogger(__name__)
@@ -102,8 +103,12 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
 
     had_errors = False
 
-    for app_manifest in config.apps.values():
+    for app_manifest in config.app_manifests.values():
         if not app_manifest.enabled:
+            continue
+
+        if app_manifest.auto_loaded:
+            # skip auto-detected apps; they were already checked during detection
             continue
 
         try:
@@ -129,7 +134,38 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         raise AppPrecheckFailedError("At least one app failed to load — see previous logs for details")
 
 
-def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str, AppManifest]:
+def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
+    filename = Path(app_dict["filename"])
+
+    # handle missing file extensions
+    if not filename.suffix:
+        LOGGER.debug("Filename %s for app %s has no extension, assuming .py", filename.name, app_key)
+        app_dict["filename"] = filename.with_suffix(".py").as_posix()
+
+    if "app_dir" not in app_dict or not app_dict["app_dir"]:
+        LOGGER.debug("Setting app_dir for app %s to %s", filename, app_dir)
+        app_dict["app_dir"] = app_dir
+
+    full_path = (Path(app_dict["app_dir"]) / app_dict["filename"]).resolve()
+
+    config = app_dict.get("config", [])
+    config = config if isinstance(config, list) else [config]
+
+    clean_app_dict = AppDict(
+        app_key=app_key,
+        filename=app_dict["filename"],
+        class_name=app_dict["class_name"],
+        app_dir=Path(app_dict["app_dir"]),
+        enabled=app_dict.get("enabled", True),
+        config=config,
+        auto_loaded=app_dict.get("auto_loaded", False),
+        full_path=full_path,
+    )
+
+    return clean_app_dict
+
+
+def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict]:
     """Auto-detect app manifests in the provided app directory.
 
     Args:
@@ -137,41 +173,47 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
         known_paths (set[Path]): Set of paths that are already known/configured.
 
     Returns:
-        dict[str, AppManifest]: Detected app manifests, keyed by app name.
+        dict[str, AppDict]: Detected app manifests, keyed by app name.
     """
 
-    app_manifests: dict[str, AppManifest] = {}
+    app_manifests: dict[str, AppDict] = {}
+
+    config = context.HASSETTE_CONFIG.get(None)
+    if not config:
+        raise RuntimeError("HassetteConfig is not available in context")
+    default_exclude_dirs = set(config.auto_detect_exclude_dirs)
 
     py_files = app_dir.rglob("*.py")
     for py_file in py_files:
         full_path = py_file.resolve()
+        if intersection := default_exclude_dirs.intersection(full_path.parts):
+            LOGGER.debug("Excluding auto-detected app at %s due to excluded directory %s", full_path, intersection)
+            continue
         if full_path in known_paths:
             LOGGER.debug("Skipping auto-detected app at %s as it is already configured", full_path)
             continue
         try:
-            module = import_module(app_dir, py_file, app_dir.name)
-            module_name = module.__name__
+            path_str, module = import_module(app_dir, py_file, app_dir.name)
             classes = inspect.getmembers(module, inspect.isclass)
             for class_name, cls in classes:
                 class_module = cls.__module__
                 # ensure the class is defined in this module
-                if class_module != module_name:
+                if class_module != module.__name__:
                     continue
                 if issubclass(cls, (App, AppSync)) and cls not in (App, AppSync):
-                    rel_path = py_file.relative_to(app_dir)
-                    rel_parts = rel_path.parts[:-1]  # exclude filename
-                    app_key_parts = [*list(rel_parts), py_file.stem, class_name]
-                    app_key = ".".join(app_key_parts)
-
-                    app_manifest = AppManifest(
+                    app_key = f"{path_str}.{class_name}"
+                    app_dict = AppDict(
                         filename=py_file.name,
                         class_name=class_name,
                         app_dir=app_dir,
                         app_key=app_key,
                         enabled=True,
+                        auto_loaded=True,
+                        full_path=full_path,
+                        config=[],
                     )
-                    app_manifests[app_key] = app_manifest
-                    LOGGER.info("Auto-detected app manifest: %s", app_manifest)
+                    app_manifests[app_key] = app_dict
+                    LOGGER.info("Auto-detected app manifest: %s", app_dict)
         except Exception:
             LOGGER.exception("Failed to auto-detect app classes in %s", py_file)
 
@@ -190,7 +232,7 @@ def load_app_class_from_manifest(app_manifest: "AppManifest", force_reload: bool
     """
     return load_app_class(
         app_dir=app_manifest.app_dir,
-        module_path=app_manifest.get_full_path(),
+        module_path=app_manifest.full_path,
         class_name=app_manifest.class_name,
         display_name=app_manifest.display_name,
         force_reload=force_reload,
@@ -233,13 +275,12 @@ def load_app_class(
         raise RuntimeError("HassetteConfig is not available in context")
 
     pkg_name = config.app_dir.name
-    mod_name = _module_name_for(app_dir, module_path, pkg_name)
-    module = import_module(app_dir, module_path, pkg_name)
+    path_str, module = import_module(app_dir, module_path, pkg_name)
 
     try:
         app_class = getattr(module, class_name)
     except AttributeError:
-        raise AttributeError(f"Class {class_name} not found in module {mod_name} ({module_path})") from None
+        raise AttributeError(f"Class {class_name} not found in module {path_str} ({module_path})") from None
 
     if not issubclass(app_class, App | AppSync):
         raise TypeError(f"Class {class_name} is not a subclass of App or AppSync")
@@ -251,7 +292,7 @@ def load_app_class(
     return app_class
 
 
-def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> "ModuleType":
+def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str, "ModuleType"]:
     """Import (or reload) a module from the given path under the 'apps' namespace package.
 
     Args:
@@ -260,7 +301,7 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> "ModuleTyp
       pkg_name (str): The package name to use (e.g. 'apps')
 
     Returns:
-      ModuleType: The imported module.
+      tuple[str, ModuleType]: The formatted relative path and the imported module.
     """
 
     _ensure_on_sys_path(app_dir)
@@ -273,12 +314,30 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> "ModuleTyp
     mod_name = _module_name_for(app_dir, module_path, pkg_name)
 
     # 3) Import or reload the module by canonical name
-    if mod_name in sys.modules:  # noqa: SIM108
-        module = importlib.reload(sys.modules[mod_name])
-    else:
-        module = importlib.import_module(mod_name)
+    if mod_name in sys.modules:
+        try:
+            module = importlib.reload(sys.modules[mod_name])
+            return mod_name, module
+        except Exception:
+            LOGGER.error(
+                "Error reloading module %s from %s: %s",
+                mod_name,
+                module_path,
+                traceback.format_exc(limit=1),
+            )
+            raise
 
-    return module
+    try:
+        module = importlib.import_module(mod_name)
+        return mod_name, module
+    except Exception:
+        LOGGER.error(
+            "Error importing module %s from %s: %s",
+            mod_name,
+            module_path,
+            traceback.format_exc(limit=1),
+        )
+        raise
 
 
 def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
@@ -327,10 +386,19 @@ def _module_name_for(app_dir: Path, full_path: Path, pkg_name: str) -> str:
         /path/to/apps/my_app.py         -> apps.my_app
         /path/to/apps/notifications/email_digest.py -> apps.notifications.email_digest
     """
+    if not full_path.exists():
+        raise FileNotFoundError(f"Module path does not exist: {full_path}")
+
+    if full_path.is_dir():
+        raise IsADirectoryError(f"Module path is a directory, expected a file: {full_path}")
+
     app_dir = app_dir.resolve()
     full_path = full_path.resolve()
+
     rel = full_path.relative_to(app_dir).with_suffix("")  # drop .py
     parts = list(rel.parts)
+    if pkg_name == "":
+        return ".".join(parts)
     return ".".join([pkg_name, *parts])
 
 

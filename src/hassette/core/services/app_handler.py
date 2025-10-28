@@ -67,7 +67,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
     def create(cls, hassette: "Hassette"):
         inst = cls(hassette, parent=hassette)
         inst.apps_config = {}
-        inst.set_apps_configs(hassette.config.apps)
+        inst.set_apps_configs(hassette.config.app_manifests)
         inst.only_app = None
         inst.apps = defaultdict(dict)
         inst.failed_apps = defaultdict(list)
@@ -324,7 +324,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         except Exception as e:
             self.logger.exception("Failed to reload configuration: %s", e)
 
-        self.set_apps_configs(self.hassette.config.apps)
+        self.set_apps_configs(self.hassette.config.app_manifests)
         curr_apps_config = deepcopy(self.active_apps_config)
 
         return original_apps_config, curr_apps_config
@@ -390,7 +390,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         orphans = original_app_keys - curr_app_keys
         new_apps = curr_app_keys - original_app_keys
 
-        reimport_apps = {app.app_key for app in curr_apps_config.values() if app.get_full_path() == changed_path}
+        reimport_apps = {app.app_key for app in curr_apps_config.values() if app.full_path == changed_path}
 
         reload_apps = {
             app_key

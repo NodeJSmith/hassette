@@ -1,7 +1,9 @@
 import asyncio
 import typing
 from collections.abc import Mapping
-from typing import Any, TypedDict, TypeVar, Unpack
+from typing import Any, TypeVar, Unpack
+
+from typing_extensions import TypedDict
 
 from hassette import topics
 from hassette.const import NOT_PROVIDED

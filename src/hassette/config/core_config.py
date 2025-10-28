@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 import platformdirs
 from packaging.version import Version
-from pydantic import AliasChoices, BeforeValidator, Field, ValidationInfo, field_validator, model_validator
+from pydantic import AliasChoices, BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette.config.app_manifest import AppManifest
@@ -17,7 +17,8 @@ from hassette.config.sources_helper import HassetteTomlConfigSettingsSource
 from hassette.const import LOG_LEVELS
 from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
-from hassette.utils.app_utils import auto_detect_app_manifests
+from hassette.types.types import AppDict, RawAppDict
+from hassette.utils.app_utils import auto_detect_apps, clean_app
 
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
@@ -34,6 +35,8 @@ except ValueError:
 
 LOGGER_NAME = "hassette.config.core_config" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
+
+AUTODETECT_EXCLUDE_DIRS_DEFAULT = (".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".git")
 
 
 def get_dev_mode():
@@ -127,6 +130,7 @@ class HassetteConfig(BaseSettings):
         coerce_numbers_to_str=True,
         validate_by_name=True,
         use_attribute_docstrings=True,
+        validate_assignment=True,
         cli_prog_name="hassette",
         cli_ignore_unknown_args=True,
         cli_parse_args=True,
@@ -190,9 +194,24 @@ class HassetteConfig(BaseSettings):
     auto_detect_apps: bool = Field(default=True)
     """Whether to automatically detect apps in the app directory."""
 
+    extend_auto_detect_exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
+    """Additional directories to exclude when auto-detecting apps in the app directory."""
+
+    auto_detect_exclude_dirs: tuple[str, ...] = Field(
+        default_factory=lambda data: (
+            *data.get("extend_auto_detect_exclude_dirs", ()),
+            *AUTODETECT_EXCLUDE_DIRS_DEFAULT,
+        )
+    )
+    """Directories to exclude when auto-detecting apps in the app directory. Prefer `extend_auto_detect_exclude_dirs`
+    to avoid removing the defaults."""
+
     # App configurations
-    apps: dict[str, AppManifest] = Field(default_factory=dict)
-    """Configuration for Hassette apps, keyed by app name."""
+    apps: dict[str, RawAppDict] = Field(default_factory=dict)
+    """Raw configuration for Hassette apps, keyed by app name."""
+
+    app_manifests: dict[str, AppManifest] = Field(default_factory=dict)
+    """Validated app manifests, keyed by app name."""
 
     # Service configurations
 
@@ -342,9 +361,9 @@ class HassetteConfig(BaseSettings):
         files.add(self.app_dir.resolve())
 
         # just add everything from here, since we'll filter it to only existing and remove duplicates later
-        for app in self.apps.values():
+        for app in self.app_manifests.values():
             with suppress(FileNotFoundError):
-                files.add(app.get_full_path())
+                files.add(app.full_path)
                 files.add(app.app_dir)
 
         files = filter_paths_to_unique_existing(files)
@@ -368,41 +387,46 @@ class HassetteConfig(BaseSettings):
         """Return a truncated version of the token for display purposes."""
         return f"{self.token[:6]}...{self.token[-6:]}"
 
+    @field_validator("apps", mode="before")
+    @classmethod
+    def remove_incomplete_apps(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """Remove any apps that are missing required fields before validation."""
+
+        required_keys = {"filename", "class_name"}
+        missing_required = {k: v for k, v in value.items() if isinstance(v, dict) and not required_keys.issubset(v)}
+        if missing_required:
+            LOGGER.warning(
+                "The following apps are missing required keys (%s) and will be ignored: %s",
+                ", ".join(required_keys),
+                list(missing_required.keys()),
+            )
+            for k in missing_required:
+                value.pop(k)
+
+        return value
+
+    @field_validator("app_dir", "config_dir", "data_dir", mode="after")
+    @classmethod
+    def resolve_paths(cls, value: Path) -> Path:
+        """Ensure that paths are resolved to absolute paths."""
+        resolved = value.resolve()
+        if not resolved.exists():
+            LOGGER.debug("Creating directory %s as it does not exist", resolved)
+            resolved.mkdir(parents=True, exist_ok=True)
+        return resolved
+
     @model_validator(mode="after")
     def validate_hassette_config(self) -> "HassetteConfig":
-        self.app_dir = self.app_dir.resolve()
-        self.config_dir = self.config_dir.resolve()
-        self.data_dir = self.data_dir.resolve()
+        ctx.HASSETTE_CONFIG.set(self)
 
         LOGGER.info("Hassette version: %s", VERSION)
 
         LOGGER.debug("Hassette configuration: %s", self.model_dump_json(indent=4))
 
-        active_apps = [app for app in self.apps.values() if app.enabled]
-        if active_apps:
-            LOGGER.info("Active apps: %s", active_apps)
-        else:
-            LOGGER.info("No active apps found.")
-
-        inactive_apps = [app for app in self.apps.values() if not app.enabled]
-        if inactive_apps:
-            LOGGER.info("Inactive apps: %s", inactive_apps)
-
         return self
 
-    @field_validator("apps", mode="before")
-    @classmethod
-    def validate_apps(cls, values: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
-        """Sets the app_dir in each app manifest if not already set."""
-        return validate_apps(values, info.data.get("app_dir"), info.data.get("auto_detect_apps", True))
-
     def model_post_init(self, context: Any):
-        ctx.HASSETTE_CONFIG.set(self)
-
         enable_logging(self.log_level)
-
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.config_dir.mkdir(parents=True, exist_ok=True)
 
         tz = os.getenv("TZ")
         if tz:
@@ -412,6 +436,7 @@ class HassetteConfig(BaseSettings):
         """Reload the configuration from all sources."""
         # we don't need to pass the base_config here, since it's already set on self
         self.__init__()  # type: ignore
+        self.set_validated_app_manifests()
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":
@@ -422,6 +447,40 @@ class HassetteConfig(BaseSettings):
             return inst
 
         raise RuntimeError("HassetteConfig instance not initialized yet.")
+
+    def set_validated_app_manifests(self):
+        """Cleans up and validates the apps configuration, including auto-detection."""
+        cleaned_apps_dict: dict[str, AppDict] = {}
+
+        # track known paths to simplify dupe detection during auto-detect
+        known_paths: set[Path] = set()
+
+        for k, v in self.apps.copy().items():
+            if not isinstance(v, dict):
+                continue
+            v = clean_app(k, v, self.app_dir)
+            cleaned_apps_dict[k] = v
+
+            # track known paths
+            known_paths.add(v["full_path"])
+
+        if self.auto_detect_apps:
+            auto_detected_apps = auto_detect_apps(self.app_dir, known_paths)
+            for k, v in auto_detected_apps.items():
+                app_dir = v["app_dir"]
+                full_path = app_dir / v["filename"]
+                LOGGER.info("Auto-detected app %s from %s", k, full_path)
+                if k in cleaned_apps_dict:
+                    LOGGER.debug("Skipping auto-detected app %s as it conflicts with manually configured app", k)
+                    continue
+                cleaned_apps_dict[k] = v
+                known_paths.add(full_path.resolve())
+
+        app_manifest_dict: dict[str, AppManifest] = {}
+        for k, v in cleaned_apps_dict.items():
+            app_manifest_dict[k] = AppManifest.model_validate(v)
+
+        self.app_manifests = app_manifest_dict
 
 
 def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | None | set[Path]) -> set[Path]:
@@ -442,74 +501,6 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     paths = set(p for p in paths if p.exists())
 
     return paths
-
-
-def validate_apps(values: dict[str, Any], app_dir: Path | None, auto_detect: bool) -> dict[str, Any]:
-    """Sets the app_dir in each app manifest if not already set.
-
-    Args:
-        values (dict[str, Any]): The app configurations to validate.
-        app_dir (Path | None): The application directory.
-        auto_detect (bool): Whether to automatically detect apps.
-
-    Returns:
-        dict[str, Any]: The validated app configurations.
-
-    This is separated from the HassetteConfig class to allow easier testing.
-
-    """
-    required_keys = {"filename", "class_name"}
-    missing_required = {k: v for k, v in values.items() if isinstance(v, dict) and not required_keys.issubset(v)}
-    if missing_required:
-        LOGGER.warning(
-            "The following apps are missing required keys (%s) and will be ignored: %s",
-            ", ".join(required_keys),
-            list(missing_required.keys()),
-        )
-        for k in missing_required:
-            values.pop(k)
-
-    if not app_dir:
-        return values
-
-    paths: set[Path] = set()
-
-    for k, v in values.items():
-        if not isinstance(v, dict):
-            continue
-        v["app_key"] = k
-        filename = Path(v["filename"])
-
-        # handle missing file extensions
-        if not filename.suffix:
-            LOGGER.debug("Filename %s for app %s has no extension, assuming .py", v["filename"], v["app_key"])
-            v["filename"] = filename.with_suffix(".py").as_posix()
-
-        if "app_dir" not in v or not v["app_dir"]:
-            LOGGER.debug("Setting app_dir for app %s to %s", v["filename"], app_dir)
-            v["app_dir"] = app_dir
-        path = Path(v["app_dir"]) / str(v["filename"])
-        paths.add(path.resolve())
-
-    if not auto_detect:
-        return values
-
-    auto_detected_apps = auto_detect_app_manifests(app_dir, paths)
-    for k, v in auto_detected_apps.items():
-        full_path = v.app_dir / v.filename
-        LOGGER.info("Auto-detected app %s from %s", k, full_path)
-        if k in values:
-            LOGGER.debug("Skipping auto-detected app %s as it conflicts with manually configured app", k)
-            continue
-        values[k] = {
-            "filename": v.filename,
-            "class_name": v.class_name,
-            "app_dir": v.app_dir,
-            "app_key": v.app_key,
-            "enabled": v.enabled,
-        }
-
-    return values
 
 
 if __name__ == "__main__":

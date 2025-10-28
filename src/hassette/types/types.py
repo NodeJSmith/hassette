@@ -1,8 +1,9 @@
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import time
-from typing import Any, Protocol, TypeAlias, TypeVar
+from pathlib import Path
+from typing import Any, Protocol, Required, TypeAlias, TypeVar
 
-from typing_extensions import Sentinel, TypeAliasType
+from typing_extensions import Sentinel, TypeAliasType, TypedDict
 from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
 from .event import EventT
@@ -53,3 +54,30 @@ JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
 
 ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
 """Type for specifying start times."""
+
+
+class RawAppDict(TypedDict, total=False):
+    """Structure for raw app configuration before processing.
+
+    Not all fields are required at this stage, as we will enrich and validate them later.
+    """
+
+    filename: Required[str]
+    class_name: Required[str]
+    app_dir: Path | str
+    enabled: bool
+    config: dict[str, Any] | list[dict[str, Any]]
+    auto_loaded: bool
+
+
+class AppDict(TypedDict, total=False):
+    """Structure for processed app configuration."""
+
+    app_key: Required[str]
+    filename: Required[str]
+    class_name: Required[str]
+    app_dir: Required[Path]
+    enabled: bool
+    config: list[dict[str, Any]]
+    auto_loaded: bool
+    full_path: Required[Path]
