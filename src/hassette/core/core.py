@@ -57,11 +57,25 @@ class Hassette(Resource):
             env_file (str | Path | None): Path to the environment file for configuration.
             config (HassetteConfig | None): Optional pre-loaded configuration.
         """
+
         self.config = config
-        run_apps_pre_check(self.config)
 
         self.unique_id = ""
         super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
+
+        self.config.set_validated_app_manifests()
+
+        active_apps = [app for app in self.config.app_manifests.values() if app.enabled]
+        if active_apps:
+            self.logger.info("Active apps: %s", active_apps)
+        else:
+            self.logger.info("No active apps found.")
+
+        inactive_apps = [app for app in self.config.app_manifests.values() if not app.enabled]
+        if inactive_apps:
+            self.logger.info("Inactive apps: %s", inactive_apps)
+
+        run_apps_pre_check(self.config)
 
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event"]](1000)
 

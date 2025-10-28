@@ -7,7 +7,6 @@ import typing
 from logging import getLogger
 from pathlib import Path
 
-from hassette.config.app_manifest import AppManifest
 from hassette.core import context
 from hassette.core.resources.app.app import App, AppSync
 from hassette.exceptions import (
@@ -16,11 +15,13 @@ from hassette.exceptions import (
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
+from hassette.types.types import AppDict
 
 if typing.TYPE_CHECKING:
     from types import ModuleType
 
     from hassette import AppConfig, HassetteConfig
+    from hassette.config.app_manifest import AppManifest
 
 
 LOGGER = getLogger(__name__)
@@ -106,6 +107,10 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         if not app_manifest.enabled:
             continue
 
+        if app_manifest.auto_loaded:
+            # skip auto-detected apps; they were already checked during detection
+            continue
+
         try:
             load_app_class_from_manifest(app_manifest=app_manifest)
 
@@ -129,7 +134,22 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         raise AppPrecheckFailedError("At least one app failed to load — see previous logs for details")
 
 
-def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str, AppManifest]:
+def clean_app(app_key: str, app_dict: AppDict, app_dir: Path):
+    app_dict["app_key"] = app_key
+    filename = Path(app_dict["filename"])
+
+    # handle missing file extensions
+    if not filename.suffix:
+        LOGGER.debug("Filename %s for app %s has no extension, assuming .py", filename.name, app_key)
+        app_dict["filename"] = filename.with_suffix(".py").as_posix()
+
+    if "app_dir" not in app_dict or not app_dict["app_dir"]:
+        LOGGER.debug("Setting app_dir for app %s to %s", filename, app_dir)
+        app_dict["app_dir"] = app_dir
+    return app_dict
+
+
+def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict]:
     """Auto-detect app manifests in the provided app directory.
 
     Args:
@@ -137,12 +157,15 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
         known_paths (set[Path]): Set of paths that are already known/configured.
 
     Returns:
-        dict[str, AppManifest]: Detected app manifests, keyed by app name.
+        dict[str, AppDict]: Detected app manifests, keyed by app name.
     """
 
-    app_manifests: dict[str, AppManifest] = {}
+    app_manifests: dict[str, AppDict] = {}
 
-    default_exclude_dirs = {".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".git"}
+    config = context.HASSETTE_CONFIG.get(None)
+    if not config:
+        raise RuntimeError("HassetteConfig is not available in context")
+    default_exclude_dirs = set(config.auto_detect_exclude_dirs)
 
     py_files = app_dir.rglob("*.py")
     for py_file in py_files:
@@ -163,15 +186,16 @@ def auto_detect_app_manifests(app_dir: Path, known_paths: set[Path]) -> dict[str
                     continue
                 if issubclass(cls, (App, AppSync)) and cls not in (App, AppSync):
                     app_key = f"{path_str}.{class_name}"
-                    app_manifest = AppManifest(
+                    app_dict = AppDict(
                         filename=py_file.name,
                         class_name=class_name,
                         app_dir=app_dir,
                         app_key=app_key,
                         enabled=True,
+                        auto_loaded=True,
                     )
-                    app_manifests[app_key] = app_manifest
-                    LOGGER.info("Auto-detected app manifest: %s", app_manifest)
+                    app_manifests[app_key] = app_dict
+                    LOGGER.info("Auto-detected app manifest: %s", app_dict)
         except Exception:
             LOGGER.exception("Failed to auto-detect app classes in %s", py_file)
 
@@ -277,14 +301,14 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str,
     else:
         try:
             module = importlib.import_module(mod_name)
-        except Exception as e:
+        except Exception:
             LOGGER.error(
                 "Error importing module %s from %s: %s",
                 mod_name,
                 module_path,
                 traceback.format_exc(limit=1),
             )
-            raise e
+            raise
 
     return mod_name, module
 
