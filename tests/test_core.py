@@ -30,7 +30,7 @@ if typing.TYPE_CHECKING:
 @pytest.fixture
 async def hassette_instance(test_config: HassetteConfig):
     """Provide a fresh Hassette instance and restore context afterwards."""
-    previous_instance = context.HASSETTE_INSTANCE.get(None)
+    test_config.reload()
     instance = Hassette(test_config)
     try:
         yield instance
@@ -46,8 +46,6 @@ async def hassette_instance(test_config: HassetteConfig):
         with suppress(Exception):
             if not instance._bus_service.stream._closed:
                 await instance._bus_service.stream.aclose()
-
-        context.HASSETTE_INSTANCE.set(previous_instance)
 
 
 def test_unique_name_is_constant(hassette_instance: Hassette) -> None:
