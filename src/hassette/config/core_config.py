@@ -411,7 +411,8 @@ class HassetteConfig(BaseSettings):
         """Ensure that paths are resolved to absolute paths."""
         resolved = value.resolve()
         if not resolved.exists():
-            raise ValueError(f"Path does not exist: {resolved}")
+            LOGGER.debug("Creating directory %s as it does not exist", resolved)
+            resolved.mkdir(parents=True, exist_ok=True)
         return resolved
 
     @model_validator(mode="after")
@@ -426,9 +427,6 @@ class HassetteConfig(BaseSettings):
 
     def model_post_init(self, context: Any):
         enable_logging(self.log_level)
-
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.config_dir.mkdir(parents=True, exist_ok=True)
 
         tz = os.getenv("TZ")
         if tz:
