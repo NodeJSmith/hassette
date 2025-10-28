@@ -390,7 +390,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         orphans = original_app_keys - curr_app_keys
         new_apps = curr_app_keys - original_app_keys
 
-        reimport_apps = {app.app_key for app in curr_apps_config.values() if app.get_full_path() == changed_path}
+        reimport_apps = {app.app_key for app in curr_apps_config.values() if app.full_path == changed_path}
 
         reload_apps = {
             app_key

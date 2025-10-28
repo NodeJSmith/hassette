@@ -17,7 +17,7 @@ from hassette.config.sources_helper import HassetteTomlConfigSettingsSource
 from hassette.const import LOG_LEVELS
 from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
-from hassette.types.types import AppDict
+from hassette.types.types import AppDict, RawAppDict
 from hassette.utils.app_utils import auto_detect_apps, clean_app
 
 PACKAGE_KEY = "hassette"
@@ -207,7 +207,7 @@ class HassetteConfig(BaseSettings):
     to avoid removing the defaults."""
 
     # App configurations
-    apps: dict[str, AppDict] = Field(default_factory=dict)
+    apps: dict[str, RawAppDict] = Field(default_factory=dict)
     """Raw configuration for Hassette apps, keyed by app name."""
 
     app_manifests: dict[str, AppManifest] = Field(default_factory=dict)
@@ -363,7 +363,7 @@ class HassetteConfig(BaseSettings):
         # just add everything from here, since we'll filter it to only existing and remove duplicates later
         for app in self.app_manifests.values():
             with suppress(FileNotFoundError):
-                files.add(app.get_full_path())
+                files.add(app.full_path)
                 files.add(app.app_dir)
 
         files = filter_paths_to_unique_existing(files)
@@ -450,22 +450,25 @@ class HassetteConfig(BaseSettings):
 
     def set_validated_app_manifests(self):
         """Cleans up and validates the apps configuration, including auto-detection."""
-        cleaned_apps_dict = self.apps.copy()
+        cleaned_apps_dict: dict[str, AppDict] = {}
 
         # track known paths to simplify dupe detection during auto-detect
         known_paths: set[Path] = set()
 
-        for k, v in cleaned_apps_dict.items():
+        for k, v in self.apps.copy().items():
             if not isinstance(v, dict):
                 continue
             v = clean_app(k, v, self.app_dir)
-            full_path = Path(v["app_dir"]) / v["filename"]
-            known_paths.add(full_path.resolve())
+            cleaned_apps_dict[k] = v
+
+            # track known paths
+            known_paths.add(v["full_path"])
 
         if self.auto_detect_apps:
             auto_detected_apps = auto_detect_apps(self.app_dir, known_paths)
             for k, v in auto_detected_apps.items():
-                full_path = Path(v["app_dir"]) / v["filename"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
+                app_dir = Path(v.get("app_dir", self.app_dir))
+                full_path = app_dir / v["filename"]
                 LOGGER.info("Auto-detected app %s from %s", k, full_path)
                 if k in cleaned_apps_dict:
                     LOGGER.debug("Skipping auto-detected app %s as it conflicts with manually configured app", k)

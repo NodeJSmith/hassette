@@ -56,11 +56,28 @@ ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | tuple[int, int] | T
 """Type for specifying start times."""
 
 
-class AppDict(TypedDict, total=False):
-    app_key: str
+class RawAppDict(TypedDict, total=False):
+    """Structure for raw app configuration before processing.
+
+    Not all fields are required at this stage, as we will enrich and validate them later.
+    """
+
     filename: Required[str]
     class_name: Required[str]
     app_dir: Path | str
     enabled: bool
-    app_config: list[dict[str, Any]]
+    config: dict[str, Any] | list[dict[str, Any]]
     auto_loaded: bool
+
+
+class AppDict(TypedDict, total=False):
+    """Structure for processed app configuration."""
+
+    app_key: Required[str]
+    filename: Required[str]
+    class_name: Required[str]
+    app_dir: Required[Path]
+    enabled: bool
+    config: list[dict[str, Any]]
+    auto_loaded: bool
+    full_path: Required[Path]

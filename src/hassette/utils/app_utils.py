@@ -15,7 +15,7 @@ from hassette.exceptions import (
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
-from hassette.types.types import AppDict
+from hassette.types.types import AppDict, RawAppDict
 
 if typing.TYPE_CHECKING:
     from types import ModuleType
@@ -134,8 +134,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         raise AppPrecheckFailedError("At least one app failed to load — see previous logs for details")
 
 
-def clean_app(app_key: str, app_dict: AppDict, app_dir: Path):
-    app_dict["app_key"] = app_key
+def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path):
     filename = Path(app_dict["filename"])
 
     # handle missing file extensions
@@ -146,7 +145,24 @@ def clean_app(app_key: str, app_dict: AppDict, app_dir: Path):
     if "app_dir" not in app_dict or not app_dict["app_dir"]:
         LOGGER.debug("Setting app_dir for app %s to %s", filename, app_dir)
         app_dict["app_dir"] = app_dir
-    return app_dict
+
+    full_path = (Path(app_dict["app_dir"]) / app_dict["filename"]).resolve()
+
+    config = app_dict.get("config", [])
+    config = config if isinstance(config, list) else [config]
+
+    clean_app_dict = AppDict(
+        app_key=app_key,
+        filename=app_dict["filename"],
+        class_name=app_dict["class_name"],
+        app_dir=Path(app_dict["app_dir"]),
+        enabled=app_dict.get("enabled", True),
+        config=config,
+        auto_loaded=app_dict.get("auto_loaded", False),
+        full_path=full_path,
+    )
+
+    return clean_app_dict
 
 
 def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict]:
@@ -193,6 +209,8 @@ def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict
                         app_key=app_key,
                         enabled=True,
                         auto_loaded=True,
+                        full_path=full_path,
+                        config=[],
                     )
                     app_manifests[app_key] = app_dict
                     LOGGER.info("Auto-detected app manifest: %s", app_dict)
@@ -214,7 +232,7 @@ def load_app_class_from_manifest(app_manifest: "AppManifest", force_reload: bool
     """
     return load_app_class(
         app_dir=app_manifest.app_dir,
-        module_path=app_manifest.get_full_path(),
+        module_path=app_manifest.full_path,
         class_name=app_manifest.class_name,
         display_name=app_manifest.display_name,
         force_reload=force_reload,
