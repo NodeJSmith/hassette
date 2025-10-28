@@ -467,7 +467,7 @@ class HassetteConfig(BaseSettings):
         if self.auto_detect_apps:
             auto_detected_apps = auto_detect_apps(self.app_dir, known_paths)
             for k, v in auto_detected_apps.items():
-                app_dir = Path(v.get("app_dir", self.app_dir))
+                app_dir = v["app_dir"]
                 full_path = app_dir / v["filename"]
                 LOGGER.info("Auto-detected app %s from %s", k, full_path)
                 if k in cleaned_apps_dict:
