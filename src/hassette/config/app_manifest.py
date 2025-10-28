@@ -37,6 +37,9 @@ class AppManifest(BaseModel):
     )
     """Instance configuration for the app"""
 
+    auto_loaded: bool = Field(default=False)
+    """Whether the app was auto-detected or manually configured"""
+
     _full_path: Path | None = None  # Cached full path after first access
 
     def get_full_path(self) -> Path:
