@@ -452,19 +452,6 @@ class HassetteConfig(BaseSettings):
         """Cleans up and validates the apps configuration, including auto-detection."""
         cleaned_apps_dict = self.apps.copy()
 
-        required_keys = {"filename", "class_name"}
-        missing_required = {
-            k: v for k, v in cleaned_apps_dict.items() if isinstance(v, dict) and not required_keys.issubset(v)
-        }
-        if missing_required:
-            LOGGER.warning(
-                "The following apps are missing required keys (%s) and will be ignored: %s",
-                ", ".join(required_keys),
-                list(missing_required.keys()),
-            )
-            for k in missing_required:
-                cleaned_apps_dict.pop(k)
-
         # track known paths to simplify dupe detection during auto-detect
         known_paths: set[Path] = set()
 
