@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import time
-from typing import Any, Protocol, TypeAlias, TypeVar
+from pathlib import Path
+from typing import Any, Protocol, Required, TypeAlias, TypedDict, TypeVar
 
 from typing_extensions import Sentinel, TypeAliasType
 from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
@@ -53,3 +54,13 @@ JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
 
 ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
 """Type for specifying start times."""
+
+
+class AppDict(TypedDict, total=False):
+    app_key: str
+    filename: Required[str]
+    class_name: Required[str]
+    app_dir: Path | str
+    enabled: bool
+    app_config: list[dict[str, Any]]
+    auto_loaded: bool

@@ -191,8 +191,11 @@ class HassetteConfig(BaseSettings):
     """Whether to automatically detect apps in the app directory."""
 
     # App configurations
-    apps: dict[str, AppManifest] = Field(default_factory=dict)
-    """Configuration for Hassette apps, keyed by app name."""
+    apps: dict[str, AppDict] = Field(default_factory=dict)
+    """Raw configuration for Hassette apps, keyed by app name."""
+
+    app_manifests: dict[str, AppManifest] = Field(default_factory=dict)
+    """Validated app manifests, keyed by app name."""
 
     # Service configurations
 
@@ -342,7 +345,7 @@ class HassetteConfig(BaseSettings):
         files.add(self.app_dir.resolve())
 
         # just add everything from here, since we'll filter it to only existing and remove duplicates later
-        for app in self.apps.values():
+        for app in self.app_manifests.values():
             with suppress(FileNotFoundError):
                 files.add(app.get_full_path())
                 files.add(app.app_dir)

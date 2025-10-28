@@ -102,7 +102,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
 
     had_errors = False
 
-    for app_manifest in config.apps.values():
+    for app_manifest in config.app_manifests.values():
         if not app_manifest.enabled:
             continue
 
