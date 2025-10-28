@@ -1,7 +1,7 @@
 import typing
 from types import SimpleNamespace
 
-from hassette import predicates as P
+from hassette.bus import predicates as P
 from hassette.events import Event
 
 

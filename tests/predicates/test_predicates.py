@@ -5,9 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from hassette import accessors as A
-from hassette import conditions as C
-from hassette import predicates as P
+from hassette.bus import accessors as A
+from hassette.bus import conditions as C
+from hassette.bus import predicates as P
 from hassette.const import MISSING_VALUE, NOT_PROVIDED
 from hassette.core.resources.bus.predicates.utils import compare_value, ensure_tuple, normalize_where
 from hassette.events import CallServiceEvent, Event
