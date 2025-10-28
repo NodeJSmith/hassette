@@ -297,20 +297,29 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str,
 
     # 3) Import or reload the module by canonical name
     if mod_name in sys.modules:
-        module = importlib.reload(sys.modules[mod_name])
-    else:
         try:
-            module = importlib.import_module(mod_name)
+            module = importlib.reload(sys.modules[mod_name])
+            return mod_name, module
         except Exception:
             LOGGER.error(
-                "Error importing module %s from %s: %s",
+                "Error reloading module %s from %s: %s",
                 mod_name,
                 module_path,
                 traceback.format_exc(limit=1),
             )
             raise
 
-    return mod_name, module
+    try:
+        module = importlib.import_module(mod_name)
+        return mod_name, module
+    except Exception:
+        LOGGER.error(
+            "Error importing module %s from %s: %s",
+            mod_name,
+            module_path,
+            traceback.format_exc(limit=1),
+        )
+        raise
 
 
 def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
