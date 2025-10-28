@@ -20,6 +20,7 @@ async def _build_harness(**kwargs) -> "AsyncIterator[HassetteHarness]":
         yield harness
     finally:
         await harness.stop()
+        harness.config.reload()
 
 
 @pytest.fixture(scope="module")
