@@ -40,49 +40,11 @@ class AppManifest(BaseModel):
     auto_loaded: bool = Field(default=False)
     """Whether the app was auto-detected or manually configured"""
 
-    _full_path: Path | None = None  # Cached full path after first access
-
-    def get_full_path(self) -> Path:
-        """Get the full path to the app file."""
-        if self._full_path is None:
-            self._full_path = self._get_full_path()
-        return self._full_path
-
-    def _get_full_path(self) -> Path:
-        """Get the full path to the app file."""
-        if self.app_dir and self.app_dir.exists() and self.app_dir.is_file():
-            return self.app_dir
-
-        path = (self.app_dir or Path.cwd()).resolve()
-        if not path.exists():
-            raise FileNotFoundError(f"App path {path} does not exist")
-
-        if path.is_dir():
-            full_path = path / self.filename
-            if not full_path.exists():
-                raise FileNotFoundError(f"App file {self.filename} does not exist in path {path}")
-
-            return full_path
-
-        raise FileNotFoundError(f"Could not find {self.filename} in directory {path}")
+    full_path: Path
+    """Fully resolved path to the app file"""
 
     def __repr__(self) -> str:
         return f"<AppManifest {self.display_name} ({self.class_name}) - enabled={self.enabled} file={self.filename}>"
-
-    @field_validator("filename", mode="before")
-    @classmethod
-    def validate_filename(cls, v: str) -> str:
-        """Validate the filename."""
-        if not v:
-            raise ValueError("Filename must be set")
-
-        fpath = Path(v)
-        if not fpath.suffix:
-            # No extension, add .py
-            return str(fpath.with_suffix(".py"))
-        if fpath.suffix != ".py":
-            raise ValueError(f"Filename '{v}' has an invalid extension '{fpath.suffix}'. Only '.py' files are allowed.")
-        return v
 
     @model_validator(mode="before")
     @classmethod
