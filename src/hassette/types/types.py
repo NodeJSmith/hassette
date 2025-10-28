@@ -1,9 +1,9 @@
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import time
 from pathlib import Path
-from typing import Any, Protocol, Required, TypeAlias, TypedDict, TypeVar
+from typing import Any, Protocol, Required, TypeAlias, TypeVar
 
-from typing_extensions import Sentinel, TypeAliasType
+from typing_extensions import Sentinel, TypeAliasType, TypedDict
 from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
 from .event import EventT
