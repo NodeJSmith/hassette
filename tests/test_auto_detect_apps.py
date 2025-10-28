@@ -112,14 +112,14 @@ class TestAutoDetectApps:
         assert len(result) == 1
         assert "apps.simple_app.SimpleApp" in result
 
-        manifest = result["apps.simple_app.SimpleApp"]
-        assert manifest["filename"] == "simple_app.py", f"Expected 'simple_app.py', got '{manifest['filename']}'"
-        assert manifest["class_name"] == "SimpleApp", f"Expected 'SimpleApp', got '{manifest['class_name']}'"
-        assert manifest["app_dir"] == app_dir, f"Expected '{app_dir}', got '{manifest['app_dir']}'"
-        assert manifest["app_key"] == "apps.simple_app.SimpleApp", (
-            f"Expected 'apps.simple_app.SimpleApp', got '{manifest['app_key']}'"
+        app_dict = result["apps.simple_app.SimpleApp"]
+        assert app_dict["filename"] == "simple_app.py", f"Expected 'simple_app.py', got '{app_dict['filename']}'"
+        assert app_dict["class_name"] == "SimpleApp", f"Expected 'SimpleApp', got '{app_dict['class_name']}'"
+        assert app_dict["app_dir"] == app_dir, f"Expected '{app_dir}', got '{app_dict['app_dir']}'"
+        assert app_dict["app_key"] == "apps.simple_app.SimpleApp", (
+            f"Expected 'apps.simple_app.SimpleApp', got '{app_dict['app_key']}'"
         )
-        assert manifest["enabled"] is True, f"Expected 'True', got '{manifest['enabled']}'"
+        assert app_dict["enabled"] is True, f"Expected 'True', got '{app_dict['enabled']}'"
 
     def test_auto_detect_sync_app(self, tmp_path: Path):
         """Test auto-detection of a sync app."""
@@ -145,9 +145,9 @@ class TestAutoDetectApps:
         assert len(result) == 1
         assert "apps.sync_app.MySyncApp" in result, "Expected to find 'apps.sync_app.MySyncApp' in detected apps"
 
-        manifest = result["apps.sync_app.MySyncApp"]
-        assert manifest["filename"] == "sync_app.py", f"Expected 'sync_app.py', got '{manifest['filename']}'"
-        assert manifest["class_name"] == "MySyncApp", f"Expected 'MySyncApp', got '{manifest['class_name']}'"
+        app_dict = result["apps.sync_app.MySyncApp"]
+        assert app_dict["filename"] == "sync_app.py", f"Expected 'sync_app.py', got '{app_dict['filename']}'"
+        assert app_dict["class_name"] == "MySyncApp", f"Expected 'MySyncApp', got '{app_dict['class_name']}'"
 
     def test_auto_detect_multiple_apps_in_file(self, tmp_path: Path):
         """Test auto-detection when multiple app classes exist in one file."""
@@ -176,12 +176,12 @@ class TestAutoDetectApps:
         assert "apps.multi_apps.FirstApp" in result, "Expected to find 'apps.multi_apps.FirstApp' in detected apps"
         assert "apps.multi_apps.SecondApp" in result, "Expected to find 'apps.multi_apps.SecondApp' in detected apps"
 
-        first_manifest = result["apps.multi_apps.FirstApp"]
-        assert first_manifest["class_name"] == "FirstApp", f"Expected 'FirstApp', got '{first_manifest['class_name']}'"
+        first_app_dict = result["apps.multi_apps.FirstApp"]
+        assert first_app_dict["class_name"] == "FirstApp", f"Expected 'FirstApp', got '{first_app_dict['class_name']}'"
 
-        second_manifest = result["apps.multi_apps.SecondApp"]
-        assert second_manifest["class_name"] == "SecondApp", (
-            f"Expected 'SecondApp', got '{second_manifest['class_name']}'"
+        second_app_dict = result["apps.multi_apps.SecondApp"]
+        assert second_app_dict["class_name"] == "SecondApp", (
+            f"Expected 'SecondApp', got '{second_app_dict['class_name']}'"
         )
 
     def test_auto_detect_nested_directory(self, tmp_path: Path):
@@ -213,13 +213,13 @@ class TestAutoDetectApps:
             "Expected to find 'apps.notifications.email_notifier.EmailNotifier' in detected apps"
         )
 
-        manifest = result["apps.notifications.email_notifier.EmailNotifier"]
-        assert manifest["filename"] == "email_notifier.py", (
-            f"Expected 'email_notifier.py', got '{manifest['filename']}'"
+        app_dict = result["apps.notifications.email_notifier.EmailNotifier"]
+        assert app_dict["filename"] == "email_notifier.py", (
+            f"Expected 'email_notifier.py', got '{app_dict['filename']}'"
         )
-        assert manifest["class_name"] == "EmailNotifier", f"Expected 'EmailNotifier', got '{manifest['class_name']}'"
-        assert manifest["app_key"] == "apps.notifications.email_notifier.EmailNotifier", (
-            f"Expected 'apps.notifications.email_notifier.EmailNotifier', got '{manifest['app_key']}'"
+        assert app_dict["class_name"] == "EmailNotifier", f"Expected 'EmailNotifier', got '{app_dict['class_name']}'"
+        assert app_dict["app_key"] == "apps.notifications.email_notifier.EmailNotifier", (
+            f"Expected 'apps.notifications.email_notifier.EmailNotifier', got '{app_dict['app_key']}'"
         )
 
     def test_auto_detect_skips_known_paths(self, tmp_path: Path):
@@ -342,9 +342,9 @@ class TestAutoDetectApps:
         )
 
         # Verify the detected app has correct properties
-        good_manifest = result["apps.good_app.GoodApp"]
-        assert good_manifest["filename"] == "good_app.py", f"Expected 'good_app.py', got '{good_manifest['filename']}'"
-        assert good_manifest["class_name"] == "GoodApp", f"Expected 'GoodApp', got '{good_manifest['class_name']}'"
+        good_app_dict = result["apps.good_app.GoodApp"]
+        assert good_app_dict["filename"] == "good_app.py", f"Expected 'good_app.py', got '{good_app_dict['filename']}'"
+        assert good_app_dict["class_name"] == "GoodApp", f"Expected 'GoodApp', got '{good_app_dict['class_name']}'"
 
     def test_auto_detect_ignores_non_app_classes(self, tmp_path: Path):
         """Test that auto-detection ignores classes that don't inherit from App/AppSync."""
