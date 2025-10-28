@@ -484,6 +484,7 @@ class TestValidateApps:
             "app_dir": app_dir,
             "app_key": "auto.AutoApp",
             "enabled": True,
+            "full_path": app_dir / "auto.py",
         }
         mock_auto_detect.return_value = {"auto.AutoApp": mock_app_dict}
 
