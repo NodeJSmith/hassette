@@ -1,6 +1,6 @@
-from typing import Any, Literal
+from typing import Any, Literal, Required
 
-from typing_extensions import TypedDict, Required
+from typing_extensions import TypedDict
 
 # These represent the structure of the data as it comes from Home Assistant's websocket API, prior to any processing.
 
