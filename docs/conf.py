@@ -11,16 +11,20 @@ copyright = "2025, Jessica Smith"
 author = "Jessica Smith"
 
 extensions = [
-    "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
+    "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",  # for Google/NumPy-style docstrings
+    "sphinx.ext.intersphinx",  # for linking to external documentation
     "sphinxcontrib.autodoc_pydantic",  # renders BaseModel fields nicely
     "sphinx_copybutton",  # adds "copy" button to code blocks
 ]
 
-
-myst_enable_extensions = ["fieldlist"]
+# Intersphinx mapping for external library documentation
+intersphinx_mapping = {
+    "whenever": ("https://whenever.readthedocs.io/en/latest/", None),
+    "pydantic": ("https://docs.pydantic.dev/latest/", None),
+}
 
 PYDANTIC_IGNORE_FIELDS = [
     "dict",
@@ -69,6 +73,11 @@ html_theme_options = {
 html_css_files = ["style.css"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+autodoc_default_options = {
+    "member-order": "bysource",
+    "exclude-members": "__weakref__",
+    "members": True,
+}
 
 typehints_fully_qualified = False  # makes types like `str` instead of `builtins.str`
 
@@ -76,9 +85,6 @@ typehints_fully_qualified = False  # makes types like `str` instead of `builtins
 autodoc_class_signature = "separated"  # or "mixed"
 # autodoc_inherit_docstrings = False
 
-autodoc_default_flags = ["members"]
-autosummary_generate = True
-autosummary_imported_members = True
 autodoc_pydantic_model_show_config_summary = False
 autodoc_pydantic_settings_show_config_summary = False
 autodoc_pydantic_model_show_validator_summary = False

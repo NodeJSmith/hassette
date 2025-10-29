@@ -1,5 +1,3 @@
-# ruff: noqa: RUF022
-
 import typing
 from logging import getLogger
 from warnings import warn
@@ -169,13 +167,12 @@ def try_convert_state(data: "HassStateDict | None") -> StateUnion | None:
 
 
 __all__ = [
-    "BaseState",
-    # deliberately out of order to put BaseState first
-    "AirQualityState",
     "AiTaskState",
+    "AirQualityState",
     "AlarmControlPanelState",
     "AssistSatelliteState",
     "AutomationState",
+    "BaseState",
     "BinarySensorState",
     "ButtonState",
     "CalendarState",
@@ -206,25 +203,25 @@ __all__ = [
     "SceneState",
     "ScriptState",
     "SelectState",
+    "SensorAttributes",
     "SensorState",
     "SirenState",
+    "StateT",
+    "StateUnion",
+    "StateValueT",
     "SttState",
     "SunState",
     "SwitchState",
     "TextState",
-    "TimerState",
     "TimeState",
+    "TimerState",
     "TodoState",
     "TtsState",
     "UpdateState",
-    "VacuumState",
     "VacuumState",
     "ValveState",
     "WaterHeaterState",
     "WeatherState",
     "ZoneState",
-    "StateT",
-    "StateValueT",
     "try_convert_state",
-    "SensorAttributes",
 ]

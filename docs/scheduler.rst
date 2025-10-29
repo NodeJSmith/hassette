@@ -67,8 +67,6 @@ Helper methods include the following:
 
   - Accepts any of the following cron parameters: ``second``, ``minute``, ``hour``, ``day_of_month``, ``month``, ``day_of_week``.
 
-Detailed documentation for these can be found at :doc:`reference/core/scheduler`.
-
 
 Worked examples
 ---------------
