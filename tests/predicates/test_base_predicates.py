@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from hassette.bus.predicates.predicates import AllOf, AnyOf, Guard, Not
-from hassette.bus.predicates.utils import ensure_tuple, normalize_where
+from hassette.bus.predicates import AllOf, AnyOf, Guard, Not
+from hassette.bus.utils import ensure_tuple, normalize_where
 
 
 def test_allof_requires_all_predicates_true() -> None:

@@ -1,3 +1,162 @@
+"""
+API interface for interacting with Home Assistant's REST and WebSocket APIs.
+
+The Api provides both async and sync methods for all Home Assistant interactions including
+state management, service calls, event firing, and data retrieval. Automatically handles
+authentication, retries, and type conversion for a seamless developer experience.
+
+Examples
+--------
+
+**Getting entity states**
+
+.. code-block:: python
+
+    # Get all states (typed)
+    states = await self.api.get_states()
+
+    # Get specific entity state with type hint
+    light_state = await self.api.get_state("light.kitchen", states.LightState)
+    brightness = light_state.attributes.brightness
+
+    # Get raw state data
+    raw_state = await self.api.get_state_raw("sensor.temperature")
+
+**Calling services**
+
+.. code-block:: python
+
+    # Basic service call
+    await self.api.call_service("light", "turn_on", entity_id="light.kitchen")
+
+    # Service call with data
+    await self.api.call_service(
+        "light",
+        "turn_on",
+        entity_id="light.living_room",
+        brightness=200,
+        color_name="blue"
+    )
+
+    # Using target parameter for multiple entities
+    await self.api.call_service(
+        "light",
+        "turn_off",
+        target={"entity_id": ["light.kitchen", "light.living_room"]}
+    )
+
+**Convenience methods**
+
+.. code-block:: python
+
+    # Turn entities on/off
+    await self.api.turn_on("light.kitchen", brightness=150)
+    await self.api.turn_off("light.living_room")
+    await self.api.toggle_service("switch.fan")
+
+**Setting and updating states**
+
+.. code-block:: python
+
+    # Set entity state
+    await self.api.set_state("sensor.custom", "active", {"last_update": "now"})
+
+    # Update existing state attributes
+    await self.api.update_state("sensor.custom", {"battery": 85})
+
+**Firing custom events**
+
+.. code-block:: python
+
+    # Simple event
+    await self.api.fire_event("custom_event", {"message": "Hello"})
+
+    # Complex event data
+    await self.api.fire_event(
+        "automation_triggered",
+        {
+            "automation": "morning_routine",
+            "trigger": "time",
+            "timestamp": self.now().format_iso()
+        }
+    )
+
+**Template rendering**
+
+.. code-block:: python
+
+    # Render Jinja2 templates
+    result = await self.api.render_template("{{ states('sensor.temperature') }}")
+
+    # Complex template with context
+    template = "{% if states('light.kitchen') == 'on' %}on{% else %}off{% endif %}"
+    status = await self.api.render_template(template)
+
+**History and logbook data**
+
+.. code-block:: python
+
+    from datetime import datetime, timedelta
+
+    # Get entity history
+    end_time = self.now()
+    start_time = end_time.subtract(hours=24)
+
+    history = await self.api.get_history(
+        entity_ids=["sensor.temperature"],
+        start_time=start_time,
+        end_time=end_time
+    )
+
+    # Get logbook entries
+    logbook = await self.api.get_logbook(
+        start_time=start_time,
+        entity_id="light.kitchen"
+    )
+
+**Using the sync facade**
+
+.. code-block:: python
+
+    # For sync apps or when async is not available
+    states = self.api.sync.get_states()
+    self.api.sync.call_service("light", "turn_on", entity_id="light.kitchen")
+
+**WebSocket direct access**
+
+.. code-block:: python
+
+    # Send WebSocket message and wait for response
+    result = await self.api.ws_send_and_wait(
+        type="config/device_registry/list"
+    )
+
+    # Send WebSocket message without waiting
+    await self.api.ws_send_json(
+        type="subscribe_events",
+        event_type="state_changed"
+    )
+
+**Handling missing entities**
+
+.. code-block:: python
+
+    from hassette.exceptions import EntityNotFoundError
+    from hassette import states
+
+    try:
+        state = await self.api.get_state("light.missing_light", states.LightState)
+    except EntityNotFoundError:
+        self.logger.warning("Entity not found")
+
+    # or
+
+    state = await self.api.get_state_or_none("light.missing_light", states.LightState)
+    if state is None:
+        self.logger.warning("Entity not found")
+
+"""
+
 import typing
 from enum import StrEnum
 from typing import Any, Literal, overload

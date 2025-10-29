@@ -7,30 +7,47 @@ Conditions can be composed of other conditions to form complex logic.
 
 Examples
 --------
-Basic value comparison::
+
+**Basic value comparison**
+
+.. code-block:: python
+
     ValueIs(source=get_entity_id, condition="light.kitchen")
 
-With a callable condition::
+**With a callable condition**
+
+.. code-block:: python
+
     def is_kitchen_light(entity_id: str) -> bool:
         return entity_id == "light.kitchen"
 
     ValueIs(source=get_entity_id, condition=is_kitchen_light)
 
-With a condition object::
-    ValueIs(source=get_entity_id, condition=C.IsIn(collection=["light.kitchen", "light.living"]))
+**With a condition object**
 
-Combining multiple predicates::
+.. code-block:: python
+
+    ValueIs(
+        source=get_entity_id,
+        condition=C.IsIn(collection=["light.kitchen", "light.living"]),
+    )
+
+**Combining multiple predicates**
+
+.. code-block:: python
+
     P.AllOf(predicates=[
         P.DomainMatches("light"),
         P.EntityMatches("light.kitchen"),
         P.StateTo("on"),
     ])
-
 """
 
+import inspect
 import typing
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from logging import getLogger
 from typing import Any, Generic, TypeVar
 
 from hassette.const import MISSING_VALUE, NOT_PROVIDED
@@ -62,6 +79,8 @@ if typing.TYPE_CHECKING:
     from hassette.types import Predicate
 
 V = TypeVar("V")
+
+LOGGER = getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -205,6 +224,11 @@ class StateComparison(Generic[StateT]):
 
     condition: ComparisonCondition
 
+    def __post_init__(self) -> None:
+        if inspect.isclass(self.condition):
+            LOGGER.warning("StateComparison was passed a class instead of an instance.", stacklevel=2)
+            object.__setattr__(self, "condition", self.condition())
+
     def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
         return self.condition(get_state_value_old(event), get_state_value_new(event))
 
@@ -237,6 +261,11 @@ class AttrComparison(Generic[StateT]):
 
     attr_name: str
     condition: ComparisonCondition
+
+    def __post_init__(self) -> None:
+        if inspect.isclass(self.condition):
+            LOGGER.warning("AttrComparison was passed a class instead of an instance.", stacklevel=2)
+            object.__setattr__(self, "condition", self.condition())
 
     def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
         old_attr = get_attr_old(self.attr_name)(event)

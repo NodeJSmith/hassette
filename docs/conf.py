@@ -73,10 +73,16 @@ html_theme_options = {
 html_css_files = ["style.css"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+
+autosummary_generate = True
+autosummary_imported_members = True
+
 autodoc_default_options = {
-    "member-order": "bysource",
-    "exclude-members": "__weakref__",
     "members": True,
+    "undoc-members": True,
+    "show-inheritance": True,
+    # "imported-members": True,  # include re-exports from __init__.py
+    # "ignore-module-all": True,  # uncomment if __all__ is getting in your way
 }
 
 typehints_fully_qualified = False  # makes types like `str` instead of `builtins.str`

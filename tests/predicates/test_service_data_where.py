@@ -1,7 +1,7 @@
 import typing
 from types import SimpleNamespace
 
-from hassette.bus.predicates.predicates import ServiceDataWhere
+from hassette.bus.predicates import ServiceDataWhere
 from hassette.const import NOT_PROVIDED
 from hassette.events import Event
 

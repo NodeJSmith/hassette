@@ -3,7 +3,7 @@
 import typing
 from types import SimpleNamespace
 
-from hassette.bus.predicates.conditions import (
+from hassette.bus.conditions import (
     Contains,
     EndsWith,
     IsOrContains,
@@ -11,7 +11,7 @@ from hassette.bus.predicates.conditions import (
     Present,
     StartsWith,
 )
-from hassette.bus.predicates.predicates import DidChange, IsMissing, IsPresent, ServiceMatches, ValueIs
+from hassette.bus.predicates import DidChange, IsMissing, IsPresent, ServiceMatches, ValueIs
 from hassette.const import MISSING_VALUE
 
 

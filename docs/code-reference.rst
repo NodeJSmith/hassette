@@ -27,8 +27,31 @@ API Client
 Event Bus
 ---------
 
-.. automodule:: hassette.bus
+.. automodule:: hassette.bus.bus
    :show-inheritance:
+
+.. autoclass:: hassette.bus.listeners.Listener
+
+.. autoclass:: hassette.bus.listeners.Subscription
+
+Predicates
+~~~~~~~~~~~
+
+.. automodule:: hassette.bus.predicates
+   :members:
+
+
+Conditions
+~~~~~~~~~~
+
+.. automodule:: hassette.bus.conditions
+   :members:
+
+Accessors
+~~~~~~~~~
+
+.. automodule:: hassette.bus.accessors
+   :members:
 
 Scheduler
 ---------

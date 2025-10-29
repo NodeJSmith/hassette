@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from hassette.bus.conditions import IsOrContains
 from hassette.bus.listeners import Subscription
-from hassette.bus.predicates.conditions import IsOrContains
-from hassette.bus.predicates.predicates import (
+from hassette.bus.predicates import (
     AllOf,
     AttrDidChange,
     EntityMatches,

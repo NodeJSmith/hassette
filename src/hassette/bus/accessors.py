@@ -1,24 +1,48 @@
 """
 Accessors are combined with predicates to easily and cleanly extract values from events. Instead of writing
-a lambda like `lambda e: e.payload.data.old_state.state`, you can use the accessor `get_state_value_old` or
-use `get_path("payload.data.old_state.state")` for a more generic solution.
+a lambda like ``lambda e: e.payload.data.old_state.state``, you can use the accessor ``get_state_value_old`` or
+use ``get_path("payload.data.old_state.state")`` for a more generic solution.
 
-You generally will not need to use these directly - the main bus helpers use these under the hood to provide
-the relevant data to predicates. For example, `on_state_change` uses `get_state_value_old` and
-`get_state_value_new` to provide the old and new state values to predicates like `StateFrom` and `StateTo`.
+You generally will not need to use these directly — the main bus helpers use them under the hood to provide
+the relevant data to predicates. For example, ``on_state_change`` uses ``get_state_value_old`` and
+``get_state_value_new`` to provide the old and new state values to predicates like ``StateFrom`` and ``StateTo``.
 
 Examples
 --------
-Extracting timestamp from `call_service` service data::
+
+**Extracting a specific key from service_data**
+
+.. code-block:: python
 
     from hassette import accessors as A
+    from hassette import predicates as P
 
-    ValueIs(source=A.get_service_data_key("timestamp"), condition=lambda ts: ts > 1622505600)
+    value_is = P.ValueIs(source=A.get_service_data_key("entity_id"), condition="light.living_room")
 
-Extracting a nested value using a glom path::
+    self.bus.on_call_service(
+        "light.turn_on",
+        handler=handler,
+        where=value_is,
+    )
 
-    ValueIs(source=A.get_path("payload.data.new_state.attributes.geolocation.locality"), condition="San Francisco")
 
+**Extracting a nested value using a glom path**
+
+.. code-block:: python
+
+    from hassette import accessors as A
+    from hassette import predicates as P
+
+    value_is = P.ValueIs(
+        source=A.get_path("payload.data.new_state.attributes.geolocation.locality"),
+        condition="San Francisco",
+    )
+
+    self.bus.on_state_change(
+        "sensor.my_device_location",
+        handler=handler,
+        changed_to=value_is,
+    )
 """
 
 import logging

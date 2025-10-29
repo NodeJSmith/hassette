@@ -6,27 +6,48 @@ These are the building blocks for more complex predicates used in event listener
 that takes a single value (or two values for comparison conditions) and returns a boolean can be
 used as a condition, so you can also implement your own custom conditions or pass lambda functions.
 
+With helpers like `on_state_change` or `on_attribute_change` you will generally pass conditions to `changed_to`
+or `changed_from`. These conditions will receive the relevant value extracted from the event. Some helpers also
+allow you to pass conditions to `changed`, which will receive both the old and new values for comparison.
+
 Examples
 --------
-Basic usage with lambda::
 
-    self.bus.on_attribute_change("light.kitchen","brightness", handler=handler,changed_to=lambda x: x > 200)
+**Regex matching**
 
-Using comparison conditions::
-
-    from hassette import conditions as C
-
-    self.bus.on_state_change("zone.home", handler=handler, changed=C.Increased())
-
-Regex matching::
+.. code-block:: python
 
     from hassette import conditions as C
 
-    self.bus.on_state_change("sensor.my_phone_location", handler=handler, changed=C.Regex(r"^1101 Main .*"))
+    self.bus.on_state_change(
+        "sensor.my_phone_location",
+        handler=handler,
+        changed_to=C.Regex(r"^1101 Main .*"),
+    )
 
-Value is in a collection::
+**Value is in a collection**
 
-    self.bus.on_state_change("sensor.my_phone_activity", handler=handler, changed=C.IsIn(["walking", "running"]))
+.. code-block:: python
+
+    from hassette import conditions as C
+
+    self.bus.on_state_change(
+        "sensor.my_phone_activity",
+        handler=handler,
+        changed_to=C.IsIn(["walking", "running"]),
+    )
+
+**Using comparison conditions**
+
+.. code-block:: python
+
+    from hassette import conditions as C
+
+    self.bus.on_state_change(
+        "zone.home",
+        handler=handler,
+        changed=C.Increased(),
+    )
 
 """
 

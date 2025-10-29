@@ -171,7 +171,7 @@ the ``where`` parameter on any subscription method.
        where=P.Guard(is_workday)
    )
 
-See :mod:`~hassette.core.resources.bus.predicates.predicates` for a full list of built-in predicates.
+See :mod:`~hassette.bus.predicates` for a full list of built-in predicates.
 
 Debounce and throttle
 ---------------------

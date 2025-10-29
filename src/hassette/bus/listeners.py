@@ -10,7 +10,7 @@ from typing import Any, ParamSpec, TypeVar, cast
 
 from hassette.utils.func_utils import callable_name
 
-from .predicates.utils import normalize_where
+from .utils import normalize_where
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable

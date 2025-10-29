@@ -2,8 +2,9 @@ import logging
 
 from .api import Api
 from .app import App, AppConfig, AppSync, only_app
-from .bus import Bus
+from .bus import Bus, accessors, conditions, predicates
 from .config import HassetteConfig
+from .const import MISSING_VALUE, NOT_PROVIDED
 from .core import Hassette
 from .events import StateChangeEvent
 from .models import states
@@ -14,6 +15,8 @@ from .task_bucket import TaskBucket
 logging.getLogger("hassette").addHandler(logging.NullHandler())
 
 __all__ = [
+    "MISSING_VALUE",
+    "NOT_PROVIDED",
     "Api",
     "App",
     "AppConfig",
@@ -25,6 +28,9 @@ __all__ = [
     "ServiceResponse",
     "StateChangeEvent",
     "TaskBucket",
+    "accessors",
+    "conditions",
     "only_app",
+    "predicates",
     "states",
 ]

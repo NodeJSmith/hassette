@@ -1,6 +1,6 @@
+from . import accessors, conditions, predicates
 from .bus import Bus
 from .listeners import Listener, Subscription
-from .predicates import accessors, conditions, predicates
 
 __all__ = [
     "Bus",

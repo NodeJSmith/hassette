@@ -1,3 +1,86 @@
+"""
+Event bus for subscribing to Home Assistant and Hassette events with powerful filtering.
+
+The Bus provides a clean interface for listening to state changes, service calls, and other events
+from Home Assistant. Each app gets its own Bus instance that automatically manages subscriptions
+and cleanup. Use predicates and conditions to filter events precisely.
+
+Examples
+--------
+
+**Basic state change subscription**
+
+.. code-block:: python
+
+    # Listen to all changes on an entity
+    self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
+
+**State change with value filters**
+
+.. code-block:: python
+
+    # Only when light turns on
+    self.bus.on_state_change("light.kitchen", changed_to="on", handler=self.on_light_on)
+
+    # Only when temperature increases above 20
+    self.bus.on_state_change(
+        "sensor.temperature",
+        changed_to=lambda temp: temp > 20,
+        handler=self.on_temp_high
+    )
+
+**Attribute change monitoring**
+
+.. code-block:: python
+
+    # Monitor battery level changes
+    self.bus.on_attribute_change(
+        "sensor.phone_battery",
+        "battery_level",
+        handler=self.on_battery_change
+    )
+
+**Service call interception**
+
+.. code-block:: python
+
+    # Listen to light service calls
+    self.bus.on_call_service(
+        domain="light",
+        service="turn_on",
+        handler=self.on_light_service_call
+    )
+
+**Using glob patterns and complex predicates**
+
+.. code-block:: python
+
+    from hassette import conditions as C
+
+    # All lights in kitchen
+    self.bus.on_state_change("light.*kitchen*", handler=self.on_kitchen_light)
+
+    # Comparison condition - temperature increased
+    self.bus.on_state_change(
+        "sensor.temperature",
+        changed=C.Increased(),
+        handler=self.on_high_temp
+    )
+
+**Event options for timing control**
+
+.. code-block:: python
+
+    # Run only once
+    self.bus.on_state_change("light.kitchen", handler=handler, once=True)
+
+    # Debounce rapid changes (wait 5 seconds after last event)
+    self.bus.on_state_change("sensor.motion", handler=handler, debounce=5.0)
+
+    # Throttle frequent events (max once per 10 seconds)
+    self.bus.on_state_change("sensor.temperature", handler=handler, throttle=10.0)
+"""
+
 import asyncio
 import typing
 from collections.abc import Mapping
@@ -5,15 +88,15 @@ from typing import Any, TypeVar, Unpack
 
 from typing_extensions import TypedDict
 
+import hassette.bus.predicates as P
 from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, topics
 from hassette.types.enums import ResourceStatus
 from hassette.utils.func_utils import callable_short_name
 
+from .accessors import get_path
 from .listeners import Listener, Subscription
-from .predicates import predicates as P
-from .predicates.accessors import get_path
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -92,7 +175,9 @@ class Bus(Resource):
         Args:
             topic (str): The event topic to listen to.
             handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Optional predicates to filter events.
+            where (Predicate | Sequence[Predicate] | None): Optional predicates to filter events. These can
+                be custom callables or predefined predicates from `hassette.bus.predicates`. They will receive
+                the full event for evaluation.
             args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             once (bool): If True, the handler will be called only once and then removed.
@@ -143,8 +228,8 @@ class Bus(Resource):
                 ComparisonCondition is provided, it will be used to compare the old and new state values.
             changed_from (ChangeType): A value or callable that will be used to filter state changes *from* this value.
             changed_to (ChangeType): A value or callable that will be used to filter state changes *to* this value.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events, such as
-                `IsIn`, `Regex`, or custom callables.
+            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events (e.g. ValueIs)\
+                or custom callables. These will receive the full event for evaluation.
             args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce` and `throttle`.
