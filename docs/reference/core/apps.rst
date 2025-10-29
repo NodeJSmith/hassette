@@ -1,7 +1,7 @@
 Apps Reference
 ==============
 
-.. currentmodule:: hassette.core.resources.app.app
+.. currentmodule:: hassette.app
 
 .. autoclass:: App
     :exclude-members: __init__, __new__
@@ -48,9 +48,8 @@ Apps Reference
     .. automethod:: after_shutdown_sync
 
 
-
-.. currentmodule:: hassette.core.resources.app.app_config
-
 .. autoclass:: AppConfig
     :members:
     :exclude-members: __init__, __new__, model_config
+
+.. autofunction:: only_app

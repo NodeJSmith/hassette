@@ -6,7 +6,7 @@ The Api class provides access to the Home Assistant REST and WebSocket APIs. It 
 Api
 -----
 
-.. autoclass:: hassette.core.resources.api.api.Api
+.. autoclass:: hassette.api.Api
    :members:
    :undoc-members:
    :exclude-members: sync
@@ -15,10 +15,9 @@ Api
 Sync Facade
 -------------
 
-.. autoclass:: hassette.core.resources.api.api.ApiSyncFacade
+.. autoclass:: hassette.api.ApiSyncFacade
    :members:
    :undoc-members:
-   :exclude-members: sync
 
 
 Services

@@ -1,16 +1,16 @@
 Bus Reference
 =============
 
-.. autoclass:: hassette.core.resources.bus.bus.Bus
+.. autoclass:: hassette.bus.Bus
    :members:
    :undoc-members:
    :no-inherited-members:
 
-.. autoclass:: hassette.core.resources.bus.listeners.Listener
+.. autoclass:: hassette.bus.Listener
    :members:
    :undoc-members:
 
-.. autoclass:: hassette.core.resources.bus.listeners.Subscription
+.. autoclass:: hassette.bus.Subscription
    :members:
    :undoc-members:
 
@@ -24,20 +24,20 @@ Bus Reference
 Predicates
 ~~~~~~~~~~~
 
-.. automodule:: hassette.core.resources.bus.predicates.predicates
+.. automodule:: hassette.bus.predicates
    :members:
    :undoc-members:
 
 Conditions
 ~~~~~~~~~~
 
-.. automodule:: hassette.core.resources.bus.predicates.conditions
+.. automodule:: hassette.bus.conditions
    :members:
    :undoc-members:
 
 Accessors
 ~~~~~~~~~
 
-.. automodule:: hassette.core.resources.bus.predicates.accessors
+.. automodule:: hassette.bus.accessors
    :members:
    :undoc-members:

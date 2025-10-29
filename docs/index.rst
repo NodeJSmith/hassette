@@ -99,6 +99,7 @@ Learn More
   api
   bus
   scheduler
+  api-reference
   comparisons/index
   reference/index
 

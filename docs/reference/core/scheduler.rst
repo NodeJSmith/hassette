@@ -1,16 +1,25 @@
 Scheduler Reference
 ===================
 
-.. autoclass:: hassette.core.resources.scheduler.scheduler.Scheduler
+.. autoclass:: hassette.scheduler.Scheduler
    :members:
    :undoc-members:
    :no-inherited-members:
 
-.. automodule:: hassette.core.resources.scheduler.classes
+.. autoclass:: hassette.scheduler.ScheduledJob
    :members:
    :undoc-members:
    :no-inherited-members:
-   :exclude-members: next_id
+
+.. autoclass:: hassette.scheduler.CronTrigger
+   :members:
+   :undoc-members:
+   :no-inherited-members:
+
+.. autoclass:: hassette.scheduler.IntervalTrigger
+   :members:
+   :undoc-members:
+   :no-inherited-members:
 
 .. automodule:: hassette.core.services.scheduler_service
    :members: _SchedulerService, _ScheduledJobQueue, HeapQueue
