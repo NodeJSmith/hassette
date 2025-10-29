@@ -6,10 +6,10 @@ from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.core.resources.base import Resource
 from hassette.models.entities import EntityT
-from hassette.models.states import BaseState, StateT, StateValueT
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
+    from hassette.models.states import BaseState, StateT, StateValueT
 
 
 class ApiSyncFacade(Resource):
@@ -308,7 +308,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
-    def get_state_value_typed(self, entity_id: str, model: type[BaseState["StateValueT"]]):
+    def get_state_value_typed(self, entity_id: str, model: type["BaseState[StateValueT]"]):
         """Get the state of a specific entity as a converted state object.
 
         Args:

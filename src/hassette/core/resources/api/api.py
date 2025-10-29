@@ -8,15 +8,17 @@ from whenever import Date, PlainDateTime, ZonedDateTime
 from hassette.core.resources.api.sync import ApiSyncFacade
 from hassette.core.resources.base import Resource
 from hassette.exceptions import EntityNotFoundError
-from hassette.models.entities import BaseEntity, EntityT
+from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
-from hassette.models.states import BaseState, StateT, StateUnion, StateValueT, try_convert_state
+from hassette.models.states import BaseState, StateUnion, try_convert_state
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.services.api_service import _ApiService
     from hassette.events import HassStateDict
+    from hassette.models.entities import EntityT
+    from hassette.models.states import StateT, StateValueT
 
 
 class Api(Resource):
@@ -334,7 +336,7 @@ class Api(Resource):
         except EntityNotFoundError:
             return False
 
-    async def get_entity(self, entity_id: str, model: type[EntityT]) -> EntityT:
+    async def get_entity(self, entity_id: str, model: type["EntityT"]) -> "EntityT":
         """Get an entity object for a specific entity.
 
         Args:
@@ -357,7 +359,7 @@ class Api(Resource):
 
         return model.model_validate({"state": raw})
 
-    async def get_entity_or_none(self, entity_id: str, model: type[EntityT]) -> EntityT | None:
+    async def get_entity_or_none(self, entity_id: str, model: type["EntityT"]) -> "EntityT | None":
         """Get an entity object for a specific entity, or None if it does not exist.
 
         Args:
@@ -418,7 +420,7 @@ class Api(Resource):
 
         return state  # pyright: ignore[reportReturnType]
 
-    async def get_state_value_typed(self, entity_id: str, model: type[BaseState["StateValueT"]]) -> "StateValueT":
+    async def get_state_value_typed(self, entity_id: str, model: type["BaseState[StateValueT]"]) -> "StateValueT":
         """Get the state of a specific entity as a converted state object.
 
         Args:
