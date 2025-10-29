@@ -185,8 +185,9 @@ def create_event_from_hass(
     raise ValueError(f"Unknown event type: {event_type}")
 
 
-StateChangeEvent: TypeAlias = Event[HassPayload[StateChangePayload[StateT]]]
-"""Alias for state change events with a specific state type."""
+class StateChangeEvent(Event[HassPayload[StateChangePayload[StateT]]], Generic[StateT]):
+    """Alias for state change events with a specific state type."""
+
 
 CallServiceEvent: TypeAlias = Event[HassPayload[CallServicePayload]]
 """Alias for call service events."""
