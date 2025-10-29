@@ -7,8 +7,8 @@ from typing import Any, ClassVar, Generic, final
 
 from whenever import ZonedDateTime
 
+from hassette.api import Api
 from hassette.config.app_manifest import AppManifest
-from hassette.core.resources.api.api import Api
 from hassette.core.resources.base import Resource
 from hassette.core.resources.bus.bus import Bus
 from hassette.core.resources.scheduler.scheduler import Scheduler

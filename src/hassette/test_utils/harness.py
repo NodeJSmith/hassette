@@ -13,8 +13,8 @@ from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette import HassetteConfig
+from hassette.api import Api
 from hassette.core import context
-from hassette.core.resources.api.api import Api
 from hassette.core.resources.base import Resource
 from hassette.core.resources.bus.bus import Bus
 from hassette.core.resources.scheduler.scheduler import Scheduler

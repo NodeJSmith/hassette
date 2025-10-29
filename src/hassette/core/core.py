@@ -5,6 +5,7 @@ from typing import Any, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
 
+from hassette.api import Api
 from hassette.config import HassetteConfig
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
@@ -12,7 +13,6 @@ from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from . import context
-from .resources.api.api import Api
 from .resources.base import Resource, Service
 from .resources.bus.bus import Bus
 from .resources.scheduler.scheduler import Scheduler

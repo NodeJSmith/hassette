@@ -5,7 +5,6 @@ from .config import HassetteConfig
 from .core.core import Hassette
 
 # Most commonly used classes (convenience imports)
-from .core.resources.api.api import Api
 from .core.resources.app.app import App, AppSync, only_app
 from .core.resources.app.app_config import AppConfig
 from .core.resources.bus.bus import Bus
@@ -20,7 +19,6 @@ from .models.services import ServiceResponse
 logging.getLogger("hassette").addHandler(logging.NullHandler())
 
 __all__ = [
-    "Api",
     "App",
     "AppConfig",
     "AppSync",
