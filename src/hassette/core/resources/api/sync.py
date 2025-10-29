@@ -280,7 +280,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_entity_or_none(entity_id, model))
 
-    def get_state(self, entity_id: str, model: type[StateT]):
+    def get_state(self, entity_id: str, model: type["StateT"]):
         """Get the state of a specific entity.
 
         Args:
@@ -308,7 +308,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
-    def get_state_value_typed(self, entity_id: str, model: type[BaseState[StateValueT]]):
+    def get_state_value_typed(self, entity_id: str, model: type[BaseState["StateValueT"]]):
         """Get the state of a specific entity as a converted state object.
 
         Args:

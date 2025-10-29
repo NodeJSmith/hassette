@@ -374,7 +374,7 @@ class Api(Resource):
                 return None
             raise
 
-    async def get_state(self, entity_id: str, model: type[StateT]) -> StateT:
+    async def get_state(self, entity_id: str, model: type["StateT"]) -> "StateT":
         """Get the state of a specific entity.
 
         Args:
@@ -418,7 +418,7 @@ class Api(Resource):
 
         return state  # pyright: ignore[reportReturnType]
 
-    async def get_state_value_typed(self, entity_id: str, model: type[BaseState[StateValueT]]) -> StateValueT:
+    async def get_state_value_typed(self, entity_id: str, model: type[BaseState["StateValueT"]]) -> "StateValueT":
         """Get the state of a specific entity as a converted state object.
 
         Args:
