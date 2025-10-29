@@ -10,9 +10,11 @@ from .core.resources.app.app import App, AppSync, only_app
 from .core.resources.app.app_config import AppConfig
 from .core.resources.bus.bus import Bus
 from .core.resources.scheduler.scheduler import Scheduler
+from .core.resources.task_bucket import TaskBucket
+from .events import StateChangeEvent
 
 # Common events and types
-from .events import StateChangeEvent
+from .models import states
 from .models.services import ServiceResponse
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
@@ -28,5 +30,7 @@ __all__ = [
     "Scheduler",
     "ServiceResponse",
     "StateChangeEvent",
+    "TaskBucket",
     "only_app",
+    "states",
 ]

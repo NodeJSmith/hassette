@@ -15,7 +15,8 @@ from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream
 
-    from hassette import Hassette, Listener
+    from hassette import Hassette
+    from hassette.bus import Listener
     from hassette.events import Event
 
 
