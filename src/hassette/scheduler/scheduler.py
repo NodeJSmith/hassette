@@ -6,10 +6,11 @@ from typing import Any
 
 from whenever import Time, TimeDelta, ZonedDateTime
 
-from hassette.core.resources.base import Resource
-from hassette.core.resources.scheduler.classes import CronTrigger, IntervalTrigger, ScheduledJob
-from hassette.core.services.scheduler_service import _SchedulerService
+from hassette.resources.base import Resource
+from hassette.services.scheduler_service import _SchedulerService
 from hassette.utils.date_utils import now
+
+from .classes import CronTrigger, IntervalTrigger, ScheduledJob
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette

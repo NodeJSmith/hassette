@@ -9,7 +9,7 @@ from typing import Any
 
 from fair_async_rlock import FairAsyncRLock
 
-from hassette.core.resources.base import Service
+from hassette.resources.base import Service
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 
 if typing.TYPE_CHECKING:

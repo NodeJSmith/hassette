@@ -5,21 +5,21 @@ from typing import Any, Literal, overload
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
-from hassette.core.resources.base import Resource
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states import BaseState, StateUnion, try_convert_state
+from hassette.resources.base import Resource
 
 from .sync import ApiSyncFacade
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.core.services.api_service import _ApiService
     from hassette.events import HassStateDict
     from hassette.models.entities import EntityT
     from hassette.models.states import StateT, StateValueT
+    from hassette.services.api_service import _ApiService
 
 
 class Api(Resource):

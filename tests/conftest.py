@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from hassette.config.core_config import HassetteConfig
-from hassette.core.core import Hassette
+from hassette import Hassette, HassetteConfig
 
 tracemalloc.start()
 

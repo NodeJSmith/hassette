@@ -2,8 +2,7 @@ from pathlib import Path
 
 import dotenv
 
-from hassette.config.core_config import HassetteConfig
-from hassette.core.core import Hassette
+from hassette import Hassette, HassetteConfig
 
 
 def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) -> None:

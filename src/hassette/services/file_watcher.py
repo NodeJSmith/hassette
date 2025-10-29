@@ -2,8 +2,8 @@ from pathlib import Path
 
 from watchfiles import awatch
 
-from hassette.core.resources.base import Service
 from hassette.events import FileWatcherEventPayload
+from hassette.resources.base import Service
 
 
 class _FileWatcher(Service):  # pyright: ignore[reportUnusedClass]

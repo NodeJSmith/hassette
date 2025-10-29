@@ -7,8 +7,7 @@ import typing
 from logging import getLogger
 from pathlib import Path
 
-from hassette.core import context
-from hassette.core.resources.app.app import App, AppSync
+from hassette import context
 from hassette.exceptions import (
     AppPrecheckFailedError,
     CannotOverrideFinalError,
@@ -21,8 +20,8 @@ if typing.TYPE_CHECKING:
     from types import ModuleType
 
     from hassette import AppConfig, HassetteConfig
+    from hassette.app import App
     from hassette.config.app_manifest import AppManifest
-
 
 LOGGER = getLogger(__name__)
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
@@ -175,6 +174,7 @@ def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict
     Returns:
         dict[str, AppDict]: Detected app manifests, keyed by app name.
     """
+    from hassette.app import App, AppSync
 
     app_manifests: dict[str, AppDict] = {}
 
@@ -254,6 +254,7 @@ def load_app_class(
     Returns:
         type[App]: The app class.
     """
+    from hassette.app import App, AppSync
 
     display_name = display_name or class_name
 

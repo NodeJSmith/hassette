@@ -4,8 +4,8 @@ from typing import Any
 
 from whenever import Date, PlainDateTime, ZonedDateTime
 
-from hassette.core.resources.base import Resource
 from hassette.models.entities import EntityT
+from hassette.resources.base import Resource
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette

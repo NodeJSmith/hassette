@@ -7,7 +7,7 @@ import pytest
 from whenever import TimeDelta, ZonedDateTime
 
 from hassette import Hassette
-from hassette.core.resources.scheduler.scheduler import CronTrigger, IntervalTrigger
+from hassette.scheduler import CronTrigger, IntervalTrigger
 
 TZ = ZoneInfo("America/Chicago")
 
@@ -16,7 +16,7 @@ async def test_interval_trigger_catchup() -> None:
     # start 30s in the past, interval 10s, now=00:01:30 → next should be 00:01:40
     """Interval trigger advances through missed runs before scheduling the next."""
     fake_now = ZonedDateTime.from_py_datetime(datetime(2025, 8, 18, 0, 1, 30, tzinfo=TZ))  # "2025-08-18T00:01:30")
-    with patch("hassette.core.resources.scheduler.classes.now", lambda: fake_now):
+    with patch("hassette.scheduler.classes.now", lambda: fake_now):
         interval_trigger = IntervalTrigger(
             TimeDelta(seconds=10), start=ZonedDateTime.from_system_tz(2025, 8, 18, 0, 1, 0)
         )
@@ -29,7 +29,7 @@ async def test_interval_trigger_catchup() -> None:
 async def test_cron_trigger_catchup() -> None:
     """Cron trigger catches up to the next valid schedule after a delay."""
     fake_now = ZonedDateTime.from_py_datetime(datetime(2025, 8, 18, 0, 1, 30, tzinfo=TZ))  # "2025-08-18T00:01:30")
-    with patch("hassette.core.resources.scheduler.classes.now", lambda: fake_now):
+    with patch("hassette.scheduler.classes.now", lambda: fake_now):
         cron_trigger = CronTrigger.from_arguments(
             second="*/10", minute="*", hour="*", start=ZonedDateTime.from_system_tz(2025, 8, 18, 0, 1, 0)
         )

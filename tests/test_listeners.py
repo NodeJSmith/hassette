@@ -3,8 +3,8 @@ import inspect
 
 import pytest
 
-from hassette.core.resources.bus.listeners import HandlerAdapter, Listener
-from hassette.core.resources.task_bucket import TaskBucket
+from hassette.bus.listeners import HandlerAdapter, Listener
+from hassette.task_bucket import TaskBucket
 
 
 class MockEvent:

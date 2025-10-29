@@ -12,10 +12,10 @@ from packaging.version import Version
 from pydantic import AliasChoices, BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
+from hassette import context as ctx
 from hassette.config.app_manifest import AppManifest
 from hassette.config.sources_helper import HassetteTomlConfigSettingsSource
 from hassette.const import LOG_LEVELS
-from hassette.core import context as ctx
 from hassette.logging_ import enable_logging
 from hassette.types.types import AppDict, RawAppDict
 from hassette.utils.app_utils import auto_detect_apps, clean_app

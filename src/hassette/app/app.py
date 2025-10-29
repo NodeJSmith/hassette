@@ -8,12 +8,12 @@ from typing import Any, ClassVar, Generic, final
 from whenever import ZonedDateTime
 
 from hassette.api import Api
+from hassette.bus import Bus
 from hassette.config.app_manifest import AppManifest
-from hassette.core.resources.base import Resource
-from hassette.core.resources.bus.bus import Bus
-from hassette.core.resources.scheduler.scheduler import Scheduler
 from hassette.enums import ResourceRole
 from hassette.events.base import Event
+from hassette.resources.base import FinalMeta, Resource
+from hassette.scheduler import Scheduler
 from hassette.utils.date_utils import now
 
 from .app_config import AppConfig, AppConfigT
@@ -38,7 +38,25 @@ def only_app(app_cls: type[AppT]) -> type[AppT]:
     return app_cls
 
 
-class App(Generic[AppConfigT], Resource):
+class AppMeta(FinalMeta, Generic[AppConfigT]):
+    """Metaclass for App to validate AppConfig subclasses."""
+
+    def __new__(mcs, name, bases, ns, **kwargs):
+        cls = super().__new__(mcs, name, bases, ns, **kwargs)
+        if typing.TYPE_CHECKING:
+            cls = typing.cast("type[App]", cls)
+
+        if name not in ("App", "AppSync") and any(
+            issubclass(base, App) for base in bases if hasattr(base, "__module__")
+        ):
+            try:
+                cls.app_config_cls = validate_app(cls)
+            except Exception as e:
+                cls._import_exception = e
+        return cls
+
+
+class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
     """Base class for applications in the Hassette framework.
 
     This class provides a structure for applications, allowing them to be initialized and managed
@@ -79,18 +97,6 @@ class App(Generic[AppConfigT], Resource):
 
     index: int
     """Index of this app instance, used for unique naming."""
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-
-        try:
-            cls.app_config_cls = validate_app(cls)
-
-        except Exception as e:
-            # note: because these are imported dynamically, we cannot do anything to prevent logging
-            # the same class multiple times; likely won't be an issue in practice
-            cls._import_exception = e
-            LOGGER.exception("Failed to initialize subclass %s", cls.__name__)
 
     def __init__(self, *args, app_config: AppConfigT, index: int, **kwargs):
         self.app_config = app_config

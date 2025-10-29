@@ -20,7 +20,6 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from hassette.core.resources.base import Service
 from hassette.events import (
     HassEventEnvelopeDict,
     WebsocketConnectedEventPayload,
@@ -35,6 +34,7 @@ from hassette.exceptions import (
     ResourceNotReadyError,
     RetryableConnectionClosedError,
 )
+from hassette.resources.base import Service
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette

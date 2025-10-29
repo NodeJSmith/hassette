@@ -7,10 +7,9 @@ from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future, TimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
-from hassette.core.resources.base import Resource
+from hassette import context
+from hassette.resources.base import Resource
 from hassette.utils.func_utils import is_async_callable
-
-from .. import context  # noqa: TID252
 
 if typing.TYPE_CHECKING:
     from types import CoroutineType

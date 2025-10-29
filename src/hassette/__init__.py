@@ -1,24 +1,20 @@
 import logging
 
-# Core framework
+from .api import Api
+from .app import App, AppConfig, AppSync, only_app
+from .bus import Bus
 from .config import HassetteConfig
-from .core.core import Hassette
-
-# Most commonly used classes (convenience imports)
-from .core.resources.app.app import App, AppSync, only_app
-from .core.resources.app.app_config import AppConfig
-from .core.resources.bus.bus import Bus
-from .core.resources.scheduler.scheduler import Scheduler
-from .core.resources.task_bucket import TaskBucket
+from .core import Hassette
 from .events import StateChangeEvent
-
-# Common events and types
 from .models import states
 from .models.services import ServiceResponse
+from .scheduler import Scheduler
+from .task_bucket import TaskBucket
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
 
 __all__ = [
+    "Api",
     "App",
     "AppConfig",
     "AppSync",

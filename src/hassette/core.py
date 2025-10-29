@@ -5,7 +5,6 @@ from typing import Any, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
 
-from hassette.api import Api
 from hassette.config import HassetteConfig
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
@@ -13,10 +12,10 @@ from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from . import context
+from .api import Api
+from .bus import Bus
 from .resources.base import Resource, Service
-from .resources.bus.bus import Bus
-from .resources.scheduler.scheduler import Scheduler
-from .resources.task_bucket import TaskBucket, make_task_factory
+from .scheduler import Scheduler
 from .services.api_service import _ApiService
 from .services.app_handler import _AppHandler
 from .services.bus_service import _BusService
@@ -25,6 +24,7 @@ from .services.health_service import _HealthService
 from .services.scheduler_service import _SchedulerService
 from .services.service_watcher import _ServiceWatcher
 from .services.websocket_service import _WebsocketService
+from .task_bucket import TaskBucket, make_task_factory
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event

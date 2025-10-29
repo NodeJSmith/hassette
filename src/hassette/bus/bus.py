@@ -7,8 +7,8 @@ from typing_extensions import TypedDict
 
 from hassette import topics
 from hassette.const import NOT_PROVIDED
-from hassette.core.resources.base import Resource
 from hassette.enums import ResourceStatus
+from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition
 from hassette.utils.func_utils import callable_short_name
 
@@ -20,7 +20,6 @@ if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
     from hassette import Hassette, states
-    from hassette.core.services.bus_service import _BusService
     from hassette.events import (
         CallServiceEvent,
         ComponentLoadedEvent,
@@ -29,6 +28,7 @@ if typing.TYPE_CHECKING:
         StateChangeEvent,
     )
     from hassette.events.base import Event
+    from hassette.services.bus_service import _BusService
     from hassette.types import ChangeType, HandlerType, Predicate
 
 T = TypeVar("T", covariant=True)

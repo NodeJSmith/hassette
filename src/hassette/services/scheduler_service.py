@@ -8,12 +8,12 @@ from typing import Any, Generic, TypeVar, cast
 from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
 
-from hassette.core.resources.base import Resource, Service
+from hassette.resources.base import Resource, Service
 from hassette.utils.date_utils import now
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.core.resources.scheduler.classes import ScheduledJob
+    from hassette.scheduler.classes import ScheduledJob
 
 
 T = TypeVar("T")

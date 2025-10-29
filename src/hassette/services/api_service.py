@@ -16,9 +16,9 @@ from tenacity import (
 )
 from whenever import Date, PlainDateTime, ZonedDateTime
 
-from hassette.core.resources.base import Resource
 from hassette.exceptions import ConnectionClosedError, EntityNotFoundError, InvalidAuthError, ResourceNotReadyError
 from hassette.models.history import normalize_history
+from hassette.resources.base import Resource
 from hassette.utils.request_utils import clean_kwargs, orjson_dump
 
 if typing.TYPE_CHECKING:
