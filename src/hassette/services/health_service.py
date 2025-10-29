@@ -2,8 +2,8 @@ import typing
 
 from aiohttp import web
 
-from hassette.enums import ResourceStatus
 from hassette.resources.base import Service
+from hassette.types.enums import ResourceStatus
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette

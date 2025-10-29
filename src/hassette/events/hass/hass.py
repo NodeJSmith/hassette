@@ -2,10 +2,10 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Generic, Self, TypeAlias
 
-from hassette import topics
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
 from hassette.models.states import StateT, try_convert_state
+from hassette.types import topics
 
 from .raw import HassEventEnvelopeDict, HassStateDict
 

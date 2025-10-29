@@ -1,3 +1,5 @@
+# TODO: convert these to Enums
+
 # service events
 
 HASSETTE_EVENT_SERVICE_STATUS = "hassette.event.service_status"

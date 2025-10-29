@@ -5,11 +5,10 @@ from typing import Any, TypeVar, Unpack
 
 from typing_extensions import TypedDict
 
-from hassette import topics
 from hassette.const import NOT_PROVIDED
-from hassette.enums import ResourceStatus
 from hassette.resources.base import Resource
-from hassette.types import ComparisonCondition
+from hassette.types import ComparisonCondition, topics
+from hassette.types.enums import ResourceStatus
 from hassette.utils.func_utils import callable_short_name
 
 from .listeners import Listener, Subscription

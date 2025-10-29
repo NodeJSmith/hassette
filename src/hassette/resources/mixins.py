@@ -3,8 +3,8 @@ import typing
 from collections.abc import Coroutine
 from typing import Any, Protocol, TypeVar
 
-from hassette.enums import ResourceStatus
 from hassette.events import HassetteServiceEvent, ServiceStatusPayload
+from hassette.types.enums import ResourceStatus
 
 if typing.TYPE_CHECKING:
     import logging

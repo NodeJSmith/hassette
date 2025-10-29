@@ -10,10 +10,10 @@ from whenever import ZonedDateTime
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.config.app_manifest import AppManifest
-from hassette.enums import ResourceRole
 from hassette.events.base import Event
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
+from hassette.types.enums import ResourceRole
 from hassette.utils.date_utils import now
 
 from .app_config import AppConfig, AppConfigT

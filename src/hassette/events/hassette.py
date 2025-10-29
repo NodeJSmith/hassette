@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from hassette.enums import ResourceRole, ResourceStatus
 from hassette.events.base import Event, HassettePayload, HassetteT
-from hassette.topics import (
+from hassette.types.enums import ResourceRole, ResourceStatus
+from hassette.types.topics import (
     HASSETTE_EVENT_FILE_WATCHER,
     HASSETTE_EVENT_SERVICE_STATUS,
     HASSETTE_EVENT_WEBSOCKET_STATUS,

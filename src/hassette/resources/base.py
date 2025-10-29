@@ -8,8 +8,8 @@ from contextlib import suppress
 from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
-from hassette.enums import ResourceRole
 from hassette.exceptions import CannotOverrideFinalError, FatalError
+from hassette.types.enums import ResourceRole
 
 from .mixins import LifecycleMixin
 

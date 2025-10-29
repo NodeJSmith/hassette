@@ -15,7 +15,6 @@ from yarl import URL
 from hassette import HassetteConfig, context
 from hassette.api import Api
 from hassette.bus import Bus
-from hassette.enums import ResourceStatus
 from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
@@ -27,6 +26,7 @@ from hassette.services.scheduler_service import _SchedulerService
 from hassette.services.websocket_service import _WebsocketService
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
+from hassette.types.enums import ResourceStatus
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
