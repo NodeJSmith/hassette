@@ -59,15 +59,9 @@ Scheduler
 .. automodule:: hassette.scheduler
    :show-inheritance:
 
-Events & Models
+Models
 ---------------
 
-Common Events
-~~~~~~~~~~~~~
-
-.. autoclass:: hassette.StateChangeEvent
-
-.. autoclass:: hassette.ServiceResponse
 
 Entities Module
 ~~~~~~~~~~~~~~~
@@ -80,8 +74,53 @@ States Module
 .. automodule:: hassette.models.states
    :exclude-members: Field, StateUnion, getLogger
 
+Events
+--------
+
 
 Events Module
 ~~~~~~~~~~~~~
 
-.. automodule:: hassette.events
+.. automodule:: hassette.events.base
+
+
+Home Assistant Events
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: hassette.events.hass.hass
+   :members:
+
+
+Hassette Events
+~~~~~~~~~~~~~~~~~~
+
+.. automodule:: hassette.events.hassette
+   :members:
+
+
+Types
+-----
+
+Topics
+~~~~~~
+
+.. automodule:: hassette.types.topics
+   :members:
+
+Enums
+~~~~~
+
+.. automodule:: hassette.types.enums
+   :members:
+
+Types
+~~~~~
+
+.. automodule:: hassette.types.types
+   :members:
+
+Handler Types
+~~~~~~~~~~~~~
+
+.. automodule:: hassette.types.handler
+   :members:

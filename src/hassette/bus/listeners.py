@@ -16,12 +16,11 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette import TaskBucket
-    from hassette.events import Event
+    from hassette.events.base import Event, EventT
     from hassette.types import (
         AsyncHandlerType,
         AsyncHandlerTypeEvent,
         AsyncHandlerTypeNoEvent,
-        EventT,
         HandlerType,
         Predicate,
     )

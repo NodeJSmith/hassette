@@ -52,8 +52,9 @@ from typing import Any, Generic, TypeVar
 
 from hassette.const import MISSING_VALUE, NOT_PROVIDED
 from hassette.events import CallServiceEvent
+from hassette.events.base import EventT
 from hassette.models.states import StateT
-from hassette.types import ChangeType, ComparisonCondition, EventT
+from hassette.types import ChangeType, ComparisonCondition
 from hassette.utils.glob_utils import is_glob
 
 from .accessors import (

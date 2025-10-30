@@ -6,7 +6,7 @@ from typing import Any, Protocol, Required, TypeAlias, TypeVar
 from typing_extensions import Sentinel, TypeAliasType, TypedDict
 from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
-from .event import EventT
+from hassette.events.base import EventT
 
 V = TypeVar("V")  # value type from the accessor
 V_contra = TypeVar("V_contra", contravariant=True)

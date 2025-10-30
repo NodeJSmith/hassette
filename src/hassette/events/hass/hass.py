@@ -1,6 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Generic, Self, TypeAlias
+from typing import Any, Generic, Self
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
@@ -185,36 +185,45 @@ def create_event_from_hass(
     raise ValueError(f"Unknown event type: {event_type}")
 
 
+class HassEvent(Event[HassPayload[Any]]):
+    """Alias for generic Hass events."""
+
+
 class StateChangeEvent(Event[HassPayload[StateChangePayload[StateT]]], Generic[StateT]):
-    """Alias for state change events with a specific state type."""
+    """Event representing a state change in Home Assistant."""
 
 
-CallServiceEvent: TypeAlias = Event[HassPayload[CallServicePayload]]
-"""Alias for call service events."""
+class CallServiceEvent(Event[HassPayload[CallServicePayload]]):
+    """Event representing a call service in Home Assistant."""
 
-ComponentLoadedEvent: TypeAlias = Event[HassPayload[ComponentLoadedPayload]]
-"""Alias for component loaded events."""
 
-ServiceRegisteredEvent: TypeAlias = Event[HassPayload[ServiceRegisteredPayload]]
-"""Alias for service registered events."""
+class ComponentLoadedEvent(Event[HassPayload[ComponentLoadedPayload]]):
+    """Event representing a component loaded in Home Assistant."""
 
-ServiceRemovedEvent: TypeAlias = Event[HassPayload[ServiceRemovedPayload]]
-"""Alias for service removed events."""
 
-LogbookEntryEvent: TypeAlias = Event[HassPayload[LogbookEntryPayload]]
-"""Alias for logbook entry events."""
+class ServiceRegisteredEvent(Event[HassPayload[ServiceRegisteredPayload]]):
+    """Event representing a service registered in Home Assistant."""
 
-UserAddedEvent: TypeAlias = Event[HassPayload[UserAddedPayload]]
-"""Alias for user added events."""
 
-UserRemovedEvent: TypeAlias = Event[HassPayload[UserRemovedPayload]]
-"""Alias for user removed events."""
+class ServiceRemovedEvent(Event[HassPayload[ServiceRemovedPayload]]):
+    """Event representing a service removed in Home Assistant."""
 
-AutomationTriggeredEvent: TypeAlias = Event[HassPayload[AutomationTriggeredPayload]]
-"""Alias for automation triggered events."""
 
-ScriptStartedEvent: TypeAlias = Event[HassPayload[ScriptStartedPayload]]
-"""Alias for script started events."""
+class LogbookEntryEvent(Event[HassPayload[LogbookEntryPayload]]):
+    """Event representing a logbook entry in Home Assistant."""
 
-HassEvent: TypeAlias = Event[HassPayload[Any]]
-"""Alias for generic Hass events."""
+
+class UserAddedEvent(Event[HassPayload[UserAddedPayload]]):
+    """Event representing a user added in Home Assistant."""
+
+
+class UserRemovedEvent(Event[HassPayload[UserRemovedPayload]]):
+    """Event representing a user removed in Home Assistant."""
+
+
+class AutomationTriggeredEvent(Event[HassPayload[AutomationTriggeredPayload]]):
+    """Event representing an automation triggered in Home Assistant."""
+
+
+class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
+    """Event representing a script started in Home Assistant."""
