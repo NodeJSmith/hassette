@@ -22,6 +22,8 @@ extensions = [
 
 # Intersphinx mapping for external library documentation
 intersphinx_mapping = {
+    "python": ("https://docs.python.org/3/", None),
+    "aiohttp": ("https://docs.aiohttp.org/en/stable/", None),
     "whenever": ("https://whenever.readthedocs.io/en/latest/", None),
     "pydantic": ("https://docs.pydantic.dev/latest/", None),
 }
