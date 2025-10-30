@@ -12,7 +12,7 @@ from humanize import precisedelta
 
 from hassette.app.app import App
 from hassette.bus import Bus
-from hassette.events.hassette import HassetteEmptyPayload
+from hassette.events.hassette import HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.resources.base import Resource
 from hassette.types.enums import ResourceStatus
@@ -178,7 +178,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
             await self.hassette.send_event(
                 HASSETTE_EVENT_APP_LOAD_COMPLETED,
-                HassetteEmptyPayload.create_event(topic=HASSETTE_EVENT_APP_LOAD_COMPLETED),
+                HassetteSimpleEvent.create_event(topic=HASSETTE_EVENT_APP_LOAD_COMPLETED),
             )
         except Exception as e:
             self.logger.exception("Failed to initialize apps")
@@ -354,7 +354,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
 
         await self.hassette.send_event(
             HASSETTE_EVENT_APP_LOAD_COMPLETED,
-            HassetteEmptyPayload.create_event(topic=HASSETTE_EVENT_APP_LOAD_COMPLETED),
+            HassetteSimpleEvent.create_event(topic=HASSETTE_EVENT_APP_LOAD_COMPLETED),
         )
 
     def _calculate_app_changes(

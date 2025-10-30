@@ -22,10 +22,9 @@ from tenacity import (
 
 from hassette.events import (
     HassEventEnvelopeDict,
-    WebsocketConnectedEventPayload,
-    WebsocketDisconnectedEventPayload,
     create_event_from_hass,
 )
+from hassette.events.hassette import HassetteWebsocketConnectedEvent, HassetteWebsocketDisconnectedEvent
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -135,11 +134,11 @@ class _WebsocketService(Service):  # pyright: ignore[reportUnusedClass]
         return next(self._seq)
 
     async def after_initialize(self):
-        event = WebsocketConnectedEventPayload.create_event(url=self.url)
+        event = HassetteWebsocketConnectedEvent.create_event(url=self.url)
         await self.hassette.send_event(event.topic, event)
 
     async def before_shutdown(self) -> None:
-        event = WebsocketDisconnectedEventPayload.create_event(error="WebSocket service shutting down")
+        event = HassetteWebsocketDisconnectedEvent.create_event(error="WebSocket service shutting down")
         await self.hassette.send_event(event.topic, event)
 
     async def serve(self) -> None:
@@ -415,5 +414,5 @@ class _WebsocketService(Service):  # pyright: ignore[reportUnusedClass]
 
     async def _send_connection_lost_event(self, error: str) -> None:
         """Send a connection lost event to the event bus."""
-        event = WebsocketDisconnectedEventPayload.create_event(error=error)
+        event = HassetteWebsocketDisconnectedEvent.create_event(error=error)
         await self.hassette.send_event(event.topic, event)

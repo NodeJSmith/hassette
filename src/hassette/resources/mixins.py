@@ -3,7 +3,7 @@ import typing
 from collections.abc import Coroutine
 from typing import Any, Protocol, TypeVar
 
-from hassette.events import HassetteServiceEvent, ServiceStatusPayload
+from hassette.events import HassetteServiceEvent
 from hassette.types.enums import ResourceStatus
 
 if typing.TYPE_CHECKING:
@@ -219,10 +219,10 @@ class LifecycleMixin(_LifecycleHostStubs):
         self.mark_not_ready("Crashed")
 
     def _create_service_status_event(self, status: ResourceStatus, exception: Exception | BaseException | None = None):
-        return ServiceStatusPayload.create_event(
+        return HassetteServiceEvent.from_data(
             resource_name=self.class_name,
             role=self.role,
             status=status,
             previous_status=self._previous_status,
-            exc=exception,
+            exception=exception,
         )

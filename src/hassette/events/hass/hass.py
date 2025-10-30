@@ -1,6 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Generic, Self
+from typing import Any, Generic, Self, TypeAlias
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
@@ -185,12 +185,8 @@ def create_event_from_hass(
     raise ValueError(f"Unknown event type: {event_type}")
 
 
-class HassEvent(Event[HassPayload[Any]]):
-    """Alias for generic Hass events."""
-
-
-class StateChangeEvent(Event[HassPayload[StateChangePayload[StateT]]], Generic[StateT]):
-    """Event representing a state change in Home Assistant."""
+class StateChangeEvent(Event[HassPayload[StateChangePayload[StateT]]]):
+    """Strongly typed state change event."""
 
 
 class CallServiceEvent(Event[HassPayload[CallServicePayload]]):
@@ -227,3 +223,7 @@ class AutomationTriggeredEvent(Event[HassPayload[AutomationTriggeredPayload]]):
 
 class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
+
+
+HassEvent: TypeAlias = Event[HassPayload[Any]]
+"""Alias for Home Assistant events."""

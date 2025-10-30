@@ -2,7 +2,7 @@ from pathlib import Path
 
 from watchfiles import awatch
 
-from hassette.events import FileWatcherEventPayload
+from hassette.events.hassette import HassetteFileWatcherEvent
 from hassette.resources.base import Service
 
 
@@ -41,7 +41,7 @@ class _FileWatcher(Service):  # pyright: ignore[reportUnusedClass]
             for _, changed_path in changes:
                 changed_path = Path(changed_path).resolve()
                 self.logger.debug("Detected change in %s", changed_path)
-                event = FileWatcherEventPayload.create_event(changed_file_path=changed_path)
+                event = HassetteFileWatcherEvent.create_event(changed_file_path=changed_path)
                 await self.hassette.send_event(event.topic, event)
 
             # update paths in case new apps were added
