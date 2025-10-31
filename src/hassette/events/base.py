@@ -1,5 +1,6 @@
 import itertools
 import typing
+from dataclasses import dataclass
 from typing import Generic, Literal, TypeVar
 
 from whenever import ZonedDateTime
@@ -35,6 +36,7 @@ class EventPayload(Generic[DataT]):
         self.data = data
 
 
+@dataclass(frozen=True, slots=True)
 class HassContext:
     """Structure for the context of a Home Assistant event."""
 
@@ -62,7 +64,7 @@ class HassPayload(EventPayload[DataT]):
     """The context of the event."""
 
     def __init__(
-        self, data: DataT, event_type: str, origin: Literal["LOCAL", "REMOTE"], time_fired: str, context: HassContext
+        self, event_type: str, data: DataT, origin: Literal["LOCAL", "REMOTE"], time_fired: str, context: HassContext
     ) -> None:
         super().__init__(event_type, data)
         self.origin = origin
@@ -103,6 +105,6 @@ class HassPayload(EventPayload[DataT]):
 class HassettePayload(EventPayload[DataT]):
     """Hassette event payload with additional metadata."""
 
-    def __init__(self, data: DataT, event_type: str) -> None:
+    def __init__(self, event_type: str, data: DataT) -> None:
         super().__init__(event_type, data)
         self.event_id = next(HASSETTE_EVENT_ID_SEQ)
