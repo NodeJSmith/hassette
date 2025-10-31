@@ -1,4 +1,3 @@
-from .event import EventT
 from .handler import (
     AsyncHandlerType,
     AsyncHandlerTypeEvent,
@@ -23,7 +22,6 @@ __all__ = [
     "AsyncHandlerTypeNoEvent",
     "ChangeType",
     "ComparisonCondition",
-    "EventT",
     "HandlerType",
     "HandlerTypeNoEvent",
     "JobCallable",

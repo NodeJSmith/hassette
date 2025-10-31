@@ -3,7 +3,7 @@ from typing import Any, Protocol
 
 from typing_extensions import TypeAliasType
 
-from .event import EventT
+from hassette.events.base import EventT
 
 
 class SyncHandlerTypeNoEvent(Protocol):

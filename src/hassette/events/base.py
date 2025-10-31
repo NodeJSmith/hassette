@@ -6,58 +6,69 @@ from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
-P = TypeVar("P", bound="HassPayload | HassettePayload", covariant=True)
-
-HassT = TypeVar("HassT", covariant=True)
-HassetteT = TypeVar("HassetteT", covariant=True)
-
+PayloadT = TypeVar("PayloadT", bound="EventPayload")
+DataT = TypeVar("DataT")
+EventT = TypeVar("EventT", bound="Event", contravariant=True)
 
 HASSETTE_EVENT_ID_SEQ = itertools.count(1)
 
 
-def next_id() -> int:
-    return next(HASSETTE_EVENT_ID_SEQ)
-
-
-@dataclass(slots=True, frozen=True)
-class Event(Generic[P]):
-    """Base class for all events, only contains topic and payload.
-
-    Payload will be a HassPayload or a HassettePayload depending on the event source."""
+@dataclass(frozen=True, slots=True)
+class Event(Generic[PayloadT]):
+    """Base event with strongly typed payload."""
 
     topic: str
-    """The topic of the event, used with the Bus to subscribe to specific event types."""
+    """Topic of the event."""
 
-    payload: P
-    """The payload of the event, containing the actual event data from HA or Hassette."""
+    payload: PayloadT
+    """The event payload."""
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(frozen=True, slots=True)
+class EventPayload(Generic[DataT]):
+    """Base payload with typed data."""
+
+    event_type: str
+    """Type of the event."""
+
+    data: DataT
+    """The actual event data."""
+
+
+@dataclass(frozen=True, slots=True)
 class HassContext:
-    """Structure for the context of a state change event."""
+    """Structure for the context of a Home Assistant event."""
 
     id: str
     parent_id: str | None
     user_id: str | None
 
 
-@dataclass(slots=True, frozen=True)
-class HassPayload(Generic[HassT]):
-    """Base class for Home Assistant event payloads."""
+@dataclass(frozen=True, slots=True)
+class HassPayload(EventPayload[DataT]):
+    """Home Assistant event payload with additional metadata."""
 
     event_type: str
-    data: HassT
+    """Type of the event, e.g., 'state_changed', 'call_service', etc."""
+
+    data: DataT
+    """The actual event data from Home Assistant."""
+
     origin: Literal["LOCAL", "REMOTE"]
+    """Origin of the event, either 'LOCAL' or 'REMOTE'."""
+
     time_fired: ZonedDateTime
+    """The time the event was fired."""
+
     context: HassContext
+    """The context of the event."""
 
     def __post_init__(self):
-        if isinstance(self.time_fired, str):
-            object.__setattr__(self, "time_fired", convert_datetime_str_to_system_tz(self.time_fired))
+        object.__setattr__(self, "time_fired", convert_datetime_str_to_system_tz(self.time_fired))
 
     @property
     def entity_id(self) -> str | None:
-        """Return the entity ID if present in the data."""
+        """Return the entity_id if present in the data."""
         return getattr(self.data, "entity_id", None)
 
     @property
@@ -76,11 +87,21 @@ class HassPayload(Generic[HassT]):
         """Return the service if present in the data."""
         return getattr(self.data, "service", None)
 
+    @property
+    def event_id(self) -> str:
+        """The unique identifier for the event."""
+        return self.context.id
 
-@dataclass(slots=True, frozen=True)
-class HassettePayload(Generic[HassetteT]):
-    """Base class for Hassette event payloads."""
+
+@dataclass(frozen=True, slots=True)
+class HassettePayload(EventPayload[DataT]):
+    """Hassette event payload with additional metadata."""
 
     event_type: str
-    event_id: int = field(default_factory=next_id, init=False)
-    data: HassetteT
+    """Type of the event, e.g., 'state_changed', 'call_service', etc."""
+
+    data: DataT
+    """The actual event data from Home Assistant."""
+
+    event_id: int = field(default_factory=lambda: next(HASSETTE_EVENT_ID_SEQ))
+    """The unique identifier for the event."""

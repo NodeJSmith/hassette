@@ -10,10 +10,10 @@ Key capabilities
 ----------------
 - Retrieve states and entities as rich Pydantic models (with raw variants available when needed).
 - Call services with convenience helpers for on/off/toggle as well as the generic
-  :meth:`call_service` method.
+  :meth:`~hassette.api.Api.call_service` method.
 - Fire custom events, fetch history/logbook records, interact with calendars, render templates, and
   download camera stills.
-- Drop down to low-level ``rest_request`` or ``ws_send_and_wait`` helpers when you need direct API
+- Drop down to low-level :meth:`~hassette.api.Api.rest_request` or :meth:`~hassette.api.Api.ws_send_and_wait` helpers when you need direct API
   access.
 
 .. _entity-state-note:
@@ -94,7 +94,7 @@ runtime check to be sure you requested the right entity model and returns ``None
 
 Service helpers
 ---------------
-:meth:`Api.call_service` is the lowest-level abstraction for invoking Home Assistant services. Pass
+:meth:`~hassette.api.Api.call_service` is the lowest-level abstraction for invoking Home Assistant services. Pass
 ``domain``/``service`` along with a ``target`` dict or additional service data. Convenience wrappers
 turn_on/turn_off/toggle simply forward to ``call_service`` and request a response context so you can
 inspect the HA ``HassContext``.
@@ -141,10 +141,10 @@ Templates, calendars, and other REST endpoints
 ----------------------------------------------
 Use the provided helpers instead of building raw URLs:
 
-- :meth:`render_template` renders Jinja templates.
-- :meth:`get_camera_image` streams the latest still (or a specific timestamp).
-- :meth:`set_state` writes synthetic states (handy for helpers or sensors you manage).
-- :meth:`get_calendars` / :meth:`get_calendar_events` expose HA calendar data.
+- :meth:`~hassette.api.Api.render_template` renders Jinja templates.
+- :meth:`~hassette.api.Api.get_camera_image` streams the latest still (or a specific timestamp).
+- :meth:`~hassette.api.Api.set_state` writes synthetic states (handy for helpers or sensors you manage).
+- :meth:`~hassette.api.Api.get_calendars` / :meth:`~hassette.api.Api.get_calendar_events` expose HA calendar data.
 
 Each helper handles serialization and retries for you.
 

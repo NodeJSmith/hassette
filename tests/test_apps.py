@@ -5,10 +5,10 @@ from unittest.mock import patch
 
 import pytest
 
-from hassette.core.core import Hassette
-from hassette.core.resources.bus.listeners import Listener
-from hassette.core.services.app_handler import _AppHandler, load_app_class_from_manifest
-from hassette.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED
+from hassette.bus import Listener
+from hassette.core import Hassette
+from hassette.services.app_handler import _AppHandler, load_app_class_from_manifest
+from hassette.types.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED
 
 if typing.TYPE_CHECKING:
     from data.my_app import MyApp

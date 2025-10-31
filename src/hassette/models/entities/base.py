@@ -3,7 +3,7 @@ from typing import Generic
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
-from hassette.core import context
+from hassette import context
 from hassette.models.states import StateT
 
 if typing.TYPE_CHECKING:
@@ -19,7 +19,7 @@ class BaseEntity(BaseModel, Generic[StateT]):
     _sync: "BaseEntitySyncFacade[StateT]" = PrivateAttr(default=None, init=False)  # pyright: ignore[reportAssignmentType]
 
     async def refresh(self) -> StateT:
-        self.state = await self.hassette.api.get_state_value_typed(self.entity_id, type(self.state))
+        self.state = await self.hassette.api.get_state(self.entity_id, type(self.state))
         return self.state
 
     @property
@@ -37,6 +37,7 @@ class BaseEntity(BaseModel, Generic[StateT]):
     @property
     def hassette(self) -> "Hassette":
         """Get the HassAPI instance for this state."""
+
         inst = context.HASSETTE_INSTANCE.get(None)
         if inst is None:
             raise RuntimeError("Hassette instance not set in context")

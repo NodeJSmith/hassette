@@ -1,13 +1,9 @@
-from .base import Event, HassContext, HassettePayload, HassPayload
-from .hass import (
+from .base import Event, EventT, HassContext, HassettePayload, HassPayload
+from .hass.hass import (
     AutomationTriggeredEvent,
     CallServiceEvent,
     ComponentLoadedEvent,
-    HassContextDict,
     HassEvent,
-    HassEventDict,
-    HassEventEnvelopeDict,
-    HassStateDict,
     LogbookEntryEvent,
     ScriptStartedEvent,
     ServiceRegisteredEvent,
@@ -17,6 +13,27 @@ from .hass import (
     UserRemovedEvent,
     create_event_from_hass,
 )
+from .hass.raw import HassContextDict, HassEventDict, HassEventEnvelopeDict, HassStateDict
+
+__all__ = [
+    "AutomationTriggeredEvent",
+    "CallServiceEvent",
+    "ComponentLoadedEvent",
+    "HassContextDict",
+    "HassEvent",
+    "HassEventDict",
+    "HassEventEnvelopeDict",
+    "HassStateDict",
+    "LogbookEntryEvent",
+    "ScriptStartedEvent",
+    "ServiceRegisteredEvent",
+    "ServiceRemovedEvent",
+    "StateChangeEvent",
+    "UserAddedEvent",
+    "UserRemovedEvent",
+    "create_event_from_hass",
+]
+
 from .hassette import (
     FileWatcherEventPayload,
     HassetteFileWatcherEvent,
@@ -32,6 +49,7 @@ __all__ = [
     "CallServiceEvent",
     "ComponentLoadedEvent",
     "Event",
+    "EventT",
     "FileWatcherEventPayload",
     "HassContext",
     "HassContextDict",

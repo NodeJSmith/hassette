@@ -53,7 +53,7 @@ While schedule helpers will have different signatures, all will take the followi
 
 Scheduling helpers
 ------------------
-Each helper returns a :class:`~hassette.core.resources.scheduler.classes.ScheduledJob` you can keep to inspect
+Each helper returns a :class:`~hassette.scheduler.ScheduledJob` you can keep to inspect
 ``next_run`` or cancel it later.
 
 Helper methods include the following:
@@ -66,8 +66,6 @@ Helper methods include the following:
  - ``run_cron``: Run repeatedly on a cron schedule.
 
   - Accepts any of the following cron parameters: ``second``, ``minute``, ``hour``, ``day_of_month``, ``month``, ``day_of_week``.
-
-Detailed documentation for these can be found at :doc:`reference/core/scheduler`.
 
 
 Worked examples

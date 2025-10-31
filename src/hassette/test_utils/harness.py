@@ -12,29 +12,28 @@ from aiohttp import web
 from anyio import create_memory_object_stream
 from yarl import URL
 
-from hassette import HassetteConfig
-from hassette.core import context
-from hassette.core.resources.api.api import Api
-from hassette.core.resources.base import Resource
-from hassette.core.resources.bus.bus import Bus
-from hassette.core.resources.scheduler.scheduler import Scheduler
-from hassette.core.resources.task_bucket import TaskBucket, make_task_factory
-from hassette.core.services.api_service import _ApiService
-from hassette.core.services.app_handler import _AppHandler
-from hassette.core.services.bus_service import _BusService
-from hassette.core.services.file_watcher import _FileWatcher
-from hassette.core.services.scheduler_service import _SchedulerService
-from hassette.core.services.websocket_service import _WebsocketService
-from hassette.enums import ResourceStatus
+from hassette import HassetteConfig, context
+from hassette.api import Api
+from hassette.bus import Bus
 from hassette.events import Event
+from hassette.resources.base import Resource
+from hassette.scheduler import Scheduler
+from hassette.services.api_service import _ApiService
+from hassette.services.app_handler import _AppHandler
+from hassette.services.bus_service import _BusService
+from hassette.services.file_watcher import _FileWatcher
+from hassette.services.scheduler_service import _SchedulerService
+from hassette.services.websocket_service import _WebsocketService
+from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
+from hassette.types.enums import ResourceStatus
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-    from hassette.core.core import Hassette
+    from hassette.core import Hassette
 
 
 async def wait_for(
@@ -294,12 +293,12 @@ class HassetteHarness:
         self._exit_stack.push_async_callback(site.stop)
 
         rest_url_patch = patch(
-            "hassette.core.services.api_service._ApiService._rest_url",
+            "hassette.services.api_service._ApiService._rest_url",
             new_callable=PropertyMock,
             return_value=self.api_base_url,
         )
         headers_patch = patch(
-            "hassette.core.services.api_service._ApiService._headers",
+            "hassette.services.api_service._ApiService._headers",
             new_callable=PropertyMock,
             return_value={"Authorization": "Bearer test_token"},
         )

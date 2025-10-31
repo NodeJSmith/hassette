@@ -2,7 +2,7 @@ import asyncio
 import typing
 
 if typing.TYPE_CHECKING:
-    from hassette.core.resources.base import Resource
+    from hassette.resources.base import Resource
 
 
 async def wait_for_ready(

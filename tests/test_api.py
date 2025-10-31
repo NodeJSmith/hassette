@@ -1,7 +1,6 @@
 import inspect
 
-from hassette.core.resources.api.api import Api
-from hassette.core.resources.api.sync import ApiSyncFacade
+from hassette.api import Api, ApiSyncFacade
 from hassette.test_utils import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
 

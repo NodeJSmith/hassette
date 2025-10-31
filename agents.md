@@ -292,3 +292,4 @@ This framework prioritizes developer experience, type safety, and clear patterns
 - All tests should have docstrings
 - Use clear and descriptive names for variables, functions, and classes
 - Adhere to SOLID principles and best practices for clean code
+- Use `ruff check --fix` to automatically fix linting issues

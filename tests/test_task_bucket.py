@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from hassette.core.resources import task_bucket
+from hassette.task_bucket import TaskBucket
 
 
 async def sleeper():
@@ -16,7 +16,7 @@ async def sleeper():
         raise
 
 
-async def test_cancel_all_cancels_cooperative_tasks(bucket_fixture: task_bucket.TaskBucket):
+async def test_cancel_all_cancels_cooperative_tasks(bucket_fixture: TaskBucket):
     """cancel_all cooperatively stops tracked tasks."""
     cooperative_task = asyncio.create_task(sleeper(), name="cooperative")
     # factory should auto-register; no explicit bucket.add/spawn needed
@@ -43,7 +43,7 @@ async def boom(event: asyncio.Event):
     raise RuntimeError("boom")
 
 
-async def test_crash_is_logged(bucket_fixture: task_bucket.TaskBucket, caplog):
+async def test_crash_is_logged(bucket_fixture: TaskBucket, caplog):
     """Task crashes are logged by the bucket."""
     task_started = asyncio.Event()
     caplog.set_level(logging.DEBUG, logger=bucket_fixture.logger.name)
@@ -73,7 +73,7 @@ async def stubborn(event: asyncio.Event):
     event.set()
 
 
-async def test_warns_on_stubborn_tasks(bucket_fixture: task_bucket.TaskBucket, caplog):
+async def test_warns_on_stubborn_tasks(bucket_fixture: TaskBucket, caplog):
     """Bucket logs a warning when tasks ignore cancellation."""
     stubborn_task_finished = asyncio.Event()
     caplog.set_level(logging.WARNING, logger=bucket_fixture.logger.name)
@@ -96,7 +96,7 @@ async def test_warns_on_stubborn_tasks(bucket_fixture: task_bucket.TaskBucket, c
     assert not stubborn_task_handle.cancelled(), "task should not be cancelled after finishing"
 
 
-async def test_factory_tracks_rogue_create_task(bucket_fixture: task_bucket.TaskBucket):
+async def test_factory_tracks_rogue_create_task(bucket_fixture: TaskBucket):
     """Task factory picks up plain asyncio.create_task usage."""
     rogue_task_started = asyncio.Event()
 
@@ -115,7 +115,7 @@ async def test_factory_tracks_rogue_create_task(bucket_fixture: task_bucket.Task
     assert rogue_task_handle.cancelled(), "task should be cancelled after cancel_all"
 
 
-async def test_run_sync_raises_inside_loop(bucket_fixture: task_bucket.TaskBucket) -> None:
+async def test_run_sync_raises_inside_loop(bucket_fixture: TaskBucket) -> None:
     """run_sync rejects being invoked inside the running event loop."""
 
     async def sample_coroutine():

@@ -6,7 +6,7 @@ from typing import Any
 import anyio
 
 from hassette.events.hassette import Event
-from hassette.topics import HASSETTE_EVENT_FILE_WATCHER
+from hassette.types.topics import HASSETTE_EVENT_FILE_WATCHER
 
 if typing.TYPE_CHECKING:
     from hassette.core.core import Hassette

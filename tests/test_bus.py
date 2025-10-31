@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hassette.core.resources.bus.listeners import Subscription
-from hassette.core.resources.bus.predicates.conditions import IsOrContains
-from hassette.core.resources.bus.predicates.predicates import (
+from hassette.bus.conditions import IsOrContains
+from hassette.bus.listeners import Subscription
+from hassette.bus.predicates import (
     AllOf,
     AttrDidChange,
     EntityMatches,
@@ -21,8 +21,8 @@ from hassette.core.resources.bus.predicates.predicates import (
 from hassette.events.base import Event
 
 if typing.TYPE_CHECKING:
-    from hassette.core.core import Hassette
-    from hassette.core.resources.bus.bus import Bus
+    from hassette.bus import Bus
+    from hassette.core import Hassette
 
 
 @pytest.fixture

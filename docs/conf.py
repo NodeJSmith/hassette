@@ -11,16 +11,22 @@ copyright = "2025, Jessica Smith"
 author = "Jessica Smith"
 
 extensions = [
-    "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
+    "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",  # for Google/NumPy-style docstrings
+    "sphinx.ext.intersphinx",  # for linking to external documentation
     "sphinxcontrib.autodoc_pydantic",  # renders BaseModel fields nicely
     "sphinx_copybutton",  # adds "copy" button to code blocks
 ]
 
-
-myst_enable_extensions = ["fieldlist"]
+# Intersphinx mapping for external library documentation
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3/", None),
+    "aiohttp": ("https://docs.aiohttp.org/en/stable/", None),
+    "whenever": ("https://whenever.readthedocs.io/en/latest/", None),
+    "pydantic": ("https://docs.pydantic.dev/latest/", None),
+}
 
 PYDANTIC_IGNORE_FIELDS = [
     "dict",
@@ -70,15 +76,23 @@ html_css_files = ["style.css"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
+autosummary_generate = True
+autosummary_imported_members = True
+
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": True,
+    "show-inheritance": True,
+    # "imported-members": True,  # include re-exports from __init__.py
+    # "ignore-module-all": True,  # uncomment if __all__ is getting in your way
+}
+
 typehints_fully_qualified = False  # makes types like `str` instead of `builtins.str`
 
 # Optional: only show class signatures (not constructor separately)
 autodoc_class_signature = "separated"  # or "mixed"
 # autodoc_inherit_docstrings = False
 
-autodoc_default_flags = ["members"]
-autosummary_generate = True
-autosummary_imported_members = True
 autodoc_pydantic_model_show_config_summary = False
 autodoc_pydantic_settings_show_config_summary = False
 autodoc_pydantic_model_show_validator_summary = False

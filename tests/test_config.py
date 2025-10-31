@@ -2,12 +2,13 @@ from pathlib import Path
 
 import dotenv
 
-from hassette.config.core_config import HassetteConfig
-from hassette.core.core import Hassette
+from hassette import Hassette, HassetteConfig
 
 
 def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) -> None:
     """Configuration values honour overrides from the test TOML and .env."""
+
+    test_config.reload()
 
     expected_token = dotenv.get_key(env_file_path, "hassette__token")
 

@@ -1,13 +1,20 @@
 Bus
 ======
 
-The Bus is Hassette's event system for subscribing to Home Assistant events and Hassette framework events. It provides a clean, typed interface for reacting to state changes, service calls, and other system events.
+You can register handlers for any `Home Assistant event <https://www.home-assistant.io/docs/configuration/events/>`__ or
+internal Hassette framework event using the event bus. Handlers can be async or sync functions or methods and do not require any
+specific signature. You can pass additional arguments to your handlers using ``args`` and ``kwargs``. In order to receive the event
+in your handler, the first (non-self) parameter must be named ``event``. It does not need to be typed or annotated, the name is what
+matters.
+
+The bus is created at app instantiation and is available as ``self.bus``. There are multiple helper methods, the ones you will
+likely use most often are ``on_state_change`` and ``on_attribute_change`` for listening to entity state and attribute changes,
+and ``on_call_service`` for listening to service calls. There is also a generic ``on`` method to subscribe to any topic directly.
+
+Registering an event handler returns a ``Subscription`` instance you can keep to unsubscribe later. It also has a reference to the underlying
+``Listener`` instance, which can be useful for debugging or logging purposes.
 
 .. note::
-
-    Unlike AppDaemon, your handler receives a single :class:`~hassette.events.base.Event` object containing all the event data,
-    plus any ``*args`` and ``**kwargs`` you specified when subscribing.
-    The event object provides everything you need in a structured, typed format.
 
     .. code-block:: python
 
@@ -20,6 +27,16 @@ The Bus is Hassette's event system for subscribing to Home Assistant events and 
 
     If you have a handler that does not need the event object, you can simply leave the event parameter out, and Hassette will not pass it.
 
+    .. code-block:: python
+
+         async def on_heartbeat(self) -> None:
+              self.logger.info("Heartbeat received")
+
+         # or with extra args/kwargs
+
+        async def on_heartbeat(self, heartbeat_name: str) -> None:
+             self.logger.info("Heartbeat received: %s", heartbeat_name)
+
 
 Event model
 -----------
@@ -27,7 +44,8 @@ Every event you receive from the bus is an :class:`~hassette.events.base.Event` 
 
 ``topic``
     A string identifier describing what happened, such as ``hass.event.state_changed`` or
-    ``hassette.event.service_status``. This is what the bus uses for routing events to your subscriptions.
+    ``hassette.event.service_status``. This is what the bus uses for routing events to your subscriptions. Topics
+    are currently defined in :mod:`~hassette.types.topics` as string constants, this will likely be improved in the future.
 
 .. note::
 
@@ -171,7 +189,7 @@ the ``where`` parameter on any subscription method.
        where=P.Guard(is_workday)
    )
 
-See :mod:`~hassette.core.resources.bus.predicates.predicates` for a full list of built-in predicates.
+See :mod:`~hassette.bus.predicates` for a full list of built-in predicates.
 
 Debounce and throttle
 ---------------------
