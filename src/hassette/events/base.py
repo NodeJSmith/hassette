@@ -1,6 +1,5 @@
 import itertools
-import typing
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Generic, Literal, TypeVar
 
 from whenever import ZonedDateTime
@@ -14,14 +13,18 @@ EventT = TypeVar("EventT", bound="Event", contravariant=True)
 HASSETTE_EVENT_ID_SEQ = itertools.count(1)
 
 
+@dataclass(frozen=True, slots=True)
 class Event(Generic[PayloadT]):
     """Base event with strongly typed payload."""
 
-    def __init__(self, topic: str, payload: PayloadT) -> None:
-        self.topic = topic
-        self.payload = payload
+    topic: str
+    """Topic of the event."""
+
+    payload: PayloadT
+    """The event payload."""
 
 
+@dataclass(frozen=True, slots=True)
 class EventPayload(Generic[DataT]):
     """Base payload with typed data."""
 
@@ -30,10 +33,6 @@ class EventPayload(Generic[DataT]):
 
     data: DataT
     """The actual event data."""
-
-    def __init__(self, event_type: str, data: DataT) -> None:
-        self.event_type = event_type
-        self.data = data
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +44,7 @@ class HassContext:
     user_id: str | None
 
 
+@dataclass(frozen=True, slots=True)
 class HassPayload(EventPayload[DataT]):
     """Home Assistant event payload with additional metadata."""
 
@@ -63,17 +63,8 @@ class HassPayload(EventPayload[DataT]):
     context: HassContext
     """The context of the event."""
 
-    def __init__(
-        self, event_type: str, data: DataT, origin: Literal["LOCAL", "REMOTE"], time_fired: str, context: HassContext
-    ) -> None:
-        super().__init__(event_type, data)
-        self.origin = origin
-
-        time_fired_dt = convert_datetime_str_to_system_tz(time_fired)
-        if typing.TYPE_CHECKING:
-            assert time_fired_dt is not None
-        self.time_fired = time_fired_dt
-        self.context = context
+    def __post_init__(self):
+        object.__setattr__(self, "time_fired", convert_datetime_str_to_system_tz(self.time_fired))
 
     @property
     def entity_id(self) -> str | None:
@@ -102,9 +93,15 @@ class HassPayload(EventPayload[DataT]):
         return self.context.id
 
 
+@dataclass(frozen=True, slots=True)
 class HassettePayload(EventPayload[DataT]):
     """Hassette event payload with additional metadata."""
 
-    def __init__(self, event_type: str, data: DataT) -> None:
-        super().__init__(event_type, data)
-        self.event_id = next(HASSETTE_EVENT_ID_SEQ)
+    event_type: str
+    """Type of the event, e.g., 'state_changed', 'call_service', etc."""
+
+    data: DataT
+    """The actual event data from Home Assistant."""
+
+    event_id: int = field(default_factory=lambda: next(HASSETTE_EVENT_ID_SEQ))
+    """The unique identifier for the event."""
