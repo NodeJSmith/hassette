@@ -16,8 +16,6 @@ from hassette.utils import get_traceback_string
 class HassetteEmptyPayload:
     """Empty payload for events that do not require additional data."""
 
-    pass
-
 
 @dataclass(slots=True, frozen=True)
 class ServiceStatusPayload:
