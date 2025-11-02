@@ -8,7 +8,7 @@ Why Hassette?
 - **Modern developer experience** with typed APIs, Pydantic models, and IDE-friendly design
 - **Async-first architecture** designed for modern Python from the ground up
 - **Simple, transparent framework** with minimal magic and clear extension points
-- **Focused mission**: does one thing well — run user-defined apps that interact with Home Assistant
+- **Focused on Home Assistant** with first-class support for its APIs and event bus
 
 Getting Started
 ================
@@ -28,13 +28,16 @@ You can get running with Hassette in a few lines of code.
     uvx hassette -t $HOME_ASSISTANT_TOKEN --base-url 'http://192.168.1.179:8123' --app-dir .
 
 
+See the :doc:`getting started guide <getting-started/index>` for more details.
+
+
 Learn More
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. toctree::
   :maxdepth: 1
+  :caption: Next steps
 
-  getting-started/index
   configuration
   apps
   api
