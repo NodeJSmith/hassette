@@ -8,12 +8,14 @@ framework manages for you.
 
 Key capabilities
 ----------------
-- Retrieve states and entities as rich Pydantic models (with raw variants available when needed).
+- Retrieve states and entities as rich Pydantic models (with raw variants available when needed) using
+  :meth:`~hassette.api.api.Api.get_states`, :meth:`~hassette.api.api.Api.get_state`,
+  :meth:`~hassette.api.api.Api.get_entity`, and more.
 - Call services with convenience helpers for on/off/toggle as well as the generic
-  :meth:`~hassette.api.Api.call_service` method.
+  :meth:`~hassette.api.api.Api.call_service` method.
 - Fire custom events, fetch history/logbook records, interact with calendars, render templates, and
   download camera stills.
-- Drop down to low-level :meth:`~hassette.api.Api.rest_request` or :meth:`~hassette.api.Api.ws_send_and_wait` helpers when you need direct API
+- Drop down to low-level :meth:`~hassette.api.api.Api.rest_request` or :meth:`~hassette.api.api.Api.ws_send_and_wait` helpers when you need direct API
   access.
 
 .. _entity-state-note:
@@ -22,11 +24,11 @@ Key capabilities
 
     Hassette uses different terminology than Home Assistant and AppDaemon, in an attempt to reduce confusion regarding states and entities.
 
-    A ``state``, such as what is returned by *get_state()*, is an object representing the current status of an entity, including its attributes and metadata.
+    A :class:`State <hassette.models.states.base.BaseState>`, such as what is returned by *get_state()*, is an object representing the current status of an entity, including its attributes and metadata.
 
-    A ``state value``, such as what is returned by *get_state_value()*, is the actual value of the state, e.g., ``"on"``, ``"off"``, ``23.5``, etc.
+    A :class:`StateValue <hassette.models.states.base.StateValueT>`, such as what is returned by *get_state_value()*, is the actual value of the state, e.g., ``"on"``, ``"off"``, ``23.5``, etc.
 
-    An ``entity``, such as what is returned by *get_entity()*, is a richer object that includes the state and methods to interact with the entity, such as calling services on it.
+    An :class:`Entity <hassette.models.entities.base.BaseEntity>`, such as what is returned by *get_entity()*, is a richer object that includes the state and methods to interact with the entity, such as calling services on it.
 
 .. note::
 
@@ -50,8 +52,9 @@ Key capabilities
 
 States
 ------
+
 ``get_states`` and ``get_state`` convert raw dictionaries into the appropriate
-:class:`~hassette.models.states.BaseState` subclasses. Pass the state model you expect to ``get_state``
+:class:`~hassette.models.states.base.BaseState` subclasses. Pass the state model you expect to ``get_state``
 so you receive the fully typed object. If you just need the primary value, ``get_state_value`` returns
 the raw Home Assistant string, while ``get_state_value_typed`` will coerce into your Pydantic model's
 ``state`` field.
@@ -73,6 +76,7 @@ the raw Home Assistant string, while ``get_state_value_typed`` will coerce into 
 
 Entities
 --------
+
 Entities (:py:mod:`~hassette.models.entities`) wrap a state plus helper methods. ``get_entity`` performs a
 runtime check to be sure you requested the right entity model and returns ``None`` if you use
 ``get_entity_or_none`` and the entity is missing.
@@ -94,7 +98,8 @@ runtime check to be sure you requested the right entity model and returns ``None
 
 Service helpers
 ---------------
-:meth:`~hassette.api.Api.call_service` is the lowest-level abstraction for invoking Home Assistant services. Pass
+
+:meth:`~hassette.api.api.Api.call_service` is the lowest-level abstraction for invoking Home Assistant services. Pass
 ``domain``/``service`` along with a ``target`` dict or additional service data. Convenience wrappers
 turn_on/turn_off/toggle simply forward to ``call_service`` and request a response context so you can
 inspect the HA ``HassContext``.
@@ -105,7 +110,7 @@ inspect the HA ``HassContext``.
        "light",
        "turn_on",
        target={"entity_id": "light.porch"},
-       brightness_pct=80,
+       brightness=80,
    )
 
    ctx = await self.api.turn_off("switch.air_purifier")
@@ -121,39 +126,38 @@ inspect the HA ``HassContext``.
 
 History and logbook
 -------------------
-History endpoints accept Whenever ``PlainDateTime``/``Date`` objects, Python ``datetime``/``date``, or
-plain strings. ``get_history`` returns normalized :class:`hassette.models.history.HistoryEntry`
-instances; ``get_histories`` yields a mapping of entity IDs to entry lists when you need to fetch
-multiple series at once.
+
+History endpoints accept Whenever date objects or plain strings. ``get_history`` returns normalized :class:`~hassette.models.history.HistoryEntry`
+instances; ``get_histories`` returns a mapping of entity IDs to entry lists when you need to fetch
+multiple entities at once.
 
 .. code-block:: python
 
-   from whenever import PlainDateTime
-
-   start = PlainDateTime.now().subtract(hours=2)
-   history = await self.api.get_history("climate.living_room", start_time=start)
+   history = await self.api.get_history("climate.living_room", start_time=self.now().subtract(hours=2))
    for entry in history:
-       self.logger.debug("%s -> %s", entry.timestamp, entry.state)
+       self.logger.debug("%s -> %s", entry.last_changed, entry.state)
 
-   logbook = await self.api.get_logbook("binary_sensor.front_door", start_time=start)
+   logbook = await self.api.get_logbook("binary_sensor.front_door", start_time=self.now().subtract(hours=2))
 
 Templates, calendars, and other REST endpoints
 ----------------------------------------------
+
 Use the provided helpers instead of building raw URLs:
 
-- :meth:`~hassette.api.Api.render_template` renders Jinja templates.
-- :meth:`~hassette.api.Api.get_camera_image` streams the latest still (or a specific timestamp).
-- :meth:`~hassette.api.Api.set_state` writes synthetic states (handy for helpers or sensors you manage).
-- :meth:`~hassette.api.Api.get_calendars` / :meth:`~hassette.api.Api.get_calendar_events` expose HA calendar data.
+- :meth:`~hassette.api.api.Api.render_template` renders Jinja templates.
+- :meth:`~hassette.api.api.Api.get_camera_image` streams the latest still (or a specific timestamp).
+- :meth:`~hassette.api.api.Api.set_state` writes synthetic states (handy for helpers or sensors you manage).
+- :meth:`~hassette.api.api.Api.get_calendars` / :meth:`~hassette.api.api.Api.get_calendar_events` expose HA calendar data.
 
 Each helper handles serialization and retries for you.
 
 Low-level access
 ----------------
+
 If you need an endpoint Hassette does not wrap yet, ``rest_request`` and ``ws_send_and_wait`` provide
 direct access to the authenticated ``aiohttp`` session and WebSocket connection. They include retry
-logic and raise Hassette-specific exceptions like :class:`hassette.exceptions.EntityNotFoundError` and
-:class:`hassette.exceptions.InvalidAuthError` so you can handle failures consistently.
+logic and raise Hassette-specific exceptions like :class:`~hassette.exceptions.EntityNotFoundError` and
+:class:`~hassette.exceptions.InvalidAuthError` so you can handle failures consistently.
 
 .. code-block:: python
 
@@ -163,6 +167,7 @@ logic and raise Hassette-specific exceptions like :class:`hassette.exceptions.En
 
 Sync facade
 -----------
+
 ``self.api.sync`` mirrors the async API with blocking calls for synchronous code. Do not call from
 within an event loop - it's intended for ``AppSync`` subclasses or transitional code paths (for
 example, libraries that expect synchronous hooks).
@@ -174,6 +179,7 @@ example, libraries that expect synchronous hooks).
 
 Typing status
 -------------
+
 - Many models and read operations are strongly typed.
 - Service calls are not fully typed yet; finishing this is a high priority. For now, ``call_service``
   accepts ``**data`` and performs string normalization for REST parameters.

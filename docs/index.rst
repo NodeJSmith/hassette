@@ -91,7 +91,7 @@ Learn More
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. toctree::
-  :maxdepth: 2
+  :maxdepth: 3
 
   getting-started
   configuration
@@ -100,7 +100,8 @@ Learn More
   bus
   scheduler
   comparisons/index
-  code-reference
+  apidocs/index
+
 
 
 

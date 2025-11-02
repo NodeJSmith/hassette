@@ -7,8 +7,13 @@ from whenever import ZonedDateTime
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
 PayloadT = TypeVar("PayloadT", bound="EventPayload")
+"""Represents the payload type of an event."""
+
 DataT = TypeVar("DataT")
+"""Represents the data type within an event payload."""
+
 EventT = TypeVar("EventT", bound="Event", contravariant=True)
+"""Represents an event type."""
 
 HASSETTE_EVENT_ID_SEQ = itertools.count(1)
 

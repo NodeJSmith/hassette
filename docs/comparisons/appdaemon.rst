@@ -22,7 +22,7 @@ Hassette
 
 Hassette offers similar features but with a different design philosophy. It is async-first, strongly typed, and
 built around composition instead of inheritance. Hassette also connects to Home Assistant via WebSocket and REST API,
-you write apps as Python classes that inherit from :py:class:`~hassette.app.App`, and configuration lives in ``hassette.toml``.
+you write apps as Python classes that inherit from :py:class:`~hassette.app.app.App`, and configuration lives in ``hassette.toml``.
 Hassette apps are also written in an IDE, offering the same debugging benefits, but is also strongly typed, which enables better autocompletion
 and earlier error detection.
 
@@ -162,8 +162,8 @@ A basic ``hassette.toml`` might look like this:
 
 
 
-This would correspond to a Python file ``my_app.py`` in the directory ``/apps/`` with a class ``MyApp`` that subclasses :class:`~hassette.app.App` or :class:`~hassette.app.AppSync`.
-Because Hassette uses Pydantic models for configuration, you define a subclass of :class:`~hassette.app.AppConfig` to specify expected parameters and their types.
+This would correspond to a Python file ``my_app.py`` in the directory ``/apps/`` with a class ``MyApp`` that subclasses :class:`~hassette.app.app.App` or :class:`~hassette.app.app.AppSync`.
+Because Hassette uses Pydantic models for configuration, you define a subclass of :class:`~hassette.app.app_config.AppConfig` to specify expected parameters and their types.
 You access configuration via the typed ``self.app_config`` attribute, which offers IDE support and validation at startup. The logger is part of the base class and uses Python's standard logging library, the log format
 automatically includes the instance name, method name, and line number. Instance names can be set in the config file or default to ``<ClassName>.<index>``.
 
@@ -231,9 +231,9 @@ Hassette
 ^^^^^^^^^^^^
 
 Scheduled jobs do not need to follow a specific signature. They can be either async or sync functions, and can accept arbitrary parameters. The scheduler methods return rich job objects that can be used to manage the scheduled task.
-If an IO or a blocking operation is needed, then you should either use a synchronous method (which will be run in a thread automatically) or use `self.task_bucket.run_in_thread` to manually offload the work to a thread.
+If an IO or a blocking operation is needed, then you should either use a synchronous method (which will be run in a thread automatically) or use :meth:`~hassette.task_bucket.TaskBucket.run_in_thread` to manually offload the work to a thread.
 
-The scheduler is accessed via the ``self.scheduler`` attribute, and offers similar helpers: ``run_in()``, ``run_at()``, ``run_minutely()``, ``run_hourly()``, and ``run_daily()``. These methods return a :class:`~hassette.scheduler.ScheduledJob` object that can be used to cancel or inspect the job.
+The scheduler is accessed via the ``self.scheduler`` attribute, and offers similar helpers: ``run_in()``, ``run_at()``, ``run_minutely()``, ``run_hourly()``, and ``run_daily()``. These methods return a :class:`~hassette.scheduler.classes.ScheduledJob` object that can be used to cancel or inspect the job.
 
 .. code-block:: python
   :linenos:

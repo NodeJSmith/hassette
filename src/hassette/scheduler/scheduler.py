@@ -225,7 +225,7 @@ class Scheduler(Resource):
 
         Args:
             func (JobCallable): The function to run.
-            start (START_TYPE): The time to run the job. Can be a ZonedDateTime, Time, time, or (hour, minute) tuple.
+            start (ScheduleStartType): The time to run the job.
             name (str): Optional name for the job.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
@@ -255,8 +255,8 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             interval (TimeDelta | float): The interval between runs. If a float is provided, it is treated as seconds.
             name (str): Optional name for the job.
-            start (START_TYPE): Optional start time for the first run. If provided the job will run at this time plus\
-                 the interval. Otherwise it will run at the current time plus the interval.
+            start (ScheduleStartType): Optional start time for the first run. If provided the job will run at this time.
+                Otherwise it will run at the current time plus the interval.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -289,8 +289,8 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             delay (TimeDelta | float): The delay before running the job.
             name (str): Optional name for the job.
-            start (START_TYPE): Optional start time for the job. If provided the job will run at this time plus the\
-                delay. Otherwise it will run at the current time plus the delay.
+            start (ScheduleStartType): Optional start time for the job. If provided the job will run at this time
+                plus the delay. Otherwise it will run at the current time plus the delay.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -321,9 +321,8 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             minutes (int): The minute interval to run the job.
             name (str): Optional name for the job.
-            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
-                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
-                N minutes.
+            start (ScheduleStartType): Optional start time for the first run. If provided the job will run at this time.
+                Otherwise, the job will run at now + N minutes.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -355,9 +354,8 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             hours (int): The hour interval to run the job.
             name (str): Optional name for the job.
-            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
-                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
-                N hours.
+            start (ScheduleStartType): Optional start time for the first run. If provided the job will run at this time.
+                Otherwise, the job will run at now + N hours.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -389,9 +387,8 @@ class Scheduler(Resource):
             func (JobCallable): The function to run.
             days (int): The day interval to run the job.
             name (str): Optional name for the job.
-            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
-                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
-                N days.
+            start (ScheduleStartType): Optional start time for the first run. If provided the job will run at this time.
+                Otherwise, the job will run at now + N days.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
 
@@ -439,7 +436,7 @@ class Scheduler(Resource):
             month (int | str): Month field of the cron expression.
             day_of_week (int | str): Day of week field of the cron expression.
             name (str): Optional name for the job.
-            start (START_TYPE): Optional start time for the first run. If provided the job will run at this time.\
+            start (ScheduleStartType): Optional start time for the first run. If provided the job will run at this time.
                 Otherwise, the job will run at the next scheduled time based on the cron expression.
             args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
             kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
@@ -466,7 +463,7 @@ def get_start_dtme(start: "ScheduleStartType") -> ZonedDateTime | None:
     """Convert a start time to a ZonedDateTime.
 
     Args:
-        start (START_TYPE): The start time to convert. Can be a ZonedDateTime, Time, time, or (hour, minute) tuple.
+        start (ScheduleStartType): The start time to convert.
 
     Returns:
         ZonedDateTime | None: The converted start time, or None if no start time was provided.

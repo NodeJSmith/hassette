@@ -12,13 +12,18 @@ author = "Jessica Smith"
 
 extensions = [
     "sphinx.ext.autosummary",
-    "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",  # for Google/NumPy-style docstrings
     "sphinx.ext.intersphinx",  # for linking to external documentation
     "sphinxcontrib.autodoc_pydantic",  # renders BaseModel fields nicely
     "sphinx_copybutton",  # adds "copy" button to code blocks
+    "autodoc2",
 ]
+
+autodoc2_packages = [
+    "../src/hassette",
+]
+
 
 # Intersphinx mapping for external library documentation
 intersphinx_mapping = {
@@ -83,11 +88,12 @@ autodoc_default_options = {
     "members": True,
     "undoc-members": True,
     "show-inheritance": True,
-    # "imported-members": True,  # include re-exports from __init__.py
-    # "ignore-module-all": True,  # uncomment if __all__ is getting in your way
 }
 
 typehints_fully_qualified = False  # makes types like `str` instead of `builtins.str`
+typehints_use_signature = True
+
+python_use_unqualified_type_names = True  # Sphinx ≥7
 
 # Optional: only show class signatures (not constructor separately)
 autodoc_class_signature = "separated"  # or "mixed"
@@ -104,5 +110,3 @@ autodoc_pydantic_settings_show_field_summary = False
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_field_list_validators = False
 toc_object_entries_show_parents = "hide"  # Hide parent classes in the table of contents
-
-nitpicky = True

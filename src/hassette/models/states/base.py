@@ -53,6 +53,8 @@ LOGGER = getLogger(__name__)
 
 
 class Context(BaseModel):
+    """Represents the context of a Home Assistant event."""
+
     model_config = ConfigDict(frozen=True)
 
     id: str | None = Field(default=None)
@@ -204,12 +206,12 @@ class DateTimeBaseState(BaseState[ZonedDateTime | PlainDateTime | Date | None]):
                 pass
             # Next try PlainDateTime
             try:
-                return PlainDateTime.parse_common_iso(value)
+                return PlainDateTime.parse_iso(value)
             except ValueError:
                 pass
             # Finally try Date
             try:
-                return Date.parse_common_iso(value)
+                return Date.parse_iso(value)
             except ValueError:
                 pass
         raise ValueError(f"State must be a datetime, date, or None, got {value}")
