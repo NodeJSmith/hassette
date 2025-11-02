@@ -208,3 +208,4 @@ volumes/config/.storage/frontend.user_data_e9eadd1eefcf4bf698e01bc5083b530f
 volumes/config/.storage/tmp*
 
 docs/apidocs
+docs/code-reference

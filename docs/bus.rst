@@ -86,7 +86,7 @@ with event data:
 
 * **State changes**: ``event.payload.data`` contains ``entity_id``, ``old_state``, and ``new_state``.
   State objects (``old_state`` and ``new_state``) are typed Pydantic models inheriting from
-  :py:class:`~hassette.models.states.BaseState` with properties like:
+  :py:class:`~hassette.models.states.base.BaseState` with properties like:
 
   - ``.value`` - the state value (e.g., "on", "off", "25.5")
   - ``.attributes`` - a dict of entity attributes

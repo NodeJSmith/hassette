@@ -53,7 +53,7 @@ While schedule helpers will have different signatures, all will take the followi
 
 Scheduling helpers
 ------------------
-Each helper returns a :class:`~hassette.scheduler.ScheduledJob` you can keep to inspect
+Each helper returns a :class:`~hassette.scheduler.classes.ScheduledJob` you can keep to inspect
 ``next_run`` or cancel it later.
 
 Helper methods include the following:
