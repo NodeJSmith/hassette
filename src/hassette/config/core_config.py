@@ -419,18 +419,12 @@ class HassetteConfig(BaseSettings):
     def validate_hassette_config(self) -> "HassetteConfig":
         ctx.HASSETTE_CONFIG.set(self)
 
-        LOGGER.info("Hassette version: %s", VERSION)
-
         LOGGER.debug("Hassette configuration: %s", self.model_dump_json(indent=4))
 
         return self
 
     def model_post_init(self, context: Any):
         enable_logging(self.log_level)
-
-        tz = os.getenv("TZ")
-        if tz:
-            LOGGER.info("Using timezone from environment variable TZ: %s", tz)
 
     def reload(self):
         """Reload the configuration from all sources."""
@@ -469,7 +463,7 @@ class HassetteConfig(BaseSettings):
             for k, v in auto_detected_apps.items():
                 app_dir = v["app_dir"]
                 full_path = app_dir / v["filename"]
-                LOGGER.info("Auto-detected app %s from %s", k, full_path)
+                LOGGER.debug("Auto-detected app %s from %s", k, full_path)
                 if k in cleaned_apps_dict:
                     LOGGER.debug("Skipping auto-detected app %s as it conflicts with manually configured app", k)
                     continue

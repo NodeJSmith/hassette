@@ -224,7 +224,8 @@ class SchedulerService(Service):
             next_run = job.trigger.next_run_time()
             job.set_next_run(next_run)
             next_run_time_delta = job.next_run - curr_next_run
-            assert next_run_time_delta.in_seconds() > 0, "Next run time must be in the future"
+            secs = next_run_time_delta.in_seconds()
+            assert secs > 0, f"Next run time must be in the future, got {secs}"
 
             self.logger.debug(
                 "Rescheduling repeating job %s from %s to %s (%s)",

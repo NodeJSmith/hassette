@@ -1,6 +1,7 @@
 import importlib.machinery
 import importlib.util
 import inspect
+import json
 import sys
 import traceback
 import typing
@@ -213,7 +214,7 @@ def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict
                         config=[],
                     )
                     app_manifests[app_key] = app_dict
-                    LOGGER.info("Auto-detected app manifest: %s", app_dict)
+                    LOGGER.info("Auto-detected app manifest: %s", json.dumps(app_dict, default=str, indent=2))
         except Exception:
             LOGGER.exception("Failed to auto-detect app classes in %s", py_file)
 
