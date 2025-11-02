@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeAlias
 
 from hassette.events.base import Event, HassettePayload
 from hassette.types.enums import ResourceRole, ResourceStatus
@@ -128,7 +127,3 @@ class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
             topic=HASSETTE_EVENT_FILE_WATCHER,
             payload=HassettePayload(event_type="file_changed", data=payload),
         )
-
-
-HassetteEvent: TypeAlias = Event[HassettePayload[Any]]
-"""Alias for generic Hassette events."""
