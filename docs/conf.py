@@ -17,7 +17,7 @@ extensions = [
 
 html_theme = "sphinx_rtd_theme"
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_autoapi_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_autoapi_templates", "sphinx.py"]
 
 
 # --- AutoAPI: parse Python source (no runtime import) ---
