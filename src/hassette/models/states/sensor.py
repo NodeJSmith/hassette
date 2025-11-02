@@ -17,5 +17,9 @@ class SensorAttributes(AttributesBase):
 
 
 class SensorState(StringBaseState):
+    """Representation of a Home Assistant sensor state.
+
+    See: https://www.home-assistant.io/integrations/sensor/"""
+
     domain: Literal["sensor"]
     attributes: SensorAttributes

@@ -9,6 +9,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class AutomationState(StringBaseState):
+    """Representation of a Home Assistant automation state.
+
+    See: https://www.home-assistant.io/integrations/automation/
+    """
+
     class Attributes(AttributesBase):
         id: str | None = Field(default=None)
         last_triggered: ZonedDateTime | None = Field(default=None)

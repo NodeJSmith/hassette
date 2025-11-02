@@ -8,6 +8,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class AirQualityState(StringBaseState):
+    """Representation of a Home Assistant air_quality state.
+
+    See: https://www.home-assistant.io/integrations/air_quality/
+    """
+
     class Attributes(AttributesBase):
         nitrogen_oxide: float | None = Field(default=None)
         particulate_matter_10: float | None = Field(default=None)

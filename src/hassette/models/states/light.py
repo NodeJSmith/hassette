@@ -6,6 +6,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class LightState(StringBaseState):
+    """Representation of a Home Assistant light state.
+
+    See: https://www.home-assistant.io/integrations/light/
+    """
+
     class Attributes(AttributesBase):
         min_color_temp_kelvin: int | float | None = Field(default=None)
         max_color_temp_kelvin: int | float | None = Field(default=None)
