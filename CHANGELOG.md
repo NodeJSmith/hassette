@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.15.2] - 2025-11-02
+
+### Fixed
+
+- Fix docker_start.sh to use new entrypoint
+
 ## [0.15.0] - 2025-11-02
 
-## Added
+### Added
 - `ComparisonCondition`s for comparing old and new values in state and attribute change listeners.
   - `Increased` and `Decreased` conditions added for numeric comparisons.
 - Added `IsNone` and `IsNotNone` conditions for checking if a value is `None` or not.
@@ -19,17 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - You cannot use auto-detect apps if you have a configuration with required values (unless they are being populated from environment variables or secrets).
     - In this case, you must manually configure the app to provide the required values.
 
-## Fixed
+### Fixed
 - Fixed missing tzdata in Alpine-based Docker image causing timezone issues.
 - Cli parsing working now, so any/all settings can be passed to override config file or env vars, using `--help` works correctly, etc.
 
-## Removed
+### Removed
 - Setting sources custom tracking removed, so debug level logging will no longer show where each config value was set from.
   - This was originally added due to my own confusion around config precedence, but maintaining it is not worth the extra complexity.
 - Secrets can no longer be set in ``hassette.toml`` to be accessible in app config
   - This never actually made much sense, I just didn't actually think about that when adding the feature
 
-## Changed
+### Changed
 - You can now pass `ComparisonCondition`s to the `changed` parameter on `on_state_change` and `on_attribute_change` methods.
   - This allows for comparing the old and new values to each other, rather than checking each independently.
 - You are now able to register event handlers that take no arguments, for events where you don't care about the event data.
