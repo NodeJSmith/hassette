@@ -20,7 +20,7 @@ if typing.TYPE_CHECKING:
     from hassette.events import Event
 
 
-class _BusService(Service):  # pyright: ignore[reportUnusedClass]
+class BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
     stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"

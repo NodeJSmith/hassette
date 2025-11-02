@@ -49,7 +49,7 @@ RETRYABLE = (
 )
 
 
-class _WebsocketService(Service):  # pyright: ignore[reportUnusedClass]
+class WebsocketService(Service):
     url: str
     """WebSocket URL to connect to."""
 

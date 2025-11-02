@@ -104,7 +104,6 @@ Learn More
 
 
 
-
 Indices and tables
 ------------------
 * :ref:`genindex`

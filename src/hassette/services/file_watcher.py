@@ -6,7 +6,7 @@ from hassette.events.hassette import HassetteFileWatcherEvent
 from hassette.resources.base import Service
 
 
-class _FileWatcher(Service):  # pyright: ignore[reportUnusedClass]
+class FileWatcherService(Service):
     """Background task to watch for file changes and reload apps."""
 
     @property

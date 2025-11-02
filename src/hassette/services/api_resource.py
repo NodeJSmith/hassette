@@ -43,7 +43,7 @@ NOT_RETRYABLE = (
 RETRYABLE = (aiohttp.ClientError, ResourceNotReadyError)
 
 
-class _ApiService(Resource):  # pyright: ignore[reportUnusedClass]
+class ApiResource(Resource):
     _stack: AsyncExitStack
     """Async context stack for managing resources."""
 

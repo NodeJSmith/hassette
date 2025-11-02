@@ -114,7 +114,7 @@ from typing import Any
 from whenever import Time, TimeDelta, ZonedDateTime
 
 from hassette.resources.base import Resource
-from hassette.services.scheduler_service import _SchedulerService
+from hassette.services.scheduler_service import SchedulerService
 from hassette.utils.date_utils import now
 
 from .classes import CronTrigger, IntervalTrigger, ScheduledJob
@@ -127,7 +127,7 @@ if typing.TYPE_CHECKING:
 class Scheduler(Resource):
     """Scheduler resource for managing scheduled jobs."""
 
-    scheduler_service: _SchedulerService
+    scheduler_service: SchedulerService
     """The scheduler service instance."""
 
     @classmethod

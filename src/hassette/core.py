@@ -16,14 +16,14 @@ from .api import Api
 from .bus import Bus
 from .resources.base import Resource, Service
 from .scheduler import Scheduler
-from .services.api_service import _ApiService
-from .services.app_handler import _AppHandler
-from .services.bus_service import _BusService
-from .services.file_watcher import _FileWatcher
-from .services.health_service import _HealthService
-from .services.scheduler_service import _SchedulerService
-from .services.service_watcher import _ServiceWatcher
-from .services.websocket_service import _WebsocketService
+from .services.api_resource import ApiResource
+from .services.app_handler import AppHandler
+from .services.bus_service import BusService
+from .services.file_watcher import FileWatcherService
+from .services.health_service import HealthService
+from .services.scheduler_service import SchedulerService
+from .services.service_watcher import ServiceWatcher
+from .services.websocket_service import WebsocketService
 from .task_bucket import TaskBucket, make_task_factory
 
 if typing.TYPE_CHECKING:
@@ -75,16 +75,16 @@ class Hassette(Resource):
         self._loop_thread_id: int | None = None
 
         # private background services
-        self._bus_service = self.add_child(_BusService, stream=self._receive_stream.clone())
+        self._bus_service = self.add_child(BusService, stream=self._receive_stream.clone())
 
-        self._service_watcher = self.add_child(_ServiceWatcher)
-        self._websocket_service = self.add_child(_WebsocketService)
-        self._health_service = self.add_child(_HealthService)
-        self._file_watcher = self.add_child(_FileWatcher)
-        self._app_handler = self.add_child(_AppHandler)
-        self._scheduler_service = self.add_child(_SchedulerService)
+        self._service_watcher = self.add_child(ServiceWatcher)
+        self._websocket_service = self.add_child(WebsocketService)
+        self._health_service = self.add_child(HealthService)
+        self._file_watcher = self.add_child(FileWatcherService)
+        self._app_handler = self.add_child(AppHandler)
+        self._scheduler_service = self.add_child(SchedulerService)
 
-        self._api_service = self.add_child(_ApiService)
+        self._api_service = self.add_child(ApiResource)
 
         # internal instances
         self._bus = self.add_child(Bus)

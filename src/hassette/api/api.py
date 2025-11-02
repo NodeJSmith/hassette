@@ -178,7 +178,7 @@ if typing.TYPE_CHECKING:
     from hassette.events import HassStateDict
     from hassette.models.entities import EntityT
     from hassette.models.states import StateT, StateValueT
-    from hassette.services.api_service import _ApiService
+    from hassette.services.api_resource import ApiResource
 
 
 class Api(Resource):
@@ -191,7 +191,7 @@ class Api(Resource):
     sync: ApiSyncFacade
     """Synchronous facade for the API service."""
 
-    _api_service: "_ApiService"
+    _api_service: "ApiResource"
     """Internal API service instance."""
 
     @classmethod

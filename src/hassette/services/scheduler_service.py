@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
+class SchedulerService(Service):
     """Service that manages scheduled jobs."""
 
     _job_queue: "_ScheduledJobQueue"

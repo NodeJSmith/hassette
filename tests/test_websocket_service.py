@@ -13,16 +13,16 @@ from hassette.exceptions import (
     ResourceNotReadyError,
     RetryableConnectionClosedError,
 )
-from hassette.services.websocket_service import _WebsocketService
+from hassette.services.websocket_service import WebsocketService
 
 if TYPE_CHECKING:
     from hassette.core import Hassette
 
 
 @pytest.fixture
-def websocket_service(hassette_with_bus: "Hassette") -> _WebsocketService:
+def websocket_service(hassette_with_bus: "Hassette") -> WebsocketService:
     """Create a fresh websocket service instance for each test."""
-    return _WebsocketService.create(hassette_with_bus)
+    return WebsocketService.create(hassette_with_bus)
 
 
 def _build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:
@@ -37,7 +37,7 @@ def _build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:
     return cast("ClientWebSocketResponse", fake_ws)
 
 
-async def test_get_next_message_id_increments(websocket_service: _WebsocketService) -> None:
+async def test_get_next_message_id_increments(websocket_service: WebsocketService) -> None:
     """Ensure message identifiers increment sequentially."""
     first_id = websocket_service.get_next_message_id()
     second_id = websocket_service.get_next_message_id()
@@ -46,7 +46,7 @@ async def test_get_next_message_id_increments(websocket_service: _WebsocketServi
     assert second_id == 2, "Expected counter to increment by one"
 
 
-async def test_connected_reflects_websocket_state(websocket_service: _WebsocketService) -> None:
+async def test_connected_reflects_websocket_state(websocket_service: WebsocketService) -> None:
     """Verify the connected property mirrors the websocket connection state."""
     assert websocket_service.connected is False
 
@@ -58,7 +58,7 @@ async def test_connected_reflects_websocket_state(websocket_service: _WebsocketS
     assert websocket_service.connected is False
 
 
-async def test_send_json_injects_message_id_when_absent(websocket_service: _WebsocketService) -> None:
+async def test_send_json_injects_message_id_when_absent(websocket_service: WebsocketService) -> None:
     """Ensure send_json injects a message id and forwards the payload."""
     fake_ws = _build_fake_ws()
     websocket_service._ws = fake_ws
@@ -70,7 +70,7 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: _Webs
     assert payload["id"] == 1, "Expected send_json to add a message id when absent"
 
 
-async def test_send_json_preserves_message_id_when_present(websocket_service: _WebsocketService) -> None:
+async def test_send_json_preserves_message_id_when_present(websocket_service: WebsocketService) -> None:
     """Ensure send_json preserves a message id when present."""
     fake_ws = _build_fake_ws()
     websocket_service._ws = fake_ws
@@ -81,7 +81,7 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: _W
     assert second_payload["id"] == 41, "Expected explicit message id to be preserved"
 
 
-async def test_send_json_requires_readiness(websocket_service: _WebsocketService) -> None:
+async def test_send_json_requires_readiness(websocket_service: WebsocketService) -> None:
     """Raise when attempting to send before the service is ready."""
     websocket_service._ws = _build_fake_ws()
 
@@ -89,7 +89,7 @@ async def test_send_json_requires_readiness(websocket_service: _WebsocketService
         await websocket_service.send_json(type="ping")
 
 
-async def test_send_json_checks_connection_state(websocket_service: _WebsocketService) -> None:
+async def test_send_json_checks_connection_state(websocket_service: WebsocketService) -> None:
     """Raise when the underlying websocket reports a closed connection."""
     fake_ws = _build_fake_ws(is_closed=True)
     websocket_service._ws = fake_ws
@@ -99,7 +99,7 @@ async def test_send_json_checks_connection_state(websocket_service: _WebsocketSe
         await websocket_service.send_json(type="ping")
 
 
-async def test_send_json_propagates_reset_error(websocket_service: _WebsocketService) -> None:
+async def test_send_json_propagates_reset_error(websocket_service: WebsocketService) -> None:
     """Surface ClientConnectionResetError when the websocket resets."""
     fake_ws = _build_fake_ws()
     fake_ws.send_json.side_effect = ClientConnectionResetError("boom")  # pyright: ignore
@@ -111,7 +111,7 @@ async def test_send_json_propagates_reset_error(websocket_service: _WebsocketSer
         await websocket_service.send_json(type="ping")
 
 
-async def test_send_json_wraps_generic_exceptions(websocket_service: _WebsocketService) -> None:
+async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketService) -> None:
     """Wrap unexpected errors in FailedMessageError."""
     fake_ws = _build_fake_ws()
     fake_ws.send_json.side_effect = RuntimeError("unexpected")  # pyright: ignore
@@ -123,7 +123,7 @@ async def test_send_json_wraps_generic_exceptions(websocket_service: _WebsocketS
         await websocket_service.send_json(type="ping")
 
 
-async def test_send_and_wait_returns_response(websocket_service: _WebsocketService) -> None:
+async def test_send_and_wait_returns_response(websocket_service: WebsocketService) -> None:
     """Resolve send_and_wait when the websocket replies with success."""
     websocket_service.mark_ready("ready for send_and_wait")
 
@@ -140,7 +140,7 @@ async def test_send_and_wait_returns_response(websocket_service: _WebsocketServi
     assert websocket_service._response_futures == {}, "Expected future mapping to be cleaned up"
 
 
-async def test_send_and_wait_times_out(websocket_service: _WebsocketService) -> None:
+async def test_send_and_wait_times_out(websocket_service: WebsocketService) -> None:
     """Raise FailedMessageError when the response future times out."""
     websocket_service.hassette.config.websocket_response_timeout_seconds = 0
     websocket_service.mark_ready("ready for timeout test")
@@ -152,7 +152,7 @@ async def test_send_and_wait_times_out(websocket_service: _WebsocketService) -> 
     assert websocket_service._response_futures == {}, "Expected future mapping to be cleared after timeout"
 
 
-async def test_respond_if_necessary_sets_result(websocket_service: _WebsocketService) -> None:
+async def test_respond_if_necessary_sets_result(websocket_service: WebsocketService) -> None:
     """Fulfill waiting futures when result payloads indicate success."""
     pending_future = websocket_service.hassette.loop.create_future()
     websocket_service._response_futures[5] = pending_future
@@ -163,7 +163,7 @@ async def test_respond_if_necessary_sets_result(websocket_service: _WebsocketSer
     assert pending_future.result() == {"value": 7}
 
 
-async def test_respond_if_necessary_sets_exception(websocket_service: _WebsocketService) -> None:
+async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketService) -> None:
     """Attach FailedMessageError when result payloads report failure."""
     pending_future = websocket_service.hassette.loop.create_future()
     websocket_service._response_futures[9] = pending_future
@@ -177,7 +177,7 @@ async def test_respond_if_necessary_sets_exception(websocket_service: _Websocket
     assert isinstance(exception, FailedMessageError)
 
 
-async def test_authenticate_happy_path(websocket_service: _WebsocketService) -> None:
+async def test_authenticate_happy_path(websocket_service: WebsocketService) -> None:
     """Authenticate when Home Assistant replies with auth_ok."""
     fake_ws = _build_fake_ws()
     fake_ws.receive_json = AsyncMock(side_effect=[{"type": "auth_required"}, {"type": "auth_ok"}])
@@ -192,7 +192,7 @@ async def test_authenticate_happy_path(websocket_service: _WebsocketService) -> 
     }, "Expected authentication payload to contain the configured token"
 
 
-async def test_authenticate_invalid_token(websocket_service: _WebsocketService) -> None:
+async def test_authenticate_invalid_token(websocket_service: WebsocketService) -> None:
     """Raise InvalidAuthError when Home Assistant rejects the token."""
     fake_ws = _build_fake_ws()
     fake_ws.receive_json = AsyncMock(side_effect=[{"type": "auth_required"}, {"type": "auth_invalid"}])
@@ -202,7 +202,7 @@ async def test_authenticate_invalid_token(websocket_service: _WebsocketService) 
         await websocket_service.authenticate()
 
 
-async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_service: _WebsocketService) -> None:
+async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_service: WebsocketService) -> None:
     """Forward Home Assistant events onto Hassette's event bus."""
     import hassette.services.websocket_service as websocket_module
 
@@ -228,7 +228,7 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
 
 
 async def test_dispatch_routes_result_messages(
-    monkeypatch: pytest.MonkeyPatch, websocket_service: _WebsocketService
+    monkeypatch: pytest.MonkeyPatch, websocket_service: WebsocketService
 ) -> None:
     """Ensure result messages are passed to the responder helper."""
     respond_mock = Mock()
@@ -240,7 +240,7 @@ async def test_dispatch_routes_result_messages(
 
 
 async def test_raw_recv_dispatches_text_payload(
-    monkeypatch: pytest.MonkeyPatch, websocket_service: _WebsocketService
+    monkeypatch: pytest.MonkeyPatch, websocket_service: WebsocketService
 ) -> None:
     """Decode text websocket frames and forward them to the dispatcher."""
     fake_ws = _build_fake_ws()
@@ -256,7 +256,7 @@ async def test_raw_recv_dispatches_text_payload(
     dispatch_mock.assert_awaited_once_with({"type": "result", "id": 1})
 
 
-async def test_raw_recv_raises_when_socket_closed(websocket_service: _WebsocketService) -> None:
+async def test_raw_recv_raises_when_socket_closed(websocket_service: WebsocketService) -> None:
     """Raise when the websocket reports it has already closed."""
     websocket_service._ws = _build_fake_ws(is_closed=True)
 
@@ -264,7 +264,7 @@ async def test_raw_recv_raises_when_socket_closed(websocket_service: _WebsocketS
         await websocket_service._raw_recv()
 
 
-async def test_raw_recv_raises_on_closing_frame(websocket_service: _WebsocketService) -> None:
+async def test_raw_recv_raises_on_closing_frame(websocket_service: WebsocketService) -> None:
     """Raise when a closing frame is received."""
     fake_ws = _build_fake_ws()
     fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.CLOSING, data=None))

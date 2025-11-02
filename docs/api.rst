@@ -77,7 +77,7 @@ the raw Home Assistant string, while ``get_state_value_typed`` will coerce into 
 Entities
 --------
 
-Entities (:py:mod:`~hassette.models.entities`) wrap a state plus helper methods. ``get_entity`` performs a
+Entities (:mod:`~hassette.models.entities`) wrap a state plus helper methods. ``get_entity`` performs a
 runtime check to be sure you requested the right entity model and returns ``None`` if you use
 ``get_entity_or_none`` and the entity is missing.
 

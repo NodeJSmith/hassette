@@ -11,8 +11,8 @@ project = "Hassette"
 extensions = [
     "sphinx.ext.napoleon",  # Google/NumPy docstrings -> nice HTML
     "sphinx.ext.intersphinx",
-    "sphinx.ext.autosectionlabel",  # optional: easier cross-refs
-    "autoapi.extension",  # <-- parses source; NO imports
+    "autoapi.extension",
+    "hassette.sphinx",  # custom Sphinx helpers
 ]
 
 html_theme = "sphinx_rtd_theme"
@@ -31,7 +31,6 @@ autoapi_python_class_content = "both"  # class docstring + __init__ docstring
 autoapi_options = [
     "members",
     "undoc-members",
-    "inherited-members",
     "show-inheritance",
     "show-module-summary",
 ]

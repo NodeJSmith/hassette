@@ -110,7 +110,7 @@ if typing.TYPE_CHECKING:
         StateChangeEvent,
     )
     from hassette.events.base import Event
-    from hassette.services.bus_service import _BusService
+    from hassette.services.bus_service import BusService
     from hassette.types import ChangeType, HandlerType, Predicate
 
 T = TypeVar("T", covariant=True)
@@ -130,7 +130,7 @@ class Options(TypedDict, total=False):
 class Bus(Resource):
     """Individual event bus instance for a specific owner (e.g., App or Service)."""
 
-    bus_service: "_BusService"
+    bus_service: "BusService"
 
     @classmethod
     def create(cls, hassette: "Hassette", parent: "Resource"):

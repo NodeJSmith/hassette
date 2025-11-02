@@ -30,7 +30,7 @@ ROOT_PATH = "root"
 USER_CONFIG_PATH = "user_config"
 
 
-class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
+class AppHandler(Resource):
     """Manages the lifecycle of apps in Hassette.
 
     - Deterministic storage: apps[app_name][index] -> App

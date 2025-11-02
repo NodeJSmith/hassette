@@ -20,7 +20,7 @@ class MyAppKey(web.AppKey[_T]):
         self._t = t
 
 
-class _HealthService(Service):
+class HealthService(Service):
     """Tiny HTTP server exposing /healthz for container healthchecks."""
 
     host: str
@@ -72,7 +72,7 @@ class _HealthService(Service):
             return
 
         app = web.Application()
-        hassette_key = MyAppKey[_HealthService]("health_service", _HealthService)
+        hassette_key = MyAppKey[HealthService]("health_service", HealthService)
         app[hassette_key] = self
         app.router.add_get("/healthz", self._handle_health)
 
