@@ -9,53 +9,46 @@ using ``asyncio.to_thread`` to avoid blocking the event loop.
 Apps are defined as Python classes that inherit from :class:`~hassette.app.app.App` (for async) or :class:`~hassette.app.app.AppSync` (for sync) and are configured using
 a Pydantic model that inherits from :class:`~hassette.app.app_config.AppConfig`.
 
-Lifecycle hooks allow you to run code at specific points in the app's lifecycle, such as initialization and shutdown. Apps can subscribe to events on the Home Assistant event bus
-and schedule jobs to run at specific times or intervals. They have access to the Home Assistant API for interacting with entities, services, and states. All scheduled jobs
-and subscriptions are automatically cleaned up when the app is shut down.
-
-During development, apps are automatically reloaded when their source files change, allowing for rapid iteration without restarting the entire Hassette process. Additionally,
-you can use the :func:`~hassette.app.app.only_app` decorator to run a single app in isolation for focused testing and debugging, without changing your configuration file. Both of these features are
-disabled in production mode for stability (although you can enable them if you wish via configuration options).
 
 Example
 -------
 
-.. code-block:: python
-
-   from hassette import App, AppConfig, StateChangeEvent, states
-   from pydantic import Field
-
-   class MyAppConfig(AppConfig):
-       light: str = Field(..., description="The entity to monitor")
-
-   class MyApp(App[MyAppConfig]):
-       async def on_initialize(self):
-           self.on_change_listener = self.bus.on_state_change(self.app_config.light, handler=self.on_change)
-           self.minutely_logger = self.scheduler.run_minutely(self.log_every_minute)
-
-       async def on_change(self, event: StateChangeEvent[states.LightState]):
-           self.logger.info("Entity %s changed: %s", self.app_config.light, event)
-
-        async def log_every_minute(self):
-            self.logger.info("One minute passed")
-
-        async def on_shutdown(self):
-            # not required, as Hassette will clean up all resources automatically
-            # but shown here for demonstration
-            self.on_change_listener.cancel()
-            self.minutely_logger.cancel()
-
+.. literalinclude:: example_app.py
+   :language: python
 
 App Capabilities
 ----------------
-  - :class:`self.api <hassette.api.api.Api>`: Async Home Assistant API (see :doc:`api`). In sync apps, use :class:`self.api.sync <hassette.api.sync.ApiSyncFacade>`.
-  - :class:`self.bus <hassette.bus.bus.Bus>`: Subscribe to events with filters (see :doc:`bus`). Returns :class:`Subscription <hassette.bus.listeners.Subscription>`.
-  - :class:`self.scheduler <hassette.scheduler.scheduler.Scheduler>`: Run jobs on intervals or cron (see :doc:`scheduler`). Returns :class:`ScheduledJob <hassette.scheduler.classes.ScheduledJob>`.
-  - :class:`self.logger <logging.Logger>`: Individual logger per app instance. Standard lib logger, use it as normal.
-  - :class:`self.app_config <hassette.app.app_config.AppConfig>`: The parsed config for this app instance, typed as the app's :class:`AppConfig <hassette.app.app_config.AppConfig>` class.
-  - :attr:`self.index <hassette.app.app.App.index>`: The index of this app instance in the config list, or 0 if only a single instance.
-  - :attr:`self.instance_name <hassette.app.app.App.instance_name>`: The name of this app instance as set in the config, or ``<ClassName>.[index]`` if not set.
-  - :meth:`self.now <hassette.app.app.App.now>`: Get the current time as :class:`ZonedDateTime <whenever.ZonedDateTime>`.
+  - :class:`self.api <hassette.api.api.Api>`
+
+    - Async Home Assistant API (see :doc:`../api/index`). In sync apps, use :class:`self.api.sync <hassette.api.sync.ApiSyncFacade>`.
+
+  - :class:`self.bus <hassette.bus.bus.Bus>`
+
+    - Subscribe to events with filters (see :doc:`../bus/index`).
+
+  - :class:`self.scheduler <hassette.scheduler.scheduler.Scheduler>`
+
+    - Run jobs on intervals or cron (see :doc:`../scheduler/index`).
+
+  - :class:`self.logger <logging.Logger>`
+
+    - Individual logger per app instance. Standard lib logger, use it as normal.
+
+  - :class:`self.app_config <hassette.app.app_config.AppConfig>`
+
+    - The parsed config for this app instance, typed as the app's :class:`AppConfig <hassette.app.app_config.AppConfig>` class.
+
+  - :attr:`self.index <hassette.app.app.App.index>`
+
+    - The index of this app instance in the config list, or 0 if only a single instance.
+
+  - :attr:`self.instance_name <hassette.app.app.App.instance_name>`
+
+    - The name of this app instance as set in the config, or ``<ClassName>.[index]`` if not set.
+
+  - :meth:`self.now <hassette.app.app.App.now>`
+
+    - Get the current time as :class:`ZonedDateTime <whenever.ZonedDateTime>`.
 
 Advanced Capabilities
 ---------------------
@@ -127,49 +120,43 @@ The base AppConfig class includes two fields by default:
  - ``instance_name: str | None``: Optional name for the instance, used in logging.
  - ``log_level: str | None``: Optional log level override, defaults to the global app level or the hassette log level.
 
-.. code-block:: python
+.. literalinclude:: presence_app_config_example.py
+   :language: python
 
-   from hassette import App, AppConfig
-   from pydantic import Field
 
-   class PresenceConfig(AppConfig):
-       motion_sensor: str = Field(...)
-       lights: list[str] = Field(default_factory=list)
+Typed app configuration
+-----------------------
 
-   class Presence(App[PresenceConfig]):
-       async def on_initialize(self):
-           self.bus.on_state_change(self.app_config.motion_sensor, handler=self.on_motion, changed_to="on")
+Your app classes inherit from ``App``, which is generic on a config type. The generic parameter gives you a typed config instance at ``self.app_config`` and validates TOML ``config`` values.
 
-       async def on_motion(self, event):
-           for light in self.app_config.lights:
-               await self.api.turn_on(light)
+.. literalinclude:: typed_config_example.py
+   :language: python
 
-Configuration (TOML)
---------------------
+.. literalinclude:: typed_config_toml.toml
+   :language: toml
 
-.. code-block:: toml
 
-   ## App Manifest section
-   [apps.presence]
-   filename = "presence.py"
-   class_name = "Presence"
+App Secrets
+-----------------
 
-   ## App Config section
-   [[apps.presence.config]]
-   instance_name = "upstairs"
-   motion_sensor = "binary_sensor.upstairs_motion"
-   lights = ["light.bedroom", "light.hallway"]
+``AppConfig`` is a subclass of ``pydantic.BaseSettings``, so you can use all of Pydantic's features, including field validation, defaults, and environment variable support.
+Environment variables or values in a ``.env`` file that match your app name and config field names will be passed to your app config. This can be a bit unwieldy at times, due to the nested delimiters.
 
-   [[apps.presence.config]]
-   instance_name = "downstairs"
-   motion_sensor = "binary_sensor.downstairs_motion"
-   lights = ["light.living_room", "light.kitchen"]
-   log_level = "DEBUG" # Override log level for this instance only
+It may be easier to use the ``env_prefix`` configuration value to set a custom prefix - in this case ``Hassette`` is no longer involved and ``pydantic`` will take over. For example,
+if you set ``env_prefix = "MYAPP_"``, then an app config field named ``required_secret`` would be set from the environment variable ``MYAPP_REQUIRED_SECRET``. Otherwise, you would need to use
+``HASSETTE__APPS__MY_APP__CONFIG__REQUIRED_SECRET`` to set the same field.
+
+
+.. code-block:: bash
+
+    export MYAPP_REQUIRED_SECRET="s3cr3t"
+    # OR
+    export HASSETTE__APPS__MY_APP__CONFIG__REQUIRED_SECRET="s3cr3t"
 
 
 See also
 --------
-- :doc:`configuration` for TOML structure and app_dir import rules
-- :doc:`bus` for subscription patterns and predicates
-- :doc:`api` for service calls, templates, and history
-- :doc:`scheduler` for job scheduling and management
+- :doc:`../configuration/index` for TOML structure and app_dir import rules
+- :doc:`../bus/index` for subscription patterns and predicates
+- :doc:`../api/index` for service calls, templates, and history
+- :doc:`../scheduler/index` for job scheduling and management

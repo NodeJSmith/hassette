@@ -90,7 +90,7 @@ To pass the token on the command line instead of env vars:
 
 Next steps
 ----------
-- Explore the :doc:`../bus` page for powerful filtering and predicates.
-- Learn the :doc:`../api` for service calls, state access, and history.
-- Schedule recurring jobs with the :doc:`../scheduler`.
-- Build richer automations with typed configs and lifecycle details in :doc:`../apps`.
+- Explore the :doc:`../bus/index` page for powerful filtering and predicates.
+- Learn the :doc:`../api/index` for service calls, state access, and history.
+- Schedule recurring jobs with the :doc:`../scheduler/index`.
+- Build richer automations with typed configs and lifecycle details in :doc:`../apps/index`.

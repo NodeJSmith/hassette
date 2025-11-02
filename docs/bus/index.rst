@@ -16,13 +16,9 @@ Registering an event handler returns a ``Subscription`` instance you can keep to
 
 .. note::
 
-    .. code-block:: python
-
-         from hassette import StateChangeEvent, states
-
-         async def on_motion(self, event: StateChangeEvent[states.BinarySensorState]) -> None:
-              data = event.payload.data
-              self.logger.info("%s changed from %s to %s", event.topic, data.old_state.value, data.new_state.value)
+    .. literalinclude:: event_model_example.py
+       :language: python
+       :lines: 5-7
 
 
     If you have a handler that does not need the event object, you can simply leave the event parameter out, and Hassette will not pass it.
@@ -66,18 +62,9 @@ Every event you receive from the bus is an :class:`~hassette.events.base.Event` 
 The consistent structure means you can always check ``event.topic`` to understand what happened
 and access ``event.payload.data`` for the meaningful content.
 
-.. code-block:: python
-
-   from hassette.events import StateChangeEvent
-
-   async def on_motion(self, event: StateChangeEvent) -> None:
-       data = event.payload.data  # type: StateChangePayload
-       entity_id = data.entity_id
-       old_state = data.old_state  # Full state object with .value, .attributes, etc.
-       new_state = data.new_state  # Full state object with .value, .attributes, etc.
-
-       self.logger.info("%s changed from %s to %s",
-                       entity_id, old_state.value, new_state.value)
+.. literalinclude:: working_with_event_data_example.py
+   :language: python
+   :lines: 6-12
 
 Working with event data
 -----------------------
@@ -102,55 +89,25 @@ Basic subscriptions
 These are the most common subscription methods. Each returns a ``Subscription`` handle that
 you can store to unsubscribe later.
 
-.. code-block:: python
-
-   # Entity state changes
-   self.bus.on_state_change("binary_sensor.motion", handler=self.on_motion, changed_to="on")
-
-   # Attribute changes
-   self.bus.on_attribute_change("climate.living_room", "temperature", handler=self.on_temp_change)
-
-   # Service calls
-   self.bus.on_call_service(domain="light", service="turn_on", handler=self.on_turn_on)
-
-   # Home Assistant lifecycle events (built-in shortcuts)
-   self.bus.on_homeassistant_restart(handler=self.on_restart)
-
-   # Component loaded events
-   self.bus.on_component_loaded("hue", handler=self.on_hue_loaded)
-
-   # Service registered events
-   self.bus.on_service_registered(domain="notify", handler=self.on_notify_service_added)
+.. literalinclude:: basic_subscriptions_example.py
+   :language: python
+   :lines: 5-21
 
 Advanced subscriptions
 ----------------------
 For more complex scenarios, you can subscribe to any topic directly:
 
-.. code-block:: python
-
-   # Direct topic subscription
-   self.bus.on(topic="hass.event.automation_triggered", handler=self.on_automation)
-
-   # Hassette framework events
-   self.bus.on_hassette_service_status(status=ResourceStatus.FAILED, handler=self.on_service_failure)
-   self.bus.on_hassette_service_crashed(handler=self.on_any_crash)
+.. literalinclude:: advanced_subscriptions_example.py
+   :language: python
+   :lines: 5-11
 
 Passing arguments to handlers
 -----------------------------
 You can pass additional arguments to your handlers using ``args`` and ``kwargs``:
 
-.. code-block:: python
-
-   # Pass extra context to the handler
-   self.bus.on_state_change(
-       "light.bedroom",
-       handler=self.on_light_change,
-       args=("bedroom",),
-       kwargs={"room_type": "sleeping"}
-   )
-
-   async def on_light_change(self, event: StateChangeEvent, room_name: str, *, room_type: str):
-       self.logger.info("Light in %s (%s) changed", room_name, room_type)
+.. literalinclude:: passing_arguments_example.py
+   :language: python
+   :lines: 5-12
 
 Predicates and filtering
 ------------------------

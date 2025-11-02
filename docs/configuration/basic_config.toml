@@ -1,0 +1,10 @@
+[hassette]
+base_url = "http://localhost:8123" # Home Assistant URL
+app_dir = "src/apps"               # path containing your app modules
+
+[apps.my_app]
+filename = "my_app.py"
+class_name = "MyApp"
+enabled = true
+# inline config for a single instance (optional)
+config = { some_option = true }
