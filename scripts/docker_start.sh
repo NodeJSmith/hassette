@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-set -eu  # no pipefail in busybox ash
+set -eu # no pipefail in busybox ash
 
 ## We use a virtual environment because uv REALLY doesn't like to not use one
 ## plus it isolates the hassette dependencies from the host system
@@ -14,7 +14,6 @@ set -eu  # no pipefail in busybox ash
 # ---- Activate venv (guard bash-isms in activate) -------------------------
 # shellcheck disable=SC1091
 . /app/.venv/bin/activate
-
 
 APPS=/apps
 
@@ -31,4 +30,4 @@ if uv run scripts/compile_requirements.py && [ -f /tmp/merged_requirements.txt ]
     uv pip install -r /tmp/merged_requirements.txt --no-deps --no-build-isolation
 fi
 
-exec run-hassette
+exec hassette
