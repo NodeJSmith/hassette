@@ -8,7 +8,7 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 
-class _ServiceWatcher(Resource):  # pyright: ignore[reportUnusedClass]
+class ServiceWatcher(Resource):
     """Watches for service events and handles them."""
 
     bus: Bus

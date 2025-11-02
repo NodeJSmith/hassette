@@ -14,10 +14,10 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | 
     """Parse base_url and extract normalized components.
 
     Args:
-        config (HassetteConfig): Hassette configuration containing base_url and api_port
+        config: Hassette configuration containing base_url and api_port
 
     Returns:
-        tuple[str, str, int | None]: (scheme, hostname, port)
+        schema, hostname, and port
 
     Raises:
         BaseUrlRequiredError: If base_url is not set in the configuration.
@@ -48,10 +48,10 @@ def build_ws_url(config: "HassetteConfig") -> str:
     """Construct the WebSocket URL for Home Assistant.
 
     Args:
-        config (HassetteConfig): Hassette configuration containing connection details
+        config: Hassette configuration containing connection details
 
     Returns:
-        str: Complete WebSocket URL for Home Assistant API
+        Complete WebSocket URL for Home Assistant API
     """
     scheme, hostname, port = _parse_and_normalize_url(config)
 
@@ -66,10 +66,10 @@ def build_rest_url(config: "HassetteConfig") -> str:
     """Construct the REST API URL for Home Assistant.
 
     Args:
-        config (HassetteConfig): Hassette configuration containing connection details
+        config: Hassette configuration containing connection details
 
     Returns:
-        str: Complete REST API URL for Home Assistant API
+        Complete REST API URL for Home Assistant API
     """
     scheme, hostname, port = _parse_and_normalize_url(config)
 

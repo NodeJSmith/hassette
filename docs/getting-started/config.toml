@@ -1,0 +1,10 @@
+[hassette]
+base_url = "http://localhost:8123"  # or your HA address
+app_dir  = "src/apps"                # path containing my_app.py
+
+[apps.my_app]
+filename   = "my_app.py"
+class_name = "MyApp"
+enabled    = true
+# inline config for a single instance (optional)
+config = {}

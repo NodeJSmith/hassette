@@ -58,9 +58,9 @@ Every event you receive from the bus is an :class:`~hassette.events.base.Event` 
 ``payload``
     A typed wrapper containing the event data. Hassette uses two types of payloads:
 
-    * **Home Assistant payloads** (:mod:`hassette.events.hass.hass`) wrap WebSocket event data.
+    * **Home Assistant payloads** (:mod:`~hassette.events.hass.hass`) wrap WebSocket event data.
       Access the actual content via ``event.payload.data``.
-    * **Hassette payloads** (:mod:`hassette.events.hassette`) represent framework events
+    * **Hassette payloads** (:mod:`~hassette.events.hassette`) represent framework events
       like service status changes. Content is also available via ``event.payload.data``.
 
 The consistent structure means you can always check ``event.topic`` to understand what happened
@@ -86,7 +86,7 @@ with event data:
 
 * **State changes**: ``event.payload.data`` contains ``entity_id``, ``old_state``, and ``new_state``.
   State objects (``old_state`` and ``new_state``) are typed Pydantic models inheriting from
-  :py:class:`~hassette.models.states.BaseState` with properties like:
+  :py:class:`~hassette.models.states.base.BaseState` with properties like:
 
   - ``.value`` - the state value (e.g., "on", "off", "25.5")
   - ``.attributes`` - a dict of entity attributes

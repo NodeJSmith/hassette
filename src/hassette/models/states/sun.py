@@ -9,6 +9,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class SunState(StringBaseState):
+    """Representation of a Home Assistant sun state.
+
+    See: https://www.home-assistant.io/integrations/sun/
+    """
+
     class Attributes(AttributesBase):
         next_dawn: ZonedDateTime | None = Field(default=None)
         next_dusk: ZonedDateTime | None = Field(default=None)

@@ -110,7 +110,7 @@ if typing.TYPE_CHECKING:
         StateChangeEvent,
     )
     from hassette.events.base import Event
-    from hassette.services.bus_service import _BusService
+    from hassette.services.bus_service import BusService
     from hassette.types import ChangeType, HandlerType, Predicate
 
 T = TypeVar("T", covariant=True)
@@ -130,7 +130,7 @@ class Options(TypedDict, total=False):
 class Bus(Resource):
     """Individual event bus instance for a specific owner (e.g., App or Service)."""
 
-    bus_service: "_BusService"
+    bus_service: "BusService"
 
     @classmethod
     def create(cls, hassette: "Hassette", parent: "Resource"):
@@ -173,19 +173,18 @@ class Bus(Resource):
         """Subscribe to an event topic with optional filtering and modifiers.
 
         Args:
-            topic (str): The event topic to listen to.
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Optional predicates to filter events. These can
-                be custom callables or predefined predicates from `hassette.bus.predicates`. They will receive
-                the full event for evaluation.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
-            once (bool): If True, the handler will be called only once and then removed.
-            debounce (float | None): If set, applies a debounce to the handler.
-            throttle (float | None): If set, applies a throttle to the handler.
+            topic: The event topic to listen to.
+            handler: The function to call when the event matches.
+            where: Optional predicates to filter events. These can be custom callables or predefined predicates from
+                `hassette.bus.predicates`. They will receive the full event for evaluation.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
+            once: If True, the handler will be called only once and then removed.
+            debounce: If set, applies a debounce to the handler.
+            throttle: If set, applies a throttle to the handler.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
         listener = Listener.create(
             task_bucket=self.task_bucket,
@@ -222,39 +221,20 @@ class Bus(Resource):
         """Subscribe to state changes for a specific entity.
 
         Args:
-            entity_id (str): The entity ID to filter events for (e.g., "media_player.living_room_speaker").
-            handler (Callable): The function to call when the event matches.
-            changed (bool | ComparisonCondition): Whether to filter only events where the state changed. If a
-                ComparisonCondition is provided, it will be used to compare the old and new state values.
-            changed_from (ChangeType): A value or callable that will be used to filter state changes *from* this value.
-            changed_to (ChangeType): A value or callable that will be used to filter state changes *to* this value.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events (e.g. ValueIs)\
-                or custom callables. These will receive the full event for evaluation.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
+            handler: The function to call when the event matches.
+            changed: Whether to filter only events where the state changed. If a ComparisonCondition is provided, it
+                will be used to compare the old and new state values.
+            changed_from: A value or callable that will be used to filter state changes *from* this value.
+            changed_to: A value or callable that will be used to filter state changes *to* this value.
+            where: Additional predicates to filter events (e.g. ValueIs) or custom callables. These will receive the
+                full event for evaluation.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce` and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
-
-        Examples:
-
-        .. code-block:: python
-
-            # Listen for all state changes on the entity
-            bus.on_state_change("light.living_room", handler=my_handler)
-
-            # Listen for state changes where the state changed from 'off' to 'on'
-            bus.on_state_change("light.living_room", changed_from="off", changed_to="on", handler=my_handler)
-
-            # Listen for a glob match on the entity ID
-            bus.on_state_change("light.*", handler=my_handler)
-
-            # Listen for state changes where integer state changed to >= 20
-            bus.on_state_change("sensor.temperature", changed_to=lambda new: new >= 20, handler=my_handler)
-
-            # Listen for state changes where the state increased
-            bus.on_state_change("sensor.temperature", changed=Increased(), handler=my_handler)
+            A subscription object that can be used to manage the listener.
         """
         self.logger.debug(
             (
@@ -306,21 +286,20 @@ class Bus(Resource):
         """Subscribe to state change events for a specific entity's attribute.
 
         Args:
-            entity_id (str): The entity ID to filter events for (e.g., "media_player.living_room_speaker").
-            attr (str): The attribute name to filter changes on (e.g., "volume").
-            handler (Callable): The function to call when the event matches.
-            changed (bool | ComparisonCondition): Whether to filter only events where the attribute changed. If a
-                ComparisonCondition is provided, it will be used to compare the old and new attribute values.
-            changed_from (ChangeType): A value or callable that will be used to filter attribute changes *from* this
-                value.
-            changed_to (ChangeType): A value or callable that will be used to filter attribute changes *to* this value.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
+            attr: The attribute name to filter changes on (e.g., "volume").
+            handler: The function to call when the event matches.
+            changed: Whether to filter only events where the attribute changed. If a ComparisonCondition is provided,
+                it will be used to compare the old and new attribute values.
+            changed_from: A value or callable that will be used to filter attribute changes *from* this value.
+            changed_to: A value or callable that will be used to filter attribute changes *to* this value.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
 
         self.logger.debug(
@@ -371,52 +350,16 @@ class Bus(Resource):
         """Subscribe to service call events.
 
         Args:
-            domain (str | None): The domain to filter service calls (e.g., "light").
-            service (str | None): The service to filter service calls (e.g., "turn_on").
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | Mapping[str, ChangeType] | None): Additional predicates to
-                filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            domain: The domain to filter service calls (e.g., "light").
+            service: The service to filter service calls (e.g., "turn_on").
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
-
-        You can provide a dictionary to `where` to filter on specific key-value pairs in the service data. You can use
-        `hassette.const.NOT_PROVIDED` as the value to only check for the presence of a key, use glob patterns
-        for string values, or provide a callable predicate for more complex matching.
-
-        Examples:
-
-        .. code-block:: python
-
-            # Listen for all service calls
-            bus.on_call_service(handler=my_handler)
-
-            # Listen for calls to the light.turn_on service
-            bus.on_call_service(domain="light", service="turn_on", handler=my_handler)
-
-            # Listen for calls to any service in the light domain
-            bus.on_call_service(domain="light", handler=my_handler)
-
-            # Listen for calls to the light.turn_on service for a specific entity
-            bus.on_call_service(
-                domain="light", service="turn_on", where={"entity_id": "light.living_room"}, handler=my_handler
-                )
-
-            # Listen for calls to the light.turn_on service where brightness is set to 255
-            bus.on_call_service(
-                domain="light", service="turn_on", where={"brightness": 255}, handler=my_handler
-                )
-
-            # Listen for calls to the light.turn_on service where brightness is set to above 200
-            bus.on_call_service(
-                domain="light", service="turn_on",
-                where={"brightness": lambda v: v is not None and v > 200},
-                handler=my_handler
-                )
-
+            A subscription object that can be used to manage the listener.
         """
 
         self.logger.debug(
@@ -465,15 +408,15 @@ class Bus(Resource):
         """Subscribe to component loaded events.
 
         Args:
-            component (str | None): The component to filter load events (e.g., "light").
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            component: The component to filter load events (e.g., "light").
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
 
         self.logger.debug(
@@ -509,16 +452,16 @@ class Bus(Resource):
         """Subscribe to service registered events.
 
         Args:
-            domain (str | None): The domain to filter service registrations (e.g., "light").
-            service (str | None): The service to filter service registrations (e.g., "turn_on").
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            domain: The domain to filter service registrations (e.g., "light").
+            service: The service to filter service registrations (e.g., "turn_on").
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
 
         self.logger.debug(
@@ -555,14 +498,14 @@ class Bus(Resource):
         """Subscribe to Home Assistant restart events.
 
         Args:
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
         return self.on_call_service(
             domain="homeassistant", service="restart", handler=handler, where=where, args=args, kwargs=kwargs, **opts
@@ -579,14 +522,14 @@ class Bus(Resource):
         """Subscribe to Home Assistant start events.
 
         Args:
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
         return self.on_call_service(
             domain="homeassistant", service="start", handler=handler, where=where, args=args, kwargs=kwargs, **opts
@@ -603,14 +546,14 @@ class Bus(Resource):
         """Subscribe to Home Assistant stop events.
 
         Args:
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
         return self.on_call_service(
             domain="homeassistant", service="stop", handler=handler, where=where, args=args, kwargs=kwargs, **opts
@@ -629,15 +572,15 @@ class Bus(Resource):
         """Subscribe to hassette service status events.
 
         Args:
-            status (ResourceStatus | None): The status to filter events (e.g., ResourceStatus.STARTED).
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            status: The status to filter events (e.g., ResourceStatus.STARTED).
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
 
         self.logger.debug(
@@ -671,14 +614,14 @@ class Bus(Resource):
         """Subscribe to hassette service failed events.
 
         Args:
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
 
         return self.on_hassette_service_status(
@@ -697,14 +640,14 @@ class Bus(Resource):
         """Subscribe to hassette service crashed events.
 
         Args:
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
 
         return self.on_hassette_service_status(
@@ -723,14 +666,14 @@ class Bus(Resource):
         """Subscribe to hassette service started events.
 
         Args:
-            handler (Callable): The function to call when the event matches.
-            where (Predicate | Sequence[Predicate] | None): Additional predicates to filter events.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the handler.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the handler.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            args: Positional arguments to pass to the handler.
+            kwargs: Keyword arguments to pass to the handler.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            Subscription: A subscription object that can be used to manage the listener.
+            A subscription object that can be used to manage the listener.
         """
 
         return self.on_hassette_service_status(

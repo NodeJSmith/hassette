@@ -6,6 +6,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class VacuumState(StringBaseState):
+    """Representation of a Home Assistant vacuum state.
+
+    See: https://www.home-assistant.io/integrations/vacuum/
+    """
+
     class Attributes(AttributesBase):
         fan_speed_list: list[str] | None = Field(default=None)
         battery_level: int | float | None = Field(default=None)

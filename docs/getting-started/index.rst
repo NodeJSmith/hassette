@@ -13,21 +13,8 @@ Prerequisites
 ------------------------
 Create a Python file in your apps directory (e.g., ``src/apps/my_app.py``):
 
-.. code-block:: python
-
-    from hassette import App, AppConfig, StateChangeEvent, states
-
-    class MyConfig(AppConfig):
-         pass
-
-    class MyApp(App[MyConfig]):
-        async def on_initialize(self):
-            # React when any light changes
-            self.bus.on_state_change("light.*", handler=self.changed)
-
-        async def changed(self, event: StateChangeEvent[states.LightState]):
-            # Turn on a specific light (demo)
-            await self.api.turn_on("light.bedroom")
+.. include:: ./first_app.py
+   :literal:
 
 Type-safe by default
 ~~~~~~~~~~~~~~~~~~~~
@@ -47,18 +34,8 @@ catch mistakes early.
 --------------------
 Create ``config/hassette.toml`` (or ``hassette.toml`` in your working directory):
 
-.. code-block:: toml
-
-    [hassette]
-    base_url = "http://localhost:8123"  # or your HA address
-    app_dir  = "src/apps"                # path containing my_app.py
-
-    [apps.my_app]
-    filename   = "my_app.py"
-    class_name = "MyApp"
-    enabled    = true
-    # inline config for a single instance (optional)
-    config = {}
+.. include:: ./config.toml
+   :literal:
 
 3) Provide your Home Assistant token
 ------------------------------------
@@ -98,14 +75,13 @@ Option B - Local (uv)
 
 .. code-block:: bash
 
-    uv pip install hassette
-    uv run run-hassette -c ./config/hassette.toml -e ./config/.env
+    uvx hassette -c ./config/hassette.toml -e ./config/.env
 
 To pass the token on the command line instead of env vars:
 
 .. code-block:: bash
 
-    uv run run-hassette --token <your_long_lived_access_token>
+    uvx hassette --token <your_long_lived_access_token>
 
 5) Verify it's working
 ----------------------
@@ -114,7 +90,7 @@ To pass the token on the command line instead of env vars:
 
 Next steps
 ----------
-- Explore the :doc:`bus` page for powerful filtering and predicates.
-- Learn the :doc:`api` for service calls, state access, and history.
-- Schedule recurring jobs with the :doc:`scheduler`.
-  - Build richer automations with typed configs and lifecycle details in :doc:`apps`.
+- Explore the :doc:`../bus` page for powerful filtering and predicates.
+- Learn the :doc:`../api` for service calls, state access, and history.
+- Schedule recurring jobs with the :doc:`../scheduler`.
+- Build richer automations with typed configs and lifecycle details in :doc:`../apps`.

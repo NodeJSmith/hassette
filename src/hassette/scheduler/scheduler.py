@@ -114,7 +114,7 @@ from typing import Any
 from whenever import Time, TimeDelta, ZonedDateTime
 
 from hassette.resources.base import Resource
-from hassette.services.scheduler_service import _SchedulerService
+from hassette.services.scheduler_service import SchedulerService
 from hassette.utils.date_utils import now
 
 from .classes import CronTrigger, IntervalTrigger, ScheduledJob
@@ -127,7 +127,7 @@ if typing.TYPE_CHECKING:
 class Scheduler(Resource):
     """Scheduler resource for managing scheduled jobs."""
 
-    scheduler_service: _SchedulerService
+    scheduler_service: SchedulerService
     """The scheduler service instance."""
 
     @classmethod
@@ -148,10 +148,10 @@ class Scheduler(Resource):
         """Add a job to the scheduler.
 
         Args:
-            job (ScheduledJob): The job to add.
+            job: The job to add.
 
         Returns:
-            ScheduledJob: The added job.
+            The added job.
         """
 
         if not isinstance(job, ScheduledJob):
@@ -165,7 +165,7 @@ class Scheduler(Resource):
         """Remove a job from the scheduler.
 
         Args:
-            job (ScheduledJob): The job to remove.
+            job: The job to remove.
         """
 
         return self.scheduler_service.remove_job(job)
@@ -188,16 +188,16 @@ class Scheduler(Resource):
         """Schedule a job to run at a specific time or based on a trigger.
 
         Args:
-            func (JobCallable): The function to run.
-            run_at (ZonedDateTime): The time to run the job.
-            trigger (TriggerProtocol | None): Optional trigger for repeating jobs.
-            repeat (bool): Whether the job should repeat.
-            name (str): Optional name for the job.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+            func: The function to run.
+            run_at: The time to run the job.
+            trigger: Optional trigger for repeating jobs.
+            repeat: Whether the job should repeat.
+            name: Optional name for the job.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            ScheduledJob: The scheduled job.
+            The scheduled job.
         """
 
         job = ScheduledJob(
@@ -224,13 +224,14 @@ class Scheduler(Resource):
         """Schedule a job to run once at a specific time.
 
         Args:
-            func (JobCallable): The function to run.
-            start (START_TYPE): The time to run the job. Can be a ZonedDateTime, Time, time, or (hour, minute) tuple.
-            name (str): Optional name for the job.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+            func: The function to run.
+            start: The time to run the job.
+            name: Optional name for the job.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
+
         Returns:
-            ScheduledJob: The scheduled job.
+            The scheduled job.
         """
 
         start_dtme = get_start_dtme(start)
@@ -252,16 +253,16 @@ class Scheduler(Resource):
         """Schedule a job to run at a fixed interval.
 
         Args:
-            func (JobCallable): The function to run.
-            interval (TimeDelta | float): The interval between runs. If a float is provided, it is treated as seconds.
-            name (str): Optional name for the job.
-            start (START_TYPE): Optional start time for the first run. If provided the job will run at this time plus\
-                 the interval. Otherwise it will run at the current time plus the interval.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+            func: The function to run.
+            interval: The interval between runs. If a float is provided, it is treated as seconds.
+            name: Optional name for the job.
+            start: Optional start time for the first run. If provided the job will run at this time. Otherwise it will
+                run at the current time plus the interval.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            ScheduledJob: The scheduled job.
+            The scheduled job.
         """
 
         interval_seconds = interval if isinstance(interval, float | int) else interval.in_seconds()
@@ -286,16 +287,16 @@ class Scheduler(Resource):
         """Schedule a job to run after a delay.
 
         Args:
-            func (JobCallable): The function to run.
-            delay (TimeDelta | float): The delay before running the job.
-            name (str): Optional name for the job.
-            start (START_TYPE): Optional start time for the job. If provided the job will run at this time plus the\
-                delay. Otherwise it will run at the current time plus the delay.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+            func: The function to run.
+            delay: The delay before running the job.
+            name: Optional name for the job.
+            start: Optional start time for the job. If provided the job will run at this time, otherwise it will run at
+                the current time plus the delay.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            ScheduledJob: The scheduled job.
+            The scheduled job.
         """
 
         delay_seconds = delay if isinstance(delay, float | int) else delay.in_seconds()
@@ -318,17 +319,16 @@ class Scheduler(Resource):
         """Schedule a job to run every N minutes.
 
         Args:
-            func (JobCallable): The function to run.
-            minutes (int): The minute interval to run the job.
-            name (str): Optional name for the job.
-            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
-                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
-                N minutes.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+            func: The function to run.
+            minutes: The minute interval to run the job.
+            name: Optional name for the job.
+            start: Optional start time for the first run. If provided the job will run at this time. Otherwise, the job
+                will run at now + N minutes.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            ScheduledJob: The scheduled job.
+            The scheduled job.
         """
         if minutes < 1:
             raise ValueError("Minute interval must be at least 1")
@@ -352,17 +352,16 @@ class Scheduler(Resource):
         """Schedule a job to run every N hours.
 
         Args:
-            func (JobCallable): The function to run.
-            hours (int): The hour interval to run the job.
-            name (str): Optional name for the job.
-            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
-                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
-                N hours.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+            func: The function to run.
+            hours: The hour interval to run the job.
+            name: Optional name for the job.
+            start: Optional start time for the first run. If provided the job will run at this time, otherwise the job
+                will run at now + N hours.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            ScheduledJob: The scheduled job.
+            The scheduled job.
         """
         if hours < 1:
             raise ValueError("Hour interval must be at least 1")
@@ -386,17 +385,16 @@ class Scheduler(Resource):
         """Schedule a job to run every N days.
 
         Args:
-            func (JobCallable): The function to run.
-            days (int): The day interval to run the job.
-            name (str): Optional name for the job.
-            start (ZonedDateTime | Time | time | HOUR_MIN | None): Optional start time for the first run. If\
-                provided the job will run at this time. Otherwise, the job will run immediately, then repeat every\
-                N days.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+            func: The function to run.
+            days: The day interval to run the job.
+            name: Optional name for the job.
+            start: Optional start time for the first run. If provided the job will run at this time, otherwise the job
+                will run at now + N days.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            ScheduledJob: The scheduled job.
+            The scheduled job.
         """
         if days < 1:
             raise ValueError("Day interval must be at least 1")
@@ -431,21 +429,21 @@ class Scheduler(Resource):
         Uses a 6-field format (seconds, minutes, hours, day of month, month, day of week).
 
         Args:
-            func (JobCallable): The function to run.
-            second (int | str): Seconds field of the cron expression.
-            minute (int | str): Minutes field of the cron expression.
-            hour (int | str): Hours field of the cron expression.
-            day_of_month (int | str): Day of month field of the cron expression.
-            month (int | str): Month field of the cron expression.
-            day_of_week (int | str): Day of week field of the cron expression.
-            name (str): Optional name for the job.
-            start (START_TYPE): Optional start time for the first run. If provided the job will run at this time.\
-                Otherwise, the job will run at the next scheduled time based on the cron expression.
-            args (tuple[Any, ...] | None): Positional arguments to pass to the callable when it executes.
-            kwargs (Mapping[str, Any] | None): Keyword arguments to pass to the callable when it executes.
+            func: The function to run.
+            second: Seconds field of the cron expression.
+            minute: Minutes field of the cron expression.
+            hour: Hours field of the cron expression.
+            day_of_month: Day of month field of the cron expression.
+            month: Month field of the cron expression.
+            day_of_week: Day of week field of the cron expression.
+            name: Optional name for the job.
+            start: Optional start time for the first run. If provided the job will run at this time, otherwise the job
+                will run at the next scheduled time based on the cron expression.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            ScheduledJob: The scheduled job.
+            The scheduled job.
         """
         start_dtme = get_start_dtme(start)
 
@@ -466,10 +464,10 @@ def get_start_dtme(start: "ScheduleStartType") -> ZonedDateTime | None:
     """Convert a start time to a ZonedDateTime.
 
     Args:
-        start (START_TYPE): The start time to convert. Can be a ZonedDateTime, Time, time, or (hour, minute) tuple.
+        start: The start time to convert.
 
     Returns:
-        ZonedDateTime | None: The converted start time, or None if no start time was provided.
+        The converted start time, or None if no start time was provided.
 
     Raises:
         TypeError: If the start time is not a valid type.

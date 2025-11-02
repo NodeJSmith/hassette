@@ -113,7 +113,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         """Mark the instance as ready.
 
         Args:
-            reason (str | None): Optional reason for readiness.
+            reason: Optional reason for readiness.
         """
         if self.ready_event.is_set():
             self.logger.debug("%s already ready, skipping reason %s", self.unique_name, reason)
@@ -126,7 +126,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         """Mark the instance as not ready.
 
         Args:
-            reason (str | None): Optional reason for lack of readiness.
+            reason: Optional reason for lack of readiness.
         """
         if not self.ready_event.is_set():
             self.logger.debug("%s already not ready, skipping reason %s", self.unique_name, reason)
@@ -146,7 +146,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         """Check if the instance is ready.
 
         Returns:
-            bool: True if the instance is ready, False otherwise.
+            True if the instance is ready, False otherwise.
         """
         return self.ready_event.is_set()
 
@@ -154,8 +154,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         """Wait until the instance is marked as ready.
 
         Args:
-            timeout (float | None): Optional timeout in seconds to wait for readiness.
-                                   If None, wait indefinitely.
+            timeout: Optional timeout in seconds to wait for readiness. If None, wait indefinitely.
 
         Raises:
             TimeoutError: If the timeout is reached before the instance is ready.

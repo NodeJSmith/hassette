@@ -97,7 +97,7 @@ docs = [
 default-groups = ["dev", "test", "docs"]
 
 [project.scripts]
-run-hassette = "hassette.__main__:entrypoint"
+hassette = "hassette.__main__:entrypoint"
 
 [tool.pytest.ini_options]
 pythonpath = "src"

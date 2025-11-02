@@ -7,7 +7,7 @@ import pytest
 
 from hassette.bus import Listener
 from hassette.core import Hassette
-from hassette.services.app_handler import _AppHandler, load_app_class_from_manifest
+from hassette.services.app_handler import AppHandler, load_app_class_from_manifest
 from hassette.types.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED
 
 if typing.TYPE_CHECKING:
@@ -16,7 +16,7 @@ if typing.TYPE_CHECKING:
 
 class TestApps:
     hassette: Hassette
-    app_handler: "_AppHandler"
+    app_handler: "AppHandler"
 
     @pytest.fixture(autouse=True)
     def setup(self, hassette_with_app_handler: Hassette):

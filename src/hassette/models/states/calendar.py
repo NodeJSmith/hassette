@@ -7,6 +7,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class CalendarState(StringBaseState):
+    """Representation of a Home Assistant calendar state.
+
+    See: https://www.home-assistant.io/integrations/calendar/
+    """
+
     class Attributes(AttributesBase):
         message: str | None = Field(default=None)
         all_day: bool | None = Field(default=None)

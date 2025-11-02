@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
+class SchedulerService(Service):
     """Service that manages scheduled jobs."""
 
     _job_queue: "_ScheduledJobQueue"
@@ -152,7 +152,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
         """Dispatch a job and log its execution.
 
         Args:
-            job (ScheduledJob): The job to dispatch.
+            job: The job to dispatch.
         """
         if job.cancelled:
             self.logger.debug("Job %s is cancelled, skipping dispatch", job)
@@ -181,7 +181,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
         """Run a scheduled job.
 
         Args:
-            job (ScheduledJob): The job to run.
+            job: The job to run.
         """
 
         if job.cancelled:
@@ -211,7 +211,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
         """Reschedule a job if it is repeating.
 
         Args:
-            job (ScheduledJob): The job to reschedule.
+            job: The job to reschedule.
         """
 
         if job.cancelled:
@@ -243,7 +243,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
         """Remove all jobs for a given owner.
 
         Args:
-            owner (str): The owner of the jobs to remove.
+            owner: The owner of the jobs to remove.
         """
 
         return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
@@ -252,7 +252,7 @@ class _SchedulerService(Service):  # pyright: ignore[reportUnusedClass]
         """Remove a job from the scheduler.
 
         Args:
-            job (ScheduledJob): The job to remove.
+            job: The job to remove.
         """
         return self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
 
@@ -391,11 +391,10 @@ class HeapQueue(Generic[T]):
         Method that the type checker knows always return a value - call `is_empty` first to avoid exceptions.
 
         Returns:
-            T: The next job in the queue.
+            The next job in the queue.
 
         Raises:
             IndexError: If the queue is empty.
-
         """
         if not self._queue:
             raise IndexError("Peek from an empty queue")

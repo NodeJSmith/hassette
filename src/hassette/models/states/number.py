@@ -8,6 +8,11 @@ from .base import AttributesBase, NumericBaseState
 
 
 class NumberState(NumericBaseState):
+    """Representation of a Home Assistant number state.
+
+    See: https://www.home-assistant.io/integrations/number/
+    """
+
     class Attributes(AttributesBase):
         min: int | float | None = Field(default=None)
         max: int | float | None = Field(default=None)

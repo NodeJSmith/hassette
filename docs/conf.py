@@ -1,26 +1,53 @@
+import os
 import sys
 from pathlib import Path
 
-# Ensure package imports work if needed
-sys.path.insert(0, str((Path(__file__).parent.parent).resolve()))
-
+# Project root → ensure AutoAPI can find files
+ROOT = Path(__file__).parent.parent.absolute()
+SRC = os.path.join(ROOT, "src")
+sys.path.insert(0, SRC)
 
 project = "Hassette"
-html_title = "Hassette"
-copyright = "2025, Jessica Smith"
-author = "Jessica Smith"
-
 extensions = [
-    "sphinx.ext.autosummary",
-    "sphinx.ext.autodoc",
-    "sphinx.ext.viewcode",
-    "sphinx.ext.napoleon",  # for Google/NumPy-style docstrings
-    "sphinx.ext.intersphinx",  # for linking to external documentation
-    "sphinxcontrib.autodoc_pydantic",  # renders BaseModel fields nicely
-    "sphinx_copybutton",  # adds "copy" button to code blocks
+    "sphinx.ext.napoleon",  # Google/NumPy docstrings -> nice HTML
+    "sphinx.ext.intersphinx",
+    "autoapi.extension",
+    "hassette.sphinx",  # custom Sphinx helpers
 ]
 
-# Intersphinx mapping for external library documentation
+html_theme = "sphinx_rtd_theme"
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_autoapi_templates", "sphinx.py"]
+
+
+# --- AutoAPI: parse Python source (no runtime import) ---
+autoapi_type = "python"
+autoapi_dirs = [os.path.join(SRC, "hassette")]
+autoapi_add_toctree_entry = True
+autoapi_member_order = "bysource"
+autoapi_keep_files = True
+autoapi_root = "code-reference"  # where in the ToC it lands
+autoapi_python_class_content = "both"  # class docstring + __init__ docstring
+autoapi_options = [
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+]
+autoapi_template_dir = "_autoapi_templates"
+# optional: hide private/dunder unless you need them
+autoapi_python_use_implicit_namespaces = True
+autoapi_own_page_level = "function"  # one page per object (nice deep linking)
+
+# --- Google docstrings tuning ---
+napoleon_google_docstring = True
+napoleon_numpy_docstring = False
+napoleon_use_param = True
+napoleon_use_rtype = True
+napoleon_preprocess_types = True
+
+# --- Types & cross-refs ---
+# AutoAPI reads annotations from source; add intersphinx so externals link
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "aiohttp": ("https://docs.aiohttp.org/en/stable/", None),
@@ -28,81 +55,15 @@ intersphinx_mapping = {
     "pydantic": ("https://docs.pydantic.dev/latest/", None),
 }
 
-PYDANTIC_IGNORE_FIELDS = [
-    "dict",
-    "copy",
-    "parse_obj",
-    "parse_raw",
-    "parse_file",
-    "schema",
-    "schema_json",
-    "model_validate",
-    "model_validate_json",
-    "model_validate_strings",
-    "model_rebuild",
-    "model_parametrized_name",
-    "model_json_schema",
-    "model_construct",
-    "from_orm",
-    "construct",
-    "update_forward_refs",
-    "validate",
-    "json",
-    "model_copy",
-    "model_dump",
-    "model_dump_json",
-    "model_extra",
-    "model_computed_fields",
-    "model_fields",
-    "model_fields_set",
-    "model_config",
-    "model_rebuild",
-    "model_post_init",
+
+python_use_unqualified_type_names = True
+
+# --- Make nitpicky helpful, not hateful (optional) ---
+nitpicky = True
+nitpick_ignore_regex = [
+    # Don't nag about std typing internals you don't want to document
+    (r"py:.*", r"^typing(_extensions)?\."),
+    (r"py:.*", r"^builtins\."),
 ]
 
-
-master_doc = "index"
-html_theme = "sphinx_rtd_theme"
-templates_path = ["_templates"]
-html_static_path = ["_static"]
-html_theme_options = {
-    "navigation_with_keys": True,
-    "navigation_depth": 5,
-    "collapse_navigation": False,
-    "sticky_navigation": True,
-    "body_max_width": "100%",
-}
 html_css_files = ["style.css"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
-
-autosummary_generate = True
-autosummary_imported_members = True
-
-autodoc_default_options = {
-    "members": True,
-    "undoc-members": True,
-    "show-inheritance": True,
-    # "imported-members": True,  # include re-exports from __init__.py
-    # "ignore-module-all": True,  # uncomment if __all__ is getting in your way
-}
-
-typehints_fully_qualified = False  # makes types like `str` instead of `builtins.str`
-
-# Optional: only show class signatures (not constructor separately)
-autodoc_class_signature = "separated"  # or "mixed"
-# autodoc_inherit_docstrings = False
-
-autodoc_pydantic_model_show_config_summary = False
-autodoc_pydantic_settings_show_config_summary = False
-autodoc_pydantic_model_show_validator_summary = False
-autodoc_pydantic_model_show_validator_members = False
-autodoc_pydantic_settings_show_validator_summary = False
-autodoc_pydantic_model_show_field_summary = False
-autodoc_pydantic_settings_show_validator_members = False
-autodoc_pydantic_settings_show_field_summary = False
-autodoc_pydantic_model_show_json = False
-autodoc_pydantic_field_list_validators = False
-toc_object_entries_show_parents = "hide"  # Hide parent classes in the table of contents
-
-nitpicky = True

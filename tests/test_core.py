@@ -13,14 +13,14 @@ from hassette.bus import Bus
 from hassette.config.core_config import HassetteConfig
 from hassette.core import Hassette
 from hassette.scheduler import Scheduler
-from hassette.services.api_service import _ApiService
-from hassette.services.app_handler import _AppHandler
-from hassette.services.bus_service import _BusService
-from hassette.services.file_watcher import _FileWatcher
-from hassette.services.health_service import _HealthService
-from hassette.services.scheduler_service import _SchedulerService
-from hassette.services.service_watcher import _ServiceWatcher
-from hassette.services.websocket_service import _WebsocketService
+from hassette.services.api_resource import ApiResource
+from hassette.services.app_handler import AppHandler
+from hassette.services.bus_service import BusService
+from hassette.services.file_watcher import FileWatcherService
+from hassette.services.health_service import HealthService
+from hassette.services.scheduler_service import SchedulerService
+from hassette.services.service_watcher import ServiceWatcher
+from hassette.services.websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -55,14 +55,14 @@ def test_unique_name_is_constant(hassette_instance: Hassette) -> None:
 
 def test_constructor_registers_background_services(hassette_instance: Hassette) -> None:
     """Constructor wires up expected services and resources."""
-    assert isinstance(hassette_instance._bus_service, _BusService)
-    assert isinstance(hassette_instance._service_watcher, _ServiceWatcher)
-    assert isinstance(hassette_instance._websocket_service, _WebsocketService)
-    assert isinstance(hassette_instance._health_service, _HealthService)
-    assert isinstance(hassette_instance._file_watcher, _FileWatcher)
-    assert isinstance(hassette_instance._app_handler, _AppHandler)
-    assert isinstance(hassette_instance._scheduler_service, _SchedulerService)
-    assert isinstance(hassette_instance._api_service, _ApiService)
+    assert isinstance(hassette_instance._bus_service, BusService)
+    assert isinstance(hassette_instance._service_watcher, ServiceWatcher)
+    assert isinstance(hassette_instance._websocket_service, WebsocketService)
+    assert isinstance(hassette_instance._health_service, HealthService)
+    assert isinstance(hassette_instance._file_watcher, FileWatcherService)
+    assert isinstance(hassette_instance._app_handler, AppHandler)
+    assert isinstance(hassette_instance._scheduler_service, SchedulerService)
+    assert isinstance(hassette_instance._api_service, ApiResource)
     assert isinstance(hassette_instance._bus, Bus)
     assert isinstance(hassette_instance._scheduler, Scheduler)
     assert hassette_instance.api is not None

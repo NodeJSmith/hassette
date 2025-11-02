@@ -6,9 +6,9 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 
 - Purpose: Framework for building Home Assistant automations with async-first design and strong typing. See `README.md`.
 - Runtime: `src/hassette/core/core.py` (`Hassette`) builds a tree of `Resource`/`Service` instances defined in `core/resources/base.py`; task orchestration lives in `core/resources/tasks.py` (`TaskBucket`).
-- Background services (`src/hassette/core/services/`): `_Websocket` streams HA events, `_BusService` routes them, `_ApiService` manages REST/WS clients, `_SchedulerService` runs jobs, `_AppHandler` loads user apps, `_FileWatcher` listens for file/config changes, `_ServiceWatcher` supervises dependencies, `_HealthService` exposes status.
+- Background services (`src/hassette/core/services/`): `_Websocket` streams HA events, `BusService` routes them, `ApiResource` manages REST/WS clients, `SchedulerService` runs jobs, `AppHandler` loads user apps, `FileWatcherService` listens for file/config changes, `ServiceWatcher` supervises dependencies, `HealthService` exposes status.
 - App-facing resources: each app owns `Api` (`core/resources/api/api.py`), `Bus` (`core/resources/bus/bus.py`), `Scheduler` (`core/resources/scheduler/scheduler.py`), and its own `TaskBucket`.
-- Data flow: `_Websocket` → `events.create_event_from_hass` → `_BusService.dispatch` → per-owner `Bus` resources → app handlers. API calls reuse both the shared WebSocket and REST client managed by `_ApiService`.
+- Data flow: `_Websocket` → `events.create_event_from_hass` → `BusService.dispatch` → per-owner `Bus` resources → app handlers. API calls reuse both the shared WebSocket and REST client managed by `ApiResource`.
 
 ## Configuration & App Loading
 
@@ -17,7 +17,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - Apps live under `[apps.<name>]` in TOML and use `src/hassette/config/app_manifest.py` for validation.
   - Required keys: `filename`, `class_name`; optional: `app_dir`, `enabled`, `display_name`, `config` (dict or list for multi-instance apps).
   - Loader (`src/hassette/utils/app_utils.py`) runs `run_apps_pre_check`, builds a namespace named after `config.app_dir.name` (e.g. `apps.*`), caches app classes, and surfaces `CannotOverrideFinalError` if lifecycle methods marked `@final` are overridden.
-  - `_AppHandler` (`core/services/app_handler.py`) waits for core services, honors `@only_app` (dev-mode unless `allow_only_app_in_prod`), listens to `_FileWatcher`, and restarts apps when manifests or env files change.
+  - `AppHandler` (`core/services/app_handler.py`) waits for core services, honors `@only_app` (dev-mode unless `allow_only_app_in_prod`), listens to `FileWatcherService`, and restarts apps when manifests or env files change.
 
 ## App Pattern (typed)
 
@@ -47,14 +47,14 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 ## Event Bus Usage
 
 - Topics are defined in `src/hassette/topics.py` (`HASS_EVENT_STATE_CHANGED`, `HASSETTE_EVENT_SERVICE_STATUS`, `HASSETTE_EVENT_APP_LOAD_COMPLETED`, etc.).
-- `Bus` (`core/resources/bus/bus.py`) fronts `_BusService`; sync handlers are wrapped automatically and subscriptions return `Subscription` handles. Predicates live in `core/resources/bus/predicates`.
+- `Bus` (`core/resources/bus/bus.py`) fronts `BusService`; sync handlers are wrapped automatically and subscriptions return `Subscription` handles. Predicates live in `core/resources/bus/predicates`.
 - Useful helpers:
   ```python
   self.bus.on_state_change("binary_sensor.motion", handler=self.on_motion, changed_to="on")
   self.bus.on_attribute_change("mobile_device.me", "battery_level", handler=self.on_battery_drop)
   self.bus.on_call_service(domain="light", service="turn_on", handler=self.on_turn_on)
   ```
-- `_BusService` skips HA `system_log` debug spam and respects config exclusions (`bus_excluded_domains`, `bus_excluded_entities`). Service lifecycle events flow over the same topics for observability.
+- `BusService` skips HA `system_log` debug spam and respects config exclusions (`bus_excluded_domains`, `bus_excluded_entities`). Service lifecycle events flow over the same topics for observability.
 
 ## API Conventions
 
@@ -64,7 +64,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 
 ## Scheduler
 
-- `Scheduler` (`core/resources/scheduler/scheduler.py`) delegates to `_SchedulerService`; jobs are `ScheduledJob` objects from `core/resources/scheduler/classes.py`, with helpers `CronTrigger` and `IntervalTrigger`.
+- `Scheduler` (`core/resources/scheduler/scheduler.py`) delegates to `SchedulerService`; jobs are `ScheduledJob` objects from `core/resources/scheduler/classes.py`, with helpers `CronTrigger` and `IntervalTrigger`.
 - APIs: `run_in`, `run_every`, `run_minutely`/`hourly`/`daily`, `run_once`, and `schedule` accept sync or async callables plus cron/interval triggers.
   ```python
   self.scheduler.run_in(self.poll_devices, 30)
@@ -78,14 +78,14 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - Run Hassette locally:
   ```bash
   uv pip install -e .
-  uv run run-hassette -c ./config/hassette.toml -e ./config/.env
+  uv run hassette -c ./config/hassette.toml -e ./config/.env
   ```
 - Tests (start a Home Assistant Docker container via fixtures):
   ```bash
   uv run nox -s tests
   uv run nox -s tests_with_coverage
   ```
-- Tooling and scripts: entry point `run-hassette` (see `pyproject.toml` → `project.scripts`); tool versions pinned in `mise.toml`; pre-commit hooks in `.pre-commit-config.yaml`; lint/type settings in `ruff.toml` and `pyrightconfig.json`.
+- Tooling and scripts: entry point `hassette` (see `pyproject.toml` → `project.scripts`); tool versions pinned in `mise.toml`; pre-commit hooks in `.pre-commit-config.yaml`; lint/type settings in `ruff.toml` and `pyrightconfig.json`.
 
 ## Conventions & Pitfalls
 
@@ -99,7 +99,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 ## Pointers
 
 - Core runtime: `src/hassette/core/core.py`, `src/hassette/core/resources/{base.py,tasks.py}`, `src/hassette/core/context.py`
-- Services: `src/hassette/core/services/{websocket_service.py,api_service.py,bus_service.py,scheduler_service.py,app_handler.py,file_watcher.py,service_watcher.py,health_service.py}`
+- Services: `src/hassette/core/services/{websocket_service.py,api_resource.py,bus_service.py,scheduler_service.py,app_handler.py,file_watcher.py,service_watcher.py,health_service.py}`
 - App resources: `src/hassette/core/resources/{api/api.py,api/sync.py,bus/bus.py,scheduler/scheduler.py,app/app.py}`
 - Config: `src/hassette/config/{core_config.py,app_manifest.py,sources_helper.py}`
 - Events & models: `src/hassette/events/**`, `src/hassette/models/**`, `src/hassette/topics.py`

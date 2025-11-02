@@ -10,7 +10,7 @@ def is_async_callable(fn: Callable[..., object] | Any) -> bool:
     """Check if a callable is asynchronous.
 
     Args:
-        fn (Callable[..., object] | Any): The callable to check.
+        fn: The callable to check.
 
     Returns:
         True if the callable is asynchronous, False otherwise.
@@ -20,7 +20,6 @@ def is_async_callable(fn: Callable[..., object] | Any) -> bool:
     - functools.partial objects wrapping async functions
     - Callable instances with an async __call__ method
     - Functions decorated with @wraps that preserve the async nature
-
     """
 
     # plain async def foo(...)
@@ -56,10 +55,10 @@ def callable_name(fn: Any) -> str:
     including functions, methods, and partials.
 
     Args:
-        fn (Any): The callable object to inspect.
+        fn: The callable object to inspect.
 
     Returns:
-        str: A string representation of the callable.
+        A string representation of the callable.
     """
     # unwrap decorator chains
     with contextlib.suppress(Exception):
@@ -96,10 +95,10 @@ def callable_short_name(fn: Any) -> str:
     function or method name.
 
     Args:
-        fn (Any): The callable object to inspect.
+        fn: The callable object to inspect.
 
     Returns:
-        str: The short name of the callable.
+        The short name of the callable.
     """
 
     full_name = callable_name(fn)

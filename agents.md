@@ -20,20 +20,20 @@ This document provides guidance for AI coding agents working with the Hassette p
 - **Task Orchestration**: `core/resources/tasks.py` (`TaskBucket`) handles background task management
 - **Background Services**: Located in `src/hassette/core/services/`
   - `_Websocket`: Streams Home Assistant events
-  - `_BusService`: Routes events to appropriate handlers
-  - `_ApiService`: Manages REST/WebSocket clients
-  - `_SchedulerService`: Runs scheduled jobs
-  - `_AppHandler`: Loads and manages user apps
-  - `_FileWatcher`: Listens for file/config changes
-  - `_ServiceWatcher`: Supervises service dependencies
-  - `_HealthService`: Exposes system status
+  - `BusService`: Routes events to appropriate handlers
+  - `ApiResource`: Manages REST/WebSocket clients
+  - `SchedulerService`: Runs scheduled jobs
+  - `AppHandler`: Loads and manages user apps
+  - `FileWatcherService`: Listens for file/config changes
+  - `ServiceWatcher`: Supervises service dependencies
+  - `HealthService`: Exposes system status
 
 ### Data Flow
 ```
-_Websocket → events.create_event_from_hass → _BusService.dispatch → per-owner Bus resources → app handlers
+_Websocket → events.create_event_from_hass → BusService.dispatch → per-owner Bus resources → app handlers
 ```
 
-API calls reuse both the shared WebSocket and REST client managed by `_ApiService`.
+API calls reuse both the shared WebSocket and REST client managed by `ApiResource`.
 
 ## App Development Pattern
 
@@ -250,7 +250,7 @@ config = [
 
 ### Services
 - `src/hassette/core/services/`: All background services
-- Key services: `websocket_service.py`, `api_service.py`, `bus_service.py`, `scheduler_service.py`, `app_handler.py`
+- Key services: `websocket_service.py`, `api_resource.py`, `bus_service.py`, `scheduler_service.py`, `app_handler.py`
 
 ### App Resources
 - `src/hassette/core/resources/api/`: API functionality

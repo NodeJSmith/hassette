@@ -6,6 +6,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class WaterHeaterState(StringBaseState):
+    """Representation of a Home Assistant water_heater state.
+
+    See: https://www.home-assistant.io/integrations/water_heater/
+    """
+
     class Attributes(AttributesBase):
         min_temp: float | None = Field(default=None)
         max_temp: float | None = Field(default=None)

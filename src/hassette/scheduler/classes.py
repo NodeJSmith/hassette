@@ -78,17 +78,17 @@ class CronTrigger:
         Uses a 6-field format (seconds, minutes, hours, day of month, month, day of week).
 
         Args:
-            second (int | str): Seconds field of the cron expression.
-            minute (int | str): Minutes field of the cron expression.
-            hour (int | str): Hours field of the cron expression.
-            day_of_month (int | str): Day of month field of the cron expression.
-            month (int | str): Month field of the cron expression.
-            day_of_week (int | str): Day of week field of the cron expression.
-            start (ZonedDateTime | None): Optional start time for the first run. If provided the job will run at this\
-                time. Otherwise it will run at the current time plus the cron schedule.
+            second: Seconds field of the cron expression.
+            minute: Minutes field of the cron expression.
+            hour: Hours field of the cron expression.
+            day_of_month: Day of month field of the cron expression.
+            month: Month field of the cron expression.
+            day_of_week: Day of week field of the cron expression.
+            start: Optional start time for the first run. If provided the job will run at this time.
+                Otherwise it will run at the current time plus the cron schedule.
 
         Returns:
-            CronTrigger: The cron trigger.
+            The cron trigger.
         """
 
         # seconds is not supported by Unix cron, but croniter supports it

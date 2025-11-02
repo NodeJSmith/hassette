@@ -6,6 +6,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class FanState(StringBaseState):
+    """Representation of a Home Assistant fan state.
+
+    See: https://www.home-assistant.io/integrations/fan/
+    """
+
     class Attributes(AttributesBase):
         preset_modes: list[str] | None = Field(default=None)
         oscillating: bool | None = Field(default=None)

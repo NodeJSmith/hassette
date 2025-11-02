@@ -30,7 +30,7 @@ ROOT_PATH = "root"
 USER_CONFIG_PATH = "user_config"
 
 
-class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
+class AppHandler(Resource):
     """Manages the lifecycle of apps in Hassette.
 
     - Deterministic storage: apps[app_name][index] -> App
@@ -83,7 +83,7 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         """Set the apps configuration.
 
         Args:
-            apps_config (dict[str, AppManifest]): The new apps configuration.
+            apps_config: The new apps configuration.
         """
         self.logger.debug("Setting apps configuration")
         self.apps_config = deepcopy(apps_config)
@@ -252,8 +252,8 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         """Create app instances from a manifest, validating config.
 
         Args:
-            app_key (str): The key of the app, as found in hassette.toml.
-            app_manifest (AppManifest): The manifest containing configuration.
+            app_key: The key of the app, as found in hassette.toml.
+            app_manifest: The manifest containing configuration.
         """
         try:
             app_class = load_app_class_from_manifest(app_manifest, force_reload=force_reload)
@@ -287,8 +287,9 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         """Initialize all instances of a given app_key.
 
         Args:
-            app_key (str): The key of the app, as found in hassette.toml.
-          app_manifest (AppManifest): The manifest containing configuration.
+            app_key: The key of the app, as found in hassette.toml.
+            app_manifest (AppManifest): The manifest containing configuration.
+
         """
 
         class_name = app_manifest.class_name
@@ -366,12 +367,12 @@ class _AppHandler(Resource):  # pyright: ignore[reportUnusedClass]
         """Return 4 sets of app keys: (orphans, new_apps, reimport_apps, reload_apps).
 
         Args:
-            original_apps_config (dict[str, AppManifest]): The original apps configuration.
-            curr_apps_config (dict[str, AppManifest]): The current apps configuration.
-            changed_path (Path | None): The path of the file that changed, if any.
+            original_apps_config: The original apps configuration.
+            curr_apps_config: The current apps configuration.
+            changed_path: The path of the file that changed, if any.
 
         Returns:
-            tuple[set[str], set[str], set[str], set[str]]: A tuple containing four sets:
+            A tuple containing four sets:
                 - orphans: Apps that were removed from the configuration.
                 - new_apps: Apps that were added to the configuration.
                 - reimport_apps: Apps that need to be reimported due to file changes.

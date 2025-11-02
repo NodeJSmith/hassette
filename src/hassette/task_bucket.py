@@ -7,11 +7,12 @@ from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future, TimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
-from hassette import context
+from hassette import context as ctx
 from hassette.resources.base import Resource
 from hassette.utils.func_utils import is_async_callable
 
 if typing.TYPE_CHECKING:
+    from contextvars import Context
     from types import CoroutineType
 
     from hassette import Hassette
@@ -76,7 +77,7 @@ class TaskBucket(Resource):
 
         if current_thread == self.hassette._loop_thread_id:
             # Fast path: already on loop thread
-            with context.use(context.CURRENT_BUCKET, self):
+            with ctx.use(ctx.CURRENT_BUCKET, self):
                 return asyncio.create_task(coro, name=name)
         else:
             # Dev-mode tracking: log cross-thread spawn
@@ -92,7 +93,7 @@ class TaskBucket(Resource):
 
             def _create() -> None:
                 try:
-                    with context.use(context.CURRENT_BUCKET, self):
+                    with ctx.use(ctx.CURRENT_BUCKET, self):
                         task = asyncio.create_task(coro, name=name)
                     result.set_result(task)
                 except Exception as e:
@@ -108,17 +109,18 @@ class TaskBucket(Resource):
         is preserved in the new thread.
 
         Args:
-            fn (Callable[P, R]): The synchronous function to run.
-            *args (P.args): Positional arguments to pass to the function.
-            **kwargs (P.kwargs): Keyword arguments to pass to the function.
+            fn: The synchronous function to run.
+            *args: Positional arguments to pass to the function.
+            **kwargs: Keyword arguments to pass to the function.
+
         Returns:
-            Future[R]: A Future representing the result of the function call.
+            A Future representing the result of the function call.
         """
-        current_bucket = context.CURRENT_BUCKET.get()
+        current_bucket = ctx.CURRENT_BUCKET.get()
 
         def _call() -> R:
             if current_bucket is not None:
-                with context.use(context.CURRENT_BUCKET, current_bucket):
+                with ctx.use(ctx.CURRENT_BUCKET, current_bucket):
                     return fn(*args, **kwargs)
             else:
                 return fn(*args, **kwargs)
@@ -164,11 +166,11 @@ class TaskBucket(Resource):
         """Run an async function in a synchronous context.
 
         Args:
-            fn (Coroutine[Any, Any, R]): The async function to run.
-            timeout_seconds (int | None): The timeout for the function call, defaults to 0, to use the config value.
+            fn: The async function to run.
+            timeout_seconds: The timeout for the function call, defaults to 0, to use the config value.
 
         Returns:
-            R: The result of the function call.
+            The result of the function call.
         """
 
         timeout_seconds = timeout_seconds or self.hassette.config.run_sync_timeout_seconds
@@ -213,7 +215,7 @@ class TaskBucket(Resource):
 
     def create_task_on_loop(self, coro, *, name=None) -> asyncio.Task[Any]:
         """Create a task on the main event loop thread, in this bucket's context."""
-        with context.use(context.CURRENT_BUCKET, self):
+        with ctx.use(ctx.CURRENT_BUCKET, self):
             return self.hassette.loop.create_task(coro, name=name)
 
     async def cancel_all(self) -> None:
@@ -252,14 +254,16 @@ class TaskBucket(Resource):
 def make_task_factory(
     global_bucket: TaskBucket,
 ) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future[Any]]:
-    def factory(loop: asyncio.AbstractEventLoop, coro: CoroLikeT) -> asyncio.Task[Any]:
+    def factory(
+        loop: asyncio.AbstractEventLoop, coro: CoroLikeT, context: "Context | None" = None
+    ) -> asyncio.Task[Any]:
         """A task factory that assigns tasks to the current context's bucket, or a global bucket."""
 
         # note: ensure we pass loop=loop here, to handle cases where we're calling this from something like
         # anyio's to_thread.run_sync
         # note: ignore any comments by AI tools about loop being deprecated/removed, because it's not
         # i'm honestly not sure where they get that idea from
-        t: asyncio.Task[Any] = asyncio.Task(coro, loop=loop)
+        t: asyncio.Task[Any] = asyncio.Task(coro, loop=loop, context=context)
         # Optional: give unnamed tasks a readable default
         if not t.get_name() or t.get_name().startswith("Task-"):
             # getattr fallback avoids AttributeError on some coroutines/generators
@@ -267,7 +271,7 @@ def make_task_factory(
             t.set_name(name)
 
         # compare using `is not None` to avoid `__len__` being called to determine truthiness
-        current_bucket = context.CURRENT_BUCKET.get()
+        current_bucket = ctx.CURRENT_BUCKET.get()
         owner = current_bucket if current_bucket is not None else global_bucket
         owner.add(t)
         return t

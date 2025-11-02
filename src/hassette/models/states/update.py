@@ -6,6 +6,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class UpdateState(StringBaseState):
+    """Representation of a Home Assistant update state.
+
+    See: https://www.home-assistant.io/integrations/update/
+    """
+
     class Attributes(AttributesBase):
         auto_update: bool | None = Field(default=None)
         display_precision: int | float | None = Field(default=None)

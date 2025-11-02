@@ -6,6 +6,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class ClimateState(StringBaseState):
+    """Representation of a Home Assistant climate state.
+
+    See: https://www.home-assistant.io/integrations/climate/
+    """
+
     class Attributes(AttributesBase):
         hvac_modes: list[str] | None = Field(default=None)
         min_temp: int | float | None = Field(default=None)

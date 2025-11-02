@@ -6,6 +6,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class WeatherState(StringBaseState):
+    """Representation of a Home Assistant weather state.
+
+    See: https://www.home-assistant.io/integrations/weather/
+    """
+
     class Attributes(AttributesBase):
         temperature: float | None = Field(default=None)
         apparent_temperature: float | None = Field(default=None)

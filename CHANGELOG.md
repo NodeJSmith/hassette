@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `Hasette._websocket` to `Hassette._websocket_service` to match naming conventions.
 - Refactor handler types and move types into `types` module instead of single file for better organization.
 - Remove extra wrappers around `pydantic-settings`, made some improvements so these are no longer necessary.
+- Flattened whole package structure for simpler imports and better organization.
 
 ## [0.14.0] - 2025-10-19
 
@@ -193,7 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed some references.
 - Reorganized most of the core code into `resources` and `services`
 - Use `contextvars` instead of class variables to track global instance of `Hassette` and `HassetteConfig`
-- `_SchedulerService` now delegates scheduling to `_ScheduledJobQueue`, which uses a fair async lock to coordinate concurrent writers before dispatching due jobs.
+- `SchedulerService` now delegates scheduling to `_ScheduledJobQueue`, which uses a fair async lock to coordinate concurrent writers before dispatching due jobs.
 - `Hassette.run_sync`/`run_on_loop_thread` now route through the global task bucket.
 - **Breaking:** The `run_forever` method of the `Service` class has been replaced with `serve`. The new lifecycle hooks are valid for `Service` as well.
 
@@ -213,7 +214,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Breaking:** Per-owner buses replace the global `hassette.bus`; listener removal must go through `BusService`, which now tracks listeners by owner under a fair async lock for atomic cleanup.
 - **Breaking:** `@only` becomes `@only_app`, apps must expose a non-empty `instance_name`, and each app now owns its `Bus` and `Scheduler` handles.
-- **Breaking:** The `hassette.core.apps` package moved under `hassette.core.classes.app`, and the service singletons are now `_BusService` and `_SchedulerService`; import apps from `hassette.core`/`hassette.core.classes` and treat the underscored services as private.
+- **Breaking:** The `hassette.core.apps` package moved under `hassette.core.classes.app`, and the service singletons are now `BusService` and `SchedulerService`; import apps from `hassette.core`/`hassette.core.classes` and treat the underscored services as private.
 - **Deprecated:** `set_logger_to_debug` has been renamed to `set_logger_to_level`, and all core services now default to `INFO` level logging. `set_logger_to_debug` is still available but will be removed in a future release.
 - App handlers now mark apps as ready after `initialize` completes.
 - The API now waits for WebSocket readiness before creating its session, and classifies common client errors as non-retryable.
@@ -225,7 +226,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Internal
 - Test harness integrates TaskBucket support, adds a `hassette_with_nothing` fixture, and continues to provision mock services so CI can run without a Home Assistant container.
 - Tightened local tooling: expanded `pyrightconfig.json`, enabled Ruff's `TID252`, and taught the nox test session to run `pytest` with `-W error`.
-- Scheduler coordination now flows through `_SchedulerService`, which reads min/default/max delays from config, waits for Hassette readiness, and tags spawned jobs in the task bucket for easier cancellation.
+- Scheduler coordination now flows through `SchedulerService`, which reads min/default/max delays from config, waits for Hassette readiness, and tags spawned jobs in the task bucket for easier cancellation.
 - Lifecycle helpers extend `Resource`/`Service` with explicit readiness flags (`mark_ready`, `mark_not_ready`, `is_ready`); Hassette spins up a global task bucket, names every background task, and blocks startup until all registered resources report ready, logging holdouts before shutting down.
 - WebSocket connection handling uses Tenacity-driven retries with dedicated connect/auth/response timeouts, and the API now waits for WebSocket readiness before creating its session while classifying common client errors as non-retryable.
 - Add asyncio task factory to register all tasks in the global task bucket with meaningful names to make cleanup easier.
@@ -384,7 +385,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Configuration
 - New `app_dir` configuration option to specify the directory containing user apps (default: ./apps)
 - Top level `[hassette]` can be used - previously had to be at the root of the file, with no header
-- `_HealthService` config - allow setting port and allow disabling health service
+- `HealthService` config - allow setting port and allow disabling health service
   - `health_service_port` (default: 8126)
   - `run_health_service` (default: true)
 
@@ -406,7 +407,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced state conversion with better discriminated union handling using Pydantic's `discriminator` field
 - Improved error handling in `try_convert_state` function
 - Updated AppConfig to allow arbitrary types (`arbitrary_types_allowed=True`)
-- Handle bug in `_HealthService` config - sometimes `web.AppKey` raises an `UnboundLocalError` (only seen in testing so far), fallback to string in this case
+- Handle bug in `HealthService` config - sometimes `web.AppKey` raises an `UnboundLocalError` (only seen in testing so far), fallback to string in this case
 
 ### Removed
 - Removed unused `_make_unique_name` method from App class

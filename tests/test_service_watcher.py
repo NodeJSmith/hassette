@@ -4,14 +4,14 @@ import pytest
 
 from hassette.events.hassette import HassetteServiceEvent
 from hassette.resources.base import Service
-from hassette.services.service_watcher import _ServiceWatcher
+from hassette.services.service_watcher import ServiceWatcher
 from hassette.types.enums import ResourceStatus
 
 
 @pytest.fixture
 def get_service_watcher_mock(hassette_with_bus):
     """Return a fresh service watcher for each test."""
-    return _ServiceWatcher(hassette_with_bus)
+    return ServiceWatcher(hassette_with_bus)
 
 
 def get_dummy_service(called: dict[str, int], hassette) -> Service:
@@ -30,7 +30,7 @@ def get_dummy_service(called: dict[str, int], hassette) -> Service:
     return _Dummy(hassette)
 
 
-async def test_restart_service_cancels_then_starts(get_service_watcher_mock: _ServiceWatcher):
+async def test_restart_service_cancels_then_starts(get_service_watcher_mock: ServiceWatcher):
     """Restarting a failed service cancels and reinitializes it."""
     call_counts = {"cancel": 0, "start": 0}
 

@@ -6,6 +6,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class HumidifierState(StringBaseState):
+    """Representation of a Home Assistant humidifier state.
+
+    See: https://www.home-assistant.io/integrations/humidifier/
+    """
+
     class Attributes(AttributesBase):
         min_humidity: float | None = Field(default=None)
         max_humidity: float | None = Field(default=None)

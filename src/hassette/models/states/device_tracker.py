@@ -9,6 +9,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class DeviceTrackerState(StringBaseState):
+    """Representation of a Home Assistant device_tracker state.
+
+    See: https://www.home-assistant.io/integrations/device_tracker/
+    """
+
     class Attributes(AttributesBase):
         source_type: str | None = Field(default=None)
         battery_level: int | float | None = Field(default=None)

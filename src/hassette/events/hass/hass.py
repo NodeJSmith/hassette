@@ -2,6 +2,8 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Generic, Self, TypeAlias
 
+from typing_extensions import Sentinel
+
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
 from hassette.models.states import StateT, try_convert_state
@@ -70,10 +72,10 @@ class ScriptStartedPayload:
 @dataclass(slots=True, frozen=True)
 class StateChangePayload(Generic[StateT]):
     entity_id: str
-    old_state: None | StateT
+    old_state: StateT | None
     """The previous state of the entity before it changed. Omitted if the state is set for the first time."""
 
-    new_state: None | StateT
+    new_state: StateT | None
     """The new state of the entity. Omitted if the state has been removed."""
 
     @property
@@ -83,17 +85,17 @@ class StateChangePayload(Generic[StateT]):
         Appropriately handles cases where either state may be None.
 
         Returns:
-            bool: True if the state value has changed, False otherwise.
+            True if the state value has changed, False otherwise.
         """
         return self.old_state_value != self.new_state_value
 
     @property
-    def new_state_value(self) -> Any | MISSING_VALUE:  # pyright: ignore[reportInvalidTypeForm]
+    def new_state_value(self) -> Any | Sentinel:
         """Return the value of the new state, or MISSING_VALUE if not present."""
         return self.new_state.value if self.new_state is not None else MISSING_VALUE
 
     @property
-    def old_state_value(self) -> Any | MISSING_VALUE:  # pyright: ignore[reportInvalidTypeForm]
+    def old_state_value(self) -> Any | Sentinel:
         """Return the value of the old state, or MISSING_VALUE if not present."""
         return self.old_state.value if self.old_state is not None else MISSING_VALUE
 

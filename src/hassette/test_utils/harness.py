@@ -18,12 +18,12 @@ from hassette.bus import Bus
 from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
-from hassette.services.api_service import _ApiService
-from hassette.services.app_handler import _AppHandler
-from hassette.services.bus_service import _BusService
-from hassette.services.file_watcher import _FileWatcher
-from hassette.services.scheduler_service import _SchedulerService
-from hassette.services.websocket_service import _WebsocketService
+from hassette.services.api_resource import ApiResource
+from hassette.services.app_handler import AppHandler
+from hassette.services.bus_service import BusService
+from hassette.services.file_watcher import FileWatcherService
+from hassette.services.scheduler_service import SchedulerService
+from hassette.services.websocket_service import WebsocketService
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
@@ -77,15 +77,15 @@ class _HassetteMock(Resource):
         self._send_stream: MemoryObjectSendStream[tuple[str, Event[Any]]] | None = None
         self._receive_stream: MemoryObjectReceiveStream[tuple[str, Event[Any]]] | None = None
 
-        self._api_service: _ApiService | None = None
+        self._api_service: ApiResource | None = None
         self.api: Api | None = None
-        self._bus_service: _BusService | None = None
+        self._bus_service: BusService | None = None
         self._bus: Bus | None = None
-        self._scheduler_service: _SchedulerService | None = None
+        self._scheduler_service: SchedulerService | None = None
         self._scheduler: Scheduler | None = None
-        self._file_watcher: _FileWatcher | None = None
-        self._app_handler: _AppHandler | None = None
-        self._websocket_service: _WebsocketService | None = None
+        self._file_watcher: FileWatcherService | None = None
+        self._app_handler: AppHandler | None = None
+        self._websocket_service: WebsocketService | None = None
 
     @property
     def ws_url(self) -> str:
@@ -114,11 +114,11 @@ class _HassetteMock(Resource):
         """Block until all dependent resources are ready or shutdown is requested.
 
         Args:
-            resources (list[Resource] | Resource): The resource(s) to wait for.
-            timeout (int): The timeout for the wait operation.
+            resources: The resource(s) to wait for.
+            timeout: The timeout for the wait operation.
 
         Returns:
-            bool: True if all resources are ready, False if shutdown is requested.
+            True if all resources are ready, False if shutdown is requested.
         """
         timeout = timeout or self.config.startup_timeout_seconds
 
@@ -251,27 +251,27 @@ class HassetteHarness:
         self.hassette._send_stream = send_stream
         self.hassette._receive_stream = receive_stream
 
-        self.hassette._bus_service = self.hassette.add_child(_BusService, stream=receive_stream.clone())
+        self.hassette._bus_service = self.hassette.add_child(BusService, stream=receive_stream.clone())
         self.hassette._bus = self.hassette.add_child(Bus)
 
         self._exit_stack.push_async_callback(send_stream.aclose)
         self._exit_stack.push_async_callback(receive_stream.aclose)
 
     async def _start_scheduler(self) -> None:
-        self.hassette._scheduler_service = self.hassette.add_child(_SchedulerService)
+        self.hassette._scheduler_service = self.hassette.add_child(SchedulerService)
         self.hassette._scheduler = self.hassette.add_child(Scheduler)
 
     async def _start_file_watcher(self) -> None:
         if not self.hassette.config:
             raise RuntimeError("File watcher requires a config")
 
-        self.hassette._file_watcher = self.hassette.add_child(_FileWatcher)
+        self.hassette._file_watcher = self.hassette.add_child(FileWatcherService)
 
     async def _start_app_handler(self) -> None:
         if not self.use_bus:
             raise RuntimeError("App handler requires bus")
 
-        self.hassette._app_handler = self.hassette.add_child(_AppHandler)
+        self.hassette._app_handler = self.hassette.add_child(AppHandler)
         self.hassette._websocket_service = Mock()
         self.hassette._websocket_service.status = ResourceStatus.RUNNING
 
@@ -293,23 +293,23 @@ class HassetteHarness:
         self._exit_stack.push_async_callback(site.stop)
 
         rest_url_patch = patch(
-            "hassette.services.api_service._ApiService._rest_url",
+            "hassette.services.api_resource.ApiResource._rest_url",
             new_callable=PropertyMock,
             return_value=self.api_base_url,
         )
         headers_patch = patch(
-            "hassette.services.api_service._ApiService._headers",
+            "hassette.services.api_resource.ApiResource._headers",
             new_callable=PropertyMock,
             return_value={"Authorization": "Bearer test_token"},
         )
         self._exit_stack.enter_context(rest_url_patch)
         self._exit_stack.enter_context(headers_patch)
 
-        self.hassette._websocket_service = Mock(spec=_WebsocketService)
+        self.hassette._websocket_service = Mock(spec=WebsocketService)
         self.hassette._websocket_service.ready_event = asyncio.Event()
         self.hassette._websocket_service.ready_event.set()
 
-        self.hassette._api_service = self.hassette.add_child(_ApiService)
+        self.hassette._api_service = self.hassette.add_child(ApiResource)
         self.hassette.api = self.hassette.add_child(Api)
 
         self.api_mock = mock_server

@@ -66,7 +66,8 @@ class Glob:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_entity_id, condition=Glob("light.*"))
 
@@ -91,7 +92,8 @@ class StartsWith:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_entity_id, condition=StartsWith("light."))
 
@@ -116,7 +118,8 @@ class EndsWith:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_entity_id, condition=EndsWith(".kitchen"))
 
@@ -141,7 +144,8 @@ class Contains:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_entity_id, condition=Contains("kitchen"))
 
@@ -166,7 +170,8 @@ class Regex:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_entity_id, condition=Regex(r"light\\..*kitchen"))
 
@@ -211,7 +216,8 @@ class IsIn:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
 
@@ -235,7 +241,8 @@ class NotIn:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_entity_id, condition=NotIn(collection=["light.kitchen", "light.living"]))
 
@@ -259,7 +266,8 @@ class Intersects:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_tags, condition=Intersects(collection=["kitchen", "living"]))
 
@@ -286,7 +294,8 @@ class NotIntersects:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_tags, condition=NotIntersects(collection=["kitchen", "living"]))
 
@@ -313,7 +322,8 @@ class IsOrContains:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         # check if the entity_id is either "light.kitchen" or a list containing it
 
@@ -335,7 +345,8 @@ class IsNone:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_attribute, condition=IsNone())
 
@@ -351,7 +362,8 @@ class IsNotNone:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         ValueIs(source=get_attribute, condition=IsNotNone())
 
@@ -370,7 +382,8 @@ class Increased:
 
     Examples
     --------
-    Basic::
+
+    .. code-block:: python
 
         self.on_state_change("zone.home", changed=Increased())
 
@@ -390,11 +403,12 @@ class Decreased:
     Expected to be used with predicates that provide both old and new values, such as StateComparison and
     AttrComparison. Returns False on type conversion errors.
 
-    Examples
-    --------
-    Basic::
+
+
+    .. code-block:: python
 
         self.on_state_change("zone.home", changed=Decreased())
+
     """
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
