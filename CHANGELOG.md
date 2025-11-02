@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.15.0] - 2025-11-02
+
 ## Added
 - `ComparisonCondition`s for comparing old and new values in state and attribute change listeners.
   - `Increased` and `Decreased` conditions added for numeric comparisons.
