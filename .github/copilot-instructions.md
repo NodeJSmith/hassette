@@ -78,14 +78,14 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - Run Hassette locally:
   ```bash
   uv pip install -e .
-  uv run run-hassette -c ./config/hassette.toml -e ./config/.env
+  uv run hassette -c ./config/hassette.toml -e ./config/.env
   ```
 - Tests (start a Home Assistant Docker container via fixtures):
   ```bash
   uv run nox -s tests
   uv run nox -s tests_with_coverage
   ```
-- Tooling and scripts: entry point `run-hassette` (see `pyproject.toml` → `project.scripts`); tool versions pinned in `mise.toml`; pre-commit hooks in `.pre-commit-config.yaml`; lint/type settings in `ruff.toml` and `pyrightconfig.json`.
+- Tooling and scripts: entry point `hassette` (see `pyproject.toml` → `project.scripts`); tool versions pinned in `mise.toml`; pre-commit hooks in `.pre-commit-config.yaml`; lint/type settings in `ruff.toml` and `pyrightconfig.json`.
 
 ## Conventions & Pitfalls
 
