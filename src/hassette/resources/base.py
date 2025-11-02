@@ -120,13 +120,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     def __init__(
         self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
     ) -> None:
-        """Initialize the resource.
-
-        Args:
-            hassette: The Hassette instance this resource belongs to.
-            task_bucket: Optional TaskBucket for managing tasks. If None, a new one is created.
-            parent: Optional parent resource. If None, this resource has no parent.
-        """
         from hassette.task_bucket import TaskBucket
 
         super().__init__()

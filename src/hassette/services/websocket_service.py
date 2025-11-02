@@ -20,10 +20,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from hassette.events import (
-    HassEventEnvelopeDict,
-    create_event_from_hass,
-)
+from hassette.events import create_event_from_hass
 from hassette.events.hassette import HassetteWebsocketConnectedEvent, HassetteWebsocketDisconnectedEvent
 from hassette.exceptions import (
     ConnectionClosedError,
@@ -37,6 +34,7 @@ from hassette.resources.base import Service
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.events.hass.raw import HassEventEnvelopeDict
 
 LOGGER = getLogger(__name__)
 
@@ -407,7 +405,7 @@ class _WebsocketService(Service):  # pyright: ignore[reportUnusedClass]
         except Exception:
             self.logger.exception("Failed to dispatch message: %s", data)
 
-    async def _dispatch_hass_event(self, data: HassEventEnvelopeDict) -> None:
+    async def _dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
         """Dispatch a Home Assistant event to the event bus."""
         event = create_event_from_hass(data)
         await self.hassette.send_event(event.topic, event)

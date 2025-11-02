@@ -50,13 +50,6 @@ class Hassette(Resource):
         return "Hassette"
 
     def __init__(self, config: HassetteConfig) -> None:
-        """Initialize the Hassette instance.
-
-        Args:
-            env_file: Path to the environment file for configuration.
-            config: Optional pre-loaded configuration.
-        """
-
         self.config = config
 
         self.unique_id = ""

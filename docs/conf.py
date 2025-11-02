@@ -84,20 +84,22 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 autosummary_generate = True
 autosummary_imported_members = True
 
-autodoc_default_options = {
-    "members": True,
-    "undoc-members": True,
-    "show-inheritance": True,
-}
+autodoc2_class_docstring = "both"
 
 typehints_fully_qualified = False  # makes types like `str` instead of `builtins.str`
 typehints_use_signature = True
 
 python_use_unqualified_type_names = True  # Sphinx ≥7
 
-# Optional: only show class signatures (not constructor separately)
-autodoc_class_signature = "separated"  # or "mixed"
-# autodoc_inherit_docstrings = False
+
+autodoc2_replace_annotations = [
+    ("hassette.types.ChangeType", "hassette.types.types.ChangeType"),
+    ("hassette.types.HandlerType", "hassette.types.types.HandlerType"),
+    ("hassette.types.JobCallable", "hassette.types.types.JobCallable"),
+    ("hassette.types.ScheduleStartType", "hassette.types.types.ScheduleStartType"),
+    ("states.StateT", "hassette.models.states.base.StateT"),
+]
+
 
 autodoc_pydantic_model_show_config_summary = False
 autodoc_pydantic_settings_show_config_summary = False
