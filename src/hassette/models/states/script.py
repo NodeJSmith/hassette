@@ -9,6 +9,11 @@ from .base import AttributesBase, StringBaseState
 
 
 class ScriptState(StringBaseState):
+    """Representation of a Home Assistant script state.
+
+    See: https://www.home-assistant.io/integrations/script/
+    """
+
     class Attributes(AttributesBase):
         last_triggered: ZonedDateTime | None = Field(default=None)
         mode: str | None = Field(default=None)

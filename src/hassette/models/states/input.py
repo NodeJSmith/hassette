@@ -37,6 +37,11 @@ class InputButtonState(DateTimeBaseState):
 
 
 class InputDatetimeState(DateTimeBaseState):
+    """Representation of a Home Assistant input_datetime state.
+
+    See: https://www.home-assistant.io/integrations/input_datetime/
+    """
+
     class Attributes(InputAttributesBase):
         has_date: bool | None = Field(default=None)
         has_time: bool | None = Field(default=None)
