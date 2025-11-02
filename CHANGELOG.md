@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `Hasette._websocket` to `Hassette._websocket_service` to match naming conventions.
 - Refactor handler types and move types into `types` module instead of single file for better organization.
 - Remove extra wrappers around `pydantic-settings`, made some improvements so these are no longer necessary.
+- Flattened whole package structure for simpler imports and better organization.
 
 ## [0.14.0] - 2025-10-19
 
