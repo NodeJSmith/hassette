@@ -15,13 +15,13 @@ Getting Started
 
 You can get running with Hassette in a few lines of code.
 
-#) Copy the below to a file.
+1) Copy the below to a file.
 
 .. include:: ./getting-started/first_app.py
    :literal:
 
 
-#) Run Hassette, giving it your Home Assistant token, url, and app directory (where you saved the above file).
+2) Run Hassette, giving it your Home Assistant token, url, and app directory (where you saved the above file).
 
 .. code-block:: bash
 
