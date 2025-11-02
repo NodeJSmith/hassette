@@ -58,25 +58,21 @@ Scheduler
 
 .. automodule:: hassette.scheduler
    :show-inheritance:
+   :imported-members:
 
-Models
+States
 ---------------
-
-
-Entities Module
-~~~~~~~~~~~~~~~
-
-.. automodule:: hassette.models.entities
-
-States Module
-~~~~~~~~~~~~~
 
 .. automodule:: hassette.models.states
    :exclude-members: Field, StateUnion, getLogger
+   :imported-members:
+
+.. automodule:: hassette.models.states.base
+   :exclude-members: Field, BaseState
+   :no-index-entry:
 
 Events
 --------
-
 
 Events Module
 ~~~~~~~~~~~~~
@@ -90,12 +86,17 @@ Home Assistant Events
 .. automodule:: hassette.events.hass.hass
    :members:
 
+.. automodule:: hassette.events.hass.raw
+   :members:
+   :no-index-entry:
+
 
 Hassette Events
 ~~~~~~~~~~~~~~~~~~
 
 .. automodule:: hassette.events.hassette
    :members:
+
 
 
 Types
@@ -119,8 +120,15 @@ Types
 .. automodule:: hassette.types.types
    :members:
 
+
 Handler Types
 ~~~~~~~~~~~~~
 
 .. automodule:: hassette.types.handler
    :members:
+
+
+.. automodule:: hassette.const
+   :members:
+   :imported-members:
+   :no-index-entry:
