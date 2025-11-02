@@ -9,10 +9,10 @@ def is_glob(value: str) -> bool:
     """Returns True if the value is a glob pattern.
 
     Args:
-        value (str): The value to check.
+        value: The value to check.
 
     Returns:
-        bool: True if the value is a glob pattern, False otherwise.
+        True if the value is a glob pattern, False otherwise.
     """
 
     return any(ch in value for ch in GLOB_CHARS)
@@ -22,10 +22,10 @@ def split_exact_and_glob(values: typing.Iterable[str]) -> tuple[set[str], tuple[
     """Splits a list of strings into exact matches and glob patterns.
 
     Args:
-        values (Iterable[str]): The list of strings to split.
+        values: The list of strings to split.
 
     Returns:
-        tuple[set[str], tuple[str, ...]]: A tuple containing a set of exact matches and a tuple of glob patterns.
+        A tuple containing a set of exact matches and a tuple of glob patterns.
     """
 
     exact: set[str] = set()
@@ -42,11 +42,11 @@ def matches_globs(value: str, patterns: tuple[str, ...]) -> bool:
     """Returns True if the value matches any of the glob patterns.
 
     Args:
-        value (str): The value to check.
-        patterns (tuple[str, ...]): The glob patterns to match against.
+        value: The value to check.
+        patterns: The glob patterns to match against.
 
     Returns:
-        bool: True if the value matches any of the patterns, False otherwise.
+        True if the value matches any of the patterns, False otherwise.
     """
 
     return any(fnmatch(value, pattern) for pattern in patterns)

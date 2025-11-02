@@ -242,9 +242,8 @@ class Router:
         """Add a listener to the appropriate route based on whether it contains glob characters.
 
         Args:
-            topic (str): The topic to add the listener to.
-            listener (Listener): The listener to add.
-
+            topic: The topic to add the listener to.
+            listener: The listener to add.
         """
         async with self.lock:
             if any(ch in topic for ch in GLOB_CHARS):
@@ -258,8 +257,8 @@ class Router:
         """Remove a listener from the appropriate route based on whether it contains glob characters.
 
         Args:
-            topic (str): The topic to remove the listener from.
-            predicate (callable): A function that returns True for listeners to be removed.
+            topic: The topic to remove the listener from.
+            predicate: A function that returns True for listeners to be removed.
         """
 
         bucket = self.globs if any(ch in topic for ch in GLOB_CHARS) else self.exact
@@ -304,7 +303,7 @@ class Router:
         """Remove a specific listener from the router.
 
         Args:
-            listener (Listener): The listener to remove.
+            listener: The listener to remove.
         """
 
         def pred(x: "Listener") -> bool:
@@ -316,8 +315,8 @@ class Router:
         """Remove a listener by its ID.
 
         Args:
-            topic (str): The topic the listener is associated with.
-            listener_id (int): The ID of the listener to remove.
+            topic: The topic the listener is associated with.
+            listener_id: The ID of the listener to remove.
         """
 
         def pred(x: "Listener") -> bool:
@@ -329,10 +328,10 @@ class Router:
         """Get all listeners that match the given topic.
 
         Args:
-            topic (str): The topic to match against.
+            topic: The topic to match against.
 
         Returns:
-            list[Listener]: A list of listeners that match the topic.
+            A list of listeners that match the topic.
         """
         async with self.lock:
             out: list[Listener] = []
@@ -354,7 +353,7 @@ class Router:
         """Remove all listeners associated with the given owner.
 
         Args:
-            owner (str): The owner whose listeners should be removed.
+            owner: The owner whose listeners should be removed.
         """
 
         async with self.lock:

@@ -241,9 +241,9 @@ def make_async_handler(fn: "HandlerType[EventT]", task_bucket: "TaskBucket") -> 
     If it is a regular function, it will be run in an executor to avoid blocking the event loop.
 
     Args:
-        fn (Callable[..., Any]): The function to adapt.
+        fn: The function to adapt.
 
     Returns:
-        AsyncHandlerType: An async handler that wraps the original function.
+        An async handler that wraps the original function.
     """
     return cast("AsyncHandlerType[EventT]", task_bucket.make_async_adapter(fn))

@@ -14,12 +14,12 @@ async def wait_for_ready(
     """Block until all dependent resources are ready or shutdown is requested.
 
     Args:
-        resources (list[Resource] | Resource): The resources to wait for.
-        poll_interval (float): The interval to poll for resource status.
-        timeout (int): The timeout for the wait operation.
+        resources: The resources to wait for.
+        poll_interval: The interval to poll for resource status.
+        timeout: The timeout for the wait operation.
 
     Returns:
-        bool: True if all resources are ready, False if timeout or shutdown.
+        True if all resources are ready, False if timeout or shutdown.
 
     Raises:
         CancelledError: If the wait operation is cancelled.

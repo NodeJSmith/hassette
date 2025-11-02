@@ -50,12 +50,11 @@ class Hassette(Resource):
         return "Hassette"
 
     def __init__(self, config: HassetteConfig) -> None:
-        """
-        Initialize the Hassette instance.
+        """Initialize the Hassette instance.
 
         Args:
-            env_file (str | Path | None): Path to the environment file for configuration.
-            config (HassetteConfig | None): Optional pre-loaded configuration.
+            env_file: Path to the environment file for configuration.
+            config: Optional pre-loaded configuration.
         """
 
         self.config = config
@@ -136,8 +135,8 @@ class Hassette(Resource):
         """Get a specific app instance if running.
 
         Args:
-            app_name (str): The name of the app.
-            index (int): The index of the app instance, defaults to 0.
+            app_name: The name of the app.
+            index: The index of the app instance, defaults to 0.
 
         Returns:
             App[AppConfig] | None: The app instance if found, else None.
@@ -166,11 +165,11 @@ class Hassette(Resource):
         """Block until all dependent resources are ready or shutdown is requested.
 
         Args:
-            resources (list[Resource] | Resource): The resource(s) to wait for.
-            timeout (int): The timeout for the wait operation.
+            resources: The resource(s) to wait for.
+            timeout: The timeout for the wait operation.
 
         Returns:
-            bool: True if all resources are ready, False if shutdown is requested.
+            True if all resources are ready, False if shutdown is requested.
         """
         timeout = timeout or self.config.startup_timeout_seconds
 

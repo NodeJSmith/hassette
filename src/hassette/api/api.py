@@ -227,14 +227,14 @@ class Api(Resource):
         """Make a REST request to the Home Assistant API.
 
         Args:
-            method (str): The HTTP method to use (e.g., "GET", "POST").
-            url (str): The URL endpoint for the request.
-            params (dict[str, Any], optional): Query parameters for the request.
-            data (dict[str, Any], optional): JSON payload for the request.
-            suppress_error_message (bool, optional): Whether to suppress error messages.
+            method: The HTTP method to use (e.g., "GET", "POST").
+            url: The URL endpoint for the request.
+            params: Query parameters for the request.
+            data: JSON payload for the request.
+            suppress_error_message: Whether to suppress error messages.
 
         Returns:
-            aiohttp.ClientResponse: The response from the API.
+            The response from the API.
         """
         return await self._api_service._rest_request(
             method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
@@ -246,12 +246,12 @@ class Api(Resource):
         """Make a GET request to the Home Assistant API.
 
         Args:
-            url (str): The URL endpoint for the request.
-            params (dict[str, Any], optional): Query parameters for the request.
+            url: The URL endpoint for the request.
+            params: Query parameters for the request.
             kwargs: Additional keyword arguments to pass to the request.
 
         Returns:
-            aiohttp.ClientResponse: The response from the API.
+            The response from the API.
         """
         return await self.rest_request("GET", url, params=params, **kwargs)
 
@@ -259,12 +259,12 @@ class Api(Resource):
         """Make a POST request to the Home Assistant API.
 
         Args:
-            url (str): The URL endpoint for the request.
-            data (dict[str, Any], optional): JSON payload for the request.
+            url: The URL endpoint for the request.
+            data: JSON payload for the request.
             kwargs: Additional keyword arguments to pass to the request.
 
         Returns:
-            aiohttp.ClientResponse: The response from the API.
+            The response from the API.
         """
         return await self.rest_request("POST", url, data=data, **kwargs)
 
@@ -272,11 +272,11 @@ class Api(Resource):
         """Make a DELETE request to the Home Assistant API.
 
         Args:
-            url (str): The URL endpoint for the request.
+            url: The URL endpoint for the request.
             kwargs: Additional keyword arguments to pass to the request.
 
         Returns:
-            aiohttp.ClientResponse: The response from the API.
+            The response from the API.
         """
         return await self.rest_request("DELETE", url, **kwargs)
 
@@ -284,7 +284,7 @@ class Api(Resource):
         """Get all entities in Home Assistant as raw dictionaries.
 
         Returns:
-            list[HassStateDict]: A list of states as dictionaries.
+            A list of states as dictionaries.
         """
         val: list[HassStateDict] = await self.ws_send_and_wait(type="get_states")  # type: ignore
         assert isinstance(val, list), "Expected a list of states"
@@ -294,7 +294,7 @@ class Api(Resource):
         """Get all entities in Home Assistant.
 
         Returns:
-            list[StateUnion]: A list of states, either as dictionaries or converted to state objects.
+            A list of states, either as dictionaries or converted to state objects.
         """
         val = await self.get_states_raw()
 
@@ -302,33 +302,30 @@ class Api(Resource):
         return list(filter(bool, [try_convert_state(state) for state in val]))
 
     async def get_config(self) -> dict[str, Any]:
-        """
-        Get the Home Assistant configuration.
+        """Get the Home Assistant configuration.
 
         Returns:
-            dict: The configuration data.
+            The configuration data.
         """
         val = await self.ws_send_and_wait(type="get_config")
         assert isinstance(val, dict), "Expected a dictionary of configuration data"
         return val
 
     async def get_services(self) -> dict[str, Any]:
-        """
-        Get the available services in Home Assistant.
+        """Get the available services in Home Assistant.
 
         Returns:
-            dict: The services data.
+            The services data.
         """
         val = await self.ws_send_and_wait(type="get_services")
         assert isinstance(val, dict), "Expected a dictionary of services"
         return val
 
     async def get_panels(self) -> dict[str, Any]:
-        """
-        Get the available panels in Home Assistant.
+        """Get the available panels in Home Assistant.
 
         Returns:
-            dict: The panels data.
+            The panels data.
         """
         val = await self.ws_send_and_wait(type="get_panels")
         assert isinstance(val, dict), "Expected a dictionary of panels"
@@ -339,15 +336,14 @@ class Api(Resource):
         event_type: str,
         event_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Fire a custom event in Home Assistant.
+        """Fire a custom event in Home Assistant.
 
         Args:
-            event_type (str): The type of the event to fire (e.g., "custom_event").
-            event_data (dict[str, Any], optional): Additional data to include with the event.
+            event_type: The type of the event to fire (e.g., "custom_event").
+            event_data: Additional data to include with the event.
 
         Returns:
-            dict: The response from Home Assistant.
+            The response from Home Assistant.
         """
         event_data = event_data or {}
 
@@ -385,14 +381,13 @@ class Api(Resource):
         return_response: bool | None = False,
         **data,
     ) -> ServiceResponse | None:
-        """
-        Call a Home Assistant service.
+        """Call a Home Assistant service.
 
         Args:
-            domain (str): The domain of the service (e.g., "light").
-            service (str): The name of the service to call (e.g., "turn_on").
-            target (dict[str, str], optional): Target entity IDs or areas.
-            return_response (bool, optional): Whether to return the response from Home Assistant. Defaults to False.
+            domain: The domain of the service (e.g., "light").
+            service: The name of the service to call (e.g., "turn_on").
+            target: Target entity IDs or areas.
+            return_response: Whether to return the response from Home Assistant. Defaults to False.
             **kwargs: Additional data to send with the service call.
 
         Returns:
@@ -421,15 +416,12 @@ class Api(Resource):
         return None
 
     async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
-        """
-        Turn on a specific entity in Home Assistant.
+        """Turn on a specific entity in Home Assistant.
 
         Args:
-            entity_id (str): The ID of the entity to turn on (e.g., "light.office").
-            domain (str): The domain of the entity (default: "homeassistant").
+            entity_id: The ID of the entity to turn on (e.g., "light.office").
+            domain: The domain of the entity (default: "homeassistant").
 
-        Returns:
-            None
         """
         entity_id = str(entity_id)
 
@@ -437,29 +429,23 @@ class Api(Resource):
         return await self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
 
     async def turn_off(self, entity_id: str, domain: str = "homeassistant"):
-        """
-        Turn off a specific entity in Home Assistant.
+        """Turn off a specific entity in Home Assistant.
 
         Args:
-            entity_id (str): The ID of the entity to turn off (e.g., "light.office").
-            domain (str): The domain of the entity (default: "homeassistant").
+            entity_id: The ID of the entity to turn off (e.g., "light.office").
+            domain: The domain of the entity (default: "homeassistant").
 
-        Returns:
-            None
         """
         self.logger.debug("Turning off entity %s", entity_id)
         return await self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
 
     async def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
-        """
-        Toggle a specific entity in Home Assistant.
+        """Toggle a specific entity in Home Assistant.
 
         Args:
-            entity_id (str): The ID of the entity to toggle (e.g., "light.office").
-            domain (str): The domain of the entity (default: "homeassistant").
+            entity_id: The ID of the entity to toggle (e.g., "light.office").
+            domain: The domain of the entity (default: "homeassistant").
 
-        Returns:
-            None
         """
         self.logger.debug("Toggling entity %s", entity_id)
         return await self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
@@ -468,10 +454,10 @@ class Api(Resource):
         """Get the state of a specific entity.
 
         Args:
-            entity_id (str): The ID of the entity to get the state for.
+            entity_id: The ID of the entity to get the state for.
 
         Returns:
-            HassStateDict: The state of the entity as raw data.
+            The state of the entity as raw data.
         """
 
         url = f"states/{entity_id}"
@@ -482,10 +468,10 @@ class Api(Resource):
         """Check if a specific entity exists.
 
         Args:
-            entity_id (str): The ID of the entity to check.
+            entity_id: The ID of the entity to check.
 
         Returns:
-            bool: True if the entity exists, False otherwise.
+            True if the entity exists, False otherwise.
         """
 
         try:
@@ -500,17 +486,11 @@ class Api(Resource):
         """Get an entity object for a specific entity.
 
         Args:
-            entity_id (str): The ID of the entity to get.
-            model (type[EntityT]): The model class to use for the entity.
+            entity_id: The ID of the entity to get.
+            model: The model class to use for the entity.
 
         Returns:
-            EntityT: The entity object.
-
-        Note:
-            This is not the same as calling get_state: get_state returns a BaseState subclass.
-            This call returns an EntityState subclass, which wraps the state object and provides
-            api methods for interacting with the entity.
-
+            The entity object.
         """
         if not issubclass(model, BaseEntity):  # runtime check
             raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
@@ -523,11 +503,11 @@ class Api(Resource):
         """Get an entity object for a specific entity, or None if it does not exist.
 
         Args:
-            entity_id (str): The ID of the entity to get.
-            model (type[EntityT]): The model class to use for the entity.
+            entity_id: The ID of the entity to get.
+            model: The model class to use for the entity.
 
         Returns:
-            EntityT | None: The entity object, or None if it does not exist.
+            The entity object, or None if it does not exist.
         """
         try:
             return await self.get_entity(entity_id, model)
@@ -540,11 +520,11 @@ class Api(Resource):
         """Get the state of a specific entity.
 
         Args:
-            entity_id (str): The ID of the entity to get the state for.
-            model (type[StateT]): The model type to convert the state to.
+            entity_id: The ID of the entity to get the state for.
+            model: The model type to convert the state to.
 
         Returns:
-            StateT: The state of the entity converted to the specified model type.
+            The state of the entity converted to the specified model type.
         """
 
         if not issubclass(model, BaseState):  # runtime check
@@ -558,10 +538,10 @@ class Api(Resource):
         """Get the state of a specific entity without converting it to a state object.
 
         Args:
-            entity_id (str): The ID of the entity to get the state for.
+            entity_id: The ID of the entity to get the state for.
 
         Returns:
-            str: The state of the entity as raw data.
+            The state of the entity as raw data.
 
         Note:
             While most default methods in this library work with state objects for
@@ -584,11 +564,11 @@ class Api(Resource):
         """Get the state of a specific entity as a converted state object.
 
         Args:
-            entity_id (str): The ID of the entity to get the state for.
-            model (type[BaseState[StateValueT]]): The model type to convert the state to.
+            entity_id: The ID of the entity to get the state for.
+            model: The model type to convert the state to.
 
         Returns:
-            StateValueT: The state of the entity converted to the specified model type.
+            The state of the entity converted to the specified model type.
 
         Raises:
             TypeError: If the model is not a valid StateType subclass.
@@ -605,11 +585,11 @@ class Api(Resource):
         """Get a specific attribute of an entity.
 
         Args:
-            entity_id (str): The ID of the entity to get the attribute for.
-            attribute (str): The name of the attribute to retrieve.
+            entity_id: The ID of the entity to get the attribute for.
+            attribute: The name of the attribute to retrieve.
 
         Returns:
-            Any: The value of the specified attribute, or None if it does not exist.
+            The value of the specified attribute, or None if it does not exist.
         """
 
         entity = await self.get_state_raw(entity_id)
@@ -627,17 +607,15 @@ class Api(Resource):
         """Get the history of a specific entity.
 
         Args:
-            entity_id (str): The ID of the entity to get the history for.
-            start_time (PlainDateTime | ZonedDateTime | Date | str):
-                The start time for the history range.
-            end_time (PlainDateTime | ZonedDateTime | Date | str | None, optional):
-                The end time for the history range.
-            significant_changes_only (bool, optional): Whether to only include significant changes.
-            minimal_response (bool, optional): Whether to request a minimal response.
-            no_attributes (bool, optional): Whether to exclude attributes from the response.
+            entity_id: The ID of the entity to get the history for.
+            start_time: The start time for the history range.
+            end_time: The end time for the history range.
+            significant_changes_only: Whether to only include significant changes.
+            minimal_response: Whether to request a minimal response.
+            no_attributes: Whether to exclude attributes from the response.
 
         Returns:
-            list[HistoryEntry]: A list of history entries for the specified entity.
+            A list of history entries for the specified entity.
         """
         if "," in entity_id:
             raise ValueError("Entity ID should not contain commas. Use `get_histories` for multiple entities.")
@@ -672,17 +650,15 @@ class Api(Resource):
         """Get the history for multiple entities.
 
         Args:
-            entity_ids (list[str]): The IDs of the entities to get the history for.
-            start_time (PlainDateTime | ZonedDateTime | Date | str):
-                The start time for the history range.
-            end_time (PlainDateTime | ZonedDateTime | Date | str | None, optional):
-                The end time for the history range.
-            significant_changes_only (bool, optional): Whether to only include significant changes.
-            minimal_response (bool, optional): Whether to request a minimal response.
-            no_attributes (bool, optional): Whether to exclude attributes from the response.
+            entity_ids: The IDs of the entities to get the history for.
+            start_time: The start time for the history range.
+            end_time: The end time for the history range.
+            significant_changes_only: Whether to only include significant changes.
+            minimal_response: Whether to request a minimal response.
+            no_attributes: Whether to exclude attributes from the response.
 
         Returns:
-            dict[str, list[HistoryEntry]]: A dictionary mapping entity IDs to their respective history entries.
+            A dictionary mapping entity IDs to their respective history entries.
         """
         entity_id = ",".join(entity_ids)
 
@@ -713,12 +689,12 @@ class Api(Resource):
         """Get the logbook entries for a specific entity.
 
         Args:
-            entity_id (str): The ID of the entity to get the logbook entries for.
-            start_time (PlainDateTime | ZonedDateTime | Date | str): The start time for the logbook range.
-            end_time (PlainDateTime | ZonedDateTime | Date | str): The end time for the logbook range.
+            entity_id: The ID of the entity to get the logbook entries for.
+            start_time: The start time for the logbook range.
+            end_time: The end time for the logbook range.
 
         Returns:
-            list[dict]: A list of logbook entries for the specified entity.
+            A list of logbook entries for the specified entity.
         """
 
         url = f"logbook/{start_time}"
@@ -737,12 +713,12 @@ class Api(Resource):
         """Set the state of a specific entity.
 
         Args:
-            entity_id (str | StrEnum): The ID of the entity to set the state for.
-            state (str): The new state value to set.
-            attributes (dict[str, Any], optional): Additional attributes to set for the entity.
+            entity_id: The ID of the entity to set the state for.
+            state: The new state value to set.
+            attributes: Additional attributes to set for the entity.
 
         Returns:
-            dict: The response from Home Assistant after setting the state.
+            The response from Home Assistant after setting the state.
         """
 
         entity_id = str(entity_id)
@@ -770,12 +746,11 @@ class Api(Resource):
         """Get the latest camera image for a specific entity.
 
         Args:
-            entity_id (str): The ID of the camera entity to get the image for.
-            timestamp (PlainDateTime | ZonedDateTime | Date | str | None, optional):
-                The timestamp for the image. If None, the latest image is returned.
+            entity_id: The ID of the camera entity to get the image for.
+            timestamp: The timestamp for the image. If None, the latest image is returned.
 
         Returns:
-            bytes: The camera image data.
+            The camera image data.
         """
 
         url = f"camera_proxy/{entity_id}"
@@ -803,12 +778,12 @@ class Api(Resource):
         """Get events from a specific calendar.
 
         Args:
-            calendar_id (str): The ID of the calendar to get events from.
-            start_time (PlainDateTime | ZonedDateTime | Date | str): The start time for the event range.
-            end_time (PlainDateTime | ZonedDateTime | Date | str): The end time for the event range.
+            calendar_id: The ID of the calendar to get events from.
+            start_time: The start time for the event range.
+            end_time: The end time for the event range.
 
         Returns:
-            list[dict]: A list of calendar events.
+            A list of calendar events.
         """
 
         url = f"calendars/{calendar_id}/events"
@@ -825,11 +800,11 @@ class Api(Resource):
         """Render a template with given variables.
 
         Args:
-            template (str): The template string to render.
-            variables (dict, optional): Variables to use in the template.
+            template: The template string to render.
+            variables: Variables to use in the template.
 
         Returns:
-            str: The rendered template result.
+            The rendered template result.
         """
 
         url = "template"
@@ -842,7 +817,7 @@ class Api(Resource):
         """Delete a specific entity.
 
         Args:
-            entity_id (str): The ID of the entity to delete.
+            entity_id: The ID of the entity to delete.
 
         Raises:
             RuntimeError: If the deletion fails.

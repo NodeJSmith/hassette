@@ -108,11 +108,12 @@ class TaskBucket(Resource):
         is preserved in the new thread.
 
         Args:
-            fn (Callable[P, R]): The synchronous function to run.
-            *args (P.args): Positional arguments to pass to the function.
-            **kwargs (P.kwargs): Keyword arguments to pass to the function.
+            fn: The synchronous function to run.
+            *args: Positional arguments to pass to the function.
+            **kwargs: Keyword arguments to pass to the function.
+
         Returns:
-            Future[R]: A Future representing the result of the function call.
+            A Future representing the result of the function call.
         """
         current_bucket = context.CURRENT_BUCKET.get()
 
@@ -164,11 +165,11 @@ class TaskBucket(Resource):
         """Run an async function in a synchronous context.
 
         Args:
-            fn (Coroutine[Any, Any, R]): The async function to run.
-            timeout_seconds (int | None): The timeout for the function call, defaults to 0, to use the config value.
+            fn: The async function to run.
+            timeout_seconds: The timeout for the function call, defaults to 0, to use the config value.
 
         Returns:
-            R: The result of the function call.
+            The result of the function call.
         """
 
         timeout_seconds = timeout_seconds or self.hassette.config.run_sync_timeout_seconds

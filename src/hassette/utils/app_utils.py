@@ -37,7 +37,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
     due to import errors, misconfiguration, etc.
 
     Args:
-        config (HassetteConfig): The Hassette configuration containing app manifests.
+        config: The Hassette configuration containing app manifests.
 
     Raises:
         AppPrecheckFailedError: If any app fails to load correctly.
@@ -168,11 +168,11 @@ def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict
     """Auto-detect app manifests in the provided app directory.
 
     Args:
-        app_dir (Path): Directory to search for app manifests.
-        known_paths (set[Path]): Set of paths that are already known/configured.
+        app_dir: Directory to search for app manifests.
+        known_paths: Set of paths that are already known/configured.
 
     Returns:
-        dict[str, AppDict]: Detected app manifests, keyed by app name.
+        Detected app manifests, keyed by app key.
     """
     from hassette.app import App, AppSync
 
@@ -224,11 +224,11 @@ def load_app_class_from_manifest(app_manifest: "AppManifest", force_reload: bool
     """Load the app class specified by the given manifest.
 
     Args:
-        app_manifest (AppManifest): The app manifest.
-        force_reload (bool): Whether to force reloading the module if already loaded.
+        app_manifest: The app manifest.
+        force_reload: Whether to force reloading the module if already loaded.
 
     Returns:
-        type[App]: The app class.
+        The app class.
     """
     return load_app_class(
         app_dir=app_manifest.app_dir,
@@ -245,14 +245,14 @@ def load_app_class(
     """Import the app's class with a canonical package/module identity so isinstance works.
 
     Args:
-        app_dir (Path): The root directory containing apps.
-        module_path (Path): The full path to the app module file.
-        class_name (str): The name of the app class to load.
-        display_name (str | None): Optional display name for logging.
-        force_reload (bool): Whether to force reloading the module if already loaded.
+        app_dir: The root directory containing apps.
+        module_path: The full path to the app module file.
+        class_name: The name of the app class to load.
+        display_name: Optional display name for logging.
+        force_reload: Whether to force reloading the module if already loaded.
 
     Returns:
-        type[App]: The app class.
+        The app class.
     """
     from hassette.app import App, AppSync
 
@@ -297,12 +297,12 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str,
     """Import (or reload) a module from the given path under the 'apps' namespace package.
 
     Args:
-      app_dir (Path): The root directory containing apps.
-      module_path (Path): The full path to the app module file.
-      pkg_name (str): The package name to use (e.g. 'apps')
+        app_dir: The root directory containing apps.
+        module_path: The full path to the app module file.
+        pkg_name: The package name to use (e.g. 'apps')
 
     Returns:
-      tuple[str, ModuleType]: The formatted relative path and the imported module.
+        The formatted relative path and the imported module.
     """
 
     _ensure_on_sys_path(app_dir)
@@ -345,12 +345,11 @@ def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
     """Ensure a namespace package rooted at `root` is importable as `pkg_name`.
 
     Args:
-      root (Path): Directory to treat as the root of the namespace package.
-      pkg_name (str): The package name to use (e.g. 'apps')
+        root: Directory to treat as the root of the namespace package.
+        pkg_name: The package name to use (e.g. 'apps')
 
-    Returns:
-      None
-
+    Behavior:
+    ---------
     - Creates/updates sys.modules[pkg_name] as a namespace package.
     - Adds `root` to submodule_search_locations so 'pkg_name.*' resolves under this directory.
     """
@@ -371,16 +370,15 @@ def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
 
 
 def _module_name_for(app_dir: Path, full_path: Path, pkg_name: str) -> str:
-    """
-    Map a file within app_dir to a stable module name under the 'apps' package.
+    """Map a file within app_dir to a stable module name under the 'apps' package.
 
     Args:
-      app_dir (Path): The root directory containing apps (e.g. /path/to/apps)
-      full_path (Path): The full path to the app module file (e.g. /path/to/apps/my_app.py)
-      pkg_name (str): The package name to use (e.g. 'apps')
+        app_dir: The root directory containing apps (e.g. /path/to/apps)
+        full_path: The full path to the app module file (e.g. /path/to/apps/my_app.py)
+        pkg_name: The package name to use (e.g. 'apps')
 
     Returns:
-      str: The dotted module name (e.g. 'apps.my_app')
+        The dotted module name (e.g. 'apps.my_app')
 
     Examples:
       app_dir=/path/to/apps
@@ -407,7 +405,7 @@ def _ensure_on_sys_path(p: Path) -> None:
     """Ensure the given path is on sys.path for module resolution.
 
     Args:
-      p (Path): Directory to add to sys.path
+        p: Directory to add to sys.path
 
     Note:
       - Will not add root directories (with <=1 parts) for safety.

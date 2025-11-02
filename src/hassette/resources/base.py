@@ -120,14 +120,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     def __init__(
         self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
     ) -> None:
-        """
-        Initialize the resource.
+        """Initialize the resource.
 
         Args:
-            hassette (Hassette): The Hassette instance this resource belongs to.
-            task_bucket (TaskBucket | None): Optional TaskBucket for managing tasks. If None, a new one is created.
-            parent (Resource | None): Optional parent resource. If None, this resource has no parent.
-
+            hassette: The Hassette instance this resource belongs to.
+            task_bucket: Optional TaskBucket for managing tasks. If None, a new one is created.
+            parent: Optional parent resource. If None, this resource has no parent.
         """
         from hassette.task_bucket import TaskBucket
 
@@ -188,11 +186,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Create and add a child resource to this resource.
 
         Args:
-            child (type[Resource]): The class of the child resource to create.
+            child: The class of the child resource to create.
             **kwargs: Keyword arguments to pass to the child resource's constructor.
 
         Returns:
-            Resource: The created child resource.
+            The created child resource.
         """
         if "parent" in kwargs:
             raise ValueError("Cannot specify 'parent' argument when adding a child resource; it is set automatically.")

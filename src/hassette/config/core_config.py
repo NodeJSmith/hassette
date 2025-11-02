@@ -43,7 +43,7 @@ def get_dev_mode():
     """Check if developer mode should be enabled.
 
     Returns:
-        bool: True if developer mode is enabled, False otherwise.
+        True if developer mode is enabled, False otherwise.
     """
     if "debugpy" in sys.modules:
         LOGGER.warning("Developer mode enabled via 'debugpy'")
@@ -487,10 +487,10 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     """Filter the provided paths to only include unique existing paths.
 
     Args:
-        value (list[str]): List of file paths as strings.
+        value: List of file paths as strings.
 
     Returns:
-        list[Path]: List of existing file paths as Path objects.
+        List of existing file paths as Path objects.
 
     Raises:
         ValueError: If any of the provided paths do not exist.

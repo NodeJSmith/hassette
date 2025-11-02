@@ -17,10 +17,10 @@ def _get_app_config_class(cls: type["App"]) -> type[AppConfig]:
     If no type is found, it returns the default class type of AppConfig.
 
     Args:
-        cls (type[App]): The subclass of App to inspect.
+        cls: The subclass of App to inspect.
 
     Returns:
-        type[AppConfig]: The subclass of AppConfig for this app.
+        The subclass of AppConfig for this app.
 
     Note:
         This is my best attempt (so far) at making App generic so that it can be strongly typed\
@@ -54,10 +54,10 @@ def validate_app(cls: type["App"]) -> type[AppConfig]:
     """Validate the AppConfig class of a App subclass.
 
     Args:
-        cls (type[App]): The subclass of App to validate.
+        cls: The subclass of App to validate.
 
     Returns:
-        type[AppConfig]: The AppConfig of the subclass.
+        The AppConfig of the subclass.
 
     Raises:
         InvalidInheritanceError: If the inheritance order is incorrect.

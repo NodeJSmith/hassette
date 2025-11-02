@@ -114,11 +114,11 @@ class _HassetteMock(Resource):
         """Block until all dependent resources are ready or shutdown is requested.
 
         Args:
-            resources (list[Resource] | Resource): The resource(s) to wait for.
-            timeout (int): The timeout for the wait operation.
+            resources: The resource(s) to wait for.
+            timeout: The timeout for the wait operation.
 
         Returns:
-            bool: True if all resources are ready, False if shutdown is requested.
+            True if all resources are ready, False if shutdown is requested.
         """
         timeout = timeout or self.config.startup_timeout_seconds
 

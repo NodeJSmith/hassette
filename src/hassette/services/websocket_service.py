@@ -247,7 +247,7 @@ class _WebsocketService(Service):  # pyright: ignore[reportUnusedClass]
             **data: The data to send as a JSON payload.
 
         Returns:
-            dict[str, Any]: The response data from the WebSocket.
+            The response data from the WebSocket.
 
         Raises:
             FailedMessageError: If sending the message fails or times out.

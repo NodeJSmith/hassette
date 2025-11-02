@@ -5,10 +5,10 @@ def convert_utc_timestamp_to_system_tz(timestamp: int | float) -> ZonedDateTime:
     """Convert a UTC timestamp to ZonedDateTime in system timezone.
 
     Args:
-        timestamp (int | float): The UTC timestamp.
+        timestamp: The UTC timestamp.
 
     Returns:
-        ZonedDateTime: The converted ZonedDateTime.
+        The converted ZonedDateTime.
     """
     return ZonedDateTime.from_timestamp(timestamp, tz="UTC").to_system_tz()
 
@@ -17,7 +17,7 @@ def convert_datetime_str_to_system_tz(value: str | ZonedDateTime | None) -> Zone
     """Convert an ISO 8601 datetime string to ZonedDateTime in system timezone.
 
     Args:
-        value (str | ZonedDateTime | None): The ISO 8601 datetime string.
+        value: The ISO 8601 datetime string.
 
     Returns:
         ZonedDateTime | None: The converted ZonedDateTime or None if input is None.

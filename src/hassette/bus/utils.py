@@ -73,11 +73,11 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
     """Compare an actual value against a condition.
 
     Args:
-        actual (Any): The actual value to compare.
-        condition (ChangeType): The condition to compare against. Can be a literal value or a callable.
+        actual: The actual value to compare.
+        condition: The condition to compare against. Can be a literal value or a callable.
 
     Returns:
-        bool: True if the actual value matches the condition, False otherwise.
+        True if the actual value matches the condition, False otherwise.
 
     Behavior:
         - If condition is NOT_PROVIDED, treat as 'no constraint' (True).

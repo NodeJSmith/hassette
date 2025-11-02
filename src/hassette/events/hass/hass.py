@@ -83,7 +83,7 @@ class StateChangePayload(Generic[StateT]):
         Appropriately handles cases where either state may be None.
 
         Returns:
-            bool: True if the state value has changed, False otherwise.
+            True if the state value has changed, False otherwise.
         """
         return self.old_state_value != self.new_state_value
 
