@@ -1,11 +1,11 @@
 Getting Started
 ===============
 
-.. TODO::
+This guide will help you set up Hassette with a simple app in a local environment. A Docker compose guide is coming soon.
 
-   Create a Docker Compose example
+.. note::
 
-This guide will help you set up Hassette with a simple app in a local environment. A Docker compose guide is also provided.
+    There is a Docker Compose `example file in the meantime <https://github.com/NodeJSmith/hassette/blob/main/examples/docker-compose.yml>`_ you can use as a starting point.
 
 Prerequisites
 -------------
@@ -18,14 +18,6 @@ Overview
 --------
 
 Hassette requires very little to get started: a Home Assistant URL and an access token. You will probably also want an app (it won't do much without one).
-
-.. warning::
-
-    If you expect that you will want to use your apps in other files/apps, it is recommend to create a package. This is due to how
-    Python handles imports and how ``isinstance`` checks work. If your app is a package, you can import it from other files easily, either absolute or relative, and using ``isinstance``
-    will work as expected. If you just have python files in a directory you cannot use relative imports and ``isinstance`` will not (may not?) work as expected.
-
-    For this reason, this guide will include steps for creating a package for your app.
 
 .. tip::
    **Should I create a package?**

@@ -119,6 +119,9 @@ def resolve_aliases(app, doctree):  # noqa
             node["reftype"] = CANONICAL_TYPE_MAP[alias]
             should_update = True
 
+            # use short name for type aliases
+            alias = alias.split(".")[-1]
+
         if should_update:
             text_node = next(iter(node.traverse(lambda n: n.tagname == "#text")))
             text_node.parent.replace(text_node, Text(alias))

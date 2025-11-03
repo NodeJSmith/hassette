@@ -26,7 +26,7 @@ Key capabilities
 
     A :class:`State <hassette.models.states.base.BaseState>`, such as what is returned by *get_state()*, is an object representing the current status of an entity, including its attributes and metadata.
 
-    A :class:`StateValue <hassette.models.states.base.StateValueT>`, such as what is returned by *get_state_value()*, is the actual value of the state, e.g., ``"on"``, ``"off"``, ``23.5``, etc.
+    A :type:`StateValue <hassette.models.states.base.StateValueT>`, such as what is returned by *get_state_value()*, is the actual value of the state, e.g., ``"on"``, ``"off"``, ``23.5``, etc.
 
     An :class:`Entity <hassette.models.entities.base.BaseEntity>`, such as what is returned by *get_entity()*, is a richer object that includes the state and methods to interact with the entity, such as calling services on it.
 

@@ -64,7 +64,6 @@ and access ``event.payload.data`` for the meaningful content.
 
 .. literalinclude:: working_with_event_data_example.py
    :language: python
-   :lines: 6-12
 
 Working with event data
 -----------------------

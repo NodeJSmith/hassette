@@ -1,8 +1,7 @@
+import typing
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Generic, Self, TypeAlias
-
-from typing_extensions import Sentinel
+from typing import Any, Generic, Self, TypeAlias, TypeGuard
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
@@ -10,6 +9,9 @@ from hassette.models.states import StateT, try_convert_state
 from hassette.types import topics
 
 from .raw import HassEventEnvelopeDict, HassStateDict
+
+if typing.TYPE_CHECKING:
+    from typing_extensions import Sentinel
 
 
 @dataclass(slots=True, frozen=True)
@@ -90,24 +92,28 @@ class StateChangePayload(Generic[StateT]):
         return self.old_state_value != self.new_state_value
 
     @property
-    def new_state_value(self) -> Any | Sentinel:
+    def new_state_value(self) -> "Any | Sentinel":
         """Return the value of the new state, or MISSING_VALUE if not present."""
         return self.new_state.value if self.new_state is not None else MISSING_VALUE
 
     @property
-    def old_state_value(self) -> Any | Sentinel:
+    def old_state_value(self) -> "Any | Sentinel":
         """Return the value of the old state, or MISSING_VALUE if not present."""
         return self.old_state.value if self.old_state is not None else MISSING_VALUE
 
     @property
     def has_new_state(self) -> bool:
-        """Check if the new state is not None."""
+        """Check if the new state is not None - not a TypeGuard."""
         return self.new_state is not None
 
     @property
     def has_old_state(self) -> bool:
-        """Check if the old state is not None."""
+        """Check if the old state is not None - not a TypeGuard."""
         return self.old_state is not None
+
+    def has_state(self, state: StateT | None) -> TypeGuard[StateT]:
+        """A TypeGuard method to check if a state is not None."""
+        return state is not None
 
     @classmethod
     def create_from_event(
