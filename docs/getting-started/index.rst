@@ -27,6 +27,11 @@ Hassette requires very little to get started: a Home Assistant URL and an access
 
     For this reason, this guide will include steps for creating a package for your app.
 
+.. tip::
+   **Should I create a package?**
+
+   If you plan to import your apps from other files or use `isinstance` checks between apps, create a proper Python package with `__init__.py` files. This guide shows the package approach, but you can also just create `.py` files in a directory if your needs are simpler.
+
 1) Create a directory and package for your apps
 
 ``uv`` is what I use so that is what I'm showing in the example - if you have your own preferences for project structure, feel free to adapt accordingly.
@@ -52,6 +57,11 @@ You should see logs indicating that Hassette has connected to Home Assistant suc
 
 .. image:: ../_static/getting-started-logs.png
    :alt: Hassette logs showing successful connection to Home Assistant
+
+.. note::
+
+   **Security Tip**: Never commit your access token to version control. In the next steps, we'll show you how to use configuration files and environment variables to keep tokens secure.
+
 
 3) Create Your First App
 
@@ -143,3 +153,35 @@ You should see logs indicating that your app has started and the greeting messag
 
 .. image:: ../_static/getting-started-config-logs.png
    :alt: Hassette logs showing greeting from config file
+
+What's Next?
+-------------
+
+Now that you have Hassette running with your first app, here are logical next steps:
+
+**🏗️ Build Real Automations**
+
+- :doc:`Event handling patterns <../bus/index>` - React to state changes, service calls, and custom events
+- :doc:`Scheduling tasks <../scheduler/index>` - Run code on intervals, cron schedules, or delays
+- :doc:`API usage <../api/index>` - Call services, query states, and interact with Home Assistant
+
+**⚙️ Configure Your Setup**
+
+- :doc:`Configuration options <../configuration/index>` - Environment variables, secrets, and TOML settings
+- :doc:`App patterns <../apps/index>` - Multi-instance apps, typed configuration, and lifecycle hooks
+
+**📚 Learn More**
+
+- :doc:`Why Hassette? <../why-hassette>` - The story and philosophy behind the framework
+- :doc:`vs AppDaemon <../comparisons/index>` - Migration guide if you're coming from AppDaemon
+
+**🔧 Development Workflow**
+
+- File watching and hot-reloading (already working!)
+- :doc:`Testing your apps <../testing/index>` *(coming soon)*
+- :doc:`Debugging tips <../debugging/index>` *(coming soon)*
+
+**Need Help?**
+
+- `GitHub Issues <https://github.com/yourusername/hassette/issues>`_ for bugs and feature requests
+- `Discussions <https://github.com/yourusername/hassette/discussions>`_ for questions and community support

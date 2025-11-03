@@ -13,6 +13,8 @@ extensions = [
     "sphinx.ext.intersphinx",
     "autoapi.extension",
     "hassette.sphinx",  # custom Sphinx helpers
+    "sphinx_copybutton",  # "copy" button for code blocks
+    "sphinx.ext.viewcode",  # add links to source code
 ]
 
 html_theme = "sphinx_rtd_theme"
@@ -66,5 +68,5 @@ nitpick_ignore_regex = [
     (r"py:.*", r"^builtins\."),
 ]
 
-html_static_path = ["_static"]   # <— ensure docs/_static/ exists
-html_css_files = ["style.css"]   # <— ensure docs/_static/style.css exists
+html_static_path = ["_static"]  # <— ensure docs/_static/ exists
+html_css_files = ["style.css"]  # <— ensure docs/_static/style.css exists
