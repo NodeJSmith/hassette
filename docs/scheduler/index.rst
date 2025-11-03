@@ -73,7 +73,7 @@ You can keep the ``ScheduledJob`` returned from any helper to manage its lifecyc
    :language: python
    :lines: 5-13
 
-Cancelling sets ``job.cancelled`` and the scheduler will skip future executions. For repeating jobs
+Cancelling sets ``job.cancelled`` and the scheduler will remove it from the job list. For repeating jobs
 ``job.next_run`` updates automatically after every run so you can monitor drift or display upcoming
 runs in your UI.
 
