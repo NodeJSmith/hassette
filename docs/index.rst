@@ -19,7 +19,7 @@ Hassette is designed for developers who want to write Home Assistant automations
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading
 
-Built by a fellow HA geek frustrated with the AppDaemon development experience. Read more about :doc:`why Hassette exists <why-hassette>`.
+Built by a fellow HA geek frustrated with the HA python development experience. Read more about :doc:`why Hassette exists <why-hassette>`.
 
 
 Getting Started
