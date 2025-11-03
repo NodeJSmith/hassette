@@ -231,7 +231,7 @@ Hassette
 ^^^^^^^^^^^^
 
 Scheduled jobs do not need to follow a specific signature. They can be either async or sync functions, and can accept arbitrary parameters. The scheduler methods return rich job objects that can be used to manage the scheduled task.
-If an IO or a blocking operation is needed, then you should either use a synchronous method (which will be run in a thread automatically) or use :meth:`~hassette.task_bucket.TaskBucket.run_in_thread` to manually offload the work to a thread.
+If an IO or a blocking operation is needed, then you should either have the callback be a sync method (which will be run in a thread automatically) or use :meth:`self.task_bucket.run_in_thread <hassette.task_bucket.TaskBucket.run_in_thread>` to manually offload the work to a thread.
 
 The scheduler is accessed via the ``self.scheduler`` attribute, and offers similar helpers: ``run_in()``, ``run_at()``, ``run_minutely()``, ``run_hourly()``, and ``run_daily()``. These methods return a :class:`~hassette.scheduler.classes.ScheduledJob` object that can be used to cancel or inspect the job.
 

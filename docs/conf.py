@@ -66,4 +66,5 @@ nitpick_ignore_regex = [
     (r"py:.*", r"^builtins\."),
 ]
 
-html_css_files = ["style.css"]
+html_static_path = ["_static"]   # <— ensure docs/_static/ exists
+html_css_files = ["style.css"]   # <— ensure docs/_static/style.css exists

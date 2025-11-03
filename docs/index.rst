@@ -1,3 +1,7 @@
+.. figure:: ./_static/hassette-logo.svg
+   :alt: Hassette logo
+   :class: hero
+
 Hassette
 ========
 
@@ -15,7 +19,7 @@ Hassette is designed for developers who want to write Home Assistant automations
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading
 
-Built by a fellow HA geek frustrated with AppDaemon's limitations. Read more about :doc:`why Hassette exists <why-hassette>`.
+Built by a fellow HA geek frustrated with the AppDaemon development experience. Read more about :doc:`why Hassette exists <why-hassette>`.
 
 
 Getting Started
@@ -32,29 +36,27 @@ Get running with Hassette in a few lines of code:
 
 .. code-block:: bash
 
-    uvx hassette -t $HOME_ASSISTANT_TOKEN --base-url 'http://192.168.1.179:8123' --app-dir .
+    uvx hassette -t $HOME_ASSISTANT_TOKEN --base-url 'http://127.0.0.1:8123' --app-dir .
 
 **3. Hassette will auto-detect your app and start it:**
 
-.. image:: ./_static/hassette-logs.png
+.. image:: ./_static/app-logs.png
    :alt: Hassette logs showing automation running
 
-**4: Learn more**
+**Next Steps**
 
-    This is just the tip of the iceberg. Dig into the documentation to learn about :doc:`Apps <apps/index>`, Hassette's :doc:`configuration <configuration/index>` and more.
-    Check out the :doc:`getting started guide <getting-started/index>` for a more detailed walkthrough or dig into the internals with the :doc:`code reference <code-reference/index>`.
-
-
-Learn More
--------------
+Ready to build something more complex? Check out the :doc:`getting started guide <getting-started/index>` for a detailed walkthrough, explore :doc:`app patterns <apps/index>`, or dive into the :doc:`API reference <api/index>`.
 
 .. toctree::
-  :maxdepth: 1
+   :hidden:
+   :maxdepth: 1
 
-  configuration/index
-  apps/index
-  api/index
-  bus/index
-  scheduler/index
-  comparisons/index
-  code-reference/index
+   getting-started/index
+   configuration/index
+   apps/index
+   api/index
+   bus/index
+   scheduler/index
+   why-hassette
+   comparisons/index
+   code-reference/index
