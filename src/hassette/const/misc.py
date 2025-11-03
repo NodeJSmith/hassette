@@ -2,10 +2,18 @@ from typing import Literal
 
 from typing_extensions import Sentinel
 
-MISSING_VALUE = Sentinel("MISSING_VALUE")
+
+class FalseySentinel(Sentinel):
+    """A Sentinel subclass that is Falsey in boolean contexts."""
+
+    def __bool__(self) -> bool:
+        return False
+
+
+MISSING_VALUE = FalseySentinel("MISSING_VALUE")
 """Sentinel value to indicate a missing value."""
 
-NOT_PROVIDED = Sentinel("NOT_PROVIDED")
+NOT_PROVIDED = FalseySentinel("NOT_PROVIDED")
 """Sentinel value to indicate a value was not provided."""
 
 LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]

@@ -188,13 +188,6 @@ class AppHandler(Resource):
     async def _set_only_app(self):
         """Determine if any app is marked as only, and set self.only_app accordingly."""
 
-        if not self.hassette.config.dev_mode:
-            if not self.hassette.config.allow_only_app_in_prod:
-                self.logger.warning("Disallowing use of `only_app` decorator in production mode")
-                self.only_app = None
-                return
-            self.logger.warning("Allowing use of `only_app` decorator in production mode due to config")
-
         only_apps: list[str] = []
         for app_manifest in self.active_apps_config.values():
             try:
@@ -212,6 +205,13 @@ class AppHandler(Resource):
         if not only_apps:
             self.only_app = None
             return
+
+        if not self.hassette.config.dev_mode:
+            if not self.hassette.config.allow_only_app_in_prod:
+                self.logger.warning("Disallowing use of `only_app` decorator in production mode")
+                self.only_app = None
+                return
+            self.logger.warning("Allowing use of `only_app` decorator in production mode due to config")
 
         if len(only_apps) > 1:
             keys = ", ".join(app for app in only_apps)

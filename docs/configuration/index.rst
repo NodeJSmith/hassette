@@ -6,7 +6,7 @@ but cover the most important and commonly used options.
 
 .. seealso::
 
-    First time here? Start with :doc:`getting-started`.
+    First time here? Start with :doc:`../getting-started/index`.
 
 Hassette requires very few settings to run - just the Home Assistant URL and a token. The URL can be provided
 via the config file or environment variable; the token should be provided via environment variable or CLI
@@ -27,7 +27,7 @@ If you want to use a different path for the config file, you can pass it via the
 
 .. code-block:: bash
 
-    uv run run-hassette -c ./config/hassette.toml -e ./config/.env
+    uvx hassette -c ./config/hassette.toml -e ./config/.env
 
 Home Assistant Token
 --------------------
@@ -41,18 +41,8 @@ hassette.toml file
 ------------------
 Hassette expects a ``hassette.toml`` file to set basic options and declare your apps. The structure is:
 
-.. code-block:: toml
-
-   [hassette]
-   base_url = "http://localhost:8123"  # Home Assistant URL
-   app_dir  = "src/apps"                # path containing your app modules
-
-   [apps.my_app]
-   filename   = "my_app.py"
-   class_name = "MyApp"
-   enabled    = true
-   # inline config for a single instance (optional)
-   config = { some_option = true }
+.. literalinclude:: basic_config.toml
+   :language: toml
 
 
 ``[hassette]`` section
@@ -82,33 +72,20 @@ Single vs multiple instances:
 
 .. note::
 
-     See :doc:`apps` for a deeper walkthrough of app anatomy, ``App`` vs ``AppSync``,
+     See :doc:`../apps/index` for a deeper walkthrough of app anatomy, ``App`` vs ``AppSync``,
      and how to use ``self.api``, ``self.bus``, ``self.scheduler``, ``self.logger``, and ``self.hassette``.
 
-.. code-block:: toml
+.. literalinclude:: single_instance.toml
+   :language: toml
 
-   [apps.presence]
-   filename = "presence.py"
-   class_name = "PresenceApp"
-   # Single instance
-   config = { motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }
-
-   # Multiple instances
-   [[apps.presence.config]]
-   name = "upstairs"
-   motion_sensor = "binary_sensor.upstairs_motion"
-   lights = ["light.bedroom", "light.hallway"]
-
-   [[apps.presence.config]]
-   name = "downstairs"
-   motion_sensor = "binary_sensor.downstairs_motion"
-   lights = ["light.living_room", "light.kitchen"]
+.. literalinclude:: multiple_instances.toml
+   :language: toml
 
 .. note::
 
     An *app* is validated by the ``AppManifest`` class, which checks that required fields are present and correctly typed. There can only be one ``[apps.<name>]`` section per app name.
 
-    An *app config* (if used) is validated by your app's ``AppConfig`` subclass, which checks that required fields are present and correctly typed. There can be multiple ``[[apps.<name>.config]]`` sections per app name.
+    An *app config* is validated by your app's ``AppConfig`` subclass, which checks that required fields are present and correctly typed. There can be multiple ``[[apps.<name>.config]]`` sections per app name.
 
 
 Typed app configuration
@@ -120,29 +97,11 @@ Your app classes inherit from ``App``, which is generic on a config type. The ge
 or values in a ``.env`` file that match your app name and config field names will be passed to your app config. This can be a bit unwieldy at times, but you can also set an ``env_prefix`` to set a
 custom prefix - in this case ``Hassette`` is no longer involved and ``pydantic`` will take over.
 
-.. code-block:: python
+.. literalinclude:: ../apps/typed_config_example.py
+   :language: python
 
-   from hassette import App, AppConfig
-   from pydantic import Field, SettingsConfigDict, SecretStr
-
-   class MyConfig(AppConfig):
-       model_config = SettingsConfigDict(env_prefix="MYAPP_")
-       entity_id: str = Field(...)
-       brightness: int = Field(200, ge=0, le=255)
-       required_secret: SecretStr = Field(...)
-
-   class MyApp(App[MyConfig]):
-       async def on_initialize(self):
-           # self.app_config is fully typed here
-              await self.api.turn_on(self.app_config.entity_id, brightness=self.app_config.brightness)
-
-.. code-block:: toml
-
-   [apps.my_app]
-   filename = "my_app.py"
-   class_name = "MyApp"
-   enabled = true
-   config = { entity_id = "light.bedroom", brightness = 200 }
+.. literalinclude:: ../apps/typed_config_toml.toml
+   :language: toml
 
 .. code-block:: bash
 

@@ -163,7 +163,7 @@ self.scheduler.run_cron(self.morning_job, hour=6, minute=0, name="wake_up")
 ### Running Locally
 ```bash
 uv pip install -e .
-uv run run-hassette -c ./config/hassette.toml -e ./config/.env
+uvx hassette -c ./config/hassette.toml -e ./config/.env
 ```
 
 ### Testing

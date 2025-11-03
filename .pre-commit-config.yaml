@@ -17,8 +17,10 @@ repos:
       # Run the linter.
       - id: ruff-check
         args: [--fix]
+        exclude: ^docs/.*\.(py|rst)$ # Exclude docs/ directory for linting.
       # Run the formatter.
       - id: ruff-format
+        exclude: ^docs/.*\.(py|rst)$ # Exclude docs/ directory for formatting.
 
   - repo: local
     hooks:
@@ -35,3 +37,4 @@ repos:
     hooks:
       - id: pyright
         stages: [pre-push]
+        exclude: ^docs/.*\.(py|rst)$ # Exclude docs/ directory for type checking.

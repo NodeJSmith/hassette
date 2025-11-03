@@ -37,19 +37,9 @@ While schedule helpers will have different signatures, all will take the followi
     to avoid ambiguity with other parameters.
 
 
-.. code-block:: python
-
-   from datetime import datetime, timezone
-
-   async def refresh_sensors(self) -> None:
-       await self.api.call_service("sensor", "refresh")
-
-   def log_heartbeat(self) -> None:
-       self.logger.info("Still alive at %s", datetime.now(timezone.utc))
-
-   def setup(self) -> None:
-       self.scheduler.run_every(self.refresh_sensors, interval=300)
-       self.scheduler.run_in(self.log_heartbeat, delay=30)
+.. literalinclude:: basic_example.py
+   :language: python
+   :lines: 6-14
 
 Scheduling helpers
 ------------------
@@ -72,44 +62,18 @@ Worked examples
 ---------------
 The snippet below demonstrates mixed synchronous/async jobs and custom start times.
 
-.. code-block:: python
-
-   from whenever import TimeDelta
-   from hassette.utils.date_utils import now
-
-   class MorningRoutine(App):
-       async def on_initialize(self) -> None:
-           # Run every weekday at 07:15.
-           self.scheduler.run_cron(self.prepare_coffee, minute=15, hour=7, day_of_week="mon-fri", name="brew")
-
-           # Poll a sensor every 2 minutes starting 10 seconds from now.
-           self.scheduler.run_every(self.refresh_sensors, interval=120, start=10, name="sensor-poll")
-
-           # Fire a one-off reminder in 45 seconds.
-           self.scheduler.run_in(self._log_reminder, delay=45, name="reminder")
-
-       async def prepare_coffee(self) -> None:
-           await self.api.call_service("switch", "turn_on", {"entity_id": "switch.espresso"})
-
-       async def refresh_sensors(self) -> None:
-           await self.api.call_service("sensor", "refresh")
-
-       def _log_reminder(self) -> None:
-           self.logger.info("Stretch your legs!", extra={"job": "reminder"})
+.. literalinclude:: worked_examples.py
+   :language: python
 
 Managing jobs
 -------------
 You can keep the ``ScheduledJob`` returned from any helper to manage its lifecycle.
 
-.. code-block:: python
+.. literalinclude:: managing_jobs_example.py
+   :language: python
+   :lines: 5-13
 
-   job = self.scheduler.run_every(self.refresh_sensors, interval=60, name="poll")
-   self.logger.debug("Next run at %s", job.next_run)
-
-   # Later during teardown or when conditions change
-   job.cancel()
-
-Cancelling sets ``job.cancelled`` and the scheduler will skip future executions. For repeating jobs
+Cancelling sets ``job.cancelled`` and the scheduler will remove it from the job list. For repeating jobs
 ``job.next_run`` updates automatically after every run so you can monitor drift or display upcoming
 runs in your UI.
 

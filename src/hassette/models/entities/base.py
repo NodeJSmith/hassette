@@ -10,6 +10,10 @@ if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
 
 
+EntityT = typing.TypeVar("EntityT", bound="BaseEntity")
+"""Represents a specific entity type, e.g., LightEntity, SensorEntity, etc."""
+
+
 class BaseEntity(BaseModel, Generic[StateT]):
     """Base class for all entities."""
 

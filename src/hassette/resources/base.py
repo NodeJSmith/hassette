@@ -220,7 +220,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self._initializing = True
 
         self.logger.setLevel(self.config_log_level)
-        self.logger.info("Initializing %s: %s", self.role, self.unique_name)
+        self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await self.handle_starting()
 
         try:
@@ -265,7 +265,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             return
         self._shutting_down = True
         self.request_shutdown("shutdown")
-        self.logger.info("Shutting down %s: %s", self.role, self.unique_name)
+        self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
 
         try:
             for method in [self.before_shutdown, self.on_shutdown, self.after_shutdown]:

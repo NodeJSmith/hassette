@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.15.3] - 2025-11-02
+
+### Changed
+- Moved more internal log lines to `DEBUG` level to reduce noise during normal operation.
+- Moved `only_app` warning to only emit if `@only_app` is actually being used.
+- Make `FalseySentinel` subclass to use for `NOT_PROVIDED` and `MISSING_VALUE` to simplify bool checks.
+- Add `Typeguard` method to `StateChangePayload` to allow type narrowing on `old_state` and `new_state`.
+  - Implemented as `self.has_state(<self.old_state|self.new_state>)`
+
+### Documentation
+- Improved documentation landing page
+- Add logo
+- Improve getting-started page
+
 ## [0.15.2] - 2025-11-02
 
 ### Fixed

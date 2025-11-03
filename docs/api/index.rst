@@ -26,7 +26,7 @@ Key capabilities
 
     A :class:`State <hassette.models.states.base.BaseState>`, such as what is returned by *get_state()*, is an object representing the current status of an entity, including its attributes and metadata.
 
-    A :class:`StateValue <hassette.models.states.base.StateValueT>`, such as what is returned by *get_state_value()*, is the actual value of the state, e.g., ``"on"``, ``"off"``, ``23.5``, etc.
+    A :type:`StateValue <hassette.models.states.base.StateValueT>`, such as what is returned by *get_state_value()*, is the actual value of the state, e.g., ``"on"``, ``"off"``, ``23.5``, etc.
 
     An :class:`Entity <hassette.models.entities.base.BaseEntity>`, such as what is returned by *get_entity()*, is a richer object that includes the state and methods to interact with the entity, such as calling services on it.
 
@@ -34,18 +34,15 @@ Key capabilities
 
     Most API methods will return a typed model. For example, ``get_state`` expects an entity ID and a state model type, and returns an instance of that model.
 
-    .. code-block:: python
-
-       from hassette import states
-       light_state = await self.api.get_state("light.bedroom", states.LightState)
-       brightness = light_state.attributes.brightness  # float | None
+    .. literalinclude:: typed_state_example.py
+       :language: python
+       :lines: 5-7
 
     These methods will have a ``raw`` variant that returns untyped data (``dict`` or ``Any``) if you prefer that style.
 
-    .. code-block:: python
-
-       raw_state = await self.api.get_state_raw("light.bedroom")
-       brightness = raw_state["attributes"].get("brightness")  # Any
+    .. literalinclude:: raw_state_example.py
+       :language: python
+       :lines: 6-8
 
 
     An exception to this is ``get_state_value``, which does not accept a model and always returns a raw string from Home Assistant. You can use ``get_state_value_typed`` if you want a typed return value.
@@ -59,20 +56,9 @@ so you receive the fully typed object. If you just need the primary value, ``get
 the raw Home Assistant string, while ``get_state_value_typed`` will coerce into your Pydantic model's
 ``state`` field.
 
-.. code-block:: python
-
-   from hassette import states
-
-   # Bulk fetch every entity as a typed state union
-   all_states = await self.api.get_states()
-
-   # Target a specific device with a concrete model
-   climate = await self.api.get_state("climate.living_room", states.ClimateState)
-   if climate.hvac_action == "heating":
-       self.logger.debug("Living room is warming up (%.1f°C)", climate.attributes.current_temperature)
-
-   # Raw access
-   temperature = await self.api.get_state_value("sensor.outdoor_temp")
+.. literalinclude:: states_example.py
+   :language: python
+   :lines: 6-16
 
 Entities
 --------
@@ -81,16 +67,9 @@ Entities (:mod:`~hassette.models.entities`) wrap a state plus helper methods. ``
 runtime check to be sure you requested the right entity model and returns ``None`` if you use
 ``get_entity_or_none`` and the entity is missing.
 
-.. code-block:: python
-
-   from hassette.models.entities import LightEntity
-
-   light = await self.api.get_entity("light.bedroom", LightEntity)
-   await light.turn_on(brightness_pct=30)
-
-   maybe = await self.api.get_entity_or_none("light.guest", LightEntity)
-   if maybe is None:
-       self.logger.warning("Guest light is not registered")
+.. literalinclude:: entities_example.py
+   :language: python
+   :lines: 7-14
 
 .. note::
 
@@ -104,20 +83,9 @@ Service helpers
 turn_on/turn_off/toggle simply forward to ``call_service`` and request a response context so you can
 inspect the HA ``HassContext``.
 
-.. code-block:: python
-
-   await self.api.call_service(
-       "light",
-       "turn_on",
-       target={"entity_id": "light.porch"},
-       brightness=80,
-   )
-
-   ctx = await self.api.turn_off("switch.air_purifier")
-   self.logger.debug("Service request id=%s", ctx.id if ctx else "n/a")
-
-   # Fire an automation event
-   await self.api.fire_event("hassette_custom", {"trigger": "wake"})
+.. literalinclude:: service_helpers_example.py
+   :language: python
+   :lines: 5-17
 
 .. note::
 
@@ -131,13 +99,9 @@ History endpoints accept Whenever date objects or plain strings. ``get_history``
 instances; ``get_histories`` returns a mapping of entity IDs to entry lists when you need to fetch
 multiple entities at once.
 
-.. code-block:: python
-
-   history = await self.api.get_history("climate.living_room", start_time=self.now().subtract(hours=2))
-   for entry in history:
-       self.logger.debug("%s -> %s", entry.last_changed, entry.state)
-
-   logbook = await self.api.get_logbook("binary_sensor.front_door", start_time=self.now().subtract(hours=2))
+.. literalinclude:: history_example.py
+   :language: python
+   :lines: 6-11
 
 Templates, calendars, and other REST endpoints
 ----------------------------------------------
@@ -159,11 +123,9 @@ direct access to the authenticated ``aiohttp`` session and WebSocket connection.
 logic and raise Hassette-specific exceptions like :class:`~hassette.exceptions.EntityNotFoundError` and
 :class:`~hassette.exceptions.InvalidAuthError` so you can handle failures consistently.
 
-.. code-block:: python
-
-   response = await self.api.rest_request("GET", "config")
-   cfg = await response.json()
-   await self.api.ws_send_json(type="ping")
+.. literalinclude:: low_level_example.py
+   :language: python
+   :lines: 5-9
 
 Sync facade
 -----------
@@ -172,10 +134,9 @@ Sync facade
 within an event loop - it's intended for ``AppSync`` subclasses or transitional code paths (for
 example, libraries that expect synchronous hooks).
 
-.. code-block:: python
-
-   # Inside an AppSync or non-async context
-   self.api.sync.turn_off("light.bedroom", domain="light")
+.. literalinclude:: sync_facade_example.py
+   :language: python
+   :lines: 6-7
 
 Typing status
 -------------
