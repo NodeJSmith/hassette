@@ -1,4 +1,7 @@
-![Hassette Logo](https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/hassette-logo.svg)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/hassette-logo.svg" />
+</p>
+
 
 # Hassette
 
