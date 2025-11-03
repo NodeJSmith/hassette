@@ -14,12 +14,12 @@ Hassette is designed for developers who want to write Home Assistant automations
 
 **Key Features:**
 
-- **Type Safe**: Full type annotations and IDE support - no more guessing what fields are available
+- **Type Safe**: Full type annotations and IDE support
 - **Async-First**: Built for modern Python with async/await throughout
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading
 
-Built by a fellow HA geek frustrated with the AppDaemon development experience. Read more about :doc:`why Hassette exists <why-hassette>`.
+Built by a fellow HA geek frustrated with the HA python development experience. Read more about :doc:`why Hassette exists <why-hassette>`.
 
 
 Getting Started

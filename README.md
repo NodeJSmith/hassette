@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/hassette-logo.svg" />
+</p>
+
+
 # Hassette
 
 [![PyPI version](https://badge.fury.io/py/hassette.svg)](https://badge.fury.io/py/hassette)
@@ -12,10 +17,10 @@ Documentation: https://hassette.readthedocs.io
 
 Why Hassette?
 -------------
-- 🌟 **Modern developer experience** with typed APIs, Pydantic models, and IDE-friendly design
-- ⚡ **Async-first architecture** designed for modern Python from the ground up
-- 🔍 **Simple, transparent framework** with minimal magic and clear extension points
-- 🎯 **Focused mission**: does one thing well — run user-defined apps that interact with Home Assistant
+- **Type Safe**: Full type annotations and IDE support
+- **Async-First**: Built for modern Python with async/await throughout
+- **Simple & Focused**: Just Home Assistant automations - no complexity creep
+- **Developer Experience**: Clear error messages, proper logging, hot-reloading
 
 ## AppDaemon User?
 
