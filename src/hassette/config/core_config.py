@@ -215,6 +215,17 @@ class HassetteConfig(BaseSettings):
 
     # Service configurations
 
+    import_dot_env_files: bool = Field(default=True)
+    """Whether to import .env files specified in env_files. With this disabled, the .env file provided will only
+    be used for loading settings. With this enabled, the .env files will also be loaded into os.environ."""
+
+    run_app_precheck: bool = Field(default=True)
+    """Whether to run the app precheck before starting Hassette. This is recommended, but if any apps fail to load
+    then Hassette will not start."""
+
+    allow_startup_if_app_precheck_fails: bool = Field(default=False)
+    """Whether to allow Hassette to start even if the app precheck fails. This is generally not recommended."""
+
     startup_timeout_seconds: int = Field(default=10)
     """Length of time to wait for all Hassette resources to start before giving up."""
 
@@ -422,9 +433,6 @@ class HassetteConfig(BaseSettings):
         LOGGER.debug("Hassette configuration: %s", self.model_dump_json(indent=4))
 
         return self
-
-    def model_post_init(self, context: Any):
-        enable_logging(self.log_level)
 
     def reload(self):
         """Reload the configuration from all sources."""

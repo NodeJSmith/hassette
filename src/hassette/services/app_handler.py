@@ -17,7 +17,14 @@ from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigErro
 from hassette.resources.base import Resource
 from hassette.types.enums import ResourceStatus
 from hassette.types.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
-from hassette.utils.app_utils import load_app_class_from_manifest
+from hassette.utils.app_utils import (
+    class_already_loaded,
+    class_failed_to_load,
+    get_class_load_error,
+    get_loaded_class,
+    load_app_class_from_manifest,
+)
+from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
@@ -134,7 +141,9 @@ class AppHandler(Resource):
                         await inst.cleanup()
                     self.logger.debug("App %s shutdown successfully", inst.app_config.instance_name)
                 except Exception:
-                    self.logger.exception("Failed to shutdown app %s", inst.app_config.instance_name)
+                    self.logger.error(
+                        "Failed to shutdown app %s:\n%s", inst.app_config.instance_name, get_short_traceback()
+                    )
 
         self.apps.clear()
         self.failed_apps.clear()
@@ -174,7 +183,9 @@ class AppHandler(Resource):
             if not self.apps:
                 self.logger.warning("No apps were initialized successfully")
             else:
-                self.logger.info("Initialized %d apps", sum(len(v) for v in self.apps.values()))
+                success_count = sum(len(v) for v in self.apps.values())
+                fail_count = sum(len(v) for v in self.failed_apps.values())
+                self.logger.info("Initialized %d apps successfully, %d failed to start", success_count, fail_count)
 
             await self.hassette.send_event(
                 HASSETTE_EVENT_APP_LOAD_COMPLETED,
@@ -191,16 +202,26 @@ class AppHandler(Resource):
         only_apps: list[str] = []
         for app_manifest in self.active_apps_config.values():
             try:
-                app_class = load_app_class_from_manifest(app_manifest)
+                if class_failed_to_load(app_manifest.full_path, app_manifest.class_name):
+                    self.logger.debug(
+                        "Skipping only_app check for '%s' because class failed to load", app_manifest.app_key
+                    )
+                    continue
+                if class_already_loaded(app_manifest.full_path, app_manifest.class_name):
+                    app_class = get_loaded_class(app_manifest.full_path, app_manifest.class_name)
+                else:
+                    app_class = load_app_class_from_manifest(app_manifest)
                 if app_class._only_app:
                     only_apps.append(app_manifest.app_key)
             except (UndefinedUserConfigError, InvalidInheritanceError):
                 self.logger.error(
-                    "Failed to load app %s due to bad configuration - check previous logs for details",
+                    "Failed to load app '%s' due to bad configuration - check previous logs for details",
                     app_manifest.display_name,
                 )
             except Exception:
-                self.logger.exception("Failed to load app class for %s", app_manifest.display_name)
+                self.logger.error(
+                    "Failed to load app class for '%s':\n%s", app_manifest.display_name, get_short_traceback()
+                )
 
         if not only_apps:
             self.only_app = None
@@ -237,11 +258,11 @@ class AppHandler(Resource):
                 self._create_app_instances(app_key, app_manifest)
             except (UndefinedUserConfigError, InvalidInheritanceError):
                 self.logger.error(
-                    "Failed to load app %s due to bad configuration - check previous logs for details", app_key
+                    "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
                 )
                 continue
             except Exception:
-                self.logger.exception("Failed to load app class for %s", app_key)
+                self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
                 continue
 
             tasks.append(self.task_bucket.spawn(self._initialize_app_instances(app_key, app_manifest)))
@@ -255,12 +276,20 @@ class AppHandler(Resource):
             app_key: The key of the app, as found in hassette.toml.
             app_manifest: The manifest containing configuration.
         """
-        try:
-            app_class = load_app_class_from_manifest(app_manifest, force_reload=force_reload)
-        except Exception as e:
-            self.logger.exception("Failed to load app class for %s", app_key)
-            self.failed_apps[app_key].append((0, e))
+        if class_failed_to_load(app_manifest.full_path, app_manifest.class_name):
+            self.logger.debug("Cannot create app instances for '%s' because class failed to load previously", app_key)
+            load_error = get_class_load_error(app_manifest.full_path, app_manifest.class_name)
+            self.failed_apps[app_key].append((0, load_error))
             return
+        if class_already_loaded(app_manifest.full_path, app_manifest.class_name):
+            app_class = get_loaded_class(app_manifest.full_path, app_manifest.class_name)
+        else:
+            try:
+                app_class = load_app_class_from_manifest(app_manifest, force_reload=force_reload)
+            except Exception as e:
+                self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
+                self.failed_apps[app_key].append((0, e))
+                return
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
@@ -279,7 +308,12 @@ class AppHandler(Resource):
                 app_instance = app_class.create(hassette=self.hassette, app_config=validated, index=idx)
                 self.apps[app_key][idx] = app_instance
             except Exception as e:
-                self.logger.exception("Failed to validate/init config for %s (%s)", instance_name, class_name)
+                self.logger.error(
+                    "Failed to validate/init config for %s (%s):\n%s",
+                    instance_name,
+                    class_name,
+                    get_short_traceback(),
+                )
                 self.failed_apps[app_key].append((idx, e))
                 continue
 
@@ -300,13 +334,21 @@ class AppHandler(Resource):
                     inst.mark_ready(reason="initialized")
                 self.logger.debug("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
             except TimeoutError as e:
-                self.logger.exception(
-                    "Timed out while starting app '%s' (%s)", inst.app_config.instance_name, class_name
+                self.logger.error(
+                    "Timed out while starting app '%s' (%s):\n%s",
+                    inst.app_config.instance_name,
+                    class_name,
+                    get_short_traceback(),
                 )
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
             except Exception as e:
-                self.logger.exception("Failed to start app '%s' (%s)", inst.app_config.instance_name, class_name)
+                self.logger.error(
+                    "Failed to start app '%s' (%s):\n%s",
+                    inst.app_config.instance_name,
+                    class_name,
+                    get_short_traceback(),
+                )
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
 
@@ -413,7 +455,7 @@ class AppHandler(Resource):
             try:
                 await self.stop_app(app_key)
             except Exception:
-                self.logger.exception("Failed to stop orphaned app %s", app_key)
+                self.logger.error("Failed to stop orphaned app %s:\n%s", app_key, get_short_traceback())
 
     async def _reload_apps_due_to_file_change(self, apps: set[str]) -> None:
         if not apps:
@@ -450,10 +492,11 @@ class AppHandler(Resource):
                 self.logger.debug("Stopped app '%s' in %s", inst.app_config.instance_name, friendly_time)
 
             except Exception:
-                self.logger.exception(
-                    "Failed to stop app '%s' after %s seconds",
+                self.logger.error(
+                    "Failed to stop app '%s' after %s seconds:\n%s",
                     inst.app_config.instance_name,
                     self.hassette.config.app_shutdown_timeout_seconds,
+                    get_short_traceback(),
                 )
 
     async def _handle_new_apps(self, apps: set[str]) -> None:
@@ -462,10 +505,7 @@ class AppHandler(Resource):
             return
 
         self.logger.debug("Starting %d new apps: %s", len(apps), list(apps))
-        try:
-            await self._initialize_apps(apps)
-        except Exception:
-            self.logger.exception("Failed to start new apps")
+        await self._initialize_apps(apps)
 
     async def reload_app(self, app_key: str, force_reload: bool = False) -> None:
         """Stop and reinitialize a single app by key (based on current config)."""
@@ -486,4 +526,4 @@ class AppHandler(Resource):
             self._create_app_instances(app_key, manifest, force_reload=force_reload)
             await self._initialize_app_instances(app_key, manifest)
         except Exception:
-            self.logger.exception("Failed to reload app %s", app_key)
+            self.logger.error("Failed to reload app %s:\n%s", app_key, get_short_traceback())

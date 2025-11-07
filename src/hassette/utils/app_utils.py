@@ -16,6 +16,7 @@ from hassette.exceptions import (
     UndefinedUserConfigError,
 )
 from hassette.types.types import AppDict, RawAppDict
+from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
     from types import ModuleType
@@ -26,7 +27,7 @@ if typing.TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
-
+FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
 
 EXCLUDED_PATH_PARTS = ("site-packages", "importlib")
 
@@ -93,11 +94,24 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
 
     def _log_compact_load_error(app_manifest: "AppManifest", exc: BaseException) -> None:
         fr = _find_user_frame(exc, app_manifest.app_dir)
+        traceback_str = traceback.format_exception_only(type(exc), exc)[-1].strip()
         if fr:
-            msg = "Failed to load app %s: %s '%s' (at %s:%d)"
-            LOGGER.error(msg, app_manifest.display_name, type(exc).__name__, str(exc), fr.filename, fr.lineno)
+            msg = "Failed to load app '%s':\n\t%s (at %s:%d)"
+            LOGGER.error(
+                msg,
+                app_manifest.display_name,
+                traceback_str,
+                fr.filename,
+                fr.lineno,
+                stacklevel=2,
+            )
         else:
-            LOGGER.error("Failed to load app %s: %s ('%s')", app_manifest.display_name, type(exc).__name__, str(exc))
+            LOGGER.error(
+                "Failed to load app '%s':\n%s",
+                app_manifest.display_name,
+                traceback_str,
+                stacklevel=2,
+            )
 
     ### actual precheck code starts here ###
 
@@ -121,7 +135,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
 
         except (UndefinedUserConfigError, InvalidInheritanceError):
             LOGGER.error(
-                "Failed to load app %s due to bad configuration — check previous logs for details",
+                "Failed to load app '%s' due to bad configuration — check previous logs for details",
                 app_manifest.display_name,
             )
             had_errors = True
@@ -139,7 +153,11 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
 
     # handle missing file extensions
     if not filename.suffix:
-        LOGGER.debug("Filename %s for app %s has no extension, assuming .py", filename.name, app_key)
+        LOGGER.debug(
+            "Filename %s for app %s has no extension, assuming .py",
+            filename.name,
+            app_key,
+        )
         app_dict["filename"] = filename.with_suffix(".py").as_posix()
 
     if "app_dir" not in app_dict or not app_dict["app_dir"]:
@@ -188,10 +206,17 @@ def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict
     for py_file in py_files:
         full_path = py_file.resolve()
         if intersection := default_exclude_dirs.intersection(full_path.parts):
-            LOGGER.debug("Excluding auto-detected app at %s due to excluded directory %s", full_path, intersection)
+            LOGGER.debug(
+                "Excluding auto-detected app at %s due to excluded directory %s",
+                full_path,
+                intersection,
+            )
             continue
         if full_path in known_paths:
-            LOGGER.debug("Skipping auto-detected app at %s as it is already configured", full_path)
+            LOGGER.debug(
+                "Skipping auto-detected app at %s as it is already configured",
+                full_path,
+            )
             continue
         try:
             path_str, module = import_module(app_dir, py_file, app_dir.name)
@@ -214,9 +239,16 @@ def auto_detect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict
                         config=[],
                     )
                     app_manifests[app_key] = app_dict
-                    LOGGER.info("Auto-detected app manifest: %s", json.dumps(app_dict, default=str, indent=2))
+                    LOGGER.info(
+                        "Auto-detected app manifest: %s",
+                        json.dumps(app_dict, default=str, indent=2),
+                    )
         except Exception:
-            LOGGER.exception("Failed to auto-detect app classes in %s", py_file)
+            LOGGER.error(
+                "Failed to auto-detect app classes in '%s':\n%s",
+                py_file,
+                get_short_traceback(),
+            )
 
     return app_manifests
 
@@ -240,8 +272,74 @@ def load_app_class_from_manifest(app_manifest: "AppManifest", force_reload: bool
     )
 
 
+def class_failed_to_load(module_path: Path, class_name: str) -> bool:
+    """Check if the given class previously failed to load.
+
+    Args:
+        module_path: The full path to the app module file.
+        class_name: The name of the app class.
+
+    Returns:
+        True if the class failed to load previously, False otherwise.
+    """
+    cache_key = (str(module_path), class_name)
+    return cache_key in FAILED_TO_LOAD_CLASSES
+
+
+def get_class_load_error(module_path: Path, class_name: str) -> Exception:
+    """Get the exception that caused the given class to fail to load. Raises KeyError if the class loaded successfully.
+
+    Args:
+        module_path: The full path to the app module file.
+        class_name: The name of the app class.
+
+    Returns:
+        The exception that caused the class to fail to load.
+
+    Raises:
+        KeyError: If the class loaded successfully.
+    """
+    cache_key = (str(module_path), class_name)
+    return FAILED_TO_LOAD_CLASSES[cache_key]
+
+
+def class_already_loaded(module_path: Path, class_name: str) -> bool:
+    """Check if the given class is already loaded.
+
+    Args:
+        module_path: The full path to the app module file.
+        class_name: The name of the app class.
+
+    Returns:
+        True if the class is already loaded, False otherwise.
+    """
+    cache_key = (str(module_path), class_name)
+    return cache_key in LOADED_CLASSES
+
+
+def get_loaded_class(module_path: Path, class_name: str) -> "type[App[AppConfig]]":
+    """Get the loaded class for the given module path and class name. Raises KeyError if not loaded.
+
+    Args:
+        module_path: The full path to the app module file.
+        class_name: The name of the app class.
+
+    Returns:
+        The loaded class.
+
+    Raises:
+        KeyError: If the class is not loaded.
+    """
+    cache_key = (str(module_path), class_name)
+    return LOADED_CLASSES[cache_key]
+
+
 def load_app_class(
-    app_dir: Path, module_path: Path, class_name: str, display_name: str | None = None, force_reload: bool = False
+    app_dir: Path,
+    module_path: Path,
+    class_name: str,
+    display_name: str | None = None,
+    force_reload: bool = False,
 ) -> "type[App[AppConfig]]":
     """Import the app's class with a canonical package/module identity so isinstance works.
 
@@ -262,9 +360,16 @@ def load_app_class(
     # cache keyed by (absolute file path, class name)
     cache_key = (str(module_path), class_name)
 
-    if force_reload and cache_key in LOADED_CLASSES:
-        LOGGER.info("Forcing reload of app class %s from %s", class_name, module_path)
-        del LOADED_CLASSES[cache_key]
+    if force_reload:
+        if cache_key in LOADED_CLASSES:
+            LOGGER.info("Forcing reload of app class %s from %s", class_name, module_path)
+            del LOADED_CLASSES[cache_key]
+        if cache_key in FAILED_TO_LOAD_CLASSES:
+            LOGGER.info("Forcing reload of previously failed app class %s from %s", class_name, module_path)
+            del FAILED_TO_LOAD_CLASSES[cache_key]
+
+    if cache_key in FAILED_TO_LOAD_CLASSES:
+        raise FAILED_TO_LOAD_CLASSES[cache_key]
 
     if cache_key in LOADED_CLASSES:
         return LOADED_CLASSES[cache_key]
@@ -276,19 +381,29 @@ def load_app_class(
     if not config:
         raise RuntimeError("HassetteConfig is not available in context")
 
-    pkg_name = config.app_dir.name
-    path_str, module = import_module(app_dir, module_path, pkg_name)
+    # exceptions are caught below to cache failures, but are re-raised so the caller still receives them
+    try:
+        pkg_name = config.app_dir.name
+        path_str, module = import_module(app_dir, module_path, pkg_name)
+    except Exception as e:
+        FAILED_TO_LOAD_CLASSES[cache_key] = e
+        raise
 
     try:
         app_class = getattr(module, class_name)
     except AttributeError:
-        raise AttributeError(f"Class {class_name} not found in module {path_str} ({module_path})") from None
+        FAILED_TO_LOAD_CLASSES[cache_key] = AttributeError(
+            f"Class {class_name} not found in module {path_str} ({module_path})"
+        )
+        raise FAILED_TO_LOAD_CLASSES[cache_key] from None
 
     if not issubclass(app_class, App | AppSync):
-        raise TypeError(f"Class {class_name} is not a subclass of App or AppSync")
+        FAILED_TO_LOAD_CLASSES[cache_key] = TypeError(f"Class {class_name} is not a subclass of App or AppSync")
+        raise FAILED_TO_LOAD_CLASSES[cache_key]
 
     if app_class._import_exception:
-        raise app_class._import_exception  # surface subclass init errors
+        FAILED_TO_LOAD_CLASSES[cache_key] = app_class._import_exception
+        raise FAILED_TO_LOAD_CLASSES[cache_key]
 
     LOADED_CLASSES[cache_key] = app_class
     return app_class
@@ -305,6 +420,7 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str,
     Returns:
         The formatted relative path and the imported module.
     """
+    # specifically do not handle exceptions here, to let caller handle them
 
     _ensure_on_sys_path(app_dir)
     _ensure_on_sys_path(app_dir.parent)
@@ -317,29 +433,11 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str,
 
     # 3) Import or reload the module by canonical name
     if mod_name in sys.modules:
-        try:
-            module = importlib.reload(sys.modules[mod_name])
-            return mod_name, module
-        except Exception:
-            LOGGER.error(
-                "Error reloading module %s from %s: %s",
-                mod_name,
-                module_path,
-                traceback.format_exc(limit=1),
-            )
-            raise
-
-    try:
-        module = importlib.import_module(mod_name)
+        module = importlib.reload(sys.modules[mod_name])
         return mod_name, module
-    except Exception:
-        LOGGER.error(
-            "Error importing module %s from %s: %s",
-            mod_name,
-            module_path,
-            traceback.format_exc(limit=1),
-        )
-        raise
+
+    module = importlib.import_module(mod_name)
+    return mod_name, module
 
 
 def _ensure_namespace_package(root: Path, pkg_name: str) -> None:

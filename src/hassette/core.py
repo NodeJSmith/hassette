@@ -4,8 +4,11 @@ import typing
 from typing import Any, ParamSpec, TypeVar
 
 from anyio import create_memory_object_stream
+from dotenv import load_dotenv
 
 from hassette.config import HassetteConfig
+from hassette.exceptions import AppPrecheckFailedError
+from hassette.logging_ import enable_logging
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
 from hassette.utils.service_utils import wait_for_ready
@@ -53,21 +56,10 @@ class Hassette(Resource):
         self.config = config
 
         self.unique_id = ""
+        enable_logging(self.config.log_level)
         super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
 
-        self.config.set_validated_app_manifests()
-
-        active_apps = [app for app in self.config.app_manifests.values() if app.enabled]
-        if active_apps:
-            self.logger.info("Active apps: %s", active_apps)
-        else:
-            self.logger.info("No active apps found.")
-
-        inactive_apps = [app for app in self.config.app_manifests.values() if not app.enabled]
-        if inactive_apps:
-            self.logger.info("Inactive apps: %s", inactive_apps)
-
-        run_apps_pre_check(self.config)
+        self._startup_tasks()
 
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event"]](1000)
 
@@ -95,6 +87,40 @@ class Hassette(Resource):
         context.HASSETTE_INSTANCE.set(self)
 
         self.logger.info("All components registered...")
+
+    def _startup_tasks(self):
+        """Perform one-time startup tasks.
+
+        These were originally on the `HassetteConfig` class but we do not want these called
+        when the config is reloaded, only on initial startup.
+        """
+        # one time startup tasks
+        if self.config.import_dot_env_files:
+            for env_file in self.config.env_files:
+                if env_file.exists():
+                    self.logger.debug("Loading environment variables from %s", env_file)
+                    load_dotenv(env_file)
+
+        self.config.set_validated_app_manifests()
+
+        active_apps = [app for app in self.config.app_manifests.values() if app.enabled]
+        if active_apps:
+            self.logger.info("Active apps: %s", active_apps)
+        else:
+            self.logger.info("No active apps found.")
+
+        inactive_apps = [app for app in self.config.app_manifests.values() if not app.enabled]
+        if inactive_apps:
+            self.logger.info("Inactive apps: %s", inactive_apps)
+
+        if self.config.run_app_precheck:
+            try:
+                run_apps_pre_check(self.config)
+            except AppPrecheckFailedError:
+                if not self.config.allow_startup_if_app_precheck_fails:
+                    self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
+                    raise
+                self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
 
     @property
     def ws_url(self) -> str:
@@ -191,7 +217,8 @@ class Hassette(Resource):
             await self.shutdown()
             return
 
-        self.logger.info("All resources started successfully")
+        # does not take into consideration if apps failed to load, but those errors would have been logged already
+        self.logger.info("All services started successfully.")
         self.logger.info("Hassette is running.")
 
         if self.shutdown_event.is_set():
