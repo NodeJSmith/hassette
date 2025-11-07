@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add config setting for continuing startup if app precheck fails
 - add config setting for skipping app precheck entirely
 - add config setting for loading found .env files into os.environ
+- add `entities` back to public API exports from `hassette`
 
 ### Changed
 - Cache app import failures to avoid attempting to load these again if we are continuing startup after precheck failures
