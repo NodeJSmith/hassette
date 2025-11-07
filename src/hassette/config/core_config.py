@@ -423,9 +423,6 @@ class HassetteConfig(BaseSettings):
 
         return self
 
-    def model_post_init(self, context: Any):
-        enable_logging(self.log_level)
-
     def reload(self):
         """Reload the configuration from all sources."""
         # we don't need to pass the base_config here, since it's already set on self
