@@ -325,7 +325,7 @@ def get_loaded_class(module_path: Path, class_name: str) -> "type[App[AppConfig]
         class_name: The name of the app class.
 
     Returns:
-        The loaded class
+        The loaded class.
 
     Raises:
         KeyError: If the class is not loaded.
@@ -403,7 +403,7 @@ def load_app_class(
 
     if app_class._import_exception:
         FAILED_TO_LOAD_CLASSES[cache_key] = app_class._import_exception
-        raise app_class._import_exception
+        raise FAILED_TO_LOAD_CLASSES[cache_key]
 
     LOADED_CLASSES[cache_key] = app_class
     return app_class
