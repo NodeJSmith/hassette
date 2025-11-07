@@ -113,13 +113,14 @@ class Hassette(Resource):
         if inactive_apps:
             self.logger.info("Inactive apps: %s", inactive_apps)
 
-        try:
-            run_apps_pre_check(self.config)
-        except AppPrecheckFailedError:
-            if not self.config.allow_startup_if_app_precheck_fails:
-                self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
-                raise
-            self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
+        if self.config.run_app_precheck:
+            try:
+                run_apps_pre_check(self.config)
+            except AppPrecheckFailedError:
+                if not self.config.allow_startup_if_app_precheck_fails:
+                    self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
+                    raise
+                self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
 
     @property
     def ws_url(self) -> str:
