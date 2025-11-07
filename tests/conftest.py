@@ -50,6 +50,10 @@ class TestConfig(HassetteConfig):
 
     app_dir: Path = TEST_DATA_PATH
 
+    def model_post_init(self, *args):
+        # override this to avoid values being set by defaults.py
+        pass
+
 
 @pytest.fixture(scope="session")
 def test_config_class():
