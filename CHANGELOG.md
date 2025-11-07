@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.15.4] - 2025-11-07
+
 ### Added
 - add config setting for continuing startup if app precheck fails
 - add config setting for skipping app precheck entirely
