@@ -24,7 +24,7 @@ def get_short_traceback(limit: int = 1, indent_output: bool = True) -> str:
         value = indent(value, "    ")
 
     lines = value.splitlines()
-    if not lines[-1].strip():
+    if lines and not lines[-1].strip():
         lines = lines[:-1]
 
     value = "\n".join(lines)
