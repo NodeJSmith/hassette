@@ -381,7 +381,7 @@ def load_app_class(
     if not config:
         raise RuntimeError("HassetteConfig is not available in context")
 
-    # specifically not handling exceptions here, to let caller handle them
+    # exceptions are caught below to cache failures, but are re-raised so the caller still receives them
     try:
         pkg_name = config.app_dir.name
         path_str, module = import_module(app_dir, module_path, pkg_name)
