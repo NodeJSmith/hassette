@@ -28,7 +28,7 @@ from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
-    from hassette.config.app_manifest import AppManifest
+    from hassette.config.classes import AppManifest
     from hassette.events import HassetteFileWatcherEvent
 
 LOGGER = getLogger(__name__)

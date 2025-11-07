@@ -23,7 +23,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import AppConfig, HassetteConfig
     from hassette.app import App
-    from hassette.config.app_manifest import AppManifest
+    from hassette.config.classes import AppManifest
 
 LOGGER = getLogger(__name__)
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}

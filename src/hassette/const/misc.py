@@ -1,5 +1,3 @@
-from typing import Literal
-
 from typing_extensions import Sentinel
 
 
@@ -15,6 +13,3 @@ MISSING_VALUE = FalseySentinel("MISSING_VALUE")
 
 NOT_PROVIDED = FalseySentinel("NOT_PROVIDED")
 """Sentinel value to indicate a value was not provided."""
-
-LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-"""Log levels for configuring logging."""

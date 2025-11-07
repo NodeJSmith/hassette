@@ -1,12 +1,16 @@
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import time
 from pathlib import Path
-from typing import Any, Protocol, Required, TypeAlias, TypeVar
+from typing import Any, Literal, Protocol, Required, TypeAlias, TypeVar
 
 from typing_extensions import Sentinel, TypeAliasType, TypedDict
 from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
 from hassette.events.base import EventT
+
+LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+"""Log levels for configuring logging."""
+
 
 V = TypeVar("V")  # value type from the accessor
 V_contra = TypeVar("V_contra", contravariant=True)
