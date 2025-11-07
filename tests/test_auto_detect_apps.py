@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from hassette.config.core_config import HassetteConfig
+from hassette.config.core import HassetteConfig
 from hassette.utils.app_utils import auto_detect_apps
 
 
@@ -463,7 +463,7 @@ class TestValidateApps:
             f"Expected app_key to be 'valid_app', got {result['valid_app'].app_key}"
         )
 
-    @patch("hassette.config.core_config.auto_detect_apps")
+    @patch("hassette.config.core.auto_detect_apps")
     def test_validate_apps_calls_auto_detect(self, mock_auto_detect, tmp_path: Path):
         """Test that validate_apps calls auto_detect_app_manifests when auto_detect=True."""
         app_dir = tmp_path / "test_apps"
@@ -506,12 +506,12 @@ class TestValidateApps:
         expected_path = (app_dir / "manual.py").resolve()
         assert expected_path in known_paths, f"Expected known_paths to include {expected_path}, got {known_paths}"
 
-    @patch("hassette.config.core_config.auto_detect_apps")
+    @patch("hassette.config.core.auto_detect_apps")
     def test_validate_apps_skips_conflicting_auto_detected(self, mock_auto_detect, caplog, tmp_path: Path):
         """Test that validate_apps skips auto-detected apps that conflict with manual ones."""
         import logging
 
-        caplog.set_level(logging.INFO, logger="hassette.config.core_config")
+        caplog.set_level(logging.INFO, logger="hassette.config.core")
 
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
@@ -568,7 +568,7 @@ class TestValidateApps:
             }
         }
 
-        with patch("hassette.config.core_config.auto_detect_apps") as mock_auto_detect:
+        with patch("hassette.config.core.auto_detect_apps") as mock_auto_detect:
             self.hassette_config.apps = values
             self.hassette_config.set_validated_app_manifests()
             result = self.hassette_config.app_manifests

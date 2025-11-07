@@ -10,7 +10,7 @@ import pytest
 
 from hassette import context
 from hassette.bus import Bus
-from hassette.config.core_config import HassetteConfig
+from hassette.config.core import HassetteConfig
 from hassette.core import Hassette
 from hassette.scheduler import Scheduler
 from hassette.services.api_resource import ApiResource

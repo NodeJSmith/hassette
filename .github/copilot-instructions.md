@@ -12,9 +12,9 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 
 ## Configuration & App Loading
 
-- Config model: `src/hassette/config/core_config.py` (`HassetteConfig`). Source priority (highest→lowest): CLI args, init kwargs, environment variables, `.env` files, secrets files, TOML (`/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`). `model_post_init` registers the config in `core/context.py`, ensures `config_dir`/`data_dir` exist.
+- Config model: `src/hassette/config/core.py` (`HassetteConfig`). Source priority (highest→lowest): CLI args, init kwargs, environment variables, `.env` files, secrets files, TOML (`/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`). `model_post_init` registers the config in `core/context.py`, ensures `config_dir`/`data_dir` exist.
 - Helpers derive URLs and auth headers (`ws_url`, `rest_url`, `headers`, `truncated_token`). Flags such as `allow_reload_in_prod`, `allow_only_app_in_prod`, `log_all_events`, `bus_excluded_domains/entities`, `task_bucket_log_level`, etc. tweak runtime behaviour.
-- Apps live under `[apps.<name>]` in TOML and use `src/hassette/config/app_manifest.py` for validation.
+- Apps live under `[apps.<name>]` in TOML and use `AppManifest` from `src/hassette/config/classes.py` for validation.
   - Required keys: `filename`, `class_name`; optional: `app_dir`, `enabled`, `display_name`, `config` (dict or list for multi-instance apps).
   - Loader (`src/hassette/utils/app_utils.py`) runs `run_apps_pre_check`, builds a namespace named after `config.app_dir.name` (e.g. `apps.*`), caches app classes, and surfaces `CannotOverrideFinalError` if lifecycle methods marked `@final` are overridden.
   - `AppHandler` (`core/services/app_handler.py`) waits for core services, honors `@only_app` (dev-mode unless `allow_only_app_in_prod`), listens to `FileWatcherService`, and restarts apps when manifests or env files change.
@@ -101,7 +101,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - Core runtime: `src/hassette/core/core.py`, `src/hassette/core/resources/{base.py,tasks.py}`, `src/hassette/core/context.py`
 - Services: `src/hassette/core/services/{websocket_service.py,api_resource.py,bus_service.py,scheduler_service.py,app_handler.py,file_watcher.py,service_watcher.py,health_service.py}`
 - App resources: `src/hassette/core/resources/{api/api.py,api/sync.py,bus/bus.py,scheduler/scheduler.py,app/app.py}`
-- Config: `src/hassette/config/{core_config.py,app_manifest.py,sources_helper.py}`
+- Config: `src/hassette/config/{core.py,classes.py,helpers.py,defaults.py}`
 - Events & models: `src/hassette/events/**`, `src/hassette/models/**`, `src/hassette/topics.py`
 - Examples & tests: `examples/`, `tests/` (fixtures in `tests/conftest.py`)
 
