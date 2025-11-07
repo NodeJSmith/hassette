@@ -125,6 +125,15 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
 
 
 def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS | None:
+    """Coerce a log level value to a LOG_LEVELS string.
+
+    Args:
+        value: The log level value to coerce.
+
+    Returns:
+        The coerced log level as a LOG_LEVELS string, or None if invalid.
+    """
+
     if value is None:
         return None
 
@@ -140,5 +149,15 @@ def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS | None:
 
 
 def log_level_default_factory(data: dict[str, LOG_LEVELS | None]) -> LOG_LEVELS:
-    """Default factory for log level field."""
+    """Default factory for log level fields.
+
+    Returns the log_level from the data dictionary if present, otherwise
+    falls back to the environment variable-based log level.
+
+    Args:
+        data: Dictionary containing field values during model initialization.
+
+    Returns:
+        The determined log level.
+    """
     return data.get("log_level") or get_log_level()
