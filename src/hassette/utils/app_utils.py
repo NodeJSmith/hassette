@@ -360,9 +360,13 @@ def load_app_class(
     # cache keyed by (absolute file path, class name)
     cache_key = (str(module_path), class_name)
 
-    if force_reload and cache_key in LOADED_CLASSES:
-        LOGGER.info("Forcing reload of app class %s from %s", class_name, module_path)
-        del LOADED_CLASSES[cache_key]
+    if force_reload:
+        if cache_key in LOADED_CLASSES:
+            LOGGER.info("Forcing reload of app class %s from %s", class_name, module_path)
+            del LOADED_CLASSES[cache_key]
+        if cache_key in FAILED_TO_LOAD_CLASSES:
+            LOGGER.info("Forcing reload of previously failed app class %s from %s", class_name, module_path)
+            del FAILED_TO_LOAD_CLASSES[cache_key]
 
     if cache_key in FAILED_TO_LOAD_CLASSES:
         raise FAILED_TO_LOAD_CLASSES[cache_key]
@@ -387,9 +391,11 @@ def load_app_class(
 
     try:
         app_class = getattr(module, class_name)
-    except AttributeError as e:
-        FAILED_TO_LOAD_CLASSES[cache_key] = e
-        raise AttributeError(f"Class {class_name} not found in module {path_str} ({module_path})") from None
+    except AttributeError:
+        FAILED_TO_LOAD_CLASSES[cache_key] = AttributeError(
+            f"Class {class_name} not found in module {path_str} ({module_path})"
+        )
+        raise FAILED_TO_LOAD_CLASSES[cache_key] from None
 
     if not issubclass(app_class, App | AppSync):
         FAILED_TO_LOAD_CLASSES[cache_key] = TypeError(f"Class {class_name} is not a subclass of App or AppSync")
