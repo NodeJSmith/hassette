@@ -7,7 +7,7 @@ from .config import HassetteConfig
 from .const import MISSING_VALUE, NOT_PROVIDED
 from .core import Hassette
 from .events import StateChangeEvent
-from .models import states
+from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
 from .task_bucket import TaskBucket
@@ -30,6 +30,7 @@ __all__ = [
     "TaskBucket",
     "accessors",
     "conditions",
+    "entities",
     "only_app",
     "predicates",
     "states",
