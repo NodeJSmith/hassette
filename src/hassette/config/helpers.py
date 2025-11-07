@@ -124,6 +124,21 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     return paths
 
 
-def log_level_default_factory(data: dict[str, LOG_LEVELS]) -> LOG_LEVELS:
+def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS | None:
+    if value is None:
+        return None
+
+    if not isinstance(value, str):
+        return None
+
+    value = value.upper()
+
+    if value not in list(LOG_LEVELS.__args__):
+        return None
+
+    return cast("LOG_LEVELS", value)
+
+
+def log_level_default_factory(data: dict[str, LOG_LEVELS | None]) -> LOG_LEVELS:
     """Default factory for log level field."""
     return data.get("log_level") or get_log_level()

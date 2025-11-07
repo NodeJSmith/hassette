@@ -10,6 +10,7 @@ from hassette import context as ctx
 from hassette.config.classes import AppManifest, HassetteTomlConfigSettingsSource
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT, get_default_dict
 from hassette.config.helpers import (
+    coerce_log_level,
     default_app_dir,
     default_config_dir,
     default_data_dir,
@@ -27,7 +28,7 @@ enable_logging(get_log_level())
 LOGGER_NAME = "hassette.config.core" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
 
-LOG_ANNOTATION = Annotated[LOG_LEVELS, BeforeValidator(str.upper)]
+LOG_ANNOTATION = Annotated[LOG_LEVELS, BeforeValidator(coerce_log_level)]
 
 
 class HassetteConfig(BaseSettings):
