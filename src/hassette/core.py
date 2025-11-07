@@ -191,7 +191,8 @@ class Hassette(Resource):
             await self.shutdown()
             return
 
-        self.logger.info("All resources started successfully")
+        # does not take into consideration if apps failed to load, but those errors would have been logged already
+        self.logger.info("All services started successfully.")
         self.logger.info("Hassette is running.")
 
         if self.shutdown_event.is_set():
