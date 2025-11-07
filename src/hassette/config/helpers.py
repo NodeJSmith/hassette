@@ -4,12 +4,15 @@ import sys
 from collections.abc import Sequence
 from importlib.metadata import version
 from pathlib import Path
-from typing import cast
+from typing import cast, get_args
+from warnings import warn
 
 import platformdirs
 from packaging.version import Version
 
 from hassette.types.types import LOG_LEVELS
+
+LOG_LEVEL_VALUES = get_args(LOG_LEVELS)
 
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
@@ -19,8 +22,11 @@ def get_log_level() -> LOG_LEVELS:
     log_level = (
         os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
     ).upper()
-    if log_level not in list(LOG_LEVELS.__args__):
-        logging.getLogger(__name__).warning("Log level %r is not valid, defaulting to INFO", log_level)
+    if log_level not in LOG_LEVEL_VALUES:
+        warn(
+            f"Log level {log_level!r} is not valid, defaulting to INFO",
+            skip_file_prefixes=("hassette.config.helpers", "pydantic"),
+        )
         log_level = "INFO"
     return cast("LOG_LEVELS", log_level)
 
@@ -124,7 +130,7 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     return paths
 
 
-def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS | None:
+def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS:
     """Coerce a log level value to a LOG_LEVELS string.
 
     Args:
@@ -133,17 +139,18 @@ def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS | None:
     Returns:
         The coerced log level as a LOG_LEVELS string, or None if invalid.
     """
+    default_log_level = get_log_level()
 
     if value is None:
-        return None
+        return default_log_level
 
     if not isinstance(value, str):
-        return None
+        return default_log_level
 
     value = value.upper()
 
-    if value not in list(LOG_LEVELS.__args__):
-        return None
+    if value not in LOG_LEVEL_VALUES:
+        return default_log_level
 
     return cast("LOG_LEVELS", value)
 
