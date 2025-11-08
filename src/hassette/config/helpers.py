@@ -31,7 +31,7 @@ def get_log_level() -> LOG_LEVELS:
     return cast("LOG_LEVELS", log_level)
 
 
-def get_dev_mode():
+def get_dev_mode() -> bool:
     """Check if developer mode should be enabled.
 
     Returns:
