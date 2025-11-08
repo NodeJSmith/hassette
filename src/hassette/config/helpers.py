@@ -137,7 +137,8 @@ def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS:
         value: The log level value to coerce.
 
     Returns:
-        The coerced log level as a LOG_LEVELS string, or None if invalid.
+        The coerced log level as a LOG_LEVELS string. If the input is invalid,
+        returns the default log level from get_log_level().
     """
     default_log_level = get_log_level()
 
