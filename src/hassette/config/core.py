@@ -336,8 +336,8 @@ class HassetteConfig(BaseSettings):
         self.__init__()
         self.set_validated_app_manifests()
 
-    def model_post_init(self, context: Any):
-        """Post-initialization hook to set validated app manifests."""
+    def model_post_init(self, *args):
+        """Set default values for any unset fields after initialization."""
         default_str = "default (dev)" if self.dev_mode else "default (prod)"
         defaults = get_default_dict(dev=self.dev_mode)
 
