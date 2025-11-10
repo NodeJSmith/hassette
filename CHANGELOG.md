@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- **Breaking:** Rename all `auto_detect` values to `autodetect` (e.g. `auto_detect_apps` -> `autodetect_apps`)
+
 ## [0.15.4] - 2025-11-07
 
 ### Added

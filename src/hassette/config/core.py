@@ -21,7 +21,7 @@ from hassette.config.helpers import (
 )
 from hassette.logging_ import enable_logging
 from hassette.types.types import LOG_LEVELS, AppDict, RawAppDict
-from hassette.utils.app_utils import auto_detect_apps, clean_app
+from hassette.utils.app_utils import autodetect_apps, clean_app
 
 enable_logging(get_log_level())
 
@@ -105,19 +105,19 @@ class HassetteConfig(BaseSettings):
     """Access token for Home Assistant instance"""
 
     # has to be before apps to allow auto-detection
-    auto_detect_apps: bool = Field(default=True)
+    autodetect_apps: bool = Field(default=True)
     """Whether to automatically detect apps in the app directory."""
 
-    extend_auto_detect_exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
+    extend_autodetect_exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
     """Additional directories to exclude when auto-detecting apps in the app directory."""
 
-    auto_detect_exclude_dirs: tuple[str, ...] = Field(
+    autodetect_exclude_dirs: tuple[str, ...] = Field(
         default_factory=lambda data: (
-            *data.get("extend_auto_detect_exclude_dirs", ()),
+            *data.get("extend_autodetect_exclude_dirs", ()),
             *AUTODETECT_EXCLUDE_DIRS_DEFAULT,
         )
     )
-    """Directories to exclude when auto-detecting apps in the app directory. Prefer `extend_auto_detect_exclude_dirs`
+    """Directories to exclude when auto-detecting apps in the app directory. Prefer `extend_autodetect_exclude_dirs`
     to avoid removing the defaults."""
 
     # App configurations
@@ -374,9 +374,9 @@ class HassetteConfig(BaseSettings):
             # track known paths
             known_paths.add(v["full_path"])
 
-        if self.auto_detect_apps:
-            auto_detected_apps = auto_detect_apps(self.app_dir, known_paths)
-            for k, v in auto_detected_apps.items():
+        if self.autodetect_apps:
+            autodetected_apps = autodetect_apps(self.app_dir, known_paths)
+            for k, v in autodetected_apps.items():
                 app_dir = v["app_dir"]
                 full_path = app_dir / v["filename"]
                 LOGGER.debug("Auto-detected app %s from %s", k, full_path)

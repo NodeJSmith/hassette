@@ -90,7 +90,7 @@ Then add the following code to it:
 This app defines a configuration class ``HelloWorldConfig`` with a single field ``greeting``, which defaults to "Hello, World!". The app class ``HelloWorld`` inherits from ``App`` with the config type specified.
 In the ``on_initialize`` method, it logs the greeting from the configuration.
 
-You don't need to do anything else at this point - Hassette automatically discovers apps in the specified app directory (or it's children) (this is configurable via :attr:`HassetteConfig.auto_detect_apps <hassette.config.core.HassetteConfig.auto_detect_apps>`).
+You don't need to do anything else at this point - Hassette automatically discovers apps in the specified app directory (or it's children) (this is configurable via :attr:`HassetteConfig.autodetect_apps <hassette.config.core.HassetteConfig.autodetect_apps>`).
 
 4) Run Hassette
 
