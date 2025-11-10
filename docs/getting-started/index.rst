@@ -43,7 +43,7 @@ Let's just confirm that we can connect to Home Assistant and everything is worki
 
 .. code-block:: bash
 
-    uvx hassette --base-url 'http://localhost:8123' -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' --app-dir .
+    uv run hassette --base-url 'http://localhost:8123' -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' --app-dir .
 
 You should see logs indicating that Hassette has connected to Home Assistant successfully.
 
@@ -98,7 +98,7 @@ Now you can run Hassette again to see your app in action:
 
 .. code-block:: bash
 
-    uvx hassette --base-url 'http://localhost:8123' -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' --app-dir .
+    uv run hassette --base-url 'http://localhost:8123' -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' --app-dir .
 
 
 You should see logs indicating that your app has started and the greeting message has been logged.
@@ -135,11 +135,11 @@ If you run Hassette again, with no arguments, you should see the greeting from t
 
 .. code-block:: bash
 
-    uvx hassette
+    uv run hassette
 
     # or
 
-    uvx hassette -c ./path/to/your/hassette.toml
+    uv run hassette -c ./path/to/your/hassette.toml
 
 You should see logs indicating that your app has started and the greeting message from the config file has been logged.
 
