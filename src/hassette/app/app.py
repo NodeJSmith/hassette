@@ -9,7 +9,7 @@ from whenever import ZonedDateTime
 
 from hassette.api import Api
 from hassette.bus import Bus
-from hassette.config.app_manifest import AppManifest
+from hassette.config.classes import AppManifest
 from hassette.events.base import Event
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler

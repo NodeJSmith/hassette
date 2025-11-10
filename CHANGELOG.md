@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- **Breaking:** Rename all `auto_detect` values to `autodetect` (e.g. `auto_detect_apps` -> `autodetect_apps`)
+- Update `HassetteConfig` defaults to differ if in dev mode
+  - Generally speaking, values are extended (e.g. timeouts) and more permissive (e.g. `allow_startup_if_app_precheck_fails = true` in dev mode)
+- Moved `AppManifest` and `HassetteTomlConfigSettingsSource` to `classes.py`
+- Moved `LOG_LEVELS` to `hassette.types.types` instead of `const.misc`, as this is a `Literal`, not a list of constants
+- Renamed `core_config.py` to `core.py`
+- Bumped version of `uv` in `mise.toml`, docker image, and build backend
+
 ## [0.15.4] - 2025-11-07
 
 ### Added

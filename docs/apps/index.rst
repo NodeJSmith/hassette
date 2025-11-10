@@ -55,7 +55,7 @@ Advanced Capabilities
     - :class:`self.hassette <hassette.core.Hassette>`: Access to the core ``Hassette`` instance for advanced use cases.
     - :class:`self.task_bucket <hassette.task_bucket>`: Low-level sync/async task management (documentation coming soon).
     - :meth:`self.send_event <hassette.core.Hassette.send_event>`: Emit custom events (currently not very ergonomic; will be improved in a future release).
-    - :class:`self.app_manifest <hassette.config.app_manifest.AppManifest>`: Class-level :class:`AppManifest <hassette.config.app_manifest.AppManifest>` with details that ``Hassette`` needs to start the app.
+    - :class:`self.app_manifest <hassette.config.classes.AppManifest>`: Class-level :class:`AppManifest <hassette.config.classes.AppManifest>` with details that ``Hassette`` needs to start the app.
     - :attr:`self.status <hassette.resources.mixins.LifecycleMixin.status>`: Current status of the app (NOT_STARTED, STARTING, RUNNING, STOPPED, FAILED, CRASHED).
     - :attr:`self.ready_event <hassette.resources.mixins.LifecycleMixin.ready_event>`: An :class:`asyncio.Event` that is set when :meth:`mark_ready <hassette.resources.mixins.LifecycleMixin.mark_ready>` is called.
 

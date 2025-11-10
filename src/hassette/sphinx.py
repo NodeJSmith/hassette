@@ -22,7 +22,7 @@ FOUND_PATH_TO_CANONICAL_MAP = {
     "hassette.models.states.BaseState": "hassette.models.states.base.BaseState",
     "hassette.TaskBucket": "hassette.task_bucket.TaskBucket",
     "hassette.Hassette": "hassette.core.Hassette",
-    "hassette.HassetteConfig": "hassette.config.core_config.HassetteConfig",
+    "hassette.HassetteConfig": "hassette.config.core.HassetteConfig",
     "hassette.bus.Listener": "hassette.bus.listeners.Listener",
     "hassette.bus.Bus": "hassette.bus.bus.Bus",
     "hassette.types.JobCallable": "hassette.types.types.JobCallable",

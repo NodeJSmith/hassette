@@ -1,120 +1,34 @@
 import logging
-import os
-import sys
-from collections.abc import Sequence
 from contextlib import suppress
-from importlib.metadata import version
 from pathlib import Path
 from typing import Annotated, Any
 
-import platformdirs
-from packaging.version import Version
 from pydantic import AliasChoices, BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
-from hassette.config.app_manifest import AppManifest
-from hassette.config.sources_helper import HassetteTomlConfigSettingsSource
-from hassette.const import LOG_LEVELS
+from hassette.config.classes import AppManifest, HassetteTomlConfigSettingsSource
+from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT, get_default_dict
+from hassette.config.helpers import (
+    coerce_log_level,
+    default_app_dir,
+    default_config_dir,
+    default_data_dir,
+    filter_paths_to_unique_existing,
+    get_dev_mode,
+    get_log_level,
+    log_level_default_factory,
+)
 from hassette.logging_ import enable_logging
-from hassette.types.types import AppDict, RawAppDict
-from hassette.utils.app_utils import auto_detect_apps, clean_app
+from hassette.types.types import LOG_LEVELS, AppDict, RawAppDict
+from hassette.utils.app_utils import autodetect_apps, clean_app
 
-PACKAGE_KEY = "hassette"
-VERSION = Version(version(PACKAGE_KEY))
+enable_logging(get_log_level())
 
-# set up logging as early as possible
-LOG_LEVEL = (
-    os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
-).upper()
-
-try:
-    enable_logging(LOG_LEVEL)  # pyright: ignore[reportArgumentType]
-except ValueError:
-    enable_logging("INFO")
-
-LOGGER_NAME = "hassette.config.core_config" if __name__ == "__main__" else __name__
+LOGGER_NAME = "hassette.config.core" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
 
-AUTODETECT_EXCLUDE_DIRS_DEFAULT = (".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".git")
-
-
-def get_dev_mode():
-    """Check if developer mode should be enabled.
-
-    Returns:
-        True if developer mode is enabled, False otherwise.
-    """
-    if "debugpy" in sys.modules:
-        LOGGER.warning("Developer mode enabled via 'debugpy'")
-        return True
-
-    if sys.gettrace() is not None:
-        LOGGER.warning("Developer mode enabled via 'sys.gettrace()'")
-        return True
-
-    if sys.flags.dev_mode:
-        LOGGER.warning("Developer mode enabled via 'python -X dev'")
-        return True
-
-    return False
-
-
-def default_config_dir() -> Path:
-    """Return the first found config directory based on environment variables or defaults.
-
-    Will return the first of:
-    - HASSETTE__CONFIG_DIR environment variable
-    - HASSETTE_CONFIG_DIR environment variable
-    - /config (for docker)
-    - platformdirs user config path
-
-    """
-
-    if env := os.getenv("HASSETTE__CONFIG_DIR", os.getenv("HASSETTE_CONFIG_DIR")):
-        return Path(env)
-    docker = Path("/config")
-    if docker.exists():
-        return docker
-    return platformdirs.user_config_path("hassette", version=f"v{VERSION.major}")
-
-
-def default_data_dir() -> Path:
-    """Return the first found data directory based on environment variables or defaults.
-
-    Will return the first of:
-    - HASSETTE__DATA_DIR environment variable
-    - HASSETTE_DATA_DIR environment variable
-    - /data (for docker)
-    - platformdirs user data path
-
-    """
-
-    if env := os.getenv("HASSETTE__DATA_DIR", os.getenv("HASSETTE_DATA_DIR")):
-        return Path(env)
-    docker = Path("/data")
-    if docker.exists():
-        return docker
-    return platformdirs.user_data_path("hassette", version=f"v{VERSION.major}")
-
-
-def default_app_dir() -> Path:
-    """Return the first found app directory based on environment variables or defaults.
-
-    Will return the first of:
-    - HASSETTE__APP_DIR environment variable
-    - HASSETTE_APP_DIR environment variable
-    - /apps (for docker)
-    - platformdirs user app path
-
-    """
-
-    if env := os.getenv("HASSETTE__APP_DIR", os.getenv("HASSETTE_APP_DIR")):
-        return Path(env)
-    docker = Path("/apps")
-    if docker.exists():
-        return docker
-    return Path.cwd() / "apps"  # relative to where the program is run
+LOG_ANNOTATION = Annotated[LOG_LEVELS, BeforeValidator(coerce_log_level)]
 
 
 class HassetteConfig(BaseSettings):
@@ -168,7 +82,7 @@ class HassetteConfig(BaseSettings):
     """Enable developer mode, which may include additional logging and features."""
 
     # General configuration
-    log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(default="INFO")
+    log_level: LOG_ANNOTATION = Field(default="INFO")
     """Logging level for Hassette."""
 
     config_dir: Path = Field(default_factory=default_config_dir)
@@ -191,19 +105,19 @@ class HassetteConfig(BaseSettings):
     """Access token for Home Assistant instance"""
 
     # has to be before apps to allow auto-detection
-    auto_detect_apps: bool = Field(default=True)
+    autodetect_apps: bool = Field(default=True)
     """Whether to automatically detect apps in the app directory."""
 
-    extend_auto_detect_exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
+    extend_autodetect_exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
     """Additional directories to exclude when auto-detecting apps in the app directory."""
 
-    auto_detect_exclude_dirs: tuple[str, ...] = Field(
+    autodetect_exclude_dirs: tuple[str, ...] = Field(
         default_factory=lambda data: (
-            *data.get("extend_auto_detect_exclude_dirs", ()),
+            *data.get("extend_autodetect_exclude_dirs", ()),
             *AUTODETECT_EXCLUDE_DIRS_DEFAULT,
         )
     )
-    """Directories to exclude when auto-detecting apps in the app directory. Prefer `extend_auto_detect_exclude_dirs`
+    """Directories to exclude when auto-detecting apps in the app directory. Prefer `extend_autodetect_exclude_dirs`
     to avoid removing the defaults."""
 
     # App configurations
@@ -282,49 +196,31 @@ class HassetteConfig(BaseSettings):
 
     # Service log levels
 
-    bus_service_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    bus_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the event bus service. Defaults to INFO or the value of log_level."""
 
-    scheduler_service_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    scheduler_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the scheduler service. Defaults to INFO or the value of log_level."""
 
-    app_handler_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    app_handler_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the app handler service. Defaults to INFO or the value of log_level."""
 
-    health_service_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    health_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the health service. Defaults to INFO or the value of log_level."""
 
-    websocket_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    websocket_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the WebSocket service. Defaults to INFO or the value of log_level."""
 
-    service_watcher_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    service_watcher_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the service watcher. Defaults to INFO or the value of log_level."""
 
-    file_watcher_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    file_watcher_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the file watcher service. Defaults to INFO or the value of log_level."""
 
-    task_bucket_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    task_bucket_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for task buckets. Defaults to INFO or the value of log_level."""
 
-    apps_log_level: Annotated[LOG_LEVELS, BeforeValidator(str.upper)] = Field(
-        default_factory=lambda data: data.get("log_level", "INFO")
-    )
+    apps_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Default logging level for apps, can be overridden in app initialization. Defaults to INFO or the value\
         of log_level."""
 
@@ -436,9 +332,21 @@ class HassetteConfig(BaseSettings):
 
     def reload(self):
         """Reload the configuration from all sources."""
-        # we don't need to pass the base_config here, since it's already set on self
-        self.__init__()  # type: ignore
+        # see: https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
+        self.__init__()
         self.set_validated_app_manifests()
+
+    def model_post_init(self, *args):
+        """Set default values for any unset fields after initialization."""
+        default_str = "default (dev)" if self.dev_mode else "default (prod)"
+        defaults = get_default_dict(dev=self.dev_mode)
+
+        for fname in type(self).model_fields:
+            if fname in self.model_fields_set or fname not in defaults:
+                continue
+            default_value = defaults[fname]
+            LOGGER.debug("Setting %s for unset field %s: %s", default_str, fname, default_value)
+            setattr(self, fname, default_value)
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":
@@ -466,9 +374,9 @@ class HassetteConfig(BaseSettings):
             # track known paths
             known_paths.add(v["full_path"])
 
-        if self.auto_detect_apps:
-            auto_detected_apps = auto_detect_apps(self.app_dir, known_paths)
-            for k, v in auto_detected_apps.items():
+        if self.autodetect_apps:
+            autodetected_apps = autodetect_apps(self.app_dir, known_paths)
+            for k, v in autodetected_apps.items():
                 app_dir = v["app_dir"]
                 full_path = app_dir / v["filename"]
                 LOGGER.debug("Auto-detected app %s from %s", k, full_path)
@@ -483,26 +391,6 @@ class HassetteConfig(BaseSettings):
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
         self.app_manifests = app_manifest_dict
-
-
-def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | None | set[Path]) -> set[Path]:
-    """Filter the provided paths to only include unique existing paths.
-
-    Args:
-        value: List of file paths as strings.
-
-    Returns:
-        List of existing file paths as Path objects.
-
-    Raises:
-        ValueError: If any of the provided paths do not exist.
-    """
-    value = [value] if isinstance(value, str | Path | None) else value
-
-    paths = set(Path(v).resolve() for v in value if v)
-    paths = set(p for p in paths if p.exists())
-
-    return paths
 
 
 if __name__ == "__main__":

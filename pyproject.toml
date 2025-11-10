@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.8.13,<0.9.0"]
+requires = ["uv_build>=0.9.8,<0.10.0"]
 build-backend = "uv_build"
 
 [project]
@@ -99,6 +99,9 @@ default-groups = ["dev", "test", "docs"]
 
 [project.scripts]
 hassette = "hassette.__main__:entrypoint"
+
+[tool.uv.build-backend]
+module-name = "hassette"
 
 [tool.pytest.ini_options]
 pythonpath = "src"

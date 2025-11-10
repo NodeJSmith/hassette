@@ -259,9 +259,10 @@ config = [
 - `src/hassette/core/resources/app/`: App base classes
 
 ### Configuration
-- `src/hassette/config/core_config.py`: Main configuration model
-- `src/hassette/config/app_manifest.py`: App configuration validation
-- `src/hassette/config/sources_helper.py`: Configuration source management
+- `src/hassette/config/core.py`: Main configuration model
+- `src/hassette/config/classes.py`: Configuration classes
+- `src/hassette/config/helpers.py`: Configuration helpers
+- `src/hassette/config/defaults.py`: Default configuration values
 
 ### Models and Events
 - `src/hassette/events/`: Event definitions and handling

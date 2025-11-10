@@ -6,12 +6,12 @@ from unittest.mock import patch
 
 import pytest
 
-from hassette.config.core_config import HassetteConfig
-from hassette.utils.app_utils import auto_detect_apps
+from hassette.config.core import HassetteConfig
+from hassette.utils.app_utils import autodetect_apps
 
 
 class TestAutoDetectAppsCurrDir:
-    """Test the auto_detect_apps function with current directory.
+    """Test the autodetect_apps function with current directory.
 
     This ensures we do not attempt to, for example, read every file in .venv
     or similar directories. It also checks that we handle importing files when we do not have a
@@ -22,7 +22,7 @@ class TestAutoDetectAppsCurrDir:
     def setup(self, test_config: HassetteConfig):
         self.hassette_config = test_config
 
-    def test_auto_detect_in_current_directory(self, tmp_path: Path):
+    def test_autodetect_in_current_directory(self, tmp_path: Path):
         """Test auto-detection of apps in the current directory."""
         # Create a simple app file in the temp directory
         app_file = tmp_path / "current_dir_app.py"
@@ -36,11 +36,11 @@ class TestAutoDetectAppsCurrDir:
         expected = f"{tmp_path.name}.current_dir_app.CurrentDirApp"
 
         known_paths = set()
-        result = auto_detect_apps(tmp_path, known_paths)
+        result = autodetect_apps(tmp_path, known_paths)
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
         assert expected in result, f"Expected to find '{expected}' in detected apps"
 
-    def test_auto_detect_ignores_venv_directory(self, tmp_path: Path):
+    def test_autodetect_ignores_venv_directory(self, tmp_path: Path):
         """Test that auto-detection ignores .venv directory."""
         # Create a .venv directory with an app file
         venv_dir = tmp_path / ".venv"
@@ -56,11 +56,11 @@ class TestAutoDetectAppsCurrDir:
         )
 
         known_paths = set()
-        result = auto_detect_apps(tmp_path, known_paths)
+        result = autodetect_apps(tmp_path, known_paths)
         assert len(result) == 0, f"Expected 0 apps, got {len(result)}"
         assert "venv_app.VenvApp" not in result, "Did not expect to find 'venv_app.VenvApp' in detected apps"
 
-    def test_auto_detect_ignores_hidden_directories(self, tmp_path: Path):
+    def test_autodetect_ignores_hidden_directories(self, tmp_path: Path):
         """Test that auto-detection ignores hidden directories."""
         # Create a hidden directory with an app file
         hidden_dir = tmp_path / ".hidden"
@@ -76,19 +76,19 @@ class TestAutoDetectAppsCurrDir:
         )
 
         known_paths = set()
-        result = auto_detect_apps(tmp_path, known_paths)
+        result = autodetect_apps(tmp_path, known_paths)
         assert len(result) == 0, f"Expected 0 apps, got {len(result)}"
         assert "hidden_app.HiddenApp" not in result, "Did not expect to find 'hidden_app.HiddenApp' in detected apps"
 
 
 class TestAutoDetectApps:
-    """Test the auto_detect_apps function."""
+    """Test the autodetect_apps function."""
 
     @pytest.fixture(autouse=True)
     def setup(self, test_config: HassetteConfig):
         self.hassette_config = test_config
 
-    def test_auto_detect_simple_app(self, tmp_path: Path):
+    def test_autodetect_simple_app(self, tmp_path: Path):
         """Test auto-detection of a simple app in the root directory."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -107,7 +107,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         assert len(result) == 1
         assert "apps.simple_app.SimpleApp" in result
@@ -121,7 +121,7 @@ class TestAutoDetectApps:
         )
         assert app_dict["enabled"] is True, f"Expected 'True', got '{app_dict['enabled']}'"
 
-    def test_auto_detect_sync_app(self, tmp_path: Path):
+    def test_autodetect_sync_app(self, tmp_path: Path):
         """Test auto-detection of a sync app."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -140,7 +140,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         assert len(result) == 1
         assert "apps.sync_app.MySyncApp" in result, "Expected to find 'apps.sync_app.MySyncApp' in detected apps"
@@ -149,7 +149,7 @@ class TestAutoDetectApps:
         assert app_dict["filename"] == "sync_app.py", f"Expected 'sync_app.py', got '{app_dict['filename']}'"
         assert app_dict["class_name"] == "MySyncApp", f"Expected 'MySyncApp', got '{app_dict['class_name']}'"
 
-    def test_auto_detect_multiple_apps_in_file(self, tmp_path: Path):
+    def test_autodetect_multiple_apps_in_file(self, tmp_path: Path):
         """Test auto-detection when multiple app classes exist in one file."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -170,7 +170,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         assert len(result) == 2, f"Expected 2 apps, got {len(result)}"
         assert "apps.multi_apps.FirstApp" in result, "Expected to find 'apps.multi_apps.FirstApp' in detected apps"
@@ -184,7 +184,7 @@ class TestAutoDetectApps:
             f"Expected 'SecondApp', got '{second_app_dict['class_name']}'"
         )
 
-    def test_auto_detect_nested_directory(self, tmp_path: Path):
+    def test_autodetect_nested_directory(self, tmp_path: Path):
         """Test auto-detection of apps in nested directories."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -206,7 +206,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
         assert "apps.notifications.email_notifier.EmailNotifier" in result, (
@@ -222,7 +222,7 @@ class TestAutoDetectApps:
             f"Expected 'apps.notifications.email_notifier.EmailNotifier', got '{app_dict['app_key']}'"
         )
 
-    def test_auto_detect_skips_known_paths(self, tmp_path: Path):
+    def test_autodetect_skips_known_paths(self, tmp_path: Path):
         """Test that auto-detection skips already configured apps."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -238,11 +238,11 @@ class TestAutoDetectApps:
 
         # Include this file in known_paths
         known_paths = {app_file.resolve()}
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         assert len(result) == 0, "Expected no apps to be detected since the only app is in known_paths"
 
-    def test_auto_detect_ignores_base_classes(self, tmp_path: Path):
+    def test_autodetect_ignores_base_classes(self, tmp_path: Path):
         """Test that auto-detection ignores the base App and AppSync classes."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -261,13 +261,13 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         # Should only find RealApp, not App or AppSync
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
         assert "apps.base_classes.RealApp" in result, "Expected to find 'apps.base_classes.RealApp' in detected apps"
 
-    def test_auto_detect_ignores_imported_classes(self, tmp_path: Path):
+    def test_autodetect_ignores_imported_classes(self, tmp_path: Path):
         """Test that auto-detection ignores classes imported from other modules."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -294,7 +294,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         # Should find both apps, but each in their own module
         assert len(result) == 2, f"Expected 2 apps, got {len(result)}"
@@ -305,7 +305,7 @@ class TestAutoDetectApps:
             "Did not expect to find 'apps.importer.ModuleApp' in detected apps"
         )
 
-    def test_auto_detect_handles_import_errors(self, tmp_path: Path):
+    def test_autodetect_handles_import_errors(self, tmp_path: Path):
         """Test that auto-detection gracefully handles files with import errors."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -332,7 +332,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         # Should only find the good app, not the broken one - this is the key functional test
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
@@ -346,7 +346,7 @@ class TestAutoDetectApps:
         assert good_app_dict["filename"] == "good_app.py", f"Expected 'good_app.py', got '{good_app_dict['filename']}'"
         assert good_app_dict["class_name"] == "GoodApp", f"Expected 'GoodApp', got '{good_app_dict['class_name']}'"
 
-    def test_auto_detect_ignores_non_app_classes(self, tmp_path: Path):
+    def test_autodetect_ignores_non_app_classes(self, tmp_path: Path):
         """Test that auto-detection ignores classes that don't inherit from App/AppSync."""
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -368,7 +368,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = auto_detect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths)
 
         # Should only find the actual app class
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
@@ -383,7 +383,7 @@ class TestValidateApps:
     @pytest.fixture(autouse=True)
     def setup(self, test_config: HassetteConfig):
         self.hassette_config = test_config
-        self.hassette_config.auto_detect_apps = False
+        self.hassette_config.autodetect_apps = False
 
     def test_validate_apps_sets_app_dir(self, tmp_path: Path):
         """Test that validate_apps sets app_dir for apps that don't have it."""
@@ -463,13 +463,13 @@ class TestValidateApps:
             f"Expected app_key to be 'valid_app', got {result['valid_app'].app_key}"
         )
 
-    @patch("hassette.config.core_config.auto_detect_apps")
-    def test_validate_apps_calls_auto_detect(self, mock_auto_detect, tmp_path: Path):
-        """Test that validate_apps calls auto_detect_app_manifests when auto_detect=True."""
+    @patch("hassette.config.core.autodetect_apps")
+    def test_validate_apps_calls_autodetect(self, mock_autodetect, tmp_path: Path):
+        """Test that validate_apps calls autodetect_app_manifests when autodetect=True."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
         self.hassette_config.app_dir = app_dir
-        self.hassette_config.auto_detect_apps = True  # Enable auto-detection for this test
+        self.hassette_config.autodetect_apps = True  # Enable auto-detection for this test
         values = {
             "manual_app": {
                 "filename": "manual.py",
@@ -486,7 +486,7 @@ class TestValidateApps:
             "enabled": True,
             "full_path": app_dir / "auto.py",
         }
-        mock_auto_detect.return_value = {"auto.AutoApp": mock_app_dict}
+        mock_autodetect.return_value = {"auto.AutoApp": mock_app_dict}
 
         self.hassette_config.apps = values
         self.hassette_config.set_validated_app_manifests()
@@ -497,27 +497,27 @@ class TestValidateApps:
         assert "manual_app" in result, "Expected to find 'manual_app' in detected apps"
         assert "auto.AutoApp" in result, "Expected to find 'auto.AutoApp' in detected apps"
 
-        # Check that auto_detect_app_manifests was called with correct parameters
-        mock_auto_detect.assert_called_once()
-        args, _ = mock_auto_detect.call_args
+        # Check that autodetect_app_manifests was called with correct parameters
+        mock_autodetect.assert_called_once()
+        args, _ = mock_autodetect.call_args
         assert args[0] == app_dir, f"Expected app_dir to be {app_dir}, got {args[0]}"
         # Should include the path of the manual app in known_paths
         known_paths = args[1]
         expected_path = (app_dir / "manual.py").resolve()
         assert expected_path in known_paths, f"Expected known_paths to include {expected_path}, got {known_paths}"
 
-    @patch("hassette.config.core_config.auto_detect_apps")
-    def test_validate_apps_skips_conflicting_auto_detected(self, mock_auto_detect, caplog, tmp_path: Path):
+    @patch("hassette.config.core.autodetect_apps")
+    def test_validate_apps_skips_conflicting_autodetected(self, mock_autodetect, caplog, tmp_path: Path):
         """Test that validate_apps skips auto-detected apps that conflict with manual ones."""
         import logging
 
-        caplog.set_level(logging.INFO, logger="hassette.config.core_config")
+        caplog.set_level(logging.INFO, logger="hassette.config.core")
 
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
 
         self.hassette_config.app_dir = app_dir
-        self.hassette_config.auto_detect_apps = True  # Enable auto-detection for this test
+        self.hassette_config.autodetect_apps = True  # Enable auto-detection for this test
         values = {
             "my_app": {
                 "filename": "my_app.py",
@@ -533,7 +533,7 @@ class TestValidateApps:
             "app_key": "my_app",
             "enabled": True,
         }
-        mock_auto_detect.return_value = {"my_app": mock_app_dict}
+        mock_autodetect.return_value = {"my_app": mock_app_dict}
 
         self.hassette_config.apps = values
         self.hassette_config.set_validated_app_manifests()
@@ -551,16 +551,16 @@ class TestValidateApps:
         )
 
         # The behavior is that auto-detected apps with conflicting keys are simply not added
-        # Let's verify that auto_detect_app_manifests was called and the result is correct
-        mock_auto_detect.assert_called_once()
+        # Let's verify that autodetect_app_manifests was called and the result is correct
+        mock_autodetect.assert_called_once()
         # The important thing is that the result only contains the manual app
 
-    def test_validate_apps_skips_auto_detect_when_disabled(self, tmp_path: Path):
-        """Test that validate_apps skips auto-detection when auto_detect=False."""
+    def test_validate_apps_skips_autodetect_when_disabled(self, tmp_path: Path):
+        """Test that validate_apps skips auto-detection when autodetect=False."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
         self.hassette_config.app_dir = app_dir
-        # auto_detect_apps is already False from the setup fixture
+        # autodetect_apps is already False from the setup fixture
         values = {
             "manual_app": {
                 "filename": "manual.py",
@@ -568,13 +568,13 @@ class TestValidateApps:
             }
         }
 
-        with patch("hassette.config.core_config.auto_detect_apps") as mock_auto_detect:
+        with patch("hassette.config.core.autodetect_apps") as mock_autodetect:
             self.hassette_config.apps = values
             self.hassette_config.set_validated_app_manifests()
             result = self.hassette_config.app_manifests
 
-            # Should not call auto_detect_app_manifests
-            mock_auto_detect.assert_not_called()
+            # Should not call autodetect_app_manifests
+            mock_autodetect.assert_not_called()
 
             # Should only have the manual app
             assert len(result) == 1, f"Expected 1 app, got {len(result)}"
@@ -588,8 +588,8 @@ class TestAutoDetectIntegration:
     def setup(self, test_config: HassetteConfig):
         self.hassette_config = test_config
 
-    def test_hassette_config_auto_detect_enabled_by_default(self, tmp_path: Path):
-        """Test that auto_detect_apps is enabled by default in HassetteConfig."""
+    def test_hassette_config_autodetect_enabled_by_default(self, tmp_path: Path):
+        """Test that autodetect_apps is enabled by default in HassetteConfig."""
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -615,8 +615,8 @@ class TestAutoDetectIntegration:
         assert manifest.class_name == "TestApp", f"Expected class_name to be 'TestApp', got {manifest.class_name}"
         assert manifest.enabled is True, f"Expected enabled to be True, got {manifest.enabled}"
 
-    def test_hassette_config_auto_detect_can_be_disabled(self, tmp_path: Path):
-        """Test that auto_detect_apps can be disabled in HassetteConfig."""
+    def test_hassette_config_autodetect_can_be_disabled(self, tmp_path: Path):
+        """Test that autodetect_apps can be disabled in HassetteConfig."""
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
         app_dir.mkdir()
@@ -634,7 +634,7 @@ class TestAutoDetectIntegration:
         config = HassetteConfig(
             token="test-token",
             app_dir=app_dir,
-            auto_detect_apps=False,
+            autodetect_apps=False,
             cli_parse_args=False,
         )
 
@@ -736,7 +736,7 @@ class TestAutoDetectIntegration:
             f"Expected custom config to be 'value', got {manifest.app_config[0]['custom']}"
         )
 
-    def test_hassette_config_combines_manual_and_auto_detected(self, tmp_path: Path):
+    def test_hassette_config_combines_manual_and_autodetected(self, tmp_path: Path):
         """Test that HassetteConfig combines manual and auto-detected apps correctly."""
         # Create a temporary app directory with multiple apps
         app_dir = tmp_path / "apps"
