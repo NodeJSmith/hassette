@@ -1,0 +1,9 @@
+[apps.my_app]
+filename = "my_app.py"
+class_name = "MyApp"
+enabled = true
+
+[[apps.my_app.config]]
+instance_name = "bedroom_light_controller"
+entity_id = "light.bedroom"
+brightness = 200

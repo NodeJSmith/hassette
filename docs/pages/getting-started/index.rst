@@ -153,19 +153,19 @@ Now that you have Hassette running with your first app, here are logical next st
 
 **🏗️ Build Real Automations**
 
-- :doc:`Event handling patterns <../bus/index>` - React to state changes, service calls, and custom events
-- :doc:`Scheduling tasks <../scheduler/index>` - Run code on intervals, cron schedules, or delays
-- :doc:`API usage <../api/index>` - Call services, query states, and interact with Home Assistant
+- :doc:`Event handling patterns </pages/core-concepts/bus/index>` - React to state changes, service calls, and custom events
+- :doc:`Scheduling tasks </pages/core-concepts/scheduler/index>` - Run code on intervals, cron schedules, or delays
+- :doc:`API usage </pages/core-concepts/api/index>` - Call services, query states, and interact with Home Assistant
 
 **⚙️ Configure Your Setup**
 
-- :doc:`Configuration options <../configuration/index>` - Environment variables, secrets, and TOML settings
-- :doc:`App patterns <../apps/index>` - Multi-instance apps, typed configuration, and lifecycle hooks
+- :doc:`Configuration options </pages/core-concepts/configuration/index>` - Environment variables, secrets, and TOML settings
+- :doc:`App patterns </pages/core-concepts/apps/index>` - Multi-instance apps, typed configuration, and lifecycle hooks
 
 **📚 Learn More**
 
-- :doc:`Why Hassette? <../why-hassette>` - The story and philosophy behind the framework
-- :doc:`vs AppDaemon <../comparisons/index>` - Migration guide if you're coming from AppDaemon
+- :doc:`Why Hassette? </pages/why-hassette>` - The story and philosophy behind the framework
+- :doc:`vs AppDaemon </pages/comparisons/index>` - Migration guide if you're coming from AppDaemon
 
 **🔧 Development Workflow**
 

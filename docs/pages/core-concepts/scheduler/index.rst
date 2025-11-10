@@ -82,3 +82,12 @@ Best practices
 --------------
 * Name your jobs when you have multiples; the scheduler propagates the name into logs and reprs.
 * Prefer async callables for I/O heavy work. Reserve synchronous jobs for fast operations.
+
+See Also
+--------
+
+- :doc:`../index` — how apps fit into the overall architecture
+- :doc:`../apps/index` — how apps fit into the overall architecture
+- :doc:`../bus/index` — more on subscribing to and handling events
+- :doc:`../api/index` — more on interacting with Home Assistant's APIs
+- :doc:`../configuration/index` — Hassette and app configuration

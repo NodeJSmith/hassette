@@ -135,3 +135,12 @@ Hassette merges configuration from multiple places (first writer wins):
     #. If ``--config`` or ``-c`` is provided then this will take priority and the other locations will be skipped
 
 Best practice: use env vars (or .env) for tokens and secrets; keep TOML non-secret.
+
+See Also
+--------
+
+- :doc:`../index` — how apps fit into the overall architecture
+- :doc:`../apps/index` — how apps fit into the overall architecture
+- :doc:`../scheduler/index` — more on scheduling jobs and intervals
+- :doc:`../bus/index` — more on subscribing to and handling events
+- :doc:`../api/index` — more on interacting with Home Assistant's APIs

@@ -45,18 +45,14 @@ Get running with Hassette in a few lines of code:
 
 **Next Steps**
 
-Ready to build something more complex? Check out the :doc:`getting started guide <pages/getting-started/index>` for a detailed walkthrough, explore :doc:`app patterns <pages/apps/index>`, or dive into the :doc:`API reference <pages/api/index>`.
+Ready to build something more complex? Check out the :doc:`getting started guide <pages/getting-started/index>` for a detailed walkthrough, explore :doc:`app patterns <pages/core-concepts/apps/index>`, or dive into the :doc:`API reference <pages/core-concepts/api/index>`.
 
 .. toctree::
    :hidden:
-   :maxdepth: 1
+   :maxdepth: 2
 
+   pages/core-concepts/index
    pages/getting-started/index
-   pages/configuration/index
-   pages/apps/index
-   pages/api/index
-   pages/bus/index
-   pages/scheduler/index
    pages/why-hassette
    pages/comparisons/index
    code-reference/index

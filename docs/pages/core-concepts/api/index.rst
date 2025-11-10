@@ -144,3 +144,12 @@ Typing status
 - Many models and read operations are strongly typed.
 - Service calls are not fully typed yet; finishing this is a high priority. For now, ``call_service``
   accepts ``**data`` and performs string normalization for REST parameters.
+
+See Also
+--------
+
+- :doc:`../index` — how apps fit into the overall architecture
+- :doc:`../apps/index` — how apps fit into the overall architecture
+- :doc:`../scheduler/index` — more on scheduling jobs and intervals
+- :doc:`../bus/index` — more on subscribing to and handling events
+- :doc:`../configuration/index` — Hassette and app configuration

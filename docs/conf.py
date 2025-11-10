@@ -15,6 +15,7 @@ extensions = [
     "hassette.sphinx",  # custom Sphinx helpers
     "sphinx_copybutton",  # "copy" button for code blocks
     "sphinx.ext.viewcode",  # add links to source code
+    "sphinxcontrib.mermaid",  # mermaid diagrams
 ]
 
 html_theme = "sphinx_rtd_theme"
