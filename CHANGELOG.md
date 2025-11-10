@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved `AppManifest` and `HassetteTomlConfigSettingsSource` to `classes.py`
 - Moved `LOG_LEVELS` to `hassette.types.types` instead of `const.misc`, as this is a `Literal`, not a list of constants
 - Renamed `core_config.py` to `core.py`
+- Bumped version of `uv` in `mise.toml`, docker image, and build backend
 
 ## [0.15.4] - 2025-11-07
 
