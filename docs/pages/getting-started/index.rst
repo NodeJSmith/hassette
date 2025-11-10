@@ -47,7 +47,7 @@ Let's just confirm that we can connect to Home Assistant and everything is worki
 
 You should see logs indicating that Hassette has connected to Home Assistant successfully.
 
-.. image:: ../_static/getting-started-logs.png
+.. image:: ../../_static/getting-started-logs.png
    :alt: Hassette logs showing successful connection to Home Assistant
 
 .. note::
@@ -103,7 +103,7 @@ Now you can run Hassette again to see your app in action:
 
 You should see logs indicating that your app has started and the greeting message has been logged.
 
-.. image:: ../_static/getting-started-app-logs.png
+.. image:: ../../_static/getting-started-app-logs.png
    :alt: Hassette logs showing Hello, World! message
 
 
@@ -143,7 +143,7 @@ If you run Hassette again, with no arguments, you should see the greeting from t
 
 You should see logs indicating that your app has started and the greeting message from the config file has been logged.
 
-.. image:: ../_static/getting-started-config-logs.png
+.. image:: ../../_static/getting-started-config-logs.png
    :alt: Hassette logs showing greeting from config file
 
 What's Next?

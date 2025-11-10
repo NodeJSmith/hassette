@@ -19,7 +19,7 @@ Hassette is designed for developers who want to write Home Assistant automations
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading
 
-Built by a fellow HA geek frustrated with the HA python development experience. Read more about :doc:`why Hassette exists <why-hassette>`.
+Built by a fellow HA geek frustrated with the HA python development experience. Read more about :doc:`why Hassette exists <pages/why-hassette>`.
 
 
 Getting Started
@@ -45,18 +45,18 @@ Get running with Hassette in a few lines of code:
 
 **Next Steps**
 
-Ready to build something more complex? Check out the :doc:`getting started guide <getting-started/index>` for a detailed walkthrough, explore :doc:`app patterns <apps/index>`, or dive into the :doc:`API reference <api/index>`.
+Ready to build something more complex? Check out the :doc:`getting started guide <pages/getting-started/index>` for a detailed walkthrough, explore :doc:`app patterns <pages/apps/index>`, or dive into the :doc:`API reference <pages/api/index>`.
 
 .. toctree::
    :hidden:
    :maxdepth: 1
 
-   getting-started/index
-   configuration/index
-   apps/index
-   api/index
-   bus/index
-   scheduler/index
-   why-hassette
-   comparisons/index
+   pages/getting-started/index
+   pages/configuration/index
+   pages/apps/index
+   pages/api/index
+   pages/bus/index
+   pages/scheduler/index
+   pages/why-hassette
+   pages/comparisons/index
    code-reference/index
