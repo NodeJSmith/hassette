@@ -1,0 +1,73 @@
+site_name: Hassette
+site_url: https://nodejsmith.github.io/hassette/
+repo_name: NodeJSmith/hassette
+repo_url: https://github.com/NodeJSmith/hassette
+docs_dir: docs
+use_directory_urls: true
+watch:
+  - src
+
+theme:
+  name: material
+  logo: _static/hassette-logo.svg
+  favicon: _static/hassette-logo.svg
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.indexes
+    - toc.integrate
+
+extra_css:
+  - _static/style.css
+
+nav:
+  - Home: index.md
+  - Getting Started: pages/getting-started/index.md
+  - Core Concepts:
+      - Overview: pages/core-concepts/index.md
+      - Apps: pages/core-concepts/apps/index.md
+      - Bus: pages/core-concepts/bus/index.md
+      - Scheduler: pages/core-concepts/scheduler/index.md
+      - API: pages/core-concepts/api/index.md
+      - Configuration: pages/core-concepts/configuration/index.md
+  - Why Hassette?: pages/why-hassette.md
+  - Comparisons:
+      - Overview: pages/comparisons/index.md
+      - AppDaemon: pages/comparisons/appdaemon.md
+  - Diagrams:
+      - Architecture Overview: diagrams/architecture-overview.md
+      - Architecture Simple: diagrams/architecture-simple.md
+  - API Reference: code-reference.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_full_path: false
+            members_order: source
+            show_signature_annotations: true
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: docs
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+  - pymdownx.tabbed
