@@ -3,7 +3,7 @@
 This guide walks through the most common Hassette configuration options. It isn’t exhaustive, but covers everything you need for a smooth first run.
 
 !!! info "First time here?"
-    Start with the [Getting Started guide](../getting-started/index.md) if you haven’t already created your first app.
+    Start with the [Getting Started guide](../../getting-started/index.md) if you haven’t already created your first app.
 
 Hassette really only needs two things: your Home Assistant URL and an access token. Provide the URL via TOML or environment variables; keep the token out of source control by using env vars or CLI flags.
 
