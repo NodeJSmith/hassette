@@ -20,21 +20,3 @@ class BasicSubscriptionsExample(App):
 
         # Service registered events
         self.bus.on_service_registered(domain="notify", handler=self.on_notify_service_added)
-
-    async def on_motion(self, event):
-        pass
-
-    async def on_temp_change(self, event):
-        pass
-
-    async def on_turn_on(self, event):
-        pass
-
-    async def on_restart(self, event):
-        pass
-
-    async def on_hue_loaded(self, event):
-        pass
-
-    async def on_notify_service_added(self, event):
-        pass
