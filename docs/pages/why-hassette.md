@@ -1,16 +1,13 @@
 # Why Hassette?
 
 !!! note
-    This page is just a short blurb on why I built Hassette, as a way of explaining its focus and goals. If you're not interested, you can hit the Back button, there's nothing
-    here you'll be missing out on.
+    This page explains the motivation, focus, and goals behind Hassette. If you just want to build something, feel free to skip it.
 
 ## Background
 
-I was a python developer way before I had ever heard of Home Assistant, so when I did discover HA I was more interested in writing automations in Python than in YAML or via the UI. The automations
-felt clunky and limited - I'm not sure if they were, but I couldn't wrap my head around them the way I could simple Python code. I found AppDaemon almost immediately and have done almost all of my
-automations in it since then, with only simple sequences and other small items in HA.
+I was a Python developer long before I discovered Home Assistant, so the moment I did I wanted to write automations in Python—not YAML or the UI. The built-in automations felt clunky and limited (maybe they weren’t, but I couldn’t reason about them as easily as straight Python). I found AppDaemon almost immediately and have done most of my automations there ever since, with only simple sequences left in HA.
 
-ApDaemon wasn't the experience I'd been hoping for though. The most frustrating part to me were the required signatures and the lack of type annotations. I'd have to add logs to each of my methods
+AppDaemon wasn't the experience I'd been hoping for though. The most frustrating part to me were the required signatures and the lack of type annotations. I'd have to add logs to each of my methods
 just to know what they were receiving - after figuring out why the callback wasn't firing in the first place (more on that later). Too many times I'd be debugging just to find out I had assumed a type
 was something other than it was, or I had my method signature wrong and AD was silently ignoring my method.
 
