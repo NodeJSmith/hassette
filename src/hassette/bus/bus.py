@@ -317,11 +317,21 @@ class Bus(Resource):
 
         preds: list[Predicate] = [P.EntityMatches(entity_id)]
 
+        # if not changed then we are going to fire every time the entity has a StateChanged event
+        # regardless of what changed - not sure if that is desired behavior or not, but it is consistent with the main
+        # on_state_change method
         if changed:
             if changed is True:
                 preds.append(P.AttrDidChange(attr))
             else:
                 preds.append(P.AttrComparison(attr, condition=changed))
+        else:
+            self.logger.warning(
+                "Attribute change subscription for entity '%s' on attribute '%s' with changed=False will fire on"
+                " every state change event for the entity",
+                entity_id,
+                attr,
+            )
 
         if changed_from is not NOT_PROVIDED:
             preds.append(P.AttrFrom(attr, condition=changed_from))
