@@ -17,9 +17,6 @@ theme:
     - navigation.indexes
     - toc.integrate
 
-extra_css:
-  - _static/style.css
-
 nav:
   - Home: index.md
   - Getting Started: pages/getting-started/index.md
@@ -34,13 +31,15 @@ nav:
   - Comparisons:
       - Overview: pages/comparisons/index.md
       - AppDaemon: pages/comparisons/appdaemon.md
-  - Diagrams:
-      - Architecture Overview: diagrams/architecture-overview.md
-      - Architecture Simple: diagrams/architecture-simple.md
-  - API Reference: code-reference.md
+  - API Reference: reference/
 
 plugins:
   - search
+  - gen-files:
+      scripts:
+        - scripts/internal/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
   - mkdocstrings:
       handlers:
         python:
