@@ -50,7 +50,7 @@ autocompletion and earlier error detection.
 ## Quick reference table
 
 | Action                            | AppDaemon                                                                           | Hassette                                                                                                        |
-|-----------------------------------|-------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| --------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Listen for an entity state change | `self.listen_state(self.on_open, "binary_sensor.door", new="on")`                   | `self.bus.on_state_change("binary_sensor.door", handler=self.on_open, changed_to="on")`                         |
 | React to an attribute threshold   | `self.listen_state(self.on_battery, "sensor.phone", attribute="battery", below=20)` | `self.bus.on_attribute_change("sensor.phone", "battery", handler=self.on_battery, changed_to=lambda v: v < 20)` |
 | Monitor service calls             | `self.listen_event(self.on_service, "call_service", domain="light")`                | `self.bus.on_call_service(domain="light", handler=self.on_service)`                                             |
