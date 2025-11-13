@@ -1,0 +1,78 @@
+site_name: Hassette
+site_url: https://nodejsmith.github.io/hassette/
+repo_name: NodeJSmith/hassette
+repo_url: https://github.com/NodeJSmith/hassette
+docs_dir: docs
+use_directory_urls: true
+watch:
+  - src
+
+theme:
+  name: material
+  logo: _static/hassette-logo.svg
+  favicon: _static/hassette-logo.svg
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.indexes
+    - toc.integrate
+
+nav:
+  - Home: index.md
+  - Getting Started: pages/getting-started/index.md
+  - Core Concepts:
+      - Overview: pages/core-concepts/index.md
+      - Apps: pages/core-concepts/apps/index.md
+      - Bus: pages/core-concepts/bus/index.md
+      - Scheduler: pages/core-concepts/scheduler/index.md
+      - API: pages/core-concepts/api/index.md
+      - Configuration: pages/core-concepts/configuration/index.md
+  - Why Hassette?: pages/why-hassette.md
+  - Comparisons:
+      - Overview: pages/comparisons/index.md
+      - AppDaemon: pages/comparisons/appdaemon.md
+  - API Reference: reference/
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - scripts/internal/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_full_path: false
+            members_order: source
+            show_signature_annotations: true
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://docs.pydantic.dev/latest/objects.inv
+            - https://docs.aiohttp.org/en/stable/objects.inv
+            - https://whenever.readthedocs.io/en/latest/objects.inv
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: docs
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+  - pymdownx.tabbed

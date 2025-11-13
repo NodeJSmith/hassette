@@ -388,7 +388,7 @@ class Api(Resource):
             service: The name of the service to call (e.g., "turn_on").
             target: Target entity IDs or areas.
             return_response: Whether to return the response from Home Assistant. Defaults to False.
-            **kwargs: Additional data to send with the service call.
+            **data: Additional data to send with the service call.
 
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.

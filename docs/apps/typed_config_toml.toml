@@ -1,5 +1,0 @@
-[apps.my_app]
-filename = "my_app.py"
-class_name = "MyApp"
-enabled = true
-config = { entity_id = "light.bedroom", brightness = 200 }
