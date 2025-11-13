@@ -408,7 +408,7 @@ Common issues:
 
 - **Token not set**: Ensure `HASSETTE__TOKEN` is in `config/.env`
 - **Can't reach Home Assistant**: Check your `base_url` and network configuration
-- **Permission errors**: The container runs as user `hassette` (UID 1000). Ensure mounted files are readable.
+- **Permission errors**: The container runs as user `hassette`. Ensure mounted files are readable.
 
 ### Apps Not Loading
 
