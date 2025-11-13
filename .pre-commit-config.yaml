@@ -37,4 +37,4 @@ repos:
     hooks:
       - id: pyright
         stages: [pre-push]
-        exclude: ^docs/.*\.(py|rst)$ # Exclude docs/ directory for type checking.
+        exclude: ^(docs|scripts)/.*\.(py|rst)$ # Exclude docs/ and scripts/ directories for type checking.
