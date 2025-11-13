@@ -171,5 +171,5 @@ Now that Hassette is running with your first app, here are logical next steps.
 
 ### Need help?
 
-- [GitHub Issues](https://github.com/yourusername/hassette/issues) for bugs and feature requests.
-- [GitHub Discussions](https://github.com/yourusername/hassette/discussions) for questions and community support.
+- [GitHub Issues](https://github.com/NodeJSmith/hassette/issues) for bugs and feature requests.
+- [GitHub Discussions](https://github.com/NodeJSmith/hassette/discussions) for questions and community support.

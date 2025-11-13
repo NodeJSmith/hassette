@@ -47,4 +47,4 @@ The roadmap includes a simple web UI, public test fixtures, an HA add-on, and mo
 
 ## Comparison with AppDaemon
 
-If you're coming from AppDaemon, see our [detailed comparison](comparisons/index.md) to understand the differences and migration path.
+If you're coming from AppDaemon, see our [detailed comparison](comparisons/appdaemon.md) to understand the differences and migration path.
