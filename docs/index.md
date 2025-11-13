@@ -17,7 +17,7 @@ Hassette is designed for developers who want to write Home Assistant automations
 
 Built by a fellow HA geek frustrated with the existing Python automation experience. Read more about [why Hassette exists](pages/why-hassette.md).
 
-## Getting Started
+## Quickstart
 
 Get running with Hassette in just a few steps.
 
@@ -43,7 +43,8 @@ Get running with Hassette in just a few steps.
 
 Ready to build something more complex? Explore the rest of the docs:
 
-- Follow the [getting started guide](pages/getting-started/index.md) for a full walkthrough.
+- Follow the [getting started guide](pages/getting-started/index.md) for local development.
+- Deploy with [Docker Compose](pages/getting-started/docker.md) for production.
 - Dive into [core app patterns](pages/core-concepts/apps/index.md).
 - Learn more about the [typed API surface](pages/core-concepts/api/index.md).
 - See how Hassette stacks up in the [AppDaemon comparison](pages/comparisons/appdaemon.md).

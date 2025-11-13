@@ -1,9 +1,9 @@
 # Getting Started
 
-This guide walks through setting up Hassette with a simple app in a local environment.
+This guide walks through setting up Hassette with a simple app in a local development environment.
 
-!!! note
-    A Docker Compose guide is coming soon. In the meantime you can reference the [example compose file](https://github.com/NodeJSmith/hassette/blob/main/examples/docker-compose.yml).
+!!! tip "Running in Docker?"
+    For production deployments or if you prefer Docker, see the [Docker Deployment](docker.md) guide instead. This page covers local development with `uv`.
 
 ## Prerequisites
 

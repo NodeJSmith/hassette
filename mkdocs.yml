@@ -19,7 +19,9 @@ theme:
 
 nav:
   - Home: index.md
-  - Getting Started: pages/getting-started/index.md
+  - Getting Started:
+      - Overview: pages/getting-started/index.md
+      - Docker Deployment: pages/getting-started/docker.md
   - Core Concepts:
       - Overview: pages/core-concepts/index.md
       - Apps: pages/core-concepts/apps/index.md
