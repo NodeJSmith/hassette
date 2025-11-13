@@ -1,47 +1,59 @@
 # Scheduler
 
-Schedule any callable—async or sync—to run at specific times or intervals using the built-in scheduler. Jobs always execute on Hassette’s event loop (sync callables are offloaded automatically). There’s no required signature; pass parameters through the `args` and `kwargs` arguments on each helper.
+You can schedule any method or function, async or sync, to run at specific times or intervals using the built-in scheduler. The
+scheduler will ensure your callable runs asynchronously in Hassette's event loop, even if it's a synchronous function. There is
+no required signature for scheduled callables; you can provide parameters using the `args` and `kwargs` arguments to the scheduling helpers.
 
-`self.scheduler` is created when your app instantiates. Helpers return a `ScheduledJob` you can inspect or cancel later.
-
-!!! note
-    Cron support uses `croniter` under the hood; interval helpers rely on `whenever`. Everything schedules via `whenever`’s `ZonedDateTime`, which will eventually be replaced with something more DST-friendly.
-
-While helper signatures differ, they all share these optional parameters:
-
-- **start** – first-run timing:
-  - `int | float` → delay in seconds.
-  - `ZonedDateTime` → exact timestamp.
-  - `TimeDelta` → added to current time.
-  - `tuple[int, int]` → `(hour, minute)` offset from now.
-  - `Time`/`time` → time-of-day offset.
-  - `None` → run immediately, then follow the interval/cron.
-- **name** – label that shows up in logs/reprs.
-- **args** – positional arguments passed to your callable.
-- **kwargs** – dictionary of keyword arguments for your callable.
+The scheduler is created at app instantiation and is available as `self.scheduler`. There are multiple helper methods to schedule jobs, described below.
+These return a `ScheduledJob` instance you can keep to inspect or manage the job later. To cancel a job, call its `cancel()` method.
 
 !!! note
-    `kwargs` is passed as a single dictionary argument; helper methods don’t accept real `**kwargs` to avoid ambiguity with their own keyword parameters.
+    The cron helper uses `croniter` under the hood, so you can use any cron syntax it supports for the parameters. This will likely be updated in the future
+    to expose more `croniter` features. The interval helpers use `whenever` under the hood. All scheduling is done using `whenever`s `ZonedDateTime`.
+    This will likely need to be updated in the future to something that won't break during DST transitions, but I hadn't thought of that yet when implementing this.
+
+While schedule helpers will have different signatures, all will take the following optional parameters:
+
+ - `start` - Provide details for when to first call the job.
+
+    - If an `int` or `float`, this is a delay in seconds from now.
+    - If a `ZonedDateTime`, this is the exact time to run.
+    - If a `TimeDelta`, this is added to the current time to get the first run time.
+    - If `tuple[int, int]`, this is treated as `(hour, minute)` and added to the current time to get the first run time.
+    - If `Time` (from `whenever`) or `time` (from stdlib), the hours and minutes are added to the current time to get the first run time.
+    - If `None` (the default), the job is scheduled to run immediately and then according to its interval or cron schedule.
+
+ - `name` - A name for the job, useful for logging and debugging.
+ - `args` - Positional arguments to pass to your callable, keyword-only.
+ - `kwargs` - Keyword arguments to pass to your callable, keyword-only.
+
+!!! note
+    The `kwargs` parameter is a single parameter that expects a dictionary. The helper methods do not accept variable keyword arguments (e.g. `**kwargs`),
+    to avoid ambiguity with other parameters.
 
 ```python
---8<-- "pages/core-concepts/scheduler/basic_example.py"
+--8<-- "pages/core-concepts/scheduler/basic_example.py:6:14"
 ```
 
 ## Scheduling helpers
 
-Each helper returns a `hassette.scheduler.classes.ScheduledJob` (aliased `ScheduledJob` in the examples). Keep the handle if you need to inspect or cancel the job later.
+Each helper returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] you can keep to inspect
+`next_run` or cancel it later.
 
-- `run_once` – run one time after an optional delay.
-- `run_in` – run one time after `delay` seconds/`TimeDelta`.
-- `run_every` – run repeatedly at a fixed interval.
-- `run_minutely` – run every _n_ minutes.
-- `run_hourly` – run every _n_ hours (use `start` for minute offsets).
-- `run_daily` – run every _n_ days at a specific time.
-- `run_cron` – run on a cron schedule (`second`, `minute`, `hour`, `day_of_month`, `month`, `day_of_week`).
+Helper methods include the following:
+
+ - `run_once`: Run once after a delay, does not accept any additional schedule parameters.
+ - `run_in`: Run once after a delay, accepts `delay` (`TimeDelta` or seconds).
+ - `run_every`: Run repeatedly at a fixed interval, accepts `interval` (`TimeDelta` or seconds).
+ - `run_minutely`: Run repeatedly every N minutes, accepts `minutes` (int).
+ - `run_hourly`: Run repeatedly every N hours, accepts `hours` (int), use `start` to set minute offset.
+ - `run_daily`: Run repeatedly every N days at a specific time, accepts `days` (int), use `start` to set hour/minute offset.
+ - `run_cron`: Run repeatedly on a cron schedule.
+    - Accepts any of the following cron parameters: `second`, `minute`, `hour`, `day_of_month`, `month`, `day_of_week`.
 
 ## Worked examples
 
-Mixed async/sync jobs and custom start times:
+The snippet below demonstrates mixed synchronous/async jobs and custom start times.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/worked_examples.py"
@@ -49,23 +61,25 @@ Mixed async/sync jobs and custom start times:
 
 ## Managing jobs
 
-Hold onto the returned `ScheduledJob` to manage lifecycle:
+You can keep the `ScheduledJob` returned from any helper to manage its lifecycle.
 
 ```python
---8<-- "pages/core-concepts/scheduler/managing_jobs_example.py"
+--8<-- "pages/core-concepts/scheduler/managing_jobs_example.py:5:13"
 ```
 
-Calling `job.cancel()` marks it cancelled and removes it from the scheduler. For repeating jobs, `job.next_run` updates after every run so you can monitor drift or show upcoming runs in a UI.
+Cancelling sets `job.cancelled` and the scheduler will remove it from the job list. For repeating jobs
+`job.next_run` updates automatically after every run so you can monitor drift or display upcoming
+runs in your UI.
 
 ## Best practices
 
-- Name your jobs when multiple instances exist; names flow into logs and reprs.
-- Prefer async callables for I/O heavy work and reserve sync callables for quick tasks.
+* Name your jobs when you have multiples; the scheduler propagates the name into logs and reprs.
+* Prefer async callables for I/O heavy work. Reserve synchronous jobs for fast operations.
 
-## See also
+## See Also
 
-- [Core concepts](../index.md)
-- [Apps](../apps/index.md)
-- [Bus](../bus/index.md)
-- [API](../api/index.md)
-- [Configuration](../configuration/index.md)
+- [Core Concepts](../index.md) — back to the core concepts overview
+- [Apps](../apps/index.md) — more on app anatomy, lifecycle, and capabilities
+- [Bus](../bus/index.md) — more on subscribing to and handling events
+- [API](../api/index.md) — more on interacting with Home Assistant's APIs
+- [Configuration](../configuration/index.md) — Hassette and app configuration

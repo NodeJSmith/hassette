@@ -179,7 +179,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Create and add a child resource to this resource.
 
         Args:
-            child: The class of the child resource to create.
+            child_class: The class of the child resource to create.
             **kwargs: Keyword arguments to pass to the child resource's constructor.
 
         Returns:

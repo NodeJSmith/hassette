@@ -647,6 +647,7 @@ dev = [
 ]
 docs = [
     { name = "mkdocs" },
+    { name = "mkdocs-autorefs" },
     { name = "mkdocs-gen-files" },
     { name = "mkdocs-literate-nav" },
     { name = "mkdocs-material" },
@@ -696,6 +697,7 @@ dev = [
 ]
 docs = [
     { name = "mkdocs", specifier = ">=1.6.0" },
+    { name = "mkdocs-autorefs", specifier = ">=0.5.0" },
     { name = "mkdocs-gen-files", specifier = ">=0.5.0" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.1" },
     { name = "mkdocs-material", specifier = ">=9.6.0" },

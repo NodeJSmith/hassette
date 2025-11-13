@@ -29,7 +29,7 @@ Hassette offers similar features but with a different design philosophy.
 It is async-first, strongly typed, and built around composition instead
 of inheritance. Hassette also connects to Home Assistant via WebSocket
 and REST API, you write apps as Python classes that inherit from
-`hassette.app.app.App`, and configuration lives in `hassette.toml`.
+[App][hassette.app.app.App], and configuration lives in `hassette.toml`.
 Hassette apps are also written in an IDE, offering the same debugging
 benefits, but is also strongly typed, which enables better
 autocompletion and earlier error detection.
@@ -106,8 +106,12 @@ my_app:
 ```
 
 This would correspond to a Python file `my_app.py` in the directory
-`./apps` with a class `MyApp` that subclasses `Hass`. Arguments are
-accessible through the `self.args` dictionary, under the `args` key. You
+`./apps` with a class `MyApp` that subclasses `Hass`.
+
+Arguments are
+accessible through the `self.args` dictionary, under the `args` key.
+
+You
 have access to logging via `self.log()`, which is a method that is part
 of AppDaemon's logging system. Because of the way the logger is
 implemented, you cannot easily see the location of the log call in your
@@ -153,12 +157,16 @@ brightness = 200
 ```
 
 This would correspond to a Python file `my_app.py` in the directory
-`/apps/` with a class `MyApp` that subclasses `hassette.app.app.App` or
-`hassette.app.app.AppSync`. Because Hassette uses Pydantic models for
+`/apps/` with a class `MyApp` that subclasses [`App`][hassette.app.app.App] or
+[`AppSync`][hassette.app.app.AppSync].
+
+Because Hassette uses Pydantic models for
 configuration, you define a subclass of
-`hassette.app.app_config.AppConfig` to specify expected parameters and
+[`AppConfig`][hassette.app.app_config.AppConfig] to specify expected parameters and
 their types. You access configuration via the typed `self.app_config`
-attribute, which offers IDE support and validation at startup. The
+attribute, which offers IDE support and validation at startup.
+
+The
 logger is part of the base class and uses Python's standard logging
 library, the log format automatically includes the instance name, method
 name, and line number. Instance names can be set in the config file or
@@ -237,7 +245,7 @@ to manually offload the work to a thread.
 The scheduler is accessed via the `self.scheduler` attribute, and offers
 similar helpers: `run_in()`, `run_at()`, `run_minutely()`,
 `run_hourly()`, and `run_daily()`. These methods return a
-`hassette.scheduler.classes.ScheduledJob` object that can be used to
+[`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object that can be used to
 cancel or inspect the job.
 
 ```python
@@ -265,10 +273,10 @@ class NightLight(App):
 #### AppDaemon
 
 Event callbacks are expected to have a signature of
-`def my_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:`.
+`def my_callback(self, event_name: str, event_data: dict[str, Any], **kwargs: Any) -> None:`.
 They can be either async or sync functions, although the documentation
 recommends not using async functions due to the threading model. The
-`event_type` and `data` parameters correspond to the event's type and
+`event_name` and `event_data` parameters correspond to the event's name and
 data dictionary, while `kwargs` contains additional metadata about the
 event and any arbitrary keyword arguments you passed when subscribing.
 
@@ -292,14 +300,14 @@ class ButtonHandler(ADAPI):
             entity_id="input_button.test_button",
         )
 
-    def minimal_callback(self, event_type: str, data: dict[str, Any], **kwargs: Any) -> None:
-        self.log(f"{event_type=}, {data=}, {kwargs=}")
+    def minimal_callback(self, event_name: str, event_data: dict[str, Any], **kwargs: Any) -> None:
+        self.log(f"{event_name=}, {event_data=}, {kwargs=}")
 ```
 
 ```text
 2025-10-14 06:49:34.791752 INFO button_handler:
-    event_type='call_service',
-    data={
+    event_name='call_service',
+    event_data={
         'domain': 'input_button',
         'service': 'press',
         'service_data': {
@@ -324,8 +332,8 @@ class ButtonHandler(ADAPI):
 
 #### Hassette
 
-Event handlers can also be either async or sync functions, and accept
-the event object and optional args and kwargs variadic parameters. The
+Event handlers can also be either async or sync functions, and can accept
+any arguments - including the event object, if desired. The
 event bus uses typed events and composable predicates for filtering. In
 this example, we listen for a service call event with a specific
 entity_id. Behind the scenes, the dictionary passed to `where` is
@@ -335,6 +343,13 @@ pair.
 The event bus is accessed via the `self.bus` attribute. You can cancel a
 subscription using the `Subscription` object returned by the listen
 method, e.g., `subscription.cancel()`.
+
+
+The event object is not a required argument - if you do not need it, simply
+omit it from your handler's signature. If you do include it, ensure it is the
+first unbound argument in your function signature and it is named event (adding
+some dependency injection logic is on the roadmap).
+
 
 ```python
 from hassette import App
@@ -420,8 +435,8 @@ class ButtonPressed(Hass):
 
 State change handlers are the exact same as event handlers - we're only
 calling them out separately to align with AppDaemon. These can also be
-either async or sync functions and accept the event object and optional
-args and kwargs variadic parameters. The event bus provides helpers for
+either async or sync functions and accept any arguments - including the event object, if desired.
+The event bus provides helpers for
 filtering entities and attributes. You can also provide additional
 predicates using the `where` parameter. In this example, we listen for
 any state change on the specified entity.

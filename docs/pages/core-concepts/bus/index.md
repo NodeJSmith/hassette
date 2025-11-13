@@ -37,7 +37,7 @@ subscribing.
 
 ## Event Model
 
-Every event you receive from the bus is an `hassette.events.base.Event`
+Every event you receive from the bus is an [`Event`][hassette.events.base.Event]
 dataclass with two main fields:
 
 - `topic` — a string identifier describing what happened, such as
@@ -64,7 +64,7 @@ These helper methods cover the majority of use cases:
 - `on_call_service` — listen for service calls
 - `on` — subscribe directly to any event topic
 
-Each method returns a `hassette.bus.listeners.Subscription` handle,
+Each method returns a [`Subscription`][hassette.bus.listeners.Subscription] handle,
 which you can keep to unsubscribe later.
 
 ```python
@@ -87,7 +87,7 @@ Each event's `payload.data` contains the actual content.
 
 - **State changes** → `entity_id`, `old_state`, `new_state` (both state
   objects are typed Pydantic models inheriting from
-  `hassette.models.states.base.BaseState`)
+  [`BaseState`][hassette.models.states.base.BaseState])
 
   Common properties:
 
@@ -96,7 +96,7 @@ Each event's `payload.data` contains the actual content.
   - `.domain` and `.entity_id` - convenience accessors
   - `.last_changed` / `.last_updated` - timestamps
 
-- **Service calls** → `hassette.events.hass.hass.CallServicePayload`
+- **Service calls** → [`CallServicePayload`][hassette.events.hass.hass.CallServicePayload]
   with `domain`, `service`, and `service_data` fields.
 
 ## Advanced Subscriptions
@@ -154,7 +154,7 @@ self.bus.on_state_change(
 )
 ```
 
-See `hassette.bus.predicates` for the full list of built-ins.
+See [`hassette.bus.predicates`][hassette.bus.predicates] for the full list of built-ins.
 
 ## Rate Control
 
@@ -250,8 +250,8 @@ Predicates can be composed and reused for complex filtering logic.
 
 ## See Also
 
-- [Core concepts](../index.md) — how apps fit into the overall architecture.
-- [Apps](../apps/index.md) — how apps fit into the overall architecture.
+- [Core concepts](../index.md) — back to the core concepts overview.
+- [Apps](../apps/index.md) — more on app anatomy, lifecycle, and capabilities.
 - [Scheduler](../scheduler/index.md) — more on scheduling jobs and intervals.
 - [API](../api/index.md) — more on interacting with Home Assistant's APIs.
 - [Configuration](../configuration/index.md) — Hassette and app configuration.

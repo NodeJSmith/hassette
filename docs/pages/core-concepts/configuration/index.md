@@ -109,8 +109,8 @@ Best practice: keep secrets in env vars or `.env`, and leave TOML for non-secret
 
 ## See also
 
-- [Core concepts](../index.md)
-- [Apps](../apps/index.md)
-- [Scheduler](../scheduler/index.md)
-- [Bus](../bus/index.md)
-- [API](../api/index.md)
+- [Core Concepts](../index.md) — back to the core concepts overview
+- [Apps](../apps/index.md) — more on app anatomy, lifecycle, and capabilities
+- [Scheduler](../scheduler/index.md) — more on scheduling jobs and intervals
+- [Bus](../bus/index.md) — more on subscribing to and handling events
+- [API](../api/index.md) — more on interacting with Home Assistant's APIs

@@ -84,9 +84,7 @@ You don’t need additional wiring—Hassette automatically discovers apps in th
 Run Hassette again to see the app in action:
 
 ```bash
-uv run hassette --base-url 'http://localhost:8123' \
-  -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' \
-  --app-dir .
+uv run hassette --base-url 'http://localhost:8123' -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' --app-dir .
 ```
 
 You should see logs showing the app starting and the greeting being logged.
