@@ -7,6 +7,21 @@ framework updates to any app that subscribes.
 Apps register event handlers through `self.bus`, which is created
 automatically at app instantiation.
 
+```mermaid
+graph LR
+    HA[Home Assistant<br/>Events] --> WS[WebSocket]
+    WS --> BUS[BusService]
+    BUS --> |state_changed| APP1[App Handler 1]
+    BUS --> |call_service| APP2[App Handler 2]
+    BUS --> |custom_event| APP3[App Handler 3]
+
+    style HA fill:#41bdf5
+    style BUS fill:#ff6b6b
+    style APP1 fill:#4ecdc4
+    style APP2 fill:#4ecdc4
+    style APP3 fill:#4ecdc4
+```
+
 ## Overview
 
 You can register handlers for any [Home Assistant

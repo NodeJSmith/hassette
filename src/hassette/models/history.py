@@ -6,6 +6,8 @@ from whenever import Instant
 
 
 class HistoryEntry(BaseModel):
+    """A single history entry for an entity."""
+
     model_config = {"arbitrary_types_allowed": True}
 
     entity_id: str

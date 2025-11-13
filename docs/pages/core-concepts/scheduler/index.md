@@ -7,6 +7,28 @@ no required signature for scheduled callables; you can provide parameters using 
 The scheduler is created at app instantiation and is available as `self.scheduler`. There are multiple helper methods to schedule jobs, described below.
 These return a `ScheduledJob` instance you can keep to inspect or manage the job later. To cancel a job, call its `cancel()` method.
 
+```mermaid
+graph TB
+    APP[Your App] --> |run_in| SCHED[Scheduler]
+    APP --> |run_every| SCHED
+    APP --> |run_daily| SCHED
+    APP --> |run_cron| SCHED
+
+    SCHED --> |manages| JOB1[ScheduledJob 1]
+    SCHED --> |manages| JOB2[ScheduledJob 2]
+    SCHED --> |manages| JOB3[ScheduledJob N]
+
+    JOB1 --> |executes at| TIME1[Specific Time/Interval]
+    JOB2 --> |executes at| TIME2[Specific Time/Interval]
+    JOB3 --> |executes at| TIME3[Specific Time/Interval]
+
+    style APP fill:#4ecdc4
+    style SCHED fill:#ff6b6b
+    style JOB1 fill:#ffe66d
+    style JOB2 fill:#ffe66d
+    style JOB3 fill:#ffe66d
+```
+
 !!! note
     The cron helper uses `croniter` under the hood, so you can use any cron syntax it supports for the parameters. This will likely be updated in the future
     to expose more `croniter` features. The interval helpers use `whenever` under the hood. All scheduling is done using `whenever`s `ZonedDateTime`.

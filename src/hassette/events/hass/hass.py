@@ -16,6 +16,8 @@ if typing.TYPE_CHECKING:
 
 @dataclass(slots=True, frozen=True)
 class CallServicePayload:
+    """Payload for a call_service event in Home Assistant."""
+
     domain: str
     service: str
     service_data: dict[str, Any] = field(default_factory=dict)
@@ -24,23 +26,31 @@ class CallServicePayload:
 
 @dataclass(slots=True, frozen=True)
 class ComponentLoadedPayload:
+    """Payload for a component_loaded event in Home Assistant."""
+
     component: str
 
 
 @dataclass(slots=True, frozen=True)
 class ServiceRegisteredPayload:
+    """Payload for a service_registered event in Home Assistant."""
+
     domain: str
     service: str
 
 
 @dataclass(slots=True, frozen=True)
 class ServiceRemovedPayload:
+    """Payload for a service_removed event in Home Assistant."""
+
     domain: str
     service: str
 
 
 @dataclass(slots=True, frozen=True)
 class LogbookEntryPayload:
+    """Payload for a logbook_entry event in Home Assistant."""
+
     name: str
     message: str
     domain: str | None = None
@@ -49,16 +59,22 @@ class LogbookEntryPayload:
 
 @dataclass(slots=True, frozen=True)
 class UserAddedPayload:
+    """Payload for a user_added event in Home Assistant."""
+
     user_id: str
 
 
 @dataclass(slots=True, frozen=True)
 class UserRemovedPayload:
+    """Payload for a user_removed event in Home Assistant."""
+
     user_id: str
 
 
 @dataclass(slots=True, frozen=True)
 class AutomationTriggeredPayload:
+    """Payload for an automation_triggered event in Home Assistant."""
+
     name: str
     entity_id: str
     source: str  # this one isn't on the docs page but is included apparently
@@ -67,12 +83,16 @@ class AutomationTriggeredPayload:
 
 @dataclass(slots=True, frozen=True)
 class ScriptStartedPayload:
+    """Payload for a script_started event in Home Assistant."""
+
     name: str
     entity_id: str
 
 
 @dataclass(slots=True, frozen=True)
 class StateChangePayload(Generic[StateT]):
+    """Payload for a state_changed event in Home Assistant."""
+
     entity_id: str
     old_state: StateT | None
     """The previous state of the entity before it changed. Omitted if the state is set for the first time."""

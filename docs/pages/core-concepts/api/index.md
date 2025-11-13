@@ -5,6 +5,35 @@ WebSocket endpoints with typed models so your apps can query and mutate data wit
 requests. All calls run on Hassette's asyncio loop and share the same authentication/session that the
 framework manages for you.
 
+```mermaid
+graph TB
+    APP[Your App] --> |self.api| API[Api Client]
+
+    subgraph "Api Methods"
+        GET[get_state<br/>get_states<br/>get_entity]
+        CALL[call_service<br/>turn_on/off<br/>toggle]
+        OTHER[render_template<br/>fire_event<br/>get_history]
+    end
+
+    API --> GET
+    API --> CALL
+    API --> OTHER
+
+    GET --> |uses| CONN[REST/WebSocket]
+    CALL --> |uses| CONN
+    OTHER --> |uses| CONN
+
+    CONN --> HA[Home Assistant]
+
+    style APP fill:#4ecdc4
+    style API fill:#ff6b6b
+    style GET fill:#ffe66d
+    style CALL fill:#ffe66d
+    style OTHER fill:#ffe66d
+    style CONN fill:#a8dadc
+    style HA fill:#41bdf5
+```
+
 ## Key capabilities
 
 - Retrieve states and entities as rich Pydantic models (with raw variants available when needed) using
