@@ -22,7 +22,7 @@ I split Hassette into its own private project and kept iterating. I wasn’t rea
 Based on these experiences, Hassette was built with a few principles:
 
 - **Type safety first.** I never want to step through code to discover basic type information. That’s why Pydantic powers configuration and data models, handlers use the extra-precise [HandlerType][hassette.types.handler.HandlerType], and `pyright` is a required pre-push hook.
-- **Async by default.** I originally considered skipping sync support entirely and immediately regretted it for my own projects. Async everywhere makes it simpler to work with modern Python libraries. Sync is available through a bridge for the cases that need it.
+- **Async by default.** Async everywhere makes it simpler to work with modern Python libraries. Sync is available through a bridge for the cases that need it.
 - **Keep scope tight.** Hassette is about Home Assistant automations - not dashboards, not arbitrary services. AD’s extensibility is impressive but adds complexity most users don’t need. MQTT will probably land eventually, but it will likely not be a first-class citizen and instead be available as methods on the existing resources/services.
 - **Ship with tests.** The core framework has decent coverage (always room for more). There’s also an internal test harness I plan to publish so you can test your own apps easily.
 - **Boring logging, visible errors.** Every class gets a plain stdlib logger. Exceptions don’t crash the system (AppDaemon got that right) but you still get tracebacks, line numbers, and function names where it matters.
