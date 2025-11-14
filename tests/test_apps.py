@@ -54,6 +54,32 @@ class TestApps:
         assert "MyApp" in class_names, "MyApp should be in the list of running apps"
         assert "MyAppSync" in class_names, "MyAppSync should be in the list of running apps"
 
+    async def test_handle_changes_does_not_lose_apps(self) -> None:
+        """Verify that calling handle_changes() without config modifications preserves all running apps."""
+
+        orig_apps = set(self.app_handler.apps.keys())
+
+        event = asyncio.Event()
+
+        async def handler(*args, **kwargs):  # noqa
+            self.hassette.task_bucket.post_to_loop(event.set)
+
+        self.hassette._bus_service.add_listener(
+            Listener.create(
+                self.app_handler.task_bucket,
+                owner="test",
+                topic=HASSETTE_EVENT_APP_LOAD_COMPLETED,
+                handler=handler,
+                where=None,
+            )
+        )
+
+        await self.app_handler.handle_changes()
+        await asyncio.wait_for(event.wait(), timeout=1)
+
+        new_apps = set(self.app_handler.apps.keys())
+        assert orig_apps == new_apps, "No apps should be lost during handle_changes"
+
     async def test_handle_changes_disables_app(self) -> None:
         """Verify that editing hassette.toml to disable an app stops the running instance."""
 

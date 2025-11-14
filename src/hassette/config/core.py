@@ -109,7 +109,7 @@ class HassetteConfig(BaseSettings):
     """Access token for Home Assistant instance"""
 
     # has to be before apps to allow auto-detection
-    autodetect_apps: bool = Field(default=True)
+    autodetect_apps: bool = Field(default=True, validation_alias=AliasChoices("autodetect_apps", "auto_detect_apps"))
     """Whether to automatically detect apps in the app directory."""
 
     extend_autodetect_exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)

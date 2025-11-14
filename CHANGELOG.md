@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.15.5] - 2025-11-14
+
 ### Changed
-- **Breaking:** Rename all `auto_detect` values to `autodetect` (e.g. `auto_detect_apps` -> `autodetect_apps`)
 - Update `HassetteConfig` defaults to differ if in dev mode
   - Generally speaking, values are extended (e.g. timeouts) and more permissive (e.g. `allow_startup_if_app_precheck_fails = true` in dev mode)
 - Moved `AppManifest` and `HassetteTomlConfigSettingsSource` to `classes.py`
@@ -16,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `core_config.py` to `core.py`
 - Bumped version of `uv` in `mise.toml`, docker image, and build backend
 - Converted docs to mkdocs instead of sphinx
+
+### Fixed
+- Fixed bug in AppHandler where all apps would be lost when `handle_changes` was called, due to improper reloading of configuration
+  - Now uses `HassetteConfig.reload()` to reload config instead of re-initializing the class
 
 ## [0.15.4] - 2025-11-07
 

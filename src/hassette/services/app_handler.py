@@ -363,7 +363,7 @@ class AppHandler(Resource):
         # Reinitialize config to pick up changes.
         # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
         try:
-            self.hassette.config.__init__()
+            self.hassette.config.reload()
         except Exception as e:
             self.logger.exception("Failed to reload configuration: %s", e)
 
@@ -383,7 +383,7 @@ class AppHandler(Resource):
         orphans, new_apps, reimport_apps, reload_apps = self._calculate_app_changes(
             original_apps_config, curr_apps_config, changed_file_path
         )
-        self.logger.debug(
+        self.logger.info(
             "App changes detected - orphans: %s, new: %s, reimport: %s, reload: %s",
             orphans,
             new_apps,

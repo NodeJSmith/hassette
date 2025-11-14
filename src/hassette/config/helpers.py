@@ -10,6 +10,7 @@ from warnings import warn
 import platformdirs
 from packaging.version import Version
 
+from hassette import context
 from hassette.types.types import LOG_LEVELS
 
 LOG_LEVEL_VALUES = get_args(LOG_LEVELS)
@@ -37,20 +38,32 @@ def get_dev_mode() -> bool:
     Returns:
         True if developer mode is enabled, False otherwise.
     """
+
+    curr_config = context.HASSETTE_CONFIG.get(None)
+    if curr_config:
+        # not sure if we can even change this during runtime, but for now we are not
+        # going to allow it
+        return curr_config.dev_mode
+
     logger = logging.getLogger(__name__)
+
+    enabled = False
+    reason = None
+
     if "debugpy" in sys.modules:
-        logger.warning("Developer mode enabled via 'debugpy'")
-        return True
+        enabled = True
+        reason = "debugpy"
+    elif sys.gettrace() is not None:
+        enabled = True
+        reason = "sys.gettrace()"
+    elif sys.flags.dev_mode:
+        enabled = True
+        reason = "python -X dev"
 
-    if sys.gettrace() is not None:
-        logger.warning("Developer mode enabled via 'sys.gettrace()'")
-        return True
+    if enabled:
+        logger.info("Developer mode enabled (%s)", reason)
 
-    if sys.flags.dev_mode:
-        logger.warning("Developer mode enabled via 'python -X dev'")
-        return True
-
-    return False
+    return enabled
 
 
 def default_config_dir() -> Path:
