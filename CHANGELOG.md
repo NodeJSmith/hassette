@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.15.5] - 2025-11-14
+
 ### Changed
 - Update `HassetteConfig` defaults to differ if in dev mode
   - Generally speaking, values are extended (e.g. timeouts) and more permissive (e.g. `allow_startup_if_app_precheck_fails = true` in dev mode)
