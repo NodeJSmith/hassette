@@ -134,7 +134,9 @@ class ApiResource(Resource):
                 request_kwargs["params"] = params
 
             try:
-                response = await self._session.request(method, url, **request_kwargs, **kwargs)
+                response = await self._session.request(
+                    method, url, ssl=self.hassette.config.verify_ssl, **request_kwargs, **kwargs
+                )
                 self.logger.debug("Making %s request to %s with data %s", method, response.real_url, str_data)
                 response.raise_for_status()
 

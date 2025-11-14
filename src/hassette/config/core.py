@@ -98,6 +98,10 @@ class HassetteConfig(BaseSettings):
     base_url: str = Field(default="http://127.0.0.1:8123")
     """Base URL of the Home Assistant instance"""
 
+    verify_ssl: bool = Field(default=True)
+    """Whether to verify SSL certificates when connecting to Home Assistant. Useful to disable for self-signed
+    certificates."""
+
     token: str = Field(
         default=...,
         validation_alias=AliasChoices("token", "hassette__token", "ha_token", "home_assistant_token"),
