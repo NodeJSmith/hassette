@@ -310,7 +310,7 @@ If your job isn't executing:
 
 ### Job Running Too Often/Not Often Enough
 
-- For `run_every`, ensure `interval` is in **seconds** (not minutes!)
+- For `run_every`, ensure `interval` is in **seconds**, not minutes
 - For cron jobs, test your expression with an online cron calculator
 - Check `job.next_run` to see when the scheduler thinks it will execute next
 - Remember that `run_minutely(minutes=5)` means "every 5 minutes", not "at minute 5"
