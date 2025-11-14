@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped version of `uv` in `mise.toml`, docker image, and build backend
 - Converted docs to mkdocs instead of sphinx
 
+### Fixed
+- Fixed bug in AppHandler where all apps would be lost when `handle_changes` was called, due to improper reloading of configuration
+  - Now uses `HassetteConfig.reload()` to reload config instead of re-initializing the class
+
 ## [0.15.4] - 2025-11-07
 
 ### Added
