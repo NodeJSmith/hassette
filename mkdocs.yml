@@ -30,9 +30,7 @@ nav:
       - API: pages/core-concepts/api/index.md
       - Configuration: pages/core-concepts/configuration/index.md
   - Why Hassette?: pages/why-hassette.md
-  - Comparisons:
-      - Overview: pages/comparisons/index.md
-      - AppDaemon: pages/comparisons/appdaemon.md
+  - AppDaemon Comparison: pages/appdaemon-comparison.md
   - API Reference: reference/
 
 plugins:

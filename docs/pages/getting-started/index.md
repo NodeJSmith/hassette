@@ -104,7 +104,7 @@ Configuration files are TOML and define both global Hassette settings and app-sp
 `.env` files are searched in the same locations. Override either path with `--config-file / -c` or `--env-file / -e`.
 
 ```bash
-uvx hassette -c ./config/hassette.toml -e ./config/.env
+uv run hassette -c ./config/hassette.toml -e ./config/.env
 ```
 
 ### Home Assistant token
@@ -162,7 +162,7 @@ Now that Hassette is running with your first app, here are logical next steps.
 ### 📚 Learn more
 
 - [Why Hassette?](../why-hassette.md) – the story and philosophy behind the framework.
-- [vs AppDaemon](../comparisons/appdaemon.md) – migration notes if you’re switching from AppDaemon.
+- [vs AppDaemon](../appdaemon-comparison.md) – migration notes if you’re switching from AppDaemon.
 
 ### 🔧 Development workflow
 

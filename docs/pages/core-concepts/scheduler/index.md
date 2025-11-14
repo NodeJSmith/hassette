@@ -32,25 +32,28 @@ graph TB
 !!! note
     The cron helper uses `croniter` under the hood, so you can use any cron syntax it supports for the parameters. This will likely be updated in the future
     to expose more `croniter` features. The interval helpers use `whenever` under the hood. All scheduling is done using `whenever`s `ZonedDateTime`.
-    This will likely need to be updated in the future to something that won't break during DST transitions, but I hadn't thought of that yet when implementing this.
 
 While schedule helpers will have different signatures, all will take the following optional parameters:
 
- - `start` - Provide details for when to first call the job.
+**`start`** - Provide details for when to first call the job:
 
-    - If an `int` or `float`, this is a delay in seconds from now.
-    - If a `ZonedDateTime`, this is the exact time to run.
-    - If a `TimeDelta`, this is added to the current time to get the first run time.
-    - If `tuple[int, int]`, this is treated as `(hour, minute)` and added to the current time to get the first run time.
-    - If `Time` (from `whenever`) or `time` (from stdlib), the hours and minutes are added to the current time to get the first run time.
-    - If `None` (the default), the job is scheduled to run immediately and then according to its interval or cron schedule.
+| Type                                        | Behavior                                                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `int` or `float`                            | Delay in seconds from now                                                                             |
+| `ZonedDateTime`                             | Exact time to run                                                                                     |
+| `TimeDelta`                                 | Added to current time to get first run time                                                           |
+| `tuple[int, int]`                           | Treated as `(hour, minute)` and added to current time                                                 |
+| `Time` (from `whenever`) or `time` (stdlib) | Hours and minutes added to current time                                                               |
+| `None` (default)                            | Apply the defined logic to the current time (e.g. `run_hourly` would run at current time + `n` hours) |
 
- - `name` - A name for the job, useful for logging and debugging.
- - `args` - Positional arguments to pass to your callable, keyword-only.
- - `kwargs` - Keyword arguments to pass to your callable, keyword-only.
+**Other parameters:**
+
+- `name` - A name for the job, useful for logging and debugging.
+- `args` - Positional arguments to pass to your callable, keyword-only.
+- `kwargs` - Keyword arguments to pass to your callable, keyword-only.
 
 !!! note
-    The `kwargs` parameter is a single parameter that expects a dictionary. The helper methods do not accept variable keyword arguments (e.g. `**kwargs`),
+    The `kwargs` parameter is a single parameter that expects a dictionary. The helper methods do not accept variadic keyword arguments (e.g. `**kwargs`),
     to avoid ambiguity with other parameters.
 
 ```python
@@ -64,7 +67,7 @@ Each helper returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] 
 
 Helper methods include the following:
 
- - `run_once`: Run once after a delay, does not accept any additional schedule parameters.
+ - `run_once`: Run once at provided time, does not accept any additional schedule parameters.
  - `run_in`: Run once after a delay, accepts `delay` (`TimeDelta` or seconds).
  - `run_every`: Run repeatedly at a fixed interval, accepts `interval` (`TimeDelta` or seconds).
  - `run_minutely`: Run repeatedly every N minutes, accepts `minutes` (int).
