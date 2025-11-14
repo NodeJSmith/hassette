@@ -8,7 +8,7 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 
 Hassette is a framework that helps you write Home Assistant automations in Python. Instead of using the HA user interface or writing YAML, you create "apps" as Python classes that respond to Home Assistant events, call services, and manage state.
 
-If you're familiar with the Python ecoystem, consider it like a marriage between AppDaemon and FastAPI - HA automations built on modern async Python, Pydantic models, and type safety.
+If you're familiar with the Python ecosystem, consider it like a marriage between AppDaemon and FastAPI - HA automations built on modern async Python, Pydantic models, and type safety.
 
 **Key features**
 
