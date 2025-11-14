@@ -31,7 +31,7 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
             super().__init__(settings_cls, self.toml_file_path)
             return
 
-        LOGGER.info("Merging 'hassette' section from TOML config into top level")
+        LOGGER.debug("Merging 'hassette' section from TOML config into top level")
         top_level_keys = set(self.toml_data.keys()) - {"hassette"}
         hassette_values = self.toml_data.pop("hassette")
         for key in top_level_keys.intersection(hassette_values.keys()):
