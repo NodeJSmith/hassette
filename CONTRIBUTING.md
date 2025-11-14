@@ -162,16 +162,25 @@ Then visit http://localhost:8000
 
 ```
 src/hassette/
-├── api/           # API client for Home Assistant
-├── app/           # Base app classes
-├── bus/           # Event bus and predicates
-├── config/        # Configuration models
-├── core/          # Core runtime
-├── events/        # Event models
-├── models/        # State and entity models
-├── scheduler/     # Task scheduling
-├── services/      # Background services
-└── utils/         # Utility functions
+├── api                 # API surface
+├── app                 # App base classes
+├── bus                 # Event bus and predicates
+├── config              # Configuration models
+├── const               # Constants
+├── context.py          # Context management
+├── core.py             # Core runtime
+├── events              # Event models
+├── exceptions.py       # Custom exceptions
+├── logging_.py         # Logging configuration
+├── models              # State and entity models
+├── py.typed            # Marker for type checking
+├── resources           # Base resource classes
+├── scheduler           # Task scheduling
+├── services            # Background services
+├── task_bucket.py      # Task bucket implementation
+├── test_utils          # Test utilities
+├── types               # Type definitions
+└── utils               # Utility functions
 ```
 
 ## Questions?
