@@ -95,7 +95,7 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 
 ## 🛣️ Status & Roadmap
 
-Hassette is under active development. We follow [semantic versioning](https://semver.org/) and recommend pinning a minor version (e.g., `hassette~=0.2.0`) while the API stabilizes.
+Hassette is under active development. We follow [semantic versioning](https://semver.org/) and recommend pinning a minor version (e.g., `hassette~=0.x.0`) while the API stabilizes.
 
 Development is tracked in our [GitHub project](https://github.com/users/NodeJSmith/projects/1). Open an issue or PR if you'd like to contribute!
 
