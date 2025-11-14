@@ -39,7 +39,7 @@ def get_dev_mode() -> bool:
         True if developer mode is enabled, False otherwise.
     """
 
-    curr_config = context.HASSETTE_CONFIG.get()
+    curr_config = context.HASSETTE_CONFIG.get(None)
     if curr_config:
         # not sure if we can even change this during runtime, but for now we are not
         # going to allow it
