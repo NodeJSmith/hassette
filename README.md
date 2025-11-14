@@ -13,61 +13,110 @@
 
 A simple, modern, async-first Python framework for building Home Assistant automations.
 
-Documentation: https://hassette.readthedocs.io
+**Documentation**: https://hassette.readthedocs.io
 
-Why Hassette?
--------------
-- **Type Safe**: Full type annotations and IDE support
+## ✨ Why Hassette?
+
+- **Type Safe**: Full type annotations with Pydantic models and comprehensive IDE support
 - **Async-First**: Built for modern Python with async/await throughout
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
-- **Developer Experience**: Clear error messages, proper logging, hot-reloading
+- **Developer Experience**: Clear error messages, proper logging, hot-reloading, and intuitive APIs
 
-## AppDaemon User?
+## 🚀 Quick Start
 
-We have a dedicated comparison guide for AppDaemon users considering Hassette:
+Install Hassette:
 
-- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/pages/appdaemon-comparison/index.html)
+```bash
+pip install hassette
+```
 
-## 📖 Examples
+Create a simple app (`apps/hello.py`):
 
-Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) directory for more complete examples:
-- Based on AppDaemon's examples:
-  - [Battery monitoring](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/battery.py)
-  - [Presence detection](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/presence.py)
-  - [Sensor notifications](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/sensor_notification.py)
-- Cleaned up versions of my own apps:
-  - [Office Button App](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/office_button_app.py)
-  - [Laundry Room Lights](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/laundry_room_light.py)
-- `docker-compose.yml` example: [docker-compose.yml](https://github.com/NodeJSmith/hassette/blob/main/examples/docker-compose.yml)
-- `hassette.toml` example: [hassette.toml](https://github.com/NodeJSmith/hassette/blob/main/examples/config/hassette.toml)
+```python
+from hassette import App
+
+class HelloApp(App):
+    async def on_initialize(self):
+        self.bus.on_state_change(
+            "binary_sensor.front_door",
+            handler=self.on_door_open,
+            changed_to="on"
+        )
+
+    async def on_door_open(self, event):
+        self.logger.info("Front door opened!")
+        await self.api.call_service(
+            "notify", "mobile_app_phone",
+            message="Front door opened!"
+        )
+```
+
+Configure it (`config/hassette.toml`):
+
+```toml
+[hassette]
+base_url = "http://homeassistant.local:8123"
+
+[apps.hello]
+filename = "hello.py"
+class_name = "HelloApp"
+```
+
+Run it:
+
+```bash
+uv run hassette
+```
+
+See the [Getting Started guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/) for detailed instructions.
+
+## 🔄 Coming from AppDaemon?
+
+Check out our dedicated comparison guide:
+
+- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/pages/appdaemon-comparison/)
+
+## 📖 More Examples
+
+Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) directory for complete working examples:
+
+**Based on AppDaemon's examples**:
+- [Battery monitoring](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/battery.py) - Monitor device battery levels
+- [Presence detection](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/presence.py) - Track who's home
+- [Sensor notifications](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/sensor_notification.py) - Alert on sensor changes
+
+**Real-world apps**:
+- [Office Button App](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/office_button_app.py) - Multi-function button handler
+- [Laundry Room Lights](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/laundry_room_light.py) - Motion-based lighting
+
+**Configuration examples**:
+- [Docker Compose Guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/docker/) - Docker deployment setup
+- [hassette.toml](https://github.com/NodeJSmith/hassette/blob/main/examples/config/hassette.toml) - Complete configuration reference
 
 ## 🛣️ Status & Roadmap
 
-Hassette is brand new and under active development. We follow semantic versioning and recommend pinning a minor version while the API stabilizes.
+Hassette is under active development. We follow [semantic versioning](https://semver.org/) and recommend pinning a minor version (e.g., `hassette~=0.2.0`) while the API stabilizes.
 
-Hassette development is tracked in [this project](https://github.com/users/NodeJSmith/projects/1) (still a slight work-in-progress) - open an issue or PR if you'd like to contribute or provide feedback!
+Development is tracked in our [GitHub project](https://github.com/users/NodeJSmith/projects/1). Open an issue or PR if you'd like to contribute!
 
-### Current Focus Areas
+### What's Next?
 
-- 📚 **Comprehensive documentation**
-- 🔐 **Enhanced type safety**: Service calls/responses, additional state types
-- 🏗️ **Entity classes**: Include state data and service functionality (e.g. `LightEntity.turn_on()`)
-- 🔄 **Enhanced error handling**: Better retry logic and error recovery
-- 🧪 **Testing improvements**:
-  - 📊 More tests for core and utilities
-  - 🛠️ Test fixtures and framework for user apps
-  - 🚫 No more manual state changes in HA Developer Tools for testing!
+- 🔐 **Enhanced type safety** - Fully typed service calls and additional state models
+- 🏗️ **Entity classes** - Rich entity objects with built-in methods (e.g., `await light.turn_on()`)
+- 💾 **State cache** - Local state caching for faster reads (similar to AppDaemon)
+- 🔄 **Enhanced error handling** - Better retry logic and error recovery
+- 🧪 **Testing improvements** - More comprehensive test coverage and user app testing framework
 
 ## 🤝 Contributing
 
-Hassette is in active development and contributions are welcome! Whether you're:
+Contributions are welcome! Whether you're:
 
-- 🐛 Reporting bugs
-- 💡 Suggesting features
+- 🐛 Reporting bugs or issues
+- 💡 Suggesting features or improvements
 - 📝 Improving documentation
 - 🔧 Contributing code
 
-Early feedback and contributions help shape the project's direction.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on getting started.
 
 ## 📄 License
 
