@@ -7,13 +7,10 @@ You generally will not need to use these directly — the main bus helpers use t
 the relevant data to predicates. For example, ``on_state_change`` uses ``get_state_value_old`` and
 ``get_state_value_new`` to provide the old and new state values to predicates like ``StateFrom`` and ``StateTo``.
 
-Examples
---------
+Examples:
+    Extracting a specific key from service_data
 
-**Extracting a specific key from service_data**
-
-.. code-block:: python
-
+    ```python
     from hassette import accessors as A
     from hassette import predicates as P
 
@@ -24,12 +21,11 @@ Examples
         handler=handler,
         where=value_is,
     )
+    ```
 
+    Extracting a nested value using a glom path
 
-**Extracting a nested value using a glom path**
-
-.. code-block:: python
-
+    ```python
     from hassette import accessors as A
     from hassette import predicates as P
 
@@ -43,6 +39,7 @@ Examples
         handler=handler,
         changed_to=value_is,
     )
+    ```
 """
 
 import logging
@@ -172,11 +169,11 @@ def get_service_data_key(key: str) -> "Callable[[CallServiceEvent], Any]":
 
     Examples
     --------
-    Basic equality against a literal::
+    Basic equality against a literal
 
         ValueIs(source=get_service_data_key("entity_id"), condition="light.living_room")
 
-    Callable condition (value must be an int > 200)::
+    Callable condition (value must be an int > 200)
 
         ValueIs(source=get_service_data_key("brightness"), condition=lambda v: isinstance(v, int) and v > 200)
 

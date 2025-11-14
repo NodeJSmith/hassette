@@ -10,13 +10,10 @@ With helpers like `on_state_change` or `on_attribute_change` you will generally 
 or `changed_from`. These conditions will receive the relevant value extracted from the event. Some helpers also
 allow you to pass conditions to `changed`, which will receive both the old and new values for comparison.
 
-Examples
---------
+Examples:
+    Regex matching
 
-**Regex matching**
-
-.. code-block:: python
-
+    ```python
     from hassette import conditions as C
 
     self.bus.on_state_change(
@@ -24,11 +21,11 @@ Examples
         handler=handler,
         changed_to=C.Regex(r"^1101 Main .*"),
     )
+    ```
 
-**Value is in a collection**
+    Value is in a collection
 
-.. code-block:: python
-
+    ```python
     from hassette import conditions as C
 
     self.bus.on_state_change(
@@ -36,11 +33,11 @@ Examples
         handler=handler,
         changed_to=C.IsIn(["walking", "running"]),
     )
+    ```
 
-**Using comparison conditions**
+    Using comparison conditions
 
-.. code-block:: python
-
+    ```python
     from hassette import conditions as C
 
     self.bus.on_state_change(
@@ -48,6 +45,7 @@ Examples
         handler=handler,
         changed=C.Increased(),
     )
+    ```
 
 """
 
@@ -64,17 +62,15 @@ from hassette.utils.glob_utils import matches_globs
 class Glob:
     """Callable matcher for string glob patterns.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
+    ```python
+    ValueIs(source=get_entity_id, condition=Glob("light.*"))
 
-        ValueIs(source=get_entity_id, condition=Glob("light.*"))
-
-    Multiple patterns (wrap with AnyOf)::
-
-        AnyOf((ValueIs(source=get_entity_id, condition=Glob("light.*")),
-               ValueIs(source=get_entity_id, condition=Glob("switch.*"))))
+    # Multiple patterns (wrap with AnyOf)
+    AnyOf((ValueIs(source=get_entity_id, condition=Glob("light.*")),
+           ValueIs(source=get_entity_id, condition=Glob("switch.*"))))
+    ```
     """
 
     pattern: str
@@ -90,17 +86,15 @@ class Glob:
 class StartsWith:
     """Callable matcher for string startswith checks.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
+    ```python
+    ValueIs(source=get_entity_id, condition=StartsWith("light."))
 
-        ValueIs(source=get_entity_id, condition=StartsWith("light."))
-
-    Multiple prefixes (wrap with AnyOf)::
-
-        AnyOf((ValueIs(source=get_entity_id, condition=StartsWith("light.")),
-               ValueIs(source=get_entity_id, condition=StartsWith("switch."))))
+    # Multiple prefixes (wrap with AnyOf)
+    AnyOf((ValueIs(source=get_entity_id, condition=StartsWith("light.")),
+           ValueIs(source=get_entity_id, condition=StartsWith("switch."))))
+    ```
     """
 
     prefix: str
@@ -116,17 +110,15 @@ class StartsWith:
 class EndsWith:
     """Callable matcher for string endswith checks.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
+    ```python
+    ValueIs(source=get_entity_id, condition=EndsWith(".kitchen"))
 
-        ValueIs(source=get_entity_id, condition=EndsWith(".kitchen"))
-
-    Multiple suffixes (wrap with AnyOf)::
-
-        AnyOf((ValueIs(source=get_entity_id, condition=EndsWith(".kitchen")),
-               ValueIs(source=get_entity_id, condition=EndsWith(".living_room"))))
+    # Multiple suffixes (wrap with AnyOf)
+    AnyOf((ValueIs(source=get_entity_id, condition=EndsWith(".kitchen")),
+           ValueIs(source=get_entity_id, condition=EndsWith(".living_room"))))
+    ```
     """
 
     suffix: str
@@ -142,17 +134,15 @@ class EndsWith:
 class Contains:
     """Callable matcher for string containment checks.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
+    ```python
+    ValueIs(source=get_entity_id, condition=Contains("kitchen"))
 
-        ValueIs(source=get_entity_id, condition=Contains("kitchen"))
-
-    Multiple substrings (wrap with AnyOf)::
-
-        AnyOf((ValueIs(source=get_entity_id, condition=Contains("kitchen")),
-               ValueIs(source=get_entity_id, condition=Contains("living_room"))))
+    # Multiple substrings (wrap with AnyOf)
+    AnyOf((ValueIs(source=get_entity_id, condition=Contains("kitchen")),
+           ValueIs(source=get_entity_id, condition=Contains("living_room"))))
+    ```
     """
 
     substring: str
@@ -168,17 +158,15 @@ class Contains:
 class Regex:
     """Callable matcher for regex pattern matching.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
+    ```python
+    ValueIs(source=get_entity_id, condition=Regex(r"light\\..*kitchen"))
 
-        ValueIs(source=get_entity_id, condition=Regex(r"light\\..*kitchen"))
-
-    Multiple patterns (wrap with AnyOf)::
-
-        AnyOf((ValueIs(source=get_entity_id, condition=Regex(r"light\\..*kitchen")),
-               ValueIs(source=get_entity_id, condition=Regex(r"switch\\..*living_room"))))
+    # Multiple patterns (wrap with AnyOf)
+    AnyOf((ValueIs(source=get_entity_id, condition=Regex(r"light\\..*kitchen")),
+           ValueIs(source=get_entity_id, condition=Regex(r"switch\\..*living_room"))))
+    ```
     """
 
     pattern: str
@@ -214,13 +202,11 @@ class Missing:
 class IsIn:
     """Condition that checks if a value is in a given collection.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
-
-        ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
-
+    ```python
+    ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
+    ```
     """
 
     collection: Sequence[Any]
@@ -239,13 +225,11 @@ class IsIn:
 class NotIn:
     """Condition that checks if a value is not in a given collection.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
-
-        ValueIs(source=get_entity_id, condition=NotIn(collection=["light.kitchen", "light.living"]))
-
+    ```python
+    ValueIs(source=get_entity_id, condition=NotIn(collection=["light.kitchen", "light.living"]))
+    ```
     """
 
     collection: Sequence[Any]
@@ -264,13 +248,11 @@ class NotIn:
 class Intersects:
     """Condition that checks if a collection value intersects with a given collection.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
-
-        ValueIs(source=get_tags, condition=Intersects(collection=["kitchen", "living"]))
-
+    ```python
+    ValueIs(source=get_tags, condition=Intersects(collection=["kitchen", "living"]))
+    ```
     """
 
     collection: Sequence[Any]
@@ -292,13 +274,11 @@ class Intersects:
 class NotIntersects:
     """Condition that checks if a collection value does not intersect with a given collection.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
-
-        ValueIs(source=get_tags, condition=NotIntersects(collection=["kitchen", "living"]))
-
+    ```python
+    ValueIs(source=get_tags, condition=NotIntersects(collection=["kitchen", "living"]))
+    ```
     """
 
     collection: Sequence[Any]
@@ -320,15 +300,12 @@ class NotIntersects:
 class IsOrContains:
     """Condition that checks if a value is equal to or contained in a given collection.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
-
-        # check if the entity_id is either "light.kitchen" or a list containing it
-
-        ValueIs(source=get_entity_id, condition=IsOrContains("light.kitchen"))
-
+    ```python
+    # check if the entity_id is either "light.kitchen" or a list containing it
+    ValueIs(source=get_entity_id, condition=IsOrContains("light.kitchen"))
+    ```
     """
 
     condition: str
@@ -343,13 +320,11 @@ class IsOrContains:
 class IsNone:
     """Condition that checks if a value is None.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
-
-        ValueIs(source=get_attribute, condition=IsNone())
-
+    ```python
+    ValueIs(source=get_attribute, condition=IsNone())
+    ```
     """
 
     def __call__(self, value: Any) -> bool:
@@ -360,13 +335,11 @@ class IsNone:
 class IsNotNone:
     """Condition that checks if a value is not None.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
-
-        ValueIs(source=get_attribute, condition=IsNotNone())
-
+    ```python
+    ValueIs(source=get_attribute, condition=IsNotNone())
+    ```
     """
 
     def __call__(self, value: Any) -> bool:
@@ -380,13 +353,11 @@ class Increased:
     Expected to be used with predicates that provide both old and new values, such as StateComparison and
     AttrComparison. Returns False on type conversion errors.
 
-    Examples
-    --------
+    Examples:
 
-    .. code-block:: python
-
-        self.on_state_change("zone.home", changed=Increased())
-
+    ```python
+    self.on_state_change("zone.home", changed=Increased())
+    ```
     """
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
@@ -403,12 +374,11 @@ class Decreased:
     Expected to be used with predicates that provide both old and new values, such as StateComparison and
     AttrComparison. Returns False on type conversion errors.
 
+    Examples:
 
-
-    .. code-block:: python
-
-        self.on_state_change("zone.home", changed=Decreased())
-
+    ```python
+    self.on_state_change("zone.home", changed=Decreased())
+    ```
     """
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
