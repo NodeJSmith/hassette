@@ -623,3 +623,359 @@ class StateGetter(App):
         )
     )
 ```
+
+## Migration Guide
+
+If you're considering migrating from AppDaemon to Hassette, here's a structured approach to help you transition your apps:
+
+### 1. Configuration Files
+
+Convert your `appdaemon.yaml` and `apps.yaml` into a single `hassette.toml` file:
+
+**AppDaemon** (`appdaemon.yaml` + `apps.yaml`):
+```yaml
+# appdaemon.yaml
+appdaemon:
+  plugins:
+    HASS:
+      type: hass
+      ha_url: http://192.168.1.179:8123
+      token: !env_var HOME_ASSISTANT_TOKEN
+
+# apps.yaml
+my_app:
+  module: my_app
+  class: MyApp
+  args:
+    entity: light.kitchen
+    brightness: 200
+```
+
+**Hassette** (`hassette.toml`):
+```toml
+[hassette]
+base_url = "http://192.168.1.179:8123"
+# Token read from HASSETTE__TOKEN env var or .env file
+
+[apps.my_app]
+filename = "my_app.py"
+class_name = "MyApp"
+config = {entity = "light.kitchen", brightness = 200}
+```
+
+### 2. App Structure and Lifecycle
+
+Update your app class inheritance and lifecycle methods:
+
+**AppDaemon**:
+```python
+from appdaemon.plugins.hass import Hass
+
+class MyApp(Hass):
+    def initialize(self):
+        # Setup code here
+        pass
+```
+
+**Hassette**:
+```python
+from hassette import App
+
+class MyApp(App):
+    async def on_initialize(self):
+        # Setup code here (note: async)
+        pass
+```
+
+**Key differences**:
+
+- Change `Hass` to `App` or `AppSync`
+- Rename `initialize()` to `on_initialize()` (or use other lifecycle hooks)
+- Add `async` keyword for async apps
+- Use `await` for API calls and other async operations
+
+### 3. Typed Configuration
+
+Replace dictionary access with typed Pydantic models:
+
+**AppDaemon**:
+```python
+def initialize(self):
+    entity = self.args["args"]["entity"]
+    brightness = self.args["args"]["brightness"]
+```
+
+**Hassette**:
+```python
+from pydantic import Field
+from hassette import AppConfig
+
+class MyAppConfig(AppConfig):
+    entity: str = Field(..., description="The entity to monitor")
+    brightness: int = Field(100, ge=0, le=255)
+
+class MyApp(App[MyAppConfig]):
+    async def on_initialize(self):
+        entity = self.app_config.entity
+        brightness = self.app_config.brightness
+```
+
+**Benefits**:
+
+- Type safety and IDE autocompletion
+- Validation at startup (catches errors before runtime)
+- Clear documentation of required/optional parameters
+
+### 4. Event Handlers
+
+Update event and state change listeners to use typed events:
+
+#### State Changes
+
+**AppDaemon**:
+```python
+def initialize(self):
+    self.listen_state(self.on_motion, "binary_sensor.motion", new="on")
+
+def on_motion(self, entity, attribute, old, new, **kwargs):
+    self.log(f"Motion detected on {entity}")
+```
+
+**Hassette**:
+```python
+from hassette.events import StateChangeEvent
+from hassette import states
+
+async def on_initialize(self):
+    self.bus.on_state_change(
+        "binary_sensor.motion",
+        handler=self.on_motion,
+        changed_to="on"
+    )
+
+async def on_motion(self, event: StateChangeEvent[states.BinarySensorState]):
+    self.logger.info(f"Motion detected on {event.payload.data.entity_id}")
+```
+
+#### Service Calls
+
+**AppDaemon**:
+```python
+def initialize(self):
+    self.listen_event(
+        self.on_service,
+        "call_service",
+        domain="light",
+        service="turn_on"
+    )
+```
+
+**Hassette**:
+```python
+async def on_initialize(self):
+    self.bus.on_call_service(
+        domain="light",
+        service="turn_on",
+        handler=self.on_service
+    )
+```
+
+#### Canceling Subscriptions
+
+**AppDaemon**:
+```python
+handle = self.listen_state(...)
+self.cancel_listen_state(handle)
+```
+
+**Hassette**:
+```python
+subscription = self.bus.on_state_change(...)
+subscription.cancel()
+```
+
+### 5. Scheduler
+
+Update scheduling calls to use the new API:
+
+**AppDaemon**:
+```python
+from datetime import time
+
+def initialize(self):
+    self.run_in(self.delayed_task, 60)
+    self.run_daily(self.morning_task, time(7, 30))
+    handle = self.run_every(self.periodic_task, "now", 300)
+```
+
+**Hassette**:
+```python
+from datetime import time
+
+async def on_initialize(self):
+    self.scheduler.run_in(self.delayed_task, delay=60)
+    self.scheduler.run_daily(self.morning_task, start=time(7, 30))
+    job = self.scheduler.run_every(self.periodic_task, start=self.now(), interval=300)
+```
+
+**Key changes**:
+
+- Access via `self.scheduler` instead of `self`
+- Use named parameters (`delay=`, `start=`, `interval=`)
+- Jobs return rich `ScheduledJob` objects instead of opaque handles
+- Cancel with `job.cancel()` instead of `self.cancel_timer(handle)`
+
+### 6. API Calls
+
+Update Home Assistant API interactions:
+
+#### Getting States
+
+**AppDaemon**:
+```python
+def initialize(self):
+    state = self.get_state("light.kitchen")  # Returns string
+    state_dict = self.get_state("light.kitchen", attribute="all")  # Returns dict
+```
+
+**Hassette**:
+```python
+from hassette.models import states
+
+async def on_initialize(self):
+    # Typed state object
+    light = await self.api.get_state("light.kitchen", states.LightState)
+    brightness = light.attributes.brightness  # Type-safe access
+
+    # Or get just the value
+    value = await self.api.get_state_value("light.kitchen")  # Returns string
+```
+
+#### Calling Services
+
+**AppDaemon**:
+```python
+def my_callback(self, **kwargs):
+    self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)
+
+    # or use the helper
+    self.turn_on("light.kitchen", brightness=200)
+```
+
+**Hassette**:
+```python
+async def my_callback(self):
+    await self.api.call_service(
+        "light",
+        "turn_on",
+        target={"entity_id": "light.kitchen"},
+        brightness=200
+    )
+    # Or use the helper
+    await self.api.turn_on("light.kitchen", brightness=200)
+```
+
+#### Setting States
+
+**AppDaemon**:
+```python
+self.set_state("sensor.custom", state="42", attributes={"unit": "widgets"})
+```
+
+**Hassette**:
+```python
+await self.api.set_state("sensor.custom", state="42", attributes={"unit": "widgets"})
+```
+
+### 7. Logging
+
+Replace AppDaemon's logging with Python's standard logger:
+
+**AppDaemon**:
+```python
+self.log("This is a log message")
+self.log(f"Value: {value}")
+self.error("Something went wrong")
+```
+
+**Hassette**:
+```python
+self.logger.info("This is a log message")
+
+self.logger.info(f"Value: {value}")
+# or
+self.logger.info("Value: %s", value)
+
+self.logger.error("Something went wrong")
+```
+
+**Benefits**:
+
+- Standard Python logging interface
+- Automatic inclusion of method name and line number
+- Configurable per-app log levels in config file
+
+### 8. Sync vs Async
+
+Choose the right base class for your use case:
+
+**For mostly async operations** (recommended):
+```python
+from hassette import App
+
+class MyApp(App):
+    async def on_initialize(self):
+        await self.api.call_service(...)
+```
+
+**For blocking/IO operations**:
+```python
+from hassette import AppSync
+
+class MyApp(AppSync):
+    def on_initialize_sync(self):
+        # Use sync API
+        self.api.sync.call_service(...)
+```
+
+**Mixed approach** (offload blocking work):
+```python
+class MyApp(App):
+    async def on_initialize(self):
+        # Run blocking code in a thread
+        result = await self.task_bucket.run_in_thread(self.blocking_work)
+
+    def blocking_work(self):
+        # This runs in a thread pool
+        return expensive_computation()
+```
+
+### Migration Checklist
+
+- [ ] Convert configuration files to `hassette.toml`
+- [ ] Update app class inheritance (`Hass` → `App` or `AppSync`)
+- [ ] Create typed `AppConfig` models for each app
+- [ ] Update lifecycle methods (`initialize` → `on_initialize`)
+- [ ] Add `async`/`await` for async apps
+- [ ] Convert event listeners to use `self.bus` methods
+- [ ] Update scheduler calls to use `self.scheduler`
+- [ ] Migrate API calls to use `self.api` (with `await`)
+- [ ] Replace `self.log()` with `self.logger` methods
+- [ ] Test each app incrementally
+
+### Common Pitfalls
+
+!!! warning "Async Gotchas"
+    - Don't forget `await` on API calls - they'll return coroutines instead of results
+    - Don't use `self.api.sync` inside `App` lifecycle methods - use async methods instead
+    - Use `AppSync` if you have significant blocking/IO operations
+
+!!! tip "Configuration Access"
+    - In AppDaemon: `self.args["args"]["key"]`
+    - In Hassette: `self.app_config.key`
+    - Define all config keys in your `AppConfig` model for validation
+
+!!! info "State Cache"
+    - AppDaemon caches all states automatically
+    - Hassette currently makes direct API calls (cache coming in a future release)
+    - Use `get_states()` once and filter locally for better performance

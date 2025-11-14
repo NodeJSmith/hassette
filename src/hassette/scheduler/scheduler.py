@@ -5,23 +5,20 @@ The Scheduler provides intuitive methods for scheduling one-time and recurring t
 cron expressions, intervals, or simple time delays. Jobs are automatically cleaned up when
 the app shuts down, and support both async and sync callables.
 
-Examples
---------
+Examples:
+    One-time delayed execution
 
-**One-time delayed execution**
-
-.. code-block:: python
-
+    ```python
     # Run in 30 seconds
     self.scheduler.run_in(self.cleanup_task, 30)
 
     # Run at specific datetime
     self.scheduler.run_once(self.morning_routine, "2023-12-25 09:00:00")
+    ```
 
-**Recurring execution with intervals**
+    Recurring execution with intervals
 
-.. code-block:: python
-
+    ```python
     # Every 5 minutes
     self.scheduler.run_every(self.check_sensors, interval=300)
 
@@ -31,11 +28,11 @@ Examples
         interval=3600,
         start_in=600
     )
+    ```
 
-**Time-based recurring schedules**
+    Time-based recurring schedules
 
-.. code-block:: python
-
+    ```python
     # Every hour at 15 minutes past
     self.scheduler.run_hourly(self.log_status, minute=15)
 
@@ -44,11 +41,11 @@ Examples
 
     # Every minute at 30 seconds
     self.scheduler.run_minutely(self.quick_check, second=30)
+    ```
 
-**Cron-style scheduling**
+    Cron-style scheduling
 
-.. code-block:: python
-
+    ```python
     # Weekdays at 9 AM
     self.scheduler.run_cron(
         self.workday_routine,
@@ -64,11 +61,11 @@ Examples
         hour="9-17",
         day_of_week="mon-fri"
     )
+    ```
 
-**Using trigger objects for complex scheduling**
+    Using trigger objects for complex scheduling
 
-.. code-block:: python
-
+    ```python
     from hassette.scheduler import CronTrigger, IntervalTrigger
 
     # Complex cron trigger
@@ -85,11 +82,11 @@ Examples
         start_datetime=datetime(2023, 12, 1, 8, 0)
     )
     self.scheduler.schedule(self.periodic_task, trigger=trigger)
+    ```
 
-**Job management and naming**
+    Job management and naming
 
-.. code-block:: python
-
+    ```python
     # Named job for easier management
     job = self.scheduler.run_daily(
         self.backup_data,
@@ -103,6 +100,7 @@ Examples
 
     # Remove all jobs for this scheduler
     self.scheduler.remove_all_jobs()
+    ```
 """
 
 import asyncio

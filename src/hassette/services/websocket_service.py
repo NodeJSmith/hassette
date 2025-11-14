@@ -163,7 +163,9 @@ class WebsocketService(Service):
             self._session = session
 
             try:
-                self._ws = await session.ws_connect(self.url, heartbeat=self.heartbeat_interval_seconds)
+                self._ws = await session.ws_connect(
+                    self.url, heartbeat=self.heartbeat_interval_seconds, ssl=self.hassette.config.verify_ssl
+                )
             except ClientConnectorError as exc:
                 if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
                     raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__

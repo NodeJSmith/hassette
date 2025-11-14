@@ -152,11 +152,319 @@ example, libraries that expect synchronous hooks).
 --8<-- "pages/core-concepts/api/sync_facade_example.py:6:7"
 ```
 
-## Typing status
+## Common Patterns
 
-- Many models and read operations are strongly typed.
-- Service calls are not fully typed yet; finishing this is a high priority. For now, `call_service`
-  accepts `**data` and performs string normalization for REST parameters.
+### Getting Multiple States Efficiently
+
+Fetch all states once and filter locally instead of making multiple API calls:
+
+```python
+async def on_initialize(self):
+    # Get all states in one call
+    all_states = await self.api.get_states()
+
+    # Filter to what you need
+    lights = [s for s in all_states if s.domain == "light"]
+    low_battery = [s for s in all_states
+                   if hasattr(s.attributes, "battery_level")
+                   and s.attributes.battery_level < 20]
+
+    self.logger.info(f"Found {len(lights)} lights, {len(low_battery)} low batteries")
+```
+
+### Checking Entity Availability
+
+Before calling services, check if an entity is available:
+
+```python
+from hassette.models import states
+
+async def turn_on_if_available(self, entity_id: str):
+    state = await self.api.get_state(entity_id, states.LightState)
+
+    if state.is_unavailable:
+        self.logger.warning(f"{entity_id} is unavailable")
+        return
+
+    await self.api.turn_on(entity_id)
+```
+
+### Calling Services with Complex Data
+
+Use `call_service` for services that need structured data:
+
+```python
+async def send_notification(self, message: str, **options):
+    await self.api.call_service(
+        "notify",
+        "mobile_app_phone",
+        message=message,
+        title=options.get("title", "Hassette"),
+        data={
+            "priority": "high",
+            "ttl": 0,
+            "channel": "alerts",
+            "actions": [
+                {"action": "dismiss", "title": "Dismiss"},
+                {"action": "view", "title": "View Details"}
+            ]
+        }
+    )
+```
+
+### Using Templates for Dynamic Values
+
+Render Jinja templates to get computed values:
+
+```python
+async def get_friendly_time(self):
+    # Use HA's template engine for relative times
+    template = "{{ relative_time(states.sun.sun.last_changed) }}"
+    result = await self.api.render_template(template)
+    return result  # e.g., "2 hours ago"
+
+async def get_battery_average(self):
+    # Calculate average across all battery sensors
+    template = """
+    {% set batteries = states.sensor
+       | selectattr('attributes.device_class', 'eq', 'battery')
+       | map(attribute='state')
+       | map('float')
+       | list %}
+    {{ (batteries | sum / batteries | length) | round(1) }}
+    """
+    result = await self.api.render_template(template)
+    return float(result)
+```
+
+### Handling State Changes Reactively
+
+Combine API calls with bus events for responsive automations:
+
+```python
+async def on_initialize(self):
+    # Listen for motion
+    self.bus.on_state_change(
+        "binary_sensor.motion",
+        handler=self.on_motion,
+        changed_to="on"
+    )
+
+async def on_motion(self, event):
+    # Check if we should turn on lights
+    sun = await self.api.get_state("sun.sun", states.SunState)
+
+    if sun.value == "below_horizon":
+        await self.api.turn_on("light.hallway", brightness=128)
+```
+
+## Working with State Attributes
+
+All state models expose attributes as typed Pydantic models:
+
+```python
+from hassette.models import states
+
+async def check_climate(self):
+    climate = await self.api.get_state("climate.living_room", states.ClimateState)
+
+    # Access typed attributes
+    current_temp = climate.attributes.current_temperature  # float
+    target_temp = climate.attributes.temperature  # float | None
+    hvac_mode = climate.attributes.hvac_mode  # str
+
+    if current_temp and target_temp:
+        diff = abs(current_temp - target_temp)
+        if diff > 2:
+            self.logger.warning(f"Temperature off by {diff}°")
+```
+
+### Common Attributes to Check
+
+| Attribute             | Found On               | Type            | Use Case                          |
+| --------------------- | ---------------------- | --------------- | --------------------------------- |
+| `battery_level`       | Many devices           | `int | None`   | Monitor device health             |
+| `brightness`          | Lights                 | `int | None`   | Check/set light intensity (0-255) |
+| `temperature`         | Climate                | `float | None` | Target temperature                |
+| `current_temperature` | Climate                | `float | None` | Actual temperature                |
+| `media_title`         | Media players          | `str | None`   | What's playing                    |
+| `friendly_name`       | All entities           | `str`           | Display name                      |
+| `device_class`        | Sensors/binary sensors | `str | None`   | Type classification               |
+
+## Error Handling
+
+The API raises specific exceptions you can catch:
+
+```python
+from hassette.exceptions import EntityNotFoundError, InvalidAuthError, HomeAssistantError
+
+async def safe_state_check(self, entity_id: str):
+    try:
+        state = await self.api.get_state(entity_id, states.SensorState)
+        return state.value
+    except EntityNotFoundError:
+        self.logger.error(f"Entity {entity_id} not found")
+        return None
+    except InvalidAuthError:
+        self.logger.critical("Authentication failed - check token")
+        raise
+    except HomeAssistantError as e:
+        self.logger.error(f"HA API error: {e}")
+        return None
+```
+
+### Retry Behavior
+
+The API automatically retries failed requests with exponential backoff:
+
+- **Default retries**: 5 attempts
+- **Backoff**: Exponential with jitter
+- **Retryable errors**: Network issues, 5xx responses
+- **Non-retryable**: 404 (EntityNotFoundError), 401/403 (InvalidAuthError)
+
+## Performance Tips
+
+### Batch State Queries
+
+```python
+# SLOW: Multiple API calls
+for entity_id in ["light.1", "light.2", "light.3"]:
+    state = await self.api.get_state(entity_id, states.LightState)
+    # process state
+
+# FAST: One API call
+all_states = await self.api.get_states()
+lights = [s for s in all_states if s.entity_id in {"light.1", "light.2", "light.3"}]
+for light in lights:
+    # process state
+```
+
+### Cache States When Appropriate
+
+```python
+async def on_initialize(self):
+    # Cache states that don't change often
+    self.config_entities = await self.api.get_states()
+
+    # Refresh every 5 minutes
+    self.scheduler.run_every(self.refresh_cache, interval=300)
+
+async def refresh_cache(self):
+    self.config_entities = await self.api.get_states()
+```
+
+### Use State Cache (Coming Soon)
+
+!!! info "Roadmap"
+    A built-in state cache similar to AppDaemon's is planned. This will automatically maintain
+    an up-to-date local copy of all entity states, eliminating most API calls for reads.
+
+## History and Time-Based Queries
+
+### Getting Historical Data
+
+```python
+async def analyze_energy_usage(self):
+    # Get last 24 hours of data
+    start = self.now().subtract(hours=24)
+    end = self.now()
+
+    history = await self.api.get_history(
+        "sensor.energy_consumption",
+        start=start,
+        end=end
+    )
+
+    # Process the history entries
+    total = sum(float(entry.state) for entry in history if entry.state.isnumeric())
+    self.logger.info(f"24hr energy usage: {total} kWh")
+```
+
+### Using Logbook for Event Tracking
+
+```python
+async def get_recent_automations(self):
+    start = self.now().subtract(hours=1)
+
+    # Get logbook entries
+    entries = await self.api.get_logbook(start=start)
+
+    # Filter to automation triggers
+    automation_runs = [
+        e for e in entries
+        if e.entity_id and e.entity_id.startswith("automation.")
+    ]
+
+    return automation_runs
+```
+
+## Troubleshooting
+
+### Entity Not Found
+
+If you get `EntityNotFoundError`:
+
+1. **Verify the entity exists** in Home Assistant
+2. **Check spelling** - entity IDs are case-sensitive
+3. **Ensure entity is available** - some entities disappear when offline
+
+```python
+# Check if entity exists first
+all_states = await self.api.get_states()
+if not any(s.entity_id == "light.typo" for s in all_states):
+    self.logger.error("Entity doesn't exist")
+```
+
+### Service Call Not Working
+
+If a service call seems to fail silently:
+
+1. **Check the response** - service calls return a context you can inspect
+2. **Verify service exists** - service names are `domain.service`
+3. **Check required parameters** - some services need specific data
+
+```python
+# Get response context
+response = await self.api.call_service(
+    "light", "turn_on",
+    target={"entity_id": "light.office"},
+    brightness=255
+)
+self.logger.debug(f"Service response: {response}")
+```
+
+### Template Rendering Fails
+
+If `render_template` returns unexpected results:
+
+1. **Test in Home Assistant** Developer Tools → Template
+2. **Check for syntax errors** in the Jinja template
+3. **Verify entity/state existence** in the template
+
+```python
+# Add error handling
+try:
+    result = await self.api.render_template("{{ states('sensor.bad') }}")
+except HomeAssistantError as e:
+    self.logger.error(f"Template error: {e}")
+```
+
+## Quick Reference
+
+| Task                   | Method                                      | Returns              |
+| ---------------------- | ------------------------------------------- | -------------------- |
+| Get all states         | `get_states()`                              | `list[BaseState]`    |
+| Get single state       | `get_state(entity_id, model)`               | `StateT`             |
+| Get state value only   | `get_state_value(entity_id)`                | `str`                |
+| Check if entity exists | `get_state_or_none(entity_id, model)`       | `StateT | None`     |
+| Call any service       | `call_service(domain, service, **data)`     | `ServiceResponse`    |
+| Turn on entity         | `turn_on(entity_id, **data)`                | `ServiceResponse`    |
+| Turn off entity        | `turn_off(entity_id, **data)`               | `ServiceResponse`    |
+| Toggle entity          | `toggle(entity_id)`                         | `ServiceResponse`    |
+| Render template        | `render_template(template)`                 | `str`                |
+| Get history            | `get_history(entity_id, start, end)`        | `list[HistoryEntry]` |
+| Fire event             | `fire_event(event_type, **data)`            | `None`               |
+| Set state              | `set_state(entity_id, state, **attributes)` | `State`              |
 
 ## See Also
 

@@ -5,6 +5,7 @@ from typing import Any
 from warnings import warn
 
 from pydantic import (
+    AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
@@ -60,10 +61,12 @@ class AppManifest(BaseModel):
     enabled: bool = Field(default=True)
     """Whether the app is enabled or not, will default to True if not set"""
 
-    filename: str = Field(default=..., examples=["my_app.py"])
+    filename: str = Field(default=..., examples=["my_app.py"], validation_alias=AliasChoices("filename", "file_name"))
     """Filename of the app, will be looked for in app_path"""
 
-    class_name: str = Field(default=..., examples=["MyApp"])
+    class_name: str = Field(
+        default=..., examples=["MyApp"], validation_alias=AliasChoices("class_name", "class", "module", "module_name")
+    )
     """Class name of the app"""
 
     display_name: str = Field(default=..., examples=["My App"])

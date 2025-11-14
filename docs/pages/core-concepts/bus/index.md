@@ -96,6 +96,39 @@ sub.unsubscribe()
 Hassette automatically cleans up all subscriptions during app shutdown,
 so manual unsubscription is only needed for temporary listeners.
 
+
+## Matching Multiple Entities
+
+Most subscription methods accept glob patterns for entity IDs, domains, services, etc.
+
+!!! warning "Limitation"
+    Glob patterns work for entity IDs, domains, and services, but **not** for attribute names.
+
+```python
+# any light
+self.bus.on_state_change("light.*", handler=self.on_any_light)
+
+# sensors starting with "bedroom_"
+self.bus.on_state_change("sensor.bedroom_*", handler=self.on_bedroom_sensor)
+
+# temperature attribute changes on any climate entity
+self.bus.on_attribute_change("climate.*", "temperature", handler=self.on_temp_change)
+
+# living room lights being turned on
+self.bus.on_call_service(domain="light", service="turn_on",
+                         where={"entity_id": "light.living_room_*"},
+                         handler=self.on_living_room_lights)
+
+# living room lights being turned on or off
+self.bus.on_call_service(domain="light", service="turn_*",
+                         where={"entity_id": "light.living_room_*"},
+                         handler=self.on_living_room_lights)
+```
+
+For more complex patterns, use `self.bus.on(...)` with predicate-based
+filters.
+
+
 ## Working with Event Data
 
 Each event's `payload.data` contains the actual content.
@@ -113,6 +146,10 @@ Each event's `payload.data` contains the actual content.
 
 - **Service calls** → [`CallServicePayload`][hassette.events.hass.hass.CallServicePayload]
   with `domain`, `service`, and `service_data` fields.
+
+!!! note "Coming Soon"
+    More detailed guides on working with events, state objects, and service calls
+    are coming soon!
 
 ## Advanced Subscriptions
 
@@ -134,7 +171,11 @@ You can pass additional arguments to your handler using `args` and
 ### Filtering with Predicates
 
 Predicates provide fine-grained control over which events trigger your
-handlers. Use them with the `where` parameter.
+handlers. You can provide one or more predicates to the `where` parameter
+of any subscription method - these are applied as logical AND conditions.
+
+If you need to apply OR logic, combine multiple predicates using
+`P.AnyOf(...)`.
 
 ```python
 from datetime import datetime
@@ -158,18 +199,23 @@ self.bus.on_state_change(
     where=P.StateTo(P.IsIn(["playing", "paused"]))
 )
 
-# Custom guard
-def is_workday(event):
-    return datetime.now().weekday() < 5
-
-self.bus.on_state_change(
-    "binary_sensor.motion",
-    handler=self.on_workday_motion,
-    where=P.Guard(is_workday),
+# AnyOf example
+self.bus.on_call_service(
+    domain="light",
+    service="turn_on",
+    where=P.AnyOf(
+        P.ServiceDataWhere.from_kwargs(brightness=lambda b: b and b > 200),
+        P.ServiceDataWhere.from_kwargs(color_name="red"),
+    ),
+    handler=self.on_bright_or_red_light,
 )
 ```
 
 See [`hassette.bus.predicates`][hassette.bus.predicates] for the full list of built-ins.
+
+!!! note "Coming Soon"
+    Predicates, conditions, and accessors can do a lot, and this documentation
+    doesn't yet cover enough details. An advanced guide is coming soon!
 
 ## Rate Control
 
@@ -186,23 +232,6 @@ self.bus.on_state_change("sensor.temperature", handler=self.on_temp_log, throttl
 # One-time subscription
 self.bus.on_component_loaded("hue", handler=self.on_hue_ready, once=True)
 ```
-
-## Matching Multiple Entities
-
-Use glob patterns to match multiple entities without listing them
-individually:
-
-```python
-self.bus.on_state_change("light.*", handler=self.on_any_light)
-self.bus.on_state_change("sensor.bedroom_*", handler=self.on_bedroom_sensor)
-self.bus.on_attribute_change("climate.*", "temperature", handler=self.on_temp_change)
-self.bus.on_call_service(domain="light", service="turn_on",
-                         where={"entity_id": "light.living_room_*"},
-                         handler=self.on_living_room_lights)
-```
-
-For more complex patterns, use `self.bus.on(...)` with predicate-based
-filters.
 
 ## Filtering Service Calls
 
@@ -248,6 +277,9 @@ self.bus.on_call_service(
 
 ### Predicate filtering
 
+You can also use `P.ServiceDataWhere` and other predicates for more complex
+filtering:
+
 ```python
 from hassette import predicates as P
 
@@ -261,7 +293,11 @@ self.bus.on_call_service(
 )
 ```
 
-Predicates can be composed and reused for complex filtering logic.
+!!! tip "Pattern Matching Tips"
+    - Use `*` for wildcard matching: `light.*`, `sensor.bedroom_*`
+    - Works in `entity_id`, `domain`, and `service` parameters
+    - Combine with `where` for complex filtering
+    - Does **not** work for attribute names
 
 ## See Also
 

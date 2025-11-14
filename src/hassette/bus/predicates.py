@@ -5,42 +5,40 @@ A predicate takes a ``source`` callable that extracts a value from an event, and
 tests the extracted value. The condition may be a literal value, a callable, or a more complex condition object.
 Conditions can be composed of other conditions to form complex logic.
 
-Examples
---------
+Examples:
+    Basic value comparison
 
-**Basic value comparison**
-
-.. code-block:: python
-
+    ```python
     ValueIs(source=get_entity_id, condition="light.kitchen")
+    ```
 
-**With a callable condition**
+    With a callable condition
 
-.. code-block:: python
-
+    ```python
     def is_kitchen_light(entity_id: str) -> bool:
         return entity_id == "light.kitchen"
 
     ValueIs(source=get_entity_id, condition=is_kitchen_light)
+    ```
 
-**With a condition object**
+    With a condition object
 
-.. code-block:: python
-
+    ```python
     ValueIs(
         source=get_entity_id,
         condition=C.IsIn(collection=["light.kitchen", "light.living"]),
     )
+    ```
 
-**Combining multiple predicates**
+    Combining multiple predicates
 
-.. code-block:: python
-
+    ```python
     P.AllOf(predicates=[
         P.DomainMatches("light"),
         P.EntityMatches("light.kitchen"),
         P.StateTo("on"),
     ])
+    ```
 """
 
 import inspect
@@ -340,19 +338,19 @@ class ServiceDataWhere:
 
     Examples
     --------
-    Exact matches only::
+    Exact matches only
 
         ServiceDataWhere({"entity_id": "light.kitchen", "transition": 1})
 
-    With a callable condition::
+    With a callable condition
 
         ServiceDataWhere({"brightness": lambda v: isinstance(v, int) and v >= 150})
 
-    With globs (auto-wrapped)::
+    With globs (auto-wrapped)
 
         ServiceDataWhere({"entity_id": "light.*"})
 
-    Using conditions::
+    Using conditions
 
         ServiceDataWhere({"entity_id": Glob("switch.*")})
 

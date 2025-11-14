@@ -6,5 +6,6 @@ app_dir = "src/apps"               # path containing your app modules
 filename = "my_app.py"
 class_name = "MyApp"
 enabled = true
-# inline config for a single instance (optional)
-config = { some_option = true }
+
+[[apps.my_app.config]]
+name = "instance_1"

@@ -1,4 +1,5 @@
 from hassette import App
+from hassette.types.enums import ResourceStatus
 
 
 class AdvancedSubscriptionsExample(App):

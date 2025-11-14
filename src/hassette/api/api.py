@@ -5,13 +5,10 @@ The Api provides both async and sync methods for all Home Assistant interactions
 state management, service calls, event firing, and data retrieval. Automatically handles
 authentication, retries, and type conversion for a seamless developer experience.
 
-Examples
---------
+Examples:
+    Getting entity states
 
-**Getting entity states**
-
-.. code-block:: python
-
+    ```python
     # Get all states (typed)
     states = await self.api.get_states()
 
@@ -21,11 +18,11 @@ Examples
 
     # Get raw state data
     raw_state = await self.api.get_state_raw("sensor.temperature")
+    ```
 
-**Calling services**
+    Calling services
 
-.. code-block:: python
-
+    ```python
     # Basic service call
     await self.api.call_service("light", "turn_on", entity_id="light.kitchen")
 
@@ -44,30 +41,30 @@ Examples
         "turn_off",
         target={"entity_id": ["light.kitchen", "light.living_room"]}
     )
+    ```
 
-**Convenience methods**
+    Convenience methods
 
-.. code-block:: python
-
+    ```python
     # Turn entities on/off
     await self.api.turn_on("light.kitchen", brightness=150)
     await self.api.turn_off("light.living_room")
     await self.api.toggle_service("switch.fan")
+    ```
 
-**Setting and updating states**
+    Setting and updating states
 
-.. code-block:: python
-
+    ```python
     # Set entity state
     await self.api.set_state("sensor.custom", "active", {"last_update": "now"})
 
     # Update existing state attributes
     await self.api.update_state("sensor.custom", {"battery": 85})
+    ```
 
-**Firing custom events**
+    Firing custom events
 
-.. code-block:: python
-
+    ```python
     # Simple event
     await self.api.fire_event("custom_event", {"message": "Hello"})
 
@@ -80,22 +77,22 @@ Examples
             "timestamp": self.now().format_iso()
         }
     )
+    ```
 
-**Template rendering**
+    Template rendering
 
-.. code-block:: python
-
+    ```python
     # Render Jinja2 templates
     result = await self.api.render_template("{{ states('sensor.temperature') }}")
 
     # Complex template with context
     template = "{% if states('light.kitchen') == 'on' %}on{% else %}off{% endif %}"
     status = await self.api.render_template(template)
+    ```
 
-**History and logbook data**
+    History and logbook data
 
-.. code-block:: python
-
+    ```python
     from datetime import datetime, timedelta
 
     # Get entity history
@@ -113,19 +110,19 @@ Examples
         start_time=start_time,
         entity_id="light.kitchen"
     )
+    ```
 
-**Using the sync facade**
+    Using the sync facade
 
-.. code-block:: python
-
+    ```python
     # For sync apps or when async is not available
     states = self.api.sync.get_states()
     self.api.sync.call_service("light", "turn_on", entity_id="light.kitchen")
+    ```
 
-**WebSocket direct access**
+    WebSocket direct access
 
-.. code-block:: python
-
+    ```python
     # Send WebSocket message and wait for response
     result = await self.api.ws_send_and_wait(
         type="config/device_registry/list"
@@ -136,11 +133,11 @@ Examples
         type="subscribe_events",
         event_type="state_changed"
     )
+    ```
 
-**Handling missing entities**
+    Handling missing entities
 
-.. code-block:: python
-
+    ```python
     from hassette.exceptions import EntityNotFoundError
     from hassette import states
 
@@ -154,6 +151,7 @@ Examples
     state = await self.api.get_state_or_none("light.missing_light", states.LightState)
     if state is None:
         self.logger.warning("Entity not found")
+    ```
 
 """
 

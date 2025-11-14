@@ -5,20 +5,17 @@ The Bus provides a clean interface for listening to state changes, service calls
 from Home Assistant. Each app gets its own Bus instance that automatically manages subscriptions
 and cleanup. Use predicates and conditions to filter events precisely.
 
-Examples
---------
+Examples:
+    Basic state change subscription
 
-**Basic state change subscription**
-
-.. code-block:: python
-
+    ```python
     # Listen to all changes on an entity
     self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
+    ```
 
-**State change with value filters**
+    State change with value filters
 
-.. code-block:: python
-
+    ```python
     # Only when light turns on
     self.bus.on_state_change("light.kitchen", changed_to="on", handler=self.on_light_on)
 
@@ -28,33 +25,33 @@ Examples
         changed_to=lambda temp: temp > 20,
         handler=self.on_temp_high
     )
+    ```
 
-**Attribute change monitoring**
+    Attribute change monitoring
 
-.. code-block:: python
-
+    ```python
     # Monitor battery level changes
     self.bus.on_attribute_change(
         "sensor.phone_battery",
         "battery_level",
         handler=self.on_battery_change
     )
+    ```
 
-**Service call interception**
+    Service call interception
 
-.. code-block:: python
-
+    ```python
     # Listen to light service calls
     self.bus.on_call_service(
         domain="light",
         service="turn_on",
         handler=self.on_light_service_call
     )
+    ```
 
-**Using glob patterns and complex predicates**
+    Using glob patterns and complex predicates
 
-.. code-block:: python
-
+    ```python
     from hassette import conditions as C
 
     # All lights in kitchen
@@ -66,11 +63,11 @@ Examples
         changed=C.Increased(),
         handler=self.on_high_temp
     )
+    ```
 
-**Event options for timing control**
+    Event options for timing control
 
-.. code-block:: python
-
+    ```python
     # Run only once
     self.bus.on_state_change("light.kitchen", handler=handler, once=True)
 
@@ -79,6 +76,7 @@ Examples
 
     # Throttle frequent events (max once per 10 seconds)
     self.bus.on_state_change("sensor.temperature", handler=handler, throttle=10.0)
+    ```
 """
 
 import asyncio
@@ -317,11 +315,21 @@ class Bus(Resource):
 
         preds: list[Predicate] = [P.EntityMatches(entity_id)]
 
+        # if not changed then we are going to fire every time the entity has a StateChanged event
+        # regardless of what changed - not sure if that is desired behavior or not, but it is consistent with the main
+        # on_state_change method
         if changed:
             if changed is True:
                 preds.append(P.AttrDidChange(attr))
             else:
                 preds.append(P.AttrComparison(attr, condition=changed))
+        else:
+            self.logger.warning(
+                "Attribute change subscription for entity '%s' on attribute '%s' with changed=False will fire on"
+                " every state change event for the entity",
+                entity_id,
+                attr,
+            )
 
         if changed_from is not NOT_PROVIDED:
             preds.append(P.AttrFrom(attr, condition=changed_from))
