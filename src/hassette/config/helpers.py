@@ -47,19 +47,18 @@ def get_dev_mode() -> bool:
 
     logger = logging.getLogger(__name__)
 
-    def _inner():
-        if "debugpy" in sys.modules:
-            return True, "debugpy"
+    enabled = False
+    reason = None
 
-        if sys.gettrace() is not None:
-            return True, "sys.gettrace()"
-
-        if sys.flags.dev_mode:
-            return True, "python -X dev"
-
-        return False, None
-
-    enabled, reason = _inner()
+    if "debugpy" in sys.modules:
+        enabled = True
+        reason = "debugpy"
+    elif sys.gettrace() is not None:
+        enabled = True
+        reason = "sys.gettrace()"
+    elif sys.flags.dev_mode:
+        enabled = True
+        reason = "python -X dev"
 
     if enabled:
         logger.info("Developer mode enabled (%s)", reason)
