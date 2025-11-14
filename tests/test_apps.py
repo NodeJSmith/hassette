@@ -55,7 +55,7 @@ class TestApps:
         assert "MyAppSync" in class_names, "MyAppSync should be in the list of running apps"
 
     async def test_handle_changes_does_not_lose_apps(self) -> None:
-        """Verify that editing hassette.toml to disable an app stops the running instance."""
+        """Verify that calling handle_changes() without config modifications preserves all running apps."""
 
         orig_apps = set(self.app_handler.apps.keys())
 
