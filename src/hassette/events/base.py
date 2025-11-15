@@ -6,27 +6,13 @@ from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
-PayloadT = TypeVar("PayloadT", bound="EventPayload")
 """Represents the payload type of an event."""
 
 DataT = TypeVar("DataT")
 """Represents the data type within an event payload."""
 
-EventT = TypeVar("EventT", bound="Event", contravariant=True)
-"""Represents an event type."""
 
 HASSETTE_EVENT_ID_SEQ = itertools.count(1)
-
-
-@dataclass(frozen=True, slots=True)
-class Event(Generic[PayloadT]):
-    """Base event with strongly typed payload."""
-
-    topic: str
-    """Topic of the event."""
-
-    payload: PayloadT
-    """The event payload."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,3 +96,21 @@ class HassettePayload(EventPayload[DataT]):
 
     event_id: int = field(default_factory=lambda: next(HASSETTE_EVENT_ID_SEQ))
     """The unique identifier for the event."""
+
+
+PayloadT = TypeVar("PayloadT", bound=EventPayload)
+
+
+@dataclass(frozen=True, slots=True)
+class Event(Generic[PayloadT]):
+    """Base event with strongly typed payload."""
+
+    topic: str
+    """Topic of the event."""
+
+    payload: PayloadT
+    """The event payload."""
+
+
+EventT = TypeVar("EventT", bound=Event, contravariant=True)
+"""Represents an event type."""
