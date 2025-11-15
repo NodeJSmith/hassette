@@ -149,70 +149,6 @@ class StateChangePayload(Generic[StateT]):
         return cls(entity_id=entity_id, old_state=old_state_obj, new_state=new_state_obj)  # pyright: ignore[reportArgumentType]
 
 
-def create_event_from_hass(
-    data: "HassEventEnvelopeDict",
-):
-    """Create an Event from a dictionary."""
-
-    from hassette.events import Event  # avoid circular import
-
-    event = data.get("event", {})
-    event_type = event.get("event_type")
-    if not event_type:
-        raise ValueError("Event data must contain 'event_type' key")
-
-    event_data = event.get("data", {}) or {}
-    event_payload = {
-        "event_type": event_type,
-        "context": event["context"],
-        "origin": event["origin"],
-        "time_fired": event["time_fired"],
-    }
-
-    if event_type == "state_changed":
-        return Event(
-            topic=topics.HASS_EVENT_STATE_CHANGED,
-            payload=HassPayload(**event_payload, data=StateChangePayload.create_from_event(**event_data)),
-        )
-
-    match event_type:
-        case "call_service":
-            payload_cls = CallServicePayload
-            topic = topics.HASS_EVENT_CALL_SERVICE
-        case "component_loaded":
-            payload_cls = ComponentLoadedPayload
-            topic = topics.HASS_EVENT_COMPONENT_LOADED
-        case "service_registered":
-            payload_cls = ServiceRegisteredPayload
-            topic = topics.HASS_EVENT_SERVICE_REGISTERED
-        case "service_removed":
-            payload_cls = ServiceRemovedPayload
-            topic = topics.HASS_EVENT_SERVICE_REMOVED
-        case "logbook_entry":
-            payload_cls = LogbookEntryPayload
-            topic = topics.HASS_EVENT_LOGBOOK_ENTRY
-        case "user_added":
-            payload_cls = UserAddedPayload
-            topic = topics.HASS_EVENT_USER_ADDED
-        case "user_removed":
-            payload_cls = UserRemovedPayload
-            topic = topics.HASS_EVENT_USER_REMOVED
-        case "automation_triggered":
-            payload_cls = AutomationTriggeredPayload
-            topic = topics.HASS_EVENT_AUTOMATION_TRIGGERED
-        case "script_started":
-            payload_cls = ScriptStartedPayload
-            topic = topics.HASS_EVENT_SCRIPT_STARTED
-        case _:
-            payload_cls = dict
-            topic = f"hass.event.{event_type}"
-
-    if payload_cls:
-        return Event(topic=topic, payload=HassPayload(**event_payload, data=payload_cls(**event_data)))
-
-    raise ValueError(f"Unknown event type: {event_type}")
-
-
 class StateChangeEvent(Event[HassPayload[StateChangePayload[StateT]]]):
     """Strongly typed state change event."""
 
@@ -251,6 +187,84 @@ class AutomationTriggeredEvent(Event[HassPayload[AutomationTriggeredPayload]]):
 
 class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
+
+
+def create_event_from_hass(data: HassEventEnvelopeDict):
+    """Create an Event from a dictionary."""
+
+    from hassette.events import Event  # avoid circular import
+
+    event = data.get("event", {})
+    event_type = event.get("event_type")
+    if not event_type:
+        raise ValueError("Event data must contain 'event_type' key")
+
+    event_data = event.get("data", {}) or {}
+    event_payload = {
+        "event_type": event_type,
+        "origin": event["origin"],
+        "context": event["context"],
+        "time_fired": event["time_fired"],
+    }
+
+    match event_type:
+        case "state_changed":
+            return StateChangeEvent(
+                topic=topics.HASS_EVENT_STATE_CHANGED,
+                payload=HassPayload(**event_payload, data=StateChangePayload.create_from_event(**event_data)),
+            )
+
+        case "call_service":
+            return CallServiceEvent(
+                topic=topics.HASS_EVENT_CALL_SERVICE,
+                payload=HassPayload(**event_payload, data=CallServicePayload(**event_data)),
+            )
+        case "component_loaded":
+            return ComponentLoadedEvent(
+                topic=topics.HASS_EVENT_COMPONENT_LOADED,
+                payload=HassPayload(**event_payload, data=ComponentLoadedPayload(**event_data)),
+            )
+        case "service_registered":
+            return ServiceRegisteredEvent(
+                topic=topics.HASS_EVENT_SERVICE_REGISTERED,
+                payload=HassPayload(**event_payload, data=ServiceRegisteredPayload(**event_data)),
+            )
+        case "service_removed":
+            return ServiceRemovedEvent(
+                topic=topics.HASS_EVENT_SERVICE_REMOVED,
+                payload=HassPayload(**event_payload, data=ServiceRemovedPayload(**event_data)),
+            )
+        case "logbook_entry":
+            return LogbookEntryEvent(
+                topic=topics.HASS_EVENT_LOGBOOK_ENTRY,
+                payload=HassPayload(**event_payload, data=LogbookEntryPayload(**event_data)),
+            )
+        case "user_added":
+            return UserAddedEvent(
+                topic=topics.HASS_EVENT_USER_ADDED,
+                payload=HassPayload(**event_payload, data=UserAddedPayload(**event_data)),
+            )
+        case "user_removed":
+            return UserRemovedEvent(
+                topic=topics.HASS_EVENT_USER_REMOVED,
+                payload=HassPayload(**event_payload, data=UserRemovedPayload(**event_data)),
+            )
+        case "automation_triggered":
+            return AutomationTriggeredEvent(
+                topic=topics.HASS_EVENT_AUTOMATION_TRIGGERED,
+                payload=HassPayload(**event_payload, data=AutomationTriggeredPayload(**event_data)),
+            )
+        case "script_started":
+            return ScriptStartedEvent(
+                topic=topics.HASS_EVENT_SCRIPT_STARTED,
+                payload=HassPayload(**event_payload, data=ScriptStartedPayload(**event_data)),
+            )
+        case _:
+            return Event(
+                topic=f"hass.event.{event_type}",
+                payload=HassPayload(**event_payload, data=event_data),
+            )
+    raise ValueError(f"Unknown event type: {event_type}")
 
 
 HassEvent: TypeAlias = Event[HassPayload[Any]]
