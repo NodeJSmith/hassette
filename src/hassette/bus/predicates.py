@@ -48,7 +48,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any, Generic, TypeVar
 
-from hassette.const import MISSING_VALUE, NOT_PROVIDED
+from hassette.const import ANY_VALUE, MISSING_VALUE
 from hassette.events import CallServiceEvent
 from hassette.events.base import EventT
 from hassette.models.states import StateT
@@ -142,14 +142,14 @@ class ValueIs(Generic[EventT, V]):
 
     Args:
         source: Callable that extracts the value to compare from the event.
-        condition: A literal or callable tested against the extracted value. If NOT_PROVIDED, always True.
+        condition: A literal or callable tested against the extracted value. If ANY_VALUE, always True.
     """
 
     source: Callable[[EventT], V]
-    condition: ChangeType = NOT_PROVIDED
+    condition: ChangeType = ANY_VALUE
 
     def __call__(self, event: EventT) -> bool:
-        if self.condition is NOT_PROVIDED:
+        if self.condition is ANY_VALUE:
             return True
         value = self.source(event)
         return compare_value(value, self.condition)
@@ -366,9 +366,10 @@ class ServiceDataWhere:
 
         for k, cond in self.spec.items():
             source = get_service_data_key(k)
+            c: ChangeType
             # presence check
-            if cond is NOT_PROVIDED:
-                c: ChangeType = Present()
+            if cond is ANY_VALUE:
+                c = Present()
             # auto-glob wrapping
             elif self.auto_glob and isinstance(cond, str) and is_glob(cond):
                 c = Glob(cond)

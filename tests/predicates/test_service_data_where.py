@@ -2,7 +2,7 @@ import typing
 from types import SimpleNamespace
 
 from hassette.bus.predicates import ServiceDataWhere
-from hassette.const import NOT_PROVIDED
+from hassette.const import ANY_VALUE
 from hassette.events import Event
 
 
@@ -13,16 +13,16 @@ def _make_event(service_data: dict[str, typing.Any]) -> Event:
 
 
 def test_service_data_where_not_provided_requires_presence() -> None:
-    """Test that ServiceDataWhere with NOT_PROVIDED requires key presence."""
-    predicate = ServiceDataWhere({"required": NOT_PROVIDED})
+    """Test that ServiceDataWhere with ANY_VALUE requires key presence."""
+    predicate = ServiceDataWhere({"required": ANY_VALUE})
 
     assert predicate(_make_event({"required": 0})) is True
     assert predicate(_make_event({})) is False
 
 
 def test_service_data_where_typing_any_requires_presence() -> None:
-    """Test that ServiceDataWhere with NOT_PROVIDED works with any value type."""
-    predicate = ServiceDataWhere({"required": NOT_PROVIDED})
+    """Test that ServiceDataWhere with ANY_VALUE works with any value type."""
+    predicate = ServiceDataWhere({"required": ANY_VALUE})
 
     assert predicate(_make_event({"required": "value"})) is True
     assert predicate(_make_event({})) is False
@@ -74,7 +74,7 @@ def test_service_data_where_multiple_conditions() -> None:
     predicate = ServiceDataWhere(
         {
             "entity_id": "light.*",
-            "brightness": NOT_PROVIDED,  # Must be present
+            "brightness": ANY_VALUE,  # Must be present
             "transition": 2,
         }
     )
