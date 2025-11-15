@@ -13,3 +13,6 @@ MISSING_VALUE = FalseySentinel("MISSING_VALUE")
 
 NOT_PROVIDED = FalseySentinel("NOT_PROVIDED")
 """Sentinel value to indicate a value was not provided."""
+
+ANY_VALUE = FalseySentinel("ANY_VALUE")
+"""Sentinel value to indicate any value is acceptable (used in predicates for presence checks)."""

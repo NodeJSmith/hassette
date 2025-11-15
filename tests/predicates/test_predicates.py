@@ -9,7 +9,7 @@ from hassette import accessors as A
 from hassette import conditions as C
 from hassette import predicates as P
 from hassette.bus.utils import compare_value, ensure_tuple, normalize_where
-from hassette.const import MISSING_VALUE, NOT_PROVIDED
+from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
 from hassette.events import CallServiceEvent, Event
 
 
@@ -315,15 +315,15 @@ def test_service_data_where_with_callable() -> None:
 
 
 def test_service_data_where_with_not_provided() -> None:
-    """Test ServiceDataWhere requiring key presence with NOT_PROVIDED."""
+    """Test ServiceDataWhere requiring key presence with ANY_VALUE."""
     event = _create_service_event(domain="light", service="turn_on", service_data={"entity_id": "light.kitchen"})
 
     # Key exists
-    predicate = P.ServiceDataWhere({"entity_id": NOT_PROVIDED})
+    predicate = P.ServiceDataWhere({"entity_id": ANY_VALUE})
     assert predicate(event) is True
 
     # Key missing
-    predicate = P.ServiceDataWhere({"brightness": NOT_PROVIDED})
+    predicate = P.ServiceDataWhere({"brightness": ANY_VALUE})
     assert predicate(event) is False
 
 

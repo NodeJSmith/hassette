@@ -241,7 +241,7 @@ filtering.
 ### Dictionary filtering
 
 ```python
-from hassette.const import NOT_PROVIDED
+from hassette.const import ANY_VALUE
 
 # Literal match
 self.bus.on_call_service(
@@ -255,7 +255,7 @@ self.bus.on_call_service(
 self.bus.on_call_service(
     domain="light",
     service="turn_on",
-    where={"brightness": NOT_PROVIDED},
+    where={"brightness": ANY_VALUE},
     handler=self.on_brightness_set,
 )
 

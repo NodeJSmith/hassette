@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Added `ANY_VALUE` sentinel for clearer semantics in predicates - use this to indicate "any value is acceptable"
+
+### Changed
+- `NOT_PROVIDED` predicate is now used only to indicate that a parameter was not provided to a function
+
 ## [0.15.5] - 2025-11-14
 
 ### Changed
