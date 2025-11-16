@@ -169,6 +169,9 @@ class HandlerAdapter:
         param_details = extract_from_signature(self.signature)
 
         for name, (param_type, extractor) in param_details.items():
+            if name in kwargs:
+                LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", name)
+
             try:
                 kwargs[name] = extractor(event)
             except Exception as e:
