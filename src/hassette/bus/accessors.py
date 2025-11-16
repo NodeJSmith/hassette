@@ -198,12 +198,7 @@ def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | Sentinel:
     Returns:
         dict[str, Any] | Sentinel: The service_data dict, or MISSING_VALUE if not present.
     """
-    result = get_path("payload.data.service_data")(event)
-
-    if result is MISSING_VALUE:
-        return MISSING_VALUE
-
-    return result
+    return get_path("payload.data.service_data")(event)
 
 
 def get_service_data_key(key: str) -> "Callable[[CallServiceEvent], Any]":
