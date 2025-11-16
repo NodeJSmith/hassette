@@ -1,5 +1,5 @@
 import typing
-from typing import Annotated, Any
+from typing import Any
 
 from hassette.bus import accessors as A
 
@@ -117,24 +117,24 @@ class AttrOldAndNew(Depends):
         )
 
 
-NewStateValue = Annotated[Any, A.get_state_value_new]
+NewStateValue = A.get_state_value_new
 """Annotated type for extracting the new state value from a StateChangeEvent."""
 
-OldStateValue = Annotated[Any, A.get_state_value_old]
+OldStateValue = A.get_state_value_old
 """Annotated type for extracting the old state value from a StateChangeEvent."""
 
-OldAndNewStateValues = Annotated[tuple[Any, Any], A.get_state_value_old_new]
+OldAndNewStateValues = A.get_state_value_old_new
 """Annotated type for extracting the old and new state values from a StateChangeEvent."""
 
 
-EntityId = Annotated[str, A.get_entity_id]
+EntityId = A.get_entity_id
 """Annotated type for extracting the entity_id from a HassEvent."""
 
-Domain = Annotated[str, A.get_domain]
+Domain = A.get_domain
 """Annotated type for extracting the domain from a HassEvent."""
 
-ServiceData = Annotated[dict[str, Any], A.get_service_data]
+ServiceData = A.get_service_data
 """Annotated type for extracting the service_data from a CallServiceEvent."""
 
-EventContext = Annotated[dict[str, Any], A.get_context]
+EventContext = A.get_context
 """Annotated type for extracting the context dict from a HassEvent."""
