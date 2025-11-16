@@ -122,9 +122,6 @@ def validate_di_signature(signature: Signature) -> None:
     Raises:
         ValueError: If signature has VAR_POSITIONAL (*args) or POSITIONAL_ONLY (/) parameters.
     """
-    if not has_dependency_injection(signature):
-        return
-
     for param in signature.parameters.values():
         if param.kind == inspect.Parameter.VAR_POSITIONAL:
             raise ValueError(f"Handler with dependency injection cannot have *args parameter: {param.name}")
