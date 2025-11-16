@@ -1,33 +1,27 @@
-from .handler import (
-    AsyncHandlerType,
-    AsyncHandlerTypeEvent,
-    AsyncHandlerTypeNoEvent,
-    HandlerType,
-    HandlerTypeNoEvent,
-)
 from .types import (
+    AsyncHandlerType,
     ChangeType,
     ComparisonCondition,
+    HandlerType,
     JobCallable,
     KnownType,
     KnownTypeScalar,
     Predicate,
     ScheduleStartType,
+    SyncHandler,
     TriggerProtocol,
 )
 
 __all__ = [
     "AsyncHandlerType",
-    "AsyncHandlerTypeEvent",
-    "AsyncHandlerTypeNoEvent",
     "ChangeType",
     "ComparisonCondition",
     "HandlerType",
-    "HandlerTypeNoEvent",
     "JobCallable",
     "KnownType",
     "KnownTypeScalar",
     "Predicate",
     "ScheduleStartType",
+    "SyncHandler",
     "TriggerProtocol",
 ]
