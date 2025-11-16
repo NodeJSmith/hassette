@@ -260,10 +260,12 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
                 payload=HassPayload(**event_payload, data=ScriptStartedPayload(**event_data)),
             )
         case _:
-            return Event(
-                topic=f"hass.event.{event_type}",
-                payload=HassPayload(**event_payload, data=event_data),
-            )
+            pass
+
+    return Event(
+        topic=f"hass.event.{event_type}",
+        payload=HassPayload(**event_payload, data=event_data),
+    )
 
 
 HassEvent: TypeAlias = Event[HassPayload[Any]]
