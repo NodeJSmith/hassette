@@ -25,7 +25,7 @@ from hassette.dependencies.extraction import (
     is_event_type,
     validate_di_signature,
 )
-from hassette.events import CallServiceEvent, Event, StateChangeEvent, create_event_from_hass
+from hassette.events import CallServiceEvent, Event, HassContext, StateChangeEvent, create_event_from_hass
 from hassette.models import states
 
 if typing.TYPE_CHECKING:
@@ -275,7 +275,8 @@ class TestParameterizedExtractors:
             (
                 e
                 for e in state_change_events
-                if e.payload.data.new_state and hasattr(e.payload.data.new_state.attributes, "editable")
+                if e.payload.data.new_state
+                and getattr(e.payload.data.new_state.attributes, "editable", None) is not None
             ),
             None,
         )
@@ -307,7 +308,7 @@ class TestTypeAliasExtractors:
 
             for event in events:
                 # Extract the callable from the Annotated type
-                _, extractor = extract_from_annotated(D.EntityId)
+                _, extractor = extract_from_annotated(Annotated[str, A.get_entity_id])
                 result = extractor(event)
 
                 # check only for "not MISSING_VALUE", as we get entity_id from a few different places
@@ -321,7 +322,7 @@ class TestTypeAliasExtractors:
         )
         assert call_service_event is not None, "No CallServiceEvent with empty service_data found in test data"
 
-        _, extractor = extract_from_annotated(D.EntityId)
+        _, extractor = extract_from_annotated(Annotated[str, A.get_entity_id])
         result = extractor(call_service_event)
 
         assert result is MISSING_VALUE, (
@@ -342,7 +343,7 @@ class TestTypeAliasExtractors:
         for events in event_types.values():
             for event in events:
                 # Extract the callable from the Annotated type
-                _, extractor = extract_from_annotated(D.Domain)
+                _, extractor = extract_from_annotated(Annotated[str, D.Domain])
                 result = extractor(event)
 
                 # check only for "not MISSING_VALUE", as we get domain from a few different places
@@ -353,7 +354,7 @@ class TestTypeAliasExtractors:
         """Test NewStateValue type alias extracts state value."""
         event = state_change_events[0]
 
-        _, extractor = extract_from_annotated(D.NewStateValue)
+        _, extractor = extract_from_annotated(Annotated[states.StateUnion, D.NewStateValue])
         result = extractor(event)
 
         if event.payload.data.new_state:
@@ -364,7 +365,7 @@ class TestTypeAliasExtractors:
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
         assert event is not None
 
-        _, extractor = extract_from_annotated(D.OldStateValue)
+        _, extractor = extract_from_annotated(Annotated[states.StateUnion, D.OldStateValue])
         result = extractor(event)
 
         assert result == event.payload.data.old_state.value
@@ -374,7 +375,7 @@ class TestTypeAliasExtractors:
         call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
         assert call_service_event is not None, "No CallServiceEvent found in test data"
 
-        _, extractor = extract_from_annotated(D.ServiceData)
+        _, extractor = extract_from_annotated(Annotated[dict, D.ServiceData])
         result = extractor(call_service_event)
 
         assert isinstance(result, dict)
@@ -384,7 +385,7 @@ class TestTypeAliasExtractors:
         """Test EventContext type alias extracts context."""
         event = state_change_events[0]
 
-        _, extractor = extract_from_annotated(D.EventContext)
+        _, extractor = extract_from_annotated(Annotated[HassContext, D.EventContext])
         result = extractor(event)
 
         assert isinstance(result, dict)
