@@ -48,7 +48,7 @@ Usage:
     from hassette import dependencies as D
     from hassette import states
 
-    async def handler(new_state: Annotated[states.LightState, D.NewState]):
+    async def handler(new_state: Annotated[states.LightState, D.StateNew]):
         # new_state is typed as states.LightState and extracted from event
         print(new_state.state)
     ```
@@ -63,7 +63,7 @@ Usage:
     from hassette import dependencies as D
     from hassette import states
 
-    async def handler(old_state: Annotated[states.LightState, D.OldState]):
+    async def handler(old_state: Annotated[states.LightState, D.StateOld]):
         print(old_state.state)
     ```
 """
@@ -77,7 +77,7 @@ Usage:
     from hassette import dependencies as D
     from hassette import states
 
-    async def handler(states_tuple: Annotated[tuple[states.LightState, states.LightState], D.OldAndNewStates]):
+    async def handler(states_tuple: Annotated[tuple[states.LightState, states.LightState], D.StateOldAndNew]):
         old_state, new_state = states_tuple
         print(f"Changed from {old_state.state} to {new_state.state}")
     ```
