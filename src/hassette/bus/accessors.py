@@ -150,14 +150,36 @@ def get_attr_old_new(name: str) -> Callable[["StateChangeEvent[states.StateUnion
 # ---------------------------------------------------------------------------
 
 
-def get_domain(event: "HassEvent") -> str:
+def get_domain(event: "HassEvent") -> str | Sentinel:
     """Get the domain from the event payload."""
-    return cast("str", get_path("payload.data.domain")(event))
+    from hassette.events import StateChangeEvent
+
+    result = cast("str", get_path("payload.data.domain")(event))
+    if result is not MISSING_VALUE:
+        return result
+
+    if isinstance(event, StateChangeEvent):
+        return event.payload.domain or MISSING_VALUE
+
+    entity_id = get_entity_id(event)
+    if isinstance(entity_id, str):
+        return entity_id.split(".")[0]
+
+    return MISSING_VALUE
 
 
-def get_entity_id(event: "HassEvent") -> str:
+def get_entity_id(event: "HassEvent") -> str | Sentinel:
     """Get the entity_id from the event payload."""
-    return cast("str", get_path("payload.data.entity_id")(event))
+    from hassette.events import CallServiceEvent
+
+    result = cast("str", get_path("payload.data.entity_id")(event))
+    if result is not MISSING_VALUE:
+        return result
+
+    if isinstance(event, CallServiceEvent):
+        return event.payload.data.service_data.get("entity_id", MISSING_VALUE)
+
+    return MISSING_VALUE
 
 
 def get_context(event: "HassEvent") -> dict[str, Any]:
