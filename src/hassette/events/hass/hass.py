@@ -262,10 +262,8 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
         case _:
             pass
 
-    return Event(
-        topic=f"hass.event.{event_type}",
-        payload=HassPayload(**event_payload, data=event_data),
-    )
+    # fallback to generic event
+    return Event(topic=f"hass.event.{event_type}", payload=HassPayload(**event_payload, data=event_data))
 
 
 HassEvent: TypeAlias = Event[HassPayload[Any]]
