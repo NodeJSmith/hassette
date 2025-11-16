@@ -95,6 +95,23 @@ def get_state_value_old_new(event: "StateChangeEvent[states.StateUnion]") -> tup
     return get_state_value_old(event), get_state_value_new(event)
 
 
+def get_state_object_old(event: "StateChangeEvent[states.StateT]") -> "states.StateT | None":
+    """Get the old state object from a StateChangeEvent, or None if `old_state` does not exist."""
+    return event.payload.data.old_state
+
+
+def get_state_object_new(event: "StateChangeEvent[states.StateT]") -> "states.StateT | None":
+    """Get the new state object from a StateChangeEvent, or None if `new_state` does not exist."""
+    return event.payload.data.new_state
+
+
+def get_state_object_old_new(
+    event: "StateChangeEvent[states.StateT]",
+) -> tuple["states.StateT | None", "states.StateT | None"]:
+    """Get a tuple of (old_state_object, new_state_object) from a StateChangeEvent."""
+    return get_state_object_old(event), get_state_object_new(event)
+
+
 def get_attr_old(name: str) -> Callable[["StateChangeEvent[states.StateUnion]"], Any]:
     """Get a specific attribute from the old state in a StateChangeEvent."""
 
