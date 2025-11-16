@@ -30,21 +30,18 @@ def is_event_type(annotation: Any) -> bool:
     Handles both plain Event types (Event, StateChangeEvent) and
     parameterized generics (Event[PayloadT], StateChangeEvent[PayloadT]).
 
+    Does NOT handle Union or Optional types. Use explicit Event types instead:
+    - ✅ event: Event
+    - ✅ event: StateChangeEvent
+    - ❌ event: Optional[Event]
+    - ❌ event: Event | None
+    - ❌ event: Union[Event, StateChangeEvent]
+
     Args:
         annotation: The type annotation to check.
 
     Returns:
         True if annotation is Event or an Event subclass.
-
-    Examples:
-        >>> is_event_type(Event)
-        True
-        >>> is_event_type(StateChangeEvent)
-        True
-        >>> is_event_type(Event[dict])
-        True
-        >>> is_event_type(str)
-        False
     """
     from hassette.events import Event
 
