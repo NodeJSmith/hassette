@@ -369,7 +369,8 @@ class AppHandler(Resource):
         return original_apps_config, curr_apps_config
 
     async def handle_change_event(
-        self, changed_file_path: typing.Annotated[Path | None, A.get_path("payload.data.changed_file_path")]
+        self,
+        changed_file_path: typing.Annotated[Path | None, A.get_path("payload.data.changed_file_path")] | None = None,
     ) -> None:
         """Handle changes detected by the watcher."""
 
