@@ -13,10 +13,12 @@ async def handle_state_change(event: StateChangeEvent):
 
 You can use the `NewState` dependency:
 ```python
+from typing import Annotated
+
 from hassette import dependencies as D
 from hassette import states
 
-async def handle_state_change(new_state: D.NewState[states.ButtonState]):
+async def handle_state_change(new_state: Annotated[states.ButtonState, D.StateNew]):
     # do something with new_state
 ```
 
@@ -31,6 +33,7 @@ Examples:
     Extracting the new state object from a StateChangeEvent
     ```python
     from typing import Annotated
+
     from hassette import dependencies as D
     from hassette import states
 
@@ -42,6 +45,7 @@ Examples:
     Extracting the entity_id from any HassEvent
     ```python
     from typing import Annotated
+
     from hassette import dependencies as D
 
     async def handle_event(entity_id: Annotated[str, D.EntityId]):
