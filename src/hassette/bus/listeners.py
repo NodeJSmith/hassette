@@ -6,9 +6,13 @@ import time
 import typing
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from logging import getLogger
 from typing import Any, ParamSpec, TypeVar, cast
 
-from hassette.utils.func_utils import callable_name
+from hassette.depends import extract_from_signature
+from hassette.events.base import Event
+from hassette.utils.exception_utils import get_short_traceback
+from hassette.utils.func_utils import callable_name, callable_short_name
 
 from .utils import normalize_where
 
@@ -16,14 +20,14 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette import TaskBucket
-    from hassette.events.base import Event, EventT
+    from hassette.events.base import EventT
     from hassette.types import (
         AsyncHandlerType,
-        AsyncHandlerTypeEvent,
-        AsyncHandlerTypeNoEvent,
         HandlerType,
         Predicate,
     )
+
+LOGGER = getLogger(__name__)
 
 PS = ParamSpec("PS")
 RT = TypeVar("RT")
@@ -72,7 +76,7 @@ class Listener:
 
     @property
     def handler_short_name(self) -> str:
-        return self.handler_name.split(".")[-1]
+        return callable_short_name(self.orig_handler)
 
     async def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
@@ -110,7 +114,9 @@ class Listener:
         async_handler = make_async_handler(handler, task_bucket)
 
         # Create an adapter with rate limiting and signature informed calling
-        adapter = HandlerAdapter(async_handler, signature, task_bucket, debounce=debounce, throttle=throttle)
+        adapter = HandlerAdapter(
+            callable_short_name(handler), async_handler, signature, task_bucket, debounce=debounce, throttle=throttle
+        )
 
         return cls(
             owner=owner,
@@ -129,6 +135,7 @@ class HandlerAdapter:
 
     def __init__(
         self,
+        handler_name: str,
         handler: "AsyncHandlerType",
         signature: inspect.Signature,
         task_bucket: "TaskBucket",
@@ -138,10 +145,10 @@ class HandlerAdapter:
         if debounce and throttle:
             raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
 
+        self.handler_name = handler_name
         self.handler = handler
         self.signature = signature
         self.task_bucket = task_bucket
-        self.expects_event = self._receives_event_arg()
 
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
@@ -156,25 +163,23 @@ class HandlerAdapter:
         else:
             self.call = self._direct_call
 
-    def _receives_event_arg(self) -> bool:
-        """Check if handler expects an event argument."""
-        params = list(self.signature.parameters.values())
-        if not params:
-            return False
-        first_param = params[0]
-        return first_param.name == "event" and first_param.kind in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        )
-
     async def _direct_call(self, event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
         """Call handler directly with appropriate signature."""
-        if self.expects_event:
-            handler = cast("AsyncHandlerTypeEvent[Event[Any]]", self.handler)
-            await handler(event, *args, **kwargs)
-        else:
-            handler = cast("AsyncHandlerTypeNoEvent", self.handler)
-            await handler(*args, **kwargs)
+        param_details = extract_from_signature(self.signature)
+
+        for name, (param_type, extractor) in param_details.items():
+            if name == "event" or (inspect.isclass(param_type) and issubclass(param_type, Event)):
+                kwargs[name] = event
+                continue
+
+            try:
+                kwargs[name] = extractor(event)
+            except Exception:
+                LOGGER.error(
+                    "Handler %s - error extracting parameter '%s': %s", self.handler_name, name, get_short_traceback()
+                )
+
+        await self.handler(*args, **kwargs)
 
     def _make_debounced_call(self, seconds: float):
         """Create a debounced version of the call method."""

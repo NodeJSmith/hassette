@@ -1,5 +1,7 @@
 from hassette import App, AppConfig
+from hassette import depends as D
 from hassette.events import StateChangeEvent
+from hassette.models import states
 from hassette.models.entities import LightEntity
 from hassette.models.states import InputButtonState, LightState
 
@@ -11,12 +13,7 @@ class MyAppUserConfig(AppConfig):
 class MyApp(App[MyAppUserConfig]):
     async def on_initialize(self) -> None:
         self.logger.info("MyApp is initializing")
-        self.bus.on_state_change(
-            "input_button.test",
-            handler=self.handle_event_sync,
-            args=("arg1",),
-            kwargs={"kwarg1": "value1"},
-        )
+        self.bus.on_state_change("input_button.test", handler=self.handle_event_sync)
         self.scheduler.run_in(self.api.get_states, 1)
         self.scheduler.run_every(
             self.scheduled_job_example, 10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
@@ -36,8 +33,8 @@ class MyApp(App[MyAppUserConfig]):
             self.button_state = await self.api.get_state("input_button.test", model=InputButtonState)
             self.logger.info("Button state: %s", self.button_state)
 
-    def handle_event_sync(self, event: StateChangeEvent[InputButtonState], *args, **kwargs) -> None:
-        self.logger.info("event: %s, args: %s, kwargs: %s", event, args, kwargs)
+    def handle_event_sync(self, new_state: D.NewState[states.ButtonState], *args, **kwargs) -> None:
+        self.logger.info("new_state: %s, args: %s, kwargs: %s", new_state, args, kwargs)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)
 

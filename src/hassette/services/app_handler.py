@@ -10,6 +10,7 @@ import anyio
 from deepdiff import DeepDiff
 from humanize import precisedelta
 
+import hassette.bus.accessors as A
 from hassette.app.app import App
 from hassette.bus import Bus
 from hassette.events.hassette import HassetteSimpleEvent
@@ -29,7 +30,6 @@ from hassette.utils.exception_utils import get_short_traceback
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
     from hassette.config.classes import AppManifest
-    from hassette.events import HassetteFileWatcherEvent
 
 LOGGER = getLogger(__name__)
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
@@ -352,10 +352,6 @@ class AppHandler(Resource):
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
 
-    async def handle_change_event(self, event: "HassetteFileWatcherEvent") -> None:
-        """Handle changes detected by the watcher."""
-        await self.handle_changes(event.payload.data.changed_file_path)
-
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
         """Reload the configuration and return (original_apps_config, current_apps_config)."""
         original_apps_config = deepcopy(self.active_apps_config)
@@ -372,7 +368,9 @@ class AppHandler(Resource):
 
         return original_apps_config, curr_apps_config
 
-    async def handle_changes(self, changed_file_path: Path | None = None) -> None:
+    async def handle_change_event(
+        self, changed_file_path: typing.Annotated[Path | None, A.get_path("payload.data.changed_file_path")]
+    ) -> None:
         """Handle changes detected by the watcher."""
 
         original_apps_config, curr_apps_config = await self.refresh_config()
