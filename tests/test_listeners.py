@@ -1,17 +1,34 @@
 import asyncio
 import inspect
+from dataclasses import dataclass
 
 import pytest
 
 from hassette.bus.listeners import HandlerAdapter, Listener
+from hassette.events import Event
 from hassette.task_bucket import TaskBucket
 
 
-class MockEvent:
+@dataclass(frozen=True, slots=True)
+class MockEvent(Event[str]):
     """Mock event for testing."""
 
-    def __init__(self, data="test"):
-        self.data = data
+    @property
+    def data(self) -> str:
+        """Return payload for backward compatibility with tests."""
+        return self.payload
+
+
+def mock_event(data: str = "test") -> MockEvent:
+    """Create a MockEvent with a topic and payload."""
+    return MockEvent(topic="test_topic", payload=data)
+
+
+def create_adapter(handler, bucket_fixture, **kwargs):
+    """Helper to create HandlerAdapter with proper signature."""
+    signature = inspect.signature(handler)
+    handler_name = handler.__name__ if hasattr(handler, "__name__") else "test_handler"
+    return HandlerAdapter(handler_name, handler, signature, bucket_fixture, **kwargs)
 
 
 class TestHandlerAdapter:
@@ -21,16 +38,13 @@ class TestHandlerAdapter:
         """Test sync handler that expects an event."""
         calls = []
 
-        def handler(event):
+        def handler(event: MockEvent):
             calls.append(event.data)
 
-        signature = inspect.signature(handler)
         async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = HandlerAdapter(async_handler, signature, bucket_fixture)
+        adapter = create_adapter(async_handler, bucket_fixture)
 
-        assert adapter.expects_event, "Adapter should detect that handler expects event"
-
-        event = MockEvent("test_data")
+        event = mock_event("test_data")
         await adapter.call(event)
         assert calls == ["test_data"], "Handler should be called with event data"
 
@@ -38,15 +52,12 @@ class TestHandlerAdapter:
         """Test async handler that expects an event."""
         calls = []
 
-        async def handler(event):
+        async def handler(event: MockEvent):
             calls.append(event.data)
 
-        signature = inspect.signature(handler)
-        adapter = HandlerAdapter(handler, signature, bucket_fixture)
+        adapter = create_adapter(handler, bucket_fixture)
 
-        assert adapter.expects_event, "Adapter should detect that handler expects event"
-
-        event = MockEvent("test_data")
+        event = mock_event("test_data")
         await adapter.call(event)
         assert calls == ["test_data"], "Handler should be called with event data"
 
@@ -57,13 +68,10 @@ class TestHandlerAdapter:
         def handler():
             calls.append("called")
 
-        signature = inspect.signature(handler)
         async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = HandlerAdapter(async_handler, signature, bucket_fixture)
+        adapter = create_adapter(async_handler, bucket_fixture)
 
-        assert not adapter.expects_event, "Adapter should detect that handler does not expect event"
-
-        event = MockEvent("test_data")
+        event = mock_event("test_data")
         await adapter.call(event)
         assert calls == ["called"], "Handler should be called without event data"
 
@@ -74,12 +82,9 @@ class TestHandlerAdapter:
         async def handler():
             calls.append("called")
 
-        signature = inspect.signature(handler)
-        adapter = HandlerAdapter(handler, signature, bucket_fixture)
+        adapter = create_adapter(handler, bucket_fixture)
 
-        assert not adapter.expects_event, "Adapter should detect that handler does not expect event"
-
-        event = MockEvent("test_data")
+        event = mock_event("test_data")
         await adapter.call(event)
         assert calls == ["called"], "Handler should be called without event data"
 
@@ -91,17 +96,16 @@ class TestDebounceLogic:
         """Test that debounce delays execution until quiet period."""
         calls = []
 
-        def handler(event):
+        def handler(event: MockEvent):
             calls.append(event.data)
 
-        signature = inspect.signature(handler)
         async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = HandlerAdapter(async_handler, signature, bucket_fixture, debounce=0.1)
+        adapter = create_adapter(async_handler, bucket_fixture, debounce=0.1)
 
         # Fire multiple events quickly
-        event1 = MockEvent("first")
-        event2 = MockEvent("second")
-        event3 = MockEvent("third")
+        event1 = mock_event("first")
+        event2 = mock_event("second")
+        event3 = mock_event("third")
 
         await adapter.call(event1)
         await adapter.call(event2)
@@ -125,12 +129,11 @@ class TestDebounceLogic:
         def handler():
             calls.append("called")
 
-        signature = inspect.signature(handler)
         async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = HandlerAdapter(async_handler, signature, bucket_fixture, debounce=0.1)
+        adapter = create_adapter(async_handler, bucket_fixture, debounce=0.1)
 
         # Fire multiple events quickly
-        event = MockEvent("data")
+        event = mock_event("data")
         await adapter.call(event)
         await adapter.call(event)
         await adapter.call(event)
@@ -142,29 +145,28 @@ class TestDebounceLogic:
         assert calls == ["called"], "Handler should be called only once after debounce"
 
     async def test_debounce_cancels_previous_calls(self, bucket_fixture: TaskBucket):
-        """Test that new calls cancel previous debounced calls."""
+        """Test that new debounce calls cancel previous pending calls."""
         calls = []
 
-        async def handler(event):
+        async def handler(event: MockEvent):
             calls.append(event.data)
 
-        signature = inspect.signature(handler)
-        adapter = HandlerAdapter(handler, signature, bucket_fixture, debounce=0.2)
+        adapter = create_adapter(handler, bucket_fixture, debounce=0.2)
 
         # First call
-        await adapter.call(MockEvent("first"))
+        await adapter.call(mock_event("first"))
         await asyncio.sleep(0.1)  # Wait 100ms
         assert adapter._debounce_task is not None, "Debounce task should be created"
         assert not adapter._debounce_task.done(), "Debounce task should still be pending"
 
         # Second call should cancel first
-        await adapter.call(MockEvent("second"))
+        await adapter.call(mock_event("second"))
         await asyncio.sleep(0.1)  # Wait another 100ms
         assert adapter._debounce_task is not None, "Debounce task should be created"
         assert not adapter._debounce_task.done(), "Debounce task should still be pending"
 
         # Third call should cancel second
-        await adapter.call(MockEvent("third"))
+        await adapter.call(mock_event("third"))
 
         # Wait for final debounce period
         await asyncio.sleep(0.3)
@@ -181,27 +183,26 @@ class TestThrottleLogic:
         """Test that throttle limits how often handler is called."""
         calls = []
 
-        def handler(event):
+        def handler(event: MockEvent):
             calls.append(event.data)
 
-        signature = inspect.signature(handler)
         async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = HandlerAdapter(async_handler, signature, bucket_fixture, throttle=0.1)
+        adapter = create_adapter(async_handler, bucket_fixture, throttle=0.1)
 
         # First call should execute immediately
-        await adapter.call(MockEvent("first"))
+        await adapter.call(mock_event("first"))
         assert calls == ["first"], "First call should be executed immediately"
 
         # Subsequent calls within throttle period should be ignored
-        await adapter.call(MockEvent("second"))
-        await adapter.call(MockEvent("third"))
+        await adapter.call(mock_event("second"))
+        await adapter.call(mock_event("third"))
         assert calls == ["first"], "Subsequent calls should be ignored"
 
         # Wait for throttle period to pass
         await asyncio.sleep(0.15)
 
         # Now a new call should work
-        await adapter.call(MockEvent("fourth"))
+        await adapter.call(mock_event("fourth"))
         assert calls == ["first", "fourth"], "Fourth call should be executed after throttle period"
 
     async def test_throttle_with_no_event_handler(self, bucket_fixture: TaskBucket):
@@ -213,46 +214,44 @@ class TestThrottleLogic:
             nonlocal test_string
             calls.append(test_string)
 
-        signature = inspect.signature(handler)
         async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = HandlerAdapter(async_handler, signature, bucket_fixture, throttle=0.1)
+        adapter = create_adapter(async_handler, bucket_fixture, throttle=0.1)
 
         # First call executes
-        await adapter.call(MockEvent("data"))
+        await adapter.call(mock_event("data"))
         assert calls == ["called"], "First call should be executed immediately"
 
         # Subsequent calls are throttled
         test_string = "called while throttled"
-        await adapter.call(MockEvent("data"))
-        await adapter.call(MockEvent("data"))
+        await adapter.call(mock_event("data"))
+        await adapter.call(mock_event("data"))
         assert calls == ["called"], "Subsequent calls should be ignored"
 
         # After throttle period
         test_string = "called after throttle"
         await asyncio.sleep(0.15)
-        await adapter.call(MockEvent("data"))
+        await adapter.call(mock_event("data"))
         assert calls == ["called", "called after throttle"], "Second call should be executed after throttle period"
 
     async def test_throttle_tracks_time_correctly(self, bucket_fixture: TaskBucket):
         """Test that throttle timing works correctly."""
         calls = []
 
-        async def handler(event):
+        async def handler(event: MockEvent):
             calls.append(event.data)
 
-        signature = inspect.signature(handler)
-        adapter = HandlerAdapter(handler, signature, bucket_fixture, throttle=0.05)
+        adapter = create_adapter(handler, bucket_fixture, throttle=0.05)
 
         # Series of calls with different timing
-        await adapter.call(MockEvent("1"))
+        await adapter.call(mock_event("1"))
         assert calls == ["1"]
 
         await asyncio.sleep(0.03)  # 30ms - should be throttled
-        await adapter.call(MockEvent("2"))
+        await adapter.call(mock_event("2"))
         assert calls == ["1"]
 
         await asyncio.sleep(0.03)  # Total 60ms - should work now
-        await adapter.call(MockEvent("3"))
+        await adapter.call(mock_event("3"))
         assert calls == ["1", "3"]
 
 
@@ -263,7 +262,7 @@ class TestListenerIntegration:
         """Test Listener using debounce."""
         calls = []
 
-        def handler(event):
+        def handler(event: MockEvent):
             calls.append(event.data)
 
         listener = Listener.create(
@@ -275,9 +274,9 @@ class TestListenerIntegration:
         )
 
         # Multiple rapid calls
-        await listener.invoke(MockEvent("1"))
-        await listener.invoke(MockEvent("2"))
-        await listener.invoke(MockEvent("3"))
+        await listener.invoke(mock_event("1"))
+        await listener.invoke(mock_event("2"))
+        await listener.invoke(mock_event("3"))
 
         # Wait for debounce period
         await asyncio.sleep(0.2)
@@ -289,7 +288,7 @@ class TestListenerIntegration:
         """Test Listener using throttle."""
         calls = []
 
-        def handler(event):
+        def handler(event: MockEvent):
             calls.append(event.data)
 
         listener = Listener.create(
@@ -301,9 +300,9 @@ class TestListenerIntegration:
         )
 
         # Multiple rapid calls
-        await listener.invoke(MockEvent("1"))
-        await listener.invoke(MockEvent("2"))
-        await listener.invoke(MockEvent("3"))
+        await listener.invoke(mock_event("1"))
+        await listener.invoke(mock_event("2"))
+        await listener.invoke(mock_event("3"))
 
         # Only first should execute immediately
         assert calls == ["1"], "First call should be executed immediately"
@@ -312,14 +311,14 @@ class TestListenerIntegration:
         await asyncio.sleep(0.15)
 
         # Now another call should work
-        await listener.invoke(MockEvent("4"))
+        await listener.invoke(mock_event("4"))
         assert calls == ["1", "4"], "Second call should be executed after throttle period"
 
     async def test_listener_without_rate_limiting(self, bucket_fixture: TaskBucket):
         """Test Listener without debounce or throttle."""
         calls = []
 
-        def handler(event):
+        def handler(event: MockEvent):
             calls.append(event.data)
 
         listener = Listener.create(
@@ -330,9 +329,9 @@ class TestListenerIntegration:
         )
 
         # All calls should execute immediately
-        await listener.invoke(MockEvent("1"))
-        await listener.invoke(MockEvent("2"))
-        await listener.invoke(MockEvent("3"))
+        await listener.invoke(mock_event("1"))
+        await listener.invoke(mock_event("2"))
+        await listener.invoke(mock_event("3"))
 
         assert calls == ["1", "2", "3"], "All calls should be executed immediately"
 

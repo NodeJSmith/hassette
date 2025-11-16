@@ -92,7 +92,6 @@ async def test_on_registers_listener_and_supports_unsubscribe(
             topic="demo.topic",
             handler=handler,
             where=[lambda _: True],
-            args=("prefix",),
             kwargs={"suffix": "!"},
             once=True,
             debounce=debounce,
@@ -106,7 +105,6 @@ async def test_on_registers_listener_and_supports_unsubscribe(
         assert listener.topic == "demo.topic"
         assert listener.orig_handler is handler
         assert asyncio.iscoroutinefunction(listener.adapter.handler)
-        assert listener.args == ("prefix",)
         assert listener.kwargs == {"suffix": "!"}
         assert listener.once is True
         assert isinstance(listener.predicate, AllOf)
@@ -128,7 +126,6 @@ async def test_on_state_change_builds_predicates(bus_instance: "Bus") -> None:
         changed_from="off",
         changed_to="on",
         where=extra_guard,
-        args=(),
         kwargs=None,
     )
 
@@ -275,18 +272,18 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus) -> None:
     )
 
 
-async def test_bus_uses_args_kwargs(hassette_with_bus) -> None:
+async def test_bus_uses_kwargs(hassette_with_bus) -> None:
     """Handlers receive configured args and kwargs when invoked."""
     hassette = hassette_with_bus
 
     formatted_messages: list[str] = []
     event_processed = asyncio.Event()
 
-    def handler(event: Event[SimpleNamespace], prefix: str, suffix: str) -> None:
-        formatted_messages.append(f"{prefix}{event.payload.value}{suffix}")
+    def handler(event: Event[SimpleNamespace], suffix: str) -> None:
+        formatted_messages.append(f"Value: {event.payload.value}{suffix}")
         hassette_with_bus.task_bucket.post_to_loop(event_processed.set)
 
-    hassette._bus.on(topic="custom.args", handler=handler, args=("Value: ",), kwargs={"suffix": "!"})
+    hassette._bus.on(topic="custom.args", handler=handler, kwargs={"suffix": "!"})
 
     await hassette.send_event("custom.args", Event(topic="custom.args", payload=SimpleNamespace(value="Test")))
 
