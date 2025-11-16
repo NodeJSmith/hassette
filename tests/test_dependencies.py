@@ -2,12 +2,15 @@
 
 import inspect
 import json
+import random
 import typing
+from collections import defaultdict
 from pathlib import Path
 from typing import Annotated
 
 import pytest
 
+from hassette import MISSING_VALUE
 from hassette import dependencies as D
 from hassette.bus import accessors as A
 from hassette.dependencies.classes import AttrNew, AttrOld, AttrOldAndNew, Depends, StateNew, StateOld, StateOldAndNew
@@ -30,7 +33,7 @@ if typing.TYPE_CHECKING:
 
 
 @pytest.fixture(scope="session")
-def state_change_events(test_data_path: Path) -> list[StateChangeEvent]:
+def state_change_events(test_data_path: Path) -> list[StateChangeEvent[states.StateUnion]]:
     """Load state change events from test data file."""
     events = []
     with open(test_data_path / "state_change_events.jsonl") as f:
@@ -42,6 +45,10 @@ def state_change_events(test_data_path: Path) -> list[StateChangeEvent]:
                 event = create_event_from_hass(envelope)
                 if isinstance(event, StateChangeEvent):
                     events.append(event)
+
+    # randomize order
+    random.shuffle(events)
+
     return events
 
 
@@ -57,7 +64,20 @@ def other_events(test_data_path: Path) -> list[Event]:
                 envelope: HassEventEnvelopeDict = json.loads(line)
                 event = create_event_from_hass(envelope)
                 events.append(event)
+
+    # randomize order
+    random.shuffle(events)
+
     return events
+
+
+@pytest.fixture(scope="session")
+def all_events(
+    state_change_events: list[StateChangeEvent[states.StateUnion]],
+    other_events: list[Event],
+) -> list[Event]:
+    """Combine all events into a single list."""
+    return state_change_events + other_events
 
 
 class TestTypeDetection:
@@ -117,14 +137,14 @@ class TestTypeDetection:
 class TestSingletonExtractors:
     """Test singleton extractor instances (StateNew, StateOld, StateOldAndNew)."""
 
-    def test_state_new_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_state_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test StateNew singleton extracts new state correctly."""
         event = state_change_events[0]
         result = StateNew(event)
         assert result is not None
         assert result == event.payload.data.new_state
 
-    def test_state_old_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_state_old_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test StateOld singleton extracts old state correctly."""
         # Find an event with old_state
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
@@ -134,7 +154,7 @@ class TestSingletonExtractors:
         assert result is not None
         assert result == event.payload.data.old_state
 
-    def test_state_old_and_new_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_state_old_and_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test StateOldAndNew singleton extracts both states correctly."""
         # Find an event with both states
         event = next(
@@ -151,7 +171,7 @@ class TestSingletonExtractors:
         assert old_result == event.payload.data.old_state
         assert new_result == event.payload.data.new_state
 
-    def test_state_new_with_first_state(self, state_change_events: list[StateChangeEvent]):
+    def test_state_new_with_first_state(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test StateNew works with initial state (no old_state)."""
         event = next((e for e in state_change_events if e.payload.data.old_state is None), None)
         assert event is not None, "No initial state events found"
@@ -160,11 +180,19 @@ class TestSingletonExtractors:
         assert result == event.payload.data.new_state
         assert result is not None
 
+    def test_state_new_with_last_state(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+        """Test StateNew works with final state (no new_state) - should return None."""
+        event = next((e for e in state_change_events if e.payload.data.new_state is None), None)
+        assert event is not None, "No final state events found"
+
+        result = StateNew(event)
+        assert result is None
+
 
 class TestParameterizedExtractors:
     """Test parameterized extractor classes (AttrNew, AttrOld, AttrOldAndNew)."""
 
-    def test_attr_new_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_attr_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test AttrNew extracts attribute from new state."""
         # Find an event with friendly_name in new_state
         event = next(
@@ -182,7 +210,26 @@ class TestParameterizedExtractors:
         assert result is not None
         assert result == event.payload.data.new_state.attributes.friendly_name
 
-    def test_attr_old_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_attr_new_extractor_missing_attribute(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+        """Test AttrNew returns MISSING_VALUE for missing attribute."""
+        # Find an event where new_state does not have 'non_existent_attr'
+        event = next(
+            (
+                e
+                for e in state_change_events
+                if e.payload.data.new_state and not hasattr(e.payload.data.new_state.attributes, "non_existent_attr")
+            ),
+            None,
+        )
+        assert event is not None, "No suitable event found"
+
+        extractor = AttrNew("non_existent_attr")
+        result = extractor(event)
+        from hassette.bus.accessors import MISSING_VALUE
+
+        assert result is MISSING_VALUE
+
+    def test_attr_old_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test AttrOld extracts attribute from old state."""
         # Find an event with old_state and friendly_name
         event = next(
@@ -200,7 +247,7 @@ class TestParameterizedExtractors:
         assert result is not None
         assert result == event.payload.data.old_state.attributes.friendly_name
 
-    def test_attr_old_and_new_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_attr_old_and_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test AttrOldAndNew extracts attribute from both states."""
         # Find event with both states having friendly_name
         event = next(
@@ -221,7 +268,7 @@ class TestParameterizedExtractors:
         assert old_val == event.payload.data.old_state.attributes.friendly_name
         assert new_val == event.payload.data.new_state.attributes.friendly_name
 
-    def test_attr_new_with_different_types(self, state_change_events: list[StateChangeEvent]):
+    def test_attr_new_with_different_types(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test AttrNew with different attribute types."""
         # Test with editable (boolean)
         event = next(
@@ -241,28 +288,68 @@ class TestParameterizedExtractors:
 class TestTypeAliasExtractors:
     """Test pre-defined type alias extractors (EntityId, Domain, etc.)."""
 
-    def test_entity_id_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_entity_id_extractor(self, all_events: list[Event]):
         """Test EntityId type alias extracts entity_id."""
-        event = state_change_events[0]
 
-        # Extract the callable from the Annotated type
+        # get an event of each type
+        event_types = defaultdict(list)
+        for event in all_events:
+            if "automation_reloaded" in event.topic:
+                continue
+            event_types[type(event)].append(event)
+
+        for event_type, events in event_types.items():
+            # call service event *can* have entity_id in service_data dict, but is not guaranteed
+            # to - we want to skip those without it for this test
+            if event_type is CallServiceEvent:
+                # event = next((e for e in events if e.payload.data.service_data), None)
+                events = [e for e in events if e.payload.data.service_data]
+
+            for event in events:
+                # Extract the callable from the Annotated type
+                _, extractor = extract_from_annotated(D.EntityId)
+                result = extractor(event)
+
+                # check only for "not MISSING_VALUE", as we get entity_id from a few different places
+                # and the test shouldn't need to be aware of that
+                assert result is not MISSING_VALUE, f"EntityId extractor returned MISSING_VALUE for event: {event}"
+
+    def test_entity_id_with_call_service_event_with_empty_data_returns_missing_value(self, other_events: list[Event]):
+        """Test EntityId extractor returns MISSING_VALUE for CallServiceEvent with empty service_data."""
+        call_service_event = next(
+            (e for e in other_events if isinstance(e, CallServiceEvent) and not e.payload.data.service_data), None
+        )
+        assert call_service_event is not None, "No CallServiceEvent with empty service_data found in test data"
+
         _, extractor = extract_from_annotated(D.EntityId)
-        result = extractor(event)
-
-        assert result == event.payload.data.entity_id
-
-    def test_domain_extractor(self, other_events: list[Event]):
-        """Test Domain type alias extracts domain from CallServiceEvent."""
-        # Domain accessor expects payload.data.domain which is present in CallServiceEvent
-        call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
-        assert call_service_event is not None, "No CallServiceEvent found in test data"
-
-        _, extractor = extract_from_annotated(D.Domain)
         result = extractor(call_service_event)
 
-        assert result == call_service_event.payload.data.domain
+        assert result is MISSING_VALUE, (
+            "EntityId extractor should return MISSING_VALUE for CallServiceEvent with empty service_data, "
+            f"got: {result}"
+        )
 
-    def test_new_state_value_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_domain_extractor(self, all_events: list[Event]):
+        """Test Domain type alias extracts domain from any Event."""
+
+        # get an event of each type
+        event_types = defaultdict(list)
+        for event in all_events:
+            if "automation_reloaded" in event.topic:
+                continue
+            event_types[type(event)].append(event)
+
+        for events in event_types.values():
+            for event in events:
+                # Extract the callable from the Annotated type
+                _, extractor = extract_from_annotated(D.Domain)
+                result = extractor(event)
+
+                # check only for "not MISSING_VALUE", as we get domain from a few different places
+                # and the test shouldn't need to be aware of that
+                assert result is not MISSING_VALUE, f"Domain extractor returned MISSING_VALUE for event: {event}"
+
+    def test_new_state_value_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test NewStateValue type alias extracts state value."""
         event = state_change_events[0]
 
@@ -272,7 +359,7 @@ class TestTypeAliasExtractors:
         if event.payload.data.new_state:
             assert result == event.payload.data.new_state.value
 
-    def test_old_state_value_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_old_state_value_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test OldStateValue type alias extracts old state value."""
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
         assert event is not None
@@ -293,7 +380,7 @@ class TestTypeAliasExtractors:
         assert isinstance(result, dict)
         assert result == call_service_event.payload.data.service_data
 
-    def test_event_context_extractor(self, state_change_events: list[StateChangeEvent]):
+    def test_event_context_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test EventContext type alias extracts context."""
         event = state_change_events[0]
 
@@ -583,7 +670,9 @@ class TestDependsBaseClass:
 class TestEndToEndDI:
     """End-to-end tests with real event data."""
 
-    def test_extract_multiple_attributes_from_event(self, state_change_events: list[StateChangeEvent]):
+    def test_extract_multiple_attributes_from_event(
+        self, state_change_events: list[StateChangeEvent[states.StateUnion]]
+    ):
         """Test extracting multiple pieces of data from same event."""
         # Find suitable event
         event = next(
@@ -617,7 +706,7 @@ class TestEndToEndDI:
         assert extracted_values["friendly_name"] == event.payload.data.new_state.attributes.friendly_name
         assert extracted_values["context"] == event.payload.context
 
-    def test_extract_with_state_change(self, state_change_events: list[StateChangeEvent]):
+    def test_extract_with_state_change(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test extraction with event that has both old and new states."""
         event = next(
             (
@@ -662,7 +751,7 @@ class TestEndToEndDI:
         assert extracted_values["domain"] == event.payload.data.domain
         assert extracted_values["service_data"] == event.payload.data.service_data
 
-    def test_mixed_di_strategies_in_one_handler(self, state_change_events: list[StateChangeEvent]):
+    def test_mixed_di_strategies_in_one_handler(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
         """Test handler using multiple DI strategies together."""
         event = next(
             (
