@@ -264,7 +264,6 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
                 topic=f"hass.event.{event_type}",
                 payload=HassPayload(**event_payload, data=event_data),
             )
-    raise ValueError(f"Unknown event type: {event_type}")
 
 
 HassEvent: TypeAlias = Event[HassPayload[Any]]
