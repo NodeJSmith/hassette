@@ -33,13 +33,13 @@ class MyApp(App[MyAppUserConfig]):
             self.button_state = await self.api.get_state("input_button.test", model=InputButtonState)
             self.logger.info("Button state: %s", self.button_state)
 
-    def handle_event_sync(self, new_state: D.NewState[states.ButtonState], *args, **kwargs) -> None:
-        self.logger.info("new_state: %s, args: %s, kwargs: %s", new_state, args, kwargs)
+    def handle_event_sync(self, new_state: D.NewState[states.ButtonState], **kwargs) -> None:
+        self.logger.info("new_state: %s, kwargs: %s", new_state, kwargs)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)
 
-    async def handle_event(self, event: StateChangeEvent, *args, **kwargs) -> None:
-        self.logger.info("Async event: %s, args: %s, kwargs: %s", event, args, kwargs)
+    async def handle_event(self, event: StateChangeEvent, **kwargs) -> None:
+        self.logger.info("Async event: %s, kwargs: %s", event, kwargs)
         test = await self.api.get_state_value("input_button.test")
         self.logger.info("Async state: %s", test)
 
