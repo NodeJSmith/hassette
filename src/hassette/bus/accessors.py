@@ -54,7 +54,7 @@ from hassette.const import MISSING_VALUE
 
 if typing.TYPE_CHECKING:
     from hassette import states
-    from hassette.events import CallServiceEvent, HassEvent, StateChangeEvent
+    from hassette.events import CallServiceEvent, HassContext, HassEvent, StateChangeEvent
 
 LOGGER = logging.getLogger(__name__)
 
@@ -182,9 +182,9 @@ def get_entity_id(event: "HassEvent") -> str | Sentinel:
     return MISSING_VALUE
 
 
-def get_context(event: "HassEvent") -> dict[str, Any]:
+def get_context(event: "HassEvent") -> "HassContext":
     """Get the context dict from the event payload."""
-    return cast("dict[str, Any]", get_path("payload.context")(event))
+    return cast("HassContext", get_path("payload.context")(event))
 
 
 # ---------------------------------------------------------------------------
