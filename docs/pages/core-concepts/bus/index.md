@@ -28,16 +28,49 @@ You can register handlers for any [Home Assistant
 event](https://www.home-assistant.io/docs/configuration/events/) or
 internal Hassette framework event using the event bus.
 
-Handlers can be **async or sync**, functions or methods — no special
-signature is required. If your handler needs to receive the event
-object, name its first (non-`self`) parameter `event`. The name, not the
-type, is what Hassette uses to decide whether to pass it.
+Handlers receive parameters through dependency injection, which allows you to
+specify exactly what data you need. Along with dependency-injected parameters,
+handlers can also accept arbitrary kwargs.
+
+Dependency injection is done through the ``Annotated`` type from the
+`typing` module, combined with special markers from the
+[`hassette.dependencies`][hassette.dependencies] module.
+
+!!! warning
+    Handlers cannot accept positional only or variadic positional
+    parameters (i.e., `*args`). These would cause ambiguity in the injection
+    process.
+
+!!! warning
+    Handlers *must* annotate their parameters with types. This is required for
+    dependency injection to work correctly. If you would prefer to not add
+    a bunch of annotations you can receive the entire event object, annotated
+    as [Event][hassette.events.base.Event] or any specific subclass.
 
 Example:
 
+
+To annotate the simplest way, just annotate as an Event or Event subclass:
 ```python
-async def on_motion(self, event):
-    self.logger.info("Motion detected from %s", event.payload.data["entity_id"])
+from hassette.events import StateChangeEvent
+
+async def on_motion(self, event: StateChangeEvent):
+    self.logger.info("Motion detected from %s", event.payload.entity_id)
+```
+
+To extract specific fields from the event payload, use the
+[`hassette.dependencies`][hassette.dependencies] module:
+
+```python
+from typing import Annotated
+from hassette import dependencies as D
+
+async def on_temperature_change(
+    self,
+    new_temp: Annotated[float, D.AttrNew("temperature")],
+    old_temp: Annotated[float, D.AttrOld("temperature")],
+) -> None:
+    self.logger.info("Temperature changed from %s to %s", old_temp, new_temp)
 ```
 
 If your handler doesn't need the event object, omit the parameter:
@@ -47,8 +80,7 @@ async def on_heartbeat(self) -> None:
     self.logger.info("Heartbeat received")
 ```
 
-Handlers can also accept extra `args` or `kwargs` that you provide when
-subscribing.
+Handlers can also accept extra `kwargs` that you provide when subscribing.
 
 ## Event Model
 
