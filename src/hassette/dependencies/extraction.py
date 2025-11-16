@@ -169,9 +169,10 @@ def extract_from_signature(signature: Signature) -> dict[str, tuple[Any, Callabl
             continue
 
         # Try each extraction strategy in order
+        # depends first - it is more specific than Annotated alone
         result = (
-            extract_from_annotated(annotation)
-            or extract_from_depends(annotation)
+            extract_from_depends(annotation)
+            or extract_from_annotated(annotation)
             or extract_from_event_type(annotation)
         )
 
