@@ -6,8 +6,6 @@ from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
-"""Represents the payload type of an event."""
-
 DataT = TypeVar("DataT")
 """Represents the data type within an event payload."""
 
@@ -99,6 +97,7 @@ class HassettePayload(EventPayload[DataT]):
 
 
 PayloadT = TypeVar("PayloadT", bound=EventPayload)
+"""Represents the payload type of an event."""
 
 
 @dataclass(frozen=True, slots=True)
