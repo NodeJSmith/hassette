@@ -88,7 +88,7 @@ def env_file_path():
     return ENV_FILE
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_data_path():
     """
     Provide the path to the test data directory.
