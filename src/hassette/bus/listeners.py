@@ -57,9 +57,6 @@ class Listener:
     predicate: "Predicate | None"
     """Predicate to filter events before invoking the handler."""
 
-    args: tuple[Any, ...] | None = None
-    """Positional arguments to pass to the handler."""
-
     kwargs: Mapping[str, Any] | None = None
     """Keyword arguments to pass to the handler."""
 
@@ -82,9 +79,8 @@ class Listener:
 
     async def invoke(self, event: "Event[Any]") -> None:
         """Invoke the handler through the adapter."""
-        args = self.args or ()
         kwargs = self.kwargs or {}
-        await self.adapter.call(event, *args, **kwargs)
+        await self.adapter.call(event, **kwargs)
 
     def __repr__(self) -> str:
         return f"Listener<{self.owner} - {self.handler_short_name}>"
