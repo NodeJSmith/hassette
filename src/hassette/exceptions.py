@@ -109,8 +109,10 @@ class UnableToExtractParameterError(HassetteError):
     """
 
     def __init__(self, parameter_name: str, parameter_type: type, original_exception: Exception):
+        param_type_name = getattr(parameter_type, "__name__", str(parameter_type))
+
         msg = (
-            f"Unable to extract parameter '{parameter_name}' of type '{parameter_type.__name__}' "
+            f"Unable to extract parameter '{parameter_name}' of type '{param_type_name}' "
             f"for dependency injection: {type(original_exception).__name__}: {original_exception}"
         )
         super().__init__(msg)
