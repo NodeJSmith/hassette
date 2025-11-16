@@ -1,3 +1,4 @@
+import logging
 import typing
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -12,6 +13,9 @@ from .raw import HassEventEnvelopeDict, HassStateDict
 
 if typing.TYPE_CHECKING:
     from typing_extensions import Sentinel
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
