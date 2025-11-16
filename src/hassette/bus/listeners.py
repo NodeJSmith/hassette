@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any, ParamSpec, TypeVar, cast
 
-from hassette.depends import extract_from_signature, validate_di_signature
+from hassette.dependencies import extract_from_signature, validate_di_signature
 from hassette.exceptions import UnableToExtractParameterError
 from hassette.utils.exception_utils import get_short_traceback
 from hassette.utils.func_utils import callable_name, callable_short_name

@@ -1,5 +1,7 @@
+from typing import Annotated
+
 from hassette import App, AppConfig
-from hassette import depends as D
+from hassette import dependencies as D
 from hassette.events import StateChangeEvent
 from hassette.models import states
 from hassette.models.entities import LightEntity
@@ -33,8 +35,13 @@ class MyApp(App[MyAppUserConfig]):
             self.button_state = await self.api.get_state("input_button.test", model=InputButtonState)
             self.logger.info("Button state: %s", self.button_state)
 
-    def handle_event_sync(self, new_state: D.NewState[states.ButtonState], **kwargs) -> None:
-        self.logger.info("new_state: %s, kwargs: %s", new_state, kwargs)
+    def handle_event_sync(
+        self,
+        new_state: Annotated[states.ButtonState, D.StateNew],
+        friendly_name: Annotated[str, D.AttrNew("friendly_name")],
+        **kwargs,
+    ) -> None:
+        self.logger.info("new_state: %s, kwargs: %s, friendly_name: %s", new_state, kwargs, friendly_name)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)
 
