@@ -25,17 +25,37 @@ def is_depends_subclass(annotation: Any) -> bool:
 
 
 def is_event_type(annotation: Any) -> bool:
-    """Check if annotation is an Event class or subclass."""
+    """Check if annotation is an Event class or subclass.
+
+    Handles both plain Event types (Event, StateChangeEvent) and
+    parameterized generics (Event[PayloadT], StateChangeEvent[PayloadT]).
+
+    Args:
+        annotation: The type annotation to check.
+
+    Returns:
+        True if annotation is Event or an Event subclass.
+
+    Examples:
+        >>> is_event_type(Event)
+        True
+        >>> is_event_type(StateChangeEvent)
+        True
+        >>> is_event_type(Event[dict])
+        True
+        >>> is_event_type(str)
+        False
+    """
     from hassette.events import Event
 
     if annotation is inspect.Parameter.empty:
         return False
 
-    origin = get_origin(annotation)
-    if origin is not None:
-        return isclass(origin) and issubclass(origin, Event)
+    # Get the base class for generic types (Event[T] -> Event)
+    # For non-generic types, this returns None, so we check annotation directly
+    base_type = get_origin(annotation) or annotation
 
-    return isclass(annotation) and issubclass(annotation, Event)
+    return isclass(base_type) and issubclass(base_type, Event)
 
 
 def extract_from_annotated(annotation: Any) -> tuple[Any, Callable] | None:
