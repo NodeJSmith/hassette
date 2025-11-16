@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any, ParamSpec, TypeVar, cast
 
-from hassette.depends import extract_from_signature
-from hassette.events.base import Event
+from hassette.depends import extract_from_signature, validate_di_signature
+from hassette.exceptions import UnableToExtractParameterError
 from hassette.utils.exception_utils import get_short_traceback
 from hassette.utils.func_utils import callable_name, callable_short_name
 
@@ -20,12 +20,8 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette import TaskBucket
-    from hassette.events.base import EventT
-    from hassette.types import (
-        AsyncHandlerType,
-        HandlerType,
-        Predicate,
-    )
+    from hassette.events.base import Event
+    from hassette.types import AsyncHandlerType, HandlerType, Predicate
 
 LOGGER = getLogger(__name__)
 
@@ -101,7 +97,6 @@ class Listener:
         topic: str,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
-        args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         once: bool = False,
         debounce: float | None = None,
@@ -124,7 +119,6 @@ class Listener:
             orig_handler=handler,
             adapter=adapter,
             predicate=pred,
-            args=args,
             kwargs=kwargs,
             once=once,
         )
@@ -150,6 +144,9 @@ class HandlerAdapter:
         self.signature = signature
         self.task_bucket = task_bucket
 
+        # Validate signature for DI (all handlers must use DI now)
+        validate_di_signature(signature)
+
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
         self._throttle_last_time = 0.0
@@ -163,28 +160,43 @@ class HandlerAdapter:
         else:
             self.call = self._direct_call
 
-    async def _direct_call(self, event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
-        """Call handler directly with appropriate signature."""
+    async def _direct_call(self, event: "Event[Any]", **kwargs: Any) -> None:
+        """Call handler with dependency injection.
+
+        Extracts required parameters from the event using type annotations
+        and injects them as kwargs.
+
+        Raises:
+            UnableToExtractParameterError: If parameter extraction fails.
+        """
+
         param_details = extract_from_signature(self.signature)
 
         for name, (param_type, extractor) in param_details.items():
-            if name == "event" or (inspect.isclass(param_type) and issubclass(param_type, Event)):
-                kwargs[name] = event
-                continue
-
             try:
                 kwargs[name] = extractor(event)
-            except Exception:
+            except Exception as e:
+                # Log detailed error
                 LOGGER.error(
-                    "Handler %s - error extracting parameter '%s': %s", self.handler_name, name, get_short_traceback()
+                    "Handler %s - failed to extract parameter '%s' of type %s: %s",
+                    self.handler_name,
+                    name,
+                    param_type,
+                    get_short_traceback(),
                 )
+                # Re-raise to prevent handler from running with missing/invalid data
+                raise UnableToExtractParameterError(
+                    name,
+                    param_type,
+                    e,
+                ) from e
 
-        await self.handler(*args, **kwargs)
+        await self.handler(**kwargs)
 
     def _make_debounced_call(self, seconds: float):
         """Create a debounced version of the call method."""
 
-        async def debounced_call(event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
+        async def debounced_call(event: "Event[Any]", **kwargs: Any) -> None:
             # Cancel previous debounce
             if self._debounce_task and not self._debounce_task.done():
                 self._debounce_task.cancel()
@@ -192,7 +204,7 @@ class HandlerAdapter:
             async def delayed_call():
                 try:
                     await asyncio.sleep(seconds)
-                    await self._direct_call(event, *args, **kwargs)
+                    await self._direct_call(event, **kwargs)
                 except asyncio.CancelledError:
                     pass
 
@@ -203,12 +215,12 @@ class HandlerAdapter:
     def _make_throttled_call(self, seconds: float):
         """Create a throttled version of the call method."""
 
-        async def throttled_call(event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
+        async def throttled_call(event: "Event[Any]", **kwargs: Any) -> None:
             async with self._throttle_lock:
                 now = time.monotonic()
                 if now - self._throttle_last_time >= seconds:
                     self._throttle_last_time = now
-                    await self._direct_call(event, *args, **kwargs)
+                    await self._direct_call(event, **kwargs)
 
         return throttled_call
 
@@ -239,7 +251,7 @@ class Subscription:
         self.unsubscribe()
 
 
-def make_async_handler(fn: "HandlerType[EventT]", task_bucket: "TaskBucket") -> "AsyncHandlerType[EventT]":
+def make_async_handler(fn: "HandlerType", task_bucket: "TaskBucket") -> "AsyncHandlerType":
     """Wrap a function to ensure it is always called as an async handler.
 
     If the function is already an async function, it will be called directly.
@@ -251,4 +263,4 @@ def make_async_handler(fn: "HandlerType[EventT]", task_bucket: "TaskBucket") -> 
     Returns:
         An async handler that wraps the original function.
     """
-    return cast("AsyncHandlerType[EventT]", task_bucket.make_async_adapter(fn))
+    return cast("AsyncHandlerType", task_bucket.make_async_adapter(fn))
