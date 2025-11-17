@@ -9,8 +9,6 @@ from hassette.models.states import StateT, StateValueT
 StateNew: TypeAlias = Annotated[StateT, A.get_state_object_new]
 """Extract the new state object from a StateChangeEvent.
 
-**Type**: `StateT` (generic state type, specify via subscript like `D.StateNew[states.LightState]`)
-
 Example:
 ```python
 async def handler(new_state: D.StateNew[states.LightState]):
@@ -20,8 +18,6 @@ async def handler(new_state: D.StateNew[states.LightState]):
 
 StateOld: TypeAlias = Annotated[StateT, A.get_state_object_old]
 """Extract the old state object from a StateChangeEvent.
-
-**Type**: `StateT | None` (generic state type, may be None if entity is new)
 
 Example:
 ```python
@@ -33,8 +29,6 @@ async def handler(old_state: D.StateOld[states.LightState]):
 
 StateOldAndNew: TypeAlias = Annotated[tuple[StateT, StateT], A.get_state_object_old_new]
 """Extract both old and new state objects from a StateChangeEvent.
-
-**Type**: `tuple[StateT | None, StateT]` (old state may be None if entity is new)
 
 Example:
 ```python
@@ -48,8 +42,6 @@ async def handler(states: D.StateOldAndNew[states.LightState]):
 StateValueNew: TypeAlias = Annotated[StateValueT, A.get_state_value_new]
 """Extract the new state value from a StateChangeEvent.
 
-**Type**: `StateValueT` (generic state value type, specify via subscript like `D.StateValueNew[str]`)
-
 The state value is the string representation of the state (e.g., "on", "off", "25.5").
 
 Example:
@@ -61,8 +53,6 @@ async def handler(new_value: D.StateValueNew[str]):
 
 StateValueOld: TypeAlias = Annotated[StateValueT, A.get_state_value_old]
 """Extract the old state value from a StateChangeEvent.
-
-**Type**: `StateValueT | None` (generic state value type, may be None if entity is new)
 
 The state value is the string representation of the state (e.g., "on", "off", "25.5").
 
@@ -77,8 +67,6 @@ async def handler(old_value: D.StateValueOld[str]):
 StateValueOldAndNew: TypeAlias = Annotated[tuple[StateValueT, StateValueT], A.get_state_value_old_new]
 """Extract both old and new state values from a StateChangeEvent.
 
-**Type**: `tuple[StateValueT | None, StateValueT]` (old value may be None if entity is new)
-
 The state values are the string representations of the states (e.g., "on", "off", "25.5").
 
 Example:
@@ -92,8 +80,6 @@ async def handler(values: D.StateValueOldAndNew[str]):
 
 EntityId: TypeAlias = Annotated[str | Sentinel, A.get_entity_id]
 """Extract the entity_id from a HassEvent.
-
-**Type**: `str | Sentinel`
 
 Returns the entity ID string (e.g., "light.bedroom"), or `MISSING_VALUE` sentinel
 if the event does not contain an entity_id field.
@@ -111,8 +97,6 @@ async def handler(entity_id: D.EntityId):
 Domain: TypeAlias = Annotated[str | Sentinel, A.get_domain]
 """Extract the domain from a HassEvent.
 
-**Type**: `str | Sentinel`
-
 Returns the domain string (e.g., "light", "sensor"), or `MISSING_VALUE` sentinel
 if the event does not contain a domain field. Extracted from the entity_id.
 
@@ -129,8 +113,6 @@ async def handler(domain: D.Domain):
 Service: TypeAlias = Annotated[str | Sentinel, A.get_service]
 """Extract the service name from a CallServiceEvent.
 
-**Type**: `str | Sentinel`
-
 Returns the service name string (e.g., "turn_on", "turn_off"), or `MISSING_VALUE`
 sentinel if the event does not contain a service field.
 
@@ -144,8 +126,6 @@ async def handler(service: D.Service):
 
 ServiceData: TypeAlias = Annotated[dict[str, Any], A.get_service_data]
 """Extract the service_data dictionary from a CallServiceEvent.
-
-**Type**: `dict[str, Any]`
 
 Returns the service data dictionary containing parameters passed to the service call.
 Returns an empty dict if no service_data is present.
@@ -161,8 +141,6 @@ async def handler(service_data: D.ServiceData):
 
 EventContext: TypeAlias = Annotated[HassContext, A.get_context]
 """Extract the context object from a HassEvent.
-
-**Type**: `HassContext`
 
 Returns the Home Assistant context object containing metadata about the event
 origin (user_id, parent_id, etc.).
@@ -192,6 +170,7 @@ async def handler(
 
 AttrOld = A.get_attr_old
 """Factory for creating annotated types to extract specific attributes from the old state.
+
 Usage:
 ```python
 from typing import Annotated
@@ -206,6 +185,7 @@ async def handler(
 
 AttrOldAndNew = A.get_attr_old_new
 """Factory for creating annotated types to extract specific attributes from both old and new states.
+
 Usage:
 ```python
 from typing import Annotated
