@@ -57,7 +57,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - **Purpose**: Automatically extract and inject event data into handler parameters using `Annotated` type hints
 - **Key files**:
   - `__init__.py` - Public API and examples
-  - `classes.py` - Dependency marker classes (`Depends`, `StateNew`, `StateOld`, `AttrNew`, etc.)
+  - `classes.py` - Dependency marker classes (`StateNew`, `StateOld`, `AttrNew`, etc.)
   - `extraction.py` - Signature inspection and parameter extraction logic
 - **Usage pattern**:
 
@@ -76,7 +76,6 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 
 - **Available dependencies**: `StateNew`, `StateOld`, `StateOldAndNew`, `AttrNew(name)`, `AttrOld(name)`, `AttrOldAndNew(name)`, `EntityId`, `Domain`, `Service`, `StateValueNew`, `StateValueOld`, `ServiceData`, `EventContext`
 - **Integration**: `Bus` resource (`core/resources/bus/bus.py`) uses `extract_from_signature` and `validate_di_signature` to process handler signatures and inject values at call time
-- **Custom extractors**: Subclass `Depends` and implement `__call__(self, event: Event)` method
 
 ## Event Bus Usage
 

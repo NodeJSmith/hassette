@@ -162,19 +162,6 @@ async def handler(
         self.logger.info("%s is bright: %d", entity_id, brightness)
 ```
 
-### Custom Extractors
-
-Create custom extractors by subclassing `Depends`:
-
-```python
-from hassette.dependencies.classes import Depends
-from hassette.events import Event
-
-class CustomExtractor(Depends):
-    def __call__(self, event: Event) -> str:
-        return f"custom_{event.topic}"
-```
-
 ### Restrictions
 
 - Handlers cannot use positional-only parameters (before `/`)

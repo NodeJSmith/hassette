@@ -12,7 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependency Injection for Event Handlers** - Handlers can now use `Annotated` type hints with dependency markers from `hassette.dependencies` to automatically extract and inject event data as parameters. This provides a cleaner, more type-safe alternative to manually accessing event payloads.
   - Available dependencies include `StateNew`, `StateOld`, `AttrNew(name)`, `AttrOld(name)`, `EntityId`, `Domain`, `Service`, `ServiceData`, `StateValueNew`, `StateValueOld`, `EventContext`, and more
   - Handlers can mix DI parameters with custom kwargs
-  - Custom extractors can be created by subclassing `Depends`
   - See `hassette.dependencies` module documentation and updated examples for details
 
 ### Changed
