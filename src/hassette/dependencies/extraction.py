@@ -9,21 +9,6 @@ def is_annotated_type(annotation: Any) -> bool:
     return get_origin(annotation) is Annotated
 
 
-def is_depends_subclass(annotation: Any) -> bool:
-    """Check if annotation is Annotated with a Depends instance."""
-    from .classes import Depends
-
-    if not is_annotated_type(annotation):
-        return False
-
-    args = get_args(annotation)
-    if len(args) < 2:
-        return False
-
-    metadata = args[1]
-    return isinstance(metadata, Depends)
-
-
 def is_event_type(annotation: Any) -> bool:
     """Check if annotation is an Event class or subclass.
 
@@ -78,31 +63,6 @@ def extract_from_annotated(annotation: Any) -> tuple[Any, Callable] | None:
     return (base_type, metadata)
 
 
-def extract_from_depends(annotation: Any) -> tuple[Any, Callable] | None:
-    """Extract type and extractor from Annotated with Depends instance.
-
-    Returns:
-        Tuple of (type, extractor_instance) if valid Annotated with Depends instance.
-        None otherwise.
-    """
-    from .classes import Depends
-
-    if not is_annotated_type(annotation):
-        return None
-
-    args = get_args(annotation)
-    if len(args) < 2:
-        return None
-
-    base_type, metadata = args[0], args[1]
-
-    # Check if metadata is an instance of Depends (including subclasses)
-    if isinstance(metadata, Depends):
-        return (base_type, metadata)
-
-    return None
-
-
 def extract_from_event_type(annotation: Any) -> tuple[Any, Callable] | None:
     """Handle plain Event types - user wants the full event passed through.
 
@@ -123,11 +83,7 @@ def has_dependency_injection(signature: Signature) -> bool:
         if param.annotation is inspect.Parameter.empty:
             continue
 
-        if (
-            is_annotated_type(param.annotation)
-            or is_depends_subclass(param.annotation)
-            or is_event_type(param.annotation)
-        ):
+        if is_annotated_type(param.annotation) or is_event_type(param.annotation):
             return True
 
     return False
@@ -168,13 +124,7 @@ def extract_from_signature(signature: Signature) -> dict[str, tuple[Any, Callabl
         if annotation is inspect.Parameter.empty:
             continue
 
-        # Try each extraction strategy in order
-        # depends first - it is more specific than Annotated alone
-        result = (
-            extract_from_depends(annotation)
-            or extract_from_annotated(annotation)
-            or extract_from_event_type(annotation)
-        )
+        result = extract_from_annotated(annotation) or extract_from_event_type(annotation)
 
         if result:
             param_details[param.name] = result

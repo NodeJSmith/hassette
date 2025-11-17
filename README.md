@@ -48,8 +48,8 @@ class HelloApp(App):
 
     async def on_door_open(
         self,
-        new_state: Annotated[states.BinarySensorState, D.StateNew],
-        entity_id: Annotated[str, D.EntityId],
+        new_state: D.StateNew[states.BinarySensorState],
+        entity_id: D.EntityId,
     ):
         self.logger.info("%s opened!", entity_id)
         await self.api.call_service(

@@ -1,142 +1,219 @@
-import typing
-from typing import Any
+from typing import Annotated, Any, TypeAlias
+
+from typing_extensions import Sentinel
 
 from hassette.bus import accessors as A
+from hassette.events import HassContext
+from hassette.models.states import StateT, StateValueT
 
-if typing.TYPE_CHECKING:
-    from hassette.events import Event, StateChangeEvent
+StateNew: TypeAlias = Annotated[StateT, A.get_state_object_new]
+"""Extract the new state object from a StateChangeEvent.
 
+**Type**: `StateT` (generic state type, specify via subscript like `D.StateNew[states.LightState]`)
 
-class Depends:
-    """Base class for dependencies."""
-
-    def __call__(self, event: "Event") -> Any:
-        raise NotImplementedError()
-
-
-class _StateNewExtractor(Depends):
-    """Internal extractor for new state object from a StateChangeEvent."""
-
-    def __call__(self, event: "StateChangeEvent") -> Any:
-        return A.get_state_object_new(event)
-
-
-class _StateOldExtractor(Depends):
-    """Internal extractor for old state object from a StateChangeEvent."""
-
-    def __call__(self, event: "StateChangeEvent") -> Any:
-        return A.get_state_object_old(event)
-
-
-class _StateOldAndNewExtractor(Depends):
-    """Internal extractor for both old and new state objects from a StateChangeEvent."""
-
-    def __call__(self, event: "StateChangeEvent") -> tuple[Any, Any]:
-        return (
-            A.get_state_object_old(event),
-            A.get_state_object_new(event),
-        )
-
-
-# Pre-instantiated singletons for use in Annotated types
-StateNew = _StateNewExtractor()
-"""Dependency for extracting the new state object from a StateChangeEvent.
-
-Usage:
-    ```python
-    from typing import Annotated
-    from hassette import dependencies as D
-    from hassette import states
-
-    async def handler(new_state: Annotated[states.LightState, D.StateNew]):
-        # new_state is typed as states.LightState and extracted from event
-        print(new_state.state)
-    ```
+Example:
+```python
+async def handler(new_state: D.StateNew[states.LightState]):
+    brightness = new_state.attributes.brightness
+```
 """
 
-StateOld = _StateOldExtractor()
-"""Dependency for extracting the old state object from a StateChangeEvent.
+StateOld: TypeAlias = Annotated[StateT, A.get_state_object_old]
+"""Extract the old state object from a StateChangeEvent.
 
-Usage:
-    ```python
-    from typing import Annotated
-    from hassette import dependencies as D
-    from hassette import states
+**Type**: `StateT | None` (generic state type, may be None if entity is new)
 
-    async def handler(old_state: Annotated[states.LightState, D.StateOld]):
-        print(old_state.state)
-    ```
+Example:
+```python
+async def handler(old_state: D.StateOld[states.LightState]):
+    if old_state:
+        previous_brightness = old_state.attributes.brightness
+```
 """
 
-StateOldAndNew = _StateOldAndNewExtractor()
-"""Dependency for extracting both old and new state objects from a StateChangeEvent.
+StateOldAndNew: TypeAlias = Annotated[tuple[StateT, StateT], A.get_state_object_old_new]
+"""Extract both old and new state objects from a StateChangeEvent.
 
-Usage:
-    ```python
-    from typing import Annotated
-    from hassette import dependencies as D
-    from hassette import states
+**Type**: `tuple[StateT | None, StateT]` (old state may be None if entity is new)
 
-    async def handler(states_tuple: Annotated[tuple[states.LightState, states.LightState], D.StateOldAndNew]):
-        old_state, new_state = states_tuple
-        print(f"Changed from {old_state.state} to {new_state.state}")
-    ```
+Example:
+```python
+async def handler(states: D.StateOldAndNew[states.LightState]):
+    old_state, new_state = states
+    if old_state:
+        brightness_changed = old_state.attributes.brightness != new_state.attributes.brightness
+```
 """
 
+StateValueNew: TypeAlias = Annotated[StateValueT, A.get_state_value_new]
+"""Extract the new state value from a StateChangeEvent.
 
-class AttrNew(Depends):
-    """Annotated type for extracting a specific attribute from the new state in a StateChangeEvent."""
+**Type**: `StateValueT` (generic state value type, specify via subscript like `D.StateValueNew[str]`)
 
-    def __init__(self, attr_name: str):
-        self.attr_name = attr_name
+The state value is the string representation of the state (e.g., "on", "off", "25.5").
 
-    def __call__(self, event: "StateChangeEvent") -> Any:
-        return A.get_attr_new(self.attr_name)(event)
+Example:
+```python
+async def handler(new_value: D.StateValueNew[str]):
+    self.logger.info("New state value: %s", new_value)
+```
+"""
 
+StateValueOld: TypeAlias = Annotated[StateValueT, A.get_state_value_old]
+"""Extract the old state value from a StateChangeEvent.
 
-class AttrOld(Depends):
-    """Annotated type for extracting a specific attribute from the old state in a StateChangeEvent."""
+**Type**: `StateValueT | None` (generic state value type, may be None if entity is new)
 
-    def __init__(self, attr_name: str):
-        self.attr_name = attr_name
+The state value is the string representation of the state (e.g., "on", "off", "25.5").
 
-    def __call__(self, event: "StateChangeEvent") -> Any:
-        return A.get_attr_old(self.attr_name)(event)
+Example:
+```python
+async def handler(old_value: D.StateValueOld[str]):
+    if old_value:
+        self.logger.info("Previous state value: %s", old_value)
+```
+"""
 
+StateValueOldAndNew: TypeAlias = Annotated[tuple[StateValueT, StateValueT], A.get_state_value_old_new]
+"""Extract both old and new state values from a StateChangeEvent.
 
-class AttrOldAndNew(Depends):
-    """Annotated type for extracting a specific attribute from both old and new states in a StateChangeEvent."""
+**Type**: `tuple[StateValueT | None, StateValueT]` (old value may be None if entity is new)
 
-    def __init__(self, attr_name: str):
-        self.attr_name = attr_name
+The state values are the string representations of the states (e.g., "on", "off", "25.5").
 
-    def __call__(self, event: "StateChangeEvent") -> tuple[Any, Any]:
-        return (
-            A.get_attr_old(self.attr_name)(event),
-            A.get_attr_new(self.attr_name)(event),
-        )
+Example:
+```python
+async def handler(values: D.StateValueOldAndNew[str]):
+    old_value, new_value = values
+    if old_value and old_value != new_value:
+        self.logger.info("Changed from %s to %s", old_value, new_value)
+```
+"""
 
+EntityId: TypeAlias = Annotated[str | Sentinel, A.get_entity_id]
+"""Extract the entity_id from a HassEvent.
 
-StateValueNew = A.get_state_value_new
-"""Annotated type for extracting the new state value from a StateChangeEvent."""
+**Type**: `str | Sentinel`
 
-StateValueOld = A.get_state_value_old
-"""Annotated type for extracting the old state value from a StateChangeEvent."""
+Returns the entity ID string (e.g., "light.bedroom"), or `MISSING_VALUE` sentinel
+if the event does not contain an entity_id field.
 
-StateValueOldAndNew = A.get_state_value_old_new
-"""Annotated type for extracting the old and new state values from a StateChangeEvent."""
+Example:
+```python
+from hassette.types import MISSING_VALUE
 
-EntityId = A.get_entity_id
-"""Annotated type for extracting the entity_id from a HassEvent."""
+async def handler(entity_id: D.EntityId):
+    if entity_id is not MISSING_VALUE:
+        self.logger.info("Entity: %s", entity_id)
+```
+"""
 
-Domain = A.get_domain
-"""Annotated type for extracting the domain from a HassEvent."""
+Domain: TypeAlias = Annotated[str | Sentinel, A.get_domain]
+"""Extract the domain from a HassEvent.
 
-Service = A.get_service
-"""Annotated type for extracting the service from a CallServiceEvent."""
+**Type**: `str | Sentinel`
 
-ServiceData = A.get_service_data
-"""Annotated type for extracting the service_data from a CallServiceEvent."""
+Returns the domain string (e.g., "light", "sensor"), or `MISSING_VALUE` sentinel
+if the event does not contain a domain field. Extracted from the entity_id.
 
-EventContext = A.get_context
-"""Annotated type for extracting the context dict from a HassEvent."""
+Example:
+```python
+from hassette.types import MISSING_VALUE
+
+async def handler(domain: D.Domain):
+    if domain == "light":
+        self.logger.info("Light entity event")
+```
+"""
+
+Service: TypeAlias = Annotated[str | Sentinel, A.get_service]
+"""Extract the service name from a CallServiceEvent.
+
+**Type**: `str | Sentinel`
+
+Returns the service name string (e.g., "turn_on", "turn_off"), or `MISSING_VALUE`
+sentinel if the event does not contain a service field.
+
+Example:
+```python
+async def handler(service: D.Service):
+    if service == "turn_on":
+        self.logger.info("Light turned on")
+```
+"""
+
+ServiceData: TypeAlias = Annotated[dict[str, Any], A.get_service_data]
+"""Extract the service_data dictionary from a CallServiceEvent.
+
+**Type**: `dict[str, Any]`
+
+Returns the service data dictionary containing parameters passed to the service call.
+Returns an empty dict if no service_data is present.
+
+Example:
+```python
+async def handler(service_data: D.ServiceData):
+    brightness = service_data.get("brightness")
+    if brightness:
+        self.logger.info("Brightness set to %s", brightness)
+```
+"""
+
+EventContext: TypeAlias = Annotated[HassContext, A.get_context]
+"""Extract the context object from a HassEvent.
+
+**Type**: `HassContext`
+
+Returns the Home Assistant context object containing metadata about the event
+origin (user_id, parent_id, etc.).
+
+Example:
+```python
+async def handler(context: D.EventContext):
+    if context.user_id:
+        self.logger.info("Triggered by user: %s", context.user_id)
+```
+"""
+
+AttrNew = A.get_attr_new
+"""Factory for creating annotated types to extract specific attributes from the new state.
+
+Usage:
+```python
+from typing import Annotated
+from hassette import dependencies as D
+
+async def handler(
+    brightness: Annotated[int | None, D.AttrNew("brightness")],
+):
+    pass
+```
+"""
+
+AttrOld = A.get_attr_old
+"""Factory for creating annotated types to extract specific attributes from the old state.
+Usage:
+```python
+from typing import Annotated
+from hassette import dependencies as D
+
+async def handler(
+    brightness: Annotated[int | None, D.AttrOld("brightness")],
+):
+    pass
+```
+"""
+
+AttrOldAndNew = A.get_attr_old_new
+"""Factory for creating annotated types to extract specific attributes from both old and new states.
+Usage:
+```python
+from typing import Annotated
+from hassette import dependencies as D
+
+async def handler(
+    brightness: Annotated[tuple[int | None, int | None], D.AttrOldAndNew("brightness")],
+):
+    pass
+```
+"""

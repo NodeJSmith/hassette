@@ -112,9 +112,9 @@ class BatterySync(AppSync[BatteryConfig]):
 
     def handle_sensor_event(
         self,
-        new_state: Annotated[states.SensorState, D.StateNew],
+        new_state: D.StateNew[states.SensorState],
         battery_level: Annotated[int | None, D.AttrNew("battery_level")],
-        entity_id: Annotated[str, D.EntityId],
+        entity_id: D.EntityId,
     ) -> None:
         """Example handler demonstrating dependency injection for battery monitoring.
 

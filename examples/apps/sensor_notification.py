@@ -1,7 +1,5 @@
 # compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/sensor_notification.py
 
-from typing import Annotated
-
 from hassette import App, AppConfig, states
 from hassette import dependencies as D
 
@@ -41,9 +39,9 @@ class SensorNotification(App[SensorNotificationAppConfig]):
 
     async def state_change(
         self,
-        new_state: Annotated[states.SensorState, D.StateNew],
-        new_value: Annotated[str, D.StateValueNew],
-        entity_id: Annotated[str, D.EntityId],
+        new_state: D.StateNew[states.SensorState],
+        new_value: D.StateValueNew[str],
+        entity_id: D.EntityId,
     ):
         """Handle sensor state changes using dependency injection.
 

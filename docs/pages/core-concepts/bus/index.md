@@ -61,8 +61,8 @@ from hassette import states
 
 async def on_motion(
     self,
-    new_state: Annotated[states.BinarySensorState, D.StateNew],
-    entity_id: Annotated[str, D.EntityId],
+    new_state: D.StateNew[states.BinarySensorState],
+    entity_id: D.EntityId,
 ):
     friendly_name = new_state.attributes.friendly_name or entity_id
     self.logger.info("Motion detected: %s", friendly_name)
@@ -91,8 +91,8 @@ from hassette import dependencies as D, states
 
 async def on_light_change(
     self,
-    new_state: Annotated[states.LightState, D.StateNew],
-    old_state: Annotated[states.LightState | None, D.StateOld],
+    new_state: D.StateNew[states.LightState],
+    old_state: D.StateOld[states.LightState | None],
 ):
     if old_state and old_state.value != new_state.value:
         self.logger.info("Light %s: %s -> %s",
@@ -103,6 +103,9 @@ async def on_light_change(
 
 #### Attribute Extractors
 
+Attribute extractors allow you to pull specific attributes from state objects. They must be used
+with `Annotated`, unlike the other extractors, because they require an argument specifying the attribute name.
+
 - **`AttrNew("attribute_name")`** - Extract an attribute from the new state
 - **`AttrOld("attribute_name")`** - Extract an attribute from the old state
 - **`AttrOldAndNew("attribute_name")`** - Extract attribute from both states as tuple
@@ -111,18 +114,37 @@ async def on_light_change(
 async def on_battery_change(
     self,
     battery_level: Annotated[int | None, D.AttrNew("battery_level")],
-    entity_id: Annotated[str, D.EntityId],
+    entity_id: D.EntityId,
 ):
     if battery_level is not None and battery_level < 20:
         self.logger.warning("%s battery low: %d%%", entity_id, battery_level)
 ```
 
-!!! tip "Missing Attributes"
+!!! warning "Missing Attributes"
     If an attribute doesn't exist, the extractor returns `MISSING_VALUE` (a falsy sentinel).
     Always check for `None` or use `is not MISSING_VALUE` if you need to distinguish
     between missing and `None`.
 
+!!! tip
+    If you find yourself frequently needing to extract the same attribute, consider assigning
+    it to a constant to simplify reuse:
+
+    ```python
+
+    BATTERY_LEVEL = Annotated[int | None, D.AttrNew("battery_level")]
+    async def on_battery_change(
+        self,
+        battery_level: BATTERY_LEVEL,
+        entity_id: D.EntityId,
+    ):
+        if battery_level and battery_level < 20:
+            self.logger.warning("%s battery low: %d%%", entity_id, battery_level)
+    ```
+
 #### Value Extractors
+
+State value extractors pull just the state value from the state object. These are generic, allowing you to
+specify the expected type.
 
 - **`StateValueNew`** - Extract just the state value string (e.g., "on", "off")
 - **`StateValueOld`** - Extract the old state value string
@@ -130,8 +152,8 @@ async def on_battery_change(
 ```python
 async def on_state_change(
     self,
-    old_value: Annotated[str, D.StateValueOld],
-    new_value: Annotated[str, D.StateValueNew],
+    old_value: D.StateValueOld[str],
+    new_value: D.StateValueNew[str],
 ):
     if old_value != new_value:
         self.logger.info("State changed: %s -> %s", old_value, new_value)
@@ -149,9 +171,9 @@ from hassette import dependencies as D
 
 async def on_service_call(
     self,
-    domain: Annotated[str, D.Domain],
-    service: Annotated[str, D.Service],
-    entity_id: Annotated[str, D.EntityId],
+    domain: D.Domain,
+    service: D.Service,
+    entity_id: D.EntityId,
 ):
     self.logger.info("Service called: %s.%s on %s", domain, service, entity_id)
 ```
@@ -164,7 +186,7 @@ async def on_service_call(
 ```python
 async def on_light_service(
     self,
-    service_data: Annotated[dict, D.ServiceData],
+    service_data: D.ServiceData,
 ):
     brightness = service_data.get("brightness")
     if brightness and brightness > 200:
@@ -178,10 +200,10 @@ You can extract multiple pieces of data in a single handler:
 ```python
 async def on_climate_change(
     self,
-    new_state: Annotated[states.ClimateState, D.StateNew],
+    new_state: D.StateNew[states.ClimateState],
     old_temp: Annotated[float | None, D.AttrOld("current_temperature")],
     new_temp: Annotated[float | None, D.AttrNew("current_temperature")],
-    entity_id: Annotated[str, D.EntityId],
+    entity_id: D.EntityId,
 ):
     if old_temp and new_temp and abs(new_temp - old_temp) > 2:
         friendly_name = new_state.attributes.friendly_name or entity_id
@@ -229,24 +251,21 @@ async def on_temp_change(
 
 Extractors only need to be a callable that accepts an `Event` and returns the desired value. This means that you can create your own extractors as needed, use accessors from `hassette.bus.accessors`, or any other callable.
 
-You can also create custom dependency extractors by subclassing
-[`Depends`][hassette.dependencies.classes.Depends]:
-
 ```python
-from hassette.dependencies.classes import Depends
-from hassette.events import Event
+from typing import Annotated, TypeAlias
 
-class CustomExtractor(Depends):
-    def __call__(self, event: Event) -> str:
-        # Your custom extraction logic
-        return f"custom_{event.topic}"
+from hassette.events import Event
+from hassette import accessors as A
+
+
+Temperature: TypeAlias = Annotated[float, A.get_attr_new("temperature")]
 
 # Use in handler
 async def on_event(
     self,
-    custom_value: Annotated[str, CustomExtractor()],
+    temperature: Temperature
 ):
-    self.logger.info("Custom: %s", custom_value)
+    self.logger.info("Current temperature: %s", temperature)
 ```
 
 ## Event Model

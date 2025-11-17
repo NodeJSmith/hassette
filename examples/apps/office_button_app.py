@@ -1,6 +1,6 @@
 # another actual app that I use, not meant to be comparable to any AD example app
 
-from typing import Annotated, ClassVar
+from typing import ClassVar
 
 from deepdiff import DeepDiff
 
@@ -48,7 +48,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
 
     def log_light_changes(
         self,
-        new_state: Annotated[states.LightState, D.StateNew],
+        new_state: D.StateNew[states.LightState],
     ) -> None:
         """Log changes to light entities using dependency injection.
 
@@ -79,7 +79,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
 
     async def handle_office_button(
         self,
-        new_state: Annotated[states.EventState, D.StateNew],
+        new_state: D.StateNew[states.EventState],
     ) -> None:
         """Handle the office button action using dependency injection.
 

@@ -374,9 +374,9 @@ class ButtonHandler(App):
     # Extract only what you need from the event
     async def minimal_callback(
         self,
-        domain: Annotated[str, D.Domain],
-        service: Annotated[str, D.Service],
-        service_data: Annotated[dict, D.ServiceData],
+        domain: D.Domain,
+        service: D.Service,
+        service_data: D.ServiceData,
     ) -> None:
         entity_id = service_data.get("entity_id", "unknown")
         self.logger.info(f"Button {entity_id} pressed (domain={domain}, service={service})")
@@ -515,8 +515,8 @@ class ButtonPressed(App):
 
     async def button_pressed(
         self,
-        new_state: Annotated[states.ButtonState, D.StateNew],
-        entity_id: Annotated[str, D.EntityId],
+        new_state: D.StateNew[states.ButtonState],
+        entity_id: D.EntityId,
     ) -> None:
         friendly_name = new_state.attributes.friendly_name or entity_id
         self.logger.info(f"Button {friendly_name} pressed at {new_state.last_changed}")

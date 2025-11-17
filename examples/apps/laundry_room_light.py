@@ -1,7 +1,5 @@
 # another actual app that I use, not meant to be comparable to any AD example app
 
-from typing import Annotated
-
 from hassette import App, AppConfig, StateChangeEvent, entities, states
 from hassette import dependencies as D
 
@@ -19,7 +17,7 @@ class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
 
     async def toggle_enabled(
         self,
-        new_value: Annotated[str, D.StateValueNew],
+        new_value: D.StateValueNew,
     ) -> None:
         """Handle toggling the enabled state using dependency injection.
 
@@ -56,7 +54,7 @@ class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
 
     async def motion_cleared(
         self,
-        new_value: Annotated[str, D.StateValueNew],
+        new_value: D.StateValueNew,
     ) -> None:
         """Handle motion cleared using dependency injection.
 

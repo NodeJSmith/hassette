@@ -87,8 +87,8 @@ class HelloWorld(App[HelloWorldConfig]):
 
     async def on_motion(
         self,
-        new_state: Annotated[states.BinarySensorState, D.StateNew],
-        entity_id: Annotated[str, D.EntityId],
+        new_state: D.StateNew[states.BinarySensorState],
+        entity_id: D.EntityId,
     ) -> None:
         """Handler demonstrating dependency injection.
 

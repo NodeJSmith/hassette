@@ -59,8 +59,8 @@ class MyApp(App[MyConfig]):
 
     async def on_light_change(
         self,
-        new_state: Annotated[states.LightState, D.StateNew],
-        entity_id: Annotated[str, D.EntityId],
+        new_state: D.StateNew[states.LightState],
+        entity_id: D.EntityId,
     ):
         friendly_name = new_state.attributes.friendly_name or entity_id
         await self.api.call_service("notify", "mobile_app_me", message=f"{friendly_name} turned on")
@@ -153,9 +153,9 @@ from hassette import states
 from hassette import dependencies as D
 
 async def handler(
-    new_state: Annotated[states.LightState, D.StateNew],
+    new_state: D.StateNew[states.LightState],
     brightness: Annotated[int | None, D.AttrNew("brightness")],
-    entity_id: Annotated[str, D.EntityId],
+    entity_id: D.EntityId,
 ):
     # Parameters automatically extracted and injected
     if brightness and brightness > 200:

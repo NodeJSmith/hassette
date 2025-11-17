@@ -37,7 +37,7 @@ class MyApp(App[MyAppUserConfig]):
 
     def handle_event_sync(
         self,
-        new_state: Annotated[states.ButtonState, D.StateNew],
+        new_state: D.StateNew[states.ButtonState],
         friendly_name: Annotated[str, D.AttrNew("friendly_name")],
         **kwargs,
     ) -> None:

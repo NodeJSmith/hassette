@@ -1,7 +1,6 @@
 # compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/presence.py
 
 import typing
-from typing import Annotated
 
 from hassette import App, AppConfig, StateChangeEvent, states
 from hassette import dependencies as D
@@ -41,10 +40,10 @@ class Presence(App[PresenceAppConfig]):
 
     async def presence_change(
         self,
-        new_state: Annotated[states.DeviceTrackerState, D.StateNew],
-        old_value: Annotated[str, D.StateValueOld],
-        new_value: Annotated[str, D.StateValueNew],
-        entity_id: Annotated[str, D.EntityId],
+        new_state: D.StateNew[states.DeviceTrackerState],
+        old_value: D.StateValueOld,
+        new_value: D.StateValueNew,
+        entity_id: D.EntityId,
     ):
         """Handle presence changes using dependency injection.
 

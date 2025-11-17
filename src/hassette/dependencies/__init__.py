@@ -13,12 +13,10 @@ async def handle_state_change(event: StateChangeEvent):
 
 You can use the `NewState` dependency:
 ```python
-from typing import Annotated
-
 from hassette import dependencies as D
 from hassette import states
 
-async def handle_state_change(new_state: Annotated[states.ButtonState, D.StateNew]):
+async def handle_state_change(new_state: D.StateNew[states.ButtonState]):
     # do something with new_state
 ```
 
@@ -32,23 +30,19 @@ your parameter(s) with `Annotated` and either using an existing accessor from
 Examples:
     Extracting the new state object from a StateChangeEvent
     ```python
-    from typing import Annotated
-
     from hassette import dependencies as D
     from hassette import states
 
-    async def handle_state_change(new_state: Annotated[states.ButtonState, D.StateNew]):
+    async def handle_state_change(new_state: D.StateNew[states.ButtonState]):
         # new_state is automatically extracted and typed as states.ButtonState
         print(new_state.state)
     ```
 
     Extracting the entity_id from any HassEvent
     ```python
-    from typing import Annotated
-
     from hassette import dependencies as D
 
-    async def handle_event(entity_id: Annotated[str, D.EntityId]):
+    async def handle_event(entity_id: D.EntityId):
         # entity_id is automatically extracted
         print(entity_id)
     ```
@@ -72,7 +66,6 @@ from .classes import (
     AttrNew,
     AttrOld,
     AttrOldAndNew,
-    Depends,
     Domain,
     EntityId,
     EventContext,
@@ -84,13 +77,11 @@ from .classes import (
     StateValueOld,
     StateValueOldAndNew,
 )
-from .extraction import extract_from_signature, validate_di_signature
 
 __all__ = [
     "AttrNew",
     "AttrOld",
     "AttrOldAndNew",
-    "Depends",
     "Domain",
     "EntityId",
     "EventContext",
@@ -101,6 +92,4 @@ __all__ = [
     "StateValueNew",
     "StateValueOld",
     "StateValueOldAndNew",
-    "extract_from_signature",
-    "validate_di_signature",
 ]
