@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.16.0] - 2025-11-16
+
 ### Added
 - Added `ANY_VALUE` sentinel for clearer semantics in predicates - use this to indicate "any value is acceptable"
 - **Dependency Injection for Event Handlers** - Handlers can now use `Annotated` type hints with dependency markers from `hassette.dependencies` to automatically extract and inject event data as parameters. This provides a cleaner, more type-safe alternative to manually accessing event payloads.
