@@ -42,6 +42,23 @@ class TriggerProtocol(Protocol):
         ...
 
 
+class SyncHandler(Protocol):
+    """Protocol for sync handlers."""
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+class AsyncHandlerType(Protocol):
+    """Protocol for async handlers."""
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Awaitable[None]: ...
+
+
+# Type aliases for any valid handler
+HandlerType = SyncHandler | AsyncHandlerType
+"""Alias for all valid handler types (sync or async)."""
+
+
 KnownTypeScalar: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
 """Alias for all known valid scalar state types."""
 

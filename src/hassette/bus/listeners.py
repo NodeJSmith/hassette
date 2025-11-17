@@ -6,9 +6,13 @@ import time
 import typing
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from logging import getLogger
 from typing import Any, ParamSpec, TypeVar, cast
 
-from hassette.utils.func_utils import callable_name
+from hassette.dependencies.extraction import extract_from_signature, validate_di_signature
+from hassette.exceptions import UnableToExtractParameterError
+from hassette.utils.exception_utils import get_short_traceback
+from hassette.utils.func_utils import callable_name, callable_short_name
 
 from .utils import normalize_where
 
@@ -16,14 +20,10 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette import TaskBucket
-    from hassette.events.base import Event, EventT
-    from hassette.types import (
-        AsyncHandlerType,
-        AsyncHandlerTypeEvent,
-        AsyncHandlerTypeNoEvent,
-        HandlerType,
-        Predicate,
-    )
+    from hassette.events.base import Event
+    from hassette.types import AsyncHandlerType, HandlerType, Predicate
+
+LOGGER = getLogger(__name__)
 
 PS = ParamSpec("PS")
 RT = TypeVar("RT")
@@ -57,9 +57,6 @@ class Listener:
     predicate: "Predicate | None"
     """Predicate to filter events before invoking the handler."""
 
-    args: tuple[Any, ...] | None = None
-    """Positional arguments to pass to the handler."""
-
     kwargs: Mapping[str, Any] | None = None
     """Keyword arguments to pass to the handler."""
 
@@ -72,7 +69,7 @@ class Listener:
 
     @property
     def handler_short_name(self) -> str:
-        return self.handler_name.split(".")[-1]
+        return callable_short_name(self.orig_handler)
 
     async def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
@@ -82,9 +79,8 @@ class Listener:
 
     async def invoke(self, event: "Event[Any]") -> None:
         """Invoke the handler through the adapter."""
-        args = self.args or ()
         kwargs = self.kwargs or {}
-        await self.adapter.call(event, *args, **kwargs)
+        await self.adapter.call(event, **kwargs)
 
     def __repr__(self) -> str:
         return f"Listener<{self.owner} - {self.handler_short_name}>"
@@ -97,7 +93,6 @@ class Listener:
         topic: str,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
-        args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         once: bool = False,
         debounce: float | None = None,
@@ -110,7 +105,9 @@ class Listener:
         async_handler = make_async_handler(handler, task_bucket)
 
         # Create an adapter with rate limiting and signature informed calling
-        adapter = HandlerAdapter(async_handler, signature, task_bucket, debounce=debounce, throttle=throttle)
+        adapter = HandlerAdapter(
+            callable_short_name(handler), async_handler, signature, task_bucket, debounce=debounce, throttle=throttle
+        )
 
         return cls(
             owner=owner,
@@ -118,7 +115,6 @@ class Listener:
             orig_handler=handler,
             adapter=adapter,
             predicate=pred,
-            args=args,
             kwargs=kwargs,
             once=once,
         )
@@ -129,6 +125,7 @@ class HandlerAdapter:
 
     def __init__(
         self,
+        handler_name: str,
         handler: "AsyncHandlerType",
         signature: inspect.Signature,
         task_bucket: "TaskBucket",
@@ -138,10 +135,13 @@ class HandlerAdapter:
         if debounce and throttle:
             raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
 
+        self.handler_name = handler_name
         self.handler = handler
         self.signature = signature
         self.task_bucket = task_bucket
-        self.expects_event = self._receives_event_arg()
+
+        # Validate signature for DI (all handlers must use DI now)
+        validate_di_signature(signature)
 
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
@@ -156,30 +156,46 @@ class HandlerAdapter:
         else:
             self.call = self._direct_call
 
-    def _receives_event_arg(self) -> bool:
-        """Check if handler expects an event argument."""
-        params = list(self.signature.parameters.values())
-        if not params:
-            return False
-        first_param = params[0]
-        return first_param.name == "event" and first_param.kind in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        )
+    async def _direct_call(self, event: "Event[Any]", **kwargs: Any) -> None:
+        """Call handler with dependency injection.
 
-    async def _direct_call(self, event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
-        """Call handler directly with appropriate signature."""
-        if self.expects_event:
-            handler = cast("AsyncHandlerTypeEvent[Event[Any]]", self.handler)
-            await handler(event, *args, **kwargs)
-        else:
-            handler = cast("AsyncHandlerTypeNoEvent", self.handler)
-            await handler(*args, **kwargs)
+        Extracts required parameters from the event using type annotations
+        and injects them as kwargs.
+
+        Raises:
+            UnableToExtractParameterError: If parameter extraction fails.
+        """
+
+        param_details = extract_from_signature(self.signature)
+
+        for name, (param_type, extractor) in param_details.items():
+            if name in kwargs:
+                LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", name)
+
+            try:
+                kwargs[name] = extractor(event)
+            except Exception as e:
+                # Log detailed error
+                LOGGER.error(
+                    "Handler %s - failed to extract parameter '%s' of type %s: %s",
+                    self.handler_name,
+                    name,
+                    param_type,
+                    get_short_traceback(),
+                )
+                # Re-raise to prevent handler from running with missing/invalid data
+                raise UnableToExtractParameterError(
+                    name,
+                    param_type,
+                    e,
+                ) from e
+
+        await self.handler(**kwargs)
 
     def _make_debounced_call(self, seconds: float):
         """Create a debounced version of the call method."""
 
-        async def debounced_call(event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
+        async def debounced_call(event: "Event[Any]", **kwargs: Any) -> None:
             # Cancel previous debounce
             if self._debounce_task and not self._debounce_task.done():
                 self._debounce_task.cancel()
@@ -187,7 +203,7 @@ class HandlerAdapter:
             async def delayed_call():
                 try:
                     await asyncio.sleep(seconds)
-                    await self._direct_call(event, *args, **kwargs)
+                    await self._direct_call(event, **kwargs)
                 except asyncio.CancelledError:
                     pass
 
@@ -198,12 +214,12 @@ class HandlerAdapter:
     def _make_throttled_call(self, seconds: float):
         """Create a throttled version of the call method."""
 
-        async def throttled_call(event: "Event[Any]", *args: Any, **kwargs: Any) -> None:
+        async def throttled_call(event: "Event[Any]", **kwargs: Any) -> None:
             async with self._throttle_lock:
                 now = time.monotonic()
                 if now - self._throttle_last_time >= seconds:
                     self._throttle_last_time = now
-                    await self._direct_call(event, *args, **kwargs)
+                    await self._direct_call(event, **kwargs)
 
         return throttled_call
 
@@ -234,7 +250,7 @@ class Subscription:
         self.unsubscribe()
 
 
-def make_async_handler(fn: "HandlerType[EventT]", task_bucket: "TaskBucket") -> "AsyncHandlerType[EventT]":
+def make_async_handler(fn: "HandlerType", task_bucket: "TaskBucket") -> "AsyncHandlerType":
     """Wrap a function to ensure it is always called as an async handler.
 
     If the function is already an async function, it will be called directly.
@@ -246,4 +262,4 @@ def make_async_handler(fn: "HandlerType[EventT]", task_bucket: "TaskBucket") -> 
     Returns:
         An async handler that wraps the original function.
     """
-    return cast("AsyncHandlerType[EventT]", task_bucket.make_async_adapter(fn))
+    return cast("AsyncHandlerType", task_bucket.make_async_adapter(fn))

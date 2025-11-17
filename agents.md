@@ -42,7 +42,9 @@ API calls reuse both the shared WebSocket and REST client managed by `ApiResourc
 Apps inherit from `App[AppConfigT]` (async) or `AppSync` (sync) and implement lifecycle hooks:
 
 ```python
-from hassette import App, AppConfig
+from typing import Annotated
+from hassette import App, AppConfig, states
+from hassette import dependencies as D
 
 class MyConfig(AppConfig):
     light: str
@@ -55,8 +57,13 @@ class MyApp(App[MyConfig]):
             changed_to="on",
         )
 
-    async def on_light_change(self, event):
-        await self.api.call_service("notify", "mobile_app_me", message="Light turned on")
+    async def on_light_change(
+        self,
+        new_state: D.StateNew[states.LightState],
+        entity_id: D.EntityId,
+    ):
+        friendly_name = new_state.attributes.friendly_name or entity_id
+        await self.api.call_service("notify", "mobile_app_me", message=f"{friendly_name} turned on")
 ```
 
 ### Key Lifecycle Hooks
@@ -103,6 +110,64 @@ config = {threshold = 10, always_send = false}
 **Required fields**: `filename`, `class_name`
 **Optional fields**: `app_dir`, `enabled`, `display_name`, `config`
 
+## Dependency Injection System
+
+**Location**: `src/hassette/dependencies/`
+
+Hassette provides a dependency injection system for event handlers, allowing automatic extraction and injection of event data as handler parameters.
+
+### Key Components
+
+**Files**:
+- `dependencies/__init__.py` - Public API and documentation
+- `dependencies/classes.py` - Dependency marker classes
+- `dependencies/extraction.py` - Signature inspection and extraction logic
+
+**Integration**: The `Bus` resource (`core/resources/bus/bus.py`) uses `extract_from_signature` and `validate_di_signature` to process handler signatures and inject values at runtime.
+
+### Available Dependencies
+
+**State Extractors**:
+- `StateNew` - Extract new state object from state change events
+- `StateOld` - Extract old state object (may be None)
+- `StateOldAndNew` - Extract both states as tuple
+
+**Attribute Extractors**:
+- `AttrNew("attribute_name")` - Extract attribute from new state
+- `AttrOld("attribute_name")` - Extract attribute from old state
+- `AttrOldAndNew("attribute_name")` - Extract from both states
+
+**Value & Identity Extractors**:
+- `EntityId` - Extract entity ID from any event
+- `Domain` - Extract domain (e.g., "light", "sensor")
+- `Service` - Extract service name from service call events
+- `StateValueNew` / `StateValueOld` - Extract state value strings
+- `ServiceData` - Extract service_data dict from service calls
+- `EventContext` - Extract Home Assistant event context
+
+### Usage Pattern
+
+```python
+from typing import Annotated
+from hassette import states
+from hassette import dependencies as D
+
+async def handler(
+    new_state: D.StateNew[states.LightState],
+    brightness: Annotated[int | None, D.AttrNew("brightness")],
+    entity_id: D.EntityId,
+):
+    # Parameters automatically extracted and injected
+    if brightness and brightness > 200:
+        self.logger.info("%s is bright: %d", entity_id, brightness)
+```
+
+### Restrictions
+
+- Handlers cannot use positional-only parameters (before `/`)
+- Handlers cannot use variadic positional args (`*args`)
+- All DI parameters must have type annotations
+
 ## Event Bus Usage
 
 ### Topics and Events
@@ -111,7 +176,7 @@ config = {threshold = 10, always_send = false}
 
 ### Bus Helpers
 ```python
-# State change handlers
+# State change handlers with DI
 self.bus.on_state_change("binary_sensor.motion", handler=self.on_motion, changed_to="on")
 self.bus.on_attribute_change("mobile_device.me", "battery_level", handler=self.on_battery_drop)
 self.bus.on_call_service(domain="light", service="turn_on", handler=self.on_turn_on)

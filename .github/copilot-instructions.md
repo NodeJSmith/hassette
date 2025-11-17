@@ -22,10 +22,12 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 ## App Pattern (typed)
 
 - Base classes: `src/hassette/core/resources/app/app.py` exposes `App[AppConfigT]` (async) and `AppSync`. Override lifecycle hooks (`before_initialize`, `on_initialize`, `after_initialize`, and matching shutdown hooks); `initialize()` / `shutdown()` are final.
-- Example async app:
+- Example async app with dependency injection:
 
   ```python
-  from hassette import App, AppConfig
+  from typing import Annotated
+  from hassette import App, AppConfig, states
+  from hassette import dependencies as D
 
   class MyConfig(AppConfig):
       light: str
@@ -38,11 +40,42 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
               changed_to="on",
           )
 
-      async def on_light_change(self, event):
-          await self.api.call_service("notify", "mobile_app_me", message="Light turned on")
+      async def on_light_change(
+          self,
+          new_state: D.StateNew[states.LightState],
+          entity_id: D.EntityId,
+      ):
+          friendly_name = new_state.attributes.friendly_name or entity_id
+          await self.api.call_service("notify", "mobile_app_me", message=f"{friendly_name} turned on")
   ```
 
 - Sync apps inherit `AppSync` and implement `on_initialize_sync` / `on_shutdown_sync`; use `self.api.sync.*` for blocking calls. `self.task_bucket` offers helpers (`spawn`, `run_in_thread`, `run_sync`) for background work.
+
+## Dependency Injection for Event Handlers
+
+- **Module**: `src/hassette/dependencies/` provides DI system for event handlers
+- **Purpose**: Automatically extract and inject event data into handler parameters using `Annotated` type hints
+- **Key files**:
+  - `__init__.py` - Public API and examples
+  - `classes.py` - Dependency marker classes (`StateNew`, `StateOld`, `AttrNew`, etc.)
+  - `extraction.py` - Signature inspection and parameter extraction logic
+- **Usage pattern**:
+
+  ```python
+  from typing import Annotated
+  from hassette import dependencies as D, states
+
+  async def handler(
+      new_state: D.StateNew[states.LightState],
+      brightness: Annotated[int | None, D.AttrNew("brightness")],
+      entity_id: D.EntityId,
+  ):
+      # Parameters automatically extracted and injected
+      pass
+  ```
+
+- **Available dependencies**: `StateNew`, `StateOld`, `StateOldAndNew`, `AttrNew(name)`, `AttrOld(name)`, `AttrOldAndNew(name)`, `EntityId`, `Domain`, `Service`, `StateValueNew`, `StateValueOld`, `ServiceData`, `EventContext`
+- **Integration**: `Bus` resource (`core/resources/bus/bus.py`) uses `extract_from_signature` and `validate_di_signature` to process handler signatures and inject values at call time
 
 ## Event Bus Usage
 

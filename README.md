@@ -19,6 +19,7 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 
 - **Type Safe**: Full type annotations with Pydantic models and comprehensive IDE support
 - **Async-First**: Built for modern Python with async/await throughout
+- **Dependency Injection**: Clean handler signatures with automatic parameter extraction
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading, and intuitive APIs
 
@@ -33,7 +34,9 @@ pip install hassette
 Create a simple app (`apps/hello.py`):
 
 ```python
-from hassette import App
+from typing import Annotated
+from hassette import App, states
+from hassette import dependencies as D
 
 class HelloApp(App):
     async def on_initialize(self):
@@ -43,11 +46,15 @@ class HelloApp(App):
             changed_to="on"
         )
 
-    async def on_door_open(self, event):
-        self.logger.info("Front door opened!")
+    async def on_door_open(
+        self,
+        new_state: D.StateNew[states.BinarySensorState],
+        entity_id: D.EntityId,
+    ):
+        self.logger.info("%s opened!", entity_id)
         await self.api.call_service(
             "notify", "mobile_app_phone",
-            message="Front door opened!"
+            message=f"{new_state.attributes.friendly_name or entity_id} opened!"
         )
 ```
 

@@ -1,6 +1,7 @@
 # another actual app that I use, not meant to be comparable to any AD example app
 
 from hassette import App, AppConfig, StateChangeEvent, entities, states
+from hassette import dependencies as D
 
 
 class LaundryRoomLightAppConfig(AppConfig):
@@ -14,10 +15,15 @@ class LaundryRoomLightAppConfig(AppConfig):
 class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
     toggle_entity: str = "input_boolean.ad_laundry_room_lights"
 
-    async def toggle_enabled(self, event: StateChangeEvent[states.InputBooleanState]) -> None:
-        """Handle toggling the enabled state of the app."""
+    async def toggle_enabled(
+        self,
+        new_value: D.StateValueNew,
+    ) -> None:
+        """Handle toggling the enabled state using dependency injection.
 
-        self.enabled = event.payload.data.new_state_value
+        DI extracts the new state value directly.
+        """
+        self.enabled = new_value
 
     async def on_initialize(self) -> None:
         """Use the `on_initialize` lifecycle hook to set up the app."""
@@ -46,14 +52,20 @@ class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
             self.logger.exception("Error checking light brightness")
             return False
 
-    async def motion_cleared(self, event: StateChangeEvent[states.BinarySensorState]) -> None:
-        data = event.payload.data
+    async def motion_cleared(
+        self,
+        new_value: D.StateValueNew,
+    ) -> None:
+        """Handle motion cleared using dependency injection.
+
+        DI extracts the new state value automatically.
+        """
         if not self.enabled:
             self.logger.info("%s is disabled", self.toggle_entity)
             return
 
-        if not data.new_state or data.new_state_value is not False:
-            self.logger.debug("Received motion detected event with no new state or state not 'off'")
+        if new_value is not False:
+            self.logger.debug("Received motion event with state not 'off'")
             return
 
         if not await self.is_in_valid_state():

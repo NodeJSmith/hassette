@@ -1,7 +1,11 @@
 from yarl import URL
 
 
-class FatalError(Exception):
+class HassetteError(Exception):
+    """Base exception for all Hassette errors."""
+
+
+class FatalError(HassetteError):
     """Custom exception to indicate a fatal error in the application.
 
     Exceptions that indicate that the service should not be restarted should inherit from this class.
@@ -20,7 +24,7 @@ class SchemeRequiredInBaseUrlError(FatalError):
     """Custom exception to indicate that the base_url must include a scheme (http:// or https://)."""
 
 
-class ConnectionClosedError(Exception):
+class ConnectionClosedError(HassetteError):
     """Custom exception to indicate that the WebSocket connection was closed unexpectedly."""
 
 
@@ -39,7 +43,7 @@ class RetryableConnectionClosedError(ConnectionClosedError):
     """Custom exception to indicate that the WebSocket connection was closed but can be retried."""
 
 
-class FailedMessageError(Exception):
+class FailedMessageError(HassetteError):
     """Custom exception to indicate that a message sent to the WebSocket failed."""
 
     @classmethod
@@ -56,27 +60,27 @@ class InvalidAuthError(FatalError):
     """Custom exception to indicate that the authentication token is invalid."""
 
 
-class InvalidInheritanceError(TypeError):
+class InvalidInheritanceError(TypeError, HassetteError):
     """Raised when a class inherits from App incorrectly."""
 
 
-class UndefinedUserConfigError(TypeError):
+class UndefinedUserConfigError(TypeError, HassetteError):
     """Raised when a class does not define a user_config_class."""
 
 
-class EntityNotFoundError(ValueError):
+class EntityNotFoundError(ValueError, HassetteError):
     """Custom error for handling 404 in the Api"""
 
 
-class ResourceNotReadyError(Exception):
+class ResourceNotReadyError(HassetteError):
     """Custom exception to indicate that a resource is not ready for use."""
 
 
-class AppPrecheckFailedError(Exception):
+class AppPrecheckFailedError(HassetteError):
     """Custom exception to indicate that one or more prechecks for an app failed."""
 
 
-class CannotOverrideFinalError(TypeError):
+class CannotOverrideFinalError(TypeError, HassetteError):
     """Custom exception to indicate that a final method or class cannot be overridden."""
 
     def __init__(
@@ -95,4 +99,20 @@ class CannotOverrideFinalError(TypeError):
             msg += f"Use '{suggested_alt}' instead."
         if location:
             msg += f" (at {location})"
+        super().__init__(msg)
+
+
+class UnableToExtractParameterError(HassetteError):
+    """Custom exception to indicate that a parameter could not be extracted for dependency injection.
+
+    This is raised when a handler parameter cannot be extracted from the event or other sources.
+    """
+
+    def __init__(self, parameter_name: str, parameter_type: type, original_exception: Exception):
+        param_type_name = getattr(parameter_type, "__name__", str(parameter_type))
+
+        msg = (
+            f"Unable to extract parameter '{parameter_name}' of type '{param_type_name}' "
+            f"for dependency injection: {type(original_exception).__name__}: {original_exception}"
+        )
         super().__init__(msg)

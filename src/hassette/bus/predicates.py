@@ -51,7 +51,6 @@ from typing import Any, Generic, TypeVar
 from hassette.const import ANY_VALUE, MISSING_VALUE
 from hassette.events import CallServiceEvent
 from hassette.events.base import EventT
-from hassette.models.states import StateT
 from hassette.types import ChangeType, ComparisonCondition
 from hassette.utils.glob_utils import is_glob
 
@@ -73,7 +72,7 @@ from .utils import compare_value, ensure_tuple
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hassette import StateChangeEvent
+    from hassette import StateChangeEvent, states
     from hassette.events import Event, HassEvent
     from hassette.types import Predicate
 
@@ -198,27 +197,27 @@ class IsMissing:
 
 
 @dataclass(frozen=True)
-class StateFrom(Generic[StateT]):
+class StateFrom:
     """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'old' value."""
 
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
+    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
         return ValueIs(source=get_state_value_old, condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
-class StateTo(Generic[StateT]):
+class StateTo:
     """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'new' value."""
 
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
+    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
         return ValueIs(source=get_state_value_new, condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
-class StateComparison(Generic[StateT]):
+class StateComparison:
     """Predicate that checks if a comparison between from_state and to_state satisfies a condition."""
 
     condition: ComparisonCondition
@@ -228,34 +227,34 @@ class StateComparison(Generic[StateT]):
             LOGGER.warning("StateComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
+    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
         return self.condition(get_state_value_old(event), get_state_value_new(event))
 
 
 @dataclass(frozen=True)
-class AttrFrom(Generic[StateT]):
+class AttrFrom:
     """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
 
     attr_name: str
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
+    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
-class AttrTo(Generic[StateT]):
+class AttrTo:
     """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
 
     attr_name: str
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
+    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
-class AttrComparison(Generic[StateT]):
+class AttrComparison:
     """Predicate that checks if a comparison between from_attr and to_attr satisfies a condition."""
 
     attr_name: str
@@ -266,27 +265,27 @@ class AttrComparison(Generic[StateT]):
             LOGGER.warning("AttrComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
+    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
         old_attr = get_attr_old(self.attr_name)(event)
         new_attr = get_attr_new(self.attr_name)(event)
         return self.condition(old_attr, new_attr)
 
 
 @dataclass(frozen=True)
-class StateDidChange(Generic[StateT]):
+class StateDidChange:
     """Predicate that checks if the state changed in a StateChangeEvent."""
 
-    def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
+    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
         return DidChange(get_state_value_old_new)(event)
 
 
 @dataclass(frozen=True)
-class AttrDidChange(Generic[StateT]):
+class AttrDidChange:
     """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
 
     attr_name: str
 
-    def __call__(self, event: "StateChangeEvent[StateT]") -> bool:
+    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
         return DidChange(get_attr_old_new(self.attr_name))(event)
 
 

@@ -1,0 +1,132 @@
+import inspect
+from collections.abc import Callable
+from inspect import Signature, isclass
+from typing import Annotated, Any, get_args, get_origin
+
+
+def is_annotated_type(annotation: Any) -> bool:
+    """Check if annotation is an Annotated type."""
+    return get_origin(annotation) is Annotated
+
+
+def is_event_type(annotation: Any) -> bool:
+    """Check if annotation is an Event class or subclass.
+
+    Handles both plain Event types (Event, StateChangeEvent) and
+    parameterized generics (Event[PayloadT], StateChangeEvent[PayloadT]).
+
+    Does NOT handle Union or Optional types. Use explicit Event types instead:
+    - ✅ event: Event
+    - ✅ event: StateChangeEvent
+    - ❌ event: Optional[Event]
+    - ❌ event: Event | None
+    - ❌ event: Union[Event, StateChangeEvent]
+
+    Args:
+        annotation: The type annotation to check.
+
+    Returns:
+        True if annotation is Event or an Event subclass.
+    """
+    from hassette.events import Event
+
+    if annotation is inspect.Parameter.empty:
+        return False
+
+    # Get the base class for generic types (Event[T] -> Event)
+    # For non-generic types, this returns None, so we check annotation directly
+    base_type = get_origin(annotation) or annotation
+
+    return isclass(base_type) and issubclass(base_type, Event)
+
+
+def extract_from_annotated(annotation: Any) -> tuple[Any, Callable] | None:
+    """Extract type and extractor from Annotated[Type, extractor].
+
+    Returns:
+        Tuple of (type, extractor) if valid Annotated type with callable metadata.
+        None otherwise.
+    """
+    if not is_annotated_type(annotation):
+        return None
+
+    args = get_args(annotation)
+    if len(args) < 2:
+        return None
+
+    base_type, metadata = args[0], args[1]
+
+    # Metadata must be callable (an extractor function)
+    if not callable(metadata):
+        return None
+
+    return (base_type, metadata)
+
+
+def extract_from_event_type(annotation: Any) -> tuple[Any, Callable] | None:
+    """Handle plain Event types - user wants the full event passed through.
+
+    Returns:
+        Tuple of (Event type, identity function) if annotation is Event subclass.
+        None otherwise.
+    """
+    if not is_event_type(annotation):
+        return None
+
+    # Identity function - just pass the event through
+    return (annotation, lambda e: e)
+
+
+def has_dependency_injection(signature: Signature) -> bool:
+    """Check if a signature uses any dependency injection."""
+    for param in signature.parameters.values():
+        if param.annotation is inspect.Parameter.empty:
+            continue
+
+        if is_annotated_type(param.annotation) or is_event_type(param.annotation):
+            return True
+
+    return False
+
+
+def validate_di_signature(signature: Signature) -> None:
+    """Validate that a signature with DI doesn't have incompatible parameter types.
+
+    Raises:
+        ValueError: If signature has VAR_POSITIONAL (*args) or POSITIONAL_ONLY (/) parameters.
+    """
+    for param in signature.parameters.values():
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            raise ValueError(f"Handler with dependency injection cannot have *args parameter: {param.name}")
+
+        if param.kind == inspect.Parameter.POSITIONAL_ONLY:
+            raise ValueError(f"Handler with dependency injection cannot have positional-only parameter: {param.name}")
+
+
+def extract_from_signature(signature: Signature) -> dict[str, tuple[Any, Callable]]:
+    """Extract parameter types and extractors from a function signature.
+
+    Returns a dict mapping parameter name to (type, extractor_callable).
+    Validates that DI signatures don't have incompatible parameter kinds.
+
+    Raises:
+        ValueError: If signature has incompatible parameters with DI.
+    """
+    # Validate signature first
+    validate_di_signature(signature)
+
+    param_details: dict[str, tuple[Any, Callable]] = {}
+
+    for param in signature.parameters.values():
+        annotation = param.annotation
+
+        # Skip parameters without annotations
+        if annotation is inspect.Parameter.empty:
+            continue
+
+        result = extract_from_annotated(annotation) or extract_from_event_type(annotation)
+
+        if result:
+            param_details[param.name] = result
+
+    return param_details

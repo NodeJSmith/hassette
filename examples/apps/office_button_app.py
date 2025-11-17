@@ -4,8 +4,9 @@ from typing import ClassVar
 
 from deepdiff import DeepDiff
 
-from hassette import AppConfig, AppSync, StateChangeEvent, entities, states
+from hassette import AppConfig, AppSync, entities, states
 from hassette import conditions as C
+from hassette import dependencies as D
 from hassette import predicates as P
 from hassette.events import CallServiceEvent
 
@@ -45,12 +46,14 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
             self.lights[entity_id] = entity
             self.bus.on_state_change(entity_id, handler=self.log_light_changes)
 
-    def log_light_changes(self, event: StateChangeEvent[states.LightState]) -> None:
-        """Log changes to light entities."""
-        new_state = event.payload.data.new_state
-        if not new_state:
-            self.logger.warning("Received light state change event with no new state: %r", event)
-            return
+    def log_light_changes(
+        self,
+        new_state: D.StateNew[states.LightState],
+    ) -> None:
+        """Log changes to light entities using dependency injection.
+
+        DI automatically extracts the new light state.
+        """
 
         diff = DeepDiff(
             self.lights.get(new_state.entity_id),
@@ -74,19 +77,20 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
             service_data.get("entity_id"),
         )
 
-    async def handle_office_button(self, event: StateChangeEvent[states.EventState]) -> None:
-        """Handle the office button action."""
+    async def handle_office_button(
+        self,
+        new_state: D.StateNew[states.EventState],
+    ) -> None:
+        """Handle the office button action using dependency injection.
+
+        DI extracts the event state automatically.
+        """
         if not self.enabled:
             self.logger.info("Office Button is disabled")
             return
 
-        new_state = event.payload.data.new_state
-
-        if not new_state or not new_state.attributes:
-            self.logger.warning(
-                "Received office button action event with no new state or attributes: %r",
-                event,
-            )
+        if not new_state.attributes:
+            self.logger.warning("Received office button action event with no attributes")
             return
 
         new_state_type = new_state.attributes.event_type or ""

@@ -2,7 +2,10 @@
 
 import typing
 
+from typing_extensions import Sentinel
+
 from hassette import App, AppConfig, StateChangeEvent, states
+from hassette import dependencies as D
 
 if typing.TYPE_CHECKING:
     from sound import Sound
@@ -37,17 +40,27 @@ class Presence(App[PresenceAppConfig]):
         await self.api.set_state("sensor.andrew_tracker", state="away")
         await self.api.set_state("sensor.wendy_tracker", state="away")
 
-    async def presence_change(self, event: StateChangeEvent[states.DeviceTrackerState]):
-        data = event.payload.data
-        if not data.new_state:
-            return
+    async def presence_change(
+        self,
+        new_state: D.StateNew[states.DeviceTrackerState],
+        old_value: D.StateValueOld,
+        new_value: D.StateValueNew,
+        entity_id: D.EntityId,
+    ):
+        """Handle presence changes using dependency injection.
 
-        person = data.new_state.attributes.friendly_name or data.entity_id
+        DI automatically extracts:
+        - new_state: Full device tracker state
+        - old_value/new_value: State values (e.g., "home", "not_home")
+        - entity_id: The device tracker entity ID
+        """
+        assert not isinstance(entity_id, Sentinel), "Entity ID must be provided"
+        person = new_state.attributes.friendly_name or entity_id
 
         tracker_entity = f"sensor.{person.lower()}_tracker"
 
-        new = data.new_state_value
-        old = data.old_state_value
+        new = new_value
+        old = old_value
         announce_app: Sound | None = self.hassette.get_app("Sound")  # pyright: ignore[reportAssignmentType]
 
         await self.api.set_state(tracker_entity, state=new)

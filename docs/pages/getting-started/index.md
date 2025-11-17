@@ -63,21 +63,49 @@ touch src/hassette_apps/hello_world.py
 Add the following:
 
 ```python
-from hassette import App, AppConfig
+from typing import Annotated
+
+from hassette import App, AppConfig, states
+from hassette import dependencies as D
 
 
 class HelloWorldConfig(AppConfig):
     greeting: str = "Hello, World!"
+    motion_sensor: str = "binary_sensor.motion"
 
 
 class HelloWorld(App[HelloWorldConfig]):
     async def on_initialize(self) -> None:
         self.logger.info(self.app_config.greeting)
+
+        # Listen for motion using dependency injection
+        self.bus.on_state_change(
+            self.app_config.motion_sensor,
+            handler=self.on_motion,
+            changed_to="on",
+        )
+
+    async def on_motion(
+        self,
+        new_state: D.StateNew[states.BinarySensorState],
+        entity_id: D.EntityId,
+    ) -> None:
+        """Handler demonstrating dependency injection.
+
+        Instead of manually accessing event.payload.data, we use Annotated
+        type hints to automatically extract the new state and entity ID.
+        """
+        friendly_name = new_state.attributes.friendly_name or entity_id
+        self.logger.info("Motion detected on %s!", friendly_name)
 ```
 
-`HelloWorldConfig` defines a single field `greeting` with a default value. The app inherits from `App` with the config type specified, and `on_initialize` logs the greeting from `self.app_config`.
+`HelloWorldConfig` defines configuration fields with defaults. The app inherits from `App` with the config type specified.
 
-You don’t need additional wiring—Hassette automatically discovers apps in the configured directory (controlled by `HassetteConfig.autodetect_apps`).
+In `on_initialize`, we log the greeting and set up an event handler using `self.bus.on_state_change`.
+
+The `on_motion` handler demonstrates **dependency injection** — instead of receiving the full event object and manually accessing its properties, we use `Annotated` type hints with markers from `hassette.dependencies` to automatically extract just the data we need. This results in cleaner, more readable code.
+
+You don't need additional wiring—Hassette automatically discovers apps in the configured directory (controlled by `HassetteConfig.autodetect_apps`).
 
 ### 4. Run Hassette
 

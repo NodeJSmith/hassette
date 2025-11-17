@@ -28,27 +28,245 @@ You can register handlers for any [Home Assistant
 event](https://www.home-assistant.io/docs/configuration/events/) or
 internal Hassette framework event using the event bus.
 
-Handlers can be **async or sync**, functions or methods — no special
-signature is required. If your handler needs to receive the event
-object, name its first (non-`self`) parameter `event`. The name, not the
-type, is what Hassette uses to decide whether to pass it.
+Handlers receive parameters through **dependency injection** (DI), which allows you to
+specify exactly what data you need extracted from events. Along with dependency-injected parameters,
+handlers can also accept arbitrary kwargs.
 
-Example:
+## Dependency Injection for Handlers
+
+Hassette uses type annotations with the
+[Annotated][typing.Annotated]
+type combined with dependency markers from [dependencies][hassette.dependencies]
+to automatically extract and inject event data into your handler parameters.
+
+### Basic Patterns
+
+**Option 1: Receive the full event** (simplest):
 
 ```python
-async def on_motion(self, event):
-    self.logger.info("Motion detected from %s", event.payload.data["entity_id"])
+from hassette.events import StateChangeEvent
+
+async def on_motion(self, event: StateChangeEvent):
+    entity_id = event.payload.data.entity_id
+    new_value = event.payload.data.new_state_value
+    self.logger.info("Motion: %s -> %s", entity_id, new_value)
 ```
 
-If your handler doesn't need the event object, omit the parameter:
+**Option 2: Extract specific data** (recommended):
+
+```python
+from typing import Annotated
+from hassette import dependencies as D
+from hassette import states
+
+async def on_motion(
+    self,
+    new_state: D.StateNew[states.BinarySensorState],
+    entity_id: D.EntityId,
+):
+    friendly_name = new_state.attributes.friendly_name or entity_id
+    self.logger.info("Motion detected: %s", friendly_name)
+```
+
+**Option 3: No event data needed**:
 
 ```python
 async def on_heartbeat(self) -> None:
     self.logger.info("Heartbeat received")
 ```
 
-Handlers can also accept extra `args` or `kwargs` that you provide when
-subscribing.
+### Available Dependencies
+
+Import these from `hassette.dependencies` (commonly aliased as `D`):
+
+#### State Extractors
+
+- `StateNew` - Extract the new state object from a state change event
+- `StateOld` - Extract the old state object (may be None for initial states)
+- `StateOldAndNew` - Extract both states as a tuple `(old, new)`
+
+```python
+from typing import Annotated
+from hassette import dependencies as D, states
+
+async def on_light_change(
+    self,
+    new_state: D.StateNew[states.LightState],
+    old_state: D.StateOld[states.LightState | None],
+):
+    if old_state and old_state.value != new_state.value:
+        self.logger.info("Light %s: %s -> %s",
+                        new_state.entity_id,
+                        old_state.value,
+                        new_state.value)
+```
+
+#### Attribute Extractors
+
+Attribute extractors allow you to pull specific attributes from state objects. They must be used
+with `Annotated`, unlike the other extractors, because they require an argument specifying the attribute name.
+
+- `AttrNew("attribute_name")` - Extract an attribute from the new state
+- `AttrOld("attribute_name")` - Extract an attribute from the old state
+- `AttrOldAndNew("attribute_name")` - Extract attribute from both states as tuple
+
+```python
+async def on_battery_change(
+    self,
+    battery_level: Annotated[int | None, D.AttrNew("battery_level")],
+    entity_id: D.EntityId,
+):
+    if battery_level is not None and battery_level < 20:
+        self.logger.warning("%s battery low: %d%%", entity_id, battery_level)
+```
+
+!!! warning "Missing Attributes"
+    If an attribute doesn't exist, the extractor returns `MISSING_VALUE` (a falsy sentinel).
+    Always check for `None` or use `is not MISSING_VALUE` if you need to distinguish
+    between missing and `None`.
+
+!!! tip
+    If you find yourself frequently needing to extract the same attribute, consider assigning
+    it to a constant to simplify reuse:
+
+    ```python
+
+    BATTERY_LEVEL = Annotated[int | None, D.AttrNew("battery_level")]
+    async def on_battery_change(
+        self,
+        battery_level: BATTERY_LEVEL,
+        entity_id: D.EntityId,
+    ):
+        if battery_level and battery_level < 20:
+            self.logger.warning("%s battery low: %d%%", entity_id, battery_level)
+    ```
+
+#### Value Extractors
+
+State value extractors pull just the state value from the state object. These are generic, allowing you to
+specify the expected type.
+
+- `StateValueNew` - Extract just the state value string (e.g., "on", "off")
+- `StateValueOld` - Extract the old state value string
+
+```python
+async def on_state_change(
+    self,
+    old_value: D.StateValueOld[str],
+    new_value: D.StateValueNew[str],
+):
+    if old_value != new_value:
+        self.logger.info("State changed: %s -> %s", old_value, new_value)
+```
+
+#### Identity Extractors
+
+- `EntityId` - Extract the entity ID from any event
+- `Domain` - Extract the domain (e.g., "light", "sensor")
+- `Service` - Extract the service name from service call events
+
+```python
+from hassette.events import CallServiceEvent
+from hassette import dependencies as D
+
+async def on_service_call(
+    self,
+    domain: D.Domain,
+    service: D.Service,
+    entity_id: D.EntityId,
+):
+    self.logger.info("Service called: %s.%s on %s", domain, service, entity_id)
+```
+
+#### Other Extractors
+
+- `ServiceData` - Extract the service_data dict from service calls
+- `EventContext` - Extract the Home Assistant event context
+
+```python
+async def on_light_service(
+    self,
+    service_data: D.ServiceData,
+):
+    brightness = service_data.get("brightness")
+    if brightness and brightness > 200:
+        self.logger.info("Bright light requested: %d", brightness)
+```
+
+### Combining Multiple Dependencies
+
+You can extract multiple pieces of data in a single handler:
+
+```python
+async def on_climate_change(
+    self,
+    new_state: D.StateNew[states.ClimateState],
+    old_temp: Annotated[float | None, D.AttrOld("current_temperature")],
+    new_temp: Annotated[float | None, D.AttrNew("current_temperature")],
+    entity_id: D.EntityId,
+):
+    if old_temp and new_temp and abs(new_temp - old_temp) > 2:
+        friendly_name = new_state.attributes.friendly_name or entity_id
+        self.logger.warning("%s temperature jumped from %.1f to %.1f",
+                          friendly_name, old_temp, new_temp)
+```
+
+### Mixing DI with kwargs
+
+You can combine dependency injection with custom kwargs:
+
+```python
+async def on_initialize(self):
+    self.bus.on_state_change(
+        "sensor.temperature",
+        handler=self.on_temp_change,
+        threshold=25.0,  # Custom kwarg
+    )
+
+async def on_temp_change(
+    self,
+    new_temp: Annotated[float, D.AttrNew("temperature")],
+    threshold: float,  # From kwargs
+):
+    if new_temp > threshold:
+        self.logger.warning("Temperature %.1f exceeds threshold %.1f",
+                          new_temp, threshold)
+```
+
+### Restrictions
+
+!!! warning "Handler Signature Rules"
+    Handlers **cannot** use:
+
+    - Positional-only parameters (parameters before `/`)
+    - Variadic positional arguments (`*args`)
+
+    These restrictions ensure unambiguous parameter injection.
+
+!!! info "Type Annotations Required"
+    All parameters using dependency injection must have type annotations.
+    Hassette uses these annotations to determine what to extract from events.
+
+### Custom Extractors
+
+Extractors only need to be a callable that accepts an `Event` and returns the desired value. This means that you can create your own extractors as needed, use accessors from `hassette.bus.accessors`, or any other callable.
+
+```python
+from typing import Annotated, TypeAlias
+
+from hassette.events import Event
+from hassette import accessors as A
+
+
+Temperature: TypeAlias = Annotated[float, A.get_attr_new("temperature")]
+
+# Use in handler
+async def on_event(
+    self,
+    temperature: Temperature
+):
+    self.logger.info("Current temperature: %s", temperature)
+```
 
 ## Event Model
 

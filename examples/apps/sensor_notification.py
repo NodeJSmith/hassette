@@ -1,6 +1,7 @@
 # compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/sensor_notification.py
 
-from hassette import App, AppConfig, StateChangeEvent, states
+from hassette import App, AppConfig, states
+from hassette import dependencies as D
 
 
 class SensorNotificationAppConfig(AppConfig):
@@ -36,13 +37,18 @@ class SensorNotification(App[SensorNotificationAppConfig]):
         for sensor in sensors:
             self.bus.on_state_change(sensor, handler=self.state_change)
 
-    async def state_change(self, event: StateChangeEvent[states.SensorState]):
-        data = event.payload.data
-        if not data.new_state:
-            return
+    async def state_change(
+        self,
+        new_state: D.StateNew[states.SensorState],
+        new_value: D.StateValueNew[str],
+        entity_id: D.EntityId,
+    ):
+        """Handle sensor state changes using dependency injection.
 
-        friendly_name = data.new_state.attributes.friendly_name or data.entity_id
-        new = data.new_state_value
+        DI extracts the new state, its value, and entity ID automatically.
+        """
+        friendly_name = new_state.attributes.friendly_name or entity_id
+        new = new_value
 
         if new != "":
             if self.app_config.input_select_as_list:

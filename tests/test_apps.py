@@ -61,7 +61,7 @@ class TestApps:
 
         event = asyncio.Event()
 
-        async def handler(*args, **kwargs):  # noqa
+        async def handler(**kwargs):  # noqa
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
@@ -74,7 +74,7 @@ class TestApps:
             )
         )
 
-        await self.app_handler.handle_changes()
+        await self.app_handler.handle_change_event()
         await asyncio.wait_for(event.wait(), timeout=1)
 
         new_apps = set(self.app_handler.apps.keys())
@@ -88,7 +88,7 @@ class TestApps:
 
         event = asyncio.Event()
 
-        async def handler(*args, **kwargs):  # noqa
+        async def handler(**kwargs):  # noqa
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
@@ -109,7 +109,7 @@ class TestApps:
                 set(),  # reload_apps
             )
 
-            await self.app_handler.handle_changes()
+            await self.app_handler.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
             assert "my_app" not in self.app_handler.apps, "my_app should stop after being disabled"
@@ -128,7 +128,7 @@ class TestApps:
 
         event = asyncio.Event()
 
-        async def handler(*args, **kwargs):  # noqa
+        async def handler(**kwargs):  # noqa
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
@@ -154,7 +154,7 @@ class TestApps:
                 set(),  # reload_apps
             )
 
-            await self.app_handler.handle_changes()
+            await self.app_handler.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
             assert "disabled_app" in self.app_handler.apps, "disabled_app should start after being enabled"

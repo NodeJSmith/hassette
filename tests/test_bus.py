@@ -4,7 +4,7 @@
 import asyncio
 import typing
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -92,7 +92,6 @@ async def test_on_registers_listener_and_supports_unsubscribe(
             topic="demo.topic",
             handler=handler,
             where=[lambda _: True],
-            args=("prefix",),
             kwargs={"suffix": "!"},
             once=True,
             debounce=debounce,
@@ -106,7 +105,6 @@ async def test_on_registers_listener_and_supports_unsubscribe(
         assert listener.topic == "demo.topic"
         assert listener.orig_handler is handler
         assert asyncio.iscoroutinefunction(listener.adapter.handler)
-        assert listener.args == ("prefix",)
         assert listener.kwargs == {"suffix": "!"}
         assert listener.once is True
         assert isinstance(listener.predicate, AllOf)
@@ -120,15 +118,18 @@ async def test_on_registers_listener_and_supports_unsubscribe(
 
 async def test_on_state_change_builds_predicates(bus_instance: "Bus") -> None:
     """on_state_change composes entity, state, and extra predicates."""
+
+    def handler(event: Event) -> None:
+        pass
+
     extra_guard = Guard(lambda event: event.topic == "any")
 
     subscription = bus_instance.on_state_change(
         "sensor.kitchen",
-        handler=AsyncMock(),
+        handler=handler,
         changed_from="off",
         changed_to="on",
         where=extra_guard,
-        args=(),
         kwargs=None,
     )
 
@@ -158,10 +159,14 @@ async def test_on_state_change_builds_predicates(bus_instance: "Bus") -> None:
 
 async def test_on_attribute_change_targets_attribute(bus_instance: "Bus") -> None:
     """on_attribute_change adds AttrDidChange predicate for the supplied attribute."""
+
+    def handler(event: Event) -> None:
+        pass
+
     subscription = bus_instance.on_attribute_change(
         "light.office",
         "brightness",
-        handler=AsyncMock(),
+        handler=handler,
         changed_from=100,
         changed_to=200,
     )
@@ -194,11 +199,15 @@ async def test_on_attribute_change_targets_attribute(bus_instance: "Bus") -> Non
 
 async def test_on_call_service_handles_mapping_predicates(bus_instance: "Bus") -> None:
     """on_call_service composes domain/service guards with ServiceDataWhere and extra predicates."""
+
+    def handler(event: Event) -> None:
+        pass
+
     extra_guard = Guard(lambda event: event.payload.data.service_data.get("brightness", 0) > 150)
     subscription = bus_instance.on_call_service(
         domain="light",
         service="turn_on",
-        handler=AsyncMock(),
+        handler=handler,
         where=[{"entity_id": IsOrContains("light.kitchen")}, extra_guard],
     )
 
@@ -275,18 +284,18 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus) -> None:
     )
 
 
-async def test_bus_uses_args_kwargs(hassette_with_bus) -> None:
+async def test_bus_uses_kwargs(hassette_with_bus) -> None:
     """Handlers receive configured args and kwargs when invoked."""
     hassette = hassette_with_bus
 
     formatted_messages: list[str] = []
     event_processed = asyncio.Event()
 
-    def handler(event: Event[SimpleNamespace], prefix: str, suffix: str) -> None:
-        formatted_messages.append(f"{prefix}{event.payload.value}{suffix}")
+    def handler(event: Event[SimpleNamespace], suffix: str) -> None:
+        formatted_messages.append(f"Value: {event.payload.value}{suffix}")
         hassette_with_bus.task_bucket.post_to_loop(event_processed.set)
 
-    hassette._bus.on(topic="custom.args", handler=handler, args=("Value: ",), kwargs={"suffix": "!"})
+    hassette._bus.on(topic="custom.args", handler=handler, kwargs={"suffix": "!"})
 
     await hassette.send_event("custom.args", Event(topic="custom.args", payload=SimpleNamespace(value="Test")))
 

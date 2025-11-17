@@ -47,6 +47,7 @@ class TestConfig(HassetteConfig):
     scheduler_max_delay_seconds: int | float = 3
     task_cancellation_timeout_seconds: int | float = 0.5
     task_bucket_log_level: str = "DEBUG"
+    autodetect_apps: bool = False
 
     app_dir: Path = TEST_DATA_PATH
 
@@ -87,7 +88,7 @@ def env_file_path():
     return ENV_FILE
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_data_path():
     """
     Provide the path to the test data directory.
