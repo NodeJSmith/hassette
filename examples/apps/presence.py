@@ -2,6 +2,8 @@
 
 import typing
 
+from typing_extensions import Sentinel
+
 from hassette import App, AppConfig, StateChangeEvent, states
 from hassette import dependencies as D
 
@@ -52,6 +54,7 @@ class Presence(App[PresenceAppConfig]):
         - old_value/new_value: State values (e.g., "home", "not_home")
         - entity_id: The device tracker entity ID
         """
+        assert not isinstance(entity_id, Sentinel), "Entity ID must be provided"
         person = new_state.attributes.friendly_name or entity_id
 
         tracker_entity = f"sensor.{person.lower()}_tracker"
