@@ -81,9 +81,9 @@ Import these from `hassette.dependencies` (commonly aliased as `D`):
 
 #### State Extractors
 
-- **`StateNew`** - Extract the new state object from a state change event
-- **`StateOld`** - Extract the old state object (may be None for initial states)
-- **`StateOldAndNew`** - Extract both states as a tuple `(old, new)`
+- `StateNew` - Extract the new state object from a state change event
+- `StateOld` - Extract the old state object (may be None for initial states)
+- `StateOldAndNew` - Extract both states as a tuple `(old, new)`
 
 ```python
 from typing import Annotated
@@ -106,9 +106,9 @@ async def on_light_change(
 Attribute extractors allow you to pull specific attributes from state objects. They must be used
 with `Annotated`, unlike the other extractors, because they require an argument specifying the attribute name.
 
-- **`AttrNew("attribute_name")`** - Extract an attribute from the new state
-- **`AttrOld("attribute_name")`** - Extract an attribute from the old state
-- **`AttrOldAndNew("attribute_name")`** - Extract attribute from both states as tuple
+- `AttrNew("attribute_name")` - Extract an attribute from the new state
+- `AttrOld("attribute_name")` - Extract an attribute from the old state
+- `AttrOldAndNew("attribute_name")` - Extract attribute from both states as tuple
 
 ```python
 async def on_battery_change(
@@ -146,8 +146,8 @@ async def on_battery_change(
 State value extractors pull just the state value from the state object. These are generic, allowing you to
 specify the expected type.
 
-- **`StateValueNew`** - Extract just the state value string (e.g., "on", "off")
-- **`StateValueOld`** - Extract the old state value string
+- `StateValueNew` - Extract just the state value string (e.g., "on", "off")
+- `StateValueOld` - Extract the old state value string
 
 ```python
 async def on_state_change(
@@ -161,9 +161,9 @@ async def on_state_change(
 
 #### Identity Extractors
 
-- **`EntityId`** - Extract the entity ID from any event
-- **`Domain`** - Extract the domain (e.g., "light", "sensor")
-- **`Service`** - Extract the service name from service call events
+- `EntityId` - Extract the entity ID from any event
+- `Domain` - Extract the domain (e.g., "light", "sensor")
+- `Service` - Extract the service name from service call events
 
 ```python
 from hassette.events import CallServiceEvent
@@ -180,8 +180,8 @@ async def on_service_call(
 
 #### Other Extractors
 
-- **`ServiceData`** - Extract the service_data dict from service calls
-- **`EventContext`** - Extract the Home Assistant event context
+- `ServiceData` - Extract the service_data dict from service calls
+- `EventContext` - Extract the Home Assistant event context
 
 ```python
 async def on_light_service(
