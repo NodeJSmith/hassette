@@ -344,11 +344,57 @@ The event bus is accessed via the `self.bus` attribute. You can cancel a
 subscription using the `Subscription` object returned by the listen
 method, e.g., `subscription.cancel()`.
 
+!!! warning
+    Handlers **cannot** use positional-only parameters (parameters before `/`) or variadic positional arguments (`*args`).
 
-The event object is not a required argument - if you do not need it, simply
-omit it from your handler's signature. If you do include it, ensure it is the
-first unbound argument in your function signature and it is named event (adding
-some dependency injection logic is on the roadmap).
+**Dependency Injection for Handlers**
+
+Hassette supports dependency injection for event handlers, allowing you to extract
+specific data from events without manually accessing the event payload. Use the
+[Annotated][typing.Annotated] type
+hint with dependency markers from [dependencies][hassette.dependencies]:
+
+```python
+from typing import Annotated
+from hassette import App, states
+from hassette import dependencies as D
+from hassette.events import CallServiceEvent
+
+
+class ButtonHandler(App):
+    async def on_initialize(self):
+        # Handler with dependency injection
+        sub = self.bus.on_call_service(
+            service="press",
+            handler=self.minimal_callback,
+            where={"entity_id": "input_button.test_button"},
+        )
+        self.logger.info(f"Subscribed: {sub}")
+
+    # Extract only what you need from the event
+    async def minimal_callback(
+        self,
+        domain: Annotated[str, D.Domain],
+        service: Annotated[str, D.Service],
+        service_data: Annotated[dict, D.ServiceData],
+    ) -> None:
+        entity_id = service_data.get("entity_id", "unknown")
+        self.logger.info(f"Button {entity_id} pressed (domain={domain}, service={service})")
+```
+
+Available dependency markers include:
+- `StateNew`, `StateOld` - Extract state objects from state change events
+- `AttrNew("name")`, `AttrOld("name")` - Extract specific attributes
+- `EntityId`, `Domain`, `Service` - Extract identifiers
+- `StateValueNew`, `StateValueOld` - Extract state values (e.g., "on"/"off")
+- `ServiceData`, `EventContext` - Extract service data or event context
+
+You can also receive the full event object if you prefer:
+
+```python
+async def minimal_callback(self, event: CallServiceEvent) -> None:
+    self.logger.info(f"Button pressed: {event.payload.data.service_data}")
+```
 
 
 ```python
@@ -435,11 +481,11 @@ class ButtonPressed(Hass):
 
 State change handlers are the exact same as event handlers - we're only
 calling them out separately to align with AppDaemon. These can also be
-either async or sync functions and accept any arguments - including the event object, if desired.
-The event bus provides helpers for
-filtering entities and attributes. You can also provide additional
-predicates using the `where` parameter. In this example, we listen for
-any state change on the specified entity.
+either async or sync functions. You can receive the full event object or
+use dependency injection to extract only the data you need.
+
+The event bus provides helpers for filtering entities and attributes. You can
+also provide additional predicates using the `where` parameter.
 
 Like other objects, these are typed using Pydantic models -
 `StateChangeEvent` is a
@@ -451,14 +497,43 @@ Currently the repr of a StateChangeEvent is quite verbose, but it does
 show the full old and new state objects, which can be useful for
 debugging. Cleaning this up is on the roadmap.
 
+**With dependency injection** (recommended):
+
+```python
+from typing import Annotated
+from hassette import App, states
+from hassette import dependencies as D
+
+
+class ButtonPressed(App):
+    async def on_initialize(self):
+        sub = self.bus.on_state_change(
+            entity="input_button.test_button",
+            handler=self.button_pressed,
+        )
+        self.logger.info(f"Subscribed: {sub}")
+
+    async def button_pressed(
+        self,
+        new_state: Annotated[states.ButtonState, D.StateNew],
+        entity_id: Annotated[str, D.EntityId],
+    ) -> None:
+        friendly_name = new_state.attributes.friendly_name or entity_id
+        self.logger.info(f"Button {friendly_name} pressed at {new_state.last_changed}")
+```
+
+**With event object**:
+
 ```python
 from hassette import App, StateChangeEvent, states
 
 
 class ButtonPressed(App):
     async def on_initialize(self):
-        # Listen for a button press event with a specific entity_id
-        sub = self.bus.on_state_change(entity="input_button.test_button", handler=self.button_pressed)
+        sub = self.bus.on_state_change(
+            entity="input_button.test_button",
+            handler=self.button_pressed,
+        )
         self.logger.info(f"Subscribed: {sub}")
 
     def button_pressed(self, event: StateChangeEvent[states.ButtonState]) -> None:
@@ -571,10 +646,12 @@ entity will raise a `EntityNotFoundError` exception.
 
 The API client is accessed via the `self.api` attribute. This client
 makes direct calls to Home Assistant over REST API, which does require
-using `await`. A state cache, similar to
-AppDaemon's, is on the roadmap. When you call
-`set_state()`, it uses the Home Assistant
+using `await`. When you call `set_state()`, it uses the Home Assistant
 REST API to update the state of the entity.
+
+!!! info "State Cache Coming Soon"
+    A state cache similar to AppDaemon's is planned for a future release,
+    which will reduce API calls for frequently accessed states.
 
 ```python
 from hassette.models import states

@@ -117,21 +117,23 @@ class AttrOldAndNew(Depends):
         )
 
 
-NewStateValue = A.get_state_value_new
+StateValueNew = A.get_state_value_new
 """Annotated type for extracting the new state value from a StateChangeEvent."""
 
-OldStateValue = A.get_state_value_old
+StateValueOld = A.get_state_value_old
 """Annotated type for extracting the old state value from a StateChangeEvent."""
 
-OldAndNewStateValues = A.get_state_value_old_new
+StateValueOldAndNew = A.get_state_value_old_new
 """Annotated type for extracting the old and new state values from a StateChangeEvent."""
-
 
 EntityId = A.get_entity_id
 """Annotated type for extracting the entity_id from a HassEvent."""
 
 Domain = A.get_domain
 """Annotated type for extracting the domain from a HassEvent."""
+
+Service = A.get_service
+"""Annotated type for extracting the service from a CallServiceEvent."""
 
 ServiceData = A.get_service_data
 """Annotated type for extracting the service_data from a CallServiceEvent."""

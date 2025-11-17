@@ -76,13 +76,13 @@ from .classes import (
     Domain,
     EntityId,
     EventContext,
-    NewStateValue,
-    OldAndNewStateValues,
-    OldStateValue,
     ServiceData,
     StateNew,
     StateOld,
     StateOldAndNew,
+    StateValueNew,
+    StateValueOld,
+    StateValueOldAndNew,
 )
 from .extraction import extract_from_signature, validate_di_signature
 
@@ -94,13 +94,13 @@ __all__ = [
     "Domain",
     "EntityId",
     "EventContext",
-    "NewStateValue",
-    "OldAndNewStateValues",
-    "OldStateValue",
     "ServiceData",
     "StateNew",
     "StateOld",
     "StateOldAndNew",
+    "StateValueNew",
+    "StateValueOld",
+    "StateValueOldAndNew",
     "extract_from_signature",
     "validate_di_signature",
 ]

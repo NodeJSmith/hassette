@@ -1,8 +1,10 @@
 # compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/presence.py
 
 import typing
+from typing import Annotated
 
 from hassette import App, AppConfig, StateChangeEvent, states
+from hassette import dependencies as D
 
 if typing.TYPE_CHECKING:
     from sound import Sound
@@ -37,17 +39,26 @@ class Presence(App[PresenceAppConfig]):
         await self.api.set_state("sensor.andrew_tracker", state="away")
         await self.api.set_state("sensor.wendy_tracker", state="away")
 
-    async def presence_change(self, event: StateChangeEvent[states.DeviceTrackerState]):
-        data = event.payload.data
-        if not data.new_state:
-            return
+    async def presence_change(
+        self,
+        new_state: Annotated[states.DeviceTrackerState, D.StateNew],
+        old_value: Annotated[str, D.StateValueOld],
+        new_value: Annotated[str, D.StateValueNew],
+        entity_id: Annotated[str, D.EntityId],
+    ):
+        """Handle presence changes using dependency injection.
 
-        person = data.new_state.attributes.friendly_name or data.entity_id
+        DI automatically extracts:
+        - new_state: Full device tracker state
+        - old_value/new_value: State values (e.g., "home", "not_home")
+        - entity_id: The device tracker entity ID
+        """
+        person = new_state.attributes.friendly_name or entity_id
 
         tracker_entity = f"sensor.{person.lower()}_tracker"
 
-        new = data.new_state_value
-        old = data.old_state_value
+        new = new_value
+        old = old_value
         announce_app: Sound | None = self.hassette.get_app("Sound")  # pyright: ignore[reportAssignmentType]
 
         await self.api.set_state(tracker_entity, state=new)

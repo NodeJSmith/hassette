@@ -192,6 +192,11 @@ def get_context(event: "HassEvent") -> "HassContext":
 # ---------------------------------------------------------------------------
 
 
+def get_service(event: "CallServiceEvent") -> str | Sentinel:
+    """Return the service name being called."""
+    return get_path("payload.data.service")(event)
+
+
 def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | Sentinel:
     """Return the service_data dict (or empty dict if missing).
 

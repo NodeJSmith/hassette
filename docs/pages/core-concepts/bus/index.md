@@ -28,59 +28,226 @@ You can register handlers for any [Home Assistant
 event](https://www.home-assistant.io/docs/configuration/events/) or
 internal Hassette framework event using the event bus.
 
-Handlers receive parameters through dependency injection, which allows you to
-specify exactly what data you need. Along with dependency-injected parameters,
+Handlers receive parameters through **dependency injection** (DI), which allows you to
+specify exactly what data you need extracted from events. Along with dependency-injected parameters,
 handlers can also accept arbitrary kwargs.
 
-Dependency injection is done through the ``Annotated`` type from the
-`typing` module, combined with special markers from the
-[`hassette.dependencies`][hassette.dependencies] module.
+## Dependency Injection for Handlers
 
-!!! warning
-    Handlers cannot accept positional only or variadic positional
-    parameters (i.e., `*args`). These would cause ambiguity in the injection
-    process.
+Hassette uses type annotations with the
+[Annotated][typing.Annotated]
+type combined with dependency markers from [dependencies][hassette.dependencies]
+to automatically extract and inject event data into your handler parameters.
 
-!!! warning
-    Handlers *must* annotate their parameters with types. This is required for
-    dependency injection to work correctly. If you would prefer to not add
-    a bunch of annotations you can receive the entire event object, annotated
-    as [Event][hassette.events.base.Event] or any specific subclass.
+### Basic Patterns
 
-Example:
+**Option 1: Receive the full event** (simplest):
 
-
-To annotate the simplest way, just annotate as an Event or Event subclass:
 ```python
 from hassette.events import StateChangeEvent
 
 async def on_motion(self, event: StateChangeEvent):
-    self.logger.info("Motion detected from %s", event.payload.entity_id)
+    entity_id = event.payload.data.entity_id
+    new_value = event.payload.data.new_state_value
+    self.logger.info("Motion: %s -> %s", entity_id, new_value)
 ```
 
-To extract specific fields from the event payload, use the
-[`hassette.dependencies`][hassette.dependencies] module:
+**Option 2: Extract specific data** (recommended):
 
 ```python
 from typing import Annotated
 from hassette import dependencies as D
+from hassette import states
 
-async def on_temperature_change(
+async def on_motion(
     self,
-    new_temp: Annotated[float, D.AttrNew("temperature")],
-    old_temp: Annotated[float, D.AttrOld("temperature")],
-) -> None:
-    self.logger.info("Temperature changed from %s to %s", old_temp, new_temp)
+    new_state: Annotated[states.BinarySensorState, D.StateNew],
+    entity_id: Annotated[str, D.EntityId],
+):
+    friendly_name = new_state.attributes.friendly_name or entity_id
+    self.logger.info("Motion detected: %s", friendly_name)
 ```
 
-If your handler doesn't need the event object, omit the parameter:
+**Option 3: No event data needed**:
 
 ```python
 async def on_heartbeat(self) -> None:
     self.logger.info("Heartbeat received")
 ```
 
-Handlers can also accept extra `kwargs` that you provide when subscribing.
+### Available Dependencies
+
+Import these from `hassette.dependencies` (commonly aliased as `D`):
+
+#### State Extractors
+
+- **`StateNew`** - Extract the new state object from a state change event
+- **`StateOld`** - Extract the old state object (may be None for initial states)
+- **`StateOldAndNew`** - Extract both states as a tuple `(old, new)`
+
+```python
+from typing import Annotated
+from hassette import dependencies as D, states
+
+async def on_light_change(
+    self,
+    new_state: Annotated[states.LightState, D.StateNew],
+    old_state: Annotated[states.LightState | None, D.StateOld],
+):
+    if old_state and old_state.value != new_state.value:
+        self.logger.info("Light %s: %s -> %s",
+                        new_state.entity_id,
+                        old_state.value,
+                        new_state.value)
+```
+
+#### Attribute Extractors
+
+- **`AttrNew("attribute_name")`** - Extract an attribute from the new state
+- **`AttrOld("attribute_name")`** - Extract an attribute from the old state
+- **`AttrOldAndNew("attribute_name")`** - Extract attribute from both states as tuple
+
+```python
+async def on_battery_change(
+    self,
+    battery_level: Annotated[int | None, D.AttrNew("battery_level")],
+    entity_id: Annotated[str, D.EntityId],
+):
+    if battery_level is not None and battery_level < 20:
+        self.logger.warning("%s battery low: %d%%", entity_id, battery_level)
+```
+
+!!! tip "Missing Attributes"
+    If an attribute doesn't exist, the extractor returns `MISSING_VALUE` (a falsy sentinel).
+    Always check for `None` or use `is not MISSING_VALUE` if you need to distinguish
+    between missing and `None`.
+
+#### Value Extractors
+
+- **`StateValueNew`** - Extract just the state value string (e.g., "on", "off")
+- **`StateValueOld`** - Extract the old state value string
+
+```python
+async def on_state_change(
+    self,
+    old_value: Annotated[str, D.StateValueOld],
+    new_value: Annotated[str, D.StateValueNew],
+):
+    if old_value != new_value:
+        self.logger.info("State changed: %s -> %s", old_value, new_value)
+```
+
+#### Identity Extractors
+
+- **`EntityId`** - Extract the entity ID from any event
+- **`Domain`** - Extract the domain (e.g., "light", "sensor")
+- **`Service`** - Extract the service name from service call events
+
+```python
+from hassette.events import CallServiceEvent
+from hassette import dependencies as D
+
+async def on_service_call(
+    self,
+    domain: Annotated[str, D.Domain],
+    service: Annotated[str, D.Service],
+    entity_id: Annotated[str, D.EntityId],
+):
+    self.logger.info("Service called: %s.%s on %s", domain, service, entity_id)
+```
+
+#### Other Extractors
+
+- **`ServiceData`** - Extract the service_data dict from service calls
+- **`EventContext`** - Extract the Home Assistant event context
+
+```python
+async def on_light_service(
+    self,
+    service_data: Annotated[dict, D.ServiceData],
+):
+    brightness = service_data.get("brightness")
+    if brightness and brightness > 200:
+        self.logger.info("Bright light requested: %d", brightness)
+```
+
+### Combining Multiple Dependencies
+
+You can extract multiple pieces of data in a single handler:
+
+```python
+async def on_climate_change(
+    self,
+    new_state: Annotated[states.ClimateState, D.StateNew],
+    old_temp: Annotated[float | None, D.AttrOld("current_temperature")],
+    new_temp: Annotated[float | None, D.AttrNew("current_temperature")],
+    entity_id: Annotated[str, D.EntityId],
+):
+    if old_temp and new_temp and abs(new_temp - old_temp) > 2:
+        friendly_name = new_state.attributes.friendly_name or entity_id
+        self.logger.warning("%s temperature jumped from %.1f to %.1f",
+                          friendly_name, old_temp, new_temp)
+```
+
+### Mixing DI with kwargs
+
+You can combine dependency injection with custom kwargs:
+
+```python
+async def on_initialize(self):
+    self.bus.on_state_change(
+        "sensor.temperature",
+        handler=self.on_temp_change,
+        threshold=25.0,  # Custom kwarg
+    )
+
+async def on_temp_change(
+    self,
+    new_temp: Annotated[float, D.AttrNew("temperature")],
+    threshold: float,  # From kwargs
+):
+    if new_temp > threshold:
+        self.logger.warning("Temperature %.1f exceeds threshold %.1f",
+                          new_temp, threshold)
+```
+
+### Restrictions
+
+!!! warning "Handler Signature Rules"
+    Handlers **cannot** use:
+
+    - Positional-only parameters (parameters before `/`)
+    - Variadic positional arguments (`*args`)
+
+    These restrictions ensure unambiguous parameter injection.
+
+!!! info "Type Annotations Required"
+    All parameters using dependency injection must have type annotations.
+    Hassette uses these annotations to determine what to extract from events.
+
+### Custom Extractors
+
+Extractors only need to be a callable that accepts an `Event` and returns the desired value. This means that you can create your own extractors as needed, use accessors from `hassette.bus.accessors`, or any other callable.
+
+You can also create custom dependency extractors by subclassing
+[`Depends`][hassette.dependencies.classes.Depends]:
+
+```python
+from hassette.dependencies.classes import Depends
+from hassette.events import Event
+
+class CustomExtractor(Depends):
+    def __call__(self, event: Event) -> str:
+        # Your custom extraction logic
+        return f"custom_{event.topic}"
+
+# Use in handler
+async def on_event(
+    self,
+    custom_value: Annotated[str, CustomExtractor()],
+):
+    self.logger.info("Custom: %s", custom_value)
+```
 
 ## Event Model
 

@@ -350,22 +350,22 @@ class TestTypeAliasExtractors:
                 # and the test shouldn't need to be aware of that
                 assert result is not MISSING_VALUE, f"Domain extractor returned MISSING_VALUE for event: {event}"
 
-    def test_new_state_value_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
-        """Test NewStateValue type alias extracts state value."""
+    def test_state_value_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+        """Test StateValueNew type alias extracts state value."""
         event = state_change_events[0]
 
-        _, extractor = extract_from_annotated(Annotated[states.StateUnion, D.NewStateValue])
+        _, extractor = extract_from_annotated(Annotated[states.StateUnion, D.StateValueNew])
         result = extractor(event)
 
         if event.payload.data.new_state:
             assert result == event.payload.data.new_state.value
 
-    def test_old_state_value_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
-        """Test OldStateValue type alias extracts old state value."""
+    def test_state_value_old_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+        """Test StateValueOld type alias extracts old state value."""
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
         assert event is not None
 
-        _, extractor = extract_from_annotated(Annotated[states.StateUnion, D.OldStateValue])
+        _, extractor = extract_from_annotated(Annotated[states.StateUnion, D.StateValueOld])
         result = extractor(event)
 
         assert result == event.payload.data.old_state.value
