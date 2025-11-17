@@ -13,19 +13,16 @@ import pytest
 from hassette import MISSING_VALUE
 from hassette import dependencies as D
 from hassette.bus import accessors as A
-from hassette.dependencies.classes import AttrNew, AttrOld, AttrOldAndNew, Depends, StateNew, StateOld, StateOldAndNew
 from hassette.dependencies.extraction import (
     extract_from_annotated,
-    extract_from_depends,
     extract_from_event_type,
     extract_from_signature,
     has_dependency_injection,
     is_annotated_type,
-    is_depends_subclass,
     is_event_type,
     validate_di_signature,
 )
-from hassette.events import CallServiceEvent, Event, HassContext, StateChangeEvent, create_event_from_hass
+from hassette.events import CallServiceEvent, Event, StateChangeEvent, create_event_from_hass
 from hassette.models import states
 
 if typing.TYPE_CHECKING:
@@ -94,26 +91,6 @@ class TestTypeDetection:
         assert is_annotated_type(int) is False
         assert is_annotated_type(Event) is False
 
-    def test_is_depends_subclass_with_depends_instance(self):
-        """Test detection of Annotated with Depends instance."""
-        annotation = Annotated[states.LightState, StateNew]
-        assert is_depends_subclass(annotation) is True
-
-    def test_is_depends_subclass_with_attr_new(self):
-        """Test detection of Annotated with AttrNew instance."""
-        annotation = Annotated[str, AttrNew("friendly_name")]
-        assert is_depends_subclass(annotation) is True
-
-    def test_is_depends_subclass_with_plain_callable(self):
-        """Test that plain callable metadata is not detected as Depends."""
-        annotation = Annotated[str, lambda x: x]
-        assert is_depends_subclass(annotation) is False
-
-    def test_is_depends_subclass_with_non_annotated(self):
-        """Test that non-Annotated types return False."""
-        assert is_depends_subclass(str) is False
-        assert is_depends_subclass(Event) is False
-
     def test_is_event_type_with_event_class(self):
         """Test detection of Event class."""
         assert is_event_type(Event) is True
@@ -134,61 +111,6 @@ class TestTypeDetection:
         assert is_event_type(inspect.Parameter.empty) is False
 
 
-class TestSingletonExtractors:
-    """Test singleton extractor instances (StateNew, StateOld, StateOldAndNew)."""
-
-    def test_state_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
-        """Test StateNew singleton extracts new state correctly."""
-        event = state_change_events[0]
-        result = StateNew(event)
-        assert result is not None
-        assert result == event.payload.data.new_state
-
-    def test_state_old_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
-        """Test StateOld singleton extracts old state correctly."""
-        # Find an event with old_state
-        event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
-        assert event is not None, "No event with old_state found in test data"
-
-        result = StateOld(event)
-        assert result is not None
-        assert result == event.payload.data.old_state
-
-    def test_state_old_and_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
-        """Test StateOldAndNew singleton extracts both states correctly."""
-        # Find an event with both states
-        event = next(
-            (
-                e
-                for e in state_change_events
-                if e.payload.data.old_state is not None and e.payload.data.new_state is not None
-            ),
-            None,
-        )
-        assert event is not None, "No events with both old and new states found"
-
-        old_result, new_result = StateOldAndNew(event)
-        assert old_result == event.payload.data.old_state
-        assert new_result == event.payload.data.new_state
-
-    def test_state_new_with_first_state(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
-        """Test StateNew works with initial state (no old_state)."""
-        event = next((e for e in state_change_events if e.payload.data.old_state is None), None)
-        assert event is not None, "No initial state events found"
-
-        result = StateNew(event)
-        assert result == event.payload.data.new_state
-        assert result is not None
-
-    def test_state_new_with_last_state(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
-        """Test StateNew works with final state (no new_state) - should return None."""
-        event = next((e for e in state_change_events if e.payload.data.new_state is None), None)
-        assert event is not None, "No final state events found"
-
-        result = StateNew(event)
-        assert result is None
-
-
 class TestParameterizedExtractors:
     """Test parameterized extractor classes (AttrNew, AttrOld, AttrOldAndNew)."""
 
@@ -205,7 +127,7 @@ class TestParameterizedExtractors:
         )
         assert event is not None, "No events with friendly_name found"
 
-        extractor = AttrNew("friendly_name")
+        extractor = D.AttrNew("friendly_name")
         result = extractor(event)
         assert result is not None
         assert result == event.payload.data.new_state.attributes.friendly_name
@@ -223,7 +145,7 @@ class TestParameterizedExtractors:
         )
         assert event is not None, "No suitable event found"
 
-        extractor = AttrNew("non_existent_attr")
+        extractor = D.AttrNew("non_existent_attr")
         result = extractor(event)
         from hassette.bus.accessors import MISSING_VALUE
 
@@ -242,7 +164,7 @@ class TestParameterizedExtractors:
         )
         assert event is not None, "No events with old_state and friendly_name found"
 
-        extractor = AttrOld("friendly_name")
+        extractor = D.AttrOld("friendly_name")
         result = extractor(event)
         assert result is not None
         assert result == event.payload.data.old_state.attributes.friendly_name
@@ -263,7 +185,7 @@ class TestParameterizedExtractors:
         )
         assert event is not None, "No suitable event found"
 
-        extractor = AttrOldAndNew("friendly_name")
+        extractor = D.AttrOldAndNew("friendly_name")
         old_val, new_val = extractor(event)
         assert old_val == event.payload.data.old_state.attributes.friendly_name
         assert new_val == event.payload.data.new_state.attributes.friendly_name
@@ -281,7 +203,7 @@ class TestParameterizedExtractors:
             None,
         )
         if event:
-            extractor = AttrNew("editable")
+            extractor = D.AttrNew("editable")
             result = extractor(event)
             assert isinstance(result, bool)
 
@@ -303,12 +225,11 @@ class TestTypeAliasExtractors:
             # call service event *can* have entity_id in service_data dict, but is not guaranteed
             # to - we want to skip those without it for this test
             if event_type is CallServiceEvent:
-                # event = next((e for e in events if e.payload.data.service_data), None)
                 events = [e for e in events if e.payload.data.service_data]
 
             for event in events:
                 # Extract the callable from the Annotated type
-                _, extractor = extract_from_annotated(Annotated[str, A.get_entity_id])
+                _, extractor = extract_from_annotated(D.EntityId)
                 result = extractor(event)
 
                 # check only for "not MISSING_VALUE", as we get entity_id from a few different places
@@ -322,7 +243,7 @@ class TestTypeAliasExtractors:
         )
         assert call_service_event is not None, "No CallServiceEvent with empty service_data found in test data"
 
-        _, extractor = extract_from_annotated(Annotated[str, A.get_entity_id])
+        _, extractor = extract_from_annotated(D.EntityId)
         result = extractor(call_service_event)
 
         assert result is MISSING_VALUE, (
@@ -343,7 +264,7 @@ class TestTypeAliasExtractors:
         for events in event_types.values():
             for event in events:
                 # Extract the callable from the Annotated type
-                _, extractor = extract_from_annotated(Annotated[str, D.Domain])
+                _, extractor = extract_from_annotated(D.Domain)
                 result = extractor(event)
 
                 # check only for "not MISSING_VALUE", as we get domain from a few different places
@@ -354,7 +275,7 @@ class TestTypeAliasExtractors:
         """Test StateValueNew type alias extracts state value."""
         event = state_change_events[0]
 
-        _, extractor = extract_from_annotated(Annotated[states.StateUnion, D.StateValueNew])
+        _, extractor = extract_from_annotated(D.StateValueNew[states.StateUnion])
         result = extractor(event)
 
         if event.payload.data.new_state:
@@ -365,7 +286,7 @@ class TestTypeAliasExtractors:
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
         assert event is not None
 
-        _, extractor = extract_from_annotated(Annotated[states.StateUnion, D.StateValueOld])
+        _, extractor = extract_from_annotated(D.StateValueOld[str])
         result = extractor(event)
 
         assert result == event.payload.data.old_state.value
@@ -375,7 +296,7 @@ class TestTypeAliasExtractors:
         call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
         assert call_service_event is not None, "No CallServiceEvent found in test data"
 
-        _, extractor = extract_from_annotated(Annotated[dict, D.ServiceData])
+        _, extractor = extract_from_annotated(D.ServiceData)
         result = extractor(call_service_event)
 
         assert isinstance(result, dict)
@@ -385,7 +306,7 @@ class TestTypeAliasExtractors:
         """Test EventContext type alias extracts context."""
         event = state_change_events[0]
 
-        _, extractor = extract_from_annotated(Annotated[HassContext, D.EventContext])
+        _, extractor = extract_from_annotated(D.EventContext)
         result = extractor(event)
 
         assert isinstance(result, dict)
@@ -422,38 +343,6 @@ class TestExtractFromAnnotated:
         assert extract_from_annotated(int) is None
 
 
-class TestExtractFromDepends:
-    """Test extract_from_depends function."""
-
-    def test_extract_with_state_new(self):
-        """Test extraction with StateNew singleton."""
-        annotation = Annotated[states.LightState, StateNew]
-        result = extract_from_depends(annotation)
-
-        assert result is not None
-        base_type, extractor = result
-        assert base_type is states.LightState
-        assert extractor is StateNew
-
-    def test_extract_with_attr_new(self):
-        """Test extraction with AttrNew instance."""
-        attr_extractor = AttrNew("friendly_name")
-        annotation = Annotated[str, attr_extractor]
-        result = extract_from_depends(annotation)
-
-        assert result is not None
-        base_type, extractor = result
-        assert base_type is str
-        assert extractor is attr_extractor
-
-    def test_extract_with_non_depends(self):
-        """Test that non-Depends metadata returns None."""
-        annotation = Annotated[str, lambda x: x]
-        result = extract_from_depends(annotation)
-
-        assert result is None
-
-
 class TestExtractFromEventType:
     """Test extract_from_event_type function."""
 
@@ -486,12 +375,12 @@ class TestExtractFromEventType:
 class TestSignatureExtraction:
     """Test signature extraction and validation."""
 
-    def test_extract_from_signature_with_depends(self):
-        """Test extracting parameters with Depends from signature."""
+    def test_extract_from_signature_with_annotation(self):
+        """Test extracting parameters with Annotation from signature."""
 
         def handler(
-            new_state: Annotated[states.LightState, StateNew],
-            friendly_name: Annotated[str, AttrNew("friendly_name")],
+            new_state: D.StateNew[states.LightState],
+            friendly_name: Annotated[str, D.AttrNew("friendly_name")],
         ):
             pass
 
@@ -504,7 +393,7 @@ class TestSignatureExtraction:
 
         new_state_type, new_state_extractor = result["new_state"]
         assert new_state_type is states.LightState
-        assert new_state_extractor is StateNew
+        assert new_state_extractor is A.get_state_object_new
 
     def test_extract_from_signature_with_event_type(self):
         """Test extracting Event-typed parameters from signature."""
@@ -526,9 +415,9 @@ class TestSignatureExtraction:
 
         def handler(
             event: StateChangeEvent,
-            new_state: Annotated[states.LightState, StateNew],
+            new_state: D.StateNew[states.LightState],
             regular_param: str,
-            entity_id: Annotated[str, A.get_entity_id],
+            entity_id: D.EntityId,
         ):
             pass
 
@@ -546,7 +435,7 @@ class TestSignatureExtraction:
         """Test that **kwargs is allowed."""
 
         def handler(
-            new_state: Annotated[states.LightState, StateNew],
+            new_state: D.StateNew[states.LightState],
             **kwargs,
         ):
             pass
@@ -559,7 +448,7 @@ class TestSignatureExtraction:
     def test_has_dependency_injection_true(self):
         """Test has_dependency_injection returns True for DI signatures."""
 
-        def handler(new_state: Annotated[states.LightState, StateNew]):
+        def handler(new_state: D.StateNew[states.LightState]):
             pass
 
         signature = inspect.signature(handler)
@@ -591,8 +480,8 @@ class TestSignatureValidation:
         """Test that valid DI signatures don't raise."""
 
         def handler(
-            new_state: Annotated[states.LightState, StateNew],
-            entity_id: str,
+            new_state: D.StateNew[states.LightState],
+            entity_id: D.EntityId,
             **kwargs,
         ):
             pass
@@ -605,7 +494,7 @@ class TestSignatureValidation:
         """Test that *args raises ValueError."""
 
         def handler(
-            new_state: Annotated[states.LightState, StateNew],
+            new_state: D.StateNew[states.LightState],
             *args,
         ):
             pass
@@ -618,7 +507,7 @@ class TestSignatureValidation:
         """Test that positional-only parameters raise ValueError."""
 
         def handler(
-            new_state: Annotated[states.LightState, StateNew],
+            new_state: D.StateNew[states.LightState],
             positional_only,
             /,
         ):
@@ -627,45 +516,6 @@ class TestSignatureValidation:
         signature = inspect.signature(handler)
         with pytest.raises(ValueError, match="cannot have positional-only parameter"):
             validate_di_signature(signature)
-
-
-class TestDependsBaseClass:
-    """Test the Depends base class."""
-
-    def test_depends_base_class_not_implemented(self):
-        """Test that Depends base class raises NotImplementedError."""
-        depends = Depends()
-        mock_event = Event(topic="test", payload={})
-
-        with pytest.raises(NotImplementedError):
-            depends(mock_event)
-
-    def test_custom_depends_subclass(self):
-        """Test creating custom Depends subclass."""
-
-        class CustomExtractor(Depends):
-            def __call__(self, event: Event) -> str:
-                return "custom_value"
-
-        extractor = CustomExtractor()
-        mock_event = Event(topic="test", payload={})
-        result = extractor(mock_event)
-
-        assert result == "custom_value"
-
-    def test_depends_subclass_in_annotation(self):
-        """Test using custom Depends subclass in annotation."""
-
-        class CustomExtractor(Depends):
-            def __call__(self, event: Event) -> str:
-                return "custom_value"
-
-        extractor = CustomExtractor()
-        annotation = Annotated[str, extractor]
-
-        assert is_depends_subclass(annotation) is True
-        result = extract_from_depends(annotation)
-        assert result is not None
 
 
 class TestEndToEndDI:
@@ -688,10 +538,10 @@ class TestEndToEndDI:
 
         # Define handler signature
         def handler(
-            new_state: Annotated[states.BaseState, StateNew],
-            entity_id: Annotated[str, A.get_entity_id],
-            friendly_name: Annotated[str, AttrNew("friendly_name")],
-            context: Annotated[dict, A.get_context],
+            new_state: D.StateNew[states.BaseState],
+            entity_id: D.EntityId,
+            friendly_name: Annotated[str, D.AttrNew("friendly_name")],
+            context: D.EventContext,
         ):
             pass
 
@@ -720,9 +570,9 @@ class TestEndToEndDI:
         assert event is not None
 
         def handler(
-            old_state: Annotated[states.BaseState, StateOld],
-            new_state: Annotated[states.BaseState, StateNew],
-            states_tuple: Annotated[tuple[states.BaseState, states.BaseState], StateOldAndNew],
+            old_state: D.StateOld[states.BaseState],
+            new_state: D.StateNew[states.BaseState],
+            states_tuple: D.StateOldAndNew[states.BaseState],
         ):
             pass
 
@@ -740,8 +590,8 @@ class TestEndToEndDI:
         assert event is not None
 
         def handler(
-            domain: Annotated[str, A.get_domain],
-            service_data: Annotated[dict, A.get_service_data],
+            domain: D.Domain,
+            service_data: D.ServiceData,
         ):
             pass
 
@@ -766,9 +616,9 @@ class TestEndToEndDI:
 
         def handler(
             event_param: StateChangeEvent,  # Event type (identity)
-            new_state: Annotated[states.BaseState, StateNew],  # Depends singleton
-            friendly_name: Annotated[str, AttrNew("friendly_name")],  # Depends parameterized
-            entity_id: Annotated[str, A.get_entity_id],  # Type alias with accessor
+            new_state: D.StateNew[states.BaseState],  # Annotation TypeAlias
+            friendly_name: Annotated[str, D.AttrNew("friendly_name")],  # Parameterized extractor
+            entity_id: D.EntityId,  # Type alias with accessor
         ):
             pass
 
