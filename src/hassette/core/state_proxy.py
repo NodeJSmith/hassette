@@ -109,7 +109,9 @@ class StateProxyResource(Resource):
         # and we replace whole objects rather than mutating them
         return self.states.get(entity_id)
 
-    async def on_state_changed(self, entity_id: D.EntityId, new_state: D.StateNew[StateUnion]) -> None:
+    async def on_state_changed(
+        self, entity_id: D.EntityId, old_state: D.StateOld[StateUnion], new_state: D.StateNew[StateUnion]
+    ) -> None:
         """Handle state_changed events to update the cache.
 
         This handler runs with priority=100 to ensure the cache is updated before
@@ -119,17 +121,21 @@ class StateProxyResource(Resource):
             entity_id: The entity ID that changed.
             new_state: The new state object, or None if the entity was removed.
         """
+        # note: we are not listening to entity_registry_updated because state_changed seems to capture
+        # both the new state when renamed and the removal when deleted.
+
         self.logger.debug("State changed event for %s", entity_id)
         async with self.lock:
-            if new_state is None:
-                # Entity state removed
-                if entity_id in self.states:
-                    self.states.pop(entity_id)
-                    self.logger.debug("Removed state for %s", entity_id)
-            else:
-                # Entity state added or updated
-                self.states[entity_id] = new_state
-                self.logger.debug("Updated state for %s", entity_id)
+            if new_state is None and entity_id in self.states:
+                self.states.pop(entity_id)
+                self.logger.debug("Removed state for %s", entity_id)
+                return
+
+        self.states[entity_id] = new_state
+        if old_state is None:
+            self.logger.debug("Added state for %s", entity_id)
+        else:
+            self.logger.debug("Updated state for %s", entity_id)
 
     async def on_homeassistant_stop(self) -> None:
         """Handle Home Assistant stop events.
