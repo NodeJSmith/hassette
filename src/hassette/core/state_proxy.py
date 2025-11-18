@@ -119,7 +119,7 @@ class StateProxyResource(Resource):
             entity_id: The entity ID that changed.
             new_state: The new state object, or None if the entity was removed.
         """
-        self.logger.info("State changed event for %s", entity_id)
+        self.logger.debug("State changed event for %s", entity_id)
         async with self.lock:
             if new_state is None:
                 # Entity state removed
