@@ -20,6 +20,7 @@ from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
+from hassette.core.state_proxy import StateProxyResource
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource
@@ -86,6 +87,7 @@ class _HassetteMock(Resource):
         self._file_watcher: FileWatcherService | None = None
         self._app_handler: AppHandler | None = None
         self._websocket_service: WebsocketService | None = None
+        self._state_proxy_resource: StateProxyResource | None = None
 
     @property
     def ws_url(self) -> str:
@@ -147,6 +149,7 @@ class HassetteHarness:
     use_file_watcher: bool = False
     use_app_handler: bool = False
     use_websocket: bool = False
+    use_state_proxy: bool = False
     unused_tcp_port: int = 0
 
     def __post_init__(self) -> None:
@@ -197,8 +200,14 @@ class HassetteHarness:
         #     await self.start_api_real()
         if self.use_app_handler:
             await self._start_app_handler()
+            await self._start_state_proxy()
         # if self.use_websocket:
         #     await self.start_websocket()
+
+        if self.use_state_proxy:
+            if not self.use_bus:
+                raise RuntimeError("State proxy requires bus")
+            await self._start_state_proxy()
 
         if not self.hassette._api_service:
             self.hassette._api_service = Mock()
@@ -314,4 +323,11 @@ class HassetteHarness:
 
         self.api_mock = mock_server
 
+        return
+
+    async def _start_state_proxy(self) -> None:
+        if not self.use_bus:
+            raise RuntimeError("State proxy requires bus")
+
+        self.hassette._state_proxy_resource = self.hassette.add_child(StateProxyResource)
         return
