@@ -98,7 +98,7 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 
 **Configuration examples**:
 - [Docker Compose Guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/docker/) - Docker deployment setup
-- [HassetteConfig](https://hassette.readthedocs.io/en/latest/reference/hassette/config/core/#hassette.config.core.HassetteConfig) - Complete configuration reference
+- [HassetteConfig](https://hassette.readthedocs.io/en/latest/reference/hassette/config/core/#hassette.config.config.HassetteConfig) - Complete configuration reference
 
 ## 🛣️ Status & Roadmap
 
