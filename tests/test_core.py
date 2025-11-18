@@ -10,7 +10,7 @@ import pytest
 
 from hassette import Hassette, context
 from hassette.bus import Bus
-from hassette.config.core import HassetteConfig
+from hassette.config.config import HassetteConfig
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService

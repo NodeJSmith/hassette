@@ -7,7 +7,7 @@ from yarl import URL
 from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
 
 if typing.TYPE_CHECKING:
-    from hassette.config.core import HassetteConfig
+    from hassette.config.config import HassetteConfig
 
 
 def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | None]:

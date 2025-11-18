@@ -25,7 +25,7 @@ from hassette.utils.app_utils import autodetect_apps, clean_app
 
 enable_logging(get_log_level())
 
-LOGGER_NAME = "hassette.config.core" if __name__ == "__main__" else __name__
+LOGGER_NAME = "hassette.config.config" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
 
 LOG_ANNOTATION = Annotated[LOG_LEVELS, BeforeValidator(coerce_log_level)]

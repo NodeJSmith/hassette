@@ -1,4 +1,4 @@
 from .classes import AppManifest
-from .core import HassetteConfig
+from .config import HassetteConfig
 
 __all__ = ["AppManifest", "HassetteConfig"]
