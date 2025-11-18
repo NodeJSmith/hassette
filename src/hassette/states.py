@@ -206,7 +206,7 @@ class States(Resource):
         Returns:
             DomainStates container for the specified domain.
         """
-        return DomainStates[StateT](self.state_proxy.states, model.domain)
+        return DomainStates[StateT](self.state_proxy.states, model.get_domain())
 
     @property
     def get(self) -> _StateGetter:
