@@ -342,7 +342,6 @@ class Router:
                     out.extend(listener)
 
             # de-dup preserving order
-            # seen, unique = set(), []
             seen: set[int] = set()
             unique: list[Listener] = []
             for listener in out:
