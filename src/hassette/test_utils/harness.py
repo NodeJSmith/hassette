@@ -207,6 +207,9 @@ class HassetteHarness:
         if self.use_state_proxy:
             if not self.use_bus:
                 raise RuntimeError("State proxy requires bus")
+            # Set up mock API expectation before starting state proxy
+            if self.api_mock:
+                self.api_mock.expect("GET", "/api/states", "", json=[], status=200)
             await self._start_state_proxy()
 
         if not self.hassette._api_service:
