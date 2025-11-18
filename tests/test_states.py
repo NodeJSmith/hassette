@@ -22,17 +22,14 @@ from hassette.types import topics
 
 if TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.test_utils.test_server import SimpleTestServer
 
 
 class TestStatesClassInit:
     """Tests for States class initialization."""
 
-    async def test_create_returns_instance(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_create_returns_instance(self, hassette_with_state_proxy: "Hassette") -> None:
         """States.create returns a configured States instance."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Create a States instance
         states_instance = States.create(hassette, hassette)
@@ -40,9 +37,9 @@ class TestStatesClassInit:
         assert isinstance(states_instance, States)
         assert states_instance.hassette is hassette
 
-    async def test_accesses_state_proxy(self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]) -> None:
+    async def test_accesses_state_proxy(self, hassette_with_state_proxy: "Hassette") -> None:
         """States instance accesses the StateProxyResource."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
 
@@ -53,11 +50,9 @@ class TestStatesClassInit:
 class TestStatesDomainAccessors:
     """Tests for domain-specific properties."""
 
-    async def test_lights_returns_light_states(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_lights_returns_light_states(self, hassette_with_state_proxy: "Hassette") -> None:
         """lights property returns DomainStates[LightState] containing only lights."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add mixed entity types
         light1_dict = make_light_state_dict("light.bedroom", "on", brightness=150)
@@ -91,11 +86,9 @@ class TestStatesDomainAccessors:
         assert "light.kitchen" in light_ids
         assert "sensor.temp" not in light_ids
 
-    async def test_sensors_returns_sensor_states(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_sensors_returns_sensor_states(self, hassette_with_state_proxy: "Hassette") -> None:
         """sensors property returns DomainStates[SensorState] containing only sensors."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add sensor states
         sensor1 = make_sensor_state_dict("sensor.temperature", "22.5", unit_of_measurement="°C")
@@ -114,11 +107,9 @@ class TestStatesDomainAccessors:
         assert "sensor.temperature" in sensor_ids
         assert "sensor.humidity" in sensor_ids
 
-    async def test_switches_returns_switch_states(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_switches_returns_switch_states(self, hassette_with_state_proxy: "Hassette") -> None:
         """switches property returns DomainStates[SwitchState] containing only switches."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add switch states
         switch1 = make_switch_state_dict("switch.outlet1", "on")
@@ -137,11 +128,9 @@ class TestStatesDomainAccessors:
         assert "switch.outlet1" in switch_ids
         assert "switch.outlet2" in switch_ids
 
-    async def test_iteration_filters_by_domain(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_iteration_filters_by_domain(self, hassette_with_state_proxy: "Hassette") -> None:
         """DomainStates iteration filters entities by domain."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add various entities
         light = make_light_state_dict("light.test", "on")
@@ -165,11 +154,9 @@ class TestStatesDomainAccessors:
         assert sensor_count >= 1
         assert switch_count >= 1
 
-    async def test_len_counts_domain_entities(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_len_counts_domain_entities(self, hassette_with_state_proxy: "Hassette") -> None:
         """len() on DomainStates returns count of entities in that domain."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add multiple lights
         for i in range(3):
@@ -188,11 +175,9 @@ class TestStatesDomainAccessors:
 class TestStatesGenericAccess:
     """Tests for generic state access methods."""
 
-    async def test_all_returns_copy_of_states(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_all_returns_copy_of_states(self, hassette_with_state_proxy: "Hassette") -> None:
         """all property returns a copy of the entire states dictionary."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
         proxy = hassette._state_proxy_resource
 
         # Add states
@@ -210,11 +195,9 @@ class TestStatesGenericAccess:
         # Verify it's a copy (not a reference)
         assert all_states is not proxy.states
 
-    async def test_get_states_with_model(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_get_states_with_model(self, hassette_with_state_proxy: "Hassette") -> None:
         """get_states() returns DomainStates for the specified model."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add light
         light = make_light_state_dict("light.test", "on", brightness=200)
@@ -235,11 +218,9 @@ class TestStatesGenericAccess:
 class TestStatesTypedGetter:
     """Tests for typed state getter."""
 
-    async def test_get_with_type_returns_typed_state(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_get_with_type_returns_typed_state(self, hassette_with_state_proxy: "Hassette") -> None:
         """states.get[Model](entity_id) returns typed state."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add light
         light = make_light_state_dict("light.bedroom", "on", brightness=180)
@@ -256,22 +237,18 @@ class TestStatesTypedGetter:
         assert bedroom_light.entity_id == "light.bedroom"
         assert bedroom_light.attributes.brightness == 180
 
-    async def test_get_with_type_raises_on_missing(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_get_with_type_raises_on_missing(self, hassette_with_state_proxy: "Hassette") -> None:
         """states.get[Model](entity_id) raises EntityNotFoundError for missing entity."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
 
         with pytest.raises(EntityNotFoundError, match=r"State for entity_id 'light\.nonexistent' not found"):
             states_instance.get[states.LightState]("light.nonexistent")
 
-    async def test_get_method_returns_none(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_get_method_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
         """states.get[Model].get(entity_id) returns None for missing entity."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
 
@@ -279,9 +256,9 @@ class TestStatesTypedGetter:
 
         assert result is None
 
-    async def test_validates_with_model(self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]) -> None:
+    async def test_validates_with_model(self, hassette_with_state_proxy: "Hassette") -> None:
         """Typed getter validates state data with the model."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add sensor
         sensor = make_sensor_state_dict(
@@ -304,11 +281,9 @@ class TestStatesTypedGetter:
 class TestDomainStates:
     """Tests for DomainStates helper class."""
 
-    async def test_iteration_over_domain(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_iteration_over_domain(self, hassette_with_state_proxy: "Hassette") -> None:
         """DomainStates can be iterated to get (entity_id, state) tuples."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add lights
         for i in range(3):
@@ -330,9 +305,9 @@ class TestDomainStates:
 
         assert len(collected) >= 3
 
-    async def test_len_of_domain(self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]) -> None:
+    async def test_len_of_domain(self, hassette_with_state_proxy: "Hassette") -> None:
         """len(DomainStates) returns count of entities in domain."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add exactly 2 sensors
         sensor1 = make_sensor_state_dict("sensor.test_1", "10")
@@ -349,11 +324,9 @@ class TestDomainStates:
 
         assert len(sensors) >= 2
 
-    async def test_get_with_matching_domain(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_get_with_matching_domain(self, hassette_with_state_proxy: "Hassette") -> None:
         """DomainStates.get() returns state if domain matches."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add light
         light = make_light_state_dict("light.test", "on", brightness=100)
@@ -370,11 +343,9 @@ class TestDomainStates:
         assert isinstance(result, states.LightState)
         assert result.entity_id == "light.test"
 
-    async def test_get_with_wrong_domain_returns_none(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_get_with_wrong_domain_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
         """DomainStates.get() returns None if entity domain doesn't match."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         # Add sensor
         sensor = make_sensor_state_dict("sensor.test", "25")
@@ -390,11 +361,9 @@ class TestDomainStates:
 
         assert result is None
 
-    async def test_iteration_over_empty_domain(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_iteration_over_empty_domain(self, hassette_with_state_proxy: "Hassette") -> None:
         """Iterating over DomainStates with no entities returns empty."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
 
@@ -409,11 +378,9 @@ class TestDomainStates:
 class TestStatesIntegration:
     """Integration tests combining StateProxyResource and States."""
 
-    async def test_states_reflects_proxy_updates(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_states_reflects_proxy_updates(self, hassette_with_state_proxy: "Hassette") -> None:
         """States accessors reflect live updates from StateProxyResource."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
 
@@ -435,11 +402,9 @@ class TestStatesIntegration:
         assert dynamic_light is not None
         assert dynamic_light.attributes.brightness == 150
 
-    async def test_typed_getter_with_live_updates(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_typed_getter_with_live_updates(self, hassette_with_state_proxy: "Hassette") -> None:
         """Typed getter sees updates from state change events."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
 
@@ -463,11 +428,9 @@ class TestStatesIntegration:
         updated_state = states_instance.get[states.LightState]("light.test")
         assert updated_state.attributes.brightness == 200
 
-    async def test_domain_filtering_across_updates(
-        self, hassette_with_state_proxy: tuple["Hassette", "SimpleTestServer"]
-    ) -> None:
+    async def test_domain_filtering_across_updates(self, hassette_with_state_proxy: "Hassette") -> None:
         """Domain accessors correctly filter across multiple updates."""
-        hassette, _ = hassette_with_state_proxy
+        hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
 
