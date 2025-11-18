@@ -109,7 +109,7 @@ class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
         inst.index = index
         inst.api = inst.add_child(Api)
         inst.scheduler = inst.add_child(Scheduler)
-        inst.bus = inst.add_child(Bus)
+        inst.bus = inst.add_child(Bus, priority=0)
         return inst
 
     @property

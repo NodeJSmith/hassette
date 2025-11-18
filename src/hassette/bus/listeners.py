@@ -63,6 +63,9 @@ class Listener:
     once: bool = False
     """Whether the listener should be removed after one invocation."""
 
+    priority: int = 0
+    """Priority for listener ordering. Higher values run first. Default is 0 for app handlers."""
+
     @property
     def handler_name(self) -> str:
         return callable_name(self.orig_handler)
@@ -97,6 +100,7 @@ class Listener:
         once: bool = False,
         debounce: float | None = None,
         throttle: float | None = None,
+        priority: int = 0,
     ) -> "Listener":
         pred = normalize_where(where)
         signature = inspect.signature(handler)
@@ -117,6 +121,7 @@ class Listener:
             predicate=pred,
             kwargs=kwargs,
             once=once,
+            priority=priority,
         )
 
 

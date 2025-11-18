@@ -122,10 +122,14 @@ class Bus(Resource):
 
     bus_service: "BusService"
 
+    priority: int = 0
+    """Priority level for event handlers created by this bus."""
+
     @classmethod
-    def create(cls, hassette: "Hassette", parent: "Resource"):
+    def create(cls, hassette: "Hassette", parent: "Resource", priority: int = 0):
         inst = cls(hassette=hassette, parent=parent)
         inst.bus_service = inst.hassette._bus_service
+        inst.priority = priority
 
         assert inst.bus_service is not None, "Bus service not initialized"
         inst.mark_ready(reason="Bus initialized")
@@ -170,6 +174,7 @@ class Bus(Resource):
             once: If True, the handler will be called only once and then removed.
             debounce: If set, applies a debounce to the handler.
             throttle: If set, applies a throttle to the handler.
+            priority: Priority for listener ordering. Higher values run first. Default is 0 for app handlers.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -184,6 +189,7 @@ class Bus(Resource):
             once=once,
             debounce=debounce,
             throttle=throttle,
+            priority=self.priority,
         )
 
         def unsubscribe() -> None:
