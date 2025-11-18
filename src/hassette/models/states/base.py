@@ -221,7 +221,7 @@ class DateTimeBaseState(BaseState[DateTimeStateValue]):
     @field_validator("value", mode="before")
     @classmethod
     def validate_state(cls, value: DateTimeStateValue | str) -> DateTimeStateValue:
-        if isinstance(value, None | ZonedDateTime | PlainDateTime | Date):
+        if value is None or isinstance(value, (ZonedDateTime, PlainDateTime, Date)):
             return value
         if isinstance(value, str):
             # Try parsing as OffsetDateTime first (most common case)
