@@ -236,6 +236,9 @@ class HassetteConfig(BaseSettings):
     """Default logging level for apps, can be overridden in app initialization. Defaults to INFO or the value\
         of log_level."""
 
+    state_proxy_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    """Logging level for the state proxy resource. Defaults to INFO or the value of log_level."""
+
     log_all_events: bool = Field(default=False)
     """Whether to include all events in bus debug logging. Should be used sparingly. Defaults to False."""
 
