@@ -131,7 +131,7 @@ class StateProxyResource(Resource):
                     self.states.pop(entity_id)
                     self.logger.debug("Removed state for %s", entity_id)
                     return
-                self.logger.debug("Unable to add state, new_state is None for %s", entity_id)
+                self.logger.debug("Ignoring removal of unknown entity %s", entity_id)
                 return
 
             self.states[entity_id] = new_state

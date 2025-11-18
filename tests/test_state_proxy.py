@@ -16,6 +16,7 @@ from fixtures.state_fixtures import (
     make_switch_state_dict,
 )
 
+from hassette.core.core import Hassette
 from hassette.exceptions import ResourceNotReadyError
 from hassette.models.states import LightState, SensorState, SwitchState
 from hassette.types import topics
@@ -71,22 +72,15 @@ class TestStateProxyResourceInit:
             listener_topics = {listener.topic for listener in owner_listeners}
             assert topics.HASS_EVENT_STATE_CHANGED in listener_topics, "Should subscribe to state_changed"
 
-    # async def test_raises_on_api_failure_during_init(self, hassette_harness, test_config) -> None:
-    #     """State proxy raises exception if API fails during initial sync."""
-    #     # Configure mock API to fail
-    #     async with hassette_harness(
-    #         config=test_config, use_bus=True, use_api_mock=True, use_state_proxy=True
-    #     ) as harness:
-    #         # Mock API to raise error
-    #         harness.hassette.api.get_states = AsyncMock(side_effect=Exception("API failure"))
+    async def test_raises_on_api_failure_during_init(self, hassette_with_state_proxy: "Hassette") -> None:
+        """State proxy raises exception if API fails during initial sync."""
 
-    #         proxy = harness.hassette._state_proxy_resource
+        hassette = hassette_with_state_proxy
+        hassette.api.get_states = AsyncMock(side_effect=Exception("API failure"))
+        proxy = hassette._state_proxy_resource
 
-    #         # Proxy should not be ready due to failure
-    #         # The exception should have been raised during initialization
-    #         with pytest.raises(Exception, match="API failure"):
-    #             # Try to reinitialize
-    #             await proxy.on_initialize()
+        with pytest.raises(Exception, match="API failure"):
+            await proxy.on_initialize()
 
 
 class TestStateProxyResourceGetState:
