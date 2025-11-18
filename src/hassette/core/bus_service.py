@@ -82,6 +82,10 @@ class BusService(Service):
         """Remove all listeners owned by a specific owner."""
         return self.task_bucket.spawn(self.router.clear_owner(owner), name="bus:remove_listeners_by_owner")
 
+    def get_listeners_by_owner(self, owner: str) -> asyncio.Task:
+        """Get all listeners owned by a specific owner."""
+        return self.task_bucket.spawn(self.router.get_listeners_by_owner(owner), name="bus:get_listeners_by_owner")
+
     def _should_log_event(self, event: "Event[Any]") -> bool:
         """Determine if an event should be logged based on its type."""
         if not event.payload:
@@ -352,6 +356,18 @@ class Router:
             # Sort by priority (highest first)
             unique.sort(key=lambda x: x.priority, reverse=True)
             return unique
+
+    async def get_listeners_by_owner(self, owner: str) -> list["Listener"]:
+        """Get all listeners associated with the given owner.
+
+        Args:
+            owner: The owner whose listeners should be retrieved.
+
+        Returns:
+            A list of listeners associated with the owner.
+        """
+        async with self.lock:
+            return self.owners.get(owner, [])
 
     async def clear_owner(self, owner: str) -> None:
         """Remove all listeners associated with the given owner.
