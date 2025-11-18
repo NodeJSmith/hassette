@@ -80,7 +80,7 @@ class Hassette(Resource):
         self._api_service = self.add_child(ApiResource)
 
         # state proxy
-        self._state_proxy = self.add_child(StateProxyResource)
+        self._state_proxy_resource = self.add_child(StateProxyResource)
 
         # internal instances
         self._bus = self.add_child(Bus)
