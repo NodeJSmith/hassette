@@ -6,14 +6,12 @@ Provides factory functions for creating test state data and events.
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-import pytest
 from whenever import ZonedDateTime
 
 from hassette.events import StateChangeEvent, create_event_from_hass
-from hassette.models.states import LightState, SensorState, StateUnion, SwitchState
 
 if TYPE_CHECKING:
-    from hassette.types.home_assistant import HassEventEnvelopeDict
+    from hassette.events import HassEventEnvelopeDict
 
 
 def make_state_dict(
@@ -162,53 +160,3 @@ def make_state_change_event(
     event = create_event_from_hass(envelope)
     assert isinstance(event, StateChangeEvent)
     return event
-
-
-@pytest.fixture
-def sample_light_state_dict() -> dict[str, Any]:
-    """Sample light state data."""
-    return make_light_state_dict("light.bedroom", "on", brightness=200, color_temp=400)
-
-
-@pytest.fixture
-def sample_sensor_state_dict() -> dict[str, Any]:
-    """Sample sensor state data."""
-    return make_sensor_state_dict(
-        "sensor.living_room_temperature", "22.5", unit_of_measurement="°C", device_class="temperature"
-    )
-
-
-@pytest.fixture
-def sample_switch_state_dict() -> dict[str, Any]:
-    """Sample switch state data."""
-    return make_switch_state_dict("switch.living_room_outlet", "off")
-
-
-@pytest.fixture
-def populated_state_cache(
-    sample_light_state_dict: dict[str, Any],
-    sample_sensor_state_dict: dict[str, Any],
-    sample_switch_state_dict: dict[str, Any],
-) -> dict[str, StateUnion]:
-    """Pre-populated state cache with various entity types.
-
-    Returns:
-        Dictionary mapping entity_id to validated state objects
-    """
-    return {
-        sample_light_state_dict["entity_id"]: LightState.model_validate(sample_light_state_dict),
-        sample_sensor_state_dict["entity_id"]: SensorState.model_validate(sample_sensor_state_dict),
-        sample_switch_state_dict["entity_id"]: SwitchState.model_validate(sample_switch_state_dict),
-        # Add some additional entities
-        "light.kitchen": LightState.model_validate(make_light_state_dict("light.kitchen", "off")),
-        "sensor.humidity": SensorState.model_validate(
-            make_sensor_state_dict("sensor.humidity", "65", unit_of_measurement="%", device_class="humidity")
-        ),
-        "switch.bedroom_outlet": SwitchState.model_validate(make_switch_state_dict("switch.bedroom_outlet", "on")),
-    }
-
-
-@pytest.fixture
-def empty_state_cache() -> dict[str, StateUnion]:
-    """Empty state cache for testing."""
-    return {}

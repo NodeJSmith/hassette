@@ -200,24 +200,30 @@ class HassetteHarness:
         #     await self.start_api_real()
         if self.use_app_handler:
             await self._start_app_handler()
-            await self._start_state_proxy()
+            if not self.use_state_proxy:
+                await self._start_state_proxy()
         # if self.use_websocket:
         #     await self.start_websocket()
 
-        if self.use_state_proxy:
-            if not self.use_bus:
-                raise RuntimeError("State proxy requires bus")
-            # Set up mock API expectation before starting state proxy
-            if self.api_mock:
-                self.api_mock.expect("GET", "/api/states", "", json=[], status=200)
-            await self._start_state_proxy()
-
+        # Set up API and websocket mocks before state proxy if needed
         if not self.hassette._api_service:
             self.hassette._api_service = Mock()
+            self.hassette._api_service.ready_event = asyncio.Event()
+            self.hassette._api_service.ready_event.set()
+
+        if not self.hassette._websocket_service:
+            self.hassette._websocket_service = Mock()
+            self.hassette._websocket_service.ready_event = asyncio.Event()
+            self.hassette._websocket_service.ready_event.set()
 
         if not self.hassette.api:
             self.hassette.api = AsyncMock()
             self.hassette.api.sync = Mock()
+
+        if self.use_state_proxy:
+            if not self.use_bus:
+                raise RuntimeError("State proxy requires bus")
+            await self._start_state_proxy()
 
         for resource in self.hassette.children:
             resource.start()
