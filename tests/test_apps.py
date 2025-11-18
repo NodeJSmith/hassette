@@ -5,9 +5,9 @@ from unittest.mock import patch
 
 import pytest
 
+from hassette import Hassette
 from hassette.bus import Listener
-from hassette.core import Hassette
-from hassette.services.app_handler import AppHandler, load_app_class_from_manifest
+from hassette.core.app_handler import AppHandler, load_app_class_from_manifest
 from hassette.types.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED
 
 if typing.TYPE_CHECKING:

@@ -8,19 +8,18 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hassette import context
+from hassette import Hassette, context
 from hassette.bus import Bus
 from hassette.config.core import HassetteConfig
-from hassette.core import Hassette
+from hassette.core.api_resource import ApiResource
+from hassette.core.app_handler import AppHandler
+from hassette.core.bus_service import BusService
+from hassette.core.file_watcher import FileWatcherService
+from hassette.core.health_service import HealthService
+from hassette.core.scheduler_service import SchedulerService
+from hassette.core.service_watcher import ServiceWatcher
+from hassette.core.websocket_service import WebsocketService
 from hassette.scheduler import Scheduler
-from hassette.services.api_resource import ApiResource
-from hassette.services.app_handler import AppHandler
-from hassette.services.bus_service import BusService
-from hassette.services.file_watcher import FileWatcherService
-from hassette.services.health_service import HealthService
-from hassette.services.scheduler_service import SchedulerService
-from hassette.services.service_watcher import ServiceWatcher
-from hassette.services.websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -149,7 +148,7 @@ async def test_send_event_writes_to_stream(hassette_instance: Hassette) -> None:
 async def test_wait_for_ready_uses_config_timeout(monkeypatch: pytest.MonkeyPatch, hassette_instance: Hassette) -> None:
     """wait_for_ready leverages the helper with the configured timeout."""
     waiter = AsyncMock(return_value=True)
-    monkeypatch.setattr("hassette.core.wait_for_ready", waiter)
+    monkeypatch.setattr("hassette.core.core.wait_for_ready", waiter)
 
     resources = [Mock()]
     result = await hassette_instance.wait_for_ready(cast("list[Resource]", resources))
@@ -167,7 +166,7 @@ async def test_wait_for_ready_accepts_explicit_timeout(
 ) -> None:
     """wait_for_ready passes through an explicit timeout."""
     waiter = AsyncMock(return_value=False)
-    monkeypatch.setattr("hassette.core.wait_for_ready", waiter)
+    monkeypatch.setattr("hassette.core.core.wait_for_ready", waiter)
 
     resources = [Mock()]
     result = await hassette_instance.wait_for_ready(cast("list[Resource]", resources), timeout=42)

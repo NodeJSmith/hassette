@@ -331,7 +331,7 @@ class Router:
             topic: The topic to match against.
 
         Returns:
-            A list of listeners that match the topic.
+            A list of listeners that match the topic, sorted by priority (highest first).
         """
         async with self.lock:
             out: list[Listener] = []
@@ -342,11 +342,16 @@ class Router:
                     out.extend(listener)
 
             # de-dup preserving order
-            seen, unique = set(), []
+            # seen, unique = set(), []
+            seen: set[int] = set()
+            unique: list[Listener] = []
             for listener in out:
                 if id(listener) not in seen:
                     seen.add(id(listener))
                     unique.append(listener)
+
+            # Sort by priority (highest first)
+            unique.sort(key=lambda x: x.priority, reverse=True)
             return unique
 
     async def clear_owner(self, owner: str) -> None:
