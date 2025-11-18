@@ -42,8 +42,8 @@ DomainLiteral = Literal[
 ]
 
 
-StateT = TypeVar("StateT", bound="BaseState")
-"""Represents a specific state type, e.g., LightState, Sensor_TemperatureState, etc."""
+StateT = TypeVar("StateT", bound="BaseState", default="BaseState")
+"""Represents a specific state type, e.g., LightState, CoverState, etc."""
 
 StateValueT = TypeVar("StateValueT")
 """Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""

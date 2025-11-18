@@ -30,7 +30,7 @@ if typing.TYPE_CHECKING:
 
 
 @pytest.fixture(scope="session")
-def state_change_events(test_data_path: Path) -> list[StateChangeEvent[states.StateUnion]]:
+def state_change_events(test_data_path: Path) -> list[StateChangeEvent]:
     """Load state change events from test data file."""
     events = []
     with open(test_data_path / "state_change_events.jsonl") as f:
@@ -70,7 +70,7 @@ def other_events(test_data_path: Path) -> list[Event]:
 
 @pytest.fixture(scope="session")
 def all_events(
-    state_change_events: list[StateChangeEvent[states.StateUnion]],
+    state_change_events: list[StateChangeEvent],
     other_events: list[Event],
 ) -> list[Event]:
     """Combine all events into a single list."""
@@ -114,7 +114,7 @@ class TestTypeDetection:
 class TestParameterizedExtractors:
     """Test parameterized extractor classes (AttrNew, AttrOld, AttrOldAndNew)."""
 
-    def test_attr_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_attr_new_extractor(self, state_change_events: list[StateChangeEvent]):
         """Test AttrNew extracts attribute from new state."""
         # Find an event with friendly_name in new_state
         event = next(
@@ -132,7 +132,7 @@ class TestParameterizedExtractors:
         assert result is not None
         assert result == event.payload.data.new_state.attributes.friendly_name
 
-    def test_attr_new_extractor_missing_attribute(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_attr_new_extractor_missing_attribute(self, state_change_events: list[StateChangeEvent]):
         """Test AttrNew returns MISSING_VALUE for missing attribute."""
         # Find an event where new_state does not have 'non_existent_attr'
         event = next(
@@ -151,7 +151,7 @@ class TestParameterizedExtractors:
 
         assert result is MISSING_VALUE
 
-    def test_attr_old_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_attr_old_extractor(self, state_change_events: list[StateChangeEvent]):
         """Test AttrOld extracts attribute from old state."""
         # Find an event with old_state and friendly_name
         event = next(
@@ -169,7 +169,7 @@ class TestParameterizedExtractors:
         assert result is not None
         assert result == event.payload.data.old_state.attributes.friendly_name
 
-    def test_attr_old_and_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_attr_old_and_new_extractor(self, state_change_events: list[StateChangeEvent]):
         """Test AttrOldAndNew extracts attribute from both states."""
         # Find event with both states having friendly_name
         event = next(
@@ -190,7 +190,7 @@ class TestParameterizedExtractors:
         assert old_val == event.payload.data.old_state.attributes.friendly_name
         assert new_val == event.payload.data.new_state.attributes.friendly_name
 
-    def test_attr_new_with_different_types(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_attr_new_with_different_types(self, state_change_events: list[StateChangeEvent]):
         """Test AttrNew with different attribute types."""
         # Test with editable (boolean)
         event = next(
@@ -271,7 +271,7 @@ class TestTypeAliasExtractors:
                 # and the test shouldn't need to be aware of that
                 assert result is not MISSING_VALUE, f"Domain extractor returned MISSING_VALUE for event: {event}"
 
-    def test_state_value_new_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_state_value_new_extractor(self, state_change_events: list[StateChangeEvent]):
         """Test StateValueNew type alias extracts state value."""
         event = state_change_events[0]
 
@@ -281,7 +281,7 @@ class TestTypeAliasExtractors:
         if event.payload.data.new_state:
             assert result == event.payload.data.new_state.value
 
-    def test_state_value_old_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_state_value_old_extractor(self, state_change_events: list[StateChangeEvent]):
         """Test StateValueOld type alias extracts old state value."""
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
         assert event is not None
@@ -302,7 +302,7 @@ class TestTypeAliasExtractors:
         assert isinstance(result, dict)
         assert result == call_service_event.payload.data.service_data
 
-    def test_event_context_extractor(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_event_context_extractor(self, state_change_events: list[StateChangeEvent]):
         """Test EventContext type alias extracts context."""
         event = state_change_events[0]
 
@@ -521,9 +521,7 @@ class TestSignatureValidation:
 class TestEndToEndDI:
     """End-to-end tests with real event data."""
 
-    def test_extract_multiple_attributes_from_event(
-        self, state_change_events: list[StateChangeEvent[states.StateUnion]]
-    ):
+    def test_extract_multiple_attributes_from_event(self, state_change_events: list[StateChangeEvent]):
         """Test extracting multiple pieces of data from same event."""
         # Find suitable event
         event = next(
@@ -557,7 +555,7 @@ class TestEndToEndDI:
         assert extracted_values["friendly_name"] == event.payload.data.new_state.attributes.friendly_name
         assert extracted_values["context"] == event.payload.context
 
-    def test_extract_with_state_change(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_extract_with_state_change(self, state_change_events: list[StateChangeEvent]):
         """Test extraction with event that has both old and new states."""
         event = next(
             (
@@ -602,7 +600,7 @@ class TestEndToEndDI:
         assert extracted_values["domain"] == event.payload.data.domain
         assert extracted_values["service_data"] == event.payload.data.service_data
 
-    def test_mixed_di_strategies_in_one_handler(self, state_change_events: list[StateChangeEvent[states.StateUnion]]):
+    def test_mixed_di_strategies_in_one_handler(self, state_change_events: list[StateChangeEvent]):
         """Test handler using multiple DI strategies together."""
         event = next(
             (
