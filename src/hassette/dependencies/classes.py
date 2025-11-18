@@ -1,10 +1,11 @@
-from typing import Annotated, Any, TypeAlias
+# ruff: noqa: UP040
 
-from typing_extensions import Sentinel
+from typing import Annotated, Any, TypeAlias
 
 from hassette.bus import accessors as A
 from hassette.events import HassContext
 from hassette.models.states import StateT, StateValueT
+from hassette.types import StrOrSentinel
 
 StateNew: TypeAlias = Annotated[StateT, A.get_state_object_new]
 """Extract the new state object from a StateChangeEvent.
@@ -78,7 +79,7 @@ async def handler(values: D.StateValueOldAndNew[str]):
 ```
 """
 
-EntityId: TypeAlias = Annotated[str | Sentinel, A.get_entity_id]
+EntityId: TypeAlias = Annotated[StrOrSentinel, A.get_entity_id]
 """Extract the entity_id from a HassEvent.
 
 Returns the entity ID string (e.g., "light.bedroom"), or `MISSING_VALUE` sentinel
@@ -94,7 +95,7 @@ async def handler(entity_id: D.EntityId):
 ```
 """
 
-Domain: TypeAlias = Annotated[str | Sentinel, A.get_domain]
+Domain: TypeAlias = Annotated[StrOrSentinel, A.get_domain]
 """Extract the domain from a HassEvent.
 
 Returns the domain string (e.g., "light", "sensor"), or `MISSING_VALUE` sentinel
@@ -110,7 +111,7 @@ async def handler(domain: D.Domain):
 ```
 """
 
-Service: TypeAlias = Annotated[str | Sentinel, A.get_service]
+Service: TypeAlias = Annotated[StrOrSentinel, A.get_service]
 """Extract the service name from a CallServiceEvent.
 
 Returns the service name string (e.g., "turn_on", "turn_off"), or `MISSING_VALUE`
