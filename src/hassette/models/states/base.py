@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeVar, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
@@ -206,6 +206,29 @@ class BaseState(BaseModel, Generic[StateValueT]):
             values["state"] = None
 
         return values
+
+    @classmethod
+    def get_domain(cls) -> str:
+        """Returns the domain string for this state class, extracted from the domain field annotation."""
+
+        fields = cls.model_fields
+        domain_field = fields.get("domain")
+        if not domain_field:
+            raise ValueError(f"Domain not defined for state class {cls.__name__}")
+
+        annotation = domain_field.annotation
+        if annotation is None:
+            raise ValueError(f"Domain annotation is None for state class {cls.__name__}")
+
+        args = get_args(annotation)
+        if not args:
+            raise ValueError(f"Domain annotation has no args for state class {cls.__name__}")
+
+        domain = args[0]
+        if not isinstance(domain, str):
+            raise ValueError(f"Domain is not a string for state class {cls.__name__}")
+
+        return domain
 
 
 class StringBaseState(BaseState[StrStateValue]):
