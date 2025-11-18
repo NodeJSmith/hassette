@@ -112,3 +112,19 @@ async def hassette_with_app_handler(
         use_scheduler=True,
     ) as harness:
         yield cast("Hassette", harness.hassette)
+
+
+@pytest.fixture(scope="module")
+async def hassette_with_state_proxy(
+    hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
+    test_config: "HassetteConfig",
+) -> "AsyncIterator[tuple[Hassette, SimpleTestServer]]":
+    """Hassette with state proxy and mock API enabled.
+
+    Returns:
+        Tuple of (Hassette instance, SimpleTestServer for API mocking)
+    """
+    async with hassette_harness(config=test_config, use_bus=True, use_api_mock=True, use_state_proxy=True) as harness:
+        assert harness.hassette._state_proxy_resource is not None
+        assert harness.api_mock is not None
+        yield cast("Hassette", harness.hassette), harness.api_mock
