@@ -6,28 +6,29 @@ from typing import Any, ParamSpec, TypeVar
 from anyio import create_memory_object_stream
 from dotenv import load_dotenv
 
+from hassette import context
+from hassette.api import Api
+from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
+from hassette.resources.base import Resource, Service
+from hassette.scheduler import Scheduler
+from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
-from . import context
-from .api import Api
-from .bus import Bus
-from .resources.base import Resource, Service
-from .scheduler import Scheduler
-from .services.api_resource import ApiResource
-from .services.app_handler import AppHandler
-from .services.bus_service import BusService
-from .services.file_watcher import FileWatcherService
-from .services.health_service import HealthService
-from .services.scheduler_service import SchedulerService
-from .services.service_watcher import ServiceWatcher
-from .services.websocket_service import WebsocketService
-from .task_bucket import TaskBucket, make_task_factory
+from .api_resource import ApiResource
+from .app_handler import AppHandler
+from .bus_service import BusService
+from .file_watcher import FileWatcherService
+from .health_service import HealthService
+from .scheduler_service import SchedulerService
+from .service_watcher import ServiceWatcher
+from .state_proxy import StateProxyResource
+from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -77,6 +78,9 @@ class Hassette(Resource):
         self._scheduler_service = self.add_child(SchedulerService)
 
         self._api_service = self.add_child(ApiResource)
+
+        # state proxy
+        self._state_proxy = self.add_child(StateProxyResource)
 
         # internal instances
         self._bus = self.add_child(Bus)

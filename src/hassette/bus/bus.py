@@ -100,7 +100,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
     from hassette import Hassette
-    from hassette.services.bus_service import BusService
+    from hassette.core.bus_service import BusService
     from hassette.types import ChangeType, HandlerType, Predicate
 
 T = TypeVar("T", covariant=True)

@@ -6,6 +6,7 @@ import pytest
 from aiohttp import ClientWebSocketResponse, WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
 
+from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import (
     ConnectionClosedError,
     FailedMessageError,
@@ -13,10 +14,9 @@ from hassette.exceptions import (
     ResourceNotReadyError,
     RetryableConnectionClosedError,
 )
-from hassette.services.websocket_service import WebsocketService
 
 if TYPE_CHECKING:
-    from hassette.core import Hassette
+    from hassette import Hassette
 
 
 @pytest.fixture
@@ -204,7 +204,7 @@ async def test_authenticate_invalid_token(websocket_service: WebsocketService) -
 
 async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_service: WebsocketService) -> None:
     """Forward Home Assistant events onto Hassette's event bus."""
-    import hassette.services.websocket_service as websocket_module
+    import hassette.core.websocket_service as websocket_module
 
     class DummyEvent:
         def __init__(self):

@@ -15,15 +15,15 @@ from yarl import URL
 from hassette import HassetteConfig, context
 from hassette.api import Api
 from hassette.bus import Bus
+from hassette.core.api_resource import ApiResource
+from hassette.core.app_handler import AppHandler
+from hassette.core.bus_service import BusService
+from hassette.core.file_watcher import FileWatcherService
+from hassette.core.scheduler_service import SchedulerService
+from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
-from hassette.services.api_resource import ApiResource
-from hassette.services.app_handler import AppHandler
-from hassette.services.bus_service import BusService
-from hassette.services.file_watcher import FileWatcherService
-from hassette.services.scheduler_service import SchedulerService
-from hassette.services.websocket_service import WebsocketService
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
@@ -33,7 +33,7 @@ from hassette.utils.url_utils import build_rest_url, build_ws_url
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-    from hassette.core import Hassette
+    from hassette import Hassette
 
 
 async def wait_for(
@@ -293,12 +293,12 @@ class HassetteHarness:
         self._exit_stack.push_async_callback(site.stop)
 
         rest_url_patch = patch(
-            "hassette.services.api_resource.ApiResource._rest_url",
+            "hassette.core.api_resource.ApiResource._rest_url",
             new_callable=PropertyMock,
             return_value=self.api_base_url,
         )
         headers_patch = patch(
-            "hassette.services.api_resource.ApiResource._headers",
+            "hassette.core.api_resource.ApiResource._headers",
             new_callable=PropertyMock,
             return_value={"Authorization": "Bearer test_token"},
         )

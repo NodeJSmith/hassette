@@ -111,8 +111,8 @@ from typing import Any
 
 from whenever import Time, TimeDelta, ZonedDateTime
 
+from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
-from hassette.services.scheduler_service import SchedulerService
 from hassette.utils.date_utils import now
 
 from .classes import CronTrigger, IntervalTrigger, ScheduledJob
