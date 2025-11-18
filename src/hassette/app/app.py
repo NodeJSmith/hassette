@@ -12,6 +12,7 @@ from hassette.config.classes import AppManifest
 from hassette.events.base import Event
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
+from hassette.states import States
 from hassette.types.enums import ResourceRole
 from hassette.utils.date_utils import now
 
@@ -91,6 +92,9 @@ class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
     bus: "Bus"
     """Event bus instance for event handlers owned by this app."""
 
+    states: "States"
+    """States proxy instance for accessing Home Assistant states."""
+
     app_config: AppConfigT
     """Configuration for this app instance."""
 
@@ -98,6 +102,8 @@ class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
     """Index of this app instance, used for unique naming."""
 
     def __init__(self, *args, app_config: AppConfigT, index: int, **kwargs):
+        # unlike most classes, this one does take additional init args
+        # this is because the unique name we use for the logger depends on the app config
         self.app_config = app_config
         self.index = index
         super().__init__(*args, **kwargs)
@@ -110,6 +116,7 @@ class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
         inst.api = inst.add_child(Api)
         inst.scheduler = inst.add_child(Scheduler)
         inst.bus = inst.add_child(Bus, priority=0)
+        inst.states = inst.add_child(States)
         return inst
 
     @property
