@@ -1,5 +1,10 @@
 # ruff: noqa: UP040
 
+# disabling UP040 - the TypeAlias definitions here are useful because we can use StateT and StateValueT
+# to provide better type hints in handlers that use these dependencies.
+
+# the new `type` doesn't work quite as well for this purpose
+
 from typing import Annotated, Any, TypeAlias
 
 from hassette.bus import accessors as A
