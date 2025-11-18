@@ -45,6 +45,3 @@ HASS_EVENT_AUTOMATION_TRIGGERED = "hass.event.automation_triggered"
 
 HASS_EVENT_SCRIPT_STARTED = "hass.event.script_started"
 """Script started events"""
-
-HASS_EVENT_ENTITY_REGISTRY_UPDATED = "hass.event.entity_registry_updated"
-"""Entity registry updated events"""
