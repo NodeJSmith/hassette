@@ -146,13 +146,13 @@ class TestStatesDomainAccessors:
         states_instance = States.create(hassette, hassette)
 
         # Each domain accessor should only return its own domain
-        light_count = sum(1 for _ in states_instance.lights)
-        sensor_count = sum(1 for _ in states_instance.sensors)
-        switch_count = sum(1 for _ in states_instance.switches)
+        light_ids = [eid for eid, _ in states_instance.lights]
+        sensor_ids = [eid for eid, _ in states_instance.sensors]
+        switch_ids = [eid for eid, _ in states_instance.switches]
 
-        assert light_count >= 1
-        assert sensor_count >= 1
-        assert switch_count >= 1
+        assert "light.test" in light_ids, f"Expected 'light.test' in light_ids: {light_ids}"
+        assert "sensor.test" in sensor_ids, f"Expected 'sensor.test' in sensor_ids: {sensor_ids}"
+        assert "switch.test" in switch_ids, f"Expected 'switch.test' in switch_ids: {switch_ids}"
 
     async def test_len_counts_domain_entities(self, hassette_with_state_proxy: "Hassette") -> None:
         """len() on DomainStates returns count of entities in that domain."""
