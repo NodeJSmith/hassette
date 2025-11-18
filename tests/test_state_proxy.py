@@ -305,30 +305,34 @@ class TestStateProxyResourceHALifecycle:
         listeners_after = await proxy.bus.get_listeners()
         assert len(listeners_after) == initial_subscription_count + 1
 
-    # async def test_resyncs_on_start(self, hassette_with_state_proxy: "Hassette") -> None:
-    #     """on_homeassistant_start performs full state resync."""
-    #     hassette = hassette_with_state_proxy
-    #     proxy = hassette._state_proxy_resource
+    async def test_resyncs_on_start(self, hassette_with_state_proxy: "Hassette") -> None:
+        """on_homeassistant_start performs full state resync."""
+        hassette = hassette_with_state_proxy
+        proxy = hassette._state_proxy_resource
 
-    #     # Clear cache and mark not ready (simulating HA stop)
-    #     proxy.states.clear()
-    #     proxy.mark_not_ready(reason="HA stopped")
+        # Clear cache and mark not ready (simulating HA stop)
+        proxy.states.clear()
+        proxy.mark_not_ready(reason="HA stopped")
 
-    #     # Configure mock API response for resync
-    #     mock_states = [
-    #         make_light_state_dict("light.kitchen", "on"),
-    #         make_sensor_state_dict("sensor.temp", "21.0"),
-    #     ]
-    #     mock_server.expect("GET", "/api/states", "", json=mock_states, status=200)
+        # Configure mock API response for resync
+        mock_states = [
+            make_light_state_dict("light.kitchen", "on"),
+            make_sensor_state_dict("sensor.temp", "21.0"),
+        ]
+        hassette.api.get_states = AsyncMock(
+            return_value=[
+                LightState.model_validate(mock_states[0]),
+                SensorState.model_validate(mock_states[1]),
+            ]
+        )
 
-    #     # Trigger HA start
-    #     await proxy.on_homeassistant_start()
-    #     await asyncio.sleep(0.1)
+        # Trigger HA start
+        await proxy.on_homeassistant_start()
+        await asyncio.sleep(0.1)
 
-    #     # States should be resynced
-    #     assert proxy.is_ready()
-    #     assert len(proxy.states) >= 2
-    #     mock_server.assert_clean()
+        # States should be resynced
+        assert proxy.is_ready()
+        assert len(proxy.states) >= 2
 
     async def test_handles_resync_failure(self, hassette_with_state_proxy: "Hassette") -> None:
         """on_homeassistant_start handles API failure gracefully."""
