@@ -126,16 +126,19 @@ class StateProxyResource(Resource):
 
         self.logger.debug("State changed event for %s", entity_id)
         async with self.lock:
-            if new_state is None and entity_id in self.states:
-                self.states.pop(entity_id)
-                self.logger.debug("Removed state for %s", entity_id)
+            if new_state is None:
+                if entity_id in self.states:
+                    self.states.pop(entity_id)
+                    self.logger.debug("Removed state for %s", entity_id)
+                    return
+                self.logger.debug("Unable to add state, new_state is None for %s", entity_id)
                 return
 
-        self.states[entity_id] = new_state
-        if old_state is None:
-            self.logger.debug("Added state for %s", entity_id)
-        else:
-            self.logger.debug("Updated state for %s", entity_id)
+            self.states[entity_id] = new_state
+            if old_state is None:
+                self.logger.debug("Added state for %s", entity_id)
+            else:
+                self.logger.debug("Updated state for %s", entity_id)
 
     async def on_homeassistant_stop(self) -> None:
         """Handle Home Assistant stop events.
