@@ -152,6 +152,10 @@ class Bus(Resource):
         """Remove all listeners owned by this bus's owner."""
         return self.bus_service.remove_listeners_by_owner(self.owner_id)
 
+    def get_listeners(self) -> asyncio.Task:
+        """Get all listeners owned by this bus's owner."""
+        return self.bus_service.get_listeners_by_owner(self.owner_id)
+
     def on(
         self,
         *,
