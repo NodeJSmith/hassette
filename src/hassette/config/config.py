@@ -25,7 +25,7 @@ from hassette.utils.app_utils import autodetect_apps, clean_app
 
 enable_logging(get_log_level())
 
-LOGGER_NAME = "hassette.config.core" if __name__ == "__main__" else __name__
+LOGGER_NAME = "hassette.config.config" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
 
 LOG_ANNOTATION = Annotated[LOG_LEVELS, BeforeValidator(coerce_log_level)]
@@ -227,6 +227,9 @@ class HassetteConfig(BaseSettings):
     apps_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Default logging level for apps, can be overridden in app initialization. Defaults to INFO or the value\
         of log_level."""
+
+    state_proxy_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    """Logging level for the state proxy resource. Defaults to INFO or the value of log_level."""
 
     log_all_events: bool = Field(default=False)
     """Whether to include all events in bus debug logging. Should be used sparingly. Defaults to False."""

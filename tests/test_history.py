@@ -74,7 +74,7 @@ async def test_minimal_history_differs_if_not_normalized(hassette_with_mock_api:
 
     # normalize_history is called automatically, so we mock it make sure
     # it doesn't get called and that the un-normalized history differs
-    with patch("hassette.services.api_resource.normalize_history") as mock_normalize:
+    with patch("hassette.core.api_resource.normalize_history") as mock_normalize:
         mock_normalize.return_value = lambda x: x
         history_with_minimal_flag = await api_client._api_service._get_history_raw(
             entity_id="light.entryway",

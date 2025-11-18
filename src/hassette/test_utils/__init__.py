@@ -11,6 +11,7 @@ from .fixtures import (
     hassette_with_file_watcher,
     hassette_with_mock_api,
     hassette_with_scheduler,
+    hassette_with_state_proxy,
 )
 from .harness import HassetteHarness
 from .test_server import SimpleTestServer
@@ -24,6 +25,7 @@ __all__ = [
     "hassette_with_file_watcher",
     "hassette_with_mock_api",
     "hassette_with_scheduler",
+    "hassette_with_state_proxy",
 ]
 
 # TODO: clean these up and make them user facing

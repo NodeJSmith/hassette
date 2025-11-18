@@ -173,10 +173,10 @@ from .sync import ApiSyncFacade
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.core.api_resource import ApiResource
     from hassette.events import HassStateDict
     from hassette.models.entities import EntityT
     from hassette.models.states import StateT, StateValueT
-    from hassette.services.api_resource import ApiResource
 
 
 class Api(Resource):

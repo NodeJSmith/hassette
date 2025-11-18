@@ -9,7 +9,7 @@ description = "Hassette is a simple, modern, async-first Python framework for bu
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.13,<3.14"
 keywords = [
     "home-assistant",
     "automation",
@@ -24,8 +24,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Home Automation",
     "Topic :: Software Development :: Libraries :: Python Modules",

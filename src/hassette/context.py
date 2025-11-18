@@ -15,7 +15,7 @@ HASSETTE_CONFIG: ContextVar["HassetteConfig | None"] = ContextVar("HASSETTE_CONF
 
 
 @contextlib.contextmanager
-def use(var: ContextVar[T], value: T) -> Generator[None, Any, None]:
+def use(var: ContextVar[T], value: T) -> Generator[None, Any]:
     """Temporarily set a ContextVar to `value` within a block."""
     token = var.set(value)
     try:

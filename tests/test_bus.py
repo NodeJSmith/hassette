@@ -21,8 +21,8 @@ from hassette.bus.predicates import (
 from hassette.events.base import Event
 
 if typing.TYPE_CHECKING:
+    from hassette import Hassette
     from hassette.bus import Bus
-    from hassette.core import Hassette
 
 
 @pytest.fixture
