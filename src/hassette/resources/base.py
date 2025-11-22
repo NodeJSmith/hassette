@@ -262,6 +262,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
 
         self.cancel()
+        self.cache.close()
 
         try:
             for method in [self.before_shutdown, self.on_shutdown, self.after_shutdown]:
