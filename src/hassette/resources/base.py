@@ -8,6 +8,8 @@ from contextlib import suppress
 from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
+from diskcache import Cache
+
 from hassette.exceptions import CannotOverrideFinalError, FatalError
 from hassette.types.enums import ResourceRole
 
@@ -96,6 +98,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     class_name: typing.ClassVar[str]
     """Name of the class, set on subclassing."""
 
+    cache: Cache
+
     hassette: "Hassette"
     """Reference to the Hassette instance."""
 
@@ -129,6 +133,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.hassette = hassette
         self.parent = parent
         self.children = []
+
+        # set up cache
+        cache_dir = self.hassette.config.data_dir.joinpath(self.class_name).joinpath("cache")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        self.cache = Cache(cache_dir, size_limit=self.hassette.config.default_cache_size)
 
         self._setup_logger()
 

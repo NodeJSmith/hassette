@@ -198,6 +198,9 @@ class HassetteConfig(BaseSettings):
     task_cancellation_timeout_seconds: int = Field(default=5)
     """Length of time to wait for tasks to cancel before forcing."""
 
+    default_cache_size: int = Field(default=100 * 1024 * 1024)
+    """Default size limit for caches in bytes. Defaults to 100 MiB."""
+
     # Service log levels
 
     bus_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)

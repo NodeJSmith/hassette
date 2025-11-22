@@ -38,6 +38,7 @@ dependencies = [
     "coloredlogs>=15.0.1",
     "croniter>=6.0.0",
     "deepdiff>=8.6.1",
+    "diskcache>=5.6.3",
     "fair-async-rlock>=1.0.7",
     "glom>=24.11.0",
     "humanize>=4.13.0",
