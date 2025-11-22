@@ -78,6 +78,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     _unique_name: str
     """Unique name for the instance."""
 
+    _cache: Cache | None
+    """Private attribute to hold the cache, to allow lazy initialization."""
+
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
@@ -127,6 +130,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         super().__init__()
 
+        self._cache = None  # lazy init
         self.unique_id = uuid.uuid4().hex[:8]
 
         self.hassette = hassette
@@ -158,10 +162,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     @cached_property
     def cache(self) -> Cache:
         """Disk cache for storing arbitrary data. Each resource (`class_name`) has its own cache directory."""
+        if self._cache is not None:
+            return self._cache
+
         # set up cache
         cache_dir = self.hassette.config.data_dir.joinpath(self.class_name).joinpath("cache")
         cache_dir.mkdir(parents=True, exist_ok=True)
-        return Cache(cache_dir, size_limit=self.hassette.config.default_cache_size)
+        self._cache = Cache(cache_dir, size_limit=self.hassette.config.default_cache_size)
+        return self._cache
 
     @property
     def unique_name(self) -> str:
@@ -331,10 +339,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         await self.task_bucket.cancel_all()
         self.logger.debug("Cleaned up resources")
 
-        try:
-            self.cache.close()
-        except Exception as e:
-            self.logger.exception("Error closing cache: %s %s", type(e).__name__, e)
+        if self._cache is not None:
+            try:
+                self.cache.close()
+            except Exception as e:
+                self.logger.exception("Error closing cache: %s %s", type(e).__name__, e)
 
 
 class Service(Resource):
