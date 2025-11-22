@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Add `diskcache` dependency and `cache` attribute to all resources
+  - Each resource (based on `class_name`) gets its own disk-backed cache instance
+
 ## [0.16.0] - 2025-11-16
 
 ### Added
