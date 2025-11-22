@@ -199,19 +199,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.children.append(inst)
         return inst
 
-    # --- developer-facing hooks (override as needed) -------------------
-    async def before_initialize(self) -> None:
-        """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
-        # Default: nothing. Subclasses override when they own resources.
-
-    async def on_initialize(self) -> None:
-        """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
-        # Default: nothing. Subclasses override when they own resources.
-
-    async def after_initialize(self) -> None:
-        """Optional: finalize initialization, signal readiness, etc."""
-        # Default: nothing. Subclasses override when they own resources.
-
     @final
     async def initialize(self) -> None:
         """Initialize the instance by calling the lifecycle hooks in order."""
@@ -244,19 +231,17 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         finally:
             self._initializing = False
 
-    # --- developer-facing hooks (override as needed) -------------------
-    async def before_shutdown(self) -> None:
-        """Optional: stop accepting new work, signal loops to wind down, etc."""
-        # Default: cancel an in-flight initialize() task if you used Resource.start()
-        self.cancel()
+    async def before_initialize(self) -> None:
+        """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
+        pass
 
-    async def on_shutdown(self) -> None:
-        """Primary hook: release your own stuff (sockets, queues, temp files…)."""
-        # Default: nothing. Subclasses override when they own resources.
+    async def on_initialize(self) -> None:
+        """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
+        pass
 
-    async def after_shutdown(self) -> None:
-        """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
-        # Default: nothing.
+    async def after_initialize(self) -> None:
+        """Optional: finalize initialization, signal readiness, etc."""
+        pass
 
     @final
     async def shutdown(self) -> None:
@@ -266,6 +251,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self._shutting_down = True
         self.request_shutdown("shutdown")
         self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
+
+        self.cancel()
 
         try:
             for method in [self.before_shutdown, self.on_shutdown, self.after_shutdown]:
@@ -301,6 +288,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self.logger.debug("Skipping STOPPED event as event streams are closed")
 
             self._shutting_down = False
+
+    async def before_shutdown(self) -> None:
+        """Optional: stop accepting new work, signal loops to wind down, etc."""
+        pass
+
+    async def on_shutdown(self) -> None:
+        """Primary hook: release your own stuff (sockets, queues, temp files…)."""
+        pass
+
+    async def after_shutdown(self) -> None:
+        """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
+        pass
 
     async def restart(self) -> None:
         """Restart the instance by shutting it down and re-initializing it."""

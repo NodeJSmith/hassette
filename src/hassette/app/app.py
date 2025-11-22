@@ -167,69 +167,65 @@ class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
 
 
 class AppSync(App[AppConfigT]):
-    """Synchronous adapter for App.
-
-    This class allows synchronous apps to work properly in the async environment
-    by using anyio's thread management capabilities.
-    """
+    """Synchronous adapter for App."""
 
     def send_event_sync(self, event_name: str, event: Event[Any]) -> None:
         """Synchronous version of send_event."""
         self.task_bucket.run_sync(self.send_event(event_name, event))
 
-    # --- developer-facing hooks (override as needed) -------------------
+    @final
     async def before_shutdown(self) -> None:
         """Optional: stop accepting new work, signal loops to wind down, etc."""
         await self.task_bucket.run_in_thread(self.before_shutdown_sync)
 
+    @final
     async def on_shutdown(self) -> None:
         """Primary hook: release your own stuff (sockets, queues, temp files…)."""
         await self.task_bucket.run_in_thread(self.on_shutdown_sync)
-        await super().on_shutdown()
 
+    @final
     async def after_shutdown(self) -> None:
         """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
         await self.task_bucket.run_in_thread(self.after_shutdown_sync)
 
-    # --- developer-facing hooks (override as needed) -------------------
+    @final
     async def before_initialize(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
         await self.task_bucket.run_in_thread(self.before_initialize_sync)
 
+    @final
     async def on_initialize(self) -> None:
         """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
         await self.task_bucket.run_in_thread(self.on_initialize_sync)
 
+    @final
     async def after_initialize(self) -> None:
         """Optional: finalize initialization, signal readiness, etc."""
         await self.task_bucket.run_in_thread(self.after_initialize_sync)
 
-    # --- developer-facing hooks (override as needed) -------------------
     def before_shutdown_sync(self) -> None:
         """Optional: stop accepting new work, signal loops to wind down, etc."""
-        # Default: cancel an in-flight initialize() task if you used Resource.start()
-        self.cancel()
+        pass
 
     def on_shutdown_sync(self) -> None:
         """Primary hook: release your own stuff (sockets, queues, temp files…)."""
-        # Default: nothing. Subclasses override when they own resources.
+        pass
 
     def after_shutdown_sync(self) -> None:
         """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
-        # Default: nothing.
+        pass
 
-    # --- developer-facing hooks (override as needed) -------------------
     def before_initialize_sync(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
-        # Default: nothing. Subclasses override when they own resources.
+        pass
 
     def on_initialize_sync(self) -> None:
         """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
-        # Default: nothing. Subclasses override when they own resources.
+        pass
 
     def after_initialize_sync(self) -> None:
         """Optional: finalize initialization, signal readiness, etc."""
-        # Default: nothing. Subclasses override when they own resources.
+        pass
 
     @final
     def initialize_sync(self) -> None:
