@@ -11,7 +11,7 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
 
     test_config.reload()
 
-    expected_token = dotenv.get_key(env_file_path, "hassette__token")
+    expected_value = dotenv.get_key(env_file_path, "hassette__apps_log_level")
 
     # Create a Hassette instance to test URL functionality
     hassette = Hassette(test_config)
@@ -19,7 +19,9 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
     assert hassette.ws_url == "ws://127.0.0.1:8123/api/websocket", (
         f"Expected ws://127.0.0.1:8123/api/websocket, got {hassette.ws_url}"
     )
-    assert test_config.token == expected_token, f"Expected token to be {expected_token}, got {test_config.token}"
+    assert test_config.apps_log_level == expected_value, (
+        f"Expected apps_log_level to be {expected_value}, got {test_config.apps_log_level}"
+    )
 
 
 def test_env_overrides_are_used(test_config_class, monkeypatch, tmp_path):
