@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import typing
-from contextlib import suppress
 from logging import getLogger
 from typing import Any, ClassVar, Generic, final
 
@@ -147,10 +146,9 @@ class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
 
         This method is called during shutdown to ensure that all resources are properly released.
         """
-        self.cancel()
-        with suppress(asyncio.CancelledError):
-            if self._init_task:
-                await asyncio.wait_for(self._init_task, timeout=timeout)
+        timeout = timeout or self.hassette.config.app_shutdown_timeout_seconds
+
+        await super().cleanup(timeout=timeout)
 
         tasks = []
 

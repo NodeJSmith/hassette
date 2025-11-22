@@ -153,6 +153,11 @@ class HassetteConfig(BaseSettings):
     app_shutdown_timeout_seconds: int = Field(default=10)
     """Length of time to wait for an app to shut down before giving up."""
 
+    resource_shutdown_timeout_seconds: int = Field(
+        default_factory=lambda data: data.get("app_shutdown_timeout_seconds", 10)
+    )
+    """Length of time to wait for a resource to shut down before giving up. Defaults to app_shutdown_timeout_seconds."""
+
     websocket_authentication_timeout_seconds: int = Field(default=10)
     """Length of time to wait for WebSocket authentication to complete."""
 

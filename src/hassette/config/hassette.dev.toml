@@ -11,6 +11,7 @@ allow_startup_if_app_precheck_fails = true
 startup_timeout_seconds = 20
 app_startup_timeout_seconds = 40
 app_shutdown_timeout_seconds = 20
+resource_shutdown_timeout_seconds = 20
 websocket_authentication_timeout_seconds = 20
 websocket_response_timeout_seconds = 10
 websocket_connection_timeout_seconds = 10

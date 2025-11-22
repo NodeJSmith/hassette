@@ -270,12 +270,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.request_shutdown("shutdown")
         self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
 
-        self.cancel()
-        try:
-            self.cache.close()
-        except Exception as e:
-            self.logger.exception("Error closing cache: %s %s", type(e).__name__, e)
-
         try:
             for method in [self.before_shutdown, self.on_shutdown, self.after_shutdown]:
                 try:
@@ -329,14 +323,25 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         await self.shutdown()
         await self.initialize()
 
-    async def cleanup(self) -> None:
+    async def cleanup(self, timeout: int | None = None) -> None:
         """Cleanup resources owned by the instance.
 
         This method is called during shutdown to ensure that all resources are properly released.
         """
+        timeout = timeout or self.hassette.config.resource_shutdown_timeout_seconds
+
         self.cancel()
+        with suppress(asyncio.CancelledError):
+            if self._init_task:
+                await asyncio.wait_for(self._init_task, timeout=timeout)
+
         await self.task_bucket.cancel_all()
         self.logger.debug("Cleaned up resources")
+
+        try:
+            self.cache.close()
+        except Exception as e:
+            self.logger.exception("Error closing cache: %s %s", type(e).__name__, e)
 
 
 class Service(Resource):
