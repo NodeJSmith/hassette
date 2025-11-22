@@ -99,6 +99,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     """Name of the class, set on subclassing."""
 
     cache: Cache
+    """Disk cache for storing arbitrary data. Each resource (`class_name`) has its own cache directory."""
 
     hassette: "Hassette"
     """Reference to the Hassette instance."""
