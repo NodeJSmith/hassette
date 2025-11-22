@@ -77,6 +77,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     _unique_name: str
     """Unique name for the instance."""
 
+    _cache: Cache | None
+    """Private attribute to hold the cache, to allow lazy initialization."""
+
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
@@ -97,9 +100,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     class_name: typing.ClassVar[str]
     """Name of the class, set on subclassing."""
-
-    cache: Cache
-    """Disk cache for storing arbitrary data. Each resource (`class_name`) has its own cache directory."""
 
     hassette: "Hassette"
     """Reference to the Hassette instance."""
@@ -129,16 +129,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         super().__init__()
 
+        self._cache = None  # lazy init
         self.unique_id = uuid.uuid4().hex[:8]
 
         self.hassette = hassette
         self.parent = parent
         self.children = []
-
-        # set up cache
-        cache_dir = self.hassette.config.data_dir.joinpath(self.class_name).joinpath("cache")
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache = Cache(cache_dir, size_limit=self.hassette.config.default_cache_size)
 
         self._setup_logger()
 
@@ -161,6 +157,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
+
+    @property
+    def cache(self) -> Cache:
+        """Disk cache for storing arbitrary data. Each resource (`class_name`) has its own cache directory."""
+        if self._cache is not None:
+            return self._cache
+
+        # set up cache
+        cache_dir = self.hassette.config.data_dir.joinpath(self.class_name).joinpath("cache")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        self._cache = Cache(cache_dir, size_limit=self.hassette.config.default_cache_size)
+        return self._cache
 
     @property
     def unique_name(self) -> str:
@@ -263,7 +271,10 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
 
         self.cancel()
-        self.cache.close()
+        try:
+            self.cache.close()
+        except Exception as e:
+            self.logger.exception("Error closing cache: %s %s", type(e).__name__, e)
 
         try:
             for method in [self.before_shutdown, self.on_shutdown, self.after_shutdown]:
