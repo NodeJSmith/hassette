@@ -66,6 +66,15 @@ class FinalMeta(type):
 class Resource(LifecycleMixin, metaclass=FinalMeta):
     """Base class for resources in the Hassette framework."""
 
+    _shutting_down: bool = False
+    """Flag indicating whether the instance is in the process of shutting down."""
+
+    _initializing: bool = False
+    """Flag indicating whether the instance is in the process of starting up."""
+
+    _unique_name: str
+    """Unique name for the instance."""
+
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
@@ -78,17 +87,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     children: list["Resource"]
     """List of child resources."""
 
-    _shutting_down: bool = False
-    """Flag indicating whether the instance is in the process of shutting down."""
-
-    _initializing: bool = False
-    """Flag indicating whether the instance is in the process of starting up."""
-
     logger: Logger
     """Logger for the instance."""
-
-    _unique_name: str
-    """Unique name for the instance."""
 
     unique_id: str
     """Unique identifier for the instance."""

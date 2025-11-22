@@ -67,6 +67,9 @@ class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
     _only_app: ClassVar[bool] = False
     """If True, only this app will be run. Only one app can be marked as only."""
 
+    _import_exception: ClassVar[Exception | None] = None
+    """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
+
     role: ClassVar[ResourceRole] = ResourceRole.APP
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
@@ -76,9 +79,6 @@ class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
     app_config_cls: ClassVar[type[AppConfig]]
     """Config class to use for instances of the created app. Configuration from hassette.toml or
     other sources will be validated by this class."""
-
-    _import_exception: ClassVar[Exception | None] = None
-    """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
 
     logger: logging.Logger
     """Logger for the instance."""
