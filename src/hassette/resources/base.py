@@ -161,7 +161,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     @cached_property
     def cache(self) -> Cache:
-        """Disk cache for storing arbitrary data. Each resource (`class_name`) has its own cache directory."""
+        """Disk cache for storing arbitrary data. All instances of the same resource class share a cache directory."""
         if self._cache is not None:
             return self._cache
 
