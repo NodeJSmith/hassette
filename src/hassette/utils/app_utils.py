@@ -9,6 +9,7 @@ from logging import getLogger
 from pathlib import Path
 
 from hassette import context
+from hassette.app.utils import validate_app
 from hassette.exceptions import (
     AppPrecheckFailedError,
     CannotOverrideFinalError,
@@ -404,6 +405,11 @@ def load_app_class(
     if app_class._import_exception:
         FAILED_TO_LOAD_CLASSES[cache_key] = app_class._import_exception
         raise FAILED_TO_LOAD_CLASSES[cache_key]
+
+    try:
+        app_class.app_config_cls = validate_app(app_class)
+    except Exception as e:
+        app_class._import_exception = e
 
     LOADED_CLASSES[cache_key] = app_class
     return app_class

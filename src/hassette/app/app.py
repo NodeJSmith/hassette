@@ -17,7 +17,6 @@ from hassette.types.enums import ResourceRole
 from hassette.utils.date_utils import now
 
 from .app_config import AppConfig, AppConfigT
-from .utils import validate_app
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -38,25 +37,7 @@ def only_app(app_cls: type[AppT]) -> type[AppT]:
     return app_cls
 
 
-class AppMeta(FinalMeta, Generic[AppConfigT]):
-    """Metaclass for App to validate AppConfig subclasses."""
-
-    def __new__(mcs, name, bases, ns, **kwargs):
-        cls = super().__new__(mcs, name, bases, ns, **kwargs)
-        if typing.TYPE_CHECKING:
-            cls = typing.cast("type[App]", cls)
-
-        if name not in ("App", "AppSync") and any(
-            issubclass(base, App) for base in bases if hasattr(base, "__module__")
-        ):
-            try:
-                cls.app_config_cls = validate_app(cls)
-            except Exception as e:
-                cls._import_exception = e
-        return cls
-
-
-class App(Generic[AppConfigT], Resource, metaclass=AppMeta):
+class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     """Base class for applications in the Hassette framework.
 
     This class provides a structure for applications, allowing them to be initialized and managed
