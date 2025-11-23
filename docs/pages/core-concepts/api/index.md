@@ -281,15 +281,15 @@ async def check_climate(self):
 
 ### Common Attributes to Check
 
-| Attribute             | Found On               | Type            | Use Case                          |
-| --------------------- | ---------------------- | --------------- | --------------------------------- |
-| `battery_level`       | Many devices           | `int | None`   | Monitor device health             |
-| `brightness`          | Lights                 | `int | None`   | Check/set light intensity (0-255) |
-| `temperature`         | Climate                | `float | None` | Target temperature                |
-| `current_temperature` | Climate                | `float | None` | Actual temperature                |
-| `media_title`         | Media players          | `str | None`   | What's playing                    |
-| `friendly_name`       | All entities           | `str`           | Display name                      |
-| `device_class`        | Sensors/binary sensors | `str | None`   | Type classification               |
+| Attribute             | Found On               | Type   | Use Case     |
+| --------------------- | ---------------------- | ------ | ------------ |
+| `battery_level`       | Many devices           | `int   | None`        | Monitor device health             |
+| `brightness`          | Lights                 | `int   | None`        | Check/set light intensity (0-255) |
+| `temperature`         | Climate                | `float | None`        | Target temperature                |
+| `current_temperature` | Climate                | `float | None`        | Actual temperature                |
+| `media_title`         | Media players          | `str   | None`        | What's playing                    |
+| `friendly_name`       | All entities           | `str`  | Display name |
+| `device_class`        | Sensors/binary sensors | `str   | None`        | Type classification               |
 
 ## Error Handling
 
@@ -353,11 +353,32 @@ async def refresh_cache(self):
     self.config_entities = await self.api.get_states()
 ```
 
-### Use State Cache (Coming Soon)
+### Use `self.states` for Local State Access
 
-!!! info "Roadmap"
-    A built-in state cache similar to AppDaemon's is planned. This will automatically maintain
-    an up-to-date local copy of all entity states, eliminating most API calls for reads.
+Hassette maintains a local cache of all entity states via the `self.states` attribute. This cache is automatically updated by listening to state change events, providing instant access without API calls.
+
+```python
+async def on_initialize(self):
+    # Access cached state without API call
+    light = self.states.light.get("light.bedroom")
+    if light and light.attributes.brightness:
+        self.logger.info(f"Brightness: {light.attributes.brightness}")
+
+    # Iterate over all sensors
+    for entity_id, sensor in self.states.sensor:
+        if hasattr(sensor.attributes, "battery_level"):
+            if sensor.attributes.battery_level < 20:
+                self.logger.warning(f"{entity_id} battery low: {sensor.attributes.battery_level}%")
+
+    # Count entities by domain
+    light_count = len(self.states.light)
+    sensor_count = len(self.states.sensor)
+```
+
+**When to use `self.states` vs `self.api`:**
+
+- **Use `self.states`** (recommended): For reading current state in event handlers, scheduled tasks, or any synchronous state access. The cache is kept up-to-date automatically.
+- **Use `self.api.get_state()`**: Only when you need to force a fresh read from Home Assistant (rare), or during initial setup before the cache is populated.
 
 ## History and Time-Based Queries
 
@@ -456,7 +477,7 @@ except HomeAssistantError as e:
 | Get all states         | `get_states()`                              | `list[BaseState]`    |
 | Get single state       | `get_state(entity_id, model)`               | `StateT`             |
 | Get state value only   | `get_state_value(entity_id)`                | `str`                |
-| Check if entity exists | `get_state_or_none(entity_id, model)`       | `StateT | None`     |
+| Check if entity exists | `get_state_or_none(entity_id, model)`       | `StateT              | None` |
 | Call any service       | `call_service(domain, service, **data)`     | `ServiceResponse`    |
 | Turn on entity         | `turn_on(entity_id, **data)`                | `ServiceResponse`    |
 | Turn off entity        | `turn_off(entity_id, **data)`               | `ServiceResponse`    |

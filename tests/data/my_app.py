@@ -26,8 +26,8 @@ class MyApp(App[MyAppUserConfig]):
             self.scheduled_job_example, 10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
         )
 
-        self.office_light = self.states.lights.get("light.office")
-        self.test_button = self.states.get[states.InputButtonState]("input_button.test")
+        self.office_light = self.states.light.get("light.office")
+        self.test_button = self.states.input_button.get("input_button.test")
         self.office_light_exists = self.office_light is not None
         self.test_button_exists = self.test_button is not None
 

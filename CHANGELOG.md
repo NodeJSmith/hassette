@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `states` is an instance of the new `States` class
   - `States` provides domain-based access to entity states, e.g. `app.states.light.get("light.my_light")`
   - `States` listens to state change events and keeps an up-to-date cache of states
-  - ~~See `hassette.states` module documentation for details~~ (Coming soon)
+  - New states documentation page under core-concepts
 - Add `Maybe*` DI annotations for optional dependencies in event handlers
   - `MaybeStateNew`, `MaybeStateOld`, `MaybeEntityId`, etc.
   - These will allow `None` or `MISSING_VALUE` to be returned if the value is not available

@@ -13,14 +13,21 @@ class MyApp(App[MyConfig]):
         self.scheduler.run_minutely(self.log_heartbeat)
 
     async def print_states_on_startup(self):
-        states = await self.api.get_states()
-        for state in states[:2]:
+        # Use state cache for instant access to all entities
+        all_states = self.states.all
+        state_list = list(all_states.values())
+
+        for state in state_list[:2]:
             self.logger.info("State: %s = %s", state.entity_id, state.value)
 
         self.logger.info("...")
 
-        for state in states[-2:]:
+        for state in state_list[-2:]:
             self.logger.info("State: %s = %s", state.entity_id, state.value)
+
+        # Count entities by domain
+        self.logger.info("Total lights: %d", len(self.states.light))
+        self.logger.info("Total sensors: %d", len(self.states.sensor))
 
     async def changed(self, event: StateChangeEvent[states.SunState]):
         self.logger.info("Sun changed: %s", event.payload.data)

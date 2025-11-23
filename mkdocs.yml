@@ -28,6 +28,7 @@ nav:
       - Bus: pages/core-concepts/bus/index.md
       - Scheduler: pages/core-concepts/scheduler/index.md
       - API: pages/core-concepts/api/index.md
+      - States: pages/core-concepts/states/index.md
       - Configuration: pages/core-concepts/configuration/index.md
   - Why Hassette?: pages/why-hassette.md
   - AppDaemon Comparison: pages/appdaemon-comparison.md
