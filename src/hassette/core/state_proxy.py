@@ -134,6 +134,21 @@ class StateProxyResource(Resource):
                 self.logger.debug("Ignoring removal of unknown entity %s", entity_id)
                 return
 
+            # walrus operator to help type checker know we already validated these aren't None
+            if (
+                entity_id in self.states
+                and (curr_last_updated := self.states[entity_id].last_updated) is not None
+                and (new_last_updated := new_state.last_updated) is not None
+            ):
+                if new_last_updated <= curr_last_updated:
+                    self.logger.debug(
+                        "Ignoring out-of-date state update for %s (new last_updated: %s, current: %s)",
+                        entity_id,
+                        new_last_updated,
+                        curr_last_updated,
+                    )
+                    return
+
             self.states[entity_id] = new_state
             if old_state is None:
                 self.logger.debug("Added state for %s", entity_id)
