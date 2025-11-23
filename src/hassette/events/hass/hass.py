@@ -203,10 +203,6 @@ class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
 
 
-class EntityRegistryUpdatedEvent(Event[HassPayload[EntityRegistryUpdatedPayload]]):
-    """Event representing an entity registry update in Home Assistant."""
-
-
 def create_event_from_hass(data: HassEventEnvelopeDict):
     """Create an Event from a dictionary."""
 
@@ -276,11 +272,6 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
             return ScriptStartedEvent(
                 topic=topics.HASS_EVENT_SCRIPT_STARTED,
                 payload=HassPayload(**event_payload, data=ScriptStartedPayload(**event_data)),
-            )
-        case "entity_registry_updated":
-            return EntityRegistryUpdatedEvent(
-                topic=topics.HASS_EVENT_ENTITY_REGISTRY_UPDATED,
-                payload=HassPayload(**event_payload, data=EntityRegistryUpdatedPayload(**event_data)),
             )
         case _:
             pass
