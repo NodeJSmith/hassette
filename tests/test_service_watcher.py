@@ -2,9 +2,9 @@ import asyncio
 
 import pytest
 
+from hassette.core.service_watcher import ServiceWatcher
 from hassette.events.hassette import HassetteServiceEvent
 from hassette.resources.base import Service
-from hassette.services.service_watcher import ServiceWatcher
 from hassette.types.enums import ResourceStatus
 
 

@@ -26,8 +26,15 @@ class MyApp(App[MyAppUserConfig]):
             self.scheduled_job_example, 10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
         )
 
-        self.office_light_exists = await self.api.entity_exists("light.office")
-        self.test_button_exists = await self.api.entity_exists("input_button.test")
+        self.office_light = self.states.light.get("light.office")
+        self.test_button = self.states.input_button.get("input_button.test")
+        self.office_light_exists = self.office_light is not None
+        self.test_button_exists = self.test_button is not None
+
+        if self.office_light:
+            self.logger.info("Office light exists: %s", self.office_light)
+        if self.test_button:
+            self.logger.info("Test button exists: %s", self.test_button)
 
     async def test_reload_app(self):
         await self.hassette._app_handler.reload_app(self.app_manifest.app_key)
@@ -42,10 +49,17 @@ class MyApp(App[MyAppUserConfig]):
 
     def handle_event_sync(
         self,
-        new_state: D.StateNew[states.ButtonState],
+        new_state: D.StateNew[states.InputButtonState],
+        old_state: D.StateOld[states.InputButtonState],
         friendly_name: Annotated[str, D.AttrNew("friendly_name")],
         **kwargs,
     ) -> None:
+        if new_state is None:
+            raise ValueError("new_state should not be None in handle_event_sync")
+
+        if old_state is None:
+            raise ValueError("old_state should not be None in handle_event_sync")
+
         self.logger.info("new_state: %s, kwargs: %s, friendly_name: %s", new_state, kwargs, friendly_name)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)

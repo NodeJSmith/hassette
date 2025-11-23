@@ -169,6 +169,7 @@ class AppHandler(Resource):
                 self.hassette._api_service,
                 self.hassette._bus_service,
                 self.hassette._scheduler_service,
+                self.hassette._state_proxy_resource,
             ]
         ):
             self.logger.warning("Dependencies never became ready; skipping app startup")
@@ -276,28 +277,36 @@ class AppHandler(Resource):
             app_key: The key of the app, as found in hassette.toml.
             app_manifest: The manifest containing configuration.
         """
-        if class_failed_to_load(app_manifest.full_path, app_manifest.class_name):
-            self.logger.debug("Cannot create app instances for '%s' because class failed to load previously", app_key)
-            load_error = get_class_load_error(app_manifest.full_path, app_manifest.class_name)
-            self.failed_apps[app_key].append((0, load_error))
-            return
-        if class_already_loaded(app_manifest.full_path, app_manifest.class_name):
-            app_class = get_loaded_class(app_manifest.full_path, app_manifest.class_name)
-        else:
+
+        already_loaded = class_already_loaded(app_manifest.full_path, app_manifest.class_name)
+        already_failed = class_failed_to_load(app_manifest.full_path, app_manifest.class_name)
+
+        # if we are forcing a reload we have to try again
+        # or if we've never loaded it before/failed to load it before, we have to try to load it
+        if force_reload or (not already_loaded and not already_failed):
             try:
                 app_class = load_app_class_from_manifest(app_manifest, force_reload=force_reload)
             except Exception as e:
                 self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
                 self.failed_apps[app_key].append((0, e))
                 return
+        # if we've already failed to load it (and we're not forcing a reload), we can't load it again
+        elif already_failed:
+            self.logger.debug("Cannot create app instances for '%s' because class failed to load previously", app_key)
+            load_error = get_class_load_error(app_manifest.full_path, app_manifest.class_name)
+            self.failed_apps[app_key].append((0, load_error))
+            return
+        # else, just get the already loaded class
+        elif already_loaded:
+            app_class = get_loaded_class(app_manifest.full_path, app_manifest.class_name)
 
         class_name = app_class.__name__
         app_class.app_manifest = app_manifest
         app_configs = app_manifest.app_config
 
-        # toml data can be a dict or a list of dicts, but AppManifest should handle conversion for us
-        if not isinstance(app_configs, list):
-            raise ValueError(f"App {app_key} config is not a list, found {type(app_configs)}")
+        # toml data can be a dict or a list of dicts
+        # AppManifest should handle conversion for us but we're being cautious here
+        app_configs = [app_configs] if not isinstance(app_configs, list) else app_configs
 
         for idx, config in enumerate(app_configs):
             instance_name = config.get("instance_name")
@@ -338,7 +347,7 @@ class AppHandler(Resource):
                     "Timed out while starting app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(),
+                    get_short_traceback(3),
                 )
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
@@ -347,7 +356,7 @@ class AppHandler(Resource):
                     "Failed to start app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(),
+                    get_short_traceback(3),
                 )
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))

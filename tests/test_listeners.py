@@ -350,3 +350,171 @@ class TestListenerIntegration:
                 debounce=0.1,
                 throttle=0.1,
             )
+
+
+class TestDependencyValidationErrors:
+    """Test that listeners properly handle dependency resolution errors."""
+
+    async def test_required_state_with_none_raises_error(self, bucket_fixture: TaskBucket):
+        """Test that using StateNew with None value raises CallListenerError."""
+
+        from hassette import dependencies as D
+        from hassette.events import StateChangeEvent
+
+        # Create a mock StateChangeEvent where new_state is None
+        from hassette.events.base import HassPayload
+        from hassette.events.hass.hass import StateChangePayload
+        from hassette.exceptions import CallListenerError
+        from hassette.models import states
+
+        payload = HassPayload(
+            event_type="state_changed",
+            data=StateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
+            origin="LOCAL",
+            time_fired="2024-01-01T00:00:00+00:00",
+            context={"id": "test", "parent_id": None, "user_id": None},
+        )
+        event = StateChangeEvent(topic="hass.event.state_changed", payload=payload)
+
+        calls = []
+
+        def handler(new_state: D.StateNew[states.BaseState]):
+            calls.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        # Should raise CallListenerError wrapping InvalidDependencyReturnTypeError
+        with pytest.raises(CallListenerError) as exc_info:
+            await adapter.call(event)
+
+        from hassette.exceptions import InvalidDependencyReturnTypeError
+
+        assert isinstance(exc_info.value.__cause__, InvalidDependencyReturnTypeError)
+        assert len(calls) == 0  # Handler should not be called
+
+    async def test_maybe_state_with_none_succeeds(self, bucket_fixture: TaskBucket):
+        """Test that using MaybeStateNew with None value succeeds."""
+
+        from hassette import dependencies as D
+        from hassette.events import StateChangeEvent
+        from hassette.events.base import HassPayload
+        from hassette.events.hass.hass import StateChangePayload
+        from hassette.models import states
+
+        payload = HassPayload(
+            event_type="state_changed",
+            data=StateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
+            origin="LOCAL",
+            time_fired="2024-01-01T00:00:00+00:00",
+            context={"id": "test", "parent_id": None, "user_id": None},
+        )
+        event = StateChangeEvent(topic="hass.event.state_changed", payload=payload)
+
+        calls = []
+
+        def handler(new_state: D.MaybeStateNew[states.BaseState]):
+            calls.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        # Should succeed
+        await adapter.call(event)
+
+        assert len(calls) == 1
+        assert calls[0] is None
+
+    async def test_mixed_maybe_and_required_all_succeed(self, bucket_fixture: TaskBucket):
+        """Test handler with both Maybe and required deps when all resolve."""
+
+        from hassette import dependencies as D
+        from hassette.events import StateChangeEvent
+        from hassette.events.base import HassPayload
+        from hassette.events.hass.hass import StateChangePayload
+        from hassette.models import states
+        from hassette.models.states.base import BaseState
+
+        # Create mock states
+        old_state = BaseState(
+            entity_id="test.entity",
+            value="off",
+            last_changed="2024-01-01T00:00:00+00:00",
+            last_reported="2024-01-01T00:00:00+00:00",
+            last_updated="2024-01-01T00:00:00+00:00",
+            context={"id": "test", "parent_id": None, "user_id": None},
+            attributes={},
+        )
+        new_state = BaseState(
+            entity_id="test.entity",
+            value="on",
+            last_changed="2024-01-01T00:00:01+00:00",
+            last_reported="2024-01-01T00:00:01+00:00",
+            last_updated="2024-01-01T00:00:01+00:00",
+            context={"id": "test2", "parent_id": None, "user_id": None},
+            attributes={},
+        )
+
+        payload = HassPayload(
+            event_type="state_changed",
+            data=StateChangePayload(entity_id="test.entity", old_state=old_state, new_state=new_state),
+            origin="LOCAL",
+            time_fired="2024-01-01T00:00:01+00:00",
+            context={"id": "test", "parent_id": None, "user_id": None},
+        )
+        event = StateChangeEvent(topic="hass.event.state_changed", payload=payload)
+
+        results = []
+
+        def handler(
+            new_state: D.StateNew[states.BaseState],  # Required, present
+            old_state: D.MaybeStateOld[states.BaseState],  # Optional, present
+            entity_id: D.EntityId,  # Required, present
+        ):
+            results.append((new_state, old_state, entity_id))
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(event)
+
+        assert len(results) == 1
+        new, old, eid = results[0]
+        assert new is not None
+        assert old is not None
+        assert eid == "test.entity"
+
+    async def test_multiple_required_deps_first_fails(self, bucket_fixture: TaskBucket):
+        """Test that if first required dep fails, handler is not called."""
+
+        from hassette import dependencies as D
+        from hassette.events import StateChangeEvent
+        from hassette.events.base import HassPayload
+        from hassette.events.hass.hass import StateChangePayload
+        from hassette.exceptions import CallListenerError
+        from hassette.models import states
+
+        payload = HassPayload(
+            event_type="state_changed",
+            data=StateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
+            origin="LOCAL",
+            time_fired="2024-01-01T00:00:00+00:00",
+            context={"id": "test", "parent_id": None, "user_id": None},
+        )
+        event = StateChangeEvent(topic="hass.event.state_changed", payload=payload)
+
+        calls = []
+
+        def handler(
+            new_state: D.StateNew[states.BaseState],  # Will fail
+            entity_id: D.EntityId,  # Would succeed
+        ):
+            calls.append((new_state, entity_id))
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        with pytest.raises(CallListenerError):
+            await adapter.call(event)
+
+        assert len(calls) == 0

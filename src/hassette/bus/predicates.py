@@ -72,7 +72,7 @@ from .utils import compare_value, ensure_tuple
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hassette import StateChangeEvent, states
+    from hassette import StateChangeEvent
     from hassette.events import Event, HassEvent
     from hassette.types import Predicate
 
@@ -202,7 +202,7 @@ class StateFrom:
 
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
+    def __call__(self, event: "StateChangeEvent") -> bool:
         return ValueIs(source=get_state_value_old, condition=self.condition)(event)
 
 
@@ -212,7 +212,7 @@ class StateTo:
 
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
+    def __call__(self, event: "StateChangeEvent") -> bool:
         return ValueIs(source=get_state_value_new, condition=self.condition)(event)
 
 
@@ -227,7 +227,7 @@ class StateComparison:
             LOGGER.warning("StateComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
+    def __call__(self, event: "StateChangeEvent") -> bool:
         return self.condition(get_state_value_old(event), get_state_value_new(event))
 
 
@@ -238,7 +238,7 @@ class AttrFrom:
     attr_name: str
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
+    def __call__(self, event: "StateChangeEvent") -> bool:
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(event)
 
 
@@ -249,7 +249,7 @@ class AttrTo:
     attr_name: str
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
+    def __call__(self, event: "StateChangeEvent") -> bool:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
 
 
@@ -265,7 +265,7 @@ class AttrComparison:
             LOGGER.warning("AttrComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
+    def __call__(self, event: "StateChangeEvent") -> bool:
         old_attr = get_attr_old(self.attr_name)(event)
         new_attr = get_attr_new(self.attr_name)(event)
         return self.condition(old_attr, new_attr)
@@ -275,7 +275,7 @@ class AttrComparison:
 class StateDidChange:
     """Predicate that checks if the state changed in a StateChangeEvent."""
 
-    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
+    def __call__(self, event: "StateChangeEvent") -> bool:
         return DidChange(get_state_value_old_new)(event)
 
 
@@ -285,7 +285,7 @@ class AttrDidChange:
 
     attr_name: str
 
-    def __call__(self, event: "StateChangeEvent[states.StateUnion]") -> bool:
+    def __call__(self, event: "StateChangeEvent") -> bool:
         return DidChange(get_attr_old_new(self.attr_name))(event)
 
 

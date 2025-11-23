@@ -91,7 +91,10 @@ class Presence(App[PresenceAppConfig]):
         self.logger.info("Everyone left")
         valid_modes = (self.app_config.input_select or "").split(",")
         input_select = valid_modes.pop(0)
-        if (await self.api.get_state_value(input_select)) in valid_modes:
+
+        # Use state cache instead of API call
+        input_select_state = self.states.input_select.get(input_select)
+        if input_select_state and input_select_state.value in valid_modes:
             if self.app_config.day_scene_absent:
                 await self.api.turn_on(self.app_config.day_scene_absent)
         else:
@@ -104,7 +107,10 @@ class Presence(App[PresenceAppConfig]):
             await self.api.set_state(self.app_config.vacation, state="off")
         valid_modes = (self.app_config.input_select or "").split(",")
         input_select = valid_modes.pop(0)
-        if (await self.api.get_state_value(input_select)) in valid_modes:
+
+        # Use state cache instead of API call
+        input_select_state = self.states.input_select.get(input_select)
+        if input_select_state and input_select_state.value in valid_modes:
             if self.app_config.day_scene_off:
                 await self.api.turn_on(self.app_config.day_scene_off)
         else:

@@ -65,7 +65,7 @@ if typing.TYPE_CHECKING:
     from hassette.events import HassStateDict
 
 # _StateUnion does not include BaseState, which is the fallback type if no specific type matches.
-_StateUnion: typing.TypeAlias = (
+type _StateUnion = (
     AiTaskState
     | AssistSatelliteState
     | AutomationState

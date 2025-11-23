@@ -5,7 +5,7 @@ from .app import App, AppConfig, AppSync, only_app
 from .bus import Bus, accessors, conditions, predicates
 from .config import HassetteConfig
 from .const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
-from .core import Hassette
+from .core.core import Hassette
 from .events import StateChangeEvent
 from .models import entities, states
 from .models.services import ServiceResponse

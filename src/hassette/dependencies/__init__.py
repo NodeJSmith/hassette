@@ -62,13 +62,19 @@ Examples:
 
 """
 
-from .classes import (
+from .annotations import (
     AttrNew,
     AttrOld,
     AttrOldAndNew,
     Domain,
     EntityId,
     EventContext,
+    MaybeDomain,
+    MaybeEntityId,
+    MaybeService,
+    MaybeStateNew,
+    MaybeStateOld,
+    MaybeStateOldAndNew,
     ServiceData,
     StateNew,
     StateOld,
@@ -85,6 +91,12 @@ __all__ = [
     "Domain",
     "EntityId",
     "EventContext",
+    "MaybeDomain",
+    "MaybeEntityId",
+    "MaybeService",
+    "MaybeStateNew",
+    "MaybeStateOld",
+    "MaybeStateOldAndNew",
     "ServiceData",
     "StateNew",
     "StateOld",

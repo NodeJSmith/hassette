@@ -1,12 +1,47 @@
+# ruff: noqa: UP040
+
+# disabling UP040 - the TypeAlias definitions here are useful because we can use StateT and StateValueT
+# to provide better type hints in handlers that use these dependencies.
+
+# the new `type` doesn't work quite as well for this purpose
+
+from collections.abc import Callable
 from typing import Annotated, Any, TypeAlias
 
-from typing_extensions import Sentinel
-
 from hassette.bus import accessors as A
+from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.events import HassContext
+from hassette.exceptions import InvalidDependencyReturnTypeError
 from hassette.models.states import StateT, StateValueT
 
-StateNew: TypeAlias = Annotated[StateT, A.get_state_object_new]
+
+def ensure_present(accessor: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    """Wrap an accessor to raise if it returns None or MISSING_VALUE.
+
+    Args:
+        accessor: The accessor function to wrap
+
+    Returns:
+        Wrapped accessor that validates the return value
+    """
+
+    def wrapper(event):
+        result = accessor(event)
+
+        # Check if the result is None or MISSING_VALUE
+        if result is None or result is MISSING_VALUE:
+            raise InvalidDependencyReturnTypeError(type(result))
+
+        # Check if the result is a tuple containing None or MISSING_VALUE
+        if isinstance(result, tuple) and any(r is None or r is MISSING_VALUE for r in result):
+            raise InvalidDependencyReturnTypeError(type(result))
+
+        return result
+
+    return wrapper
+
+
+StateNew: TypeAlias = Annotated[StateT, ensure_present(A.get_state_object_new)]
 """Extract the new state object from a StateChangeEvent.
 
 Example:
@@ -16,7 +51,19 @@ async def handler(new_state: D.StateNew[states.LightState]):
 ```
 """
 
-StateOld: TypeAlias = Annotated[StateT, A.get_state_object_old]
+MaybeStateNew: TypeAlias = Annotated[StateT | None, A.get_state_object_new]
+"""Extract the new state object from a StateChangeEvent, allowing for None.
+
+Example:
+```python
+async def handler(new_state: D.MaybeStateNew[states.LightState]):
+    if new_state:
+        brightness = new_state.attributes.brightness
+```
+"""
+
+
+StateOld: TypeAlias = Annotated[StateT, ensure_present(A.get_state_object_old)]
 """Extract the old state object from a StateChangeEvent.
 
 Example:
@@ -27,7 +74,19 @@ async def handler(old_state: D.StateOld[states.LightState]):
 ```
 """
 
-StateOldAndNew: TypeAlias = Annotated[tuple[StateT, StateT], A.get_state_object_old_new]
+MaybeStateOld: TypeAlias = Annotated[StateT | None, A.get_state_object_old]
+"""Extract the old state object from a StateChangeEvent, allowing for None.
+
+Example:
+```python
+async def handler(old_state: D.MaybeStateOld[states.LightState]):
+    if old_state:
+        previous_brightness = old_state.attributes.brightness
+```
+"""
+
+
+StateOldAndNew: TypeAlias = Annotated[tuple[StateT, StateT], ensure_present(A.get_state_object_old_new)]
 """Extract both old and new state objects from a StateChangeEvent.
 
 Example:
@@ -38,6 +97,21 @@ async def handler(states: D.StateOldAndNew[states.LightState]):
         brightness_changed = old_state.attributes.brightness != new_state.attributes.brightness
 ```
 """
+
+MaybeStateOldAndNew: TypeAlias = Annotated[tuple[StateT | None, StateT | None], A.get_state_object_old_new]
+"""Extract both old and new state objects from a StateChangeEvent, allowing for None.
+
+Example:
+```python
+async def handler(states: D.MaybeStateOldAndNew[states.LightState]):
+    old_state, new_state = states
+    if old_state:
+        brightness_changed = old_state.attributes.brightness != new_state.attributes.brightness
+    if new_state:
+        current_brightness = new_state.attributes.brightness
+```
+"""
+
 
 StateValueNew: TypeAlias = Annotated[StateValueT, A.get_state_value_new]
 """Extract the new state value from a StateChangeEvent.
@@ -50,6 +124,7 @@ async def handler(new_value: D.StateValueNew[str]):
     self.logger.info("New state value: %s", new_value)
 ```
 """
+
 
 StateValueOld: TypeAlias = Annotated[StateValueT, A.get_state_value_old]
 """Extract the old state value from a StateChangeEvent.
@@ -78,31 +153,28 @@ async def handler(values: D.StateValueOldAndNew[str]):
 ```
 """
 
-EntityId: TypeAlias = Annotated[str | Sentinel, A.get_entity_id]
+EntityId: TypeAlias = Annotated[str, ensure_present(A.get_entity_id)]
 """Extract the entity_id from a HassEvent.
 
-Returns the entity ID string (e.g., "light.bedroom"), or `MISSING_VALUE` sentinel
-if the event does not contain an entity_id field.
+Returns the entity ID string (e.g., "light.bedroom").
 
 Example:
 ```python
-from hassette.types import MISSING_VALUE
-
 async def handler(entity_id: D.EntityId):
-    if entity_id is not MISSING_VALUE:
-        self.logger.info("Entity: %s", entity_id)
+    self.logger.info("Entity: %s", entity_id)
 ```
 """
 
-Domain: TypeAlias = Annotated[str | Sentinel, A.get_domain]
+MaybeEntityId: TypeAlias = Annotated[str | FalseySentinel, A.get_entity_id]
+"""Extract the entity_id from a HassEvent, returning MISSING_VALUE sentinel if not present."""
+
+Domain: TypeAlias = Annotated[str, ensure_present(A.get_domain)]
 """Extract the domain from a HassEvent.
 
-Returns the domain string (e.g., "light", "sensor"), or `MISSING_VALUE` sentinel
-if the event does not contain a domain field. Extracted from the entity_id.
+Returns the domain string (e.g., "light", "sensor") from the event payload or entity_id.
 
 Example:
 ```python
-from hassette.types import MISSING_VALUE
 
 async def handler(domain: D.Domain):
     if domain == "light":
@@ -110,11 +182,13 @@ async def handler(domain: D.Domain):
 ```
 """
 
-Service: TypeAlias = Annotated[str | Sentinel, A.get_service]
+MaybeDomain: TypeAlias = Annotated[str | FalseySentinel, A.get_domain]
+"""Extract the domain from a HassEvent, returning MISSING_VALUE sentinel if not present."""
+
+Service: TypeAlias = Annotated[str, ensure_present(A.get_service)]
 """Extract the service name from a CallServiceEvent.
 
-Returns the service name string (e.g., "turn_on", "turn_off"), or `MISSING_VALUE`
-sentinel if the event does not contain a service field.
+Returns the service name string (e.g., "turn_on", "turn_off").
 
 Example:
 ```python
@@ -123,6 +197,9 @@ async def handler(service: D.Service):
         self.logger.info("Light turned on")
 ```
 """
+
+MaybeService: TypeAlias = Annotated[str | FalseySentinel, A.get_service]
+"""Extract the service name from a CallServiceEvent, returning MISSING_VALUE sentinel if not present."""
 
 ServiceData: TypeAlias = Annotated[dict[str, Any], A.get_service_data]
 """Extract the service_data dictionary from a CallServiceEvent.

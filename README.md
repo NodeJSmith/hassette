@@ -98,7 +98,7 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 
 **Configuration examples**:
 - [Docker Compose Guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/docker/) - Docker deployment setup
-- [HassetteConfig](https://hassette.readthedocs.io/en/latest/reference/hassette/config/core/#hassette.config.core.HassetteConfig) - Complete configuration reference
+- [HassetteConfig](https://hassette.readthedocs.io/en/latest/reference/hassette/config/core/#hassette.config.config.HassetteConfig) - Complete configuration reference
 
 ## 🛣️ Status & Roadmap
 
@@ -110,7 +110,6 @@ Development is tracked in our [GitHub project](https://github.com/users/NodeJSmi
 
 - 🔐 **Enhanced type safety** - Fully typed service calls and additional state models
 - 🏗️ **Entity classes** - Rich entity objects with built-in methods (e.g., `await light.turn_on()`)
-- 💾 **State cache** - Local state caching for faster reads (similar to AppDaemon)
 - 🔄 **Enhanced error handling** - Better retry logic and error recovery
 - 🧪 **Testing improvements** - More comprehensive test coverage and user app testing framework
 

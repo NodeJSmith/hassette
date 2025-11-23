@@ -2,7 +2,7 @@ import logging
 import typing
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Generic, Self, TypeAlias, TypeGuard
+from typing import Any, Generic, Literal, Self, TypeGuard
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
@@ -91,6 +91,16 @@ class ScriptStartedPayload:
 
     name: str
     entity_id: str
+
+
+@dataclass(slots=True, frozen=True)
+class EntityRegistryUpdatedPayload:
+    """Payload for an entity_registry_updated event in Home Assistant."""
+
+    action: Literal["create", "update", "remove"]
+    entity_id: str
+    changes: dict[str, Any] | None = None  # Required with action == "update"
+    old_entity_id: str | None = None  # Present when action="update" and entity_id changed
 
 
 @dataclass(slots=True, frozen=True)
@@ -270,5 +280,5 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
     return Event(topic=f"hass.event.{event_type}", payload=HassPayload(**event_payload, data=event_data))
 
 
-HassEvent: TypeAlias = Event[HassPayload[Any]]
+type HassEvent = Event[HassPayload[Any]]
 """Alias for Home Assistant events."""

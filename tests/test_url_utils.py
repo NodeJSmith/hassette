@@ -2,7 +2,7 @@
 
 import pytest
 
-from hassette.config.core import HassetteConfig
+from hassette.config.config import HassetteConfig
 from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
 from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url
 

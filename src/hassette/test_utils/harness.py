@@ -15,15 +15,16 @@ from yarl import URL
 from hassette import HassetteConfig, context
 from hassette.api import Api
 from hassette.bus import Bus
+from hassette.core.api_resource import ApiResource
+from hassette.core.app_handler import AppHandler
+from hassette.core.bus_service import BusService
+from hassette.core.file_watcher import FileWatcherService
+from hassette.core.scheduler_service import SchedulerService
+from hassette.core.state_proxy import StateProxyResource
+from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
-from hassette.services.api_resource import ApiResource
-from hassette.services.app_handler import AppHandler
-from hassette.services.bus_service import BusService
-from hassette.services.file_watcher import FileWatcherService
-from hassette.services.scheduler_service import SchedulerService
-from hassette.services.websocket_service import WebsocketService
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
@@ -33,7 +34,7 @@ from hassette.utils.url_utils import build_rest_url, build_ws_url
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-    from hassette.core import Hassette
+    from hassette import Hassette
 
 
 async def wait_for(
@@ -86,6 +87,7 @@ class _HassetteMock(Resource):
         self._file_watcher: FileWatcherService | None = None
         self._app_handler: AppHandler | None = None
         self._websocket_service: WebsocketService | None = None
+        self._state_proxy_resource: StateProxyResource | None = None
 
     @property
     def ws_url(self) -> str:
@@ -147,6 +149,7 @@ class HassetteHarness:
     use_file_watcher: bool = False
     use_app_handler: bool = False
     use_websocket: bool = False
+    use_state_proxy: bool = False
     unused_tcp_port: int = 0
 
     def __post_init__(self) -> None:
@@ -197,15 +200,30 @@ class HassetteHarness:
         #     await self.start_api_real()
         if self.use_app_handler:
             await self._start_app_handler()
+            if not self.use_state_proxy:
+                await self._start_state_proxy()
         # if self.use_websocket:
         #     await self.start_websocket()
 
+        # Set up API and websocket mocks before state proxy if needed
         if not self.hassette._api_service:
             self.hassette._api_service = Mock()
+            self.hassette._api_service.ready_event = asyncio.Event()
+            self.hassette._api_service.ready_event.set()
+
+        if not self.hassette._websocket_service:
+            self.hassette._websocket_service = Mock()
+            self.hassette._websocket_service.ready_event = asyncio.Event()
+            self.hassette._websocket_service.ready_event.set()
 
         if not self.hassette.api:
             self.hassette.api = AsyncMock()
             self.hassette.api.sync = Mock()
+
+        if self.use_state_proxy:
+            if not self.use_bus:
+                raise RuntimeError("State proxy requires bus")
+            await self._start_state_proxy()
 
         for resource in self.hassette.children:
             resource.start()
@@ -293,12 +311,12 @@ class HassetteHarness:
         self._exit_stack.push_async_callback(site.stop)
 
         rest_url_patch = patch(
-            "hassette.services.api_resource.ApiResource._rest_url",
+            "hassette.core.api_resource.ApiResource._rest_url",
             new_callable=PropertyMock,
             return_value=self.api_base_url,
         )
         headers_patch = patch(
-            "hassette.services.api_resource.ApiResource._headers",
+            "hassette.core.api_resource.ApiResource._headers",
             new_callable=PropertyMock,
             return_value={"Authorization": "Bearer test_token"},
         )
@@ -314,4 +332,11 @@ class HassetteHarness:
 
         self.api_mock = mock_server
 
+        return
+
+    async def _start_state_proxy(self) -> None:
+        if not self.use_bus:
+            raise RuntimeError("State proxy requires bus")
+
+        self.hassette._state_proxy_resource = self.hassette.add_child(StateProxyResource)
         return

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- Builder stage ----
-FROM python:3.12-alpine AS builder
+FROM python:3.13-alpine AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.9.8 /uv /bin/
 
 # uncomment this if/when we need to build packages with native extensions
@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --active
 
 # ---- Final stage ----
-FROM python:3.12-alpine
+FROM python:3.13-alpine
 
 # System packages you want available at runtime
 RUN apk add --no-cache curl tini tzdata
@@ -44,7 +44,7 @@ RUN addgroup -S hassette \
     && chown -R hassette:hassette /config /data /apps /app
 
 # Copy uv binary
-COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.9.8 /uv /bin/
 
 # Copy app, venv, scripts
 COPY --from=builder --chown=hassette:hassette /app /app

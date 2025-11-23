@@ -56,6 +56,7 @@ autocompletion and earlier error detection.
 | Monitor service calls             | `self.listen_event(self.on_service, "call_service", domain="light")`                | `self.bus.on_call_service(domain="light", handler=self.on_service)`                                             |
 | Schedule something in 60 seconds  | `self.run_in(self.turn_off, 60)`                                                    | `self.scheduler.run_in(self.turn_off, delay=60)`                                                                |
 | Run every morning at 07:30        | `self.run_daily(self.morning, time(7, 30, 0))`                                      | `self.scheduler.run_daily(self.morning, start=time(7, 30))`                                                     |
+| Get entity state (cached)         | `self.get_state("light.kitchen")`                                                   | `self.states.light.get("light.kitchen")`                                                                        |
 | Call a Home Assistant service     | `self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)`     | `await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"}, brightness=200)`        |
 | Access app configuration          | `self.args["entity"]`                                                               | `self.app_config.entity`                                                                                        |
 | Stop a listener                   | `self.cancel_listen_state(handle)`                                                  | `subscription.cancel()`                                                                                         |
@@ -639,28 +640,45 @@ class StateGetter(Hass):
 
 #### Hassette
 
-Hassette aims to provide a fully typed API client that uses Pydantic
-models for requests and responses. The client methods are async and
-return rich objects with attributes. Attempting to access a non-existent
-entity will raise a `EntityNotFoundError` exception.
+Hassette provides two ways to access entity states:
 
-The API client is accessed via the `self.api` attribute. This client
-makes direct calls to Home Assistant over REST API, which does require
-using `await`. When you call `set_state()`, it uses the Home Assistant
-REST API to update the state of the entity.
+1. **`self.states`** - Local state cache (similar to AppDaemon) that's automatically kept up-to-date via state change events. This is the preferred method for most reads.
+2. **`self.api`** - Direct API calls to Home Assistant for when you need to force a fresh read or perform writes.
 
-!!! info "State Cache Coming Soon"
-    A state cache similar to AppDaemon's is planned for a future release,
-    which will reduce API calls for frequently accessed states.
+**Using the State Cache (`self.states`)**
+
+The `self.states` attribute provides immediate access to all entity states without making API calls. It listens to state change events and maintains an up-to-date local cache, similar to AppDaemon's behavior.
 
 ```python
-from hassette.models import states
-
 from hassette import App
+from hassette.models import states
 
 
 class StateGetter(App):
     async def on_initialize(self):
+        # Access via domain-specific property (no await needed)
+        office_light = self.states.light.get("light.office_light_1")
+
+        if office_light:
+            self.logger.info(f"Light state: {office_light.value}")
+            self.logger.info(f"Brightness: {office_light.attributes.brightness}")
+
+        # Iterate over all lights
+        for entity_id, light in self.states.light:
+            self.logger.info(f"{entity_id}: {light.value}")
+
+        # Typed access for any domain
+        my_light = self.states.get[states.LightState]("light.office_light_1")
+```
+
+**Using the API Client (`self.api`)**
+
+For cases where you need to force a fresh read from Home Assistant or perform writes:
+
+```python
+class StateGetter(App):
+    async def on_initialize(self):
+        # Force fresh read from HA (requires await)
         office_light_state = await self.api.get_state("light.office_light_1", model=states.LightState)
         self.logger.info(f"{office_light_state=}")
 ```
@@ -916,17 +934,39 @@ def initialize(self):
 ```
 
 **Hassette**:
+
+Hassette provides two approaches - the **local cache** (preferred, similar to AppDaemon) and **direct API calls**:
+
 ```python
 from hassette.models import states
 
 async def on_initialize(self):
-    # Typed state object
+    # PREFERRED: Use local state cache (no await, no API call)
+    # This is most similar to AppDaemon's behavior
+    light = self.states.light.get("light.kitchen")
+    if light:
+        brightness = light.attributes.brightness  # Type-safe access
+        value = light.value  # State value as string
+
+    # Iterate over all lights in cache
+    for entity_id, light in self.states.light:
+        self.logger.info(f"{entity_id}: {light.value}")
+
+    # Typed access for any domain
+    my_light = self.states.get[states.LightState]("light.kitchen")
+
+    # ALTERNATIVE: Force fresh read from Home Assistant API
     light = await self.api.get_state("light.kitchen", states.LightState)
-    brightness = light.attributes.brightness  # Type-safe access
+    brightness = light.attributes.brightness
 
     # Or get just the value
     value = await self.api.get_state_value("light.kitchen")  # Returns string
 ```
+
+**When to use each approach:**
+
+- **`self.states`** (recommended): For reading current state in event handlers, scheduled tasks, or any time you need quick access to entity state. The cache is automatically kept up-to-date via state change events.
+- **`self.api.get_state()`**: Only when you specifically need to force a fresh read from Home Assistant (rare) or if you're outside the normal app lifecycle.
 
 #### Calling Services
 
@@ -1052,7 +1092,8 @@ class MyApp(App):
     - In Hassette: `self.app_config.key`
     - Define all config keys in your `AppConfig` model for validation
 
-!!! info "State Cache"
-    - AppDaemon caches all states automatically
-    - Hassette currently makes direct API calls (cache coming in a future release)
-    - Use `get_states()` once and filter locally for better performance
+!!! tip "State Access"
+    - AppDaemon: `self.get_state()` returns cached state
+    - Hassette: `self.states.light.get()` returns cached state (no `await` needed)
+    - Both maintain automatic local caches updated via state change events
+    - Use `self.api.get_state()` only when you need to force a fresh read from HA

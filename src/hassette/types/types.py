@@ -1,10 +1,10 @@
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable
 from datetime import time
 from pathlib import Path
-from typing import Any, Literal, Protocol, Required, TypeAlias, TypeVar
+from typing import Any, Literal, Protocol, Required, TypeVar
 
-from typing_extensions import Sentinel, TypeAliasType, TypedDict
-from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
+from typing_extensions import Sentinel, TypedDict
+from whenever import Time, TimeDelta, ZonedDateTime
 
 from hassette.events.base import EventT
 
@@ -58,22 +58,13 @@ class AsyncHandlerType(Protocol):
 HandlerType = SyncHandler | AsyncHandlerType
 """Alias for all valid handler types (sync or async)."""
 
-
-KnownTypeScalar: TypeAlias = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
-"""Alias for all known valid scalar state types."""
-
-KnownType: TypeAlias = KnownTypeScalar | Sequence[KnownTypeScalar] | Mapping[str, KnownTypeScalar]
-"""Alias for all known valid state types."""
-
-ChangeType = TypeAliasType(
-    "ChangeType", None | Sentinel | V | Condition[V | Sentinel] | ComparisonCondition[V | Sentinel], type_params=(V,)
-)
+type ChangeType[V] = None | Sentinel | V | Condition[V | Sentinel] | ComparisonCondition[V | Sentinel]
 """Alias for types that can be used to specify changes in predicates."""
 
-JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
+type JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
 """Alias for a callable that can be scheduled as a job."""
 
-ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
+type ScheduleStartType = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
 """Type for specifying start times."""
 
 
