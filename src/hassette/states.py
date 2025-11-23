@@ -137,13 +137,33 @@ class States(Resource):
         return inst
 
     @property
+    def ai_task(self) -> DomainStates[states.AiTaskState]:
+        """Access all ai_task entity states with full typing."""
+        return self.get_states(states.AiTaskState)
+
+    @property
+    def air_quality(self) -> DomainStates[states.AirQualityState]:
+        """Access all air_quality entity states with full typing."""
+        return self.get_states(states.AirQualityState)
+
+    @property
+    def alarm_control_panel(self) -> DomainStates[states.AlarmControlPanelState]:
+        """Access all alarm_control_panel entity states with full typing."""
+        return self.get_states(states.AlarmControlPanelState)
+
+    @property
+    def assist_satellite(self) -> DomainStates[states.AssistSatelliteState]:
+        """Access all assist_satellite entity states with full typing."""
+        return self.get_states(states.AssistSatelliteState)
+
+    @property
     def automation(self) -> DomainStates[states.AutomationState]:
         """Access all automation entity states with full typing."""
         return self.get_states(states.AutomationState)
 
     @property
     def binary_sensor(self) -> DomainStates[states.BinarySensorState]:
-        """Access all binary sensor entity states with full typing."""
+        """Access all binary_sensor entity states with full typing."""
         return self.get_states(states.BinarySensorState)
 
     @property
@@ -155,6 +175,11 @@ class States(Resource):
     def calendar(self) -> DomainStates[states.CalendarState]:
         """Access all calendar entity states with full typing."""
         return self.get_states(states.CalendarState)
+
+    @property
+    def camera(self) -> DomainStates[states.CameraState]:
+        """Access all camera entity states with full typing."""
+        return self.get_states(states.CameraState)
 
     @property
     def climate(self) -> DomainStates[states.ClimateState]:
@@ -172,8 +197,18 @@ class States(Resource):
         return self.get_states(states.CoverState)
 
     @property
+    def date(self) -> DomainStates[states.DateState]:
+        """Access all date entity states with full typing."""
+        return self.get_states(states.DateState)
+
+    @property
+    def datetime(self) -> DomainStates[states.DateTimeState]:
+        """Access all datetime entity states with full typing."""
+        return self.get_states(states.DateTimeState)
+
+    @property
     def device_tracker(self) -> DomainStates[states.DeviceTrackerState]:
-        """Access all device tracker entity states with full typing."""
+        """Access all device_tracker entity states with full typing."""
         return self.get_states(states.DeviceTrackerState)
 
     @property
@@ -192,23 +227,38 @@ class States(Resource):
         return self.get_states(states.HumidifierState)
 
     @property
+    def image_processing(self) -> DomainStates[states.ImageProcessingState]:
+        """Access all image_processing entity states with full typing."""
+        return self.get_states(states.ImageProcessingState)
+
+    @property
     def input_boolean(self) -> DomainStates[states.InputBooleanState]:
-        """Access all input boolean entity states with full typing."""
+        """Access all input_boolean entity states with full typing."""
         return self.get_states(states.InputBooleanState)
 
     @property
+    def input_button(self) -> DomainStates[states.InputButtonState]:
+        """Access all input_button entity states with full typing."""
+        return self.get_states(states.InputButtonState)
+
+    @property
     def input_datetime(self) -> DomainStates[states.InputDatetimeState]:
-        """Access all input datetime entity states with full typing."""
+        """Access all input_datetime entity states with full typing."""
         return self.get_states(states.InputDatetimeState)
 
     @property
     def input_number(self) -> DomainStates[states.InputNumberState]:
-        """Access all input number entity states with full typing."""
+        """Access all input_number entity states with full typing."""
         return self.get_states(states.InputNumberState)
 
     @property
+    def input_select(self) -> DomainStates[states.InputSelectState]:
+        """Access all input_select entity states with full typing."""
+        return self.get_states(states.InputSelectState)
+
+    @property
     def input_text(self) -> DomainStates[states.InputTextState]:
-        """Access all input text entity states with full typing."""
+        """Access all input_text entity states with full typing."""
         return self.get_states(states.InputTextState)
 
     @property
@@ -217,9 +267,19 @@ class States(Resource):
         return self.get_states(states.LightState)
 
     @property
+    def lock(self) -> DomainStates[states.LockState]:
+        """Access all lock entity states with full typing."""
+        return self.get_states(states.LockState)
+
+    @property
     def media_player(self) -> DomainStates[states.MediaPlayerState]:
-        """Access all media player entity states with full typing."""
+        """Access all media_player entity states with full typing."""
         return self.get_states(states.MediaPlayerState)
+
+    @property
+    def notify(self) -> DomainStates[states.NotifyState]:
+        """Access all notify entity states with full typing."""
+        return self.get_states(states.NotifyState)
 
     @property
     def number(self) -> DomainStates[states.NumberState]:
@@ -257,8 +317,13 @@ class States(Resource):
         return self.get_states(states.SensorState)
 
     @property
+    def siren(self) -> DomainStates[states.SirenState]:
+        """Access all siren entity states with full typing."""
+        return self.get_states(states.SirenState)
+
+    @property
     def stt(self) -> DomainStates[states.SttState]:
-        """Access all speech-to-text entity states with full typing."""
+        """Access all stt entity states with full typing."""
         return self.get_states(states.SttState)
 
     @property
@@ -272,19 +337,49 @@ class States(Resource):
         return self.get_states(states.SwitchState)
 
     @property
+    def text(self) -> DomainStates[states.TextState]:
+        """Access all text entity states with full typing."""
+        return self.get_states(states.TextState)
+
+    @property
+    def time(self) -> DomainStates[states.TimeState]:
+        """Access all time entity states with full typing."""
+        return self.get_states(states.TimeState)
+
+    @property
     def timer(self) -> DomainStates[states.TimerState]:
         """Access all timer entity states with full typing."""
         return self.get_states(states.TimerState)
 
     @property
+    def todo(self) -> DomainStates[states.TodoState]:
+        """Access all todo entity states with full typing."""
+        return self.get_states(states.TodoState)
+
+    @property
     def tts(self) -> DomainStates[states.TtsState]:
-        """Access all text-to-speech entity states with full typing."""
+        """Access all tts entity states with full typing."""
         return self.get_states(states.TtsState)
 
     @property
     def update(self) -> DomainStates[states.UpdateState]:
         """Access all update entity states with full typing."""
         return self.get_states(states.UpdateState)
+
+    @property
+    def vacuum(self) -> DomainStates[states.VacuumState]:
+        """Access all vacuum entity states with full typing."""
+        return self.get_states(states.VacuumState)
+
+    @property
+    def valve(self) -> DomainStates[states.ValveState]:
+        """Access all valve entity states with full typing."""
+        return self.get_states(states.ValveState)
+
+    @property
+    def water_heater(self) -> DomainStates[states.WaterHeaterState]:
+        """Access all water_heater entity states with full typing."""
+        return self.get_states(states.WaterHeaterState)
 
     @property
     def weather(self) -> DomainStates[states.WeatherState]:
