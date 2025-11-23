@@ -49,10 +49,17 @@ class MyApp(App[MyAppUserConfig]):
 
     def handle_event_sync(
         self,
-        new_state: D.StateNew[states.ButtonState],
+        new_state: D.StateNew[states.InputButtonState],
+        old_state: D.StateOld[states.InputButtonState],
         friendly_name: Annotated[str, D.AttrNew("friendly_name")],
         **kwargs,
     ) -> None:
+        if new_state is None:
+            raise ValueError("new_state should not be None in handle_event_sync")
+
+        if old_state is None:
+            raise ValueError("old_state should not be None in handle_event_sync")
+
         self.logger.info("new_state: %s, kwargs: %s, friendly_name: %s", new_state, kwargs, friendly_name)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)
