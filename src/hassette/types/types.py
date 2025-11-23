@@ -73,9 +73,6 @@ type JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
 type ScheduleStartType = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
 """Type for specifying start times."""
 
-StrOrSentinel = TypeVar("StrOrSentinel", str, Sentinel, default=str)
-"""Type alias for a string or a Sentinel value, used for potentially missing string values."""
-
 
 class RawAppDict(TypedDict, total=False):
     """Structure for raw app configuration before processing.

@@ -10,11 +10,11 @@ from logging import getLogger
 from typing import Any, ParamSpec, TypeVar, cast
 
 from hassette.dependencies.extraction import extract_from_signature, validate_di_signature
-from hassette.exceptions import UnableToExtractParameterError
+from hassette.exceptions import CallListenerError
 from hassette.utils.exception_utils import get_short_traceback
 from hassette.utils.func_utils import callable_name, callable_short_name
 
-from .utils import normalize_where
+from .utils import extract_with_error_handling, normalize_where, warn_or_raise_on_incorrect_type
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -110,7 +110,12 @@ class Listener:
 
         # Create an adapter with rate limiting and signature informed calling
         adapter = HandlerAdapter(
-            callable_short_name(handler), async_handler, signature, task_bucket, debounce=debounce, throttle=throttle
+            callable_name(handler),
+            async_handler,
+            signature,
+            task_bucket,
+            debounce=debounce,
+            throttle=throttle,
         )
 
         return cls(
@@ -167,35 +172,32 @@ class HandlerAdapter:
         Extracts required parameters from the event using type annotations
         and injects them as kwargs.
 
+        Args:
+            event: The event to pass to the handler.
+            **kwargs: Additional keyword arguments to pass to the handler.
+
         Raises:
+            CallListenerError: If an error occurs during handler execution.
             UnableToExtractParameterError: If parameter extraction fails.
         """
 
         param_details = extract_from_signature(self.signature)
 
-        for name, (param_type, extractor) in param_details.items():
-            if name in kwargs:
-                LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", name)
+        for param_name, (param_type, extractor) in param_details.items():
+            if param_name in kwargs:
+                LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", param_name)
 
-            try:
-                kwargs[name] = extractor(event)
-            except Exception as e:
-                # Log detailed error
-                LOGGER.error(
-                    "Handler %s - failed to extract parameter '%s' of type %s: %s",
-                    self.handler_name,
-                    name,
-                    param_type,
-                    get_short_traceback(),
-                )
-                # Re-raise to prevent handler from running with missing/invalid data
-                raise UnableToExtractParameterError(
-                    name,
-                    param_type,
-                    e,
-                ) from e
+            kwargs[param_name] = extracted_value = extract_with_error_handling(
+                event, extractor, param_name, param_type, self.handler_name
+            )
 
-        await self.handler(**kwargs)
+            warn_or_raise_on_incorrect_type(param_name, param_type, extracted_value, self.handler_name)
+
+        try:
+            await self.handler(**kwargs)
+        except Exception as e:
+            LOGGER.error("Error while executing handler %s: %s", self.handler_name, get_short_traceback())
+            raise CallListenerError(f"Error while executing handler {self.handler_name}") from e
 
     def _make_debounced_call(self, seconds: float):
         """Create a debounced version of the call method."""

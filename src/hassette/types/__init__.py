@@ -8,7 +8,6 @@ from .types import (
     KnownTypeScalar,
     Predicate,
     ScheduleStartType,
-    StrOrSentinel,
     SyncHandler,
     TriggerProtocol,
 )
@@ -23,7 +22,6 @@ __all__ = [
     "KnownTypeScalar",
     "Predicate",
     "ScheduleStartType",
-    "StrOrSentinel",
     "SyncHandler",
     "TriggerProtocol",
 ]

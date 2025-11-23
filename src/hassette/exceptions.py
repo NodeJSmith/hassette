@@ -1,3 +1,5 @@
+from typing import Any
+
 from yarl import URL
 
 
@@ -103,9 +105,8 @@ class CannotOverrideFinalError(TypeError, HassetteError):
 
 
 class UnableToExtractParameterError(HassetteError):
-    """Custom exception to indicate that a parameter could not be extracted for dependency injection.
-
-    This is raised when a handler parameter cannot be extracted from the event or other sources.
+    """Custom exception to indicate that a parameter could not be extracted for dependency injection
+    due to an unexpected error.
     """
 
     def __init__(self, parameter_name: str, parameter_type: type, original_exception: Exception):
@@ -116,3 +117,17 @@ class UnableToExtractParameterError(HassetteError):
             f"for dependency injection: {type(original_exception).__name__}: {original_exception}"
         )
         super().__init__(msg)
+
+
+class InvalidDependencyReturnTypeError(Exception):
+    """Exception raised when a dependency is found but cannot be resolved to the expected type."""
+
+    def __init__(self, resolved_type: Any):
+        self.resolved_type = resolved_type
+
+
+class CallListenerError(HassetteError):
+    """Custom exception to indicate that a listener could not be called.
+
+    This will also be raised if a DI annotation cannot be resolved to the expected type.
+    """
