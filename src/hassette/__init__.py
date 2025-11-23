@@ -10,6 +10,7 @@ from .events import StateChangeEvent
 from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
+from .state_registry import get_registry, register_state_class
 from .task_bucket import TaskBucket
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
@@ -32,7 +33,9 @@ __all__ = [
     "accessors",
     "conditions",
     "entities",
+    "get_registry",
     "only_app",
     "predicates",
+    "register_state_class",
     "states",
 ]

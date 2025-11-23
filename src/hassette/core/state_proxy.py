@@ -6,7 +6,7 @@ from fair_async_rlock import FairAsyncRLock
 from hassette import dependencies as D
 from hassette.bus import Bus
 from hassette.exceptions import ResourceNotReadyError
-from hassette.models.states import StateUnion
+from hassette.models.states import BaseState
 from hassette.resources.base import Resource
 from hassette.types import topics
 
@@ -18,7 +18,7 @@ LOGGER = getLogger(__name__)
 
 
 class StateProxyResource(Resource):
-    states: dict[str, StateUnion]
+    states: dict[str, BaseState]
     lock: FairAsyncRLock
     bus: Bus
 
@@ -60,7 +60,7 @@ class StateProxyResource(Resource):
 
         # Subscribe to events with high priority before syncing to avoid race conditions
         # Priority 100 ensures state proxy updates before app handlers (priority 0)
-        self.bus.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=self.on_state_changed)
+        self.bus.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
 
         self.bus.on_homeassistant_stop(handler=self.on_homeassistant_stop)
 
@@ -87,7 +87,7 @@ class StateProxyResource(Resource):
         async with self.lock:
             self.states.clear()
 
-    def get_state(self, entity_id: str) -> StateUnion | None:
+    def get_state(self, entity_id: str) -> BaseState | None:
         """Get the current state for an entity.
 
         Args:
@@ -109,8 +109,8 @@ class StateProxyResource(Resource):
         # and we replace whole objects rather than mutating them
         return self.states.get(entity_id)
 
-    async def on_state_changed(
-        self, entity_id: D.EntityId, old_state: D.MaybeStateOld[StateUnion], new_state: D.MaybeStateNew[StateUnion]
+    async def _on_state_change(
+        self, entity_id: D.EntityId, old_state: D.MaybeStateOld[BaseState], new_state: D.MaybeStateNew[BaseState]
     ) -> None:
         """Handle state_changed events to update the cache.
 

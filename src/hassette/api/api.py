@@ -166,8 +166,9 @@ from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
-from hassette.models.states import BaseState, StateUnion, try_convert_state
+from hassette.models.states import BaseState
 from hassette.resources.base import Resource
+from hassette.state_registry import try_convert_state
 
 from .sync import ApiSyncFacade
 
@@ -288,7 +289,7 @@ class Api(Resource):
         assert isinstance(val, list), "Expected a list of states"
         return val
 
-    async def get_states(self) -> list[StateUnion]:
+    async def get_states(self) -> list[BaseState]:
         """Get all entities in Home Assistant.
 
         Returns:
