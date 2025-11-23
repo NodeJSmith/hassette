@@ -35,6 +35,8 @@ class TestConfig(HassetteConfig):
         "env_file": ENV_FILE,
     }
 
+    token: str = "test-token"
+
     websocket_connection_timeout_seconds: int | float = 1
     websocket_authentication_timeout_seconds: int | float = 1
     websocket_total_timeout_seconds: int | float = 2

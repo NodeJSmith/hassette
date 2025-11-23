@@ -5,8 +5,11 @@ import uuid
 from abc import abstractmethod
 from collections.abc import Coroutine
 from contextlib import suppress
+from functools import cached_property
 from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
+
+from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError, FatalError
 from hassette.types.enums import ResourceRole
@@ -66,6 +69,18 @@ class FinalMeta(type):
 class Resource(LifecycleMixin, metaclass=FinalMeta):
     """Base class for resources in the Hassette framework."""
 
+    _shutting_down: bool = False
+    """Flag indicating whether the instance is in the process of shutting down."""
+
+    _initializing: bool = False
+    """Flag indicating whether the instance is in the process of starting up."""
+
+    _unique_name: str
+    """Unique name for the instance."""
+
+    _cache: Cache | None
+    """Private attribute to hold the cache, to allow lazy initialization."""
+
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
@@ -78,17 +93,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     children: list["Resource"]
     """List of child resources."""
 
-    _shutting_down: bool = False
-    """Flag indicating whether the instance is in the process of shutting down."""
-
-    _initializing: bool = False
-    """Flag indicating whether the instance is in the process of starting up."""
-
     logger: Logger
     """Logger for the instance."""
-
-    _unique_name: str
-    """Unique name for the instance."""
 
     unique_id: str
     """Unique identifier for the instance."""
@@ -124,6 +130,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         super().__init__()
 
+        self._cache = None  # lazy init
         self.unique_id = uuid.uuid4().hex[:8]
 
         self.hassette = hassette
@@ -151,6 +158,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
+
+    @cached_property
+    def cache(self) -> Cache:
+        """Disk cache for storing arbitrary data. All instances of the same resource class share a cache directory."""
+        if self._cache is not None:
+            return self._cache
+
+        # set up cache
+        cache_dir = self.hassette.config.data_dir.joinpath(self.class_name).joinpath("cache")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        self._cache = Cache(cache_dir, size_limit=self.hassette.config.default_cache_size)
+        return self._cache
 
     @property
     def unique_name(self) -> str:
@@ -199,19 +218,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.children.append(inst)
         return inst
 
-    # --- developer-facing hooks (override as needed) -------------------
-    async def before_initialize(self) -> None:
-        """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
-        # Default: nothing. Subclasses override when they own resources.
-
-    async def on_initialize(self) -> None:
-        """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
-        # Default: nothing. Subclasses override when they own resources.
-
-    async def after_initialize(self) -> None:
-        """Optional: finalize initialization, signal readiness, etc."""
-        # Default: nothing. Subclasses override when they own resources.
-
     @final
     async def initialize(self) -> None:
         """Initialize the instance by calling the lifecycle hooks in order."""
@@ -244,19 +250,17 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         finally:
             self._initializing = False
 
-    # --- developer-facing hooks (override as needed) -------------------
-    async def before_shutdown(self) -> None:
-        """Optional: stop accepting new work, signal loops to wind down, etc."""
-        # Default: cancel an in-flight initialize() task if you used Resource.start()
-        self.cancel()
+    async def before_initialize(self) -> None:
+        """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
+        pass
 
-    async def on_shutdown(self) -> None:
-        """Primary hook: release your own stuff (sockets, queues, temp files…)."""
-        # Default: nothing. Subclasses override when they own resources.
+    async def on_initialize(self) -> None:
+        """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
+        pass
 
-    async def after_shutdown(self) -> None:
-        """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
-        # Default: nothing.
+    async def after_initialize(self) -> None:
+        """Optional: finalize initialization, signal readiness, etc."""
+        pass
 
     @final
     async def shutdown(self) -> None:
@@ -302,20 +306,44 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
             self._shutting_down = False
 
+    async def before_shutdown(self) -> None:
+        """Optional: stop accepting new work, signal loops to wind down, etc."""
+        pass
+
+    async def on_shutdown(self) -> None:
+        """Primary hook: release your own stuff (sockets, queues, temp files…)."""
+        pass
+
+    async def after_shutdown(self) -> None:
+        """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
+        pass
+
     async def restart(self) -> None:
         """Restart the instance by shutting it down and re-initializing it."""
         self.logger.debug("Restarting '%s' %s", self.class_name, self.role)
         await self.shutdown()
         await self.initialize()
 
-    async def cleanup(self) -> None:
+    async def cleanup(self, timeout: int | None = None) -> None:
         """Cleanup resources owned by the instance.
 
         This method is called during shutdown to ensure that all resources are properly released.
         """
+        timeout = timeout or self.hassette.config.resource_shutdown_timeout_seconds
+
         self.cancel()
+        with suppress(asyncio.CancelledError):
+            if self._init_task:
+                await asyncio.wait_for(self._init_task, timeout=timeout)
+
         await self.task_bucket.cancel_all()
         self.logger.debug("Cleaned up resources")
+
+        if self._cache is not None:
+            try:
+                self.cache.close()
+            except Exception as e:
+                self.logger.exception("Error closing cache: %s %s", type(e).__name__, e)
 
 
 class Service(Resource):
