@@ -106,12 +106,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
         from hassette.state_registry import get_registry
 
         # Attempt to register - the registry will skip if no domain is defined
-        try:
-            get_registry().register(cls)
-        except StateRegistryError as e:
-            # Log but don't fail - base classes without domains will throw registry errors
-            LOGGER.warning("Could not register state class %s: %s", cls.__name__, e)
-
+        get_registry().register(cls)
     domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""
 
