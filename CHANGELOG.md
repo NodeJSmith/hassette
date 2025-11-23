@@ -10,6 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add `diskcache` dependency and `cache` attribute to all resources
   - Each resource class has its own cache directory under the Hassette data directory
+- Add `states` attribute to `App` - provides access to current states in Home Assistant
+  - `states` is an instance of the new `States` class
+  - `States` provides domain-based access to entity states, e.g. `app.states.light.get("light.my_light")`
+  - `States` listens to state change events and keeps an up-to-date cache of states
+  - ~~See `hassette.states` module documentation for details~~ (Coming soon)
+- Add `Maybe*` DI annotations for optional dependencies in event handlers
+  - `MaybeStateNew`, `MaybeStateOld`, `MaybeEntityId`, etc.
+  - These will allow `None` or `MISSING_VALUE` to be returned if the value is not available
+  - The original dependency annotations will raise an error if the value is not available
+- Add `raise_on_incorrect_dependency_type` to `HassetteConfig` to control whether to raise an error if a dependency cannot be provided due to type mismatch
+  - Default is `true` in production mode, `false` in dev mode
+  - When `false` a warning will be logged but the handler will still be called with whatever value was returned
+
+### Fixed
+- Fixed bug that caused apps to not be re-imported when code changed due to skipping cache check in app handler
+- Fixed missing domains in `DomainLiteral` in `hassette.models.states.base`
+  - Add tests to catch this in the future
 
 ## [0.16.0] - 2025-11-16
 
