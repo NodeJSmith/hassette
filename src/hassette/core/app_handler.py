@@ -282,7 +282,7 @@ class AppHandler(Resource):
             load_error = get_class_load_error(app_manifest.full_path, app_manifest.class_name)
             self.failed_apps[app_key].append((0, load_error))
             return
-        if class_already_loaded(app_manifest.full_path, app_manifest.class_name):
+        if not force_reload and class_already_loaded(app_manifest.full_path, app_manifest.class_name):
             app_class = get_loaded_class(app_manifest.full_path, app_manifest.class_name)
         else:
             try:
