@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- **Breaking:** - Requires Python 3.13 going forward, Python 3.12 and 3.11 are no longer supported.
+  - This allows use of `type`, defaults for TypeVars, and other new typing features.
+- Renamed `core_config.py` to `core.py`
+- Renamed `services` to `core` and move `core.py` under `core` directory
+  - Didn't make sense to keep named as `services` since we have resources in here as well
+
 ### Added
 - Add `diskcache` dependency and `cache` attribute to all resources
   - Each resource class has its own cache directory under the Hassette data directory
