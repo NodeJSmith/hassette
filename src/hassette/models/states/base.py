@@ -5,6 +5,7 @@ from typing import Any, Generic, TypeVar, get_args
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
+from hassette.exceptions import StateRegistryError
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
 type StrStateValue = str | None
@@ -107,9 +108,9 @@ class BaseState(BaseModel, Generic[StateValueT]):
         # Attempt to register - the registry will skip if no domain is defined
         try:
             get_registry().register(cls)
-        except Exception as e:
-            # Log but don't fail - base classes without domains will throw errors
-            LOGGER.debug("Could not register state class %s: %s", cls.__name__, e)
+        except StateRegistryError as e:
+            # Log but don't fail - base classes without domains will throw registry errors
+            LOGGER.warning("Could not register state class %s: %s", cls.__name__, e)
 
     domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""
