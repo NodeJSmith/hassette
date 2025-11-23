@@ -37,7 +37,7 @@ def get_raise_on_incorrect_type():
     return config.raise_on_incorrect_dependency_type
 
 
-@lru_cache
+@lru_cache(maxsize=128)
 def normalize_for_isinstance(tp: type | UnionType | TypeAliasType) -> tuple[type, ...] | type:
     """Normalize a type annotation for use with isinstance().
 
