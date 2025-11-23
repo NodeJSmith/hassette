@@ -33,7 +33,7 @@ For entities with string state values (most common):
 from hassette.models.states.base import StringBaseState
 
 class LauncherState(StringBaseState):
-    domain: Literal["lannouncer"]
+    domain: Literal["launcher"]
 ```
 
 ### NumericBaseState
