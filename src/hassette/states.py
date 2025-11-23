@@ -38,7 +38,7 @@ class _TypedStateGetter(Generic[StateT]):
 
         """
         value = self._proxy.get_state(entity_id)
-        if not value:
+        if value is None:
             raise EntityNotFoundError(f"State for entity_id '{entity_id}' not found")
         return self._model.model_validate(value)
 
