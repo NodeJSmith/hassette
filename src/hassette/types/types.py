@@ -1,10 +1,10 @@
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable
 from datetime import time
 from pathlib import Path
 from typing import Any, Literal, Protocol, Required, TypeVar
 
 from typing_extensions import Sentinel, TypedDict
-from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
+from whenever import Time, TimeDelta, ZonedDateTime
 
 from hassette.events.base import EventT
 
@@ -57,12 +57,6 @@ class AsyncHandlerType(Protocol):
 # Type aliases for any valid handler
 HandlerType = SyncHandler | AsyncHandlerType
 """Alias for all valid handler types (sync or async)."""
-
-type KnownTypeScalar = ZonedDateTime | PlainDateTime | Time | Date | None | float | int | bool | str
-"""Alias for all known valid scalar state types."""
-
-type KnownType = KnownTypeScalar | Sequence[KnownTypeScalar] | Mapping[str, KnownTypeScalar]
-"""Alias for all known valid state types."""
 
 type ChangeType[V] = None | Sentinel | V | Condition[V | Sentinel] | ComparisonCondition[V | Sentinel]
 """Alias for types that can be used to specify changes in predicates."""
