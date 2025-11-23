@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import Any, Generic, Literal, TypeVar, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
@@ -152,7 +152,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
     is_unavailable: bool = Field(default=False)
     """Whether the state is 'unavailable'."""
 
-    value: StateValueT = Field(..., validation_alias="state")
+    value: StateValueT = Field(..., validation_alias=AliasChoices("state", "value"))
     """The state value, e.g. 'on', 'off', 23.5, etc."""
 
     attributes: AttributesBase = Field(...)
