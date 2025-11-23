@@ -306,11 +306,13 @@ def try_convert_state(data: "HassStateDict | None") -> "BaseState | None":
 
     # Extract domain from entity_id
     entity_id = data.get("entity_id")
-    if not entity_id:
-        LOGGER.error("State data missing 'entity_id' field: %s", data, stacklevel=2)
+    if not entity_id or not isinstance(entity_id, str):
+        LOGGER.error("State data has invalid 'entity_id' field: %s", data, stacklevel=2)
         return None
-
-    domain = entity_id.split(".")[0]
+    if "." not in entity_id:
+        LOGGER.error("State data has malformed 'entity_id' (missing domain): %s", entity_id, stacklevel=2)
+        return None
+    domain = entity_id.split(".", 1)[0]
     data["domain"] = domain
 
     # Look up the appropriate state class from the registry
