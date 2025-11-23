@@ -280,11 +280,9 @@ def try_convert_state(data: "HassStateDict | None") -> "BaseState | None":
     state_class = registry.get_class_for_domain(domain)
 
     if state_class is not None:
-        # Try to convert to the specific state type
-        try:
-            return state_class.model_validate(data)
-        except Exception:
-            LOGGER.exception("Unable to convert state data to %s: %s", state_class.__name__, data)
+        result = _conversion_with_error_handling(state_class, data)
+        if result is not None:
+            return result
     else:
         # Domain not registered, log a warning
         LOGGER.debug(
@@ -294,8 +292,52 @@ def try_convert_state(data: "HassStateDict | None") -> "BaseState | None":
         )
 
     # Fall back to generic BaseState
+    return _conversion_with_error_handling(BaseState, data)
+
+
+def _conversion_with_error_handling(state_class: type["BaseState"], data: "HassStateDict") -> "BaseState | None":
+    """Helper to convert state data with error handling.
+
+    This function attempts to convert the given data dictionary into an instance
+    of the specified state class. If conversion fails, it logs the error and
+    returns None.
+
+    Args:
+        state_class: The target state class to convert to.
+        data: The state data dictionary.
+
+    Returns:
+        An instance of the state class, or None if conversion failed.
+    """
+    class_name = state_class.__name__
+
+    # Fall back to generic BaseState
     try:
-        return BaseState.model_validate(data)
-    except Exception:
-        LOGGER.exception("Unable to convert state data to BaseState: %s", data)
+        return state_class.model_validate(data)
+    except (TypeError, ValueError) as e:
+        entity_id = data.get("entity_id", "<unknown>")
+        domain = data.get("domain", "<unknown>")
+        # Truncate data for logging, avoid leaking full dict
+        truncated_data = repr(data)
+        if len(truncated_data) > 200:
+            truncated_data = truncated_data[:200] + "...[truncated]"
+        LOGGER.error(
+            "Unable to convert state data to %s for entity '%s' (domain '%s'): %s\nData: %s",
+            class_name,
+            entity_id,
+            domain,
+            type(e).__name__,
+            truncated_data,
+        )
+        return None
+    except Exception as e:
+        entity_id = data.get("entity_id", "<unknown>")
+        domain = data.get("domain", "<unknown>")
+        LOGGER.error(
+            "Unexpected error converting state data to %s for entity '%s' (domain '%s'): %s",
+            class_name,
+            entity_id,
+            domain,
+            type(e).__name__,
+        )
         return None
