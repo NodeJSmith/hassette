@@ -110,7 +110,7 @@ class StateProxyResource(Resource):
         return self.states.get(entity_id)
 
     async def on_state_changed(
-        self, entity_id: D.EntityId, old_state: D.StateOld[StateUnion], new_state: D.StateNew[StateUnion]
+        self, entity_id: D.EntityId, old_state: D.MaybeStateOld[StateUnion], new_state: D.MaybeStateNew[StateUnion]
     ) -> None:
         """Handle state_changed events to update the cache.
 
