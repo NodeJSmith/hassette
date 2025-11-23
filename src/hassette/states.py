@@ -1,8 +1,9 @@
 import typing
 from typing import Any, Generic, TypeVar
+from warnings import warn
 
 from hassette.core.state_proxy import StateProxyResource
-from hassette.exceptions import EntityNotFoundError
+from hassette.exceptions import EntityNotFoundError, RegistryNotReadyError
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
 from hassette.state_registry import get_registry
@@ -171,20 +172,24 @@ class States(Resource):
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
         registry = get_registry()
-        state_class = registry.get_class_for_domain(name)
+        try:
+            state_class = registry.get_class_for_domain(name)
+        except RegistryNotReadyError:
+            raise AttributeError(
+                f"State registry not initialized. Cannot access domain '{name}'. "
+                "Ensure state modules are imported before accessing States properties."
+            ) from None
 
         if state_class is None:
-            # Domain not registered - return DomainStates with BaseState
-            # This allows users to access custom domains even if we don't have a specific class
-            self.logger.debug(
-                "Domain '%s' not registered, returning DomainStates[BaseState]. "
-                "For better type support, create a custom state class that registers this domain.",
-                name,
+            warn(
+                f"Domain '{name}' not registered, returning DomainStates[BaseState]. "
+                f"For better type support, create a custom state class that registers this domain.",
+                stacklevel=2,
             )
             return DomainStates[BaseState](self._state_proxy.states, name)
 
         # Domain is registered, use its specific class
-        return DomainStates[BaseState](self._state_proxy.states, name)
+        return DomainStates[state_class](self._state_proxy.states, name)
 
     @property
     def all(self) -> dict[str, BaseState]:
