@@ -44,7 +44,7 @@ class TestStatesClassInit:
         states_instance = States.create(hassette, hassette)
 
         # Should be able to access state proxy
-        assert states_instance.state_proxy is hassette._state_proxy_resource
+        assert states_instance._state_proxy is hassette._state_proxy_resource
 
 
 class TestStatesDomainAccessors:
@@ -71,7 +71,7 @@ class TestStatesDomainAccessors:
 
         # Create States instance and access lights
         states_instance = States.create(hassette, hassette)
-        lights = states_instance.lights
+        lights = states_instance.light
 
         assert isinstance(lights, DomainStates)
 
@@ -101,7 +101,7 @@ class TestStatesDomainAccessors:
         await asyncio.sleep(0.1)
 
         states_instance = States.create(hassette, hassette)
-        sensors = states_instance.sensors
+        sensors = states_instance.sensor
 
         sensor_ids = [eid for eid, _ in sensors]
         assert "sensor.temperature" in sensor_ids
@@ -122,7 +122,7 @@ class TestStatesDomainAccessors:
         await asyncio.sleep(0.1)
 
         states_instance = States.create(hassette, hassette)
-        switches = states_instance.switches
+        switches = states_instance.switch
 
         switch_ids = [eid for eid, _ in switches]
         assert "switch.outlet1" in switch_ids
@@ -146,9 +146,9 @@ class TestStatesDomainAccessors:
         states_instance = States.create(hassette, hassette)
 
         # Each domain accessor should only return its own domain
-        light_ids = [eid for eid, _ in states_instance.lights]
-        sensor_ids = [eid for eid, _ in states_instance.sensors]
-        switch_ids = [eid for eid, _ in states_instance.switches]
+        light_ids = [eid for eid, _ in states_instance.light]
+        sensor_ids = [eid for eid, _ in states_instance.sensor]
+        switch_ids = [eid for eid, _ in states_instance.switch]
 
         assert "light.test" in light_ids, f"Expected 'light.test' in light_ids: {light_ids}"
         assert "sensor.test" in sensor_ids, f"Expected 'sensor.test' in sensor_ids: {sensor_ids}"
@@ -167,7 +167,7 @@ class TestStatesDomainAccessors:
         await asyncio.sleep(0.1)
 
         states_instance = States.create(hassette, hassette)
-        lights = states_instance.lights
+        lights = states_instance.light
 
         assert len(lights) >= 3
 
@@ -294,7 +294,7 @@ class TestDomainStates:
         await asyncio.sleep(0.1)
 
         states_instance = States.create(hassette, hassette)
-        lights = states_instance.lights
+        lights = states_instance.light
 
         # Iterate and collect
         collected = []
@@ -320,7 +320,7 @@ class TestDomainStates:
         await asyncio.sleep(0.1)
 
         states_instance = States.create(hassette, hassette)
-        sensors = states_instance.sensors
+        sensors = states_instance.sensor
 
         assert len(sensors) >= 2
 
@@ -335,7 +335,7 @@ class TestDomainStates:
         await asyncio.sleep(0.1)
 
         states_instance = States.create(hassette, hassette)
-        lights = states_instance.lights
+        lights = states_instance.light
 
         result = lights.get("light.test")
 
@@ -356,7 +356,7 @@ class TestDomainStates:
         states_instance = States.create(hassette, hassette)
 
         # Try to get sensor from lights domain
-        lights = states_instance.lights
+        lights = states_instance.light
         result = lights.get("sensor.test")
 
         assert result is None
@@ -385,7 +385,7 @@ class TestStatesIntegration:
         states_instance = States.create(hassette, hassette)
 
         # Initially no lights
-        initial_light_count = len(states_instance.lights)
+        initial_light_count = len(states_instance.light)
 
         # Add a light via state change event
         light = make_light_state_dict("light.dynamic", "on", brightness=150)
@@ -394,11 +394,11 @@ class TestStatesIntegration:
         await asyncio.sleep(0.1)
 
         # States should now show the new light
-        new_light_count = len(states_instance.lights)
+        new_light_count = len(states_instance.light)
         assert new_light_count == initial_light_count + 1
 
         # Should be able to retrieve it
-        dynamic_light = states_instance.lights.get("light.dynamic")
+        dynamic_light = states_instance.light.get("light.dynamic")
         assert dynamic_light is not None
         assert dynamic_light.attributes.brightness == 150
 
@@ -449,9 +449,9 @@ class TestStatesIntegration:
         await asyncio.sleep(0.1)
 
         # Each domain should only contain its entities
-        light_ids = {eid for eid, _ in states_instance.lights if eid.startswith("light.test_")}
-        sensor_ids = {eid for eid, _ in states_instance.sensors if eid.startswith("sensor.test_")}
-        switch_ids = {eid for eid, _ in states_instance.switches if eid.startswith("switch.test_")}
+        light_ids = {eid for eid, _ in states_instance.light if eid.startswith("light.test_")}
+        sensor_ids = {eid for eid, _ in states_instance.sensor if eid.startswith("sensor.test_")}
+        switch_ids = {eid for eid, _ in states_instance.switch if eid.startswith("switch.test_")}
 
         assert "light.test_1" in light_ids
         assert "light.test_2" in light_ids
