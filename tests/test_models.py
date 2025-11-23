@@ -11,13 +11,12 @@ from hassette.state_registry import get_registry
 
 EXCLUDE_CLASSES = [
     base.BaseState,
-    base.StringBaseState,
-    base.NumericBaseState,
     base.BoolBaseState,
+    base.DateTimeBaseState,
     base.IntBaseState,
     base.NumericBaseState,
+    base.StringBaseState,
     base.TimeBaseState,
-    base.DateTimeBaseState,
 ]
 
 STATES_PATH = Path(states.__file__).parent
