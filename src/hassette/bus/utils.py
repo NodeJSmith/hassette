@@ -88,7 +88,7 @@ def normalize_for_isinstance(tp: type | UnionType | TypeAliasType) -> tuple[type
 
 
 def extract_with_error_handling(
-    event: "Event[Any]", extractor: Callable[[Any], Any], param_name: str, param_type: type, handler_name: str
+    event: "Event[Any]", extractor: Callable[["Event[Any]"], Any], param_name: str, param_type: type, handler_name: str
 ) -> Any:
     """Extract a parameter value using the given extractor, with error handling.
 
