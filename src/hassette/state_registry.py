@@ -254,7 +254,12 @@ def try_convert_state(data: "HassStateDict | None") -> "BaseState | None":
         return None
 
     if "event" in data:
-        LOGGER.error("Data contains 'event' key, expected state data, not event data", stacklevel=2)
+        LOGGER.error(
+            "Data contains 'event' key, expected state data, not event data. "
+            "To convert state from an event, extract the state data from event.payload.data.new_state "
+            "or event.payload.data.old_state.",
+            stacklevel=2,
+        )
         return None
 
     if "domain" in data:
