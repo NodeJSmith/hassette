@@ -35,60 +35,13 @@ import typing
 from logging import getLogger
 from typing import TYPE_CHECKING
 
+import hassette.exceptions as exc
+
 if TYPE_CHECKING:
     from hassette.events import HassStateDict
     from hassette.models.states.base import BaseState
 
 LOGGER = getLogger(__name__)
-
-
-class StateRegistryError(Exception):
-    """Base exception for state registry errors."""
-
-
-class StateNotRegisteredError(StateRegistryError):
-    """Raised when attempting to access a state class that hasn't been registered."""
-
-    def __init__(self, domain: str) -> None:
-        """Initialize the error with the missing domain.
-
-        Args:
-            domain: The domain that wasn't found in the registry.
-        """
-        super().__init__(f"No state class registered for domain: {domain}")
-        self.domain = domain
-
-
-class DuplicateDomainError(StateRegistryError):
-    """Raised when attempting to register a domain that's already registered."""
-
-    def __init__(self, domain: str, existing_class: type["BaseState"], new_class: type["BaseState"]) -> None:
-        """Initialize the error with domain and conflicting classes.
-
-        Args:
-            domain: The domain that's already registered.
-            existing_class: The class that's currently registered for this domain.
-            new_class: The class that attempted to register for this domain.
-        """
-        super().__init__(
-            f"Domain '{domain}' is already registered to {existing_class.__name__}, "
-            f"cannot register {new_class.__name__}"
-        )
-        self.domain = domain
-        self.existing_class = existing_class
-        self.new_class = new_class
-
-
-class RegistryNotReadyError(StateRegistryError):
-    """Raised when attempting to use the registry before any classes are registered."""
-
-    def __init__(self) -> None:
-        """Initialize the error."""
-        super().__init__(
-            "State registry has not been initialized. "
-            "No state classes have been registered yet. "
-            "Ensure state modules are imported before attempting state conversion."
-        )
 
 
 class StateRegistry:
@@ -127,7 +80,7 @@ class StateRegistry:
         if domain in self._domain_to_class:
             existing_class = self._domain_to_class[domain]
             if existing_class is not state_class:
-                raise DuplicateDomainError(domain, existing_class, state_class)
+                raise exc.DuplicateDomainError(domain, existing_class, state_class)
             # Already registered, skip
             return
 
@@ -149,7 +102,7 @@ class StateRegistry:
             RegistryNotReadyError: If the registry hasn't been initialized yet.
         """
         if not self._is_ready:
-            raise RegistryNotReadyError
+            raise exc.RegistryNotReadyError
 
         return self._domain_to_class.get(domain)
 
@@ -166,7 +119,7 @@ class StateRegistry:
             RegistryNotReadyError: If the registry hasn't been initialized yet.
         """
         if not self._is_ready:
-            raise RegistryNotReadyError
+            raise exc.RegistryNotReadyError
 
         return self._class_to_domain.get(state_class)
 
@@ -180,7 +133,7 @@ class StateRegistry:
             RegistryNotReadyError: If the registry hasn't been initialized yet.
         """
         if not self._is_ready:
-            raise RegistryNotReadyError
+            raise exc.RegistryNotReadyError
 
         return sorted(self._domain_to_class.keys())
 
@@ -194,7 +147,7 @@ class StateRegistry:
             RegistryNotReadyError: If the registry hasn't been initialized yet.
         """
         if not self._is_ready:
-            raise RegistryNotReadyError
+            raise exc.RegistryNotReadyError
 
         return [self._domain_to_class[domain] for domain in self.all_domains()]
 
