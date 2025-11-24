@@ -1,14 +1,12 @@
 import os
+import typing
 
 from hassette import AppConfig, AppSync
 from hassette.events import StateChangeEvent
-from hassette.models.entities import LightEntity
 from hassette.models.states import InputButtonState, LightState
 
-try:
-    from .my_app import MyApp
-except ImportError:
-    from my_app import MyApp  # type: ignore
+if typing.TYPE_CHECKING:
+    from hassette.models.entities import LightEntity
 
 
 class MyAppUserConfig(AppConfig):
@@ -28,12 +26,9 @@ class MyAppSync(AppSync):
         self.test_button_exists = self.api.sync.entity_exists("input_button.test")
 
     def test_stuff(self) -> None:
-        my_app = self.hassette.get_app("my_app", 0)
-        assert isinstance(my_app, MyApp), f"Expected MyApp, got {type(my_app)}"
-
         if self.office_light_exists:
-            self.light_state = self.api.sync.get_state("light.office", model=LightState)
-            self.light_entity = self.api.sync.get_entity("light.office", model=LightEntity)
+            self.light_state: LightState = self.api.sync.get_state("light.office")
+            self.light_entity: LightEntity = self.api.sync.get_entity("light.office")
         elif self.test_button_exists:
             self.button_state = self.api.sync.get_state("input_button.test", model=InputButtonState)
             self.logger.info("Button state: %s", self.button_state)
