@@ -167,6 +167,10 @@ class States(Resource):
                 print(state.value)
             ```
         """
+        # Avoid recursion for internal attributes
+        if name.startswith("_") or name in ("hassette", "parent", "name"):
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
         registry = get_registry()
         try:
             state_class = registry.get_class_for_domain(name)
