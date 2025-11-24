@@ -112,6 +112,28 @@ class StateProxyResource(Resource):
         # and we replace whole objects rather than mutating them
         return self.states.get(entity_id)
 
+    def get_domain_states(self, domain: str) -> dict[str, BaseState]:
+        """Get all states for a specific domain.
+
+        Args:
+            domain: The domain to filter by (e.g., "light").
+
+        Returns:
+            A dictionary of entity_id to state for the specified domain.
+
+        Raises:
+            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+        """
+        if not self.is_ready():
+            raise ResourceNotReadyError(
+                f"StateProxy is not ready (status: {self.status}). "
+                "Call await state_proxy.wait_until_ready() before accessing states."
+            )
+
+        # Lock-free read is safe because dict assignment is atomic in CPython
+        # and we replace whole objects rather than mutating them
+        return {eid: state for eid, state in self.states.items() if state.domain == domain}
+
     async def _on_state_change(
         self, entity_id: D.EntityId, old_state: D.MaybeStateOld[BaseState], new_state: D.MaybeStateNew[BaseState]
     ) -> None:
