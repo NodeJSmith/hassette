@@ -1,23 +1,22 @@
 import inspect
 from importlib import import_module
 from pathlib import Path
-from typing import cast, get_args
+from typing import cast
 
 import pytest
 
 from hassette.models import states
 from hassette.models.states import base
-from hassette.states import States
+from hassette.state_registry import get_registry
 
 EXCLUDE_CLASSES = [
     base.BaseState,
-    base.StringBaseState,
-    base.NumericBaseState,
     base.BoolBaseState,
+    base.DateTimeBaseState,
     base.IntBaseState,
     base.NumericBaseState,
+    base.StringBaseState,
     base.TimeBaseState,
-    base.DateTimeBaseState,
 ]
 
 STATES_PATH = Path(states.__file__).parent
@@ -48,8 +47,9 @@ def all_models():
 
 
 def test_all_domains_registered(all_models: dict[str, type[states.BaseState]]):
-    """Test that all state models are registered in the states module."""
-    registered_domains = list(base.DomainLiteral.__args__)
+    """Test that all state models are registered in the state registry."""
+    registry = get_registry()
+    registered_domains = registry.all_domains()
     missing_domains = []
 
     for model_cls in all_models.values():
@@ -68,20 +68,20 @@ def test_all_domains_registered(all_models: dict[str, type[states.BaseState]]):
 
     missing_domains = sorted(missing_domains)
 
-    # assert domain in registered_domains, f"Domain '{domain}' for model '{class_name}' is not registered."
-
     if missing_domains:
         full_domain_list = sorted(registered_domains + missing_domains)
-        print(full_domain_list)
+        print(f"Missing domains: {missing_domains}")
+        print(f"Full domain list: {full_domain_list}")
 
-    assert not missing_domains
+    assert not missing_domains, f"Domains not registered: {missing_domains}"
 
-    print(f"All {len(all_models)} state models are properly registered.")
+    print(f"All {len(all_models)} state models are properly registered in the registry.")
 
 
-def test_all_classes_in_state_union(all_models: dict[str, type[states.BaseState]]):
-    """Test that all state models are included in the StateUnion type."""
-    state_union_types = get_args(states._StateUnion.__value__)
+def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
+    """Test that all state models are included in the state registry."""
+    registry = get_registry()
+    registered_classes = registry.all_classes()
     missing_classes = []
 
     for model_cls in all_models.values():
@@ -91,37 +91,22 @@ def test_all_classes_in_state_union(all_models: dict[str, type[states.BaseState]
         if model_cls in EXCLUDE_CLASSES or "base.BaseState" in str(model_cls):
             continue
 
-        if model_cls not in state_union_types:
+        if model_cls not in registered_classes:
             missing_classes.append(model_cls.__name__)
 
     missing_classes = sorted(missing_classes)
 
     if missing_classes:
-        print(f"Missing classes in StateUnion: {missing_classes}")
+        print(f"Missing classes in registry: {missing_classes}")
 
-    assert not missing_classes
+    assert not missing_classes, f"Classes not registered: {missing_classes}"
 
-    print(f"All {len(all_models)} state models are included in StateUnion.")
+    print(f"All {len(all_models)} state models are included in the registry.")
 
 
-def test_states_class_has_property_for_each_domain(all_models: dict[str, type[states.BaseState]]):
-    """Test that the States class has a property for each domain."""
-    '''
-    @property
-    def input_datetime(self) -> DomainStates[states.InputDatetimeState]:
-        """Access all input datetime entity states with full typing."""
-        return self.get_states(states.InputDatetimeState)
-    '''
-
-    template = '''
-    @property
-    def {property_name}(self) -> DomainStates[states.{model_cls_name}]:
-        """Access all {domain} entity states with full typing."""
-        return self.get_states(states.{model_cls_name})
-'''
-
-    found_properties: dict[str, type[states.BaseState]] = {}
-    missing_properties: dict[str, type[states.BaseState]] = {}
+def test_registry_can_convert_all_domains(all_models: dict[str, type[states.BaseState]]):
+    """Test that the registry can look up classes for all known domains."""
+    registry = get_registry()
 
     for model_cls in all_models.values():
         model_cls = cast("type[states.BaseState]", model_cls)
@@ -131,31 +116,10 @@ def test_states_class_has_property_for_each_domain(all_models: dict[str, type[st
             continue
 
         domain = model_cls.get_domain()
-        property_name = domain  # Singular form
-        # if not hasattr(states_instance, property_name):
-        #     missing_properties.append(property_name)
-        if not hasattr(States, property_name):
-            missing_properties[property_name] = model_cls
-        else:
-            found_properties[property_name] = model_cls
+        retrieved_class = registry.get_class_for_domain(domain)
 
-    # missing_properties = dict(sorted(missing_properties.items()))
-    all_properties = {**found_properties, **missing_properties}
-    all_properties = dict(sorted(all_properties.items()))
+        assert retrieved_class is model_cls, (
+            f"Registry returned {retrieved_class} for domain '{domain}', expected {model_cls}"
+        )
 
-    if all_properties:
-        # print(f"Missing properties in States class: {missing_properties}")
-        for property_name, model_cls in all_properties.items():
-            domain = model_cls.get_domain()
-            model_cls_name = model_cls.__name__
-            print(
-                template.format(
-                    property_name=property_name,
-                    model_cls_name=model_cls_name,
-                    domain=domain,
-                )
-            )
-
-    assert not missing_properties
-
-    print(f"States class has properties for all {len(all_models)} domains.")
+    print(f"Registry can successfully look up all {len(all_models)} state classes by domain.")

@@ -6,7 +6,8 @@ from typing import Any, Generic, Literal, Self, TypeGuard
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
-from hassette.models.states import StateT, try_convert_state
+from hassette.models.states import StateT
+from hassette.state_registry import try_convert_state
 from hassette.types import topics
 
 from .raw import HassEventEnvelopeDict, HassStateDict

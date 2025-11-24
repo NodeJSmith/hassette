@@ -1,64 +1,11 @@
+from inspect import get_annotations
 from logging import getLogger
-from typing import Any, Generic, Literal, TypeVar, get_args
+from typing import Any, Generic, TypeVar, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
-
-DomainLiteral = Literal[
-    "ai_task",
-    "air_quality",
-    "alarm_control_panel",
-    "assist_satellite",
-    "automation",
-    "binary_sensor",
-    "button",
-    "calendar",
-    "camera",
-    "climate",
-    "conversation",
-    "cover",
-    "date",
-    "datetime",
-    "device_tracker",
-    "event",
-    "fan",
-    "humidifier",
-    "image_processing",
-    "input_boolean",
-    "input_button",
-    "input_datetime",
-    "input_number",
-    "input_select",
-    "input_text",
-    "light",
-    "lock",
-    "media_player",
-    "notify",
-    "number",
-    "person",
-    "remote",
-    "scene",
-    "script",
-    "select",
-    "sensor",
-    "siren",
-    "stt",
-    "sun",
-    "switch",
-    "text",
-    "time",
-    "timer",
-    "todo",
-    "tts",
-    "update",
-    "vacuum",
-    "valve",
-    "water_heater",
-    "weather",
-    "zone",
-]
 
 type StrStateValue = str | None
 """Represents a string state value or None."""
@@ -143,7 +90,24 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 
-    domain: DomainLiteral | str = Field(...)
+    def __init_subclass__(cls, **kwargs) -> None:
+        """Automatically register state subclasses with the state registry.
+
+        This hook is called whenever a class inherits from BaseState. If the subclass
+        defines a domain (via a Literal type annotation), it will be automatically
+        registered in the global state registry for lookup during state conversion.
+
+        Base classes without domain literals (like StringBaseState) are skipped.
+        """
+        super().__init_subclass__(**kwargs)
+
+        # Import here to avoid circular dependency
+        from hassette.state_registry import get_registry
+
+        # Attempt to register - the registry will skip if no domain is defined
+        get_registry().register(cls)
+
+    domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""
 
     entity_id: str = Field(...)
@@ -235,7 +199,8 @@ class BaseState(BaseModel, Generic[StateValueT]):
         if not domain_field:
             raise ValueError(f"Domain not defined for state class {cls.__name__}")
 
-        annotation = domain_field.annotation
+        annotations = get_annotations(cls)
+        annotation = annotations.get("domain")
         if annotation is None:
             raise ValueError(f"Domain annotation is None for state class {cls.__name__}")
 

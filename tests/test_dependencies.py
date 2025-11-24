@@ -275,7 +275,7 @@ class TestTypeAliasExtractors:
         """Test StateValueNew type alias extracts state value."""
         event = state_change_events[0]
 
-        _, extractor = extract_from_annotated(D.StateValueNew[states.StateUnion])
+        _, extractor = extract_from_annotated(D.StateValueNew[states.BaseState])
         result = extractor(event)
 
         if event.payload.data.new_state:

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- **Breaking:** State conversion system now uses dynamic registry instead of hardcoded unions
+  - `StateUnion` type has been removed - use `BaseState` in type hints instead
+  - `DomainLiteral` type has been removed - no longer needed with dynamic registration
+  - State classes automatically register their domains via `__init_subclass__` hook
+- **Breaking:** `try_convert_state` now typed to return `BaseState | None` instead of `StateUnion | None`
+  - Uses registry lookup instead of Pydantic discriminated unions for conversion
+  - Falls back to `BaseState` for unknown/custom domains
+  - Raises `RegistryNotReadyError` if called before any state classes are imported
+  - `try_convert_state` moved to `hassette.state_registry` module
+  - `states.__init__` now only imports/exports classes, no conversion logic
+
+### Added
+- Dynamic state registry system (`hassette.state_registry`)
+  - State classes automatically register when defined with `domain: Literal["domain_name"]`
+  - `StateRegistry` provides `get_class_for_domain()`, `all_domains()`, and `all_classes()` methods
+  - Enables user-defined state classes for custom domains without modifying core code
+  - Registry raises `RegistryNotReadyError` if accessed before initialization
+- Type stub file (`hassette/states.pyi`) for IDE autocomplete on known domain properties
+  - Runtime uses `__getattr__` for dynamic domain access
+  - Users can access custom domains in apps via `self.states.get_states(CustomStateClass)`
+
+### Removed
+- **Breaking:** Removed `StateUnion` type - replaced with `BaseState` throughout codebase
+- **Breaking:** Removed `DomainLiteral` type - no longer needed with registry system
+- **Breaking:** Removed manual `_StateUnion` type definition from states module
+
 ## [0.17.0] - 2025-11-22
 
 ### Changed

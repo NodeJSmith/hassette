@@ -40,5 +40,8 @@ class MyAppSync(AppSync):
 
     def handle_event(self, event: StateChangeEvent) -> None:
         self.logger.info("event: %s", event)
-        test = self.api.sync.get_state_value("input_button.test")
+        test = self.api.sync.get_state_value_typed("input_button.test", model=InputButtonState)
         self.logger.info("state: %s", test)
+
+        test_2 = self.states.input_button.get("input_button.test")
+        self.logger.info("state 2: %s", test_2)
