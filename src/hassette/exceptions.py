@@ -137,7 +137,7 @@ class CallListenerError(HassetteError):
     """
 
 
-class StateRegistryError(Exception):
+class StateRegistryError(HassetteError):
     """Base exception for state registry errors."""
 
 
