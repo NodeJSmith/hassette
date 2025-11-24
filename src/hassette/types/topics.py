@@ -5,8 +5,12 @@
 HASSETTE_EVENT_SERVICE_STATUS = "hassette.event.service_status"
 """Service status updates"""
 
-HASSETTE_EVENT_WEBSOCKET_STATUS = "hassette.event.websocket"
-"""WebSocket connection status updates"""
+HASSETTE_EVENT_WEBSOCKET_CONNECTED = "hassette.event.websocket_connected"
+"""WebSocket connection established"""
+
+HASSETTE_EVENT_WEBSOCKET_DISCONNECTED = "hassette.event.websocket_disconnected"
+"""WebSocket connection lost"""
+
 
 HASSETTE_EVENT_FILE_WATCHER = "hassette.event.file_watcher"
 """File watcher events"""

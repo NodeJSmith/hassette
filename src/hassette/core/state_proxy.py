@@ -62,8 +62,11 @@ class StateProxyResource(Resource):
         # Priority 100 ensures state proxy updates before app handlers (priority 0)
         self.bus.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
 
-        self.bus.on_homeassistant_stop(handler=self.on_homeassistant_stop)
-
+        self.bus.on_homeassistant_stop(handler=self.on_disconnect, kwargs={"reason": "HA stopped"})
+        self.bus.on_homeassistant_restart(handler=self.on_disconnect, kwargs={"reason": "HA restarted"})
+        self.bus.on_homeassistant_start(handler=self.on_reconnect, kwargs={"reason": "HA started"})
+        self.bus.on_websocket_connected(handler=self.on_reconnect, kwargs={"reason": "WebSocket connected"})
+        self.bus.on_websocket_disconnected(handler=self.on_disconnect, kwargs={"reason": "WebSocket disconnected"})
         # Perform initial state sync
         try:
             states = await self.hassette.api.get_states()
@@ -155,27 +158,24 @@ class StateProxyResource(Resource):
             else:
                 self.logger.debug("Updated state for %s", entity_id)
 
-    async def on_homeassistant_stop(self) -> None:
+    async def on_disconnect(self, reason: str) -> None:
         """Handle Home Assistant stop events.
 
         Clears the cache when Home Assistant stops. The cache will be rebuilt when
         Home Assistant starts and we receive state_changed events again, or when
         we detect a reconnection.
         """
-        self.logger.info("Home Assistant stopping, clearing state cache")
+        self.logger.info("Disconnected (reason: %s), clearing state cache", reason)
         async with self.lock:
             self.states.clear()
-        self.mark_not_ready(reason="Home Assistant stopped")
+        self.mark_not_ready(reason=f"Disconnected: {reason}")
 
-        # Subscribe to HA start to trigger resync
-        self.bus.on_homeassistant_start(handler=self.on_homeassistant_start, once=True)
-
-    async def on_homeassistant_start(self) -> None:
+    async def on_reconnect(self, reason: str) -> None:
         """Handle Home Assistant start events to trigger state resync.
 
         This runs after Home Assistant restart to rebuild the state cache.
         """
-        self.logger.info("Home Assistant restarted, performing state resync")
+        self.logger.info("Reconnected (reason: %s), resyncing states", reason)
 
         try:
             states = await self.hassette.api.get_states()
@@ -185,7 +185,7 @@ class StateProxyResource(Resource):
                 self.states.update(state_dict)
 
             self.logger.info("State resync complete, tracking %d entities", len(self.states))
-            self.mark_ready(reason="State resync after HA restart complete")
+            self.mark_ready(reason=f"Connected: {reason}")
 
         except Exception as e:
             self.logger.exception("Failed to resync states after HA restart: %s", e)

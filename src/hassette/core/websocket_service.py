@@ -20,8 +20,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from hassette.events import create_event_from_hass
-from hassette.events.hassette import HassetteWebsocketConnectedEvent, HassetteWebsocketDisconnectedEvent
+from hassette.events import HassetteSimpleEvent, create_event_from_hass
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -31,6 +30,7 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 from hassette.resources.base import Service
+from hassette.types import topics
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -131,13 +131,8 @@ class WebsocketService(Service):
         """Get the next message ID."""
         return next(self._seq)
 
-    async def after_initialize(self):
-        event = HassetteWebsocketConnectedEvent.create_event(url=self.url)
-        await self.hassette.send_event(event.topic, event)
-
     async def before_shutdown(self) -> None:
-        event = HassetteWebsocketDisconnectedEvent.create_event(error="WebSocket service shutting down")
-        await self.hassette.send_event(event.topic, event)
+        await self._send_connection_lost_event()
 
     async def serve(self) -> None:
         """Connect to the WebSocket and run the receive loop."""
@@ -180,6 +175,7 @@ class WebsocketService(Service):
             # start reader first so send_and_wait can get replies
             recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
 
+            await self._send_connection_established_event()
             # subscribe to events
             self._subscription_ids.add(await self._subscribe_events())
             return recv_task
@@ -412,7 +408,12 @@ class WebsocketService(Service):
         event = create_event_from_hass(data)
         await self.hassette.send_event(event.topic, event)
 
-    async def _send_connection_lost_event(self, error: str) -> None:
+    async def _send_connection_lost_event(self) -> None:
         """Send a connection lost event to the event bus."""
-        event = HassetteWebsocketDisconnectedEvent.create_event(error=error)
+        event = HassetteSimpleEvent.create_event(topic=topics.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
+        await self.hassette.send_event(event.topic, event)
+
+    async def _send_connection_established_event(self) -> None:
+        """Send a connection established event to the event bus."""
+        event = HassetteSimpleEvent.create_event(topic=topics.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await self.hassette.send_event(event.topic, event)
