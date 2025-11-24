@@ -158,6 +158,7 @@ Examples:
 import typing
 from enum import StrEnum
 from typing import Any, Literal, overload
+from warnings import warn
 
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
@@ -515,23 +516,32 @@ class Api(Resource):
                 return None
             raise
 
-    async def get_state(self, entity_id: str, model: type["StateT"]) -> "StateT":
+    async def get_state(self, entity_id: str, model: type["StateT"] | None = None) -> "BaseState":
         """Get the state of a specific entity.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
+            model: The model type to convert the state to. Deprecated, will be inferred automatically.
 
         Returns:
             The state of the entity converted to the specified model type.
         """
+        if model is not None:
+            warn(
+                "The 'model' parameter is deprecated and will be removed in a future release. "
+                "The state type will be inferred automatically based on the entity's domain.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
-        if not issubclass(model, BaseState):  # runtime check
-            raise TypeError(f"Model {model!r} is not a valid StateType subclass")
+        from hassette.state_registry import get_registry
+
+        domain = entity_id.split(".")[0]
+        state_class = get_registry().get_class_for_domain(domain) or BaseState
 
         raw = await self.get_state_raw(entity_id)
 
-        return model.model_validate(raw)
+        return state_class.model_validate(raw)
 
     async def get_state_value(self, entity_id: str) -> str:
         """Get the state of a specific entity without converting it to a state object.
@@ -559,12 +569,14 @@ class Api(Resource):
 
         return state  # pyright: ignore[reportReturnType]
 
-    async def get_state_value_typed(self, entity_id: str, model: type["BaseState[StateValueT]"]) -> "StateValueT":
+    async def get_state_value_typed(
+        self, entity_id: str, model: type["BaseState[StateValueT]"] | None = None
+    ) -> "StateValueT":
         """Get the state of a specific entity as a converted state object.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
+            model: The model type to convert the state to. Deprecated, will be inferred automatically.
 
         Returns:
             The state of the entity converted to the specified model type.
