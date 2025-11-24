@@ -11,6 +11,7 @@ from typing import Any, ParamSpec, TypeVar, cast
 
 from hassette.dependencies.extraction import extract_from_signature, validate_di_signature
 from hassette.exceptions import CallListenerError
+from hassette.models.states import BaseState
 from hassette.utils.exception_utils import get_short_traceback
 from hassette.utils.func_utils import callable_name, callable_short_name
 
@@ -24,6 +25,7 @@ if typing.TYPE_CHECKING:
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
 
 LOGGER = getLogger(__name__)
+LOGGER.setLevel("DEBUG")  # debug
 
 PS = ParamSpec("PS")
 RT = TypeVar("RT")
@@ -187,11 +189,27 @@ class HandlerAdapter:
             if param_name in kwargs:
                 LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", param_name)
 
-            kwargs[param_name] = extracted_value = extract_with_error_handling(
-                event, extractor, param_name, param_type, self.handler_name
-            )
+            extracted_value = extract_with_error_handling(event, extractor, param_name, param_type, self.handler_name)
+
+            if (
+                isinstance(extracted_value, BaseState)
+                and inspect.isclass(param_type)
+                and issubclass(param_type, BaseState)
+            ):
+                try:
+                    extracted_value = param_type.model_validate(extracted_value.raw_data)
+                except Exception as e:
+                    LOGGER.error(
+                        "Error while validating model for parameter '%s' in handler %s: %s",
+                        param_name,
+                        self.handler_name,
+                        e,
+                    )
+                    raise
 
             warn_or_raise_on_incorrect_type(param_name, param_type, extracted_value, self.handler_name)
+
+            kwargs[param_name] = extracted_value
 
         try:
             await self.handler(**kwargs)

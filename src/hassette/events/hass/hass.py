@@ -6,8 +6,7 @@ from typing import Any, Generic, Literal, Self, TypeGuard
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
-from hassette.models.states import StateT
-from hassette.state_registry import try_convert_state
+from hassette.models.states import BaseState, StateT
 from hassette.types import topics
 
 from .raw import HassEventEnvelopeDict, HassStateDict
@@ -158,8 +157,8 @@ class StateChangePayload(Generic[StateT]):
             raise ValueError("State change event data must contain 'entity_id' key")
 
         # use deepcopy to avoid mutating the original data
-        old_state_obj = try_convert_state(deepcopy(old_state)) if old_state else None
-        new_state_obj = try_convert_state(deepcopy(new_state)) if new_state else None
+        old_state_obj = BaseState.model_validate(deepcopy(old_state)) if old_state else None
+        new_state_obj = BaseState.model_validate(deepcopy(new_state)) if new_state else None
 
         return cls(entity_id=entity_id, old_state=old_state_obj, new_state=new_state_obj)  # pyright: ignore[reportArgumentType]
 
