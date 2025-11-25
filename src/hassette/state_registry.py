@@ -253,6 +253,7 @@ def try_convert_state(data: "HassStateDict | BaseState | None") -> "BaseState | 
     if data is None:
         return None
 
+    # if BaseState or any subclass, extract the raw data dict
     if isinstance(data, BaseState):
         data = cast("HassStateDict", data.raw_data)
 

@@ -114,7 +114,7 @@ class DomainStates(Generic[StateT]):
             return None
 
         # If already the correct type (and not just BaseState), return it
-        if isinstance(state, self._model) and not isinstance(state, BaseState):
+        if isinstance(state, self._model) and type(state) is not BaseState:
             return state
 
         # Otherwise, try to convert
