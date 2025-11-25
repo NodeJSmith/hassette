@@ -111,9 +111,9 @@ class DomainStates(Generic[StateT]):
         if state is None:
             return None
 
-        # If already the correct type, return it
-        if isinstance(state, self._model):
-            return state  # type: ignore[return-value]
+        # If already the correct type (and not just BaseState), return it
+        if isinstance(state, self._model) and not isinstance(state, BaseState):
+            return state
 
         # Otherwise, try to convert
         return self._model.model_validate(state.raw_data)
