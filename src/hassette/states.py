@@ -108,9 +108,15 @@ class DomainStates(Generic[StateT]):
         entity_id = make_entity_id(entity_id, self._domain)
 
         state = self._states.get(entity_id)
-        if state and not isinstance(state, self._model):
-            return self._model.model_validate(state.raw_data)
-        return None
+        if state is None:
+            return None
+
+        # If already the correct type, return it
+        if isinstance(state, self._model):
+            return state  # type: ignore[return-value]
+
+        # Otherwise, try to convert
+        return self._model.model_validate(state.raw_data)
 
 
 class States(Resource):
