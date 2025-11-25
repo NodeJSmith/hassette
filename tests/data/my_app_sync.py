@@ -1,12 +1,9 @@
 import os
-import typing
 
 from hassette import AppConfig, AppSync
 from hassette.events import StateChangeEvent
+from hassette.models.entities import LightEntity
 from hassette.models.states import InputButtonState, LightState
-
-if typing.TYPE_CHECKING:
-    from hassette.models.entities import LightEntity
 
 
 class MyAppUserConfig(AppConfig):
@@ -28,7 +25,7 @@ class MyAppSync(AppSync):
     def test_stuff(self) -> None:
         if self.office_light_exists:
             self.light_state: LightState = self.api.sync.get_state("light.office")
-            self.light_entity: LightEntity = self.api.sync.get_entity("light.office")
+            self.light_entity = self.api.sync.get_entity("light.office", LightEntity)
         elif self.test_button_exists:
             self.button_state = self.api.sync.get_state("input_button.test", model=InputButtonState)
             self.logger.info("Button state: %s", self.button_state)
