@@ -79,7 +79,12 @@ class TestStatesDomainAccessors:
         light_ids = []
         for entity_id, light_state in lights:
             light_ids.append(entity_id)
-            assert isinstance(light_state, states.LightState)
+            assert isinstance(light_state, states.LightState), (
+                f"Expected LightState but got {type(light_state).__name__}"
+            )
+            assert not isinstance(light_state, states.BaseState) or isinstance(light_state, states.LightState), (
+                "Should be LightState, not bare BaseState"
+            )
             assert entity_id.startswith("light.")
 
         assert "light.bedroom" in light_ids
@@ -103,7 +108,14 @@ class TestStatesDomainAccessors:
         states_instance = States.create(hassette, hassette)
         sensors = states_instance.sensor
 
-        sensor_ids = [eid for eid, _ in sensors]
+        sensor_ids = []
+        for eid, sensor_state in sensors:
+            sensor_ids.append(eid)
+            assert isinstance(sensor_state, states.SensorState), (
+                f"Expected SensorState but got {type(sensor_state).__name__}"
+            )
+            assert type(sensor_state) is not states.BaseState, "Should be SensorState, not bare BaseState"
+
         assert "sensor.temperature" in sensor_ids
         assert "sensor.humidity" in sensor_ids
 
@@ -124,7 +136,14 @@ class TestStatesDomainAccessors:
         states_instance = States.create(hassette, hassette)
         switches = states_instance.switch
 
-        switch_ids = [eid for eid, _ in switches]
+        switch_ids = []
+        for eid, switch_state in switches:
+            switch_ids.append(eid)
+            assert isinstance(switch_state, states.SwitchState), (
+                f"Expected SwitchState but got {type(switch_state).__name__}"
+            )
+            assert type(switch_state) is not states.BaseState, "Should be SwitchState, not bare BaseState"
+
         assert "switch.outlet1" in switch_ids
         assert "switch.outlet2" in switch_ids
 
@@ -145,10 +164,21 @@ class TestStatesDomainAccessors:
 
         states_instance = States.create(hassette, hassette)
 
-        # Each domain accessor should only return its own domain
-        light_ids = [eid for eid, _ in states_instance.light]
-        sensor_ids = [eid for eid, _ in states_instance.sensor]
-        switch_ids = [eid for eid, _ in states_instance.switch]
+        # Each domain accessor should only return its own domain with proper types
+        light_ids = []
+        for eid, light_state in states_instance.light:
+            light_ids.append(eid)
+            assert isinstance(light_state, states.LightState), f"Light domain returned {type(light_state).__name__}"
+
+        sensor_ids = []
+        for eid, sensor_state in states_instance.sensor:
+            sensor_ids.append(eid)
+            assert isinstance(sensor_state, states.SensorState), f"Sensor domain returned {type(sensor_state).__name__}"
+
+        switch_ids = []
+        for eid, switch_state in states_instance.switch:
+            switch_ids.append(eid)
+            assert isinstance(switch_state, states.SwitchState), f"Switch domain returned {type(switch_state).__name__}"
 
         assert "light.test" in light_ids, f"Expected 'light.test' in light_ids: {light_ids}"
         assert "sensor.test" in sensor_ids, f"Expected 'sensor.test' in sensor_ids: {sensor_ids}"
@@ -210,8 +240,13 @@ class TestStatesGenericAccess:
 
         assert isinstance(lights, DomainStates)
 
-        # Should contain light entities
-        light_ids = [eid for eid, _ in lights]
+        # Should contain light entities with proper types
+        light_ids = []
+        for eid, light_state in lights:
+            light_ids.append(eid)
+            assert isinstance(light_state, states.LightState), f"get_states returned {type(light_state).__name__}"
+            assert type(light_state) is not states.BaseState, "Should be LightState, not bare BaseState"
+
         assert "light.test" in light_ids
 
 
@@ -340,8 +375,10 @@ class TestDomainStates:
         result = lights.get("light.test")
 
         assert result is not None
-        assert isinstance(result, states.LightState)
+        assert isinstance(result, states.LightState), f"Expected LightState but got {type(result).__name__}"
+        assert type(result) is not states.BaseState, "Should be LightState, not bare BaseState"
         assert result.entity_id == "light.test"
+        assert hasattr(result.attributes, "brightness"), "LightState should have brightness attribute"
 
     async def test_get_with_wrong_domain_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
         """DomainStates.get() returns None if entity domain doesn't match."""
@@ -378,6 +415,53 @@ class TestDomainStates:
 class TestStatesIntegration:
     """Integration tests combining StateProxyResource and States."""
 
+    async def test_proxy_stores_base_states_accessors_convert(self, hassette_with_state_proxy: "Hassette") -> None:
+        """StateProxyResource stores BaseState, States accessors convert to domain-specific types."""
+        hassette = hassette_with_state_proxy
+        proxy = hassette._state_proxy_resource
+        states_instance = States.create(hassette, hassette)
+
+        # Add various entity types
+        light = make_light_state_dict("light.test", "on", brightness=150)
+        sensor = make_sensor_state_dict("sensor.test", "25.5", unit_of_measurement="°C")
+        switch = make_switch_state_dict("switch.test", "off")
+
+        for entity_id, state_dict in [
+            ("light.test", light),
+            ("sensor.test", sensor),
+            ("switch.test", switch),
+        ]:
+            event = make_state_change_event(entity_id, None, state_dict)
+            await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
+
+        await asyncio.sleep(0.1)
+
+        # Verify proxy stores BaseState (not domain-specific types)
+        light_state_raw = proxy.states.get("light.test")
+        assert light_state_raw is not None
+        assert type(light_state_raw).__name__ == "BaseState", (
+            f"Proxy should store BaseState, got {type(light_state_raw).__name__}"
+        )
+
+        sensor_state_raw = proxy.states.get("sensor.test")
+        assert sensor_state_raw is not None
+        assert type(sensor_state_raw).__name__ == "BaseState", (
+            f"Proxy should store BaseState, got {type(sensor_state_raw).__name__}"
+        )
+
+        # But States accessors should convert to domain-specific types
+        light_state = states_instance.light.get("light.test")
+        assert light_state is not None
+        assert isinstance(light_state, states.LightState), (
+            f"States accessor should return LightState, got {type(light_state).__name__}"
+        )
+
+        sensor_state = states_instance.sensor.get("sensor.test")
+        assert sensor_state is not None
+        assert isinstance(sensor_state, states.SensorState), (
+            f"States accessor should return SensorState, got {type(sensor_state).__name__}"
+        )
+
     async def test_states_reflects_proxy_updates(self, hassette_with_state_proxy: "Hassette") -> None:
         """States accessors reflect live updates from StateProxyResource."""
         hassette = hassette_with_state_proxy
@@ -400,6 +484,10 @@ class TestStatesIntegration:
         # Should be able to retrieve it
         dynamic_light = states_instance.light.get("light.dynamic")
         assert dynamic_light is not None
+        assert isinstance(dynamic_light, states.LightState), (
+            f"Expected LightState but got {type(dynamic_light).__name__}"
+        )
+        assert type(dynamic_light) is not states.BaseState, "Should be LightState, not bare BaseState"
         assert dynamic_light.attributes.brightness == 150
 
     async def test_typed_getter_with_live_updates(self, hassette_with_state_proxy: "Hassette") -> None:
@@ -428,6 +516,37 @@ class TestStatesIntegration:
         updated_state = states_instance.get[states.LightState]("light.test")
         assert updated_state.attributes.brightness == 200
 
+    async def test_all_accessor_returns_base_states(self, hassette_with_state_proxy: "Hassette") -> None:
+        """states.all returns BaseState objects directly from proxy (no conversion)."""
+        hassette = hassette_with_state_proxy
+        states_instance = States.create(hassette, hassette)
+
+        # Add various entity types
+        light = make_light_state_dict("light.test", "on", brightness=180)
+        sensor = make_sensor_state_dict("sensor.test", "42")
+
+        for entity_id, state_dict in [("light.test", light), ("sensor.test", sensor)]:
+            event = make_state_change_event(entity_id, None, state_dict)
+            await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
+
+        await asyncio.sleep(0.1)
+
+        # Get all states - should return BaseState objects from proxy
+        all_states = states_instance.all
+
+        # Verify states.all returns BaseState (not converted)
+        light_state = all_states.get("light.test")
+        if light_state:
+            assert type(light_state).__name__ == "BaseState", (
+                f"states.all should return BaseState, got {type(light_state).__name__}"
+            )
+
+        sensor_state = all_states.get("sensor.test")
+        if sensor_state:
+            assert type(sensor_state).__name__ == "BaseState", (
+                f"states.all should return BaseState, got {type(sensor_state).__name__}"
+            )
+
     async def test_domain_filtering_across_updates(self, hassette_with_state_proxy: "Hassette") -> None:
         """Domain accessors correctly filter across multiple updates."""
         hassette = hassette_with_state_proxy
@@ -448,10 +567,30 @@ class TestStatesIntegration:
 
         await asyncio.sleep(0.1)
 
-        # Each domain should only contain its entities
-        light_ids = {eid for eid, _ in states_instance.light if eid.startswith("light.test_")}
-        sensor_ids = {eid for eid, _ in states_instance.sensor if eid.startswith("sensor.test_")}
-        switch_ids = {eid for eid, _ in states_instance.switch if eid.startswith("switch.test_")}
+        # Each domain should only contain its entities with proper types
+        light_ids = set()
+        for eid, light_state in states_instance.light:
+            if eid.startswith("light.test_"):
+                light_ids.add(eid)
+                assert isinstance(light_state, states.LightState), (
+                    f"Light iteration returned {type(light_state).__name__}"
+                )
+
+        sensor_ids = set()
+        for eid, sensor_state in states_instance.sensor:
+            if eid.startswith("sensor.test_"):
+                sensor_ids.add(eid)
+                assert isinstance(sensor_state, states.SensorState), (
+                    f"Sensor iteration returned {type(sensor_state).__name__}"
+                )
+
+        switch_ids = set()
+        for eid, switch_state in states_instance.switch:
+            if eid.startswith("switch.test_"):
+                switch_ids.add(eid)
+                assert isinstance(switch_state, states.SwitchState), (
+                    f"Switch iteration returned {type(switch_state).__name__}"
+                )
 
         assert "light.test_1" in light_ids
         assert "light.test_2" in light_ids
