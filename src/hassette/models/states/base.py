@@ -1,4 +1,3 @@
-from copy import deepcopy
 from inspect import get_annotations
 from logging import getLogger
 from typing import Any, Generic, TypeVar, get_args
@@ -142,7 +141,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
     attributes: AttributesBase = Field(...)
     """The attributes of the state."""
 
-    raw_data: dict[str, Any] = Field(default_factory=dict, repr=False)
+    raw_data: dict[str, Any] = Field(..., repr=False)
     """The raw state dict as received from Home Assistant."""
 
     @property
@@ -192,7 +191,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
             values["is_unavailable"] = True
             values["state"] = None
 
-        values["raw_data"] = deepcopy(values)
+        values["raw_data"] = values.copy()
 
         return values
 
