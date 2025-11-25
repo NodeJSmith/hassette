@@ -88,8 +88,10 @@ class DomainStates(Generic[StateT]):
         for entity_id, state in self._states.items():
             try:
                 yield entity_id, self._model.model_validate(state.raw_data)
-            except Exception:
-                LOGGER.error("Error validating state for entity_id '%s' as type %s", entity_id, self._model.__name__)
+            except Exception as e:
+                LOGGER.error(
+                    "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, e
+                )
                 continue
 
     def __len__(self) -> int:
