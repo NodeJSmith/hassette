@@ -286,12 +286,14 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
-    def get_state_value_typed(self, entity_id: str, model: type["BaseState[StateValueT]"]) -> "StateValueT":
+    def get_state_value_typed(
+        self, entity_id: str, model: type["BaseState[StateValueT]"] | None = None
+    ) -> "StateValueT":
         """Get the state of a specific entity as a converted state object.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
+            model: The model type to convert the state to. Deprecated, will be inferred automatically.
 
         Returns:
             The state of the entity converted to the specified model type.
