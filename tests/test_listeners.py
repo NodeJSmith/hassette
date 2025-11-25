@@ -1,12 +1,38 @@
 import asyncio
 import inspect
+import json
+import random
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
+from hassette import dependencies as D
 from hassette.bus.listeners import HandlerAdapter, Listener
-from hassette.events import Event
+from hassette.events import Event, StateChangeEvent, create_event_from_hass
+from hassette.exceptions import InvalidDependencyReturnTypeError
+from hassette.models import states
 from hassette.task_bucket import TaskBucket
+
+
+@pytest.fixture(scope="session")
+def state_change_events(test_data_path: Path) -> list[StateChangeEvent]:
+    """Load state change events from test data file."""
+    events = []
+    with open(test_data_path / "state_change_events.jsonl") as f:
+        for line in f:
+            if line.strip():
+                # Strip trailing comma if present (JSONL files may have them)
+                line = line.strip().rstrip(",")
+                envelope = json.loads(line)
+                event = create_event_from_hass(envelope)
+                if isinstance(event, StateChangeEvent):
+                    events.append(event)
+
+    # randomize order
+    random.shuffle(events)
+
+    return events
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,8 +414,6 @@ class TestDependencyValidationErrors:
         with pytest.raises(CallListenerError) as exc_info:
             await adapter.call(event)
 
-        from hassette.exceptions import InvalidDependencyReturnTypeError
-
         assert isinstance(exc_info.value.__cause__, InvalidDependencyReturnTypeError)
         assert len(calls) == 0  # Handler should not be called
 
@@ -518,3 +542,128 @@ class TestDependencyValidationErrors:
             await adapter.call(event)
 
         assert len(calls) == 0
+
+
+class TestDependencyInjectionHandlesTypeConversion:
+    """Test that dependency injection handles type conversion correctly."""
+
+    async def test_state_conversion(self, bucket_fixture: TaskBucket, state_change_events: list[StateChangeEvent]):
+        """Test that StateNew converts BaseState to domain-specific state type."""
+
+        light_event = next((e for e in state_change_events if e.payload.data.domain == "light"), None)
+
+        assert light_event is not None, "No light domain event found in test data"
+
+        results = []
+
+        def handler(new_state: D.StateNew[states.LightState]):
+            results.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(light_event)
+
+        assert len(results) == 1
+        light_state = results[0]
+        assert isinstance(light_state, states.LightState), "State should be converted to LightState"
+        assert light_state.entity_id.startswith("light."), "Entity ID should have light domain"
+
+    async def test_annotated_as_base_state_stays_base_state(
+        self, bucket_fixture: TaskBucket, state_change_events: list[StateChangeEvent]
+    ):
+        """Test that StateNew[BaseState] returns BaseState without conversion."""
+
+        light_event = next((e for e in state_change_events if e.payload.data.domain == "light"), None)
+
+        assert light_event is not None, "No light domain event found in test data"
+
+        results = []
+
+        def handler(new_state: D.StateNew[states.BaseState]):
+            results.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(light_event)
+
+        assert len(results) == 1
+        state = results[0]
+        assert isinstance(state, states.BaseState), "State should be BaseState"
+        assert state.entity_id.startswith("light."), "Entity ID should have light domain"
+
+    async def test_maybe_state_conversion(
+        self, bucket_fixture: TaskBucket, state_change_events: list[StateChangeEvent]
+    ):
+        """Test that MaybeStateNew converts BaseState to domain-specific state type."""
+
+        sensor_event = next((e for e in state_change_events if e.payload.data.domain == "sensor"), None)
+
+        assert sensor_event is not None, "No sensor domain event found in test data"
+
+        results = []
+
+        def handler(new_state: D.MaybeStateNew[states.SensorState]):
+            results.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(sensor_event)
+
+        assert len(results) == 1
+        sensor_state = results[0]
+        assert isinstance(sensor_state, states.SensorState), "State should be converted to SensorState"
+        assert sensor_state.entity_id.startswith("sensor."), "Entity ID should have sensor domain"
+
+    async def test_maybe_state_as_base_state_stays_base_state(
+        self, bucket_fixture: TaskBucket, state_change_events: list[StateChangeEvent]
+    ):
+        """Test that MaybeStateNew[BaseState] returns BaseState without conversion."""
+
+        sensor_event = next((e for e in state_change_events if e.payload.data.domain == "sensor"), None)
+
+        assert sensor_event is not None, "No sensor domain event found in test data"
+
+        results = []
+
+        def handler(new_state: D.MaybeStateNew[states.BaseState]):
+            results.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(sensor_event)
+
+        assert len(results) == 1
+        state = results[0]
+        assert isinstance(state, states.BaseState), "State should be BaseState"
+        assert state.entity_id.startswith("sensor."), "Entity ID should have sensor domain"
+
+    async def test_old_state_new_state_converted_correctly(
+        self, bucket_fixture: TaskBucket, state_change_events: list[StateChangeEvent]
+    ):
+        """Test that both old and new states are converted correctly."""
+
+        climate_event = next((e for e in state_change_events if e.payload.data.domain == "climate"), None)
+
+        assert climate_event is not None, "No climate domain event found in test data"
+
+        results = []
+
+        def handler(
+            new_state: D.StateNew[states.ClimateState],
+            old_state: D.MaybeStateOld[states.ClimateState],
+        ):
+            results.append((new_state, old_state))
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(climate_event)
+
+        assert len(results) == 1
+        new_state, old_state = results[0]
+        assert isinstance(new_state, states.ClimateState), "New state should be ClimateState"
+        assert isinstance(old_state, states.ClimateState), "Old state should be ClimateState"
