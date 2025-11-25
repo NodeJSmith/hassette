@@ -26,7 +26,6 @@ if typing.TYPE_CHECKING:
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")  # debug
 
 PS = ParamSpec("PS")
 RT = TypeVar("RT")
