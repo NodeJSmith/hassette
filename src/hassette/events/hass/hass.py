@@ -1,6 +1,5 @@
 import logging
 import typing
-from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, Self, TypeGuard
 
@@ -161,9 +160,8 @@ class StateChangePayload(Generic[StateT]):
         if entity_id is None:
             raise ValueError("State change event data must contain 'entity_id' key")
 
-        # use deepcopy to avoid mutating the original data
-        old_state_obj = BaseState.model_validate(deepcopy(old_state)) if old_state else None
-        new_state_obj = BaseState.model_validate(deepcopy(new_state)) if new_state else None
+        old_state_obj = BaseState.model_validate(old_state) if old_state else None
+        new_state_obj = BaseState.model_validate(new_state) if new_state else None
 
         return cls(entity_id=entity_id, old_state=old_state_obj, new_state=new_state_obj)  # pyright: ignore[reportArgumentType]
 
