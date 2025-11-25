@@ -33,7 +33,7 @@ Example:
 
 import typing
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import hassette.exceptions as exc
 
@@ -222,10 +222,10 @@ def try_convert_state(data: None) -> None: ...
 
 
 @typing.overload
-def try_convert_state(data: "HassStateDict") -> "BaseState": ...
+def try_convert_state(data: "HassStateDict | BaseState") -> "BaseState": ...
 
 
-def try_convert_state(data: "HassStateDict | None") -> "BaseState | None":
+def try_convert_state(data: "HassStateDict | BaseState | None") -> "BaseState | None":
     """Convert a dictionary representation of a state into a specific state type.
 
     This function uses the state registry to look up the appropriate state class
@@ -252,6 +252,9 @@ def try_convert_state(data: "HassStateDict | None") -> "BaseState | None":
 
     if data is None:
         return None
+
+    if isinstance(data, BaseState):
+        data = cast("HassStateDict", data.raw_data)
 
     if "event" in data:
         LOGGER.error(
@@ -295,7 +298,9 @@ def try_convert_state(data: "HassStateDict | None") -> "BaseState | None":
     return _conversion_with_error_handling(BaseState, data)
 
 
-def _conversion_with_error_handling(state_class: type["BaseState"], data: "HassStateDict") -> "BaseState | None":
+def _conversion_with_error_handling(
+    state_class: type["BaseState"], data: "HassStateDict | BaseState"
+) -> "BaseState | None":
     """Helper to convert state data with error handling.
 
     This function attempts to convert the given data dictionary into an instance
@@ -309,9 +314,13 @@ def _conversion_with_error_handling(state_class: type["BaseState"], data: "HassS
     Returns:
         An instance of the state class, or None if conversion failed.
     """
+    from hassette.models.states.base import BaseState
+
+    if isinstance(data, BaseState):
+        data = cast("HassStateDict", data.raw_data)
+
     class_name = state_class.__name__
 
-    # Fall back to generic BaseState
     try:
         return state_class.model_validate(data)
     except (TypeError, ValueError) as e:
