@@ -35,6 +35,32 @@ def state_change_events(test_data_path: Path) -> list[StateChangeEvent]:
     return events
 
 
+@pytest.fixture(scope="session")
+def state_change_events_with_new_state(
+    state_change_events: list[StateChangeEvent],
+) -> list[StateChangeEvent]:
+    """Filter state change events to only those with a new state."""
+    return [e for e in state_change_events if e.payload.data.new_state is not None]
+
+
+@pytest.fixture(scope="session")
+def state_change_events_with_old_state(
+    state_change_events: list[StateChangeEvent],
+) -> list[StateChangeEvent]:
+    """Filter state change events to only those with an old state."""
+    return [e for e in state_change_events if e.payload.data.old_state is not None]
+
+
+@pytest.fixture
+def state_change_events_with_both_states(
+    state_change_events: list[StateChangeEvent],
+) -> list[StateChangeEvent]:
+    """Filter state change events to only those with both old and new states."""
+    return [
+        e for e in state_change_events if e.payload.data.old_state is not None and e.payload.data.new_state is not None
+    ]
+
+
 @dataclass(frozen=True, slots=True)
 class MockEvent(Event[str]):
     """Mock event for testing."""
@@ -641,29 +667,66 @@ class TestDependencyInjectionHandlesTypeConversion:
         assert isinstance(state, states.BaseState), "State should be BaseState"
         assert state.entity_id.startswith("sensor."), "Entity ID should have sensor domain"
 
+    @pytest.mark.parametrize(
+        "event_fixture_name",
+        [
+            "state_change_events_with_new_state",
+            "state_change_events_with_old_state",
+            "state_change_events_with_both_states",
+        ],
+        ids=[
+            "new_state_only",
+            "old_state_only",
+            "new_and_old_state",
+        ],
+    )
     async def test_old_state_new_state_converted_correctly(
-        self, bucket_fixture: TaskBucket, state_change_events: list[StateChangeEvent]
+        self, bucket_fixture: TaskBucket, event_fixture_name: str, request: pytest.FixtureRequest
     ):
         """Test that both old and new states are converted correctly."""
+        state_change_events = request.getfixturevalue(event_fixture_name)
 
-        climate_event = next((e for e in state_change_events if e.payload.data.domain == "climate"), None)
+        input_button_event = next((e for e in state_change_events if e.payload.data.domain == "input_button"), None)
 
-        assert climate_event is not None, "No climate domain event found in test data"
+        assert input_button_event is not None, "No InputButtonState domain event found in test data"
 
         results = []
 
-        def handler(
-            new_state: D.StateNew[states.ClimateState],
-            old_state: D.MaybeStateOld[states.ClimateState],
+        def handler_new_maybe_old(
+            new_state: D.StateNew[states.InputButtonState],
+            old_state: D.MaybeStateOld[states.InputButtonState],
         ):
             results.append((new_state, old_state))
+
+        def handle_new_and_old(
+            new_state: D.StateNew[states.InputButtonState],
+            old_state: D.StateOld[states.InputButtonState],
+        ):
+            results.append((new_state, old_state))
+
+        def handle_maybe_new_and_old(
+            new_state: D.MaybeStateNew[states.InputButtonState],
+            old_state: D.StateOld[states.InputButtonState],
+        ):
+            results.append((new_state, old_state))
+
+        if event_fixture_name == "state_change_events_with_new_state":
+            handler = handler_new_maybe_old
+        elif event_fixture_name == "state_change_events_with_old_state":
+            handler = handle_maybe_new_and_old
+        else:
+            handler = handle_new_and_old
 
         async_handler = bucket_fixture.make_async_adapter(handler)
         adapter = create_adapter(async_handler, bucket_fixture)
 
-        await adapter.call(climate_event)
+        await adapter.call(input_button_event)
 
         assert len(results) == 1
         new_state, old_state = results[0]
-        assert isinstance(new_state, states.ClimateState), "New state should be ClimateState"
-        assert isinstance(old_state, states.ClimateState), "Old state should be ClimateState"
+
+        if event_fixture_name in ["state_change_events_with_new_state", "state_change_events_with_both_states"]:
+            assert isinstance(new_state, states.InputButtonState), "New state should be InputButtonState"
+
+        if event_fixture_name in ["state_change_events_with_old_state", "state_change_events_with_both_states"]:
+            assert isinstance(old_state, states.InputButtonState), "Old state should be InputButtonState"

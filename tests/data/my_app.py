@@ -41,7 +41,7 @@ class MyApp(App[MyAppUserConfig]):
 
     async def test_stuff(self) -> None:
         if self.office_light_exists:
-            self.light_state = await self.api.get_state("light.office", model=LightState)
+            self.light_state: LightState = await self.api.get_state("light.office")
             self.light_entity = await self.api.get_entity("light.office", model=LightEntity)
         elif self.test_button_exists:
             self.button_state = await self.api.get_state("input_button.test", model=InputButtonState)

@@ -14,6 +14,7 @@ from hassette.exceptions import CallListenerError
 from hassette.models.states import BaseState
 from hassette.utils.exception_utils import get_short_traceback
 from hassette.utils.func_utils import callable_name, callable_short_name
+from hassette.utils.type_utils import get_optional_type_arg, is_optional_type
 
 from .utils import extract_with_error_handling, normalize_where, warn_or_raise_on_incorrect_type
 
@@ -190,6 +191,14 @@ class HandlerAdapter:
                 LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", param_name)
 
             extracted_value = extract_with_error_handling(event, extractor, param_name, param_type, self.handler_name)
+
+            if is_optional_type(param_type) and extracted_value is None:
+                kwargs[param_name] = None
+                continue
+
+            if is_optional_type(param_type):
+                # unwrap Optional[...] to get the actual type
+                param_type = get_optional_type_arg(param_type)
 
             if (
                 isinstance(extracted_value, BaseState)

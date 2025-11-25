@@ -1,6 +1,6 @@
 import typing
 from enum import StrEnum
-from typing import Any
+from typing import Any, overload
 
 from aiohttp.client_reqrep import ClientResponse
 from whenever import Date, PlainDateTime, ZonedDateTime
@@ -13,7 +13,7 @@ from hassette.resources.base import Resource
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
-    from hassette.models.states.base import BaseState, StateT, StateValueT
+    from hassette.models.states.base import BaseState, StateT
 
 
 class ApiSyncFacade(Resource):
@@ -263,7 +263,13 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_entity_or_none(entity_id, model))
 
-    def get_state(self, entity_id: str, model: type["StateT"] | None = None) -> "BaseState":
+    @overload
+    def get_state(self, entity_id: str) -> "BaseState": ...
+
+    @overload
+    def get_state(self, entity_id: str, model: type["StateT"]) -> "StateT": ...
+
+    def get_state(self, entity_id: str, model: type["StateT"] | None = None) -> "StateT | BaseState":
         """Get the state of a specific entity.
 
         Args:
@@ -273,6 +279,10 @@ class ApiSyncFacade(Resource):
         Returns:
             The state of the entity converted to the specified model type.
         """
+
+        if model is None:
+            return self.task_bucket.run_sync(self._api.get_state(entity_id))
+
         return self.task_bucket.run_sync(self._api.get_state(entity_id, model))
 
     def get_state_value(self, entity_id: str) -> str:
@@ -286,22 +296,34 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
-    def get_state_value_typed(
-        self, entity_id: str, model: type["BaseState[StateValueT]"] | None = None
-    ) -> "StateValueT":
-        """Get the state of a specific entity as a converted state object.
+    def get_state_value_typed(self, entity_id: str, model: type["StateT"] | None = None) -> "Any":
+        """Get the value of a specific entity's state, converted to the correct type for that state.
+
+        The return type here is Any due to the dynamic nature of this conversion, but the return type
+        at runtime will match the type defined in the provided model (or the inferred model if none is provided).
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to. Deprecated, will be inferred automatically.
+            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
 
         Raises:
             TypeError: If the model is not a valid StateType subclass.
-        """
 
+        Example:
+            ```python
+            date: ZonedDateTime = await self.api.get_state_value_typed("input_datetime.test", states.InputDateTimeState)
+            ```
+
+        Warning:
+            For states like `SensorState` the value type in Hassette is `str`, even if the sensor represents a number,
+            as we cannot be sure of the actual type without additional context. For these cases, you are responsible
+            for converting the string to the desired type.
+        """
+        if model is None:
+            return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id))
         return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id, model))
 
     def get_attribute(self, entity_id: str, attribute: str) -> Any | None:

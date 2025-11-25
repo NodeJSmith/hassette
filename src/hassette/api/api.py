@@ -157,19 +157,21 @@ Examples:
 
 import typing
 from enum import StrEnum
+from inspect import isclass
 from typing import Any, Literal, overload
-from warnings import warn
 
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.bus.accessors import get_path
+from hassette.const.misc import MISSING_VALUE
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
-from hassette.state_registry import try_convert_state
+from hassette.state_registry import get_registry, try_convert_state
 
 from .sync import ApiSyncFacade
 
@@ -178,7 +180,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.api_resource import ApiResource
     from hassette.events import HassStateDict
     from hassette.models.entities import EntityT
-    from hassette.models.states import StateT, StateValueT
+    from hassette.models.states import StateT
 
 
 class Api(Resource):
@@ -516,34 +518,38 @@ class Api(Resource):
                 return None
             raise
 
-    async def get_state(self, entity_id: str, model: type["StateT"] | None = None) -> "BaseState":
+    @overload
+    async def get_state(self, entity_id: str) -> BaseState: ...
+
+    @overload
+    async def get_state(self, entity_id: str, model: type["StateT"]) -> "StateT": ...
+
+    async def get_state(self, entity_id: str, model: type["StateT"] | None = None) -> "StateT | BaseState":
         """Get the state of a specific entity.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to. Deprecated, will be inferred automatically.
+            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
         """
-        if model is not None:
-            warn(
-                "The 'model' parameter is deprecated and will be removed in a future release. "
-                "The state type will be inferred automatically based on the entity's domain.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+        if model is None:
+            domain = entity_id.split(".")[0]
+            state_class = get_registry().get_class_for_domain(domain)
+            if not state_class:
+                raise TypeError(f"No registered state class for domain '{domain}'")
+        else:
+            state_class = model
 
-        from hassette.state_registry import get_registry
-
-        domain = entity_id.split(".")[0]
-        state_class = get_registry().get_class_for_domain(domain) or BaseState
+        if not isclass(state_class) or not issubclass(state_class, BaseState):
+            raise TypeError(f"Model {state_class!r} is not a valid BaseState subclass")
 
         raw = await self.get_state_raw(entity_id)
 
         return state_class.model_validate(raw)
 
-    async def get_state_value(self, entity_id: str) -> str:
+    async def get_state_value(self, entity_id: str) -> Any:
         """Get the state of a specific entity without converting it to a state object.
 
         Args:
@@ -560,23 +566,17 @@ class Api(Resource):
 
         entity = await self.get_state_raw(entity_id)
         state = entity.get("state")
-        if not isinstance(state, str):
-            self.logger.info(
-                "Entity %s state is not a string (%s), return type annotation should be updated",
-                entity_id,
-                type(state).__name__,
-            )
+        return state
 
-        return state  # pyright: ignore[reportReturnType]
+    async def get_state_value_typed(self, entity_id: str, model: type["StateT"] | None = None) -> "Any":
+        """Get the value of a specific entity's state, converted to the correct type for that state.
 
-    async def get_state_value_typed(
-        self, entity_id: str, model: type["BaseState[StateValueT]"] | None = None
-    ) -> "StateValueT":
-        """Get the state of a specific entity as a converted state object.
+        The return type here is Any due to the dynamic nature of this conversion, but the return type
+        at runtime will match the type defined in the provided model (or the inferred model if none is provided).
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to. Deprecated, will be inferred automatically.
+            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
@@ -584,12 +584,21 @@ class Api(Resource):
         Raises:
             TypeError: If the model is not a valid StateType subclass.
 
-        Note:
-            Instead of the default way of calling `get_state` involving a type, we assume that the
-            average user only needs the raw value of the state value, without type safety.
-        """
+        Example:
+            ```python
+            date: ZonedDateTime = await self.api.get_state_value_typed("input_datetime.test", states.InputDateTimeState)
+            ```
 
-        state = await self.get_state(entity_id, model)
+        Warning:
+            For states like `SensorState` the value type in Hassette is `str`, even if the sensor represents a number,
+            as we cannot be sure of the actual type without additional context. For these cases, you are responsible
+            for converting the string to the desired type.
+        """
+        if model is None:
+            state = await self.get_state(entity_id)
+        else:
+            state = await self.get_state(entity_id, model)
+
         return state.value
 
     async def get_attribute(self, entity_id: str, attribute: str) -> Any | None:
@@ -597,14 +606,17 @@ class Api(Resource):
 
         Args:
             entity_id: The ID of the entity to get the attribute for.
-            attribute: The name of the attribute to retrieve.
+            attribute: The name of the attribute to retrieve. Can be a dot-separated path for nested attributes.
 
         Returns:
             The value of the specified attribute, or None if it does not exist.
         """
 
-        entity = await self.get_state_raw(entity_id)
-        return (entity.get("attributes", {}) or {}).get(attribute)
+        entity = await self.get_state(entity_id)
+        value = get_path(attribute)(entity.attributes)
+        if value is MISSING_VALUE:
+            return None
+        return value
 
     async def get_history(
         self,
@@ -718,7 +730,7 @@ class Api(Resource):
     async def set_state(
         self,
         entity_id: str | StrEnum,
-        state: str,
+        state: Any,
         attributes: dict[str, Any] | None = None,
     ) -> dict:
         """Set the state of a specific entity.

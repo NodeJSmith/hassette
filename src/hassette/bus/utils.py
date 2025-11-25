@@ -1,18 +1,16 @@
-import itertools
 import logging
 import typing
 from collections.abc import Callable, Mapping, Sequence
-from contextlib import suppress
 from functools import lru_cache
 from inspect import isawaitable, iscoroutinefunction
-from types import UnionType
-from typing import Any, TypeAliasType, TypeGuard, Union, get_args, get_origin
+from typing import Any, TypeGuard
 
 from boltons.iterutils import is_collection
 
 from hassette.const import NOT_PROVIDED
 from hassette.exceptions import CallListenerError, InvalidDependencyReturnTypeError, UnableToExtractParameterError
 from hassette.utils.exception_utils import get_short_traceback
+from hassette.utils.type_utils import get_optional_type_arg, is_optional_type, normalize_for_isinstance
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -35,56 +33,6 @@ def get_raise_on_incorrect_type():
         raise RuntimeError("HassetteConfig instance not initialized yet.")
 
     return config.raise_on_incorrect_dependency_type
-
-
-@lru_cache(maxsize=128)
-def normalize_for_isinstance(tp: type | UnionType | TypeAliasType) -> tuple[type, ...] | type:
-    """Normalize a type annotation for use with isinstance().
-
-    Args:
-        tp: The type annotation to normalize.
-
-    Returns:
-        A normalized type or tuple of types suitable for isinstance() checks.
-    """
-
-    # exit early if we already have a type that works with isinstance()
-    with suppress(TypeError):
-        isinstance(str, tp)  # type: ignore
-        return tp  # pyright: ignore[reportReturnType]
-
-    # Handle PEP 604 unions: A | B | C
-    if isinstance(tp, UnionType):
-        # returns a tuple of the component types
-        value = tuple(normalize_for_isinstance(arg) for arg in tp.__args__)
-        value = itertools.chain.from_iterable(arg if isinstance(arg, tuple) else (arg,) for arg in value)
-        return tuple(value)
-
-    origin = get_origin(tp)
-
-    # Handle typing.Union[A, B, C]
-    if origin is Union:
-        args = get_args(tp)
-        value = tuple(normalize_for_isinstance(arg) for arg in args)
-        value = itertools.chain.from_iterable(arg if isinstance(arg, tuple) else (arg,) for arg in value)
-        return tuple(value)
-
-    # if we've hit this point we are no longer dealing with a Union
-    if typing.TYPE_CHECKING:
-        assert not isinstance(tp, UnionType)
-
-    # Handle type aliases like `TypeAliasType` (3.13's `type` statement)
-    # They usually have a `.__value__` that holds the real type.
-    value = getattr(tp, "__value__", None)
-    if value is not None:
-        return normalize_for_isinstance(value)
-
-    # at this point we should no longer be dealing with a TypeAliasType
-    if typing.TYPE_CHECKING:
-        assert not isinstance(tp, TypeAliasType)
-
-    # Base case: assume it's already a real type or tuple of types
-    return tp
 
 
 def extract_with_error_handling(
@@ -153,6 +101,12 @@ def warn_or_raise_on_incorrect_type(param_name: str, param_type: type, param_val
     """
 
     msg_template = "Handler %s - parameter '%s' is not of expected type %s (got %s)"
+
+    if is_optional_type(param_type) and param_value is None:
+        return
+
+    if is_optional_type(param_type):
+        param_type = get_optional_type_arg(param_type)
 
     try:
         norm_type = normalize_for_isinstance(param_type)

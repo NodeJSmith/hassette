@@ -178,6 +178,8 @@ class BaseState(BaseModel, Generic[StateValueT]):
             LOGGER.warning("Expected values to be a dict, got %s", type(values).__name__, stacklevel=2)
             return values
 
+        values["raw_data"] = values.copy()
+
         entity_id = values.get("entity_id")
         if entity_id:
             domain = entity_id.split(".")[0]
@@ -190,8 +192,6 @@ class BaseState(BaseModel, Generic[StateValueT]):
         elif state == "unavailable":
             values["is_unavailable"] = True
             values["state"] = None
-
-        values["raw_data"] = values.copy()
 
         return values
 
