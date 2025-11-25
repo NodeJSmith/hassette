@@ -145,6 +145,11 @@ class StateChangePayload(Generic[StateT]):
         """Check if the old state is not None - not a TypeGuard."""
         return self.old_state is not None
 
+    @property
+    def domain(self) -> str:
+        """Extract the domain from the entity_id."""
+        return self.entity_id.split(".", 1)[0]
+
     def has_state(self, state: StateT | None) -> TypeGuard[StateT]:
         """A TypeGuard method to check if a state is not None."""
         return state is not None
