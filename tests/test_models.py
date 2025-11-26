@@ -5,9 +5,9 @@ from typing import cast
 
 import pytest
 
+from hassette.core.state_registry import StateRegistry
 from hassette.models import states
 from hassette.models.states import base
-from hassette.state_registry import get_registry
 
 EXCLUDE_CLASSES = [
     base.BaseState,
@@ -48,8 +48,8 @@ def all_models():
 
 def test_all_domains_registered(all_models: dict[str, type[states.BaseState]]):
     """Test that all state models are registered in the state registry."""
-    registry = get_registry()
-    registered_domains = registry.all_domains()
+
+    registered_domains = StateRegistry.all_domains()
     missing_domains = []
 
     for model_cls in all_models.values():
@@ -80,8 +80,8 @@ def test_all_domains_registered(all_models: dict[str, type[states.BaseState]]):
 
 def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
     """Test that all state models are included in the state registry."""
-    registry = get_registry()
-    registered_classes = registry.all_classes()
+
+    registered_classes = StateRegistry.all_classes()
     missing_classes = []
 
     for model_cls in all_models.values():
@@ -106,7 +106,6 @@ def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
 
 def test_registry_can_convert_all_domains(all_models: dict[str, type[states.BaseState]]):
     """Test that the registry can look up classes for all known domains."""
-    registry = get_registry()
 
     for model_cls in all_models.values():
         model_cls = cast("type[states.BaseState]", model_cls)
@@ -116,7 +115,7 @@ def test_registry_can_convert_all_domains(all_models: dict[str, type[states.Base
             continue
 
         domain = model_cls.get_domain()
-        retrieved_class = registry.get_class_for_domain(domain)
+        retrieved_class = StateRegistry.get_class_for_domain(domain)
 
         assert retrieved_class is model_cls, (
             f"Registry returned {retrieved_class} for domain '{domain}', expected {model_cls}"

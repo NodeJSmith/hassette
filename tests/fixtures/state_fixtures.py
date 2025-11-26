@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from whenever import ZonedDateTime
 
-from hassette.events import StateChangeEvent, create_event_from_hass
+from hassette.events import RawStateChangeEvent, create_event_from_hass
 
 if TYPE_CHECKING:
     from hassette.events import HassEventEnvelopeDict
@@ -131,7 +131,7 @@ def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", 
 
 def make_state_change_event(
     entity_id: str, old_state: dict[str, Any] | None, new_state: dict[str, Any] | None
-) -> StateChangeEvent:
+) -> RawStateChangeEvent:
     """Factory for creating state change events.
 
     Args:
@@ -140,7 +140,7 @@ def make_state_change_event(
         new_state: New state dictionary (None for removed entity)
 
     Returns:
-        StateChangeEvent instance
+        RawStateChangeEvent instance
     """
     envelope: HassEventEnvelopeDict = {
         "id": 1,
@@ -158,5 +158,5 @@ def make_state_change_event(
         },
     }
     event = create_event_from_hass(envelope)
-    assert isinstance(event, StateChangeEvent)
+    assert isinstance(event, RawStateChangeEvent)
     return event

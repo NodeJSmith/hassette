@@ -19,6 +19,7 @@ from hassette.bus.predicates import (
     StateDidChange,
 )
 from hassette.events.base import Event
+from hassette.test_utils.helpers import create_call_service_event, create_state_change_event
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -29,46 +30,6 @@ if typing.TYPE_CHECKING:
 def bus_instance(hassette_with_bus: "Hassette") -> "Bus":
     """Return the Bus resource for the running Hassette harness."""
     return hassette_with_bus._bus
-
-
-class _Attrs:
-    def __init__(self, values: dict[str, typing.Any]):
-        self._values = values
-
-    def model_dump(self) -> dict[str, typing.Any]:
-        return self._values
-
-
-def _state_change_event(
-    *,
-    entity_id: str,
-    old_value: typing.Any,
-    new_value: typing.Any,
-    old_attrs: dict[str, typing.Any] | None = None,
-    new_attrs: dict[str, typing.Any] | None = None,
-    topic: str = "hass.event.state_changed",
-) -> typing.Any:
-    data = SimpleNamespace(
-        entity_id=entity_id,
-        old_state_value=old_value,
-        new_state_value=new_value,
-        old_state=SimpleNamespace(attributes=_Attrs(old_attrs or {})),
-        new_state=SimpleNamespace(attributes=_Attrs(new_attrs or {})),
-    )
-    payload = SimpleNamespace(data=data)
-    return SimpleNamespace(topic=topic, payload=payload)
-
-
-def _call_service_event(
-    *,
-    domain: str,
-    service: str,
-    service_data: dict[str, typing.Any] | None = None,
-    topic: str = "hass.event.call_service",
-) -> typing.Any:
-    data = SimpleNamespace(domain=domain, service=service, service_data=service_data or {})
-    payload = SimpleNamespace(data=data)
-    return SimpleNamespace(topic=topic, payload=payload)
 
 
 @pytest.mark.parametrize(("debounce", "throttle"), [(0.1, None), (None, 0.1), (None, None)])
@@ -140,7 +101,7 @@ async def test_on_state_change_builds_predicates(bus_instance: "Bus") -> None:
     assert any(isinstance(pred, StateDidChange) for pred in preds)
     assert extra_guard in preds
 
-    matching_event = _state_change_event(
+    matching_event = create_state_change_event(
         entity_id="sensor.kitchen",
         old_value="off",
         new_value="on",
@@ -148,7 +109,7 @@ async def test_on_state_change_builds_predicates(bus_instance: "Bus") -> None:
     )
     assert listener.predicate(matching_event) is True
 
-    non_matching_event = _state_change_event(
+    non_matching_event = create_state_change_event(
         entity_id="sensor.kitchen",
         old_value="off",
         new_value="off",
@@ -178,7 +139,7 @@ async def test_on_attribute_change_targets_attribute(bus_instance: "Bus") -> Non
     attr_pred = attr_predicates[0]
     assert attr_pred.attr_name == "brightness"
 
-    matching_event = _state_change_event(
+    matching_event = create_state_change_event(
         entity_id="light.office",
         old_value=0,
         new_value=0,
@@ -187,7 +148,7 @@ async def test_on_attribute_change_targets_attribute(bus_instance: "Bus") -> Non
     )
     assert listener.predicate(matching_event) is True
 
-    non_matching_event = _state_change_event(
+    non_matching_event = create_state_change_event(
         entity_id="light.office",
         old_value=0,
         new_value=0,
@@ -216,21 +177,21 @@ async def test_on_call_service_handles_mapping_predicates(bus_instance: "Bus") -
 
     assert any(isinstance(pred, ServiceDataWhere) for pred in listener.predicate.predicates)
 
-    matching_event = _call_service_event(
+    matching_event = create_call_service_event(
         domain="light",
         service="turn_on",
         service_data={"entity_id": ["light.kitchen"], "brightness": 255},
     )
     assert listener.predicate(matching_event) is True
 
-    wrong_entity_event = _call_service_event(
+    wrong_entity_event = create_call_service_event(
         domain="light",
         service="turn_on",
         service_data={"entity_id": ["light.other"], "brightness": 255},
     )
     assert listener.predicate(wrong_entity_event) is False
 
-    wrong_service_event = _call_service_event(
+    wrong_service_event = create_call_service_event(
         domain="light",
         service="turn_off",
         service_data={"entity_id": ["light.kitchen"], "brightness": 255},

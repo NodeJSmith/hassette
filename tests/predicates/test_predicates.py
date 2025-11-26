@@ -10,7 +10,7 @@ from hassette import conditions as C
 from hassette import predicates as P
 from hassette.bus.utils import compare_value, ensure_tuple, normalize_where
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
-from hassette.events import CallServiceEvent, Event
+from hassette.test_utils.helpers import create_call_service_event, create_state_change_event
 
 
 class _MockAttrs:
@@ -29,38 +29,6 @@ def always_true(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa
 
 def always_false(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
     return False
-
-
-def _create_state_event(
-    *,
-    entity_id: str,
-    old_value: typing.Any,
-    new_value: typing.Any,
-    old_attrs: dict[str, typing.Any] | None = None,
-    new_attrs: dict[str, typing.Any] | None = None,
-) -> Event:
-    """Create a mock state change event for testing."""
-    data = SimpleNamespace(
-        entity_id=entity_id,
-        domain=entity_id.split(".")[0] if "." in entity_id else None,
-        old_state_value=old_value,
-        new_state_value=new_value,
-        old_state=SimpleNamespace(attributes=_MockAttrs(old_attrs or {})) if old_attrs is not None else None,
-        new_state=SimpleNamespace(attributes=_MockAttrs(new_attrs or {})) if new_attrs is not None else None,
-    )
-    return typing.cast("Event", SimpleNamespace(topic="hass.event.state_changed", payload=SimpleNamespace(data=data)))
-
-
-def _create_service_event(
-    *,
-    domain: str,
-    service: str,
-    service_data: dict[str, typing.Any] | None = None,
-) -> CallServiceEvent:
-    """Create a mock call service event for testing."""
-    data = SimpleNamespace(domain=domain, service=service, service_data=service_data or {})
-    payload = SimpleNamespace(data=data)
-    return typing.cast("CallServiceEvent", SimpleNamespace(topic="hass.event.call_service", payload=payload))
 
 
 # Base predicate tests
@@ -120,7 +88,7 @@ def test_guard_wraps_callable() -> None:
 # ValueIs tests
 def test_value_is_with_literal_condition() -> None:
     """Test ValueIs with literal value conditions."""
-    event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
     # Test old state value
     predicate = P.ValueIs(source=A.get_state_value_old, condition="off")
@@ -136,7 +104,7 @@ def test_value_is_with_literal_condition() -> None:
 
 def test_value_is_with_callable_condition() -> None:
     """Test ValueIs with callable conditions."""
-    event = _create_state_event(entity_id="sensor.temp", old_value=20, new_value=25)
+    event = create_state_change_event(entity_id="sensor.temp", old_value=20, new_value=25)
 
     def gt_twenty(value: int) -> bool:
         return value > 20
@@ -150,7 +118,7 @@ def test_value_is_with_callable_condition() -> None:
 
 def test_value_is_with_not_provided() -> None:
     """Test ValueIs with NOT_PROVIDED (no constraint)."""
-    event = _create_state_event(entity_id="any.entity", old_value="any", new_value="any")
+    event = create_state_change_event(entity_id="any.entity", old_value="any", new_value="any")
 
     predicate = P.ValueIs(source=A.get_state_value_new, condition=NOT_PROVIDED)
     assert predicate(event) is True
@@ -159,7 +127,7 @@ def test_value_is_with_not_provided() -> None:
 # From/To predicates
 def test_state_from_predicate() -> None:
     """Test StateFrom predicate for old state values."""
-    event = _create_state_event(entity_id="light.living", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="light.living", old_value="off", new_value="on")
 
     assert P.StateFrom("off")(event) is True
     assert P.StateFrom("on")(event) is False
@@ -167,7 +135,7 @@ def test_state_from_predicate() -> None:
 
 def test_state_to_predicate() -> None:
     """Test StateTo predicate for new state values."""
-    event = _create_state_event(entity_id="light.living", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="light.living", old_value="off", new_value="on")
 
     assert P.StateTo("on")(event) is True
     assert P.StateTo("off")(event) is False
@@ -175,7 +143,7 @@ def test_state_to_predicate() -> None:
 
 def test_attr_from_predicate() -> None:
     """Test AttrFrom predicate for old attribute values."""
-    event = _create_state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value="on",
         new_value="on",
@@ -189,7 +157,7 @@ def test_attr_from_predicate() -> None:
 
 def test_attr_to_predicate() -> None:
     """Test AttrTo predicate for new attribute values."""
-    event = _create_state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value="on",
         new_value="on",
@@ -205,19 +173,19 @@ def test_attr_to_predicate() -> None:
 def test_state_did_change() -> None:
     """Test StateDidChange predicate detects state transitions."""
     # State changed
-    event = _create_state_event(entity_id="sensor.temp", old_value=20, new_value=25)
+    event = create_state_change_event(entity_id="sensor.temp", old_value=20, new_value=25)
     predicate = P.StateDidChange()
     assert predicate(event) is True
 
     # State unchanged
-    event = _create_state_event(entity_id="sensor.temp", old_value=20, new_value=20)
+    event = create_state_change_event(entity_id="sensor.temp", old_value=20, new_value=20)
     assert predicate(event) is False
 
 
 def test_attr_did_change() -> None:
     """Test AttrDidChange predicate detects attribute changes."""
     # Attribute changed
-    event = _create_state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value="on",
         new_value="on",
@@ -228,7 +196,7 @@ def test_attr_did_change() -> None:
     assert predicate(event) is True
 
     # Attribute unchanged
-    event = _create_state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value="on",
         new_value="on",
@@ -241,7 +209,7 @@ def test_attr_did_change() -> None:
 # Entity/Domain matching predicates
 def test_entity_matches() -> None:
     """Test EntityMatches predicate with literal and glob patterns."""
-    event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
     # Exact match
     predicate = P.EntityMatches("light.kitchen")
@@ -261,7 +229,7 @@ def test_entity_matches() -> None:
 
 def test_domain_matches() -> None:
     """Test DomainMatches predicate with literal and glob patterns."""
-    event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
     # Exact match
     predicate = P.DomainMatches("light")
@@ -274,7 +242,7 @@ def test_domain_matches() -> None:
 
 def test_service_matches() -> None:
     """Test ServiceMatches predicate."""
-    event = _create_service_event(domain="light", service="turn_on")
+    event = create_call_service_event(domain="light", service="turn_on")
 
     # Exact match
     predicate = P.ServiceMatches("turn_on")
@@ -292,7 +260,7 @@ def test_service_matches() -> None:
 # ServiceDataWhere tests
 def test_service_data_where_exact_match() -> None:
     """Test ServiceDataWhere with exact value matching."""
-    event = _create_service_event(
+    event = create_call_service_event(
         domain="light", service="turn_on", service_data={"entity_id": "light.kitchen", "brightness": 255}
     )
 
@@ -305,7 +273,7 @@ def test_service_data_where_exact_match() -> None:
 
 def test_service_data_where_with_callable() -> None:
     """Test ServiceDataWhere with callable conditions."""
-    event = _create_service_event(domain="light", service="turn_on", service_data={"brightness": 255})
+    event = create_call_service_event(domain="light", service="turn_on", service_data={"brightness": 255})
 
     def brightness_gt_200(value: int) -> bool:
         return value > 200
@@ -316,7 +284,7 @@ def test_service_data_where_with_callable() -> None:
 
 def test_service_data_where_with_not_provided() -> None:
     """Test ServiceDataWhere requiring key presence with ANY_VALUE."""
-    event = _create_service_event(domain="light", service="turn_on", service_data={"entity_id": "light.kitchen"})
+    event = create_call_service_event(domain="light", service="turn_on", service_data={"entity_id": "light.kitchen"})
 
     # Key exists
     predicate = P.ServiceDataWhere({"entity_id": ANY_VALUE})
@@ -329,7 +297,7 @@ def test_service_data_where_with_not_provided() -> None:
 
 def test_service_data_where_with_globs() -> None:
     """Test ServiceDataWhere with automatic glob pattern handling."""
-    event = _create_service_event(domain="light", service="turn_on", service_data={"entity_id": "light.kitchen"})
+    event = create_call_service_event(domain="light", service="turn_on", service_data={"entity_id": "light.kitchen"})
 
     predicate = P.ServiceDataWhere({"entity_id": "light.*"})
     assert predicate(event) is True
@@ -488,21 +456,21 @@ def test_normalize_where_handling() -> None:
 # Accessor tests
 def test_get_entity_id_accessor() -> None:
     """Test get_entity_id accessor function."""
-    event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
     assert A.get_entity_id(event) == "light.kitchen"
 
 
 def test_get_domain_accessor() -> None:
     """Test get_domain accessor function."""
-    event = _create_state_event(entity_id="light.kitchen", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on")
 
     assert A.get_domain(event) == "light"
 
 
 def test_get_state_value_accessors() -> None:
     """Test state value accessor functions."""
-    event = _create_state_event(entity_id="sensor.temp", old_value=20, new_value=25)
+    event = create_state_change_event(entity_id="sensor.temp", old_value=20, new_value=25)
 
     assert A.get_state_value_old(event) == 20
     assert A.get_state_value_new(event) == 25
@@ -510,7 +478,7 @@ def test_get_state_value_accessors() -> None:
 
 def test_get_attr_accessors() -> None:
     """Test attribute accessor functions."""
-    event = _create_state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value="on",
         new_value="on",
@@ -530,7 +498,7 @@ def test_get_attr_accessors() -> None:
 
 def test_get_service_data_key_accessor() -> None:
     """Test get_service_data_key accessor function."""
-    event = _create_service_event(
+    event = create_call_service_event(
         domain="light", service="turn_on", service_data={"entity_id": "light.kitchen", "brightness": 255}
     )
 

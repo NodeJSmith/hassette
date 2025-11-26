@@ -3,7 +3,7 @@ from typing import Annotated
 
 from hassette import App, AppConfig
 from hassette import dependencies as D
-from hassette.events import StateChangeEvent
+from hassette.events import RawStateChangeEvent
 from hassette.models import states
 from hassette.models.entities import LightEntity
 from hassette.models.states import InputButtonState, LightState
@@ -64,7 +64,7 @@ class MyApp(App[MyAppUserConfig]):
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)
 
-    async def handle_event(self, event: StateChangeEvent, **kwargs) -> None:
+    async def handle_event(self, event: RawStateChangeEvent, **kwargs) -> None:
         self.logger.info("Async event: %s, kwargs: %s", event, kwargs)
         test = await self.api.get_state_value("input_button.test")
         self.logger.info("Async state: %s", test)

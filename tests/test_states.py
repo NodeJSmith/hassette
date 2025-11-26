@@ -439,14 +439,14 @@ class TestStatesIntegration:
         # Verify proxy stores BaseState (not domain-specific types)
         light_state_raw = proxy.states.get("light.test")
         assert light_state_raw is not None
-        assert type(light_state_raw).__name__ == "BaseState", (
-            f"Proxy should store BaseState, got {type(light_state_raw).__name__}"
+        assert isinstance(light_state_raw, dict), (
+            f"Proxy should store HassStateDict, got {type(light_state_raw).__name__}"
         )
 
         sensor_state_raw = proxy.states.get("sensor.test")
         assert sensor_state_raw is not None
-        assert type(sensor_state_raw).__name__ == "BaseState", (
-            f"Proxy should store BaseState, got {type(sensor_state_raw).__name__}"
+        assert isinstance(sensor_state_raw, dict), (
+            f"Proxy should store HassStateDict, got {type(sensor_state_raw).__name__}"
         )
 
         # But States accessors should convert to domain-specific types
