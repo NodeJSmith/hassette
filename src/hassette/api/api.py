@@ -156,6 +156,7 @@ Examples:
 """
 
 import typing
+from collections.abc import Generator
 from enum import StrEnum
 from inspect import isclass
 from typing import Any, Literal, overload
@@ -169,9 +170,7 @@ from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
-from hassette.models.states import BaseState
 from hassette.resources.base import Resource
-from hassette.state_registry import get_registry, try_convert_state
 
 from .sync import ApiSyncFacade
 
@@ -180,7 +179,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.api_resource import ApiResource
     from hassette.events import HassStateDict
     from hassette.models.entities import EntityT
-    from hassette.models.states import StateT
+    from hassette.models.states import BaseState, StateT
 
 
 class Api(Resource):
@@ -292,16 +291,39 @@ class Api(Resource):
         assert isinstance(val, list), "Expected a list of states"
         return val
 
-    async def get_states(self) -> list[BaseState]:
+    async def get_states(self) -> list["BaseState"]:
         """Get all entities in Home Assistant.
 
         Returns:
-            A list of states, either as dictionaries or converted to state objects.
+            A list of states, converted to their appropriate state types.
         """
         val = await self.get_states_raw()
 
         self.logger.debug("Converting states to specific state types")
-        return list(filter(bool, [try_convert_state(state) for state in val]))
+        return list(filter(bool, [self.hassette.state_registry.try_convert_state(state) for state in val]))
+
+    async def get_states_iterator(self) -> Generator["BaseState[Any]", Any]:
+        """Get all entities in Home Assistant.
+
+        The returned generator yields properly typed state objects based on their domains. If
+        a state fails to convert, it is skipped with an error logged. If there is no registered
+        state class for a domain, the generic BaseState is used.
+
+        Returns:
+            A generator yielding typed state objects.
+        """
+
+        raw_states = await self.get_states_raw()
+
+        def yield_states():
+            nonlocal raw_states
+
+            for state_data in raw_states:
+                value = self.hassette.state_registry.try_convert_state(state_data)
+                if value is not None:
+                    yield value
+
+        return yield_states()
 
     async def get_config(self) -> dict[str, Any]:
         """Get the Home Assistant configuration.
@@ -519,7 +541,7 @@ class Api(Resource):
             raise
 
     @overload
-    async def get_state(self, entity_id: str) -> BaseState: ...
+    async def get_state(self, entity_id: str) -> "BaseState": ...
 
     @overload
     async def get_state(self, entity_id: str, model: type["StateT"]) -> "StateT": ...
@@ -534,9 +556,11 @@ class Api(Resource):
         Returns:
             The state of the entity converted to the specified model type.
         """
+        from hassette.models.states.base import BaseState
+
         if model is None:
             domain = entity_id.split(".")[0]
-            state_class = get_registry().get_class_for_domain(domain)
+            state_class = self.hassette.state_registry.get_class_for_domain(domain)
             if not state_class:
                 raise TypeError(f"No registered state class for domain '{domain}'")
         else:

@@ -3,22 +3,21 @@ from logging import getLogger
 
 from fair_async_rlock import FairAsyncRLock
 
-from hassette import dependencies as D
 from hassette.bus import Bus
+from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
-from hassette.models.states import BaseState
 from hassette.resources.base import Resource
 from hassette.types import topics
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-
+    from hassette.events import HassStateDict
 
 LOGGER = getLogger(__name__)
 
 
 class StateProxyResource(Resource):
-    states: dict[str, BaseState]
+    states: dict[str, "HassStateDict"]
     lock: FairAsyncRLock
     bus: Bus
 
@@ -62,18 +61,11 @@ class StateProxyResource(Resource):
         # Priority 100 ensures state proxy updates before app handlers (priority 0)
         self.bus.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
 
-        self.bus.on_homeassistant_stop(handler=self.on_disconnect, kwargs={"reason": "HA stopped"})
-        self.bus.on_homeassistant_restart(handler=self.on_disconnect, kwargs={"reason": "HA restarted"})
-        self.bus.on_homeassistant_start(handler=self.on_reconnect, kwargs={"reason": "HA started"})
-        self.bus.on_websocket_connected(handler=self.on_reconnect, kwargs={"reason": "WebSocket connected"})
-        self.bus.on_websocket_disconnected(handler=self.on_disconnect, kwargs={"reason": "WebSocket disconnected"})
+        self.bus.on_websocket_connected(handler=self.on_reconnect)
+        self.bus.on_websocket_disconnected(handler=self.on_disconnect)
         # Perform initial state sync
         try:
-            states = await self.hassette.api.get_states()
-            async with self.lock:
-                self.states.clear()
-                state_dict = {s.entity_id: s for s in states if s.entity_id}
-                self.states.update(state_dict)
+            await self._load_cache()
 
             self.logger.info("Initial state sync complete, tracking %d entities", len(self.states))
             self.mark_ready(reason="Initial state sync complete")
@@ -90,7 +82,7 @@ class StateProxyResource(Resource):
         async with self.lock:
             self.states.clear()
 
-    def get_state(self, entity_id: str) -> BaseState | None:
+    def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current state for an entity.
 
         Args:
@@ -112,7 +104,7 @@ class StateProxyResource(Resource):
         # and we replace whole objects rather than mutating them
         return self.states.get(entity_id)
 
-    def get_domain_states(self, domain: str) -> dict[str, BaseState]:
+    def get_domain_states(self, domain: str) -> dict[str, "HassStateDict"]:
         """Get all states for a specific domain.
 
         Args:
@@ -132,11 +124,9 @@ class StateProxyResource(Resource):
 
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
-        return {eid: state for eid, state in self.states.items() if state.domain == domain}
+        return {eid: state for eid, state in self.states.items() if state["entity_id"].split(".")[0] == domain}
 
-    async def _on_state_change(
-        self, entity_id: D.EntityId, old_state: D.MaybeStateOld[BaseState], new_state: D.MaybeStateNew[BaseState]
-    ) -> None:
+    async def _on_state_change(self, event: RawStateChangeEvent) -> None:
         """Handle state_changed events to update the cache.
 
         This handler runs with priority=100 to ensure the cache is updated before
@@ -149,9 +139,13 @@ class StateProxyResource(Resource):
         # note: we are not listening to entity_registry_updated because state_changed seems to capture
         # both the new state when renamed and the removal when deleted.
 
+        entity_id = event.payload.data.entity_id
+        old_state_dict = event.payload.data.old_state
+        new_state_dict = event.payload.data.new_state
+
         self.logger.debug("State changed event for %s", entity_id)
         async with self.lock:
-            if new_state is None:
+            if new_state_dict is None:
                 if entity_id in self.states:
                     self.states.pop(entity_id)
                     self.logger.debug("Removed state for %s", entity_id)
@@ -162,8 +156,8 @@ class StateProxyResource(Resource):
             # walrus operator to help type checker know we already validated these aren't None
             if (
                 entity_id in self.states
-                and (curr_last_updated := self.states[entity_id].last_updated) is not None
-                and (new_last_updated := new_state.last_updated) is not None
+                and (curr_last_updated := self.states[entity_id].get("last_updated")) is not None
+                and (new_last_updated := new_state_dict.get("last_updated")) is not None
             ):
                 if new_last_updated <= curr_last_updated:
                     self.logger.debug(
@@ -174,40 +168,50 @@ class StateProxyResource(Resource):
                     )
                     return
 
-            self.states[entity_id] = new_state
-            if old_state is None:
+            self.states[entity_id] = new_state_dict
+            if old_state_dict is None:
                 self.logger.debug("Added state for %s", entity_id)
             else:
                 self.logger.debug("Updated state for %s", entity_id)
 
-    async def on_disconnect(self, reason: str) -> None:
+    async def on_disconnect(self) -> None:
         """Handle Home Assistant stop events.
 
         Clears the cache when Home Assistant stops. The cache will be rebuilt when
         Home Assistant starts and we receive state_changed events again, or when
         we detect a reconnection.
         """
-        self.logger.info("Disconnected (reason: %s), clearing state cache", reason)
+        self.logger.info("WebSocket disconnected, clearing state cache")
         async with self.lock:
             self.states.clear()
-        self.mark_not_ready(reason=f"Disconnected: {reason}")
+        self.mark_not_ready(reason="Disconnected")
 
-    async def on_reconnect(self, reason: str) -> None:
+    async def on_reconnect(self) -> None:
         """Handle Home Assistant start events to trigger state resync.
 
         This runs after Home Assistant restart to rebuild the state cache.
         """
-        self.logger.info("Reconnected (reason: %s), resyncing states", reason)
+        self.logger.info("WebSocket reconnected, performing state resync")
 
         try:
-            states = await self.hassette.api.get_states()
-            async with self.lock:
-                self.states.clear()
-                state_dict = {s.entity_id: s for s in states if s.entity_id}
-                self.states.update(state_dict)
+            await self._load_cache()
 
             self.logger.info("State resync complete, tracking %d entities", len(self.states))
-            self.mark_ready(reason=f"Connected: {reason}")
+            self.mark_ready(reason="Connected")
 
         except Exception as e:
             self.logger.exception("Failed to resync states after HA restart: %s", e)
+
+    async def _load_cache(self) -> None:
+        """Load the state cache from Home Assistant.
+
+        This is called during initialization and reconnection to populate
+        the state cache.
+        """
+        states = await self.hassette.api.get_states_raw()
+        async with self.lock:
+            self.states.clear()
+            state_dict = {s["entity_id"]: s for s in states if s["entity_id"]}
+            self.states.update(state_dict)
+
+        self.logger.info("State cache loaded, tracking %d entities", len(self.states))

@@ -10,6 +10,7 @@ from hassette import context
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
+from hassette.core.state_registry import StateRegistry
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
@@ -86,6 +87,7 @@ class Hassette(Resource):
         self._bus = self.add_child(Bus)
         self._scheduler = self.add_child(Scheduler)
         self.api = self.add_child(Api)
+        self.state_registry = self.add_child(StateRegistry)
 
         # set context variable
         context.HASSETTE_INSTANCE.set(self)

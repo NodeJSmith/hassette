@@ -49,7 +49,6 @@ from logging import getLogger
 from typing import Any, Generic, TypeVar
 
 from hassette.const import ANY_VALUE, MISSING_VALUE
-from hassette.events import CallServiceEvent
 from hassette.events.base import EventT
 from hassette.types import ChangeType, ComparisonCondition
 from hassette.utils.glob_utils import is_glob
@@ -72,8 +71,8 @@ from .utils import compare_value, ensure_tuple
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hassette import StateChangeEvent
-    from hassette.events import Event, HassEvent
+    from hassette import RawStateChangeEvent
+    from hassette.events import CallServiceEvent, Event, HassEvent
     from hassette.types import Predicate
 
 V = TypeVar("V")
@@ -202,7 +201,7 @@ class StateFrom:
 
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_state_value_old, condition=self.condition)(event)
 
 
@@ -212,7 +211,7 @@ class StateTo:
 
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_state_value_new, condition=self.condition)(event)
 
 
@@ -227,7 +226,7 @@ class StateComparison:
             LOGGER.warning("StateComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return self.condition(get_state_value_old(event), get_state_value_new(event))
 
 
@@ -238,7 +237,7 @@ class AttrFrom:
     attr_name: str
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(event)
 
 
@@ -249,7 +248,7 @@ class AttrTo:
     attr_name: str
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
 
 
@@ -265,7 +264,7 @@ class AttrComparison:
             LOGGER.warning("AttrComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         old_attr = get_attr_old(self.attr_name)(event)
         new_attr = get_attr_new(self.attr_name)(event)
         return self.condition(old_attr, new_attr)
@@ -275,7 +274,7 @@ class AttrComparison:
 class StateDidChange:
     """Predicate that checks if the state changed in a StateChangeEvent."""
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return DidChange(get_state_value_old_new)(event)
 
 
@@ -285,7 +284,7 @@ class AttrDidChange:
 
     attr_name: str
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return DidChange(get_attr_old_new(self.attr_name))(event)
 
 
@@ -379,7 +378,7 @@ class ServiceDataWhere:
 
         object.__setattr__(self, "_predicates", tuple(preds))
 
-    def __call__(self, event: CallServiceEvent) -> bool:
+    def __call__(self, event: "CallServiceEvent") -> bool:
         return all(p(event) for p in self._predicates)
 
     @classmethod

@@ -1,6 +1,6 @@
 from inspect import get_annotations
 from logging import getLogger
-from typing import Any, Generic, TypeVar, get_args
+from typing import Any, ClassVar, Generic, TypeVar, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
@@ -90,6 +90,8 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 
+    subclasses: ClassVar[list[type["BaseState"]]] = Field(default_factory=list, repr=False)
+
     def __init_subclass__(cls, **kwargs) -> None:
         """Automatically register state subclasses with the state registry.
 
@@ -102,10 +104,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
         super().__init_subclass__(**kwargs)
 
         # Import here to avoid circular dependency
-        from hassette.state_registry import get_registry
+        from hassette.core.state_registry import StateRegistry
 
         # Attempt to register - the registry will skip if no domain is defined
-        get_registry().register(cls)
+        StateRegistry.register(cls)
 
     domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""

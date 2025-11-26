@@ -3,11 +3,12 @@ import typing
 from collections.abc import Coroutine
 from typing import Any, Protocol, TypeVar
 
-from hassette.events import HassetteServiceEvent
 from hassette.types.enums import ResourceStatus
 
 if typing.TYPE_CHECKING:
     import logging
+
+    from hassette.events import HassetteServiceEvent
 
 T = TypeVar("T")
 CoroLikeT = Coroutine[Any, Any, T]
@@ -36,7 +37,7 @@ if typing.TYPE_CHECKING:
 
         def _create_service_status_event(
             self, status: ResourceStatus, exception: Exception | None = None
-        ) -> HassetteServiceEvent: ...
+        ) -> "HassetteServiceEvent": ...
 
         async def initialize(self, *args, **kwargs) -> None: ...
 else:
@@ -218,6 +219,8 @@ class LifecycleMixin(_LifecycleHostStubs):
         self.mark_not_ready("Crashed")
 
     def _create_service_status_event(self, status: ResourceStatus, exception: Exception | BaseException | None = None):
+        from hassette.events import HassetteServiceEvent
+
         return HassetteServiceEvent.from_data(
             resource_name=self.class_name,
             role=self.role,

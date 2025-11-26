@@ -1,4 +1,5 @@
 import typing
+from collections.abc import Generator
 from enum import StrEnum
 from typing import Any, overload
 
@@ -124,6 +125,18 @@ class ApiSyncFacade(Resource):
             A list of states, either as dictionaries or converted to state objects.
         """
         return self.task_bucket.run_sync(self._api.get_states())
+
+    async def get_states_iterator(self) -> Generator["BaseState[Any]", Any]:
+        """Get all entities in Home Assistant.
+
+        The returned generator yields properly typed state objects based on their domains. If
+        a state fails to convert, it is skipped with an error logged. If there is no registered
+        state class for a domain, the generic BaseState is used.
+
+        Returns:
+            A generator yielding typed state objects.
+        """
+        return self.task_bucket.run_sync(self._api.get_states_iterator())
 
     def get_config(self) -> dict[str, Any]:
         """Get the Home Assistant configuration.

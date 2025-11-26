@@ -1,9 +1,15 @@
+import inspect
 import itertools
 import typing
+from collections.abc import Callable
 from contextlib import suppress
 from functools import lru_cache
 from types import UnionType
-from typing import TypeAliasType, Union, get_args, get_origin
+from typing import ForwardRef, TypeAliasType, Union, get_args, get_origin
+
+from pydantic._internal._typing_extra import try_eval_type
+
+from hassette.dependencies.extraction import Any
 
 
 @lru_cache(maxsize=128)
@@ -79,3 +85,61 @@ def get_optional_type_arg(tp: type) -> type:
         raise ValueError(f"Optional type {tp} does not have exactly one non-None argument")
 
     return non_none_args[0]
+
+
+def get_concrete_type_from_generic_annotation(tp: type) -> type | None:
+    """If the type is a generic type (e.g., Generic[T]), return the concrete type argument T."""
+
+    if not hasattr(tp, "__orig_bases__"):
+        return None
+
+    orig_bases = tp.__orig_bases__
+
+    for base in orig_bases:
+        args = get_args(base)
+        if args:
+            return args[0]
+
+    return None
+
+
+def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
+    signature = inspect.signature(call)
+    globalns = getattr(call, "__globals__", {})
+    typed_params = [
+        inspect.Parameter(
+            name=param.name,
+            kind=param.kind,
+            default=param.default,
+            annotation=get_typed_annotation(param.annotation, globalns),
+        )
+        for param in signature.parameters.values()
+    ]
+    typed_signature = inspect.Signature(typed_params)
+    return typed_signature
+
+
+def get_typed_return_annotation(call: Callable[..., Any]) -> Any:
+    signature = inspect.signature(call)
+    annotation = signature.return_annotation
+
+    if annotation is inspect.Signature.empty:
+        return None
+
+    globalns = getattr(call, "__globals__", {})
+    return get_typed_annotation(annotation, globalns)
+
+
+def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
+    if isinstance(annotation, str):
+        annotation = ForwardRef(annotation)
+
+    if isinstance(annotation, ForwardRef):
+        annotation, _ = try_eval_type(annotation, globalns, globalns)
+        if annotation is type(None):
+            return None
+
+        if isinstance(annotation, ForwardRef):
+            raise TypeError(f"Could not resolve ForwardRef annotation: {annotation}")
+
+    return annotation

@@ -7,14 +7,13 @@ import typing
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Any, ParamSpec, TypeVar, cast
+from typing import Any, cast
 
 from hassette.dependencies.extraction import extract_from_signature, validate_di_signature
 from hassette.exceptions import CallListenerError
-from hassette.models.states import BaseState
 from hassette.utils.exception_utils import get_short_traceback
 from hassette.utils.func_utils import callable_name, callable_short_name
-from hassette.utils.type_utils import get_optional_type_arg, is_optional_type
+from hassette.utils.type_utils import get_optional_type_arg, get_typed_signature, is_optional_type
 
 from .utils import extract_with_error_handling, normalize_where, warn_or_raise_on_incorrect_type
 
@@ -26,9 +25,6 @@ if typing.TYPE_CHECKING:
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
 
 LOGGER = getLogger(__name__)
-
-PS = ParamSpec("PS")
-RT = TypeVar("RT")
 
 seq = itertools.count(1)
 
@@ -105,7 +101,7 @@ class Listener:
         priority: int = 0,
     ) -> "Listener":
         pred = normalize_where(where)
-        signature = inspect.signature(handler)
+        signature = get_typed_signature(handler)
 
         # Create async handler
         async_handler = make_async_handler(handler, task_bucket)
@@ -152,7 +148,6 @@ class HandlerAdapter:
         self.signature = signature
         self.task_bucket = task_bucket
 
-        # Validate signature for DI (all handlers must use DI now)
         validate_di_signature(signature)
 
         # Rate limiting state
@@ -185,9 +180,12 @@ class HandlerAdapter:
 
         param_details = extract_from_signature(self.signature)
 
-        for param_name, (param_type, extractor) in param_details.items():
+        for param_name, (param_type, annotation_details) in param_details.items():
             if param_name in kwargs:
                 LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", param_name)
+
+            extractor = annotation_details.extractor
+            converter = annotation_details.converter
 
             extracted_value = extract_with_error_handling(event, extractor, param_name, param_type, self.handler_name)
 
@@ -199,21 +197,20 @@ class HandlerAdapter:
                 # unwrap Optional[...] to get the actual type
                 param_type = get_optional_type_arg(param_type)
 
-            if (
-                isinstance(extracted_value, BaseState)
-                and inspect.isclass(param_type)
-                and issubclass(param_type, BaseState)
-            ):
-                try:
-                    extracted_value = param_type.model_validate(extracted_value.raw_data)
-                except Exception as e:
-                    LOGGER.error(
-                        "Error while validating model for parameter '%s' in handler %s: %s",
-                        param_name,
-                        self.handler_name,
-                        e,
-                    )
-                    raise
+            if converter:
+                extracted_value = converter(extracted_value, param_type)
+
+            # if inspect.isclass(param_type) and issubclass(param_type, BaseState):
+            #     try:
+            #         extracted_value = param_type.model_validate(extracted_value)
+            #     except Exception as e:
+            #         LOGGER.error(
+            #             "Error while validating model for parameter '%s' in handler %s: %s",
+            #             param_name,
+            #             self.handler_name,
+            #             e,
+            #         )
+            #         raise
 
             warn_or_raise_on_incorrect_type(param_name, param_type, extracted_value, self.handler_name)
 

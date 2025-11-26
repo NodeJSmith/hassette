@@ -7,10 +7,10 @@ from hassette.core.state_proxy import StateProxyResource
 from hassette.exceptions import EntityNotFoundError, RegistryNotReadyError
 from hassette.models.states import BaseState, StateT
 from hassette.resources.base import Resource
-from hassette.state_registry import get_registry
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.events import HassStateDict
 
 
 LOGGER = getLogger(__name__)
@@ -64,7 +64,7 @@ class _TypedStateGetter(Generic[StateT]):
         value = self._proxy.get_state(entity_id)
         if value is None:
             return None
-        return self._model.model_validate(value.raw_data)
+        return self._model.model_validate(value)
 
 
 class _StateGetter:
@@ -78,7 +78,7 @@ class _StateGetter:
 class DomainStates(Generic[StateT]):
     """Generic container for domain-specific state iteration."""
 
-    def __init__(self, states_dict: dict[str, BaseState], model: type[StateT]) -> None:
+    def __init__(self, states_dict: dict[str, "HassStateDict"], model: type[StateT]) -> None:
         self._states = states_dict
         self._model = model
         self._domain = model.get_domain()
@@ -87,7 +87,7 @@ class DomainStates(Generic[StateT]):
         """Iterate over all states in this domain."""
         for entity_id, state in self._states.items():
             try:
-                yield entity_id, self._model.model_validate(state.raw_data)
+                yield entity_id, self._model.model_validate(state)
             except Exception as e:
                 LOGGER.error(
                     "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, e
@@ -118,7 +118,7 @@ class DomainStates(Generic[StateT]):
             return state
 
         # Otherwise, try to convert
-        return self._model.model_validate(state.raw_data)
+        return self._model.model_validate(state)
 
 
 class States(Resource):
@@ -194,9 +194,8 @@ class States(Resource):
         if name.startswith("_") or name in ("hassette", "parent", "name"):
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
-        registry = get_registry()
         try:
-            state_class = registry.get_class_for_domain(name)
+            state_class = self.hassette.state_registry.get_class_for_domain(name)
         except RegistryNotReadyError:
             raise AttributeError(
                 f"State registry not initialized. Cannot access domain '{name}'. "
@@ -215,7 +214,7 @@ class States(Resource):
         return DomainStates[state_class](self._state_proxy.get_domain_states(name), state_class)
 
     @property
-    def all(self) -> dict[str, BaseState]:
+    def all(self) -> dict[str, "HassStateDict"]:
         """Access all entity states as a dictionary.
 
         Returns:
