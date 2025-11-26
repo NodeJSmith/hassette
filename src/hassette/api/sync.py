@@ -298,7 +298,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.get_state(entity_id, model))
 
-    def get_state_value(self, entity_id: str) -> str:
+    def get_state_value(self, entity_id: str) -> Any:
         """Get the state of a specific entity without converting it to a state object.
 
         Args:
