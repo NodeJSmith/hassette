@@ -57,6 +57,18 @@ def extract_with_error_handling(
 
     try:
         extracted_value = extractor(event)
+    except InvalidDependencyReturnTypeError as e:
+        # Log detailed error
+        LOGGER.error(
+            "Handler %s - invalid return type for parameter '%s' of type %s: %s",
+            handler_name,
+            param_name,
+            param_type,
+            get_short_traceback(),
+        )
+        # Re-raise as CallListenerError to indicate handler cannot be called
+        raise e
+
     except Exception as e:
         # Log detailed error
         LOGGER.error(

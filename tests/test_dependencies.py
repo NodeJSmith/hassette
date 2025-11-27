@@ -22,7 +22,7 @@ from hassette.dependencies.extraction import (
     validate_di_signature,
 )
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent, TypedStateChangeEvent, create_event_from_hass
-from hassette.exceptions import InvalidDependencyReturnTypeError
+from hassette.exceptions import InvalidDependencyInjectionSignatureError, InvalidDependencyReturnTypeError
 from hassette.models import states
 from hassette.utils.type_utils import get_typed_signature
 
@@ -525,7 +525,7 @@ class TestSignatureValidation:
             pass
 
         signature = get_typed_signature(handler)
-        with pytest.raises(ValueError, match="cannot have \\*args parameter"):
+        with pytest.raises(InvalidDependencyInjectionSignatureError):
             validate_di_signature(signature)
 
     def test_validate_di_signature_with_positional_only(self):
@@ -539,7 +539,7 @@ class TestSignatureValidation:
             pass
 
         signature = get_typed_signature(handler)
-        with pytest.raises(ValueError, match="cannot have positional-only parameter"):
+        with pytest.raises(InvalidDependencyInjectionSignatureError):
             validate_di_signature(signature)
 
 
