@@ -6,7 +6,7 @@ data from events without boilerplate code.
 For example, instead of writing:
 
 ```python
-async def handle_state_change(event: StateChangeEvent):
+async def handle_state_change(event: RawStateChangeEvent):
     new_state = event.payload.data.new_state
     # do something with new_state
 ```
@@ -28,7 +28,7 @@ your parameter(s) with `Annotated` and either using an existing accessor from
 [accessors][hassette.bus.accessors] or writing your own accessor function.
 
 Examples:
-    Extracting the new state object from a StateChangeEvent
+    Extracting the new state object from a RawStateChangeEvent
     ```python
     from hassette import dependencies as D
     from hassette import states
@@ -76,7 +76,6 @@ from .annotations import (
     MaybeStateOld,
     MaybeStateOldAndNew,
     ServiceData,
-    StateChangeEvent,
     StateNew,
     StateOld,
     StateOldAndNew,
@@ -99,7 +98,6 @@ __all__ = [
     "MaybeStateOld",
     "MaybeStateOldAndNew",
     "ServiceData",
-    "StateChangeEvent",
     "StateNew",
     "StateOld",
     "StateOldAndNew",

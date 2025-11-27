@@ -13,15 +13,12 @@ def is_annotated_type(annotation: Any) -> bool:
 def is_event_type(annotation: Any) -> bool:
     """Check if annotation is an Event class or subclass.
 
-    Handles both plain Event types (Event, StateChangeEvent) and
-    parameterized generics (Event[PayloadT], StateChangeEvent[PayloadT]).
-
     Does NOT handle Union or Optional types. Use explicit Event types instead:
     - ✅ event: Event
-    - ✅ event: StateChangeEvent
+    - ✅ event: RawStateChangeEvent
     - ❌ event: Optional[Event]
     - ❌ event: Event | None
-    - ❌ event: Union[Event, StateChangeEvent]
+    - ❌ event: Union[Event, RawStateChangeEvent]
 
     Args:
         annotation: The type annotation to check.

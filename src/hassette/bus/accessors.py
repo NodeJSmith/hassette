@@ -81,37 +81,37 @@ def get_path(path: str) -> Callable[..., Any | Sentinel]:
 
 
 def get_state_value_old(event: "RawStateChangeEvent") -> Any | Sentinel:
-    """Get the old state value from a StateChangeEvent, or MISSING_VALUE if `old_state` is `None`."""
+    """Get the old state value from a RawStateChangeEvent, or MISSING_VALUE if `old_state` is `None`."""
     return event.payload.data.old_state_value
 
 
 def get_state_value_new(event: "RawStateChangeEvent") -> Any | Sentinel:
-    """Get the new state value from a StateChangeEvent, or MISSING_VALUE if `new_state` is `None`."""
+    """Get the new state value from a RawStateChangeEvent, or MISSING_VALUE if `new_state` is `None`."""
     return event.payload.data.new_state_value
 
 
 def get_state_value_old_new(event: "RawStateChangeEvent") -> tuple[Any, Any]:
-    """Get a tuple of (old_state_value, new_state_value) from a StateChangeEvent."""
+    """Get a tuple of (old_state_value, new_state_value) from a RawStateChangeEvent."""
     return get_state_value_old(event), get_state_value_new(event)
 
 
 def get_state_object_old(event: "RawStateChangeEvent") -> HassStateDict | None:
-    """Get the old state object from a StateChangeEvent, or None if `old_state` does not exist."""
+    """Get the old state object from a RawStateChangeEvent, or None if `old_state` does not exist."""
     return event.payload.data.old_state
 
 
 def get_state_object_new(event: "RawStateChangeEvent") -> HassStateDict | None:
-    """Get the new state object from a StateChangeEvent, or None if `new_state` does not exist."""
+    """Get the new state object from a RawStateChangeEvent, or None if `new_state` does not exist."""
     return event.payload.data.new_state
 
 
 def get_state_object_old_new(event: "RawStateChangeEvent") -> tuple[HassStateDict | None, HassStateDict | None]:
-    """Get a tuple of (old_state_object, new_state_object) from a StateChangeEvent."""
+    """Get a tuple of (old_state_object, new_state_object) from a RawStateChangeEvent."""
     return get_state_object_old(event), get_state_object_new(event)
 
 
 def get_attr_old(name: str) -> Callable[["RawStateChangeEvent"], Any]:
-    """Get a specific attribute from the old state in a StateChangeEvent."""
+    """Get a specific attribute from the old state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> Any:
         data = event.payload.data
@@ -122,7 +122,7 @@ def get_attr_old(name: str) -> Callable[["RawStateChangeEvent"], Any]:
 
 
 def get_attr_new(name: str) -> Callable[["RawStateChangeEvent"], Any]:
-    """Get a specific attribute from the new state in a StateChangeEvent."""
+    """Get a specific attribute from the new state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> Any:
         data = event.payload.data
@@ -133,7 +133,7 @@ def get_attr_new(name: str) -> Callable[["RawStateChangeEvent"], Any]:
 
 
 def get_attr_old_new(name: str) -> Callable[["RawStateChangeEvent"], tuple[Any, Any]]:
-    """Get a specific attribute from the old and new state in a StateChangeEvent."""
+    """Get a specific attribute from the old and new state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> tuple[Any, Any]:
         old = get_attr_old(name)(event)

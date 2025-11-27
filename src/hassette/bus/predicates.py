@@ -136,7 +136,7 @@ class Not:
 
 @dataclass(frozen=True)
 class ValueIs(Generic[EventT, V]):
-    """Predicate that checks whether a value extracted from an event satisfies a condition.
+    """Checks whether a value extracted from an event satisfies a condition.
 
     Args:
         source: Callable that extracts the value to compare from the event.
@@ -169,7 +169,7 @@ class DidChange(Generic[EventT]):
 
 @dataclass(frozen=True)
 class IsPresent:
-    """Predicate that checks if a value extracted from an event is present (not MISSING_VALUE).
+    """Checks if a value extracted from an event is present (not MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
 
@@ -183,7 +183,7 @@ class IsPresent:
 
 @dataclass(frozen=True)
 class IsMissing:
-    """Predicate that checks if a value extracted from an event is missing (MISSING_VALUE).
+    """Checks if a value extracted from an event is missing (MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
 
@@ -197,7 +197,7 @@ class IsMissing:
 
 @dataclass(frozen=True)
 class StateFrom:
-    """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'old' value."""
+    """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'old' value."""
 
     condition: ChangeType
 
@@ -207,7 +207,7 @@ class StateFrom:
 
 @dataclass(frozen=True)
 class StateTo:
-    """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'new' value."""
+    """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'new' value."""
 
     condition: ChangeType
 
@@ -217,7 +217,7 @@ class StateTo:
 
 @dataclass(frozen=True)
 class StateComparison:
-    """Predicate that checks if a comparison between from_state and to_state satisfies a condition."""
+    """Checks if a comparison between from_state and to_state satisfies a condition."""
 
     condition: ComparisonCondition
 
@@ -232,7 +232,7 @@ class StateComparison:
 
 @dataclass(frozen=True)
 class AttrFrom:
-    """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
+    """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
     condition: ChangeType
@@ -243,7 +243,7 @@ class AttrFrom:
 
 @dataclass(frozen=True)
 class AttrTo:
-    """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
+    """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
     condition: ChangeType
@@ -254,7 +254,7 @@ class AttrTo:
 
 @dataclass(frozen=True)
 class AttrComparison:
-    """Predicate that checks if a comparison between from_attr and to_attr satisfies a condition."""
+    """Checks if a comparison between from_attr and to_attr satisfies a condition."""
 
     attr_name: str
     condition: ComparisonCondition
@@ -272,7 +272,7 @@ class AttrComparison:
 
 @dataclass(frozen=True)
 class StateDidChange:
-    """Predicate that checks if the state changed in a StateChangeEvent."""
+    """Checks if the state changed in a RawStateChangeEvent."""
 
     def __call__(self, event: "RawStateChangeEvent") -> bool:
         return DidChange(get_state_value_old_new)(event)
@@ -280,7 +280,7 @@ class StateDidChange:
 
 @dataclass(frozen=True)
 class AttrDidChange:
-    """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
+    """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
 
@@ -290,7 +290,7 @@ class AttrDidChange:
 
 @dataclass(frozen=True)
 class DomainMatches:
-    """Predicate that checks if the event domain matches a specific value."""
+    """Checks if the event domain matches a specific value."""
 
     domain: str
 
@@ -304,7 +304,7 @@ class DomainMatches:
 
 @dataclass(frozen=True)
 class EntityMatches:
-    """Predicate that checks if the event entity_id matches a specific value."""
+    """Checks if the event entity_id matches a specific value."""
 
     entity_id: str
 
@@ -318,7 +318,7 @@ class EntityMatches:
 
 @dataclass(frozen=True)
 class ServiceMatches:
-    """Predicate that checks if the event service matches a specific value."""
+    """Checks if the event service matches a specific value."""
 
     service: str
 
