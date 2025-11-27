@@ -1,6 +1,7 @@
 import inspect
 from inspect import Signature, isclass
 from typing import Annotated, Any, get_args, get_origin
+from warnings import warn
 
 from .annotations import AnnotationDetails, identity
 
@@ -56,6 +57,15 @@ def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetai
     details = args[1]
 
     if not isinstance(details, AnnotationDetails):
+        if callable(details):
+            warn(
+                "Using bare callables in Annotated is deprecated. "
+                "Please wrap extractor callables in AnnotationDetails.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return (base_type, AnnotationDetails(extractor=details))
+
         return None
 
     return (base_type, details)
