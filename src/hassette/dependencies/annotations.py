@@ -89,17 +89,32 @@ def state_change_event_converter(event: "RawStateChangeEvent", param_type: type[
     return new_value
 
 
+def convert_to_model(value: Any, model: type[BaseState]) -> BaseState:
+    """Convert a raw state dict to a typed state model.
+
+    Args:
+        value: The raw state dict
+        model: The target state model class
+
+    Returns:
+        The typed state model instance
+    """
+    if isinstance(value, model):
+        return value
+
+    if not isinstance(value, dict):
+        raise InvalidDependencyReturnTypeError(type(value))
+
+    return model.model_validate(value)
+
+
 def identity(x: Any) -> Any:
     """Identity function - returns the input as-is."""
     return x
 
 
-StateChangeEvent: TypeAlias = Annotated[StateT, AnnotationDetails(identity, state_change_event_converter)]
-"""The StateChangeEvent itself, with old and new state data converted to State objects of StateT type."""
-
-
 StateNew: TypeAlias = Annotated[
-    StateT, AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_new))
+    StateT, AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_new), convert_to_model)
 ]
 """Extract the new state object from a StateChangeEvent.
 
@@ -110,7 +125,9 @@ async def handler(new_state: D.StateNew[states.LightState]):
 ```
 """
 
-MaybeStateNew: TypeAlias = Annotated[StateT | None, AnnotationDetails["RawStateChangeEvent"](A.get_state_object_new)]
+MaybeStateNew: TypeAlias = Annotated[
+    StateT | None, AnnotationDetails["RawStateChangeEvent"](A.get_state_object_new, convert_to_model)
+]
 """Extract the new state object from a StateChangeEvent, allowing for None.
 
 Example:
@@ -123,7 +140,7 @@ async def handler(new_state: D.MaybeStateNew[states.LightState]):
 
 
 StateOld: TypeAlias = Annotated[
-    StateT, AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_old))
+    StateT, AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_old), convert_to_model)
 ]
 """Extract the old state object from a StateChangeEvent.
 
@@ -135,7 +152,9 @@ async def handler(old_state: D.StateOld[states.LightState]):
 ```
 """
 
-MaybeStateOld: TypeAlias = Annotated[StateT | None, AnnotationDetails["RawStateChangeEvent"](A.get_state_object_old)]
+MaybeStateOld: TypeAlias = Annotated[
+    StateT | None, AnnotationDetails["RawStateChangeEvent"](A.get_state_object_old, convert_to_model)
+]
 """Extract the old state object from a StateChangeEvent, allowing for None.
 
 Example:
@@ -148,7 +167,8 @@ async def handler(old_state: D.MaybeStateOld[states.LightState]):
 
 
 StateOldAndNew: TypeAlias = Annotated[
-    tuple[StateT, StateT], AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_old_new))
+    tuple[StateT, StateT],
+    AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_old_new), convert_to_model),
 ]
 """Extract both old and new state objects from a StateChangeEvent.
 
@@ -162,7 +182,8 @@ async def handler(states: D.StateOldAndNew[states.LightState]):
 """
 
 MaybeStateOldAndNew: TypeAlias = Annotated[
-    tuple[StateT | None, StateT | None], AnnotationDetails["RawStateChangeEvent"](A.get_state_object_old_new)
+    tuple[StateT | None, StateT | None],
+    AnnotationDetails["RawStateChangeEvent"](A.get_state_object_old_new, convert_to_model),
 ]
 """Extract both old and new state objects from a StateChangeEvent, allowing for None.
 
