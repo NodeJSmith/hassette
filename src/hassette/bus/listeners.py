@@ -211,7 +211,20 @@ class HandlerAdapter:
 
                 kwargs[param_name] = extracted_value
 
-            await self.handler(**kwargs)
+        except InvalidDependencyReturnTypeError as e:
+            LOGGER.error(
+                "Handler %s - dependency returned invalid type: %s",
+                self.handler_name,
+                e.resolved_type,
+            )
+            raise CallListenerError(
+                f"Listener {self.handler_name} cannot be called due to invalid dependency: {e.resolved_type}"
+            ) from e
+
+        except InvalidDependencyInjectionSignatureError as e:
+            LOGGER.error("Handler %s has invalid DI signature: %s", self.handler_name, e)
+            raise CallListenerError(f"Listener {self.handler_name} cannot be called due to invalid DI signature") from e
+
         except UnableToExtractParameterError as e:
             LOGGER.error(
                 "Handler %s - unable to extract parameter '%s' of type %s: %s",
@@ -224,23 +237,12 @@ class HandlerAdapter:
                 f"Listener {self.handler_name} cannot be called due to extraction error for parameter '{param_name}'"
             ) from e
 
-        except InvalidDependencyInjectionSignatureError as e:
-            LOGGER.error("Handler %s has invalid DI signature: %s", self.handler_name, e)
-            raise CallListenerError(f"Listener {self.handler_name} cannot be called due to invalid DI signature") from e
+        # actually execute the call
 
-        except InvalidDependencyReturnTypeError as e:
-            LOGGER.error(
-                "Handler %s - dependency returned invalid type: %s",
-                self.handler_name,
-                e.resolved_type,
-            )
-            raise CallListenerError(
-                f"Listener {self.handler_name} cannot be called due to invalid dependency: {e.resolved_type}"
-            ) from e
-
+        try:
+            await self.handler(**kwargs)
         except CallListenerError:
             raise
-
         except Exception as e:
             LOGGER.error("Error while executing handler %s: %s", self.handler_name, get_short_traceback())
             raise CallListenerError(f"Error while executing handler {self.handler_name}") from e
