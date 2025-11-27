@@ -211,7 +211,7 @@ class HandlerAdapter:
 
                 kwargs[param_name] = extracted_value
 
-                await self.handler(**kwargs)
+            await self.handler(**kwargs)
         except UnableToExtractParameterError as e:
             LOGGER.error(
                 "Handler %s - unable to extract parameter '%s' of type %s: %s",
