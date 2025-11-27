@@ -194,23 +194,10 @@ class HandlerAdapter:
                 continue
 
             if is_optional_type(param_type):
-                # unwrap Optional[...] to get the actual type
                 param_type = get_optional_type_arg(param_type)
 
             if converter:
                 extracted_value = converter(extracted_value, param_type)
-
-            # if inspect.isclass(param_type) and issubclass(param_type, BaseState):
-            #     try:
-            #         extracted_value = param_type.model_validate(extracted_value)
-            #     except Exception as e:
-            #         LOGGER.error(
-            #             "Error while validating model for parameter '%s' in handler %s: %s",
-            #             param_name,
-            #             self.handler_name,
-            #             e,
-            #         )
-            #         raise
 
             warn_or_raise_on_incorrect_type(param_name, param_type, extracted_value, self.handler_name)
 
