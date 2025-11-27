@@ -8,7 +8,7 @@ from typing import Any, TypeGuard
 from boltons.iterutils import is_collection
 
 from hassette.const import NOT_PROVIDED
-from hassette.exceptions import CallListenerError, InvalidDependencyReturnTypeError, UnableToExtractParameterError
+from hassette.exceptions import InvalidDependencyReturnTypeError, UnableToExtractParameterError
 from hassette.utils.exception_utils import get_short_traceback
 from hassette.utils.type_utils import get_optional_type_arg, is_optional_type, normalize_for_isinstance
 
@@ -57,21 +57,6 @@ def extract_with_error_handling(
 
     try:
         extracted_value = extractor(event)
-    except InvalidDependencyReturnTypeError as e:
-        resolved_type = e.resolved_type
-        LOGGER.error(
-            "Handler %s - dependency for parameter '%s' of type %s returned invalid type: %s",
-            handler_name,
-            param_name,
-            param_type,
-            resolved_type,
-        )
-        # Re-raise to prevent handler from running with missing/invalid data
-        raise CallListenerError(
-            f"Listener {handler_name} cannot be called due to invalid dependency "
-            f"for parameter '{param_name}' of type {param_type}: {resolved_type}"
-        ) from e
-
     except Exception as e:
         # Log detailed error
         LOGGER.error(
@@ -115,7 +100,7 @@ def warn_or_raise_on_incorrect_type(param_name: str, param_type: type, param_val
         msg = msg_template % (handler_name, param_name, param_type, type(param_value))
 
         if get_raise_on_incorrect_type():
-            raise CallListenerError(msg)
+            raise InvalidDependencyReturnTypeError(msg)
 
         LOGGER.warning(msg)
 

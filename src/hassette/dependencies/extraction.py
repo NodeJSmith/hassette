@@ -3,6 +3,8 @@ from inspect import Signature, isclass
 from typing import Annotated, Any, get_args, get_origin
 from warnings import warn
 
+from hassette.exceptions import InvalidDependencyInjectionSignatureError
+
 from .annotations import AnnotationDetails, identity
 
 
@@ -104,10 +106,14 @@ def validate_di_signature(signature: Signature) -> None:
     """
     for param in signature.parameters.values():
         if param.kind == inspect.Parameter.VAR_POSITIONAL:
-            raise ValueError(f"Handler with dependency injection cannot have *args parameter: {param.name}")
+            raise InvalidDependencyInjectionSignatureError(
+                f"Handler with dependency injection cannot have *args parameter: {param.name}"
+            )
 
         if param.kind == inspect.Parameter.POSITIONAL_ONLY:
-            raise ValueError(f"Handler with dependency injection cannot have positional-only parameter: {param.name}")
+            raise InvalidDependencyInjectionSignatureError(
+                f"Handler with dependency injection cannot have positional-only parameter: {param.name}"
+            )
 
 
 def extract_from_signature(signature: Signature) -> dict[str, tuple[Any, AnnotationDetails[Any]]]:

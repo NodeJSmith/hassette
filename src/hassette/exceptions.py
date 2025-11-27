@@ -130,6 +130,10 @@ class InvalidDependencyReturnTypeError(Exception):
         self.resolved_type = resolved_type
 
 
+class InvalidDependencyInjectionSignatureError(HassetteError):
+    """Custom exception to indicate that a function signature is invalid for dependency injection."""
+
+
 class CallListenerError(HassetteError):
     """Custom exception to indicate that a listener could not be called.
 
