@@ -516,8 +516,8 @@ class TestStatesIntegration:
         updated_state = states_instance.get[states.LightState]("light.test")
         assert updated_state.attributes.brightness == 200
 
-    async def test_all_accessor_returns_base_states(self, hassette_with_state_proxy: "Hassette") -> None:
-        """states.all returns BaseState objects directly from proxy (no conversion)."""
+    async def test_all_accessor_returns_dicts(self, hassette_with_state_proxy: "Hassette") -> None:
+        """states.all returns HassStateDict objects from StateProxyResource."""
         hassette = hassette_with_state_proxy
         states_instance = States.create(hassette, hassette)
 
@@ -537,15 +537,11 @@ class TestStatesIntegration:
         # Verify states.all returns BaseState (not converted)
         light_state = all_states.get("light.test")
         if light_state:
-            assert type(light_state).__name__ == "BaseState", (
-                f"states.all should return BaseState, got {type(light_state).__name__}"
-            )
+            assert isinstance(light_state, dict)
 
         sensor_state = all_states.get("sensor.test")
         if sensor_state:
-            assert type(sensor_state).__name__ == "BaseState", (
-                f"states.all should return BaseState, got {type(sensor_state).__name__}"
-            )
+            assert isinstance(sensor_state, dict)
 
     async def test_domain_filtering_across_updates(self, hassette_with_state_proxy: "Hassette") -> None:
         """Domain accessors correctly filter across multiple updates."""

@@ -128,8 +128,8 @@ class TestParameterizedExtractors:
         )
         assert event is not None, "No events with friendly_name found"
 
-        extractor = D.AttrNew("friendly_name")
-        result = extractor(event)
+        param_details_dict = D.AttrNew("friendly_name")
+        result = param_details_dict.extractor(event)
         assert result is not None
         assert result == event.payload.data.new_state.get("attributes", {}).get("friendly_name")
 
@@ -147,8 +147,9 @@ class TestParameterizedExtractors:
         )
         assert event is not None, "No suitable event found"
 
-        extractor = D.AttrNew("non_existent_attr")
-        result = extractor(event)
+        param_details_dict = D.AttrNew("non_existent_attr")
+
+        result = param_details_dict.extractor(event)
 
         assert result is MISSING_VALUE
 
@@ -165,8 +166,8 @@ class TestParameterizedExtractors:
         )
         assert event is not None, "No events with old_state and friendly_name found"
 
-        extractor = D.AttrOld("friendly_name")
-        result = extractor(event)
+        param_details_dict = D.AttrOld("friendly_name")
+        result = param_details_dict.extractor(event)
         assert result is not None
         assert result == event.payload.data.old_state.get("attributes", {}).get("friendly_name")
 
@@ -186,8 +187,8 @@ class TestParameterizedExtractors:
         )
         assert event is not None, "No suitable event found"
 
-        extractor = D.AttrOldAndNew("friendly_name")
-        old_val, new_val = extractor(event)
+        param_details_dict = D.AttrOldAndNew("friendly_name")
+        old_val, new_val = param_details_dict.extractor(event)
         assert old_val == event.payload.data.old_state.get("attributes", {}).get("friendly_name")
         assert new_val == event.payload.data.new_state.get("attributes", {}).get("friendly_name")
 
@@ -202,10 +203,13 @@ class TestParameterizedExtractors:
             ),
             None,
         )
-        if event:
-            extractor = D.AttrNew("editable")
-            result = extractor(event)
-            assert isinstance(result, bool)
+
+        if not event:
+            raise AssertionError("No events with 'editable' attribute found")
+
+        param_details_dict = D.AttrNew("editable")
+        result = param_details_dict.extractor(event)
+        assert isinstance(result, bool)
 
 
 class TestTypeAliasExtractors:
@@ -316,14 +320,16 @@ class TestTypeAliasExtractors:
 class TestExtractFromAnnotated:
     """Test extract_from_annotated function."""
 
-    def test_extract_with_callable_metadata(self):
-        """Test extraction with callable metadata."""
+    def test_extract_with_callable_metadata_warns(self):
+        """Test that using bare callable in Annotated issues deprecation warning and returns correct extractor."""
 
         def my_extractor(_event):
             return "extracted"
 
         annotation = Annotated[str, my_extractor]
-        param_details_dict = extract_from_annotated(annotation)
+
+        with pytest.warns(DeprecationWarning, match="Using bare callables in Annotated is deprecated"):
+            param_details_dict = extract_from_annotated(annotation)
 
         assert param_details_dict is not None
         base_type, annotation_details = param_details_dict

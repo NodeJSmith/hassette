@@ -401,7 +401,7 @@ class TestStateProxyResourceConcurrency:
 
         # All should succeed
         assert all(r is not None for r in results)
-        assert all(r.entity_id == "light.test" for r in results)
+        assert all(r["entity_id"] == "light.test" for r in results)
 
     async def test_writes_are_serialized(self, hassette_with_state_proxy: "Hassette") -> None:
         """Write operations acquire lock and are serialized."""
