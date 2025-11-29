@@ -1,6 +1,11 @@
 import inspect
+from typing import Any
+from unittest.mock import patch
+
+import pytest
 
 from hassette.api import Api, ApiSyncFacade
+from hassette.models.states import BaseState
 from hassette.test_utils import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
 
@@ -50,3 +55,48 @@ def test_sync_parity():
     api_sync_method_names = {name for name, _ in api_sync_methods if not name.startswith("_")}
 
     assert api_method_names == api_sync_method_names, f"Mismatch: {api_method_names ^ api_sync_method_names}"
+
+
+async def test_get_state_return_type(
+    hassette_with_mock_api: tuple[Api, SimpleTestServer], hass_state_dicts: list[dict[str, Any]]
+):
+    """get_state returns the correct type."""
+    api_client, mock_server = hassette_with_mock_api
+
+    for state_dict in hass_state_dicts:
+        entity_id = state_dict["entity_id"]
+        mock_server.expect("GET", f"/api/states/{entity_id}", "", json=state_dict, status=200)
+
+        state = await api_client.get_state(entity_id)
+
+        assert state is not None, f"Expected state for {entity_id}, got None"
+        assert state.entity_id == entity_id, f"Expected entity_id {entity_id}, got {state.entity_id}"
+
+        # Check specific types
+        domain = entity_id.split(".")[0]
+        if domain in api_client.hassette.state_registry.domain_to_class:
+            expected_class = api_client.hassette.state_registry.domain_to_class[domain]
+            assert isinstance(state, expected_class), f"Expected {expected_class}, got {type(state)}"
+
+
+async def test_get_state_return_fallback_type(
+    hassette_with_mock_api: tuple[Api, SimpleTestServer], hass_state_dicts: list[dict[str, Any]]
+):
+    """get_state returns the correct type."""
+    api_client, mock_server = hassette_with_mock_api
+
+    with (
+        patch.object(api_client.hassette.state_registry, "domain_to_class", new={}),
+        patch.object(api_client.hassette.state_registry, "class_to_domain", new={}),
+    ):
+        for state_dict in hass_state_dicts:
+            entity_id = state_dict["entity_id"]
+            mock_server.expect("GET", f"/api/states/{entity_id}", "", json=state_dict, status=200)
+
+            with pytest.warns(UserWarning, match="Falling back to BaseState"):
+                state = await api_client.get_state(entity_id)
+
+            assert state is not None, f"Expected state for {entity_id}, got None"
+            assert state.entity_id == entity_id, f"Expected entity_id {entity_id}, got {state.entity_id}"
+
+            assert isinstance(state, BaseState), f"Expected BaseState, got {type(state)}"

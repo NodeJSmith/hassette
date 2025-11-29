@@ -160,6 +160,7 @@ from collections.abc import Generator
 from enum import StrEnum
 from inspect import isclass
 from typing import Any, Literal, overload
+from warnings import warn
 
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
@@ -562,7 +563,11 @@ class Api(Resource):
             domain = entity_id.split(".")[0]
             state_class = self.hassette.state_registry.get_class_for_domain(domain)
             if not state_class:
-                raise TypeError(f"No registered state class for domain '{domain}'")
+                warn(
+                    f"No registered state class for domain '{domain}'. Falling back to BaseState.",
+                    stacklevel=2,
+                )
+                state_class = BaseState
         else:
             state_class = model
 
