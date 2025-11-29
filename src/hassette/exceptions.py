@@ -178,3 +178,64 @@ class NoDomainAnnotationError(StateRegistryError):
 
 class HassetteNotInitializedError(RuntimeError):
     """Exception raised when Hassette is not initialized in the current context."""
+
+
+class InvalidDataForStateConversionError(StateRegistryError):
+    """Raised when the data provided for state conversion is invalid or malformed."""
+
+    def __init__(self, data: Any):
+        """Initialize the error with the offending data.
+
+        Args:
+            data: The invalid data provided for state conversion.
+        """
+        super().__init__(f"Invalid or malformed data provided for state conversion: {data!r}")
+        self.data = data
+
+
+class UnableToConvertStateError(StateRegistryError):
+    """Raised when a state dictionary cannot be converted to a specific state class."""
+
+    def __init__(self, entity_id: str, state_class: type["BaseState"]) -> None:
+        """Initialize the error with the offending entity ID.
+
+        Args:
+            entity_id: The entity ID that could not be converted.
+            state_class: The state class that conversion was attempted to.
+        """
+        super().__init__(f"Unable to convert state for entity_id '{entity_id}' to class {state_class.__name__}.")
+        self.entity_id = entity_id
+        self.state_class = state_class
+
+
+class ConvertedTypeDoesNotMatchError(StateRegistryError):
+    """Raised when a converted state does not match the expected type."""
+
+    def __init__(self, entity_id: str, expected_class: type["BaseState"], actual_class: type["BaseState"]) -> None:
+        """Initialize the error with the offending entity ID.
+
+        Args:
+            entity_id: The entity ID that was converted.
+            expected_class: The expected state class.
+            actual_class: The actual state class returned.
+        """
+        super().__init__(
+            f"Converted state for entity_id '{entity_id}' is of type {actual_class.__name__}, "
+            f"expected {expected_class.__name__}."
+        )
+        self.entity_id = entity_id
+        self.expected_class = expected_class
+        self.actual_class = actual_class
+
+
+class InvalidEntityIdError(StateRegistryError):
+    """Raised when an entity ID is invalid or malformed."""
+
+    def __init__(self, entity_id: Any):
+        """Initialize the error with the offending entity ID.
+
+        Args:
+            entity_id: The invalid entity ID.
+        """
+        super().__init__(f"Invalid or malformed entity ID: {entity_id!r}")
+        self.entity_id = entity_id

@@ -1,7 +1,7 @@
 import typing
 from collections.abc import Generator
 from enum import StrEnum
-from typing import Any, overload
+from typing import Any
 
 from aiohttp.client_reqrep import ClientResponse
 from whenever import Date, PlainDateTime, ZonedDateTime
@@ -14,7 +14,7 @@ from hassette.resources.base import Resource
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
-    from hassette.models.states.base import BaseState, StateT
+    from hassette.models.states.base import BaseState
 
 
 class ApiSyncFacade(Resource):
@@ -276,27 +276,17 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_entity_or_none(entity_id, model))
 
-    @overload
-    def get_state(self, entity_id: str) -> "BaseState": ...
-
-    @overload
-    def get_state(self, entity_id: str, model: type["StateT"]) -> "StateT": ...
-
-    def get_state(self, entity_id: str, model: type["StateT"] | None = None) -> "StateT | BaseState":
+    def get_state(self, entity_id: str) -> "BaseState":
         """Get the state of a specific entity.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
         """
 
-        if model is None:
-            return self.task_bucket.run_sync(self._api.get_state(entity_id))
-
-        return self.task_bucket.run_sync(self._api.get_state(entity_id, model))
+        return self.task_bucket.run_sync(self._api.get_state(entity_id))
 
     def get_state_value(self, entity_id: str) -> Any:
         """Get the state of a specific entity without converting it to a state object.
@@ -309,15 +299,14 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
-    def get_state_value_typed(self, entity_id: str, model: type["StateT"] | None = None) -> "Any":
+    def get_state_value_typed(self, entity_id: str) -> "Any":
         """Get the value of a specific entity's state, converted to the correct type for that state.
 
         The return type here is Any due to the dynamic nature of this conversion, but the return type
-        at runtime will match the type defined in the provided model (or the inferred model if none is provided).
+        at runtime will match the expected value type for the specific state class of the entity.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
@@ -335,9 +324,7 @@ class ApiSyncFacade(Resource):
             as we cannot be sure of the actual type without additional context. For these cases, you are responsible
             for converting the string to the desired type.
         """
-        if model is None:
-            return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id))
-        return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id, model))
+        return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id))
 
     def get_attribute(self, entity_id: str, attribute: str) -> Any | None:
         """Get a specific attribute of an entity.

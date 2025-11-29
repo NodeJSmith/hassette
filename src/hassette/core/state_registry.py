@@ -3,8 +3,14 @@ from collections import deque
 from contextlib import suppress
 from logging import getLogger
 
-from hassette.exceptions import NoDomainAnnotationError
+from hassette.exceptions import (
+    InvalidDataForStateConversionError,
+    InvalidEntityIdError,
+    NoDomainAnnotationError,
+    UnableToConvertStateError,
+)
 from hassette.resources.base import Resource
+from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -13,6 +19,9 @@ if typing.TYPE_CHECKING:
 
 
 LOGGER = getLogger(__name__)
+CONVERSION_FAIL_TEMPLATE = (
+    "Failed to convert state for entity '%s' (domain: '%s') to class '%s'. Data: %s. Error: %s, Traceback: %s"
+)
 
 
 class StateRegistry(Resource):
@@ -154,13 +163,7 @@ class StateRegistry(Resource):
         """
         self.domain_to_class.clear()
 
-    @typing.overload
-    def try_convert_state(self, data: None) -> None: ...
-
-    @typing.overload
-    def try_convert_state(self, data: "HassStateDict") -> "BaseState": ...
-
-    def try_convert_state(self, data: "HassStateDict | None") -> "BaseState | None":
+    def try_convert_state(self, data: "HassStateDict", entity_id: str | None = None) -> "BaseState":
         """Convert a dictionary representation of a state into a specific state type.
 
         This function uses the state registry to look up the appropriate state class
@@ -168,11 +171,17 @@ class StateRegistry(Resource):
         it falls back to the generic BaseState.
 
         Args:
-            data: Dictionary containing state data from Home Assistant, or None.
+            data: Dictionary containing state data from Home Assistant.
+            entity_id: Optional entity ID to assist in domain determination.
 
         Returns:
             A properly typed state object (e.g., LightState, SensorState) or BaseState
-            for unknown domains. Returns None if data is None.
+            for unknown domains.
+
+        Raises:
+            InvalidDataForStateConversionError: If the provided data is invalid or malformed.
+            InvalidEntityIdError: If the entity_id is invalid or malformed.
+            UnableToConvertStateError: If conversion to the determined state class fails.
 
         Example:
             ```python
@@ -183,7 +192,7 @@ class StateRegistry(Resource):
         from hassette.models.states.base import BaseState
 
         if data is None:
-            return None
+            raise InvalidDataForStateConversionError(data)
 
         if "event" in data:
             self.logger.error(
@@ -192,20 +201,22 @@ class StateRegistry(Resource):
                 "or event.payload.data.old_state.",
                 stacklevel=2,
             )
-            return None
+            raise InvalidDataForStateConversionError(data)
 
-        entity_id = data.get("entity_id", "<unknown>")
-        if not entity_id or not isinstance(entity_id, str):
+        if not entity_id:
+            # specifically this way so we also handle empty strings/None
+            entity_id = data.get("entity_id") or "<unknown>"
+
+        if not isinstance(entity_id, str):
             self.logger.error("State data has invalid 'entity_id' field: %s", data, stacklevel=2)
-            return None
+            raise InvalidEntityIdError(entity_id)
 
-        if "domain" in data:
-            domain = data["domain"]
-        else:
-            if "." not in entity_id:
-                self.logger.error("State data has malformed 'entity_id' (missing domain): %s", entity_id, stacklevel=2)
-                return None
-            domain = entity_id.split(".", 1)[0]
+        if "." not in entity_id:
+            self.logger.error("State data has malformed 'entity_id' (missing domain): %s", entity_id, stacklevel=2)
+            raise InvalidEntityIdError(entity_id)
+
+        # domain = data["domain"] if "domain" in data else entity_id.split(".", 1)[0]
+        domain = data.get("domain") or entity_id.split(".", 1)[0]
 
         # Look up the appropriate state class from the registry
         state_class = self.get_class_for_domain(domain)
@@ -216,11 +227,12 @@ class StateRegistry(Resource):
         if state_class is not BaseState:
             classes.append(BaseState)
 
+        final_idx = len(classes) - 1
         for i, cls in enumerate(classes):
             try:
-                return self._conversion_with_error_handling(cls, data)
-            except Exception:
-                if i == len(classes) - 1:
+                return self._conversion_with_error_handling(cls, data, entity_id, domain)
+            except UnableToConvertStateError:
+                if i == final_idx:
                     raise
                 self.logger.debug(
                     "Falling back to next state class after failure to convert to '%s' for entity '%s'",
@@ -230,7 +242,9 @@ class StateRegistry(Resource):
 
         raise RuntimeError("Unreachable code reached in try_convert_state")
 
-    def _conversion_with_error_handling(self, state_class: type["BaseState"], data: "HassStateDict") -> "BaseState":
+    def _conversion_with_error_handling(
+        self, state_class: type["BaseState"], data: "HassStateDict", entity_id: str, domain: str
+    ) -> "BaseState":
         """Helper to convert state data with error handling.
 
         This function attempts to convert the given data dictionary into an instance
@@ -240,41 +254,32 @@ class StateRegistry(Resource):
         Args:
             state_class: The target state class to convert to.
             data: The state data dictionary.
+            entity_id: The entity ID associated with the state data.
+            domain: The domain associated with the state data.
 
         Returns:
             An instance of the state class.
 
-        Raises:
+        Raises: UnableToConvertStateError if conversion fails.
         """
 
         class_name = state_class.__name__
+        truncated_data = repr(data)
+        if len(truncated_data) > 200:
+            truncated_data = truncated_data[:200] + "...[truncated]"
 
         try:
             return state_class.model_validate(data)
-        except (TypeError, ValueError) as e:
-            entity_id = data.get("entity_id", "<unknown>")
-            domain = data.get("domain", "<unknown>")
-            # Truncate data for logging, avoid leaking full dict
-            truncated_data = repr(data)
-            if len(truncated_data) > 200:
-                truncated_data = truncated_data[:200] + "...[truncated]"
-            self.logger.error(
-                "Unable to convert state data to %s for entity '%s' (domain '%s'): %s\nData: %s",
-                class_name,
-                entity_id,
-                domain,
-                type(e).__name__,
-                truncated_data,
-            )
-            raise
         except Exception as e:
-            entity_id = data.get("entity_id", "<unknown>")
-            domain = data.get("domain", "<unknown>")
+            tb = get_short_traceback()
+
             self.logger.error(
-                "Unexpected error converting state data to %s for entity '%s' (domain '%s'): %s",
-                class_name,
+                CONVERSION_FAIL_TEMPLATE,
                 entity_id,
                 domain,
-                type(e).__name__,
+                class_name,
+                truncated_data,
+                e,
+                tb,
             )
-            raise
+            raise UnableToConvertStateError(entity_id, state_class) from e

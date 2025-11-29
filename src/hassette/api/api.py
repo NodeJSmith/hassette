@@ -13,7 +13,7 @@ Examples:
     states = await self.api.get_states()
 
     # Get specific entity state with type hint
-    light_state = await self.api.get_state("light.kitchen", states.LightState)
+    light_state: states.LightState = await self.api.get_state("light.kitchen")
     brightness = light_state.attributes.brightness
 
     # Get raw state data
@@ -142,13 +142,13 @@ Examples:
     from hassette import states
 
     try:
-        state = await self.api.get_state("light.missing_light", states.LightState)
+        state: states.LightState = await self.api.get_state("light.missing_light")
     except EntityNotFoundError:
         self.logger.warning("Entity not found")
 
     # or
 
-    state = await self.api.get_state_or_none("light.missing_light", states.LightState)
+    state: states.LightState | None = await self.api.get_state_or_none("light.missing_light")
     if state is None:
         self.logger.warning("Entity not found")
     ```
@@ -157,17 +157,16 @@ Examples:
 
 import typing
 from collections.abc import Generator
+from contextlib import suppress
 from enum import StrEnum
-from inspect import isclass
 from typing import Any, Literal, overload
-from warnings import warn
 
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.bus.accessors import get_path
 from hassette.const.misc import MISSING_VALUE
-from hassette.exceptions import EntityNotFoundError
+from hassette.exceptions import EntityNotFoundError, UnableToConvertStateError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
@@ -180,7 +179,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.api_resource import ApiResource
     from hassette.events import HassStateDict
     from hassette.models.entities import EntityT
-    from hassette.models.states import BaseState, StateT
+    from hassette.models.states import BaseState
 
 
 class Api(Resource):
@@ -301,7 +300,15 @@ class Api(Resource):
         val = await self.get_states_raw()
 
         self.logger.debug("Converting states to specific state types")
-        return list(filter(bool, [self.hassette.state_registry.try_convert_state(state) for state in val]))
+        converted: list[BaseState] = []
+
+        for raw_state in val:
+            # the conversion method will handle logging any conversion errors
+            with suppress(UnableToConvertStateError):
+                state = self.hassette.state_registry.try_convert_state(raw_state)
+                converted.append(state)
+
+        return converted
 
     async def get_states_iterator(self) -> Generator["BaseState[Any]", Any]:
         """Get all entities in Home Assistant.
@@ -320,9 +327,9 @@ class Api(Resource):
             nonlocal raw_states
 
             for state_data in raw_states:
-                value = self.hassette.state_registry.try_convert_state(state_data)
-                if value is not None:
-                    yield value
+                # the conversion method will handle logging any conversion errors
+                with suppress(UnableToConvertStateError):
+                    yield self.hassette.state_registry.try_convert_state(state_data)
 
         return yield_states()
 
@@ -541,42 +548,18 @@ class Api(Resource):
                 return None
             raise
 
-    @overload
-    async def get_state(self, entity_id: str) -> "BaseState": ...
-
-    @overload
-    async def get_state(self, entity_id: str, model: type["StateT"]) -> "StateT": ...
-
-    async def get_state(self, entity_id: str, model: type["StateT"] | None = None) -> "StateT | BaseState":
+    async def get_state(self, entity_id: str) -> "BaseState":
         """Get the state of a specific entity.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
         """
-        from hassette.models.states.base import BaseState
-
-        if model is None:
-            domain = entity_id.split(".")[0]
-            state_class = self.hassette.state_registry.get_class_for_domain(domain)
-            if not state_class:
-                warn(
-                    f"No registered state class for domain '{domain}'. Falling back to BaseState.",
-                    stacklevel=2,
-                )
-                state_class = BaseState
-        else:
-            state_class = model
-
-        if not isclass(state_class) or not issubclass(state_class, BaseState):
-            raise TypeError(f"Model {state_class!r} is not a valid BaseState subclass")
 
         raw = await self.get_state_raw(entity_id)
-
-        return state_class.model_validate(raw)
+        return self.hassette.state_registry.try_convert_state(raw, entity_id)
 
     async def get_state_value(self, entity_id: str) -> Any:
         """Get the state of a specific entity without converting it to a state object.
@@ -597,15 +580,14 @@ class Api(Resource):
         state = entity.get("state")
         return state
 
-    async def get_state_value_typed(self, entity_id: str, model: type["StateT"] | None = None) -> "Any":
+    async def get_state_value_typed(self, entity_id: str) -> "Any":
         """Get the value of a specific entity's state, converted to the correct type for that state.
 
         The return type here is Any due to the dynamic nature of this conversion, but the return type
-        at runtime will match the type defined in the provided model (or the inferred model if none is provided).
+        at runtime will match the expected value type for the specific state class of the entity.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
@@ -623,10 +605,7 @@ class Api(Resource):
             as we cannot be sure of the actual type without additional context. For these cases, you are responsible
             for converting the string to the desired type.
         """
-        if model is None:
-            state = await self.get_state(entity_id)
-        else:
-            state = await self.get_state(entity_id, model)
+        state = await self.get_state(entity_id)
 
         return state.value
 
