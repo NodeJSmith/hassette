@@ -221,11 +221,7 @@ class StateRegistry(Resource):
         # Look up the appropriate state class from the registry
         state_class = self.get_class_for_domain(domain)
 
-        classes = []
-        if state_class is not None:
-            classes.append(state_class)
-        if state_class is not BaseState:
-            classes.append(BaseState)
+        classes = [state_class, BaseState] if state_class is not None else [BaseState]
 
         final_idx = len(classes) - 1
         for i, cls in enumerate(classes):
