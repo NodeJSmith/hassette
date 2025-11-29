@@ -77,7 +77,7 @@ class TaskBucket(Resource):
 
         if current_thread == self.hassette._loop_thread_id:
             # Fast path: already on loop thread
-            with ctx.use(ctx.CURRENT_BUCKET, self):
+            with ctx.use_task_bucket(self):
                 return asyncio.create_task(coro, name=name)
         else:
             # Dev-mode tracking: log cross-thread spawn
@@ -93,7 +93,7 @@ class TaskBucket(Resource):
 
             def _create() -> None:
                 try:
-                    with ctx.use(ctx.CURRENT_BUCKET, self):
+                    with ctx.use_task_bucket(self):
                         task = asyncio.create_task(coro, name=name)
                     result.set_result(task)
                 except Exception as e:
@@ -120,7 +120,7 @@ class TaskBucket(Resource):
 
         def _call() -> R:
             if current_bucket is not None:
-                with ctx.use(ctx.CURRENT_BUCKET, current_bucket):
+                with ctx.use_task_bucket(current_bucket):
                     return fn(*args, **kwargs)
             else:
                 return fn(*args, **kwargs)
@@ -215,7 +215,7 @@ class TaskBucket(Resource):
 
     def create_task_on_loop(self, coro, *, name=None) -> asyncio.Task[Any]:
         """Create a task on the main event loop thread, in this bucket's context."""
-        with ctx.use(ctx.CURRENT_BUCKET, self):
+        with ctx.use_task_bucket(self):
             return self.hassette.loop.create_task(coro, name=name)
 
     async def cancel_all(self) -> None:

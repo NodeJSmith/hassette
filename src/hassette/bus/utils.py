@@ -26,11 +26,9 @@ def get_raise_on_incorrect_type():
 
     Prevents us from having to pass this flag around everywhere.
     """
-    from hassette.context import HASSETTE_CONFIG
+    from hassette.context import get_hassette_config
 
-    config = HASSETTE_CONFIG.get(None)
-    if not config:
-        raise RuntimeError("HassetteConfig instance not initialized yet.")
+    config = get_hassette_config()
 
     return config.raise_on_incorrect_dependency_type
 

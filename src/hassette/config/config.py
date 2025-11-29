@@ -3,7 +3,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Annotated, Any
 
-from pydantic import AliasChoices, BeforeValidator, Field, field_validator, model_validator
+from pydantic import AliasChoices, BeforeValidator, Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
@@ -340,14 +340,6 @@ class HassetteConfig(BaseSettings):
             resolved.mkdir(parents=True, exist_ok=True)
         return resolved
 
-    @model_validator(mode="after")
-    def validate_hassette_config(self) -> "HassetteConfig":
-        ctx.HASSETTE_CONFIG.set(self)
-
-        LOGGER.debug("Hassette configuration: %s", self.model_dump_json(indent=4))
-
-        return self
-
     def reload(self):
         """Reload the configuration from all sources."""
         # see: https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
@@ -368,13 +360,12 @@ class HassetteConfig(BaseSettings):
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":
-        """Get the global configuration instance."""
+        """Get the global configuration instance.
 
-        inst = ctx.HASSETTE_CONFIG.get(None)
-        if inst is not None:
-            return inst
-
-        raise RuntimeError("HassetteConfig instance not initialized yet.")
+        Raises:
+            HassetteNotInitializedError: If the Hassette instance is not initialized.
+        """
+        return ctx.get_hassette_config()
 
     def set_validated_app_manifests(self):
         """Cleans up and validates the apps configuration, including auto-detection."""

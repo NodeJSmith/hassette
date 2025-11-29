@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from hassette import context
 from hassette.config.config import HassetteConfig
 from hassette.utils.app_utils import autodetect_apps
 
@@ -20,7 +21,9 @@ class TestAutoDetectAppsCurrDir:
 
     @pytest.fixture(autouse=True)
     def setup(self, test_config: HassetteConfig):
-        self.hassette_config = test_config
+        with context.use_hassette_config(test_config):
+            self.hassette_config = test_config
+            yield
 
     def test_autodetect_in_current_directory(self, tmp_path: Path):
         """Test auto-detection of apps in the current directory."""
@@ -86,7 +89,9 @@ class TestAutoDetectApps:
 
     @pytest.fixture(autouse=True)
     def setup(self, test_config: HassetteConfig):
-        self.hassette_config = test_config
+        with context.use_hassette_config(test_config):
+            self.hassette_config = test_config
+            yield
 
     def test_autodetect_simple_app(self, tmp_path: Path):
         """Test auto-detection of a simple app in the root directory."""
@@ -382,8 +387,9 @@ class TestValidateApps:
 
     @pytest.fixture(autouse=True)
     def setup(self, test_config: HassetteConfig):
-        self.hassette_config = test_config
-        self.hassette_config.autodetect_apps = False
+        with context.use_hassette_config(test_config):
+            self.hassette_config = test_config
+            self.hassette_config.autodetect_apps = False
 
     def test_validate_apps_sets_app_dir(self, tmp_path: Path):
         """Test that validate_apps sets app_dir for apps that don't have it."""
@@ -586,7 +592,9 @@ class TestAutoDetectIntegration:
 
     @pytest.fixture(autouse=True)
     def setup(self, test_config: HassetteConfig):
-        self.hassette_config = test_config
+        with context.use_hassette_config(test_config):
+            self.hassette_config = test_config
+            yield
 
     def test_hassette_config_autodetect_enabled_by_default(self, tmp_path: Path):
         """Test that autodetect_apps is enabled by default in HassetteConfig."""

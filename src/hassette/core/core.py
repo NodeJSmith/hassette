@@ -89,8 +89,9 @@ class Hassette(Resource):
         self.api = self.add_child(Api)
         self.state_registry = self.add_child(StateRegistry)
 
-        # set context variable
-        context.HASSETTE_INSTANCE.set(self)
+        # set context variables
+        context.set_global_hassette(self)
+        context.set_global_hassette_config(self.config)
 
         self.logger.info("All components registered...")
 
@@ -174,13 +175,7 @@ class Hassette(Resource):
     def get_instance(cls) -> "Hassette":
         """Get the current instance of Hassette."""
 
-        inst = context.HASSETTE_INSTANCE.get(None)
-        if inst is not None:
-            return inst
-
-        raise RuntimeError(
-            "Hassette is not initialized in the current context. Use `Hassette.run_forever()` to start it."
-        )
+        return context.get_hassette()
 
     async def send_event(self, event_name: str, event: "Event[Any]") -> None:
         """Send an event to the event bus."""

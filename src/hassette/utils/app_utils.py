@@ -198,9 +198,7 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict]
 
     app_manifests: dict[str, AppDict] = {}
 
-    config = context.HASSETTE_CONFIG.get(None)
-    if not config:
-        raise RuntimeError("HassetteConfig is not available in context")
+    config = context.get_hassette_config()
     default_exclude_dirs = set(config.autodetect_exclude_dirs)
 
     py_files = app_dir.rglob("*.py")
@@ -378,9 +376,7 @@ def load_app_class(
     if not module_path or not class_name:
         raise ValueError(f"App {display_name} is missing filename or class_name")
 
-    config = context.HASSETTE_CONFIG.get(None)
-    if not config:
-        raise RuntimeError("HassetteConfig is not available in context")
+    config = context.get_hassette_config()
 
     # exceptions are caught below to cache failures, but are re-raised so the caller still receives them
     try:

@@ -169,8 +169,7 @@ class HassetteHarness:
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
-        context.HASSETTE_CONFIG.set(self.config)
-        context.HASSETTE_INSTANCE.set(cast("Hassette", self.hassette))
+        context.set_global_hassette(cast("Hassette", self.hassette))
 
         self.config.set_validated_app_manifests()
 

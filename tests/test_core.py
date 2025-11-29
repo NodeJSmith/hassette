@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hassette import Hassette, context
+from hassette import Hassette
 from hassette.bus import Bus
 from hassette.config.config import HassetteConfig
 from hassette.core.api_resource import ApiResource
@@ -103,18 +103,6 @@ async def test_loop_property_returns_running_loop(hassette_instance: Hassette) -
     running_loop = asyncio.get_running_loop()
     hassette_instance._loop = running_loop
     assert hassette_instance.loop is running_loop, "loop property should return the configured loop"
-
-
-def test_get_instance_returns_current(hassette_instance: Hassette) -> None:
-    """get_instance returns the context-bound Hassette."""
-    with context.use(context.HASSETTE_INSTANCE, hassette_instance):
-        assert Hassette.get_instance() is hassette_instance
-
-
-def test_get_instance_raises_when_unset() -> None:
-    """get_instance raises when no instance is registered."""
-    with context.use(context.HASSETTE_INSTANCE, None), pytest.raises(RuntimeError):
-        Hassette.get_instance()
 
 
 def test_apps_property_forwards_to_handler(hassette_instance: Hassette) -> None:
