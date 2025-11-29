@@ -10,6 +10,7 @@ from hassette.exceptions import HassetteNotInitializedError
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette, HassetteConfig, TaskBucket
+    from hassette.core.state_registry import StateRegistry
 
 LOGGER = getLogger(__name__)
 
@@ -36,6 +37,11 @@ def get_hassette_config() -> "HassetteConfig":
     except LookupError:
         LOGGER.error("HassetteConfig not found in context, attempting to get from Hassette instance.")
         return get_hassette().config
+
+
+def get_state_registry() -> "StateRegistry":
+    """Get the current StateRegistry from the Hassette instance in context."""
+    return get_hassette().state_registry
 
 
 def set_global_hassette(hassette: "Hassette") -> None:

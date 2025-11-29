@@ -145,39 +145,6 @@ class StateRegistryError(HassetteError):
     """Base exception for state registry errors."""
 
 
-class StateNotRegisteredError(StateRegistryError):
-    """Raised when attempting to access a state class that hasn't been registered."""
-
-    def __init__(self, domain: str) -> None:
-        """Initialize the error with the missing domain.
-
-        Args:
-            domain: The domain that wasn't found in the registry.
-        """
-        super().__init__(f"No state class registered for domain: {domain}")
-        self.domain = domain
-
-
-class DuplicateDomainError(StateRegistryError):
-    """Raised when attempting to register a domain that's already registered."""
-
-    def __init__(self, domain: str, existing_class: type["BaseState"], new_class: type["BaseState"]) -> None:
-        """Initialize the error with domain and conflicting classes.
-
-        Args:
-            domain: The domain that's already registered.
-            existing_class: The class that's currently registered for this domain.
-            new_class: The class that attempted to register for this domain.
-        """
-        super().__init__(
-            f"Domain '{domain}' is already registered to {existing_class.__name__}, "
-            f"cannot register {new_class.__name__}"
-        )
-        self.domain = domain
-        self.existing_class = existing_class
-        self.new_class = new_class
-
-
 class RegistryNotReadyError(StateRegistryError):
     """Raised when attempting to use the registry before any classes are registered."""
 
@@ -188,3 +155,26 @@ class RegistryNotReadyError(StateRegistryError):
             "No state classes have been registered yet. "
             "Ensure state modules are imported before attempting state conversion."
         )
+
+
+class NoDomainAnnotationError(StateRegistryError):
+    """Raised when a state class does not define a domain annotation or the annotation is empty.
+
+    Generally ignored, this indicates that the class is a base class and not intended to be registered.
+
+    """
+
+    def __init__(self, state_class: type["BaseState"]) -> None:
+        """Initialize the error with the offending class.
+
+        Args:
+            state_class: The class that lacks a domain annotation.
+        """
+        super().__init__(
+            f"State class {state_class.__name__} does not define a domain annotation or the annotation is empty."
+        )
+        self.state_class = state_class
+
+
+class HassetteNotInitializedError(RuntimeError):
+    """Exception raised when Hassette is not initialized in the current context."""

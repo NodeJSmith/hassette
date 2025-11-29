@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, Self
 
 from hassette.const import MISSING_VALUE
-from hassette.core.state_registry import StateRegistry
+from hassette.context import get_state_registry
 from hassette.events.base import Event, HassPayload
 from hassette.models.states.base import StateT
 from hassette.types import topics
@@ -222,8 +222,10 @@ class TypedStateChangePayload(Generic[StateT]):
         if entity_id is None:
             raise ValueError("State change event data must contain 'entity_id' key")
 
-        new_state_obj = StateRegistry.try_convert_state(new_state) if new_state is not None else None
-        old_state_obj = StateRegistry.try_convert_state(old_state) if old_state is not None else None
+        registry = get_state_registry()
+
+        new_state_obj = registry.try_convert_state(new_state) if new_state is not None else None
+        old_state_obj = registry.try_convert_state(old_state) if old_state is not None else None
 
         return cls(entity_id=entity_id, old_state=old_state_obj, new_state=new_state_obj)  # pyright: ignore[reportArgumentType]
 
@@ -240,15 +242,13 @@ class RawStateChangeEvent(Event[HassPayload[RawStateChangePayload]]):
         Returns:
             A TypedStateChangeEvent with states converted to the specified type.
         """
+        registry = get_state_registry()
+
         old_state = (
-            StateRegistry.try_convert_state(self.payload.data.old_state)
-            if self.payload.data.old_state is not None
-            else None
+            registry.try_convert_state(self.payload.data.old_state) if self.payload.data.old_state is not None else None
         )
         new_state = (
-            StateRegistry.try_convert_state(self.payload.data.new_state)
-            if self.payload.data.new_state is not None
-            else None
+            registry.try_convert_state(self.payload.data.new_state) if self.payload.data.new_state is not None else None
         )
 
         return TypedStateChangeEvent(

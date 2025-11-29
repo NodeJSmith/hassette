@@ -1,13 +1,16 @@
 import typing
+from collections import deque
+from contextlib import suppress
 from logging import getLogger
-from typing import ClassVar, cast
 
+from hassette.exceptions import NoDomainAnnotationError
 from hassette.resources.base import Resource
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.events import HassStateDict
     from hassette.models.states.base import BaseState
+
 
 LOGGER = getLogger(__name__)
 
@@ -16,19 +19,18 @@ class StateRegistry(Resource):
     """Registry for mapping domains to their state classes.
 
     This class maintains a mapping of Home Assistant domains to their corresponding
-    BaseState subclasses. State classes register themselves automatically when they
-    are defined with a domain literal.
-
-    The registry is a singleton - all access goes through the global instance.
+    BaseState subclasses. State classes get registered during the `after_initialize` phase
+    by scanning all subclasses of BaseState.
     """
 
-    domain_to_class: ClassVar[dict[str, type["BaseState"]]] = {}
+    domain_to_class: dict[str, type["BaseState"]]
     """Mapping of domain strings to their registered state classes."""
 
-    class_to_domain: ClassVar[dict[type["BaseState"], str]] = {}
+    class_to_domain: dict[type["BaseState"], str]
     """Mapping of state classes to their registered domain strings."""
 
     async def after_initialize(self) -> None:
+        self.build_registry()
         self.mark_ready()
 
     @classmethod
@@ -43,11 +45,36 @@ class StateRegistry(Resource):
             A new StateRegistry instance.
         """
         inst = cls(hassette=hassette, parent=parent)
-
+        inst.domain_to_class = {}
+        inst.class_to_domain = {}
         return inst
 
-    @classmethod
-    def register(cls, state_class: type["BaseState"]) -> None:
+    def build_registry(self):
+        # BFS over the subclass tree, starting from BaseState
+        from hassette.models.states.base import BaseState
+
+        queue: deque[type[BaseState]] = deque(BaseState.__subclasses__())
+        seen: set[type[BaseState]] = set()
+
+        while queue:
+            state_cls = queue.popleft()
+
+            if state_cls in seen:
+                continue
+            seen.add(state_cls)
+
+            # enqueue *its* subclasses so we explore the whole tree
+            for sub in state_cls.__subclasses__():
+                queue.append(sub)
+
+            # skip the abstract base or any classes that shouldn't register
+            # (you can refine this condition however you like)
+            with suppress(NoDomainAnnotationError):
+                # adjust this call depending on how your registration API works
+                self.register(state_cls)
+                print(f"Registered state class {state_cls.__name__} for domain '{state_cls.get_domain()}'")
+
+    def register(self, state_class: type["BaseState"]) -> None:
         """Register a state class for its domain.
 
         Args:
@@ -61,26 +88,25 @@ class StateRegistry(Resource):
             domain = state_class.get_domain()
         except (ValueError, AttributeError) as e:
             # Skip registration for base classes that don't define domains
-            LOGGER.debug("Skipping registration for %s: %s", state_class.__name__, e)
+            self.logger.debug("Skipping registration for %s: %s", state_class.__name__, e)
             return
 
-        if domain in cls.domain_to_class:
-            existing_class = cls.domain_to_class[domain]
+        if domain in self.domain_to_class:
+            existing_class = self.domain_to_class[domain]
             if existing_class is state_class:
                 return  # Already registered, skip
 
-            LOGGER.warning(
+            self.logger.warning(
                 "Overriding original state class %s for domain '%s' with %s",
                 existing_class.__name__,
                 domain,
                 state_class.__name__,
             )
 
-        LOGGER.debug("Registering state class %s for domain '%s'", state_class.__name__, domain)
-        cls.domain_to_class[domain] = state_class
+        self.logger.debug("Registering state class %s for domain '%s'", state_class.__name__, domain)
+        self.domain_to_class[domain] = state_class
 
-    @classmethod
-    def get_class_for_domain(cls, domain: str) -> type["BaseState"] | None:
+    def get_class_for_domain(self, domain: str) -> type["BaseState"] | None:
         """Get the state class registered for a domain.
 
         Args:
@@ -89,10 +115,9 @@ class StateRegistry(Resource):
         Returns:
             The state class for the domain, or None if not registered.
         """
-        return cls.domain_to_class.get(domain)
+        return self.domain_to_class.get(domain)
 
-    @classmethod
-    def get_domain_for_class(cls, state_class: type["BaseState"]) -> str | None:
+    def get_domain_for_class(self, state_class: type["BaseState"]) -> str | None:
         """Get the domain for a registered state class.
 
         Args:
@@ -101,47 +126,41 @@ class StateRegistry(Resource):
         Returns:
             The domain for the class, or None if not registered.
         """
-        return cls.class_to_domain.get(state_class)
+        return self.class_to_domain.get(state_class)
 
-    @classmethod
-    def all_domains(cls) -> list[str]:
+    def all_domains(self) -> list[str]:
         """Get all registered domains.
 
         Returns:
             A sorted list of all registered domain strings.
         """
-        return sorted(cls.domain_to_class.keys())
+        return sorted(self.domain_to_class.keys())
 
-    @classmethod
-    def all_classes(cls) -> list[type["BaseState"]]:
+    def all_classes(self) -> list[type["BaseState"]]:
         """Get all registered state classes.
 
         Returns:
             A list of all registered state classes, sorted by domain name.
         """
 
-        return [cls.domain_to_class[domain] for domain in cls.all_domains()]
+        return [self.domain_to_class[domain] for domain in self.all_domains()]
 
-    @classmethod
-    def clear(cls) -> None:
+    def clear(self) -> None:
         """Clear all registered state classes.
 
         Warning:
             This is primarily for testing purposes. In normal operation,
             state classes should remain registered for the lifetime of the process.
         """
-        cls.domain_to_class.clear()
+        self.domain_to_class.clear()
 
     @typing.overload
-    @classmethod
-    def try_convert_state(cls, data: None) -> None: ...
+    def try_convert_state(self, data: None) -> None: ...
 
     @typing.overload
-    @classmethod
-    def try_convert_state(cls, data: "HassStateDict | BaseState") -> "BaseState": ...
+    def try_convert_state(self, data: "HassStateDict") -> "BaseState": ...
 
-    @classmethod
-    def try_convert_state(cls, data: "HassStateDict | BaseState | None") -> "BaseState | None":
+    def try_convert_state(self, data: "HassStateDict | None") -> "BaseState | None":
         """Convert a dictionary representation of a state into a specific state type.
 
         This function uses the state registry to look up the appropriate state class
@@ -153,10 +172,7 @@ class StateRegistry(Resource):
 
         Returns:
             A properly typed state object (e.g., LightState, SensorState) or BaseState
-            for unknown domains. Returns None if data is None or conversion fails.
-
-        Raises:
-            RegistryNotReadyError: If called before any state classes have been registered.
+            for unknown domains. Returns None if data is None.
 
         Example:
             ```python
@@ -169,12 +185,8 @@ class StateRegistry(Resource):
         if data is None:
             return None
 
-        # if BaseState or any subclass, extract the raw data dict
-        if isinstance(data, BaseState):
-            data = cast("HassStateDict", data.raw_data)
-
         if "event" in data:
-            LOGGER.error(
+            self.logger.error(
                 "Data contains 'event' key, expected state data, not event data. "
                 "To convert state from an event, extract the state data from event.payload.data.new_state "
                 "or event.payload.data.old_state.",
@@ -184,39 +196,41 @@ class StateRegistry(Resource):
 
         entity_id = data.get("entity_id", "<unknown>")
         if not entity_id or not isinstance(entity_id, str):
-            LOGGER.error("State data has invalid 'entity_id' field: %s", data, stacklevel=2)
+            self.logger.error("State data has invalid 'entity_id' field: %s", data, stacklevel=2)
             return None
 
         if "domain" in data:
             domain = data["domain"]
         else:
             if "." not in entity_id:
-                LOGGER.error("State data has malformed 'entity_id' (missing domain): %s", entity_id, stacklevel=2)
+                self.logger.error("State data has malformed 'entity_id' (missing domain): %s", entity_id, stacklevel=2)
                 return None
             domain = entity_id.split(".", 1)[0]
 
         # Look up the appropriate state class from the registry
-        state_class = cls.get_class_for_domain(domain)
+        state_class = self.get_class_for_domain(domain)
 
+        classes = []
         if state_class is not None:
-            result = cls._conversion_with_error_handling(state_class, data)
-            if result is not None:
-                return result
-        else:
-            # Domain not registered, log a warning
-            LOGGER.debug(
-                "No state class registered for domain '%s', falling back to BaseState for entity %s",
-                domain,
-                entity_id,
-            )
+            classes.append(state_class)
+        if state_class is not BaseState:
+            classes.append(BaseState)
 
-        # Fall back to generic BaseState
-        return cls._conversion_with_error_handling(BaseState, data)
+        for i, cls in enumerate(classes):
+            try:
+                return self._conversion_with_error_handling(cls, data)
+            except Exception:
+                if i == len(classes) - 1:
+                    raise
+                self.logger.debug(
+                    "Falling back to next state class after failure to convert to '%s' for entity '%s'",
+                    cls.__name__,
+                    entity_id,
+                )
 
-    @classmethod
-    def _conversion_with_error_handling(
-        cls, state_class: type["BaseState"], data: "HassStateDict | BaseState"
-    ) -> "BaseState | None":
+        raise RuntimeError("Unreachable code reached in try_convert_state")
+
+    def _conversion_with_error_handling(self, state_class: type["BaseState"], data: "HassStateDict") -> "BaseState":
         """Helper to convert state data with error handling.
 
         This function attempts to convert the given data dictionary into an instance
@@ -228,12 +242,10 @@ class StateRegistry(Resource):
             data: The state data dictionary.
 
         Returns:
-            An instance of the state class, or None if conversion failed.
-        """
-        from hassette.models.states.base import BaseState
+            An instance of the state class.
 
-        if isinstance(data, BaseState):
-            data = cast("HassStateDict", data.raw_data)
+        Raises:
+        """
 
         class_name = state_class.__name__
 
@@ -246,7 +258,7 @@ class StateRegistry(Resource):
             truncated_data = repr(data)
             if len(truncated_data) > 200:
                 truncated_data = truncated_data[:200] + "...[truncated]"
-            LOGGER.error(
+            self.logger.error(
                 "Unable to convert state data to %s for entity '%s' (domain '%s'): %s\nData: %s",
                 class_name,
                 entity_id,
@@ -254,15 +266,15 @@ class StateRegistry(Resource):
                 type(e).__name__,
                 truncated_data,
             )
-            return None
+            raise
         except Exception as e:
             entity_id = data.get("entity_id", "<unknown>")
             domain = data.get("domain", "<unknown>")
-            LOGGER.error(
+            self.logger.error(
                 "Unexpected error converting state data to %s for entity '%s' (domain '%s'): %s",
                 class_name,
                 entity_id,
                 domain,
                 type(e).__name__,
             )
-            return None
+            raise
