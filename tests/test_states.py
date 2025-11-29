@@ -380,7 +380,7 @@ class TestDomainStates:
         assert result.entity_id == "light.test"
         assert hasattr(result.attributes, "brightness"), "LightState should have brightness attribute"
 
-    async def test_get_with_wrong_domain_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_get_with_wrong_domain_raises_value_error(self, hassette_with_state_proxy: "Hassette") -> None:
         """DomainStates.get() returns None if entity domain doesn't match."""
         hassette = hassette_with_state_proxy
 
@@ -394,9 +394,8 @@ class TestDomainStates:
 
         # Try to get sensor from lights domain
         lights = states_instance.light
-        result = lights.get("sensor.test")
-
-        assert result is None
+        with pytest.raises(ValueError, match=r"Entity ID 'sensor\.test' has domain 'sensor', expected 'light'"):
+            lights.get("sensor.test")
 
     async def test_iteration_over_empty_domain(self, hassette_with_state_proxy: "Hassette") -> None:
         """Iterating over DomainStates with no entities returns empty."""
