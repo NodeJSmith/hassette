@@ -5,6 +5,7 @@ from typing import Any, Generic, TypeVar, get_args
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
+from hassette.exceptions import NoDomainAnnotationError
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
 type StrStateValue = str | None
@@ -89,23 +90,6 @@ class BaseState(BaseModel, Generic[StateValueT]):
     # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
-
-    def __init_subclass__(cls, **kwargs) -> None:
-        """Automatically register state subclasses with the state registry.
-
-        This hook is called whenever a class inherits from BaseState. If the subclass
-        defines a domain (via a Literal type annotation), it will be automatically
-        registered in the global state registry for lookup during state conversion.
-
-        Base classes without domain literals (like StringBaseState) are skipped.
-        """
-        super().__init_subclass__(**kwargs)
-
-        # Import here to avoid circular dependency
-        from hassette.state_registry import get_registry
-
-        # Attempt to register - the registry will skip if no domain is defined
-        get_registry().register(cls)
 
     domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""
@@ -197,20 +181,20 @@ class BaseState(BaseModel, Generic[StateValueT]):
         fields = cls.model_fields
         domain_field = fields.get("domain")
         if not domain_field:
-            raise ValueError(f"Domain not defined for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         annotations = get_annotations(cls)
         annotation = annotations.get("domain")
         if annotation is None:
-            raise ValueError(f"Domain annotation is None for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         args = get_args(annotation)
         if not args:
-            raise ValueError(f"Domain annotation has no args for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         domain = args[0]
         if not isinstance(domain, str):
-            raise ValueError(f"Domain is not a string for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         return domain
 

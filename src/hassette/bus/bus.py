@@ -650,3 +650,51 @@ class Bus(Resource):
         return self.on_hassette_service_status(
             status=ResourceStatus.RUNNING, handler=handler, where=where, kwargs=kwargs, **opts
         )
+
+    def on_websocket_connected(
+        self,
+        *,
+        handler: "HandlerType",
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Subscribe to websocket connected events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
+        return self.on(
+            topic=topics.HASSETTE_EVENT_WEBSOCKET_CONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
+        )
+
+    def on_websocket_disconnected(
+        self,
+        *,
+        handler: "HandlerType",
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Subscribe to websocket disconnected events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
+        return self.on(
+            topic=topics.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
+        )

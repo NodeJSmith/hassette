@@ -1,18 +1,43 @@
 import typing
-from typing import Any, Generic, TypeVar
+from logging import getLogger
+from typing import Any, Generic
 from warnings import warn
 
 from hassette.core.state_proxy import StateProxyResource
 from hassette.exceptions import EntityNotFoundError, RegistryNotReadyError
-from hassette.models.states import BaseState
+from hassette.models.states import BaseState, StateT
 from hassette.resources.base import Resource
-from hassette.state_registry import get_registry
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.models.states import StateT
+    from hassette.events import HassStateDict
 
-StateT = TypeVar("StateT", bound=BaseState)
+
+LOGGER = getLogger(__name__)
+
+
+def make_entity_id(entity_id: str, domain: str) -> str:
+    """Ensure the entity_id has the correct domain prefix.
+
+    If the entity_id already contains a domain prefix, validate that it matches the expected domain.
+
+    Args:
+        entity_id: The entity ID, with or without domain prefix.
+        domain: The expected domain prefix (e.g., "light").
+
+    Returns:
+        The entity ID with the correct domain prefix.
+
+    Raises:
+        ValueError: If the entity_id has a domain prefix that does not match the expected domain.
+    """
+    if "." in entity_id:
+        prefix, _ = entity_id.split(".", 1)
+        if prefix != domain:
+            raise ValueError(f"Entity ID '{entity_id}' has domain '{prefix}', expected '{domain}'.")
+        return entity_id
+
+    return f"{domain}.{entity_id}"
 
 
 class _TypedStateGetter(Generic[StateT]):
@@ -27,35 +52,38 @@ class _TypedStateGetter(Generic[StateT]):
     def __init__(self, proxy: "StateProxyResource", model: type[StateT]):
         self._proxy = proxy
         self._model = model
+        self._domain = model.get_domain()
 
     def __call__(self, entity_id: str) -> StateT:
         """Get a specific entity state by ID.
 
         Args:
-            entity_id: The full entity ID (e.g., "light.bedroom").
+            entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
 
         Raises:
             EntityNotFoundError
 
         """
-        value = self._proxy.get_state(entity_id)
+        value = self.get(entity_id)
         if value is None:
             raise EntityNotFoundError(f"State for entity_id '{entity_id}' not found")
-        return self._model.model_validate(value)
+        return value
 
     def get(self, entity_id: str) -> StateT | None:
         """Get a specific entity state by ID, returning None if not found.
 
         Args:
-            entity_id: The full entity ID (e.g., "light.bedroom").
+            entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
 
         Returns:
             The typed state if found, None otherwise.
         """
-        raw = self._proxy.get_state(entity_id)
-        if raw is None:
+        entity_id = make_entity_id(entity_id, self._domain)
+
+        value = self._proxy.get_state(entity_id)
+        if value is None:
             return None
-        return self._model.model_validate(raw)
+        return self._model.model_validate(value)
 
 
 class _StateGetter:
@@ -69,33 +97,47 @@ class _StateGetter:
 class DomainStates(Generic[StateT]):
     """Generic container for domain-specific state iteration."""
 
-    def __init__(self, states_dict: dict[str, BaseState], domain: str) -> None:
+    def __init__(self, states_dict: dict[str, "HassStateDict"], model: type[StateT]) -> None:
         self._states = states_dict
-        self._domain = domain
+        self._model = model
+        self._domain = model.get_domain()
 
     def __iter__(self) -> typing.Generator[tuple[str, StateT], Any]:
         """Iterate over all states in this domain."""
         for entity_id, state in self._states.items():
-            if state.domain == self._domain:
-                yield entity_id, typing.cast("StateT", state)
+            try:
+                yield entity_id, self._model.model_validate(state)
+            except Exception as e:
+                LOGGER.error(
+                    "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, e
+                )
+                continue
 
     def __len__(self) -> int:
         """Return the number of entities in this domain."""
-        return sum(1 for _ in self)
+        return len(self._states)
 
     def get(self, entity_id: str) -> StateT | None:
         """Get a specific entity state by ID.
 
         Args:
-            entity_id: The full entity ID (e.g., "light.bedroom").
+            entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
 
         Returns:
             The typed state if found and matches domain, None otherwise.
         """
+        entity_id = make_entity_id(entity_id, self._domain)
+
         state = self._states.get(entity_id)
-        if state and state.domain == self._domain:
-            return typing.cast("StateT", state)
-        return None
+        if state is None:
+            return None
+
+        # If already the correct type (and not just BaseState), return it
+        if isinstance(state, self._model) and type(state) is not BaseState:
+            return state
+
+        # Otherwise, try to convert
+        return self._model.model_validate(state)
 
 
 class States(Resource):
@@ -171,9 +213,8 @@ class States(Resource):
         if name.startswith("_") or name in ("hassette", "parent", "name"):
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
-        registry = get_registry()
         try:
-            state_class = registry.get_class_for_domain(name)
+            state_class = self.hassette.state_registry.get_class_for_domain(name)
         except RegistryNotReadyError:
             raise AttributeError(
                 f"State registry not initialized. Cannot access domain '{name}'. "
@@ -186,13 +227,13 @@ class States(Resource):
                 f"For better type support, create a custom state class that registers this domain.",
                 stacklevel=2,
             )
-            return DomainStates[BaseState](self._state_proxy.states, name)
+            return DomainStates[BaseState](self._state_proxy.get_domain_states(name), BaseState)
 
         # Domain is registered, use its specific class
-        return DomainStates[state_class](self._state_proxy.states, name)
+        return DomainStates[state_class](self._state_proxy.get_domain_states(name), state_class)
 
     @property
-    def all(self) -> dict[str, BaseState]:
+    def all(self) -> dict[str, "HassStateDict"]:
         """Access all entity states as a dictionary.
 
         Returns:
@@ -211,7 +252,7 @@ class States(Resource):
         Returns:
             DomainStates container for the specified domain.
         """
-        return DomainStates[StateT](self._state_proxy.states, model.get_domain())
+        return DomainStates[StateT](self._state_proxy.get_domain_states(model.get_domain()), model)
 
     @property
     def get(self) -> _StateGetter:

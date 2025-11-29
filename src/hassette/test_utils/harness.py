@@ -21,10 +21,12 @@ from hassette.core.bus_service import BusService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxyResource
+from hassette.core.state_registry import StateRegistry
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
+from hassette.states import States
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
@@ -88,6 +90,8 @@ class _HassetteMock(Resource):
         self._app_handler: AppHandler | None = None
         self._websocket_service: WebsocketService | None = None
         self._state_proxy_resource: StateProxyResource | None = None
+        self.state_registry: StateRegistry | None = None
+        self._states: States | None = None
 
     @property
     def ws_url(self) -> str:
@@ -150,6 +154,7 @@ class HassetteHarness:
     use_app_handler: bool = False
     use_websocket: bool = False
     use_state_proxy: bool = False
+    use_state_registry: bool = False
     unused_tcp_port: int = 0
 
     def __post_init__(self) -> None:
@@ -166,8 +171,7 @@ class HassetteHarness:
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
-        context.HASSETTE_CONFIG.set(self.config)
-        context.HASSETTE_INSTANCE.set(cast("Hassette", self.hassette))
+        context.set_global_hassette(cast("Hassette", self.hassette))
 
         self.config.set_validated_app_manifests()
 
@@ -224,6 +228,11 @@ class HassetteHarness:
             if not self.use_bus:
                 raise RuntimeError("State proxy requires bus")
             await self._start_state_proxy()
+
+        if self.use_state_registry:
+            self.hassette.state_registry = self.hassette.add_child(StateRegistry)
+
+        self.hassette._states = self.hassette.add_child(States)
 
         for resource in self.hassette.children:
             resource.start()

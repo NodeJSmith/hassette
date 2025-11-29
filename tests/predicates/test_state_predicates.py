@@ -1,8 +1,5 @@
-import typing
-from types import SimpleNamespace
-
 from hassette.bus import predicates as P
-from hassette.events import Event
+from hassette.test_utils.helpers import create_state_change_event
 
 
 class _Attrs:
@@ -13,43 +10,24 @@ class _Attrs:
         return self._values
 
 
-def _state_event(
-    *,
-    entity_id: str,
-    old_value: object,
-    new_value: object,
-    old_attrs: dict[str, object] | None = None,
-    new_attrs: dict[str, object] | None = None,
-) -> Event:
-    data = SimpleNamespace(
-        entity_id=entity_id,
-        old_state_value=old_value,
-        new_state_value=new_value,
-        old_state=SimpleNamespace(attributes=_Attrs(old_attrs or {})),
-        new_state=SimpleNamespace(attributes=_Attrs(new_attrs or {})),
-    )
-    payload = SimpleNamespace(data=data)
-    return typing.cast("Event", SimpleNamespace(topic="hass.event.state_changed", payload=payload))
-
-
 def test_state_did_change_detects_transitions() -> None:
     """Test that StateDidChange predicate detects when state values change."""
     predicate = P.StateDidChange()
-    event = _state_event(entity_id="sensor.kitchen", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="sensor.kitchen", old_value="off", new_value="on")
     assert predicate(event) is True
 
 
 def test_state_did_change_false_when_unchanged() -> None:
     """Test that StateDidChange predicate returns False when state values are unchanged."""
     predicate = P.StateDidChange()
-    event = _state_event(entity_id="sensor.kitchen", old_value="idle", new_value="idle")
+    event = create_state_change_event(entity_id="sensor.kitchen", old_value="idle", new_value="idle")
     assert predicate(event) is False
 
 
 def test_attr_did_change_detects_attribute_modifications() -> None:
     """Test that AttrDidChange predicate detects when specified attributes change."""
     predicate = P.AttrDidChange("brightness")
-    event = _state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value=None,
         new_value=None,
@@ -61,7 +39,7 @@ def test_attr_did_change_detects_attribute_modifications() -> None:
 
 def test_attr_from_to_predicates_apply_conditions() -> None:
     """Test that AttrFrom and AttrTo predicates correctly match old and new attribute values."""
-    event = _state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value=None,
         new_value=None,
@@ -78,7 +56,7 @@ def test_attr_from_to_predicates_apply_conditions() -> None:
 
 def test_from_to_predicates_match_state_values() -> None:
     """Test that StateFrom and StateTo predicates correctly match old and new state values."""
-    event = _state_event(entity_id="light.office", old_value="off", new_value="on")
+    event = create_state_change_event(entity_id="light.office", old_value="off", new_value="on")
 
     from_pred = P.StateFrom("off")
     to_pred = P.StateTo("on")
@@ -90,7 +68,7 @@ def test_from_to_predicates_match_state_values() -> None:
 def test_entity_matches_supports_globs() -> None:
     """Test that EntityMatches predicate supports glob pattern matching."""
     predicate = P.EntityMatches("sensor.*")
-    event = _state_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
+    event = create_state_change_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
     assert predicate(event) is True
 
 
@@ -99,18 +77,18 @@ def test_entity_matches_exact_match() -> None:
     predicate = P.EntityMatches("sensor.kitchen")
 
     # Exact match
-    event = _state_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
+    event = create_state_change_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
     assert predicate(event) is True
 
     # No match
-    event = _state_event(entity_id="sensor.living", old_value=None, new_value=None)
+    event = create_state_change_event(entity_id="sensor.living", old_value=None, new_value=None)
     assert predicate(event) is False
 
 
 def test_attr_did_change_false_when_unchanged() -> None:
     """Test that AttrDidChange returns False when specified attribute is unchanged."""
     predicate = P.AttrDidChange("brightness")
-    event = _state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value="on",
         new_value="on",
@@ -122,7 +100,7 @@ def test_attr_did_change_false_when_unchanged() -> None:
 
 def test_attr_from_to_with_callable_conditions() -> None:
     """Test that AttrFrom and AttrTo predicates work with callable conditions."""
-    event = _state_event(
+    event = create_state_change_event(
         entity_id="light.office",
         old_value="on",
         new_value="on",
@@ -145,7 +123,7 @@ def test_attr_from_to_with_callable_conditions() -> None:
 
 def test_from_to_with_callable_conditions() -> None:
     """Test that StateFrom and StateTo predicates work with callable conditions."""
-    event = _state_event(entity_id="sensor.temp", old_value=20, new_value=25)
+    event = create_state_change_event(entity_id="sensor.temp", old_value=20, new_value=25)
 
     def gt_15(value: int) -> bool:
         return value > 15

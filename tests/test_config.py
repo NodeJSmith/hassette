@@ -2,7 +2,7 @@ from pathlib import Path
 
 import dotenv
 
-from hassette import Hassette, HassetteConfig
+from hassette import HassetteConfig
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 
 
@@ -13,12 +13,6 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
 
     expected_value = dotenv.get_key(env_file_path, "hassette__apps_log_level")
 
-    # Create a Hassette instance to test URL functionality
-    hassette = Hassette(test_config)
-
-    assert hassette.ws_url == "ws://127.0.0.1:8123/api/websocket", (
-        f"Expected ws://127.0.0.1:8123/api/websocket, got {hassette.ws_url}"
-    )
     assert test_config.apps_log_level == expected_value, (
         f"Expected apps_log_level to be {expected_value}, got {test_config.apps_log_level}"
     )

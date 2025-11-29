@@ -1,7 +1,11 @@
 import inspect
-from collections.abc import Callable
 from inspect import Signature, isclass
 from typing import Annotated, Any, get_args, get_origin
+from warnings import warn
+
+from hassette.exceptions import InvalidDependencyInjectionSignatureError
+
+from .annotations import AnnotationDetails, identity
 
 
 def is_annotated_type(annotation: Any) -> bool:
@@ -12,15 +16,12 @@ def is_annotated_type(annotation: Any) -> bool:
 def is_event_type(annotation: Any) -> bool:
     """Check if annotation is an Event class or subclass.
 
-    Handles both plain Event types (Event, StateChangeEvent) and
-    parameterized generics (Event[PayloadT], StateChangeEvent[PayloadT]).
-
     Does NOT handle Union or Optional types. Use explicit Event types instead:
     - ✅ event: Event
-    - ✅ event: StateChangeEvent
+    - ✅ event: RawStateChangeEvent
     - ❌ event: Optional[Event]
     - ❌ event: Event | None
-    - ❌ event: Union[Event, StateChangeEvent]
+    - ❌ event: Union[Event, RawStateChangeEvent]
 
     Args:
         annotation: The type annotation to check.
@@ -40,7 +41,7 @@ def is_event_type(annotation: Any) -> bool:
     return isclass(base_type) and issubclass(base_type, Event)
 
 
-def extract_from_annotated(annotation: Any) -> tuple[Any, Callable] | None:
+def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetails]:
     """Extract type and extractor from Annotated[Type, extractor].
 
     Returns:
@@ -54,16 +55,25 @@ def extract_from_annotated(annotation: Any) -> tuple[Any, Callable] | None:
     if len(args) < 2:
         return None
 
-    base_type, metadata = args[0], args[1]
+    base_type = args[0]
+    details = args[1]
 
-    # Metadata must be callable (an extractor function)
-    if not callable(metadata):
+    if not isinstance(details, AnnotationDetails):
+        if callable(details):
+            warn(
+                "Using bare callables in Annotated is deprecated. "
+                "Please wrap extractor callables in AnnotationDetails.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return (base_type, AnnotationDetails(extractor=details))
+
         return None
 
-    return (base_type, metadata)
+    return (base_type, details)
 
 
-def extract_from_event_type(annotation: Any) -> tuple[Any, Callable] | None:
+def extract_from_event_type(annotation: Any) -> None | tuple[Any, AnnotationDetails]:
     """Handle plain Event types - user wants the full event passed through.
 
     Returns:
@@ -73,8 +83,7 @@ def extract_from_event_type(annotation: Any) -> tuple[Any, Callable] | None:
     if not is_event_type(annotation):
         return None
 
-    # Identity function - just pass the event through
-    return (annotation, lambda e: e)
+    return (annotation, AnnotationDetails(extractor=identity))
 
 
 def has_dependency_injection(signature: Signature) -> bool:
@@ -97,13 +106,17 @@ def validate_di_signature(signature: Signature) -> None:
     """
     for param in signature.parameters.values():
         if param.kind == inspect.Parameter.VAR_POSITIONAL:
-            raise ValueError(f"Handler with dependency injection cannot have *args parameter: {param.name}")
+            raise InvalidDependencyInjectionSignatureError(
+                f"Handler with dependency injection cannot have *args parameter: {param.name}"
+            )
 
         if param.kind == inspect.Parameter.POSITIONAL_ONLY:
-            raise ValueError(f"Handler with dependency injection cannot have positional-only parameter: {param.name}")
+            raise InvalidDependencyInjectionSignatureError(
+                f"Handler with dependency injection cannot have positional-only parameter: {param.name}"
+            )
 
 
-def extract_from_signature(signature: Signature) -> dict[str, tuple[Any, Callable]]:
+def extract_from_signature(signature: Signature) -> dict[str, tuple[Any, AnnotationDetails[Any]]]:
     """Extract parameter types and extractors from a function signature.
 
     Returns a dict mapping parameter name to (type, extractor_callable).
@@ -115,7 +128,7 @@ def extract_from_signature(signature: Signature) -> dict[str, tuple[Any, Callabl
     # Validate signature first
     validate_di_signature(signature)
 
-    param_details: dict[str, tuple[Any, Callable]] = {}
+    param_details: dict[str, tuple[Any, AnnotationDetails[Any]]] = {}
 
     for param in signature.parameters.values():
         annotation = param.annotation

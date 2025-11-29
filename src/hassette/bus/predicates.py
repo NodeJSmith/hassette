@@ -49,7 +49,6 @@ from logging import getLogger
 from typing import Any, Generic, TypeVar
 
 from hassette.const import ANY_VALUE, MISSING_VALUE
-from hassette.events import CallServiceEvent
 from hassette.events.base import EventT
 from hassette.types import ChangeType, ComparisonCondition
 from hassette.utils.glob_utils import is_glob
@@ -72,8 +71,8 @@ from .utils import compare_value, ensure_tuple
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hassette import StateChangeEvent
-    from hassette.events import Event, HassEvent
+    from hassette import RawStateChangeEvent
+    from hassette.events import CallServiceEvent, Event, HassEvent
     from hassette.types import Predicate
 
 V = TypeVar("V")
@@ -137,7 +136,7 @@ class Not:
 
 @dataclass(frozen=True)
 class ValueIs(Generic[EventT, V]):
-    """Predicate that checks whether a value extracted from an event satisfies a condition.
+    """Checks whether a value extracted from an event satisfies a condition.
 
     Args:
         source: Callable that extracts the value to compare from the event.
@@ -170,7 +169,7 @@ class DidChange(Generic[EventT]):
 
 @dataclass(frozen=True)
 class IsPresent:
-    """Predicate that checks if a value extracted from an event is present (not MISSING_VALUE).
+    """Checks if a value extracted from an event is present (not MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
 
@@ -184,7 +183,7 @@ class IsPresent:
 
 @dataclass(frozen=True)
 class IsMissing:
-    """Predicate that checks if a value extracted from an event is missing (MISSING_VALUE).
+    """Checks if a value extracted from an event is missing (MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
 
@@ -198,27 +197,27 @@ class IsMissing:
 
 @dataclass(frozen=True)
 class StateFrom:
-    """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'old' value."""
+    """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'old' value."""
 
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_state_value_old, condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
 class StateTo:
-    """Predicate that checks if a value extracted from a StateChangeEvent satisfies a condition on the 'new' value."""
+    """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'new' value."""
 
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_state_value_new, condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
 class StateComparison:
-    """Predicate that checks if a comparison between from_state and to_state satisfies a condition."""
+    """Checks if a comparison between from_state and to_state satisfies a condition."""
 
     condition: ComparisonCondition
 
@@ -227,35 +226,35 @@ class StateComparison:
             LOGGER.warning("StateComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return self.condition(get_state_value_old(event), get_state_value_new(event))
 
 
 @dataclass(frozen=True)
 class AttrFrom:
-    """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
+    """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
 class AttrTo:
-    """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
+    """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
     condition: ChangeType
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
 
 
 @dataclass(frozen=True)
 class AttrComparison:
-    """Predicate that checks if a comparison between from_attr and to_attr satisfies a condition."""
+    """Checks if a comparison between from_attr and to_attr satisfies a condition."""
 
     attr_name: str
     condition: ComparisonCondition
@@ -265,7 +264,7 @@ class AttrComparison:
             LOGGER.warning("AttrComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         old_attr = get_attr_old(self.attr_name)(event)
         new_attr = get_attr_new(self.attr_name)(event)
         return self.condition(old_attr, new_attr)
@@ -273,25 +272,25 @@ class AttrComparison:
 
 @dataclass(frozen=True)
 class StateDidChange:
-    """Predicate that checks if the state changed in a StateChangeEvent."""
+    """Checks if the state changed in a RawStateChangeEvent."""
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return DidChange(get_state_value_old_new)(event)
 
 
 @dataclass(frozen=True)
 class AttrDidChange:
-    """Predicate that checks if a specific attribute changed in a StateChangeEvent."""
+    """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
 
-    def __call__(self, event: "StateChangeEvent") -> bool:
+    def __call__(self, event: "RawStateChangeEvent") -> bool:
         return DidChange(get_attr_old_new(self.attr_name))(event)
 
 
 @dataclass(frozen=True)
 class DomainMatches:
-    """Predicate that checks if the event domain matches a specific value."""
+    """Checks if the event domain matches a specific value."""
 
     domain: str
 
@@ -305,7 +304,7 @@ class DomainMatches:
 
 @dataclass(frozen=True)
 class EntityMatches:
-    """Predicate that checks if the event entity_id matches a specific value."""
+    """Checks if the event entity_id matches a specific value."""
 
     entity_id: str
 
@@ -319,7 +318,7 @@ class EntityMatches:
 
 @dataclass(frozen=True)
 class ServiceMatches:
-    """Predicate that checks if the event service matches a specific value."""
+    """Checks if the event service matches a specific value."""
 
     service: str
 
@@ -379,7 +378,7 @@ class ServiceDataWhere:
 
         object.__setattr__(self, "_predicates", tuple(preds))
 
-    def __call__(self, event: CallServiceEvent) -> bool:
+    def __call__(self, event: "CallServiceEvent") -> bool:
         return all(p(event) for p in self._predicates)
 
     @classmethod

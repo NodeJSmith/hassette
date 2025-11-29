@@ -3,11 +3,7 @@ from pathlib import Path
 
 from hassette.events.base import Event, HassettePayload
 from hassette.types.enums import ResourceRole, ResourceStatus
-from hassette.types.topics import (
-    HASSETTE_EVENT_FILE_WATCHER,
-    HASSETTE_EVENT_SERVICE_STATUS,
-    HASSETTE_EVENT_WEBSOCKET_STATUS,
-)
+from hassette.types.topics import HASSETTE_EVENT_FILE_WATCHER, HASSETTE_EVENT_SERVICE_STATUS
 from hassette.utils import get_traceback_string
 
 
@@ -90,30 +86,6 @@ class HassetteSimpleEvent(Event[HassettePayload[HassetteEmptyPayload]]):
         return cls(
             topic=topic,
             payload=HassettePayload(event_type="empty", data=payload),
-        )
-
-
-class HassetteWebsocketConnectedEvent(Event[HassettePayload[WebsocketConnectedEventPayload]]):
-    """Alias for websocket connected events."""
-
-    @classmethod
-    def create_event(cls, *, url: str) -> "HassetteWebsocketConnectedEvent":
-        payload = WebsocketConnectedEventPayload(url=url)
-        return cls(
-            topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
-            payload=HassettePayload(event_type="connected", data=payload),
-        )
-
-
-class HassetteWebsocketDisconnectedEvent(Event[HassettePayload[WebsocketDisconnectedEventPayload]]):
-    """Alias for websocket disconnected events."""
-
-    @classmethod
-    def create_event(cls, *, error: str) -> "HassetteWebsocketDisconnectedEvent":
-        payload = WebsocketDisconnectedEventPayload(error=error)
-        return cls(
-            topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
-            payload=HassettePayload(event_type="disconnected", data=payload),
         )
 
 

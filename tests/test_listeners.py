@@ -1,12 +1,64 @@
 import asyncio
 import inspect
+import json
+import random
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
+from hassette import dependencies as D
 from hassette.bus.listeners import HandlerAdapter, Listener
-from hassette.events import Event
+from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
+from hassette.exceptions import InvalidDependencyReturnTypeError
+from hassette.models import states
 from hassette.task_bucket import TaskBucket
+
+
+@pytest.fixture(scope="session")
+def state_change_events(test_data_path: Path) -> list[RawStateChangeEvent]:
+    """Load state change events from test data file."""
+    events = []
+    with open(test_data_path / "state_change_events.jsonl") as f:
+        for line in f:
+            if line.strip():
+                # Strip trailing comma if present (JSONL files may have them)
+                line = line.strip().rstrip(",")
+                envelope = json.loads(line)
+                event = create_event_from_hass(envelope)
+                if isinstance(event, RawStateChangeEvent):
+                    events.append(event)
+
+    # randomize order
+    random.shuffle(events)
+
+    return events
+
+
+@pytest.fixture(scope="session")
+def state_change_events_with_new_state(
+    state_change_events: list[RawStateChangeEvent],
+) -> list[RawStateChangeEvent]:
+    """Filter state change events to only those with a new state."""
+    return [e for e in state_change_events if e.payload.data.new_state is not None]
+
+
+@pytest.fixture(scope="session")
+def state_change_events_with_old_state(
+    state_change_events: list[RawStateChangeEvent],
+) -> list[RawStateChangeEvent]:
+    """Filter state change events to only those with an old state."""
+    return [e for e in state_change_events if e.payload.data.old_state is not None]
+
+
+@pytest.fixture
+def state_change_events_with_both_states(
+    state_change_events: list[RawStateChangeEvent],
+) -> list[RawStateChangeEvent]:
+    """Filter state change events to only those with both old and new states."""
+    return [
+        e for e in state_change_events if e.payload.data.old_state is not None and e.payload.data.new_state is not None
+    ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -359,22 +411,22 @@ class TestDependencyValidationErrors:
         """Test that using StateNew with None value raises CallListenerError."""
 
         from hassette import dependencies as D
-        from hassette.events import StateChangeEvent
+        from hassette.events import RawStateChangeEvent
 
-        # Create a mock StateChangeEvent where new_state is None
+        # Create a mock RawStateChangeEvent where new_state is None
         from hassette.events.base import HassPayload
-        from hassette.events.hass.hass import StateChangePayload
+        from hassette.events.hass.hass import RawStateChangePayload
         from hassette.exceptions import CallListenerError
         from hassette.models import states
 
         payload = HassPayload(
             event_type="state_changed",
-            data=StateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
+            data=RawStateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
             origin="LOCAL",
             time_fired="2024-01-01T00:00:00+00:00",
             context={"id": "test", "parent_id": None, "user_id": None},
         )
-        event = StateChangeEvent(topic="hass.event.state_changed", payload=payload)
+        event = RawStateChangeEvent(topic="hass.event.state_changed", payload=payload)
 
         calls = []
 
@@ -388,8 +440,6 @@ class TestDependencyValidationErrors:
         with pytest.raises(CallListenerError) as exc_info:
             await adapter.call(event)
 
-        from hassette.exceptions import InvalidDependencyReturnTypeError
-
         assert isinstance(exc_info.value.__cause__, InvalidDependencyReturnTypeError)
         assert len(calls) == 0  # Handler should not be called
 
@@ -397,19 +447,19 @@ class TestDependencyValidationErrors:
         """Test that using MaybeStateNew with None value succeeds."""
 
         from hassette import dependencies as D
-        from hassette.events import StateChangeEvent
+        from hassette.events import RawStateChangeEvent
         from hassette.events.base import HassPayload
-        from hassette.events.hass.hass import StateChangePayload
+        from hassette.events.hass.hass import RawStateChangePayload
         from hassette.models import states
 
         payload = HassPayload(
             event_type="state_changed",
-            data=StateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
+            data=RawStateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
             origin="LOCAL",
             time_fired="2024-01-01T00:00:00+00:00",
             context={"id": "test", "parent_id": None, "user_id": None},
         )
-        event = StateChangeEvent(topic="hass.event.state_changed", payload=payload)
+        event = RawStateChangeEvent(topic="hass.event.state_changed", payload=payload)
 
         calls = []
 
@@ -429,9 +479,9 @@ class TestDependencyValidationErrors:
         """Test handler with both Maybe and required deps when all resolve."""
 
         from hassette import dependencies as D
-        from hassette.events import StateChangeEvent
+        from hassette.events import RawStateChangeEvent
         from hassette.events.base import HassPayload
-        from hassette.events.hass.hass import StateChangePayload
+        from hassette.events.hass.hass import RawStateChangePayload
         from hassette.models import states
         from hassette.models.states.base import BaseState
 
@@ -457,12 +507,12 @@ class TestDependencyValidationErrors:
 
         payload = HassPayload(
             event_type="state_changed",
-            data=StateChangePayload(entity_id="test.entity", old_state=old_state, new_state=new_state),
+            data=RawStateChangePayload(entity_id="test.entity", old_state=old_state, new_state=new_state),
             origin="LOCAL",
             time_fired="2024-01-01T00:00:01+00:00",
             context={"id": "test", "parent_id": None, "user_id": None},
         )
-        event = StateChangeEvent(topic="hass.event.state_changed", payload=payload)
+        event = RawStateChangeEvent(topic="hass.event.state_changed", payload=payload)
 
         results = []
 
@@ -488,20 +538,20 @@ class TestDependencyValidationErrors:
         """Test that if first required dep fails, handler is not called."""
 
         from hassette import dependencies as D
-        from hassette.events import StateChangeEvent
+        from hassette.events import RawStateChangeEvent
         from hassette.events.base import HassPayload
-        from hassette.events.hass.hass import StateChangePayload
+        from hassette.events.hass.hass import RawStateChangePayload
         from hassette.exceptions import CallListenerError
         from hassette.models import states
 
         payload = HassPayload(
             event_type="state_changed",
-            data=StateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
+            data=RawStateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
             origin="LOCAL",
             time_fired="2024-01-01T00:00:00+00:00",
             context={"id": "test", "parent_id": None, "user_id": None},
         )
-        event = StateChangeEvent(topic="hass.event.state_changed", payload=payload)
+        event = RawStateChangeEvent(topic="hass.event.state_changed", payload=payload)
 
         calls = []
 
@@ -518,3 +568,218 @@ class TestDependencyValidationErrors:
             await adapter.call(event)
 
         assert len(calls) == 0
+
+
+class TestDependencyInjectionHandlesTypeConversion:
+    """Test that dependency injection handles type conversion correctly."""
+
+    async def test_state_conversion(self, bucket_fixture: TaskBucket, state_change_events: list[RawStateChangeEvent]):
+        """Test that StateNew converts BaseState to domain-specific state type."""
+
+        light_event = next((e for e in state_change_events if e.payload.data.domain == "light"), None)
+
+        assert light_event is not None, "No light domain event found in test data"
+
+        results = []
+
+        def handler(new_state: D.StateNew[states.LightState]):
+            results.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(light_event)
+
+        assert len(results) == 1
+        light_state = results[0]
+        assert isinstance(light_state, states.LightState), "State should be converted to LightState"
+        assert light_state.entity_id.startswith("light."), "Entity ID should have light domain"
+
+    async def test_annotated_as_base_state_stays_base_state(
+        self, bucket_fixture: TaskBucket, state_change_events: list[RawStateChangeEvent]
+    ):
+        """Test that StateNew[BaseState] returns BaseState without conversion."""
+
+        light_event = next((e for e in state_change_events if e.payload.data.domain == "light"), None)
+
+        assert light_event is not None, "No light domain event found in test data"
+
+        results = []
+
+        def handler(new_state: D.StateNew[states.BaseState]):
+            results.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(light_event)
+
+        assert len(results) == 1
+        state = results[0]
+        assert isinstance(state, states.BaseState), "State should be BaseState"
+        assert state.entity_id.startswith("light."), "Entity ID should have light domain"
+
+    async def test_maybe_state_conversion(
+        self, bucket_fixture: TaskBucket, state_change_events: list[RawStateChangeEvent]
+    ):
+        """Test that MaybeStateNew converts BaseState to domain-specific state type."""
+
+        sensor_event = next((e for e in state_change_events if e.payload.data.domain == "sensor"), None)
+
+        assert sensor_event is not None, "No sensor domain event found in test data"
+
+        results = []
+
+        def handler(new_state: D.MaybeStateNew[states.SensorState]):
+            results.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(sensor_event)
+
+        assert len(results) == 1
+        sensor_state = results[0]
+        assert isinstance(sensor_state, states.SensorState), "State should be converted to SensorState"
+        assert sensor_state.entity_id.startswith("sensor."), "Entity ID should have sensor domain"
+
+    async def test_maybe_state_as_base_state_stays_base_state(
+        self, bucket_fixture: TaskBucket, state_change_events: list[RawStateChangeEvent]
+    ):
+        """Test that MaybeStateNew[BaseState] returns BaseState without conversion."""
+
+        sensor_event = next((e for e in state_change_events if e.payload.data.domain == "sensor"), None)
+
+        assert sensor_event is not None, "No sensor domain event found in test data"
+
+        results = []
+
+        def handler(new_state: D.MaybeStateNew[states.BaseState]):
+            results.append(new_state)
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(sensor_event)
+
+        assert len(results) == 1
+        state = results[0]
+        assert isinstance(state, states.BaseState), "State should be BaseState"
+        assert state.entity_id.startswith("sensor."), "Entity ID should have sensor domain"
+
+    async def test_new_state_with_maybe_old_state_converted_correctly(
+        self, bucket_fixture: TaskBucket, state_change_events_with_new_state: list[RawStateChangeEvent]
+    ):
+        """Test StateNew and MaybeStateOld conversion when only new_state is present."""
+        input_button_event = next(
+            (e for e in state_change_events_with_new_state if e.payload.data.domain == "input_button"), None
+        )
+
+        assert input_button_event is not None, "No InputButtonState domain event found in test data"
+
+        results = []
+
+        def handler(
+            new_state: D.StateNew[states.InputButtonState],
+            old_state: D.MaybeStateOld[states.InputButtonState],
+        ):
+            results.append((new_state, old_state))
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(input_button_event)
+
+        assert len(results) == 1
+        new_state, old_state = results[0]
+        assert isinstance(new_state, states.InputButtonState), "New state should be InputButtonState"
+
+        if input_button_event.payload.data.old_state is None:
+            assert old_state is None, "Old state should be None when not present"
+        else:
+            assert isinstance(old_state, states.InputButtonState), "Old state should be InputButtonState"
+
+    async def test_maybe_new_state_with_old_state_converted_correctly(
+        self, bucket_fixture: TaskBucket, state_change_events_with_old_state: list[RawStateChangeEvent]
+    ):
+        """Test MaybeStateNew and StateOld conversion when only old_state is present."""
+        input_button_event = next(
+            (e for e in state_change_events_with_old_state if e.payload.data.domain == "input_button"), None
+        )
+
+        assert input_button_event is not None, "No InputButtonState domain event found in test data"
+
+        results = []
+
+        def handler(
+            new_state: D.MaybeStateNew[states.InputButtonState],
+            old_state: D.StateOld[states.InputButtonState],
+        ):
+            results.append((new_state, old_state))
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(input_button_event)
+
+        assert len(results) == 1
+        new_state, old_state = results[0]
+        if input_button_event.payload.data.new_state is None:
+            assert new_state is None, "New state should be None when not present"
+        else:
+            assert isinstance(new_state, states.InputButtonState), "New state should be InputButtonState"
+
+        assert isinstance(old_state, states.InputButtonState), "Old state should be InputButtonState"
+
+    async def test_both_states_converted_correctly(
+        self, bucket_fixture: TaskBucket, state_change_events_with_both_states: list[RawStateChangeEvent]
+    ):
+        """Test StateNew and StateOld conversion when both states are present."""
+        input_button_event = next(
+            (e for e in state_change_events_with_both_states if e.payload.data.domain == "input_button"), None
+        )
+
+        assert input_button_event is not None, "No InputButtonState domain event found in test data"
+
+        results = []
+
+        def handler(
+            new_state: D.StateNew[states.InputButtonState],
+            old_state: D.StateOld[states.InputButtonState],
+        ):
+            results.append((new_state, old_state))
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(input_button_event)
+
+        assert len(results) == 1
+        new_state, old_state = results[0]
+        assert isinstance(new_state, states.InputButtonState), "New state should be InputButtonState"
+        assert isinstance(old_state, states.InputButtonState), "Old state should be InputButtonState"
+
+    # async def test_annotated_with_subscripted_event_converts_correctly(
+    #     self, bucket_fixture: TaskBucket, state_change_events: list[RawStateChangeEvent]
+    # ):
+    #     """Validate that if we have a handler like def handler(event: RawStateChangeEvent[LightState]): ...
+    #     that it works correctly."""
+
+    #     light_event = next((e for e in state_change_events if e.payload.data.domain == "light"), None)
+
+    #     assert light_event is not None, "No light domain event found in test data"
+
+    #     results = []
+
+    #     def handler(event: D.RawStateChangeEvent[states.LightState]):
+    #         results.append(event)
+
+    #     async_handler = bucket_fixture.make_async_adapter(handler)
+    #     adapter = create_adapter(async_handler, bucket_fixture)
+
+    #     await adapter.call(light_event)
+
+    #     assert len(results) == 1
+    #     event = results[0]
+    #     assert isinstance(event, RawStateChangeEvent), "Should be RawStateChangeEvent"
+    #     assert isinstance(event.payload.data.new_state, states.LightState), "New state should be LightState"

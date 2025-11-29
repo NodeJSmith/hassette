@@ -347,7 +347,7 @@ class AppHandler(Resource):
                     "Timed out while starting app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(3),
+                    get_short_traceback(5),
                 )
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
@@ -356,7 +356,7 @@ class AppHandler(Resource):
                     "Failed to start app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(3),
+                    get_short_traceback(5),
                 )
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
