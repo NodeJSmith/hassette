@@ -207,7 +207,7 @@ class Hassette(Resource):
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
         self._loop_thread_id = threading.get_ident()
-        self.loop.set_debug(self.config.dev_mode)
+        self.loop.set_debug(self.config.asyncio_debug_mode)
 
         self.loop.set_task_factory(make_task_factory(self.task_bucket))
 

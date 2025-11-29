@@ -209,6 +209,9 @@ class HassetteConfig(BaseSettings):
     raise_on_incorrect_dependency_type: bool = Field(default=True)
     """Whether to raise an error if a dependency injection type does not match the expected type."""
 
+    asyncio_debug_mode: bool = Field(default=False)
+    """Whether to enable asyncio debug mode."""
+
     # Service log levels
 
     bus_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
