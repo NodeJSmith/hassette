@@ -15,6 +15,7 @@ from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
+from hassette.states import States
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
@@ -50,6 +51,12 @@ class Hassette(Resource):
     api: Api
     """API service for handling HTTP requests."""
 
+    states: States
+    """States proxy instance for accessing Home Assistant states."""
+
+    state_registry: StateRegistry
+    """State registry for managing state class registrations and conversions."""
+
     @property
     def unique_name(self) -> str:
         return "Hassette"
@@ -82,6 +89,7 @@ class Hassette(Resource):
 
         # state proxy
         self._state_proxy_resource = self.add_child(StateProxyResource)
+        self._states = self.add_child(States)
 
         # internal instances
         self._bus = self.add_child(Bus)

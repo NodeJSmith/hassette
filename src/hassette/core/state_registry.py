@@ -81,7 +81,9 @@ class StateRegistry(Resource):
             with suppress(NoDomainAnnotationError):
                 # adjust this call depending on how your registration API works
                 self.register(state_cls)
-                self.logger.debug("Registered state class %s for domain '%s'", state_cls.__name__, state_cls.get_domain())
+                self.logger.debug(
+                    "Registered state class %s for domain '%s'", state_cls.__name__, state_cls.get_domain()
+                )
 
     def register(self, state_class: type["BaseState"]) -> None:
         """Register a state class for its domain.

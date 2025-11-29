@@ -26,6 +26,7 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
+from hassette.states import States
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
@@ -90,6 +91,7 @@ class _HassetteMock(Resource):
         self._websocket_service: WebsocketService | None = None
         self._state_proxy_resource: StateProxyResource | None = None
         self.state_registry: StateRegistry | None = None
+        self._states: States | None = None
 
     @property
     def ws_url(self) -> str:
@@ -229,6 +231,8 @@ class HassetteHarness:
 
         if self.use_state_registry:
             self.hassette.state_registry = self.hassette.add_child(StateRegistry)
+
+        self.hassette._states = self.hassette.add_child(States)
 
         for resource in self.hassette.children:
             resource.start()
