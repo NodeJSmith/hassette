@@ -9,15 +9,15 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fixtures.state_fixtures import (
-    make_light_state_dict,
-    make_sensor_state_dict,
-    make_state_change_event,
-    make_switch_state_dict,
-)
 
 from hassette.core.core import Hassette
 from hassette.exceptions import ResourceNotReadyError
+from hassette.test_utils.helpers import (
+    make_full_state_change_event,
+    make_light_state_dict,
+    make_sensor_state_dict,
+    make_switch_state_dict,
+)
 from hassette.types import topics
 
 if TYPE_CHECKING:
@@ -149,7 +149,7 @@ class TestStateProxyResourceStateChanged:
 
         # Create and send a state change event for a new entity
         light_dict = make_light_state_dict("light.new_light", "on", brightness=100)
-        event = make_state_change_event("light.new_light", None, light_dict)
+        event = make_full_state_change_event("light.new_light", None, light_dict)
 
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)  # Give time for event processing
@@ -171,7 +171,7 @@ class TestStateProxyResourceStateChanged:
 
         # Send update event
         new_dict = make_light_state_dict("light.test", "on", brightness=200)
-        event = make_state_change_event("light.test", old_dict, new_dict)
+        event = make_full_state_change_event("light.test", old_dict, new_dict)
 
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
@@ -191,7 +191,7 @@ class TestStateProxyResourceStateChanged:
         assert "light.test" in proxy.states
 
         # Send removal event (new_state=None)
-        event = make_state_change_event("light.test", old_dict, None)
+        event = make_full_state_change_event("light.test", old_dict, None)
 
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
@@ -214,7 +214,7 @@ class TestStateProxyResourceStateChanged:
             ("sensor.temperature", sensor_dict),
             ("switch.test", switch_dict),
         ]:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -233,7 +233,7 @@ class TestStateProxyResourceStateChanged:
         events = []
         for i in range(10):
             light_dict = make_light_state_dict(f"light.test_{i}", "on", brightness=i * 10)
-            event = make_state_change_event(f"light.test_{i}", None, light_dict)
+            event = make_full_state_change_event(f"light.test_{i}", None, light_dict)
             events.append((topics.HASS_EVENT_STATE_CHANGED, event))
 
         # Send all events
@@ -412,7 +412,7 @@ class TestStateProxyResourceConcurrency:
         events = []
         for i in range(20):
             light_dict = make_light_state_dict("light.test", "on", brightness=i)
-            event = make_state_change_event("light.test", None, light_dict)
+            event = make_full_state_change_event("light.test", None, light_dict)
             events.append((topics.HASS_EVENT_STATE_CHANGED, event))
 
         await asyncio.gather(*[hassette.send_event(topic, event) for topic, event in events])
@@ -445,7 +445,7 @@ class TestStateProxyResourceConcurrency:
         async def continuous_write():
             for i in range(10):
                 light_dict = make_light_state_dict("light.test", "on", brightness=100 + i * 10)
-                event = make_state_change_event("light.test", None, light_dict)
+                event = make_full_state_change_event("light.test", None, light_dict)
                 await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
                 await asyncio.sleep(0.01)
 

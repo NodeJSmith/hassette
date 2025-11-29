@@ -8,16 +8,16 @@ import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
-from fixtures.state_fixtures import (
-    make_light_state_dict,
-    make_sensor_state_dict,
-    make_state_change_event,
-    make_switch_state_dict,
-)
 
 from hassette.exceptions import EntityNotFoundError
 from hassette.models import states
 from hassette.states import DomainStates, States
+from hassette.test_utils.helpers import (
+    make_full_state_change_event,
+    make_light_state_dict,
+    make_sensor_state_dict,
+    make_switch_state_dict,
+)
 from hassette.types import topics
 
 if TYPE_CHECKING:
@@ -64,7 +64,7 @@ class TestStatesDomainAccessors:
             ("light.kitchen", light2_dict),
             ("sensor.temp", sensor_dict),
         ]:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -100,7 +100,7 @@ class TestStatesDomainAccessors:
         sensor2 = make_sensor_state_dict("sensor.humidity", "60", unit_of_measurement="%")
 
         for entity_id, state_dict in [("sensor.temperature", sensor1), ("sensor.humidity", sensor2)]:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -128,7 +128,7 @@ class TestStatesDomainAccessors:
         switch2 = make_switch_state_dict("switch.outlet2", "off")
 
         for entity_id, state_dict in [("switch.outlet1", switch1), ("switch.outlet2", switch2)]:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -157,7 +157,7 @@ class TestStatesDomainAccessors:
         switch = make_switch_state_dict("switch.test", "off")
 
         for entity_id, state_dict in [("light.test", light), ("sensor.test", sensor), ("switch.test", switch)]:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -191,7 +191,7 @@ class TestStatesDomainAccessors:
         # Add multiple lights
         for i in range(3):
             light = make_light_state_dict(f"light.test_{i}", "on")
-            event = make_state_change_event(f"light.test_{i}", None, light)
+            event = make_full_state_change_event(f"light.test_{i}", None, light)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -212,7 +212,7 @@ class TestStatesGenericAccess:
 
         # Add states
         light = make_light_state_dict("light.test", "on")
-        event = make_state_change_event("light.test", None, light)
+        event = make_full_state_change_event("light.test", None, light)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -231,7 +231,7 @@ class TestStatesGenericAccess:
 
         # Add light
         light = make_light_state_dict("light.test", "on", brightness=200)
-        event = make_state_change_event("light.test", None, light)
+        event = make_full_state_change_event("light.test", None, light)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -259,7 +259,7 @@ class TestStatesTypedGetter:
 
         # Add light
         light = make_light_state_dict("light.bedroom", "on", brightness=180)
-        event = make_state_change_event("light.bedroom", None, light)
+        event = make_full_state_change_event("light.bedroom", None, light)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -299,7 +299,7 @@ class TestStatesTypedGetter:
         sensor = make_sensor_state_dict(
             "sensor.temperature", "22.5", unit_of_measurement="°C", device_class="temperature"
         )
-        event = make_state_change_event("sensor.temperature", None, sensor)
+        event = make_full_state_change_event("sensor.temperature", None, sensor)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -323,7 +323,7 @@ class TestDomainStates:
         # Add lights
         for i in range(3):
             light = make_light_state_dict(f"light.room_{i}", "on")
-            event = make_state_change_event(f"light.room_{i}", None, light)
+            event = make_full_state_change_event(f"light.room_{i}", None, light)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -349,7 +349,7 @@ class TestDomainStates:
         sensor2 = make_sensor_state_dict("sensor.test_2", "20")
 
         for entity_id, state_dict in [("sensor.test_1", sensor1), ("sensor.test_2", sensor2)]:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -365,7 +365,7 @@ class TestDomainStates:
 
         # Add light
         light = make_light_state_dict("light.test", "on", brightness=100)
-        event = make_state_change_event("light.test", None, light)
+        event = make_full_state_change_event("light.test", None, light)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -386,7 +386,7 @@ class TestDomainStates:
 
         # Add sensor
         sensor = make_sensor_state_dict("sensor.test", "25")
-        event = make_state_change_event("sensor.test", None, sensor)
+        event = make_full_state_change_event("sensor.test", None, sensor)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -431,7 +431,7 @@ class TestStatesIntegration:
             ("sensor.test", sensor),
             ("switch.test", switch),
         ]:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -473,7 +473,7 @@ class TestStatesIntegration:
 
         # Add a light via state change event
         light = make_light_state_dict("light.dynamic", "on", brightness=150)
-        event = make_state_change_event("light.dynamic", None, light)
+        event = make_full_state_change_event("light.dynamic", None, light)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -498,7 +498,7 @@ class TestStatesIntegration:
 
         # Add initial state
         light = make_light_state_dict("light.test", "on", brightness=100)
-        event = make_state_change_event("light.test", None, light)
+        event = make_full_state_change_event("light.test", None, light)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -508,7 +508,7 @@ class TestStatesIntegration:
 
         # Update state
         new_light = make_light_state_dict("light.test", "on", brightness=200)
-        event = make_state_change_event("light.test", light, new_light)
+        event = make_full_state_change_event("light.test", light, new_light)
         await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)
 
@@ -526,7 +526,7 @@ class TestStatesIntegration:
         sensor = make_sensor_state_dict("sensor.test", "42")
 
         for entity_id, state_dict in [("light.test", light), ("sensor.test", sensor)]:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
@@ -558,7 +558,7 @@ class TestStatesIntegration:
         ]
 
         for entity_id, state_dict in entities:
-            event = make_state_change_event(entity_id, None, state_dict)
+            event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)

@@ -152,7 +152,7 @@ class HassetteHarness:
     use_app_handler: bool = False
     use_websocket: bool = False
     use_state_proxy: bool = False
-    use_states_registry: bool = False
+    use_state_registry: bool = False
     unused_tcp_port: int = 0
 
     def __post_init__(self) -> None:
@@ -228,7 +228,7 @@ class HassetteHarness:
                 raise RuntimeError("State proxy requires bus")
             await self._start_state_proxy()
 
-        if self.use_states_registry:
+        if self.use_state_registry:
             self.hassette.state_registry = self.hassette.add_child(StateRegistry)
 
         for resource in self.hassette.children:

@@ -1,11 +1,7 @@
 """Tests for dependency injection extractors and type annotation handling."""
 
 import inspect
-import json
-import random
-import typing
 from collections import defaultdict
-from pathlib import Path
 from typing import Annotated
 
 import pytest
@@ -21,61 +17,10 @@ from hassette.dependencies.extraction import (
     is_event_type,
     validate_di_signature,
 )
-from hassette.events import CallServiceEvent, Event, RawStateChangeEvent, TypedStateChangeEvent, create_event_from_hass
+from hassette.events import CallServiceEvent, Event, RawStateChangeEvent, TypedStateChangeEvent
 from hassette.exceptions import InvalidDependencyInjectionSignatureError, InvalidDependencyReturnTypeError
 from hassette.models import states
 from hassette.utils.type_utils import get_typed_signature
-
-if typing.TYPE_CHECKING:
-    from hassette.events.hass.raw import HassEventEnvelopeDict
-
-
-@pytest.fixture(scope="session")
-def state_change_events(test_data_path: Path) -> list[RawStateChangeEvent]:
-    """Load state change events from test data file."""
-    events = []
-    with open(test_data_path / "state_change_events.jsonl") as f:
-        for line in f:
-            if line.strip():
-                # Strip trailing comma if present (JSONL files may have them)
-                line = line.strip().rstrip(",")
-                envelope: HassEventEnvelopeDict = json.loads(line)
-                event = create_event_from_hass(envelope)
-                if isinstance(event, RawStateChangeEvent):
-                    events.append(event)
-
-    # randomize order
-    random.shuffle(events)
-
-    return events
-
-
-@pytest.fixture(scope="session")
-def other_events(test_data_path: Path) -> list[Event]:
-    """Load other events from test data file."""
-    events = []
-    with open(test_data_path / "other_events.jsonl") as f:
-        for line in f:
-            if line.strip():
-                # Strip trailing comma if present (JSONL files may have them)
-                line = line.strip().rstrip(",")
-                envelope: HassEventEnvelopeDict = json.loads(line)
-                event = create_event_from_hass(envelope)
-                events.append(event)
-
-    # randomize order
-    random.shuffle(events)
-
-    return events
-
-
-@pytest.fixture(scope="session")
-def all_events(
-    state_change_events: list[RawStateChangeEvent],
-    other_events: list[Event],
-) -> list[Event]:
-    """Combine all events into a single list."""
-    return state_change_events + other_events
 
 
 class TestTypeDetection:

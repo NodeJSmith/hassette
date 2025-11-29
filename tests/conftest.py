@@ -37,6 +37,8 @@ class TestConfig(HassetteConfig):
 
     token: str = "test-token"
 
+    file_watcher_debounce_milliseconds: int | float = 1
+    file_watcher_step_milliseconds: int | float = 5
     websocket_connection_timeout_seconds: int | float = 1
     websocket_authentication_timeout_seconds: int | float = 1
     websocket_total_timeout_seconds: int | float = 2
