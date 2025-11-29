@@ -111,10 +111,13 @@ class ApiSyncFacade(Resource):
         return self.task_bucket.run_sync(self._api.delete_rest_request(url, **kwargs))
 
     def get_states_raw(self) -> list[HassStateDict]:
-        """Get all entities in Home Assistant as raw dictionaries.
+        """Get all entities in Home Assistant, converted to their appropriate state types.
+
+        If a state fails to convert, it is skipped with an error logged. If there is no registered
+        state class for a domain, the generic BaseState is used.
 
         Returns:
-            A list of states as dictionaries.
+            A list of states, converted to their appropriate state types.
         """
         return self.task_bucket.run_sync(self._api.get_states_raw())
 
@@ -127,7 +130,7 @@ class ApiSyncFacade(Resource):
         return self.task_bucket.run_sync(self._api.get_states())
 
     async def get_states_iterator(self) -> Generator["BaseState[Any]", Any]:
-        """Get all entities in Home Assistant.
+        """Get a generator to iterate over all entities in Home Assistant, converted to their appropriate state types.
 
         The returned generator yields properly typed state objects based on their domains. If
         a state fails to convert, it is skipped with an error logged. If there is no registered

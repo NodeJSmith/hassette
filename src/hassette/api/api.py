@@ -292,7 +292,10 @@ class Api(Resource):
         return val
 
     async def get_states(self) -> list["BaseState"]:
-        """Get all entities in Home Assistant.
+        """Get all entities in Home Assistant, converted to their appropriate state types.
+
+        If a state fails to convert, it is skipped with an error logged. If there is no registered
+        state class for a domain, the generic BaseState is used.
 
         Returns:
             A list of states, converted to their appropriate state types.
@@ -311,7 +314,7 @@ class Api(Resource):
         return converted
 
     async def get_states_iterator(self) -> Generator["BaseState[Any]", Any]:
-        """Get all entities in Home Assistant.
+        """Get a generator to iterate over all entities in Home Assistant, converted to their appropriate state types.
 
         The returned generator yields properly typed state objects based on their domains. If
         a state fails to convert, it is skipped with an error logged. If there is no registered
