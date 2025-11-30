@@ -249,7 +249,6 @@ class HassetteHarness:
 
         try:
             for resource in self.hassette.children:
-                print(f"Shutting down resource: ({resource})")
                 await shutdown_resource(resource)
                 await asyncio.sleep(0.05)
         except Exception:
