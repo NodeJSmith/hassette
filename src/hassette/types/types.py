@@ -56,16 +56,16 @@ class AsyncHandlerType(Protocol):
 
 # Type aliases for any valid handler
 HandlerType = SyncHandler | AsyncHandlerType
-"""Alias for all valid handler types (sync or async)."""
+"""Type representing all valid handler types (sync or async)."""
 
 type ChangeType[V] = None | Sentinel | V | Condition[V | Sentinel] | ComparisonCondition[V | Sentinel]
-"""Alias for types that can be used to specify changes in predicates."""
+"""Type representing a value that can be used to specify changes in predicates."""
 
 type JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
-"""Alias for a callable that can be scheduled as a job."""
+"""Type representing a callable that can be scheduled as a job."""
 
 type ScheduleStartType = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
-"""Type for specifying start times."""
+"""Type representing a value that can be used to specify a start time."""
 
 
 class RawAppDict(TypedDict, total=False):
