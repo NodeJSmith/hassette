@@ -17,6 +17,7 @@ LOGGER = getLogger(__name__)
 CURRENT_BUCKET: ContextVar["TaskBucket | None"] = ContextVar("CURRENT_BUCKET", default=None)
 HASSETTE_INSTANCE: ContextVar["Hassette"] = ContextVar("HASSETTE_INSTANCE")
 HASSETTE_CONFIG: ContextVar["HassetteConfig"] = ContextVar("HASSETTE_CONFIG")
+HASSETTE_STATE_REGISTRY: ContextVar["StateRegistry"] = ContextVar("HASSETTE_STATE_REGISTRY")
 HASSETTE_SET_LOCATION: ContextVar[str | None] = ContextVar("HASSETTE_SET_LOCATION", default=None)
 
 
@@ -41,7 +42,12 @@ def get_hassette_config() -> "HassetteConfig":
 
 def get_state_registry() -> "StateRegistry":
     """Get the current StateRegistry from the Hassette instance in context."""
-    return get_hassette().state_registry
+    try:
+        registry = HASSETTE_STATE_REGISTRY.get()
+        return registry
+    except LookupError:
+        LOGGER.error("StateRegistry not found in context, attempting to get from Hassette instance.")
+        return get_hassette().state_registry
 
 
 def set_global_hassette(hassette: "Hassette") -> None:
@@ -80,6 +86,13 @@ def set_global_hassette_config(config: "HassetteConfig") -> None:
     HASSETTE_CONFIG.set(config)
 
 
+def set_global_state_registry(registry: "StateRegistry") -> None:
+    """Set the global StateRegistry instance. This can be overriden using the `use` context manager."""
+    if HASSETTE_STATE_REGISTRY.get(None) is not None:
+        raise RuntimeError("StateRegistry is already set in context.")
+    HASSETTE_STATE_REGISTRY.set(registry)
+
+
 @contextmanager
 def use[T](var: ContextVar[T], value: T) -> Generator[None, Any]:
     """Temporarily set a ContextVar to `value` within a block."""
@@ -108,3 +121,13 @@ def use_task_bucket(bucket: "TaskBucket") -> Generator[None, Any]:
         yield
     finally:
         CURRENT_BUCKET.reset(token)
+
+
+@contextmanager
+def use_state_registry(registry: "StateRegistry") -> Generator[None, Any]:
+    """Temporarily set the global StateRegistry within a block."""
+    token = HASSETTE_STATE_REGISTRY.set(registry)
+    try:
+        yield
+    finally:
+        HASSETTE_STATE_REGISTRY.reset(token)
