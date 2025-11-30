@@ -110,7 +110,7 @@ def warn_or_raise_on_incorrect_type(param_name: str, param_type: type, param_val
         msg = msg_template % (handler_name, param_name, param_type, type(param_value))
 
         if get_raise_on_incorrect_type():
-            raise InvalidDependencyReturnTypeError(msg)
+            raise InvalidDependencyReturnTypeError(type(param_value))
 
         LOGGER.warning(msg)
 
