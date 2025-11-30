@@ -212,22 +212,21 @@ class HandlerAdapter:
                 kwargs[param_name] = extracted_value
 
         except InvalidDependencyReturnTypeError as e:
-            LOGGER.error(
-                "Handler %s - dependency returned invalid type: %s",
-                self.handler_name,
-                e.resolved_type,
-            )
+            LOGGER.error("Handler '%s' - dependency returned invalid type: '%s'", self.handler_name, e.resolved_type)
             raise CallListenerError(
-                f"Listener {self.handler_name} cannot be called due to invalid dependency: {e.resolved_type}"
+                f"Listener '{self.handler_name}' cannot be called due to invalid dependency: "
+                f"expected '{param_type}', got '{e.resolved_type}'"
             ) from e
 
         except InvalidDependencyInjectionSignatureError as e:
-            LOGGER.error("Handler %s has invalid DI signature: %s", self.handler_name, e)
-            raise CallListenerError(f"Listener {self.handler_name} cannot be called due to invalid DI signature") from e
+            LOGGER.error("Handler '%s' has invalid DI signature: %s", self.handler_name, e)
+            raise CallListenerError(
+                f"Listener '{self.handler_name}' cannot be called due to invalid DI signature"
+            ) from e
 
         except UnableToExtractParameterError as e:
             LOGGER.error(
-                "Handler %s - unable to extract parameter '%s' of type %s: %s",
+                "Handler '%s' - unable to extract parameter '%s' of type '%s': %s",
                 self.handler_name,
                 param_name,
                 param_type,

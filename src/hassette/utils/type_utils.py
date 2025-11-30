@@ -143,3 +143,23 @@ def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
             raise TypeError(f"Could not resolve ForwardRef annotation: {annotation}")
 
     return annotation
+
+
+def get_state_value_type(cls: type[Any]) -> Any:
+    """Return the concrete value type used in BaseState[...] for the given state class."""
+    # 1. Look for a parameterized BaseState[...] directly in the MRO
+    for base in cls.__mro__:
+        if hasattr(base, "value_type"):
+            return base.value_type
+
+    return Any
+
+
+def get_normalized_state_value_type(cls: type[Any]) -> type | tuple[type, ...]:
+    """Return the normalized value type used in BaseState[...] for the given state class.
+
+    This is suitable for use with isinstance() checks.
+    """
+    value_type = get_state_value_type(cls)
+    normalized_type = normalize_for_isinstance(value_type)
+    return normalized_type

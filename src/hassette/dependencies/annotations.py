@@ -8,13 +8,16 @@
 import typing
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Any, TypeAlias, TypeVar
+from typing import Annotated, Any, Literal, TypeAlias, TypeAliasType, TypeVar
 
 from hassette.bus import accessors as A
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
-from hassette.events import CallServiceEvent, Event, HassContext, TypedStateChangeEvent
+from hassette.context import get_state_registry
+from hassette.events import CallServiceEvent, Event, HassContext
 from hassette.exceptions import InvalidDependencyReturnTypeError
-from hassette.models.states import BaseState, StateT, StateValueT
+from hassette.models.states import BaseState, StateT
+from hassette.types import StateType
+from hassette.types.state_value import TYPE_ALIAS_TO_CONVERTER_MAP, TYPE_TO_CONVERTER_MAP
 
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
@@ -22,6 +25,8 @@ if typing.TYPE_CHECKING:
 
 T = TypeVar("T", bound=Event[Any])
 R = TypeVar("R")
+
+T_Any = TypeVar("T_Any", bound=Any)
 
 
 @dataclass(slots=True, frozen=True)
@@ -68,27 +73,6 @@ def ensure_present(accessor: Callable[[T], R]) -> Callable[[T], R]:
     return wrapper
 
 
-def state_change_event_converter(event: "RawStateChangeEvent", param_type: type[BaseState]) -> TypedStateChangeEvent:
-    """Convert the event to the correct type based on the parameter type.
-
-    Args:
-        event: The RawStateChangeEvent instance
-        param_type: The type annotation of the parameter
-
-    Returns:
-        The converted event
-    """
-
-    new_value = event.to_typed_event()
-    if type(new_value.payload.data.new_state) not in [param_type, None]:
-        raise InvalidDependencyReturnTypeError(type(new_value))
-
-    if type(new_value.payload.data.old_state) not in [param_type, None]:
-        raise InvalidDependencyReturnTypeError(type(new_value))
-
-    return new_value
-
-
 def convert_to_model(value: Any, model: type[BaseState]) -> BaseState:
     """Convert a raw state dict to a typed state model.
 
@@ -108,9 +92,62 @@ def convert_to_model(value: Any, model: type[BaseState]) -> BaseState:
     return model.model_validate(value)
 
 
+def convert_to_model_implicit(value: Any) -> BaseState:
+    """Convert a raw state dict to a typed state model, inferring the model from the value.
+
+    Args:
+        value: The raw state dict
+
+    Returns:
+        The typed state model instance
+    """
+    registry = get_state_registry()
+    converted = registry.try_convert_state(value)
+    if converted is None:
+        raise InvalidDependencyReturnTypeError(type(value))
+
+    return converted
+
+
 def identity(x: Any) -> Any:
     """Identity function - returns the input as-is."""
     return x
+
+
+def _get_state_value_extractor(name: Literal["new_state", "old_state"]) -> Callable[["RawStateChangeEvent"], Any]:
+    def _state_value_extractor(event: "RawStateChangeEvent") -> Any:
+        data = event.payload.data
+        state_dict = getattr(data, name)
+        if state_dict is None:
+            return MISSING_VALUE
+        return convert_to_model_implicit(state_dict)
+
+    return _state_value_extractor
+
+
+def _get_converter_fn(
+    type_value: type | StateType | TypeAliasType,
+) -> Callable[[type | TypeAliasType | StateType], Any]:
+    if type_value in TYPE_ALIAS_TO_CONVERTER_MAP:
+        return TYPE_ALIAS_TO_CONVERTER_MAP[type_value]
+    if type_value in TYPE_TO_CONVERTER_MAP:
+        return TYPE_TO_CONVERTER_MAP[type_value]
+    raise ValueError(f"Unsupported state value type: {type_value}")
+
+
+def _state_value_helper(
+    name: Literal["new_state", "old_state"], type_value: type | StateType | TypeAliasType
+) -> AnnotationDetails["RawStateChangeEvent"]:
+    if type_value not in TYPE_ALIAS_TO_CONVERTER_MAP:
+        raise ValueError(f"Unsupported state value type: {type_value}")
+
+    extractor = _get_state_value_extractor(name)
+    converter_fn = _get_converter_fn(type_value)
+
+    def converter(value: Any, _: type):
+        return converter_fn(value.value)
+
+    return AnnotationDetails["RawStateChangeEvent"](extractor, converter)
 
 
 StateNew: TypeAlias = Annotated[
@@ -198,49 +235,6 @@ async def handler(states: D.MaybeStateOldAndNew[states.LightState]):
 ```
 """
 
-
-StateValueNew: TypeAlias = Annotated[StateValueT, AnnotationDetails["RawStateChangeEvent"](A.get_state_value_new)]
-"""Extract the new state value from a StateChangeEvent.
-
-The state value is the string representation of the state (e.g., "on", "off", "25.5").
-
-Example:
-```python
-async def handler(new_value: D.StateValueNew[str]):
-    self.logger.info("New state value: %s", new_value)
-```
-"""
-
-
-StateValueOld: TypeAlias = Annotated[StateValueT, AnnotationDetails["RawStateChangeEvent"](A.get_state_value_old)]
-"""Extract the old state value from a StateChangeEvent.
-
-The state value is the string representation of the state (e.g., "on", "off", "25.5").
-
-Example:
-```python
-async def handler(old_value: D.StateValueOld[str]):
-    if old_value:
-        self.logger.info("Previous state value: %s", old_value)
-```
-"""
-
-StateValueOldAndNew: TypeAlias = Annotated[
-    tuple[StateValueT, StateValueT], AnnotationDetails["RawStateChangeEvent"](A.get_state_value_old_new)
-]
-"""Extract both old and new state values from a StateChangeEvent.
-
-The state values are the string representations of the states (e.g., "on", "off", "25.5").
-
-Example:
-```python
-async def handler(values: D.StateValueOldAndNew[str]):
-    old_value, new_value = values
-    if old_value and old_value != new_value:
-        self.logger.info("Changed from %s to %s", old_value, new_value)
-```
-"""
-
 EntityId: TypeAlias = Annotated[str, AnnotationDetails(ensure_present(A.get_entity_id))]
 """Extract the entity_id from a HassEvent.
 
@@ -319,6 +313,41 @@ async def handler(context: D.EventContext):
 """
 
 
+def StateValueNew(type_value: type | StateType | TypeAliasType) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N802
+    """Factory for creating annotated types to extract the new state value as a specific model."""
+    return _state_value_helper("new_state", type_value)
+
+
+def StateValueOld(type_value: type | StateType | TypeAliasType) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N802
+    """Factory for creating annotated types to extract the old state value as a specific model."""
+
+    return _state_value_helper("old_state", type_value)
+
+
+def StateValueOldAndNew(  # noqa: N802
+    type_value: tuple[type | StateType | TypeAliasType, type | StateType | TypeAliasType],
+) -> AnnotationDetails["RawStateChangeEvent"]:
+    """Factory for creating annotated types to extract both old and new state values as a specific model."""
+
+    if not isinstance(type_value, tuple) or len(type_value) != 2:
+        raise ValueError("type_value must be a tuple of two types for old and new state values.")
+
+    def extractor(event: "RawStateChangeEvent") -> tuple[Any, Any]:
+        old_value = _get_state_value_extractor("old_state")(event)
+        new_value = _get_state_value_extractor("new_state")(event)
+        return old_value, new_value
+
+    converter_fn_old = _get_converter_fn(type_value[0])
+    converter_fn_new = _get_converter_fn(type_value[1])
+
+    def converter(value: Any, _: type) -> Any:
+        old_converted = converter_fn_old(value[0].value)
+        new_converted = converter_fn_new(value[1].value)
+        return old_converted, new_converted
+
+    return AnnotationDetails["RawStateChangeEvent"](extractor, converter)
+
+
 def AttrNew(name: str) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N802
     """Factory for creating annotated types to extract specific attributes from the new state.
 
@@ -335,9 +364,12 @@ def AttrNew(name: str) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N80
     """
 
     def _inner(event: "RawStateChangeEvent") -> Any:
-        data = event.payload.data
-        new_attrs: dict[str, Any] = data.new_state.get("attributes", {}) if data.new_state else {}
-        return new_attrs.get(name, MISSING_VALUE)
+        if event.payload.data.new_state is None:
+            return MISSING_VALUE
+
+        registry = get_state_registry()
+        converted = registry.try_convert_state(event.payload.data.new_state)
+        return getattr(converted.attributes, name, MISSING_VALUE)
 
     return AnnotationDetails["RawStateChangeEvent"](_inner)
 
@@ -357,9 +389,12 @@ def AttrOld(name: str) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N80
     """
 
     def _inner(event: "RawStateChangeEvent") -> Any:
-        data = event.payload.data
-        old_attrs: dict[str, Any] = data.old_state.get("attributes", {}) if data.old_state else {}
-        return old_attrs.get(name, MISSING_VALUE)
+        if event.payload.data.old_state is None:
+            return MISSING_VALUE
+
+        registry = get_state_registry()
+        converted = registry.try_convert_state(event.payload.data.old_state)
+        return getattr(converted.attributes, name, MISSING_VALUE)
 
     return AnnotationDetails["RawStateChangeEvent"](_inner)
 
@@ -379,9 +414,22 @@ def AttrOldAndNew(name: str) -> AnnotationDetails["RawStateChangeEvent"]:  # noq
     """
 
     def _inner(event: "RawStateChangeEvent") -> tuple[Any, Any]:
-        data = event.payload.data
-        old_attrs: dict[str, Any] = data.old_state.get("attributes", {}) if data.old_state else {}
-        new_attrs: dict[str, Any] = data.new_state.get("attributes", {}) if data.new_state else {}
-        return old_attrs.get(name, MISSING_VALUE), new_attrs.get(name, MISSING_VALUE)
+        # Old attribute
+        if event.payload.data.old_state is None:
+            old_attr = MISSING_VALUE
+        else:
+            registry = get_state_registry()
+            converted_old = registry.try_convert_state(event.payload.data.old_state)
+            old_attr = getattr(converted_old.attributes, name, MISSING_VALUE)
+
+        # New attribute
+        if event.payload.data.new_state is None:
+            new_attr = MISSING_VALUE
+        else:
+            registry = get_state_registry()
+            converted_new = registry.try_convert_state(event.payload.data.new_state)
+            new_attr = getattr(converted_new.attributes, name, MISSING_VALUE)
+
+        return old_attr, new_attr
 
     return AnnotationDetails["RawStateChangeEvent"](_inner)
