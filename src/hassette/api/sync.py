@@ -1,15 +1,20 @@
 import typing
+from collections.abc import Generator
 from enum import StrEnum
 from typing import Any
 
+from aiohttp.client_reqrep import ClientResponse
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.events.hass.raw import HassStateDict
 from hassette.models.entities import EntityT
+from hassette.models.history import HistoryEntry
+from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
-    from hassette.models.states import BaseState, StateT, StateValueT
+    from hassette.models.states.base import BaseState
 
 
 class ApiSyncFacade(Resource):
@@ -32,11 +37,11 @@ class ApiSyncFacade(Resource):
         inst.mark_ready(reason="Synchronous API facade initialized")
         return inst
 
-    def ws_send_and_wait(self, **data: Any):
+    def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""
         return self.task_bucket.run_sync(self._api.ws_send_and_wait(**data))
 
-    def ws_send_json(self, **data: Any):
+    def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response."""
         return self.task_bucket.run_sync(self._api.ws_send_json(**data))
 
@@ -48,7 +53,7 @@ class ApiSyncFacade(Resource):
         data: dict[str, Any] | None = None,
         suppress_error_message: bool = False,
         **kwargs,
-    ):
+    ) -> ClientResponse:
         """Make a REST request to the Home Assistant API.
 
         Args:
@@ -67,7 +72,7 @@ class ApiSyncFacade(Resource):
             )
         )
 
-    def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs):
+    def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs) -> ClientResponse:
         """Make a GET request to the Home Assistant API.
 
         Args:
@@ -80,7 +85,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_rest_request(url, params=params, **kwargs))
 
-    def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs):
+    def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs) -> ClientResponse:
         """Make a POST request to the Home Assistant API.
 
         Args:
@@ -93,7 +98,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.post_rest_request(url, data=data, **kwargs))
 
-    def delete_rest_request(self, url: str, **kwargs):
+    def delete_rest_request(self, url: str, **kwargs) -> ClientResponse:
         """Make a DELETE request to the Home Assistant API.
 
         Args:
@@ -105,15 +110,18 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.delete_rest_request(url, **kwargs))
 
-    def get_states_raw(self):
-        """Get all entities in Home Assistant as raw dictionaries.
+    def get_states_raw(self) -> list[HassStateDict]:
+        """Get all entities in Home Assistant, converted to their appropriate state types.
+
+        If a state fails to convert, it is skipped with an error logged. If there is no registered
+        state class for a domain, the generic BaseState is used.
 
         Returns:
-            A list of states as dictionaries.
+            A list of states, converted to their appropriate state types.
         """
         return self.task_bucket.run_sync(self._api.get_states_raw())
 
-    def get_states(self):
+    def get_states(self) -> list["BaseState[Any]"]:
         """Get all entities in Home Assistant.
 
         Returns:
@@ -121,7 +129,19 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_states())
 
-    def get_config(self):
+    async def get_states_iterator(self) -> Generator["BaseState[Any]", Any]:
+        """Get a generator to iterate over all entities in Home Assistant, converted to their appropriate state types.
+
+        The returned generator yields properly typed state objects based on their domains. If
+        a state fails to convert, it is skipped with an error logged. If there is no registered
+        state class for a domain, the generic BaseState is used.
+
+        Returns:
+            A generator yielding typed state objects.
+        """
+        return self.task_bucket.run_sync(self._api.get_states_iterator())
+
+    def get_config(self) -> dict[str, Any]:
         """Get the Home Assistant configuration.
 
         Returns:
@@ -129,7 +149,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_config())
 
-    def get_services(self):
+    def get_services(self) -> dict[str, Any]:
         """Get the available services in Home Assistant.
 
         Returns:
@@ -137,7 +157,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_services())
 
-    def get_panels(self):
+    def get_panels(self) -> dict[str, Any]:
         """Get the available panels in Home Assistant.
 
         Returns:
@@ -168,7 +188,7 @@ class ApiSyncFacade(Resource):
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
         **data,
-    ):
+    ) -> ServiceResponse | None:
         """Call a Home Assistant service.
 
         Args:
@@ -183,7 +203,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))
 
-    def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data):
+    def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
         """Turn on a specific entity in Home Assistant.
 
         Args:
@@ -192,7 +212,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.turn_on(entity_id, domain, **data))
 
-    def turn_off(self, entity_id: str, domain: str = "homeassistant"):
+    def turn_off(self, entity_id: str, domain: str = "homeassistant") -> None:
         """Turn off a specific entity in Home Assistant.
 
         Args:
@@ -202,7 +222,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain))
 
-    def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
+    def toggle_service(self, entity_id: str, domain: str = "homeassistant") -> None:
         """Toggle a specific entity in Home Assistant.
 
         Args:
@@ -212,7 +232,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.toggle_service(entity_id, domain))
 
-    def get_state_raw(self, entity_id: str):
+    def get_state_raw(self, entity_id: str) -> HassStateDict:
         """Get the state of a specific entity.
 
         Args:
@@ -223,7 +243,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_state_raw(entity_id))
 
-    def entity_exists(self, entity_id: str):
+    def entity_exists(self, entity_id: str) -> bool:
         """Check if a specific entity exists.
 
         Args:
@@ -235,7 +255,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.entity_exists(entity_id))
 
-    def get_entity(self, entity_id: str, model: type[EntityT]):
+    def get_entity(self, entity_id: str, model: type[EntityT]) -> EntityT:
         """Get an entity object for a specific entity.
 
         Args:
@@ -247,7 +267,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_entity(entity_id, model))
 
-    def get_entity_or_none(self, entity_id: str, model: type[EntityT]):
+    def get_entity_or_none(self, entity_id: str, model: type[EntityT]) -> EntityT | None:
         """Get an entity object for a specific entity, or None if it does not exist.
 
         Args:
@@ -259,19 +279,19 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_entity_or_none(entity_id, model))
 
-    def get_state(self, entity_id: str, model: type["StateT"]):
+    def get_state(self, entity_id: str) -> "BaseState":
         """Get the state of a specific entity.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
         """
-        return self.task_bucket.run_sync(self._api.get_state(entity_id, model))
 
-    def get_state_value(self, entity_id: str):
+        return self.task_bucket.run_sync(self._api.get_state(entity_id))
+
+    def get_state_value(self, entity_id: str) -> Any:
         """Get the state of a specific entity without converting it to a state object.
 
         Args:
@@ -282,23 +302,34 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
-    def get_state_value_typed(self, entity_id: str, model: type["BaseState[StateValueT]"]):
-        """Get the state of a specific entity as a converted state object.
+    def get_state_value_typed(self, entity_id: str) -> "Any":
+        """Get the value of a specific entity's state, converted to the correct type for that state.
+
+        The return type here is Any due to the dynamic nature of this conversion, but the return type
+        at runtime will match the expected value type for the specific state class of the entity.
 
         Args:
             entity_id: The ID of the entity to get the state for.
-            model: The model type to convert the state to.
 
         Returns:
             The state of the entity converted to the specified model type.
 
         Raises:
             TypeError: If the model is not a valid StateType subclass.
+
+        Example:
+            ```python
+            date: ZonedDateTime = await self.api.get_state_value_typed("input_datetime.test", states.InputDateTimeState)
+            ```
+
+        Warning:
+            For states like `SensorState` the value type in Hassette is `str`, even if the sensor represents a number,
+            as we cannot be sure of the actual type without additional context. For these cases, you are responsible
+            for converting the string to the desired type.
         """
+        return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id))
 
-        return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id, model))
-
-    def get_attribute(self, entity_id: str, attribute: str):
+    def get_attribute(self, entity_id: str, attribute: str) -> Any | None:
         """Get a specific attribute of an entity.
 
         Args:
@@ -319,7 +350,7 @@ class ApiSyncFacade(Resource):
         significant_changes_only: bool = False,
         minimal_response: bool = False,
         no_attributes: bool = False,
-    ):
+    ) -> list[HistoryEntry]:
         """Get the history of a specific entity.
 
         Args:
@@ -352,7 +383,7 @@ class ApiSyncFacade(Resource):
         significant_changes_only: bool = False,
         minimal_response: bool = False,
         no_attributes: bool = False,
-    ):
+    ) -> dict[str, list[HistoryEntry]]:
         """Get the history for multiple entities.
 
         Args:
@@ -382,7 +413,7 @@ class ApiSyncFacade(Resource):
         entity_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
-    ):
+    ) -> list[dict[Any, Any]]:
         """Get the logbook entries for a specific entity.
 
         Args:
@@ -401,7 +432,7 @@ class ApiSyncFacade(Resource):
         entity_id: str | StrEnum,
         state: str,
         attributes: dict[str, Any] | None = None,
-    ):
+    ) -> dict[Any, Any]:
         """Set the state of a specific entity.
 
         Args:
@@ -419,7 +450,7 @@ class ApiSyncFacade(Resource):
         self,
         entity_id: str,
         timestamp: PlainDateTime | ZonedDateTime | Date | str | None = None,
-    ):
+    ) -> bytes:
         """Get the latest camera image for a specific entity.
 
         Args:
@@ -432,7 +463,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.get_camera_image(entity_id, timestamp))
 
-    def get_calendars(self):
+    def get_calendars(self) -> list[dict[Any, Any]]:
         """Get the list of calendars.
 
         Returns:
@@ -446,7 +477,7 @@ class ApiSyncFacade(Resource):
         calendar_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
-    ):
+    ) -> list[dict[Any, Any]]:
         """Get events from a specific calendar.
 
         Args:
@@ -470,7 +501,7 @@ class ApiSyncFacade(Resource):
         self,
         template: str,
         variables: dict | None = None,
-    ):
+    ) -> str:
         """Render a template with given variables.
 
         Args:
@@ -482,7 +513,7 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.render_template(template, variables))
 
-    def delete_entity(self, entity_id: str):
+    def delete_entity(self, entity_id: str) -> None:
         """Delete a specific entity.
 
         Args:

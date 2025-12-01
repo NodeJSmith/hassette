@@ -1,29 +1,26 @@
 from inspect import get_annotations
 from logging import getLogger
-from typing import Any, Generic, TypeVar, get_args
+from typing import Any, ClassVar, Generic, TypeAliasType, TypeVar, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Date, PlainDateTime, Time, ZonedDateTime
+from whenever import ZonedDateTime
 
+from hassette.exceptions import NoDomainAnnotationError
+from hassette.types.state_value import (
+    BoolStateValue,
+    DateTimeStateValue,
+    IntStateValue,
+    NumericStateValue,
+    StrStateValue,
+    TimeStateValue,
+    to_bool_state_value,
+    to_date_time_state_value,
+    to_int_state_value,
+    to_numeric_state_value,
+    to_str_state_value,
+    to_time_state_value,
+)
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
-
-type StrStateValue = str | None
-"""Represents a string state value or None."""
-
-type DateTimeStateValue = ZonedDateTime | PlainDateTime | Date | None
-"""Represents a datetime state value or None."""
-
-type TimeStateValue = Time | None
-"""Represents a time state value or None."""
-
-type BoolStateValue = bool | None
-"""Represents a boolean state value or None."""
-
-type IntStateValue = int | None
-"""Represents an integer state value or None."""
-
-type NumericStateValue = float | int | None
-"""Represents a numeric state value or None."""
 
 StateT = TypeVar("StateT", bound="BaseState", default="BaseState")
 """Represents a specific state type, e.g., LightState, CoverState, etc."""
@@ -88,24 +85,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
     # Leaving them off unless we find a use case or get a feature request for them.
     # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
 
+    value_type: ClassVar[TypeAliasType]
+    """The type of the state value."""
+
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
-
-    def __init_subclass__(cls, **kwargs) -> None:
-        """Automatically register state subclasses with the state registry.
-
-        This hook is called whenever a class inherits from BaseState. If the subclass
-        defines a domain (via a Literal type annotation), it will be automatically
-        registered in the global state registry for lookup during state conversion.
-
-        Base classes without domain literals (like StringBaseState) are skipped.
-        """
-        super().__init_subclass__(**kwargs)
-
-        # Import here to avoid circular dependency
-        from hassette.state_registry import get_registry
-
-        # Attempt to register - the registry will skip if no domain is defined
-        get_registry().register(cls)
 
     domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""
@@ -197,26 +180,34 @@ class BaseState(BaseModel, Generic[StateValueT]):
         fields = cls.model_fields
         domain_field = fields.get("domain")
         if not domain_field:
-            raise ValueError(f"Domain not defined for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         annotations = get_annotations(cls)
         annotation = annotations.get("domain")
         if annotation is None:
-            raise ValueError(f"Domain annotation is None for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         args = get_args(annotation)
         if not args:
-            raise ValueError(f"Domain annotation has no args for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         domain = args[0]
         if not isinstance(domain, str):
-            raise ValueError(f"Domain is not a string for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         return domain
 
 
 class StringBaseState(BaseState[StrStateValue]):
     """Base class for string states."""
+
+    value_type: ClassVar[TypeAliasType] = StrStateValue
+    """The type of the state value."""
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def validate_state(cls, value: StrStateValue) -> StrStateValue:
+        return to_str_state_value(value)
 
 
 class DateTimeBaseState(BaseState[DateTimeStateValue]):
@@ -225,28 +216,13 @@ class DateTimeBaseState(BaseState[DateTimeStateValue]):
     Valid state values are ZonedDateTime, PlainDateTime, Date, or None.
     """
 
+    value_type: ClassVar[TypeAliasType] = DateTimeStateValue
+    """The type of the state value."""
+
     @field_validator("value", mode="before")
     @classmethod
     def validate_state(cls, value: DateTimeStateValue | str) -> DateTimeStateValue:
-        if value is None or isinstance(value, (ZonedDateTime, PlainDateTime, Date)):
-            return value
-        if isinstance(value, str):
-            # Try parsing as OffsetDateTime first (most common case)
-            try:
-                return convert_datetime_str_to_system_tz(value)
-            except ValueError:
-                pass
-            # Next try PlainDateTime
-            try:
-                return PlainDateTime.parse_iso(value)
-            except ValueError:
-                pass
-            # Finally try Date
-            try:
-                return Date.parse_iso(value)
-            except ValueError:
-                pass
-        raise ValueError(f"State must be a datetime, date, or None, got {value}")
+        return to_date_time_state_value(value)
 
 
 class TimeBaseState(BaseState[TimeStateValue]):
@@ -254,6 +230,14 @@ class TimeBaseState(BaseState[TimeStateValue]):
 
     Valid state values are Time or None.
     """
+
+    value_type: ClassVar[TypeAliasType] = TimeStateValue
+    """The type of the state value."""
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def validate_state(cls, value: TimeStateValue | str) -> TimeStateValue:
+        return to_time_state_value(value)
 
 
 class BoolBaseState(BaseState[BoolStateValue]):
@@ -264,32 +248,27 @@ class BoolBaseState(BaseState[BoolStateValue]):
     Will convert string values "on" and "off" to boolean True and False.
     """
 
+    value_type: ClassVar[TypeAliasType] = BoolStateValue
+    """The type of the state value."""
+
     @field_validator("value", mode="before")
     @classmethod
-    def validate_state(cls, value: bool | str | None) -> BoolStateValue:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            if value.lower() == "on":
-                return True
-            if value.lower() == "off":
-                return False
-            raise ValueError(f"Invalid state value: {value}")
-        if isinstance(value, bool):
-            return value
-        raise ValueError(f"State must be a boolean or 'on'/'off' string, got {value}")
+    def validate_state(cls, value: BoolStateValue | str) -> BoolStateValue:
+        """Ensure the state value is a boolean or None."""
+        return to_bool_state_value(value)
 
 
 class IntBaseState(BaseState[IntStateValue]):
     """Base class for integer states."""
 
+    value_type: ClassVar[TypeAliasType] = IntStateValue
+    """The type of the state value."""
+
     @field_validator("value", mode="before")
     @classmethod
-    def validate_state(cls, value: str | int | None) -> IntStateValue:
+    def validate_state(cls, value: IntStateValue | str) -> IntStateValue:
         """Ensure the state value is an integer or None."""
-        if value is None:
-            return None
-        return int(value)
+        return to_int_state_value(value)
 
 
 class NumericBaseState(BaseState[NumericStateValue]):
@@ -299,12 +278,11 @@ class NumericBaseState(BaseState[NumericStateValue]):
     Valid state values are int, float, or None.
     """
 
+    value_type: ClassVar[TypeAliasType] = NumericStateValue
+    """The type of the state value."""
+
     @field_validator("value", mode="before")
     @classmethod
-    def validate_state(cls, value: str | int | float | None) -> NumericStateValue:
+    def validate_state(cls, value: NumericStateValue | str) -> NumericStateValue:
         """Ensure the state value is a number or None."""
-        if value is None:
-            return None
-        if isinstance(value, int | float):
-            return value
-        return float(value)
+        return to_numeric_state_value(value)

@@ -1,17 +1,44 @@
-"""Fixtures for state proxy and states testing.
-
-Provides factory functions for creating test state data and events.
-"""
-
-from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, cast
 
 from whenever import ZonedDateTime
 
-from hassette.events import StateChangeEvent, create_event_from_hass
+from hassette.events import CallServiceEvent, RawStateChangeEvent, create_event_from_hass
+from hassette.events.hass.hass import RawStateChangePayload
 
 if TYPE_CHECKING:
     from hassette.events import HassEventEnvelopeDict
+
+
+def create_state_change_event(
+    *,
+    entity_id: str,
+    old_value: Any,
+    new_value: Any,
+    old_attrs: dict[str, Any] | None = None,
+    new_attrs: dict[str, Any] | None = None,
+    topic: str = "hass.event.state_changed",
+) -> Any:
+    data = RawStateChangePayload(
+        entity_id=entity_id,
+        old_state={"state": old_value, "attributes": old_attrs or {}},  # pyright: ignore[reportArgumentType]
+        new_state={"state": new_value, "attributes": new_attrs or {}},  # pyright: ignore[reportArgumentType]
+    )
+
+    payload = SimpleNamespace(data=data)
+    return cast("RawStateChangeEvent", SimpleNamespace(topic=topic, payload=payload))
+
+
+def create_call_service_event(
+    *,
+    domain: str,
+    service: str,
+    service_data: dict[str, Any] | None = None,
+) -> CallServiceEvent:
+    """Create a mock call service event for testing."""
+    data = SimpleNamespace(domain=domain, service=service, service_data=service_data or {})
+    payload = SimpleNamespace(data=data)
+    return cast("CallServiceEvent", SimpleNamespace(topic="hass.event.call_service", payload=payload))
 
 
 def make_state_dict(
@@ -35,7 +62,7 @@ def make_state_dict(
     Returns:
         Dictionary matching Home Assistant state format
     """
-    now = datetime.now(UTC).isoformat()
+    now = ZonedDateTime.now("UTC").format_iso()
     return {
         "entity_id": entity_id,
         "state": state,
@@ -65,7 +92,7 @@ def make_light_state_dict(
     Returns:
         Dictionary matching Home Assistant light state format
     """
-    attributes = {"friendly_name": entity_id.split(".")[-1].replace("_", " ").title()}
+    attributes: dict[str, Any] = {"friendly_name": entity_id.split(".")[-1].replace("_", " ").title()}
     if brightness is not None:
         attributes["brightness"] = brightness
     if color_temp is not None:
@@ -129,9 +156,9 @@ def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", 
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
 
 
-def make_state_change_event(
+def make_full_state_change_event(
     entity_id: str, old_state: dict[str, Any] | None, new_state: dict[str, Any] | None
-) -> StateChangeEvent:
+) -> RawStateChangeEvent:
     """Factory for creating state change events.
 
     Args:
@@ -140,7 +167,7 @@ def make_state_change_event(
         new_state: New state dictionary (None for removed entity)
 
     Returns:
-        StateChangeEvent instance
+        RawStateChangeEvent instance
     """
     envelope: HassEventEnvelopeDict = {
         "id": 1,
@@ -158,5 +185,5 @@ def make_state_change_event(
         },
     }
     event = create_event_from_hass(envelope)
-    assert isinstance(event, StateChangeEvent)
+    assert isinstance(event, RawStateChangeEvent)
     return event

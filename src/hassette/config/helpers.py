@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
+from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
 from typing import cast, get_args
@@ -11,6 +12,7 @@ import platformdirs
 from packaging.version import Version
 
 from hassette import context
+from hassette.exceptions import HassetteNotInitializedError
 from hassette.types.types import LOG_LEVELS
 
 LOG_LEVEL_VALUES = get_args(LOG_LEVELS)
@@ -38,9 +40,8 @@ def get_dev_mode() -> bool:
     Returns:
         True if developer mode is enabled, False otherwise.
     """
-
-    curr_config = context.HASSETTE_CONFIG.get(None)
-    if curr_config:
+    with suppress(HassetteNotInitializedError):
+        curr_config = context.get_hassette_config()
         # not sure if we can even change this during runtime, but for now we are not
         # going to allow it
         return curr_config.dev_mode

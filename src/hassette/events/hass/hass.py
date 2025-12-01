@@ -1,13 +1,12 @@
 import logging
 import typing
-from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Generic, Literal, Self, TypeGuard
+from typing import Any, Generic, Literal, Self
 
 from hassette.const import MISSING_VALUE
+from hassette.context import get_state_registry
 from hassette.events.base import Event, HassPayload
-from hassette.models.states import StateT
-from hassette.state_registry import try_convert_state
+from hassette.models.states.base import StateT
 from hassette.types import topics
 
 from .raw import HassEventEnvelopeDict, HassStateDict
@@ -105,10 +104,71 @@ class EntityRegistryUpdatedPayload:
 
 
 @dataclass(slots=True, frozen=True)
-class StateChangePayload(Generic[StateT]):
+class RawStateChangePayload:
     """Payload for a state_changed event in Home Assistant."""
 
     entity_id: str
+    """"The entity ID of the entity that changed state."""
+
+    old_state: HassStateDict | None
+    """The previous state of the entity before it changed. Omitted if the state is set for the first time."""
+
+    new_state: HassStateDict | None
+    """The new state of the entity. Omitted if the state has been removed."""
+
+    @property
+    def state_value_has_changed(self) -> bool:
+        """Check if the state value has changed between old and new states.
+
+        Appropriately handles cases where either state may be None.
+
+        Returns:
+            True if the state value has changed, False otherwise.
+        """
+        return self.old_state_value != self.new_state_value
+
+    @property
+    def new_state_value(self) -> "Any | Sentinel":
+        """Return the value of the new state, or MISSING_VALUE if not present."""
+        return self.new_state.get("state") if self.new_state is not None else MISSING_VALUE
+
+    @property
+    def old_state_value(self) -> "Any | Sentinel":
+        """Return the value of the old state, or MISSING_VALUE if not present."""
+        return self.old_state.get("state") if self.old_state is not None else MISSING_VALUE
+
+    @property
+    def has_new_state(self) -> bool:
+        """Check if the new state is not None - not a TypeGuard."""
+        return self.new_state is not None
+
+    @property
+    def has_old_state(self) -> bool:
+        """Check if the old state is not None - not a TypeGuard."""
+        return self.old_state is not None
+
+    @property
+    def domain(self) -> str:
+        """Extract the domain from the entity_id."""
+        return self.entity_id.split(".", 1)[0]
+
+    @classmethod
+    def create_from_event(
+        cls, entity_id: str, old_state: HassStateDict | None = None, new_state: HassStateDict | None = None
+    ) -> Self:
+        if entity_id is None:
+            raise ValueError("State change event data must contain 'entity_id' key")
+
+        return cls(entity_id=entity_id, old_state=old_state, new_state=new_state)
+
+
+@dataclass(slots=True, frozen=True)
+class TypedStateChangePayload(Generic[StateT]):
+    """Payload for a state_changed event in Home Assistant, with typed state data."""
+
+    entity_id: str
+    """The entity ID of the entity that changed state."""
+
     old_state: StateT | None
     """The previous state of the entity before it changed. Omitted if the state is set for the first time."""
 
@@ -146,9 +206,10 @@ class StateChangePayload(Generic[StateT]):
         """Check if the old state is not None - not a TypeGuard."""
         return self.old_state is not None
 
-    def has_state(self, state: StateT | None) -> TypeGuard[StateT]:
-        """A TypeGuard method to check if a state is not None."""
-        return state is not None
+    @property
+    def domain(self) -> str:
+        """Extract the domain from the entity_id."""
+        return self.entity_id.split(".", 1)[0]
 
     @classmethod
     def create_from_event(
@@ -157,15 +218,45 @@ class StateChangePayload(Generic[StateT]):
         if entity_id is None:
             raise ValueError("State change event data must contain 'entity_id' key")
 
-        # use deepcopy to avoid mutating the original data
-        old_state_obj = try_convert_state(deepcopy(old_state)) if old_state else None
-        new_state_obj = try_convert_state(deepcopy(new_state)) if new_state else None
+        registry = get_state_registry()
+
+        new_state_obj = registry.try_convert_state(new_state) if new_state is not None else None
+        old_state_obj = registry.try_convert_state(old_state) if old_state is not None else None
 
         return cls(entity_id=entity_id, old_state=old_state_obj, new_state=new_state_obj)  # pyright: ignore[reportArgumentType]
 
 
-class StateChangeEvent(Event[HassPayload[StateChangePayload[StateT]]]):
-    """Strongly typed state change event."""
+class RawStateChangeEvent(Event[HassPayload[RawStateChangePayload]]):
+    """Event representing a state change in Home Assistant, with raw state data."""
+
+    def to_typed_event(self) -> "TypedStateChangeEvent":
+        """Convert this raw state change event to a typed state change event.
+
+        Args:
+            state_type: The type to convert the states to.
+
+        Returns:
+            A TypedStateChangeEvent with states converted to the specified type.
+        """
+
+        return TypedStateChangeEvent(
+            topic=self.topic,
+            payload=HassPayload(
+                event_type=self.payload.event_type,
+                origin=self.payload.origin,
+                context=self.payload.context,
+                time_fired=self.payload.time_fired,
+                data=TypedStateChangePayload.create_from_event(
+                    entity_id=self.payload.data.entity_id,
+                    old_state=self.payload.data.old_state,
+                    new_state=self.payload.data.new_state,
+                ),
+            ),
+        )
+
+
+class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]]):
+    """Event representing a state change in Home Assistant, with typed state data."""
 
 
 class CallServiceEvent(Event[HassPayload[CallServicePayload]]):
@@ -224,9 +315,9 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
 
     match event_type:
         case "state_changed":
-            return StateChangeEvent(
+            return RawStateChangeEvent(
                 topic=topics.HASS_EVENT_STATE_CHANGED,
-                payload=HassPayload(**event_payload, data=StateChangePayload.create_from_event(**event_data)),
+                payload=HassPayload(**event_payload, data=RawStateChangePayload.create_from_event(**event_data)),
             )
 
         case "call_service":
