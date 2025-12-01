@@ -196,12 +196,13 @@ class HandlerAdapter:
                 extracted_value = extract_with_error_handling(
                     event, extractor, param_name, param_type, self.handler_name
                 )
+                param_is_optional = is_optional_type(param_type)
 
-                if is_optional_type(param_type) and extracted_value is None:
+                if param_is_optional and extracted_value is None:
                     kwargs[param_name] = None
                     continue
 
-                if is_optional_type(param_type):
+                if param_is_optional:
                     param_type = get_optional_type_arg(param_type)
 
                 if converter:
