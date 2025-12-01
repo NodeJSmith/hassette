@@ -1,7 +1,7 @@
 import inspect
 import typing
 from collections.abc import Generator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
 from typing import Any
@@ -52,13 +52,11 @@ def get_state_registry() -> "StateRegistry":
 
 def set_global_hassette(hassette: "Hassette") -> None:
     """Set the global Hassette instance."""
-    curr_inst = None
-    with suppress(LookupError):
-        curr_inst = HASSETTE_INSTANCE.get()
-        if curr_inst is hassette:
-            return  # already set to the same instance
+    curr_inst = HASSETTE_INSTANCE.get(None)
+    if curr_inst is hassette:
+        return  # already set to the same instance
 
-    if HASSETTE_INSTANCE.get(None) is not None:
+    if curr_inst is not None:
         extra_msg = f"Set at {HASSETTE_SET_LOCATION.get()}" if HASSETTE_SET_LOCATION.get() else ""
         raise RuntimeError(f"Hassette instance is already set.{extra_msg}")
 
