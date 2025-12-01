@@ -1,18 +1,10 @@
 import typing
 
-import pytest
-
 from hassette.models.states import BaseState
 from hassette.test_utils.helpers import make_state_dict
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-
-
-@pytest.fixture(scope="module")
-async def hassette_with_state_registry(hassette_harness, test_config):
-    async with hassette_harness(config=test_config, use_bus=True, use_state_registry=True) as harness:
-        yield typing.cast("Hassette", harness.hassette)
 
 
 class CustomOuterDefinition(BaseState):

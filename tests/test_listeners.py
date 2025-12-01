@@ -1,83 +1,18 @@
 import asyncio
 import inspect
-import json
-import random
 import typing
-from collections.abc import Generator
 from dataclasses import dataclass
-from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
 from hassette import dependencies as D
 from hassette.bus.listeners import HandlerAdapter, Listener
-from hassette.context import get_state_registry, use_state_registry
-from hassette.core.state_registry import StateRegistry
-from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
+from hassette.context import get_state_registry
+from hassette.events import Event, RawStateChangeEvent
 from hassette.exceptions import InvalidDependencyReturnTypeError
 from hassette.models import states
 from hassette.task_bucket import TaskBucket
 from hassette.utils.type_utils import get_normalized_state_value_type, get_state_value_type
-
-
-@pytest.fixture(scope="session")
-def with_state_registry() -> Generator[None, typing.Any]:
-    hassette_mock = Mock()
-    hassette_mock.config.log_level = "CRITICAL"
-    hassette_mock.config.task_bucket_log_level = "CRITICAL"
-
-    state_registry = StateRegistry.create(hassette_mock, hassette_mock)
-    state_registry.build_registry()
-    state_registry.mark_ready()
-
-    with use_state_registry(state_registry):
-        yield
-
-
-def raw_state_change_events(test_data_path: Path) -> list[RawStateChangeEvent]:
-    """Load state change events from test data file."""
-    events = []
-    with open(test_data_path / "state_change_events.jsonl") as f:
-        for line in f:
-            if line.strip():
-                # Strip trailing comma if present (JSONL files may have them)
-                line = line.strip().rstrip(",")
-                envelope = json.loads(line)
-                event = create_event_from_hass(envelope)
-                if isinstance(event, RawStateChangeEvent):
-                    events.append(event)
-
-    # randomize order
-    random.shuffle(events)
-
-    return events
-
-
-@pytest.fixture(scope="session")
-def state_change_events_with_new_state(
-    state_change_events: list[RawStateChangeEvent],
-) -> list[RawStateChangeEvent]:
-    """Filter state change events to only those with a new state."""
-    return [e for e in state_change_events if e.payload.data.new_state is not None]
-
-
-@pytest.fixture(scope="session")
-def state_change_events_with_old_state(
-    state_change_events: list[RawStateChangeEvent],
-) -> list[RawStateChangeEvent]:
-    """Filter state change events to only those with an old state."""
-    return [e for e in state_change_events if e.payload.data.old_state is not None]
-
-
-@pytest.fixture
-def state_change_events_with_both_states(
-    state_change_events: list[RawStateChangeEvent],
-) -> list[RawStateChangeEvent]:
-    """Filter state change events to only those with both old and new states."""
-    return [
-        e for e in state_change_events if e.payload.data.old_state is not None and e.payload.data.new_state is not None
-    ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -423,6 +358,7 @@ class TestListenerIntegration:
             )
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestDependencyValidationErrors:
     """Test that listeners properly handle dependency resolution errors."""
 
@@ -589,14 +525,12 @@ class TestDependencyValidationErrors:
         assert len(calls) == 0
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestDependencyInjectionHandlesTypeConversion:
     """Test that dependency injection handles type conversion correctly."""
 
     async def test_state_conversion(
-        self,
-        bucket_fixture: TaskBucket,
-        state_change_events_with_new_state: list[RawStateChangeEvent],
-        with_state_registry,
+        self, bucket_fixture: TaskBucket, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
         """Test that StateNew converts BaseState to domain-specific state type."""
 
@@ -690,10 +624,7 @@ class TestDependencyInjectionHandlesTypeConversion:
                 assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
 
     async def test_new_state_with_maybe_old_state_converted_correctly(
-        self,
-        bucket_fixture: TaskBucket,
-        state_change_events_with_new_state: list[RawStateChangeEvent],
-        with_state_registry,
+        self, bucket_fixture: TaskBucket, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
         """Test StateNew and MaybeStateOld conversion when only new_state is present."""
 
@@ -722,10 +653,7 @@ class TestDependencyInjectionHandlesTypeConversion:
                 assert isinstance(old_state, model), f"Old state should be {model.__name__}, got {type(old_state)}"
 
     async def test_maybe_new_state_with_old_state_converted_correctly(
-        self,
-        bucket_fixture: TaskBucket,
-        state_change_events_with_old_state: list[RawStateChangeEvent],
-        with_state_registry,
+        self, bucket_fixture: TaskBucket, state_change_events_with_old_state: list[RawStateChangeEvent]
     ):
         """Test MaybeStateNew and StateOld conversion when only old_state is present."""
 
@@ -754,10 +682,7 @@ class TestDependencyInjectionHandlesTypeConversion:
             assert isinstance(old_state, model), f"Old state should be {model.__name__}, got {type(old_state)}"
 
     async def test_both_states_converted_correctly(
-        self,
-        bucket_fixture: TaskBucket,
-        state_change_events_with_both_states: list[RawStateChangeEvent],
-        with_state_registry,
+        self, bucket_fixture: TaskBucket, state_change_events_with_both_states: list[RawStateChangeEvent]
     ):
         """Test StateNew and StateOld conversion when both states are present."""
         results = []
@@ -780,10 +705,7 @@ class TestDependencyInjectionHandlesTypeConversion:
             assert isinstance(old_state, model), f"Old state should be {model.__name__}, got {type(old_state)}"
 
     async def test_new_state_value_converted_to_correct_type(
-        self,
-        bucket_fixture: TaskBucket,
-        state_change_events_with_new_state: list[RawStateChangeEvent],
-        with_state_registry,
+        self, bucket_fixture: TaskBucket, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
         """Test that StateValueNew converts to correct Python type based on state value."""
 
@@ -810,10 +732,7 @@ class TestDependencyInjectionHandlesTypeConversion:
             )
 
     async def test_old_state_value_converted_to_correct_type(
-        self,
-        bucket_fixture: TaskBucket,
-        state_change_events_with_old_state: list[RawStateChangeEvent],
-        with_state_registry,
+        self, bucket_fixture: TaskBucket, state_change_events_with_old_state: list[RawStateChangeEvent]
     ):
         """Test that StateValueOld converts to correct Python type based on state value."""
         results = []
@@ -839,10 +758,7 @@ class TestDependencyInjectionHandlesTypeConversion:
             )
 
     async def test_both_state_values_converted_to_correct_type(
-        self,
-        bucket_fixture: TaskBucket,
-        state_change_events_with_both_states: list[RawStateChangeEvent],
-        with_state_registry,
+        self, bucket_fixture: TaskBucket, state_change_events_with_both_states: list[RawStateChangeEvent]
     ):
         """Test that StateValueOldAndNew converts to correct Python type based on state value."""
 

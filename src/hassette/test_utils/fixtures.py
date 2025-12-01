@@ -2,11 +2,15 @@ import contextlib
 import json
 import random
 import typing
+from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
+from unittest.mock import Mock
 
 import pytest
 
+from hassette.context import get_hassette
+from hassette.core.state_registry import StateRegistry
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
 from .harness import HassetteHarness
@@ -134,6 +138,15 @@ async def hassette_with_state_proxy(
         yield cast("Hassette", harness.hassette)
 
 
+@pytest.fixture(scope="module")
+async def hassette_with_state_registry(
+    hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
+    test_config: "HassetteConfig",
+) -> "AsyncIterator[Hassette]":
+    async with hassette_harness(config=test_config, use_bus=True, use_state_registry=True) as harness:
+        yield typing.cast("Hassette", harness.hassette)
+
+
 @pytest.fixture(scope="session")
 def state_change_events(test_data_path: Path) -> list[RawStateChangeEvent]:
     """Load state change events from test data file."""
@@ -152,6 +165,32 @@ def state_change_events(test_data_path: Path) -> list[RawStateChangeEvent]:
     random.shuffle(events)
 
     return events
+
+
+@pytest.fixture(scope="session")
+def state_change_events_with_new_state(
+    state_change_events: list[RawStateChangeEvent],
+) -> list[RawStateChangeEvent]:
+    """Filter state change events to only those with a new state."""
+    return [e for e in state_change_events if e.payload.data.new_state is not None]
+
+
+@pytest.fixture(scope="session")
+def state_change_events_with_old_state(
+    state_change_events: list[RawStateChangeEvent],
+) -> list[RawStateChangeEvent]:
+    """Filter state change events to only those with an old state."""
+    return [e for e in state_change_events if e.payload.data.old_state is not None]
+
+
+@pytest.fixture
+def state_change_events_with_both_states(
+    state_change_events: list[RawStateChangeEvent],
+) -> list[RawStateChangeEvent]:
+    """Filter state change events to only those with both old and new states."""
+    return [
+        e for e in state_change_events if e.payload.data.old_state is not None and e.payload.data.new_state is not None
+    ]
 
 
 @pytest.fixture(scope="session")
@@ -193,3 +232,24 @@ def hass_state_dicts(state_change_events: list[RawStateChangeEvent]) -> list[dic
         if event.payload.data.old_state:
             states.append(event.payload.data.old_state)
     return states
+
+
+@pytest.fixture(scope="session")
+def with_state_registry() -> Generator[None, typing.Any]:
+    """Fixture that provides a context with a ready StateRegistry."""
+
+    from hassette.context import use_state_registry
+
+    try:
+        curr_hassette = get_hassette()
+    except RuntimeError:
+        curr_hassette = Mock()
+        curr_hassette.config.log_level = "CRITICAL"
+        curr_hassette.config.task_bucket_log_level = "CRITICAL"
+
+    state_registry = StateRegistry.create(curr_hassette, curr_hassette)
+    state_registry.build_registry()
+    state_registry.mark_ready()
+
+    with use_state_registry(state_registry):
+        yield

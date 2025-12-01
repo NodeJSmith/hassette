@@ -20,9 +20,11 @@ from hassette.dependencies.extraction import (
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent, TypedStateChangeEvent
 from hassette.exceptions import InvalidDependencyInjectionSignatureError, InvalidDependencyReturnTypeError
 from hassette.models import states
+from hassette.types import StrStateValue
 from hassette.utils.type_utils import get_typed_signature
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestTypeDetection:
     """Test type detection functions for DI annotations."""
 
@@ -57,6 +59,7 @@ class TestTypeDetection:
         assert is_event_type(inspect.Parameter.empty) is False
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestParameterizedExtractors:
     """Test parameterized extractor classes (AttrNew, AttrOld, AttrOldAndNew)."""
 
@@ -157,6 +160,7 @@ class TestParameterizedExtractors:
         assert isinstance(result, bool)
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestTypeAliasExtractors:
     """Test pre-defined type alias extractors (EntityId, Domain, etc.)."""
 
@@ -224,21 +228,23 @@ class TestTypeAliasExtractors:
         """Test StateValueNew type alias extracts state value."""
         event = state_change_events[0]
 
-        _, annotation_details = extract_from_annotated(D.StateValueNew[states.BaseState])
+        _, annotation_details = extract_from_annotated(Annotated[StrStateValue, D.StateValueNew(StrStateValue)])
         result = annotation_details.extractor(event)
+        converted_result = annotation_details.converter(result, StrStateValue)
 
         if event.payload.data.new_state:
-            assert result == event.payload.data.new_state_value
+            assert converted_result == event.payload.data.new_state_value
 
     def test_state_value_old_extractor(self, state_change_events: list[RawStateChangeEvent]):
         """Test StateValueOld type alias extracts old state value."""
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
         assert event is not None
 
-        _, annotation_details = extract_from_annotated(D.StateValueOld[str])
+        _, annotation_details = extract_from_annotated(Annotated[StrStateValue, D.StateValueOld(StrStateValue)])
         result = annotation_details.extractor(event)
+        converted_result = annotation_details.converter(result, StrStateValue)
 
-        assert result == event.payload.data.old_state_value
+        assert converted_result == event.payload.data.old_state_value
 
     def test_service_data_extractor(self, other_events: list[Event]):
         """Test ServiceData type alias extracts service data from CallServiceEvent."""
@@ -262,6 +268,7 @@ class TestTypeAliasExtractors:
         assert "id" in result
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestExtractFromAnnotated:
     """Test extract_from_annotated function."""
 
@@ -294,6 +301,7 @@ class TestExtractFromAnnotated:
         assert extract_from_annotated(int) is None
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestExtractFromEventType:
     """Test extract_from_event_type function."""
 
@@ -322,6 +330,7 @@ class TestExtractFromEventType:
         assert extract_from_event_type(dict) is None
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestSignatureExtraction:
     """Test signature extraction and validation."""
 
@@ -443,6 +452,7 @@ class TestSignatureExtraction:
         assert "event" in param_details_dict
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestSignatureValidation:
     """Test signature validation for DI."""
 
@@ -488,6 +498,7 @@ class TestSignatureValidation:
             validate_di_signature(signature)
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestEndToEndDI:
     """End-to-end tests with real event data."""
 
@@ -607,6 +618,7 @@ class TestEndToEndDI:
         assert extracted_values["entity_id"] == event.payload.data.entity_id
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestMaybeAnnotations:
     """Test Maybe* type aliases that allow None/MISSING_VALUE."""
 
@@ -719,6 +731,7 @@ class TestMaybeAnnotations:
         assert result == call_service_event.payload.data.service
 
 
+@pytest.mark.usefixtures("with_state_registry")
 class TestRequiredAnnotations:
     """Test that required (non-Maybe) annotations raise when value is None."""
 
