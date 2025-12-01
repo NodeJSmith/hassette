@@ -130,14 +130,12 @@ class RawStateChangePayload:
     @property
     def new_state_value(self) -> "Any | Sentinel":
         """Return the value of the new state, or MISSING_VALUE if not present."""
-        new_state_value = self.new_state.get("state") if self.new_state is not None else MISSING_VALUE
-        return new_state_value if new_state_value is not None else MISSING_VALUE
+        return self.new_state.get("state") if self.new_state is not None else MISSING_VALUE
 
     @property
     def old_state_value(self) -> "Any | Sentinel":
         """Return the value of the old state, or MISSING_VALUE if not present."""
-        old_state_value = self.old_state.get("state") if self.old_state is not None else MISSING_VALUE
-        return old_state_value if old_state_value is not None else MISSING_VALUE
+        return self.old_state.get("state") if self.old_state is not None else MISSING_VALUE
 
     @property
     def has_new_state(self) -> bool:
@@ -161,7 +159,7 @@ class RawStateChangePayload:
         if entity_id is None:
             raise ValueError("State change event data must contain 'entity_id' key")
 
-        return cls(entity_id=entity_id, old_state=old_state, new_state=new_state)  # pyright: ignore[reportArgumentType]
+        return cls(entity_id=entity_id, old_state=old_state, new_state=new_state)
 
 
 @dataclass(slots=True, frozen=True)
@@ -191,14 +189,12 @@ class TypedStateChangePayload(Generic[StateT]):
     @property
     def new_state_value(self) -> "Any | Sentinel":
         """Return the value of the new state, or MISSING_VALUE if not present."""
-        new_state_value = self.new_state.value if self.new_state is not None else MISSING_VALUE
-        return new_state_value if new_state_value is not None else MISSING_VALUE
+        return self.new_state.value if self.new_state is not None else MISSING_VALUE
 
     @property
     def old_state_value(self) -> "Any | Sentinel":
         """Return the value of the old state, or MISSING_VALUE if not present."""
-        old_state_value = self.old_state.value if self.old_state is not None else MISSING_VALUE
-        return old_state_value if old_state_value is not None else MISSING_VALUE
+        return self.old_state.value if self.old_state is not None else MISSING_VALUE
 
     @property
     def has_new_state(self) -> bool:
@@ -242,14 +238,6 @@ class RawStateChangeEvent(Event[HassPayload[RawStateChangePayload]]):
         Returns:
             A TypedStateChangeEvent with states converted to the specified type.
         """
-        registry = get_state_registry()
-
-        old_state = (
-            registry.try_convert_state(self.payload.data.old_state) if self.payload.data.old_state is not None else None
-        )
-        new_state = (
-            registry.try_convert_state(self.payload.data.new_state) if self.payload.data.new_state is not None else None
-        )
 
         return TypedStateChangeEvent(
             topic=self.topic,
@@ -258,10 +246,10 @@ class RawStateChangeEvent(Event[HassPayload[RawStateChangePayload]]):
                 origin=self.payload.origin,
                 context=self.payload.context,
                 time_fired=self.payload.time_fired,
-                data=TypedStateChangePayload(
+                data=TypedStateChangePayload.create_from_event(
                     entity_id=self.payload.data.entity_id,
-                    old_state=old_state,
-                    new_state=new_state,
+                    old_state=self.payload.data.old_state,
+                    new_state=self.payload.data.new_state,
                 ),
             ),
         )
