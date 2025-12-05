@@ -133,7 +133,7 @@ async def hassette_with_state_proxy(
     async with hassette_harness(
         config=test_config, use_bus=True, use_state_proxy=True, use_state_registry=True
     ) as harness:
-        assert harness.hassette._state_proxy_resource is not None
+        assert harness.hassette._state_proxy is not None
         assert harness.hassette.api is not None
         yield cast("Hassette", harness.hassette)
 

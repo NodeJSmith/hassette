@@ -38,13 +38,13 @@ class TestStatesClassInit:
         assert states_instance.hassette is hassette
 
     async def test_accesses_state_proxy(self, hassette_with_state_proxy: "Hassette") -> None:
-        """States instance accesses the StateProxyResource."""
+        """States instance accesses the StateProxy."""
         hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
 
         # Should be able to access state proxy
-        assert states_instance._state_proxy is hassette._state_proxy_resource
+        assert states_instance._state_proxy is hassette._state_proxy
 
 
 class TestStatesDomainAccessors:
@@ -208,7 +208,7 @@ class TestStatesGenericAccess:
     async def test_all_returns_copy_of_states(self, hassette_with_state_proxy: "Hassette") -> None:
         """all property returns a copy of the entire states dictionary."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy_resource
+        proxy = hassette._state_proxy
 
         # Add states
         light = make_light_state_dict("light.test", "on")
@@ -412,12 +412,12 @@ class TestDomainStates:
 
 
 class TestStatesIntegration:
-    """Integration tests combining StateProxyResource and States."""
+    """Integration tests combining StateProxy and States."""
 
     async def test_proxy_stores_base_states_accessors_convert(self, hassette_with_state_proxy: "Hassette") -> None:
-        """StateProxyResource stores BaseState, States accessors convert to domain-specific types."""
+        """StateProxy stores BaseState, States accessors convert to domain-specific types."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy_resource
+        proxy = hassette._state_proxy
         states_instance = States.create(hassette, hassette)
 
         # Add various entity types
@@ -462,7 +462,7 @@ class TestStatesIntegration:
         )
 
     async def test_states_reflects_proxy_updates(self, hassette_with_state_proxy: "Hassette") -> None:
-        """States accessors reflect live updates from StateProxyResource."""
+        """States accessors reflect live updates from StateProxy."""
         hassette = hassette_with_state_proxy
 
         states_instance = States.create(hassette, hassette)
@@ -516,7 +516,7 @@ class TestStatesIntegration:
         assert updated_state.attributes.brightness == 200
 
     async def test_all_accessor_returns_dicts(self, hassette_with_state_proxy: "Hassette") -> None:
-        """states.all returns HassStateDict objects from StateProxyResource."""
+        """states.all returns HassStateDict objects from StateProxy."""
         hassette = hassette_with_state_proxy
         states_instance = States.create(hassette, hassette)
 

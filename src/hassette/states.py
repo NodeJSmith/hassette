@@ -3,7 +3,7 @@ from logging import getLogger
 from typing import Any, Generic
 from warnings import warn
 
-from hassette.core.state_proxy import StateProxyResource
+from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError, RegistryNotReadyError
 from hassette.models.states import BaseState, StateT
 from hassette.resources.base import Resource
@@ -49,7 +49,7 @@ class _TypedStateGetter(Generic[StateT]):
     ```
     """
 
-    def __init__(self, proxy: "StateProxyResource", model: type[StateT]):
+    def __init__(self, proxy: "StateProxy", model: type[StateT]):
         self._proxy = proxy
         self._model = model
         self._domain = model.get_domain()
@@ -87,7 +87,7 @@ class _TypedStateGetter(Generic[StateT]):
 
 
 class _StateGetter:
-    def __init__(self, proxy: "StateProxyResource"):
+    def __init__(self, proxy: "StateProxy"):
         self._proxy = proxy
 
     def __getitem__(self, model: type[StateT]) -> _TypedStateGetter[StateT]:
@@ -155,9 +155,9 @@ class States(Resource):
     """
 
     @property
-    def _state_proxy(self) -> StateProxyResource:
-        """Access the underlying StateProxyResource instance."""
-        return self.hassette._state_proxy_resource
+    def _state_proxy(self) -> StateProxy:
+        """Access the underlying StateProxy instance."""
+        return self.hassette._state_proxy
 
     @classmethod
     def create(cls, hassette: "Hassette", parent: "Resource"):

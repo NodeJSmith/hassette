@@ -29,7 +29,7 @@ from .file_watcher import FileWatcherService
 from .health_service import HealthService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
-from .state_proxy import StateProxyResource
+from .state_proxy import StateProxy
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
@@ -88,7 +88,7 @@ class Hassette(Resource):
         self._api_service = self.add_child(ApiResource)
 
         # state proxy
-        self._state_proxy_resource = self.add_child(StateProxyResource)
+        self._state_proxy = self.add_child(StateProxy)
         self._states = self.add_child(States)
 
         # internal instances

@@ -16,21 +16,21 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 
-class StateProxyResource(Resource):
+class StateProxy(Resource):
     states: dict[str, "HassStateDict"]
     lock: FairAsyncRLock
     bus: Bus
 
     @classmethod
     def create(cls, hassette: "Hassette", parent: "Resource"):
-        """Create a new StateProxyResource instance.
+        """Create a new StateProxy instance.
 
         Args:
             hassette: The Hassette instance.
             parent: The parent resource (typically the Hassette core).
 
         Returns:
-            A new StateProxyResource instance.
+            A new StateProxy instance.
         """
         inst = cls(hassette=hassette, parent=parent)
         inst.states = {}

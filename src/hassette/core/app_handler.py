@@ -169,7 +169,7 @@ class AppHandler(Resource):
                 self.hassette._api_service,
                 self.hassette._bus_service,
                 self.hassette._scheduler_service,
-                self.hassette._state_proxy_resource,
+                self.hassette._state_proxy,
             ]
         ):
             self.logger.warning("Dependencies never became ready; skipping app startup")

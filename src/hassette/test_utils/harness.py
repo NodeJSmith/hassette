@@ -20,7 +20,7 @@ from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.state_proxy import StateProxyResource
+from hassette.core.state_proxy import StateProxy
 from hassette.core.state_registry import StateRegistry
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
@@ -89,7 +89,7 @@ class _HassetteMock(Resource):
         self._file_watcher: FileWatcherService | None = None
         self._app_handler: AppHandler | None = None
         self._websocket_service: WebsocketService | None = None
-        self._state_proxy_resource: StateProxyResource | None = None
+        self._state_proxy: StateProxy | None = None
         self.state_registry: StateRegistry | None = None
         self._states: States | None = None
 
@@ -346,5 +346,5 @@ class HassetteHarness:
         if not self.use_bus:
             raise RuntimeError("State proxy requires bus")
 
-        self.hassette._state_proxy_resource = self.hassette.add_child(StateProxyResource)
+        self.hassette._state_proxy = self.hassette.add_child(StateProxy)
         return
