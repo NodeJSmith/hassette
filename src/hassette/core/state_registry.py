@@ -16,6 +16,7 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.events import HassStateDict
     from hassette.models.states.base import BaseState
+    from hassette.types.state_value import BaseStateValue
 
 
 LOGGER = getLogger(__name__)
@@ -127,6 +128,20 @@ class StateRegistry(Resource):
             The state class for the domain, or None if not registered.
         """
         return self.domain_to_class.get(domain)
+
+    def get_value_type_for_domain(self, domain: str) -> type["BaseStateValue"] | None:
+        """Get the StateValue type for a registered domain.
+
+        Args:
+            domain: The domain to look up.
+
+        Returns:
+            The StateValue type for the domain, or None if not registered.
+        """
+        state_class = self.get_class_for_domain(domain)
+        if state_class is None:
+            return None
+        return state_class.value_type
 
     def get_domain_for_class(self, state_class: type["BaseState"]) -> str | None:
         """Get the domain for a registered state class.

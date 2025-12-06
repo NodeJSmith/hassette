@@ -11,6 +11,7 @@ import pytest
 
 from hassette.context import get_hassette
 from hassette.core.state_registry import StateRegistry
+from hassette.core.type_registry import TypeRegistry
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
 from .harness import HassetteHarness
@@ -238,7 +239,7 @@ def hass_state_dicts(state_change_events: list[RawStateChangeEvent]) -> list[dic
 def with_state_registry() -> Generator[None, typing.Any]:
     """Fixture that provides a context with a ready StateRegistry."""
 
-    from hassette.context import use_state_registry
+    from hassette.context import use_state_registry, use_type_registry
 
     try:
         curr_hassette = get_hassette()
@@ -251,5 +252,9 @@ def with_state_registry() -> Generator[None, typing.Any]:
     state_registry.build_registry()
     state_registry.mark_ready()
 
-    with use_state_registry(state_registry):
+    type_registry = TypeRegistry.create(curr_hassette, curr_hassette)
+    type_registry.build_registry()
+    type_registry.mark_ready()
+
+    with use_state_registry(state_registry), use_type_registry(type_registry):
         yield

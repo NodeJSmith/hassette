@@ -30,6 +30,7 @@ from .health_service import HealthService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .state_proxy import StateProxy
+from .type_registry import TypeRegistry
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
@@ -56,6 +57,9 @@ class Hassette(Resource):
 
     state_registry: StateRegistry
     """State registry for managing state class registrations and conversions."""
+
+    type_registry: TypeRegistry
+    """Type registry for managing state value type conversions."""
 
     @property
     def unique_name(self) -> str:
@@ -100,6 +104,7 @@ class Hassette(Resource):
         self._scheduler = self.add_child(Scheduler)
         self.api = self.add_child(Api)
         self.state_registry = self.add_child(StateRegistry)
+        self.type_registry = self.add_child(TypeRegistry)
 
         self.logger.info("All components registered...")
 

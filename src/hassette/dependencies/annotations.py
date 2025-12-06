@@ -8,16 +8,16 @@
 import typing
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Any, Literal, TypeAlias, TypeAliasType, TypeVar
+from typing import Annotated, Any, Literal, TypeAlias, TypeVar
+
+from pydantic import ValidationError
 
 from hassette.bus import accessors as A
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
-from hassette.context import get_state_registry
+from hassette.context import get_state_registry, get_type_registry
 from hassette.events import CallServiceEvent, Event, HassContext
 from hassette.exceptions import InvalidDependencyReturnTypeError
-from hassette.models.states import BaseState, StateT
-from hassette.types import StateType
-from hassette.types.state_value import TYPE_ALIAS_TO_CONVERTER_MAP, TYPE_TO_CONVERTER_MAP
+from hassette.models.states import BaseState, StateT, StateValueT
 
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
@@ -27,6 +27,28 @@ T = TypeVar("T", bound=Event[Any])
 R = TypeVar("R")
 
 T_Any = TypeVar("T_Any", bound=Any)
+
+
+def loc_to_dot_sep(loc: tuple[str | int, ...]) -> str:
+    path = ""
+    for i, x in enumerate(loc):
+        if isinstance(x, str):
+            if i > 0:
+                path += "."
+            path += x
+        elif isinstance(x, int):
+            path += f"[{x}]"
+        else:
+            raise TypeError("Unexpected type")
+    return path
+
+
+def convert_errors(e: ValidationError) -> list[dict[str, Any]]:
+    # e.errors() is a list of typed dicts, so this is valid
+    new_errors: list[dict[str, Any]] = e.errors()  # pyright: ignore[reportAssignmentType]
+    for error in new_errors:
+        error["loc"] = loc_to_dot_sep(error["loc"])
+    return new_errors
 
 
 @dataclass(slots=True, frozen=True)
@@ -89,7 +111,12 @@ def convert_to_model(value: Any, model: type[BaseState]) -> BaseState:
     if not isinstance(value, dict):
         raise InvalidDependencyReturnTypeError(type(value))
 
-    return model.model_validate(value)
+    try:
+        return model.model_validate(value)
+    except ValidationError as e:
+        pretty_errors = convert_errors(e)
+        print(pretty_errors)
+        raise e
 
 
 def convert_to_model_implicit(value: Any) -> BaseState:
@@ -120,34 +147,9 @@ def _get_state_value_extractor(name: Literal["new_state", "old_state"]) -> Calla
         state_dict = getattr(data, name)
         if state_dict is None:
             return MISSING_VALUE
-        return convert_to_model_implicit(state_dict)
+        return state_dict.get("state")
 
     return _state_value_extractor
-
-
-def _get_converter_fn(
-    type_value: type | StateType | TypeAliasType,
-) -> Callable[[type | TypeAliasType | StateType], Any]:
-    if type_value in TYPE_ALIAS_TO_CONVERTER_MAP:
-        return TYPE_ALIAS_TO_CONVERTER_MAP[type_value]
-    if type_value in TYPE_TO_CONVERTER_MAP:
-        return TYPE_TO_CONVERTER_MAP[type_value]
-    raise ValueError(f"Unsupported state value type: {type_value}")
-
-
-def _state_value_helper(
-    name: Literal["new_state", "old_state"], type_value: type | StateType | TypeAliasType
-) -> AnnotationDetails["RawStateChangeEvent"]:
-    if type_value not in TYPE_ALIAS_TO_CONVERTER_MAP:
-        raise ValueError(f"Unsupported state value type: {type_value}")
-
-    extractor = _get_state_value_extractor(name)
-    converter_fn = _get_converter_fn(type_value)
-
-    def converter(value: Any, _: type):
-        return converter_fn(value.value)
-
-    return AnnotationDetails["RawStateChangeEvent"](extractor, converter)
 
 
 StateNew: TypeAlias = Annotated[
@@ -313,36 +315,33 @@ async def handler(context: D.EventContext):
 """
 
 
-def StateValueNew(type_value: type | StateType | TypeAliasType) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N802
-    """Factory for creating annotated types to extract the new state value as a specific model."""
-    return _state_value_helper("new_state", type_value)
+StateValueNew: TypeAlias = Annotated[
+    StateValueT,
+    AnnotationDetails["RawStateChangeEvent"](
+        _get_state_value_extractor("new_state"), lambda value, to_type: get_type_registry().convert(value, to_type)
+    ),
+]
+
+StateValueOld: TypeAlias = Annotated[
+    StateValueT,
+    AnnotationDetails["RawStateChangeEvent"](
+        _get_state_value_extractor("old_state"), lambda value, to_type: get_type_registry().convert(value, to_type)
+    ),
+]
 
 
-def StateValueOld(type_value: type | StateType | TypeAliasType) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N802
-    """Factory for creating annotated types to extract the old state value as a specific model."""
-
-    return _state_value_helper("old_state", type_value)
-
-
-def StateValueOldAndNew(  # noqa: N802
-    type_value: tuple[type | StateType | TypeAliasType, type | StateType | TypeAliasType],
-) -> AnnotationDetails["RawStateChangeEvent"]:
+def StateValueOldAndNew(_: type) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N802
     """Factory for creating annotated types to extract both old and new state values as a specific model."""
-
-    if not isinstance(type_value, tuple) or len(type_value) != 2:
-        raise ValueError("type_value must be a tuple of two types for old and new state values.")
 
     def extractor(event: "RawStateChangeEvent") -> tuple[Any, Any]:
         old_value = _get_state_value_extractor("old_state")(event)
         new_value = _get_state_value_extractor("new_state")(event)
         return old_value, new_value
 
-    converter_fn_old = _get_converter_fn(type_value[0])
-    converter_fn_new = _get_converter_fn(type_value[1])
-
-    def converter(value: Any, _: type) -> Any:
-        old_converted = converter_fn_old(value[0].value)
-        new_converted = converter_fn_new(value[1].value)
+    def converter(value: Any, to_type: type) -> Any:
+        type_registry = get_type_registry()
+        old_converted = type_registry.convert(value[0], to_type)
+        new_converted = type_registry.convert(value[1], to_type)
         return old_converted, new_converted
 
     return AnnotationDetails["RawStateChangeEvent"](extractor, converter)

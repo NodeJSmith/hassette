@@ -11,6 +11,9 @@ from pydantic._internal._typing_extra import try_eval_type
 
 from hassette.dependencies.extraction import Any
 
+if typing.TYPE_CHECKING:
+    from hassette.types import BaseStateValue
+
 
 @lru_cache(maxsize=128)
 def normalize_for_isinstance(tp: type | UnionType | TypeAliasType) -> tuple[type, ...] | type:
@@ -145,14 +148,16 @@ def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     return annotation
 
 
-def get_state_value_type(cls: type[Any]) -> Any:
+def get_state_value_type(cls: type[Any]) -> type["BaseStateValue"]:
     """Return the concrete value type used in BaseState[...] for the given state class."""
     # 1. Look for a parameterized BaseState[...] directly in the MRO
     for base in cls.__mro__:
         if hasattr(base, "value_type"):
             return base.value_type
 
-    return Any
+    from hassette.types import BaseStateValue
+
+    return BaseStateValue
 
 
 def get_normalized_state_value_type(cls: type[Any]) -> type | tuple[type, ...]:

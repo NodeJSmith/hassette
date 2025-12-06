@@ -22,6 +22,7 @@ from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.state_registry import StateRegistry
+from hassette.core.type_registry import TypeRegistry
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource
@@ -90,8 +91,9 @@ class _HassetteMock(Resource):
         self._app_handler: AppHandler | None = None
         self._websocket_service: WebsocketService | None = None
         self._state_proxy: StateProxy | None = None
-        self.state_registry: StateRegistry | None = None
         self._states: States | None = None
+        self.state_registry: StateRegistry | None = None
+        self.type_registry: TypeRegistry | None = None
 
     @property
     def ws_url(self) -> str:
@@ -231,8 +233,12 @@ class HassetteHarness:
 
         if self.use_state_registry:
             self.hassette.state_registry = self.hassette.add_child(StateRegistry)
+            self.hassette.type_registry = self.hassette.add_child(TypeRegistry)
 
         self.hassette._states = self.hassette.add_child(States)
+
+        if not self.use_bus:
+            self.hassette.send_event = AsyncMock()
 
         for resource in self.hassette.children:
             resource.start()

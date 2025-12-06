@@ -1,3 +1,5 @@
+from typing import overload
+
 from whenever import OffsetDateTime, ZonedDateTime
 
 
@@ -11,6 +13,14 @@ def convert_utc_timestamp_to_system_tz(timestamp: int | float) -> ZonedDateTime:
         The converted ZonedDateTime.
     """
     return ZonedDateTime.from_timestamp(timestamp, tz="UTC").to_system_tz()
+
+
+@overload
+def convert_datetime_str_to_system_tz(value: str) -> ZonedDateTime: ...
+
+
+@overload
+def convert_datetime_str_to_system_tz(value: None) -> None: ...
 
 
 def convert_datetime_str_to_system_tz(value: str | ZonedDateTime | None) -> ZonedDateTime | None:
