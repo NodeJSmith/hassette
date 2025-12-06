@@ -153,7 +153,7 @@ def get_state_value_type(cls: type[Any]) -> type["BaseStateValue"]:
     # 1. Look for a parameterized BaseState[...] directly in the MRO
     for base in cls.__mro__:
         if hasattr(base, "value_type"):
-            return base.value_type
+            return base.state_value_type
 
     from hassette.types import BaseStateValue
 

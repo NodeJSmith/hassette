@@ -73,7 +73,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
     # Leaving them off unless we find a use case or get a feature request for them.
     # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
 
-    value_type: ClassVar[type[BaseStateValue]] = BaseStateValue
+    state_value_type: ClassVar[type[BaseStateValue]] = BaseStateValue
     """The type of the state value."""
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
@@ -162,7 +162,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
         if isinstance(state, BaseStateValue):
             values["state"] = state.to_python()
 
-        values["state"] = cls.value_type.from_raw(state).to_python()
+        values["state"] = cls.state_value_type.from_raw(state).to_python()
 
         return values
 
@@ -194,7 +194,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
 class StringBaseState(BaseState[str]):
     """Base class for string states."""
 
-    value_type: ClassVar[type] = StrStateValue
+    state_value_type: ClassVar[type] = StrStateValue
     """The type of the state value."""
 
 
@@ -204,7 +204,7 @@ class DateTimeBaseState(BaseState[ZonedDateTime]):
     Valid state values are ZonedDateTime, PlainDateTime, Date, or None.
     """
 
-    value_type: ClassVar[type] = DateTimeStateValue
+    state_value_type: ClassVar[type] = DateTimeStateValue
     """The type of the state value."""
 
 
@@ -214,7 +214,7 @@ class TimeBaseState(BaseState[Time]):
     Valid state values are Time or None.
     """
 
-    value_type: ClassVar[type] = TimeStateValue
+    state_value_type: ClassVar[type] = TimeStateValue
     """The type of the state value."""
 
 
@@ -226,7 +226,7 @@ class BoolBaseState(BaseState[bool]):
     Will convert string values "on" and "off" to boolean True and False.
     """
 
-    value_type: ClassVar[type] = BoolStateValue
+    state_value_type: ClassVar[type] = BoolStateValue
     """The type of the state value."""
 
 
@@ -237,5 +237,5 @@ class NumericBaseState(BaseState[Decimal]):
     Valid state values are int, float, or None.
     """
 
-    value_type: ClassVar[type] = NumericStateValue
+    state_value_type: ClassVar[type] = NumericStateValue
     """The type of the state value."""

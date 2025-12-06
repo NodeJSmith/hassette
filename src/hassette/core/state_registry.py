@@ -141,7 +141,7 @@ class StateRegistry(Resource):
         state_class = self.get_class_for_domain(domain)
         if state_class is None:
             return None
-        return state_class.value_type
+        return state_class.state_value_type
 
     def get_domain_for_class(self, state_class: type["BaseState"]) -> str | None:
         """Get the domain for a registered state class.
