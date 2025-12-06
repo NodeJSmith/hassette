@@ -184,7 +184,7 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
     return clean_app_dict
 
 
-def autodetect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict]:
+def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str]) -> dict[str, AppDict]:
     """Auto-detect app manifests in the provided app directory.
 
     Args:
@@ -198,8 +198,7 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict]
 
     app_manifests: dict[str, AppDict] = {}
 
-    config = context.get_hassette_config()
-    default_exclude_dirs = set(config.autodetect_exclude_dirs)
+    default_exclude_dirs = set(list(map(Path, exclude_dirs)))
 
     py_files = app_dir.rglob("*.py")
     for py_file in py_files:

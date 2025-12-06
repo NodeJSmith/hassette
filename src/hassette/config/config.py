@@ -387,7 +387,7 @@ class HassetteConfig(BaseSettings):
             known_paths.add(v["full_path"])
 
         if self.autodetect_apps:
-            autodetected_apps = autodetect_apps(self.app_dir, known_paths)
+            autodetected_apps = autodetect_apps(self.app_dir, known_paths, set(self.autodetect_exclude_dirs))
             for k, v in autodetected_apps.items():
                 app_dir = v["app_dir"]
                 full_path = app_dir / v["filename"]
