@@ -1,8 +1,7 @@
 import os
 import typing
-from typing import Annotated, Any, cast
+from typing import Annotated, cast
 
-from rich import print
 from whenever import ZonedDateTime
 
 from hassette import App, AppConfig
@@ -27,7 +26,6 @@ class MyApp(App[MyAppUserConfig]):
 
         self.logger.info("MyApp is initializing")
         self.bus.on_state_change("input_button.test", handler=self.handle_event_sync)
-        self.bus.on_state_change("*", handler=self.handle_any_state_change_event)
         self.scheduler.run_in(self.api.get_states, 1)
         self.scheduler.run_every(
             self.scheduled_job_example, 10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
@@ -53,13 +51,6 @@ class MyApp(App[MyAppUserConfig]):
         elif self.test_button_exists:
             self.button_state = await self.api.get_state("input_button.test")
             self.logger.info("Button state: %s", self.button_state)
-
-    async def handle_any_state_change_event(
-        self, typed_event: D.TypedStateChangeEvent[Any], raw_event: RawStateChangeEvent
-    ) -> None:
-        print("Any state change event received:")
-        print("Typed event:", typed_event)
-        print("Raw event:", raw_event)
 
     def handle_event_sync(
         self,
