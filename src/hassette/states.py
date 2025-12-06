@@ -148,7 +148,7 @@ class DomainStates(Generic[StateT]):
         """
         value = self.get(entity_id)
         if value is None:
-            raise EntityNotFoundError(f"State for entity_id '{entity_id}' not found")
+            raise KeyError(f"State for entity_id '{entity_id}' not found in domain '{self._domain}'")
         return value
 
 
