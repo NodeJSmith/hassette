@@ -2,12 +2,17 @@
 
 import inspect
 from collections import defaultdict
-from typing import Annotated
+from decimal import Decimal
+from types import NoneType
+from typing import Annotated, Any
 
 import pytest
+from whenever import Time, ZonedDateTime
 
 from hassette import MISSING_VALUE
 from hassette import dependencies as D
+from hassette.bus.listeners import convert_params
+from hassette.context import get_state_registry
 from hassette.dependencies.extraction import (
     extract_from_annotated,
     extract_from_event_type,
@@ -20,7 +25,6 @@ from hassette.dependencies.extraction import (
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent, TypedStateChangeEvent
 from hassette.exceptions import InvalidDependencyInjectionSignatureError, InvalidDependencyReturnTypeError
 from hassette.models import states
-from hassette.types import StrStateValue
 from hassette.utils.type_utils import get_typed_signature
 
 
@@ -224,27 +228,33 @@ class TestTypeAliasExtractors:
                 # and the test shouldn't need to be aware of that
                 assert result is not MISSING_VALUE, f"Domain extractor returned MISSING_VALUE for event: {event}"
 
-    def test_state_value_new_extractor(self, state_change_events: list[RawStateChangeEvent]):
+    def test_state_value_new_extractor(self, state_change_events_with_new_state: list[RawStateChangeEvent]):
         """Test StateValueNew type alias extracts state value."""
-        event = state_change_events[0]
 
-        _, annotation_details = extract_from_annotated(Annotated[StrStateValue, D.StateValueNew(StrStateValue)])
-        result = annotation_details.extractor(event)
-        converted_result = annotation_details.converter(result, StrStateValue)
+        for event in state_change_events_with_new_state:
+            domain = event.payload.data.domain
 
-        if event.payload.data.new_state:
-            assert converted_result == event.payload.data.new_state_value
+            state_value_type = get_state_registry().get_value_type_for_domain(domain)
 
-    def test_state_value_old_extractor(self, state_change_events: list[RawStateChangeEvent]):
+            _, annotation_details = extract_from_annotated(D.StateValueNew[state_value_type.python_type])
+            result: states.BaseState = annotation_details.extractor(event)
+            converted_result = annotation_details.converter(result, state_value_type.python_type)
+
+            if event.payload.data.new_state:
+                assert converted_result == event.payload.data.new_state_value
+
+    def test_state_value_old_extractor(self, state_change_events_with_old_state: list[RawStateChangeEvent]):
         """Test StateValueOld type alias extracts old state value."""
-        event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
-        assert event is not None
 
-        _, annotation_details = extract_from_annotated(Annotated[StrStateValue, D.StateValueOld(StrStateValue)])
-        result = annotation_details.extractor(event)
-        converted_result = annotation_details.converter(result, StrStateValue)
+        for event in state_change_events_with_old_state:
+            domain = event.payload.data.domain
+            state_value_type = get_state_registry().get_value_type_for_domain(domain)
 
-        assert converted_result == event.payload.data.old_state_value
+            _, annotation_details = extract_from_annotated(D.StateValueOld[state_value_type.python_type])
+            result: states.BaseState = annotation_details.extractor(event)
+            converted_result = annotation_details.converter(result, state_value_type.python_type)
+
+            assert converted_result == event.payload.data.old_state_value
 
     def test_service_data_extractor(self, other_events: list[Event]):
         """Test ServiceData type alias extracts service data from CallServiceEvent."""
@@ -797,3 +807,218 @@ class TestRequiredAnnotations:
 
         assert result is not MISSING_VALUE
         assert result == call_service_event.payload.data.domain
+
+
+@pytest.mark.usefixtures("with_state_registry")
+class TestDependencyInjectionHandlesTypeConversion:
+    """Test that dependency injection handles type conversion correctly."""
+
+    async def test_state_conversion(self, state_change_events_with_new_state: list[RawStateChangeEvent]):
+        """Test that StateNew converts BaseState to domain-specific state type."""
+
+        for state_change_event in state_change_events_with_new_state:
+            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            domain = state_change_event.payload.data.domain
+
+            _, annotation_details = extract_from_annotated(D.StateNew[model])
+            result = annotation_details.extractor(state_change_event)
+            state = annotation_details.converter(result, model)
+
+            assert isinstance(state, model), f"State should be converted to {model.__name__}"
+            assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
+
+    async def test_annotated_as_base_state_stays_base_state(
+        self, state_change_events_with_new_state: list[RawStateChangeEvent]
+    ):
+        """Test that StateNew[BaseState] returns BaseState without conversion."""
+
+        for state_change_event in state_change_events_with_new_state:
+            domain = state_change_event.payload.data.domain
+
+            _, annotation_details = extract_from_annotated(D.StateNew[states.BaseState])
+            result = annotation_details.extractor(state_change_event)
+            state = annotation_details.converter(result, states.BaseState)
+
+            assert isinstance(state, states.BaseState), f"State should be BaseState, got {type(state)}"
+            assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
+
+    async def test_maybe_state_conversion(self, state_change_events: list[RawStateChangeEvent], with_state_registry):
+        """Test that MaybeStateNew converts BaseState to domain-specific state type."""
+
+        for state_change_event in state_change_events:
+            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            domain = state_change_event.payload.data.domain
+
+            def handler(new_state: D.MaybeStateNew[model]):  # ruff: noqa
+                pass
+
+            signature = get_typed_signature(handler)
+            kwargs = convert_params(handler, state_change_event, signature)
+
+            state = kwargs["new_state"]
+            if state_change_event.payload.data.new_state is None:
+                assert state is None, "State should be None when not present"
+            else:
+                assert isinstance(state, model), f"State should be converted to {model.__name__}, got {type(state)}"
+                assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
+
+    async def test_maybe_state_as_base_state_stays_base_state(
+        self, state_change_events: list[RawStateChangeEvent], with_state_registry
+    ):
+        """Test that MaybeStateNew[BaseState] returns BaseState without conversion."""
+
+        for state_change_event in state_change_events:
+            domain = state_change_event.payload.data.domain
+
+            def handler(new_state: D.MaybeStateNew[states.BaseState]):
+                # results.append(new_state)
+                pass
+
+            signature = get_typed_signature(handler)
+            kwargs = convert_params(handler, state_change_event, signature)
+
+            state = kwargs["new_state"]
+            if state_change_event.payload.data.new_state is None:
+                assert state is None, "State should be None when not present"
+            else:
+                assert isinstance(state, states.BaseState), f"State should be BaseState, got {type(state)}"
+                assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
+
+    async def test_new_state_with_maybe_old_state_converted_correctly(
+        self, state_change_events_with_new_state: list[RawStateChangeEvent]
+    ):
+        """Test StateNew and MaybeStateOld conversion when only new_state is present."""
+
+        for state_change_event in state_change_events_with_new_state:
+            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+
+            def handler(new_state: D.StateNew[model], old_state: D.MaybeStateOld[model]):
+                pass
+
+            signature = get_typed_signature(handler)
+            kwargs = convert_params(handler, state_change_event, signature)
+
+            old_state = kwargs["old_state"]
+
+            if state_change_event.payload.data.old_state is None:
+                assert old_state is None, "Old state should be None when not present"
+            else:
+                assert isinstance(old_state, model), f"Old state should be {model.__name__}, got {type(old_state)}"
+
+    async def test_maybe_new_state_with_old_state_converted_correctly(
+        self, state_change_events_with_old_state: list[RawStateChangeEvent]
+    ):
+        """Test MaybeStateNew and StateOld conversion when only old_state is present."""
+
+        for state_change_event in state_change_events_with_old_state:
+            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+
+            def handler(new_state: D.MaybeStateNew[model], old_state: D.StateOld[model]):
+                pass
+
+            signature = get_typed_signature(handler)
+            kwargs = convert_params(handler, state_change_event, signature)
+
+            new_state = kwargs["new_state"]
+            old_state = kwargs["old_state"]
+
+            if state_change_event.payload.data.new_state is None:
+                assert new_state is None, "New state should be None when not present"
+            else:
+                assert isinstance(new_state, model), f"New state should be {model.__name__}, got {type(new_state)}"
+
+            assert isinstance(old_state, model), f"Old state should be {model.__name__}, got {type(old_state)}"
+
+    async def test_both_states_converted_correctly(
+        self, state_change_events_with_both_states: list[RawStateChangeEvent]
+    ):
+        """Test StateNew and StateOld conversion when both states are present."""
+        for state_change_event in state_change_events_with_both_states:
+            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+
+            def handler(new_state: D.StateNew[model], old_state: D.StateOld[model]):
+                pass
+
+            signature = get_typed_signature(handler)
+            kwargs = convert_params(handler, state_change_event, signature)
+
+            new_state = kwargs["new_state"]
+            old_state = kwargs["old_state"]
+
+            assert isinstance(new_state, model), f"New state should be {model.__name__}, got {type(new_state)}"
+            assert isinstance(old_state, model), f"Old state should be {model.__name__}, got {type(old_state)}"
+
+    async def test_new_state_value_converted_to_correct_type(
+        self, state_change_events_with_new_state: list[RawStateChangeEvent]
+    ):
+        """Test that StateValueNew converts to correct Python type based on state value."""
+
+        for state_change_event in state_change_events_with_new_state:
+            domain = state_change_event.payload.data.domain
+
+            state_value_type = get_state_registry().get_value_type_for_domain(domain)
+
+            def handler(value: D.StateValueNew[state_value_type.python_type]):
+                pass
+
+            signature = get_typed_signature(handler)
+            kwargs = convert_params(handler, state_change_event, signature)
+
+            value = kwargs["value"]
+
+            assert isinstance(value, state_value_type.python_type), (
+                f"State value should be converted to {state_value_type.python_type}, got {type(value)}"
+            )
+
+    @pytest.mark.parametrize("value_type", [ZonedDateTime, Time, str, bool, Decimal, Any, NoneType])
+    async def test_old_state_value_converted_to_correct_type(
+        self, state_change_events_with_old_state: list[RawStateChangeEvent], value_type
+    ):
+        """Test that StateValueOld converts to correct Python type based on state value."""
+        for state_change_event in state_change_events_with_old_state:
+            domain = state_change_event.payload.data.domain
+
+            state_value_type = get_state_registry().get_value_type_for_domain(domain)
+            if state_value_type.python_type is not state_value_type:
+                continue
+
+            def handler(value: D.StateValueOld[value_type]):
+                pass
+
+            signature = get_typed_signature(handler)
+            kwargs = convert_params(handler, state_change_event, signature)
+
+            value = kwargs["value"]
+
+            assert isinstance(value, state_value_type.python_type), (
+                f"State value should be converted to {state_value_type.python_type}, got {type(value)}"
+            )
+
+    async def test_both_state_values_converted_to_correct_type(
+        self, state_change_events_with_both_states: list[RawStateChangeEvent]
+    ):
+        """Test that StateValueOldAndNew converts to correct Python type based on state value."""
+
+        for state_change_event in state_change_events_with_both_states:
+            domain = state_change_event.payload.data.domain
+            state_value_type = get_state_registry().get_value_type_for_domain(domain)
+
+            def handler(
+                value: Annotated[
+                    tuple[state_value_type.python_type, state_value_type.python_type],
+                    D.StateValueOldAndNew(state_value_type.python_type),
+                ],
+            ):
+                pass
+
+            signature = get_typed_signature(handler)
+            kwargs = convert_params(handler, state_change_event, signature)
+
+            old_value, new_value = kwargs["value"]
+
+            assert isinstance(old_value, state_value_type.python_type), (
+                f"State value should be converted to {state_value_type.python_type}, got {type(old_value)}"
+            )
+            assert isinstance(new_value, state_value_type.python_type), (
+                f"State value should be converted to {state_value_type.python_type}, got {type(new_value)}"
+            )
