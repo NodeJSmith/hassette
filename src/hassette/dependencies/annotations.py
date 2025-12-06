@@ -16,6 +16,7 @@ from hassette.bus import accessors as A
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.context import get_state_registry, get_type_registry
 from hassette.events import CallServiceEvent, Event, HassContext
+from hassette.events.hass.hass import TypedStateChangeEvent as ActualTypedStateChangeEvent
 from hassette.exceptions import InvalidDependencyReturnTypeError
 from hassette.models.states import BaseState, StateT, StateValueT
 
@@ -432,3 +433,9 @@ def AttrOldAndNew(name: str) -> AnnotationDetails["RawStateChangeEvent"]:  # noq
         return old_attr, new_attr
 
     return AnnotationDetails["RawStateChangeEvent"](_inner)
+
+
+TypedStateChangeEvent: TypeAlias = Annotated[
+    ActualTypedStateChangeEvent[StateT],
+    AnnotationDetails["RawStateChangeEvent"](identity, converter=lambda value, _: value.to_typed_event()),
+]

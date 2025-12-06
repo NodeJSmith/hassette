@@ -82,6 +82,7 @@ from .annotations import (
     StateValueNew,
     StateValueOld,
     StateValueOldAndNew,
+    TypedStateChangeEvent,
 )
 
 __all__ = [
@@ -104,4 +105,5 @@ __all__ = [
     "StateValueNew",
     "StateValueOld",
     "StateValueOldAndNew",
+    "TypedStateChangeEvent",
 ]
