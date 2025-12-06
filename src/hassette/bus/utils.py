@@ -26,11 +26,14 @@ def get_raise_on_incorrect_type():
 
     Prevents us from having to pass this flag around everywhere.
     """
-    from hassette.context import get_hassette_config
+    try:
+        from hassette.context import get_hassette_config
 
-    config = get_hassette_config()
+        config = get_hassette_config()
 
-    return config.raise_on_incorrect_dependency_type
+        return config.raise_on_incorrect_dependency_type
+    except Exception:
+        return True
 
 
 def extract_with_error_handling(
