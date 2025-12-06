@@ -134,6 +134,23 @@ class DomainStates(Generic[StateT]):
 
         return self._model.model_validate(state)
 
+    def __getitem__(self, entity_id: str) -> StateT:
+        """Get a specific entity state by ID, raising if not found.
+
+        Args:
+            entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
+
+        Raises:
+            EntityNotFoundError: If the entity is not found.
+
+        Returns:
+            The typed state.
+        """
+        value = self.get(entity_id)
+        if value is None:
+            raise EntityNotFoundError(f"State for entity_id '{entity_id}' not found")
+        return value
+
 
 class States(Resource):
     """Resource for managing Home Assistant states.
