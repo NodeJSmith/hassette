@@ -11,43 +11,20 @@ from hassette.exceptions import HassetteNotInitializedError
 if typing.TYPE_CHECKING:
     from hassette import Hassette, HassetteConfig, TaskBucket
     from hassette.core.state_registry import StateRegistry
+    from hassette.core.type_registry import TypeRegistry
 
 LOGGER = getLogger(__name__)
 
 CURRENT_BUCKET: ContextVar["TaskBucket | None"] = ContextVar("CURRENT_BUCKET", default=None)
 HASSETTE_INSTANCE: ContextVar["Hassette"] = ContextVar("HASSETTE_INSTANCE")
-HASSETTE_CONFIG: ContextVar["HassetteConfig"] = ContextVar("HASSETTE_CONFIG")
-HASSETTE_STATE_REGISTRY: ContextVar["StateRegistry"] = ContextVar("HASSETTE_STATE_REGISTRY")
 HASSETTE_SET_LOCATION: ContextVar[str | None] = ContextVar("HASSETTE_SET_LOCATION", default=None)
 
 
-def get_hassette() -> "Hassette":
-    """Get the current Hassette instance from context."""
-    try:
-        inst = HASSETTE_INSTANCE.get()
-        return inst
-    except LookupError as e:
-        raise HassetteNotInitializedError("No Hassette instance found in context.") from e
+HASSETTE_CONFIG: ContextVar["HassetteConfig"] = ContextVar("HASSETTE_CONFIG")
+HASSETTE_STATE_REGISTRY: ContextVar["StateRegistry"] = ContextVar("HASSETTE_STATE_REGISTRY")
+HASSETTE_TYPE_REGISTRY: ContextVar["TypeRegistry"] = ContextVar("HASSETTE_TYPE_REGISTRY")
 
-
-def get_hassette_config() -> "HassetteConfig":
-    """Get the current Hassette configuration from context."""
-    try:
-        config = HASSETTE_CONFIG.get()
-        return config
-    except LookupError:
-        LOGGER.error("HassetteConfig not found in context, attempting to get from Hassette instance.")
-        return get_hassette().config
-
-
-def get_state_registry() -> "StateRegistry":
-    """Get the current StateRegistry from the Hassette instance in context."""
-    try:
-        registry = HASSETTE_STATE_REGISTRY.get()
-        return registry
-    except LookupError:
-        LOGGER.error("StateRegistry not found in context, attempting to get from Hassette instance.")
-        return get_hassette().state_registry
+## Setters ##
 
 
 def set_global_hassette(hassette: "Hassette") -> None:
@@ -91,6 +68,58 @@ def set_global_state_registry(registry: "StateRegistry") -> None:
     HASSETTE_STATE_REGISTRY.set(registry)
 
 
+def set_global_type_registry(registry: "TypeRegistry") -> None:
+    """Set the global TypeRegistry instance. This can be overriden using the `use` context manager."""
+    if HASSETTE_TYPE_REGISTRY.get(None) is not None:
+        raise RuntimeError("TypeRegistry is already set in context.")
+    HASSETTE_TYPE_REGISTRY.set(registry)
+
+
+## Getters ##
+
+
+def get_hassette() -> "Hassette":
+    """Get the current Hassette instance from context."""
+    try:
+        inst = HASSETTE_INSTANCE.get()
+        return inst
+    except LookupError as e:
+        raise HassetteNotInitializedError("No Hassette instance found in context.") from e
+
+
+def get_hassette_config() -> "HassetteConfig":
+    """Get the current Hassette configuration from context."""
+    try:
+        config = HASSETTE_CONFIG.get()
+        return config
+    except LookupError:
+        LOGGER.debug("HassetteConfig not found in context, attempting to get from Hassette instance.")
+        return get_hassette().config
+
+
+def get_state_registry() -> "StateRegistry":
+    """Get the current StateRegistry from the Hassette instance in context."""
+    try:
+        registry = HASSETTE_STATE_REGISTRY.get()
+        return registry
+    except LookupError:
+        LOGGER.debug("StateRegistry not found in context, attempting to get from Hassette instance.")
+        return get_hassette().state_registry
+
+
+def get_type_registry() -> "TypeRegistry":
+    """Get the current TypeRegistry from the Hassette instance in context."""
+    try:
+        registry = HASSETTE_TYPE_REGISTRY.get()
+        return registry
+    except LookupError:
+        LOGGER.debug("TypeRegistry not found in context, attempting to get from Hassette instance.")
+        return get_hassette().type_registry
+
+
+## Context Managers ##
+
+
 @contextmanager
 def use[T](var: ContextVar[T], value: T) -> Generator[None, Any]:
     """Temporarily set a ContextVar to `value` within a block."""
@@ -129,3 +158,13 @@ def use_state_registry(registry: "StateRegistry") -> Generator[None, Any]:
         yield
     finally:
         HASSETTE_STATE_REGISTRY.reset(token)
+
+
+@contextmanager
+def use_type_registry(registry: "TypeRegistry") -> Generator[None, Any]:
+    """Temporarily set the global TypeRegistry within a block."""
+    token = HASSETTE_TYPE_REGISTRY.set(registry)
+    try:
+        yield
+    finally:
+        HASSETTE_TYPE_REGISTRY.reset(token)
