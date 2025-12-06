@@ -97,4 +97,4 @@ class TypeRegistry(Resource):
 
         self.conversion_map[(state_value_cls, to_type)] = conversion_method  # pyright: ignore[reportArgumentType]
 
-        self.logger.info("Registered conversion from %s to %s", state_value_cls.__name__, to_type.__name__)
+        self.logger.debug("Registered conversion from %s to %s", state_value_cls.__name__, to_type.__name__)
