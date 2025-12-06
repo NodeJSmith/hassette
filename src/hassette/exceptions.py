@@ -164,7 +164,7 @@ class NoDomainAnnotationError(StateRegistryError):
 
     """
 
-    def __init__(self, state_class: type["BaseState"]) -> None:
+    def __init__(self, state_class: type["BaseState[Any]"]) -> None:
         """Initialize the error with the offending class.
 
         Args:
