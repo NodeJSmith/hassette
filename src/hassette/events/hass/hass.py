@@ -12,7 +12,7 @@ from hassette.types import topics
 from .raw import HassEventEnvelopeDict, HassStateDict
 
 if typing.TYPE_CHECKING:
-    from typing_extensions import Sentinel
+    from hassette.const.misc import FalseySentinel
 
 
 LOGGER = logging.getLogger(__name__)
@@ -128,12 +128,12 @@ class RawStateChangePayload:
         return self.old_state_value != self.new_state_value
 
     @property
-    def new_state_value(self) -> "Any | Sentinel":
+    def new_state_value(self) -> "Any | FalseySentinel":
         """Return the value of the new state, or MISSING_VALUE if not present."""
         return self.new_state.get("state") if self.new_state is not None else MISSING_VALUE
 
     @property
-    def old_state_value(self) -> "Any | Sentinel":
+    def old_state_value(self) -> "Any | FalseySentinel":
         """Return the value of the old state, or MISSING_VALUE if not present."""
         return self.old_state.get("state") if self.old_state is not None else MISSING_VALUE
 
@@ -187,12 +187,12 @@ class TypedStateChangePayload(Generic[StateT]):
         return self.old_state_value != self.new_state_value
 
     @property
-    def new_state_value(self) -> "Any | Sentinel":
+    def new_state_value(self) -> "Any | FalseySentinel":
         """Return the value of the new state, or MISSING_VALUE if not present."""
         return self.new_state.value if self.new_state is not None else MISSING_VALUE
 
     @property
-    def old_state_value(self) -> "Any | Sentinel":
+    def old_state_value(self) -> "Any | FalseySentinel":
         """Return the value of the old state, or MISSING_VALUE if not present."""
         return self.old_state.value if self.old_state is not None else MISSING_VALUE
 

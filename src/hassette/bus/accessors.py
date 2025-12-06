@@ -48,9 +48,9 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from glom import PathAccessError, glom
-from typing_extensions import Sentinel
 
 from hassette.const import MISSING_VALUE
+from hassette.const.misc import FalseySentinel
 from hassette.events import HassStateDict
 
 if typing.TYPE_CHECKING:
@@ -59,7 +59,7 @@ if typing.TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 
-def get_path(path: str) -> Callable[..., Any | Sentinel]:
+def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
     """Return a callable that extracts a nested value, returning MISSING_VALUE on failure."""
 
     def _inner(obj):
@@ -80,12 +80,12 @@ def get_path(path: str) -> Callable[..., Any | Sentinel]:
 # --------------------------
 
 
-def get_state_value_old(event: "RawStateChangeEvent") -> Any | Sentinel:
+def get_state_value_old(event: "RawStateChangeEvent") -> Any | FalseySentinel:
     """Get the old state value from a RawStateChangeEvent, or MISSING_VALUE if `old_state` is `None`."""
     return event.payload.data.old_state_value
 
 
-def get_state_value_new(event: "RawStateChangeEvent") -> Any | Sentinel:
+def get_state_value_new(event: "RawStateChangeEvent") -> Any | FalseySentinel:
     """Get the new state value from a RawStateChangeEvent, or MISSING_VALUE if `new_state` is `None`."""
     return event.payload.data.new_state_value
 
@@ -148,7 +148,7 @@ def get_attr_old_new(name: str) -> Callable[["RawStateChangeEvent"], tuple[Any, 
 # ---------------------------------------------------------------------------
 
 
-def get_domain(event: "HassEvent") -> str | Sentinel:
+def get_domain(event: "HassEvent") -> str | FalseySentinel:
     """Get the domain from the event payload."""
     from hassette.events import RawStateChangeEvent
 
@@ -166,7 +166,7 @@ def get_domain(event: "HassEvent") -> str | Sentinel:
     return MISSING_VALUE
 
 
-def get_entity_id(event: "HassEvent") -> str | Sentinel:
+def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
     """Get the entity_id from the event payload."""
     from hassette.events import CallServiceEvent
 
@@ -190,16 +190,16 @@ def get_context(event: "HassEvent") -> "HassContext":
 # ---------------------------------------------------------------------------
 
 
-def get_service(event: "CallServiceEvent") -> str | Sentinel:
+def get_service(event: "CallServiceEvent") -> str | FalseySentinel:
     """Return the service name being called."""
     return get_path("payload.data.service")(event)
 
 
-def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | Sentinel:
+def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | FalseySentinel:
     """Return the service_data dict (or empty dict if missing).
 
     Returns:
-        dict[str, Any] | Sentinel: The service_data dict, or MISSING_VALUE if not present.
+        dict[str, Any] | FalseySentinel: The service_data dict, or MISSING_VALUE if not present.
     """
     return get_path("payload.data.service_data")(event)
 
@@ -225,7 +225,7 @@ def get_service_data_key(key: str) -> "Callable[[CallServiceEvent], Any]":
             return MISSING_VALUE
 
         if typing.TYPE_CHECKING:
-            assert not isinstance(service_data, Sentinel)
+            assert not isinstance(service_data, FalseySentinel)
 
         return service_data.get(key, MISSING_VALUE)
 
