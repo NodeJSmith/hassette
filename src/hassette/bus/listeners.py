@@ -183,59 +183,7 @@ class HandlerAdapter:
             UnableToExtractParameterError: If parameter extraction fails.
         """
 
-        try:
-            param_details = extract_from_signature(self.signature)
-
-            for param_name, (param_type, annotation_details) in param_details.items():
-                if param_name in kwargs:
-                    LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", param_name)
-
-                extractor = annotation_details.extractor
-                converter = annotation_details.converter
-
-                extracted_value = extract_with_error_handling(
-                    event, extractor, param_name, param_type, self.handler_name
-                )
-                param_is_optional = is_optional_type(param_type)
-
-                if param_is_optional and extracted_value is None:
-                    kwargs[param_name] = None
-                    continue
-
-                if param_is_optional:
-                    param_type = get_optional_type_arg(param_type)
-
-                if converter:
-                    extracted_value = converter(extracted_value, param_type)
-
-                warn_or_raise_on_incorrect_type(param_name, param_type, extracted_value, self.handler_name)
-
-                kwargs[param_name] = extracted_value
-
-        except InvalidDependencyReturnTypeError as e:
-            LOGGER.error("Handler '%s' - dependency returned invalid type: '%s'", self.handler_name, e.resolved_type)
-            raise CallListenerError(
-                f"Listener '{self.handler_name}' cannot be called due to invalid dependency: "
-                f"expected '{param_type}', got '{e.resolved_type}'"
-            ) from e
-
-        except InvalidDependencyInjectionSignatureError as e:
-            LOGGER.error("Handler '%s' has invalid DI signature: %s", self.handler_name, e)
-            raise CallListenerError(
-                f"Listener '{self.handler_name}' cannot be called due to invalid DI signature"
-            ) from e
-
-        except UnableToExtractParameterError as e:
-            LOGGER.error(
-                "Handler '%s' - unable to extract parameter '%s' of type '%s': %s",
-                self.handler_name,
-                param_name,
-                param_type,
-                get_short_traceback(),
-            )
-            raise CallListenerError(
-                f"Listener {self.handler_name} cannot be called due to extraction error for parameter '{param_name}'"
-            ) from e
+        kwargs = convert_params(self.handler_name, event, self.signature, **kwargs)
 
         # actually execute the call
 
@@ -318,3 +266,71 @@ def make_async_handler(fn: "HandlerType", task_bucket: "TaskBucket") -> "AsyncHa
         An async handler that wraps the original function.
     """
     return cast("AsyncHandlerType", task_bucket.make_async_adapter(fn))
+
+
+def convert_params(handler_name: str, event: "Event[Any]", signature: inspect.Signature, **kwargs) -> dict[str, Any]:
+    """Extract parameters for the handler based on its signature and the event.
+
+    Args:
+        handler_name: The name of the handler function.
+        event: The event to extract parameters from.
+        signature: The signature of the handler function.
+        **kwargs: Additional keyword arguments to pass to the handler.
+
+    Returns:
+        A dictionary of parameters to pass to the handler.
+
+    Raises:
+        CallListenerError: If parameter extraction or conversion fails.
+    """
+
+    try:
+        param_details = extract_from_signature(signature)
+
+        for param_name, (param_type, annotation_details) in param_details.items():
+            if param_name in kwargs:
+                LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", param_name)
+
+            extractor = annotation_details.extractor
+            converter = annotation_details.converter
+
+            extracted_value = extract_with_error_handling(event, extractor, param_name, param_type, handler_name)
+            param_is_optional = is_optional_type(param_type)
+
+            if param_is_optional and extracted_value is None:
+                kwargs[param_name] = None
+                continue
+
+            if param_is_optional:
+                param_type = get_optional_type_arg(param_type)
+
+            if converter:
+                extracted_value = converter(extracted_value, param_type)
+
+            warn_or_raise_on_incorrect_type(param_name, param_type, extracted_value, handler_name)
+            kwargs[param_name] = extracted_value
+
+    except InvalidDependencyReturnTypeError as e:
+        LOGGER.error("Handler '%s' - dependency returned invalid type: '%s'", handler_name, e.resolved_type)
+        raise CallListenerError(
+            f"Listener '{handler_name}' cannot be called due to invalid dependency: "
+            f"expected '{param_type}', got '{e.resolved_type}'"
+        ) from e
+
+    except InvalidDependencyInjectionSignatureError as e:
+        LOGGER.error("Handler '%s' has invalid DI signature: %s", handler_name, e)
+        raise CallListenerError(f"Listener '{handler_name}' cannot be called due to invalid DI signature") from e
+
+    except UnableToExtractParameterError as e:
+        LOGGER.error(
+            "Handler '%s' - unable to extract parameter '%s' of type '%s': %s",
+            handler_name,
+            param_name,
+            param_type,
+            get_short_traceback(),
+        )
+        raise CallListenerError(
+            f"Listener {handler_name} cannot be called due to extraction error for parameter '{param_name}'"
+        ) from e
+
+    return kwargs
