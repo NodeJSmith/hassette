@@ -176,6 +176,19 @@ class NoDomainAnnotationError(StateRegistryError):
         self.state_class = state_class
 
 
+class DomainNotFoundError(StateRegistryError):
+    """Raised when no state class is found for a given domain."""
+
+    def __init__(self, domain: str):
+        """Initialize the error with the offending domain.
+
+        Args:
+            domain: The domain that has no associated state class.
+        """
+        super().__init__(f"No state class found for domain '{domain}'.")
+        self.domain = domain
+
+
 class HassetteNotInitializedError(RuntimeError):
     """Exception raised when Hassette is not initialized in the current context."""
 

@@ -10,13 +10,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal, TypeAlias, TypeVar
 
-from pydantic import ValidationError
-
 from hassette.bus import accessors as A
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.context import get_state_registry, get_type_registry
 from hassette.events import CallServiceEvent, Event, HassContext
-from hassette.exceptions import InvalidDependencyReturnTypeError
+from hassette.exceptions import DomainNotFoundError, InvalidDependencyReturnTypeError, InvalidEntityIdError
 from hassette.models.states import BaseState, StateT, StateValueT
 
 if typing.TYPE_CHECKING:
@@ -27,28 +25,6 @@ T = TypeVar("T", bound=Event[Any])
 R = TypeVar("R")
 
 T_Any = TypeVar("T_Any", bound=Any)
-
-
-def loc_to_dot_sep(loc: tuple[str | int, ...]) -> str:
-    path = ""
-    for i, x in enumerate(loc):
-        if isinstance(x, str):
-            if i > 0:
-                path += "."
-            path += x
-        elif isinstance(x, int):
-            path += f"[{x}]"
-        else:
-            raise TypeError("Unexpected type")
-    return path
-
-
-def convert_errors(e: ValidationError) -> list[dict[str, Any]]:
-    # e.errors() is a list of typed dicts, so this is valid
-    new_errors: list[dict[str, Any]] = e.errors()  # pyright: ignore[reportAssignmentType]
-    for error in new_errors:
-        error["loc"] = loc_to_dot_sep(error["loc"])
-    return new_errors
 
 
 @dataclass(slots=True, frozen=True)
@@ -118,12 +94,7 @@ def convert_state_dict_to_model(value: Any, model: type[BaseState]) -> BaseState
     if not isinstance(value, dict):
         raise InvalidDependencyReturnTypeError(type(value))
 
-    try:
-        return model.model_validate(value)
-    except ValidationError as e:
-        pretty_errors = convert_errors(e)
-        print(pretty_errors)
-        raise e
+    return model.model_validate(value)
 
 
 def convert_state_dict_to_model_inferred(value: Any) -> BaseState:
@@ -197,11 +168,12 @@ def _get_state_value_extractor(name: Literal["new_state", "old_state"]) -> Calla
         domain = entity_id.split(".")[0] if entity_id and "." in entity_id else None
 
         if domain is None:
-            return MISSING_VALUE
+            raise InvalidEntityIdError(entity_id)
 
         state_value_type = get_state_registry().get_value_type_for_domain(domain)
         if state_value_type is None:
-            return MISSING_VALUE
+            raise DomainNotFoundError(domain)
+
         return state_value_type.from_raw(state_dict.get("state")).to_python()
 
     return _state_value_extractor
