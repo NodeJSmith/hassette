@@ -549,7 +549,7 @@ Note, some output has been truncated for brevity.
         topic='hass.event.state_changed',
         payload=HassPayload(
             event_type='state_changed',
-            data=StateChangePayload(
+            data=RawStateChangePayload(
                 entity_id='input_button.test_button',
                 old_state=InputButtonState(
                     domain='input_button',

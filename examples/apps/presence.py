@@ -2,10 +2,9 @@
 
 import typing
 
-from typing_extensions import Sentinel
-
-from hassette import App, AppConfig, StateChangeEvent, states
+from hassette import App, AppConfig, states
 from hassette import dependencies as D
+from hassette.const.misc import FalseySentinel
 
 if typing.TYPE_CHECKING:
     from sound import Sound
@@ -54,7 +53,7 @@ class Presence(App[PresenceAppConfig]):
         - old_value/new_value: State values (e.g., "home", "not_home")
         - entity_id: The device tracker entity ID
         """
-        assert not isinstance(entity_id, Sentinel), "Entity ID must be provided"
+        assert not isinstance(entity_id, FalseySentinel), "Entity ID must be provided"
         person = new_state.attributes.friendly_name or entity_id
 
         tracker_entity = f"sensor.{person.lower()}_tracker"
@@ -87,7 +86,7 @@ class Presence(App[PresenceAppConfig]):
             if self.app_config.notify:
                 await self.api.call_service("notify", "my_mobile_phone", message=message)
 
-    async def everyone_left(self, event: StateChangeEvent[states.DeviceTrackerState]):
+    async def everyone_left(self):
         self.logger.info("Everyone left")
         valid_modes = (self.app_config.input_select or "").split(",")
         input_select = valid_modes.pop(0)
@@ -101,7 +100,7 @@ class Presence(App[PresenceAppConfig]):
             if self.app_config.night_scene_absent:
                 await self.api.turn_on(self.app_config.night_scene_absent)
 
-    async def someone_home(self, event: StateChangeEvent[states.DeviceTrackerState]):
+    async def someone_home(self):
         self.logger.info("Someone came home")
         if self.app_config.vacation:
             await self.api.set_state(self.app_config.vacation, state="off")

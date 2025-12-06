@@ -37,7 +37,7 @@ class LauncherState(StringBaseState):
 ```
 
 ### NumericBaseState
-For entities with numeric (float or int) state values:
+For entities with numeric state values - stored as `Decimal` internally (supports int, float, Decimal):
 
 ```python
 from hassette.models.states.base import NumericBaseState
@@ -54,16 +54,6 @@ from hassette.models.states.base import BoolBaseState
 
 class CustomBinaryState(BoolBaseState):
     domain: Literal["custom_binary"]
-```
-
-### IntBaseState
-For entities with integer-only state values:
-
-```python
-from hassette.models.states.base import IntBaseState
-
-class CounterState(IntBaseState):
-    domain: Literal["counter"]
 ```
 
 ### DateTimeBaseState

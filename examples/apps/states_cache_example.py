@@ -145,7 +145,7 @@ class StatesCacheExample(App[StatesCacheConfig]):
             sensor = self.states.sensor.get(entity_id)
             if sensor and not sensor.is_unavailable:
                 try:
-                    temp = float(sensor.value)
+                    temp = float(sensor.value)  # type: ignore
                     temps.append(temp)
                 except (ValueError, TypeError):
                     self.logger.warning("Could not parse temperature from %s: %s", entity_id, sensor.value)

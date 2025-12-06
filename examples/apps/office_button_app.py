@@ -1,6 +1,6 @@
 # another actual app that I use, not meant to be comparable to any AD example app
 
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from deepdiff import DeepDiff
 
@@ -21,7 +21,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
 
     def get_office_light(self) -> states.LightState:
         """Get the office light entity."""
-        return self.api.sync.get_state(self.app_config.office_light, states.LightState)
+        return cast("states.LightState", self.api.sync.get_state(self.app_config.office_light))
 
     def on_initialize_sync(self) -> None:
         self.enabled = True
@@ -42,8 +42,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
             return
 
         for entity_id in self.get_office_light().attributes.entity_id:  # type: ignore
-            entity = self.api.sync.get_state(entity_id, states.LightState)
-            self.lights[entity_id] = entity
+            self.lights[entity_id] = self.states.light[entity_id]
             self.bus.on_state_change(entity_id, handler=self.log_light_changes)
 
     def log_light_changes(
