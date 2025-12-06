@@ -39,7 +39,7 @@ class TestAutoDetectAppsCurrDir:
         expected = f"{tmp_path.name}.current_dir_app.CurrentDirApp"
 
         known_paths = set()
-        result = autodetect_apps(tmp_path, known_paths)
+        result = autodetect_apps(tmp_path, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
         assert expected in result, f"Expected to find '{expected}' in detected apps"
 
@@ -59,7 +59,7 @@ class TestAutoDetectAppsCurrDir:
         )
 
         known_paths = set()
-        result = autodetect_apps(tmp_path, known_paths)
+        result = autodetect_apps(tmp_path, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
         assert len(result) == 0, f"Expected 0 apps, got {len(result)}"
         assert "venv_app.VenvApp" not in result, "Did not expect to find 'venv_app.VenvApp' in detected apps"
 
@@ -79,7 +79,7 @@ class TestAutoDetectAppsCurrDir:
         )
 
         known_paths = set()
-        result = autodetect_apps(tmp_path, known_paths)
+        result = autodetect_apps(tmp_path, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
         assert len(result) == 0, f"Expected 0 apps, got {len(result)}"
         assert "hidden_app.HiddenApp" not in result, "Did not expect to find 'hidden_app.HiddenApp' in detected apps"
 
@@ -112,7 +112,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         assert len(result) == 1
         assert "apps.simple_app.SimpleApp" in result
@@ -145,7 +145,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         assert len(result) == 1
         assert "apps.sync_app.MySyncApp" in result, "Expected to find 'apps.sync_app.MySyncApp' in detected apps"
@@ -175,7 +175,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         assert len(result) == 2, f"Expected 2 apps, got {len(result)}"
         assert "apps.multi_apps.FirstApp" in result, "Expected to find 'apps.multi_apps.FirstApp' in detected apps"
@@ -211,7 +211,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
         assert "apps.notifications.email_notifier.EmailNotifier" in result, (
@@ -243,7 +243,7 @@ class TestAutoDetectApps:
 
         # Include this file in known_paths
         known_paths = {app_file.resolve()}
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         assert len(result) == 0, "Expected no apps to be detected since the only app is in known_paths"
 
@@ -266,7 +266,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         # Should only find RealApp, not App or AppSync
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
@@ -299,7 +299,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         # Should find both apps, but each in their own module
         assert len(result) == 2, f"Expected 2 apps, got {len(result)}"
@@ -337,7 +337,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         # Should only find the good app, not the broken one - this is the key functional test
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
@@ -373,7 +373,7 @@ class TestAutoDetectApps:
         )
 
         known_paths = set()
-        result = autodetect_apps(app_dir, known_paths)
+        result = autodetect_apps(app_dir, known_paths, set(self.hassette_config.autodetect_exclude_dirs))
 
         # Should only find the actual app class
         assert len(result) == 1, f"Expected 1 app, got {len(result)}"
