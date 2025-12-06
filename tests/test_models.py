@@ -19,7 +19,6 @@ EXCLUDE_CLASSES = [
     base.BaseState,
     base.BoolBaseState,
     base.DateTimeBaseState,
-    base.IntBaseState,
     base.NumericBaseState,
     base.StringBaseState,
     base.TimeBaseState,
