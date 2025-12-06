@@ -68,6 +68,10 @@ class Hassette(Resource):
         enable_logging(self.config.log_level)
         super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
 
+        # set context variables
+        context.set_global_hassette(self)
+        context.set_global_hassette_config(self.config)
+
         self._startup_tasks()
 
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event"]](1000)
@@ -96,10 +100,6 @@ class Hassette(Resource):
         self._scheduler = self.add_child(Scheduler)
         self.api = self.add_child(Api)
         self.state_registry = self.add_child(StateRegistry)
-
-        # set context variables
-        context.set_global_hassette(self)
-        context.set_global_hassette_config(self.config)
 
         self.logger.info("All components registered...")
 
