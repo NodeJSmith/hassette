@@ -1,12 +1,17 @@
 import os
-from typing import Annotated
+import typing
+from typing import Annotated, cast
+
+from whenever import ZonedDateTime
 
 from hassette import App, AppConfig
 from hassette import dependencies as D
 from hassette.events import RawStateChangeEvent
 from hassette.models import states
 from hassette.models.entities import LightEntity
-from hassette.models.states import InputButtonState, LightState
+
+if typing.TYPE_CHECKING:
+    from hassette.models.states.light import LightState
 
 
 class MyAppUserConfig(AppConfig):
@@ -41,16 +46,17 @@ class MyApp(App[MyAppUserConfig]):
 
     async def test_stuff(self) -> None:
         if self.office_light_exists:
-            self.light_state: LightState = await self.api.get_state("light.office")
+            self.light_state: LightState = cast("LightState", await self.api.get_state("light.office"))
             self.light_entity = await self.api.get_entity("light.office", model=LightEntity)
         elif self.test_button_exists:
-            self.button_state = await self.api.get_state("input_button.test", model=InputButtonState)
+            self.button_state = await self.api.get_state("input_button.test")
             self.logger.info("Button state: %s", self.button_state)
 
     def handle_event_sync(
         self,
         new_state: D.StateNew[states.InputButtonState],
         old_state: D.StateOld[states.InputButtonState],
+        new_state_value: D.StateValueNew[ZonedDateTime],
         friendly_name: Annotated[str, D.AttrNew("friendly_name")],
         **kwargs,
     ) -> None:

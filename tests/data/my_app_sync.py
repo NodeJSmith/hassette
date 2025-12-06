@@ -3,7 +3,6 @@ import os
 from hassette import AppConfig, AppSync
 from hassette.events import RawStateChangeEvent
 from hassette.models.entities import LightEntity
-from hassette.models.states import InputButtonState, LightState
 
 
 class MyAppUserConfig(AppConfig):
@@ -24,15 +23,15 @@ class MyAppSync(AppSync):
 
     def test_stuff(self) -> None:
         if self.office_light_exists:
-            self.light_state: LightState = self.api.sync.get_state("light.office")
+            self.light_state = self.states.light.get("office")
             self.light_entity = self.api.sync.get_entity("light.office", LightEntity)
         elif self.test_button_exists:
-            self.button_state = self.api.sync.get_state("input_button.test", model=InputButtonState)
+            self.button_state = self.states.input_button.get("test")
             self.logger.info("Button state: %s", self.button_state)
 
     def handle_event(self, event: RawStateChangeEvent) -> None:
         self.logger.info("event: %s", event)
-        test = self.api.sync.get_state_value_typed("input_button.test", model=InputButtonState)
+        test = self.states.input_button.get("test")
         self.logger.info("state: %s", test)
 
         test_2 = self.states.input_button.get("input_button.test")
