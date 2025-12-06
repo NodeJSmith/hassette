@@ -4,7 +4,7 @@ from hassette.models.states import LightState
 from .base import BaseEntity
 
 
-class LightEntity(BaseEntity[LightState]):
+class LightEntity(BaseEntity[LightState, str]):
     async def turn_on(
         self,
         color_name: Color | None = None,

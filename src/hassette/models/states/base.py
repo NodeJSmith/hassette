@@ -2,7 +2,7 @@ from decimal import Decimal
 from inspect import get_annotations
 from logging import getLogger
 from types import NoneType
-from typing import ClassVar, Generic, TypeVar, get_args
+from typing import Any, ClassVar, Generic, TypeVar, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Time, ZonedDateTime
@@ -21,7 +21,9 @@ from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert
 StateT = TypeVar("StateT", bound="BaseState", default="BaseState", covariant=True)
 """Represents a specific state type, e.g., LightState, CoverState, etc."""
 
-StateValueT = TypeVar("StateValueT", ZonedDateTime, Time, str, bool, Decimal, NoneType, covariant=True)
+StateValueT = TypeVar(
+    "StateValueT", ZonedDateTime, Time, str, bool, Decimal, Any, NoneType, default=Any, covariant=True
+)
 """Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
 
 
