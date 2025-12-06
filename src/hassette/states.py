@@ -154,6 +154,9 @@ class States(Resource):
         >>> print(f"Total lights: {len(self.states.lights)}")
     """
 
+    async def after_initialize(self) -> None:
+        self.mark_ready()
+
     @property
     def _state_proxy(self) -> StateProxy:
         """Access the underlying StateProxy instance."""
