@@ -22,7 +22,8 @@ class BaseStateValue(Generic[T]):
     python_type: ClassVar[type] = str
     """The default Python type this StateValue maps to. Incoming data will be converted to this type by default."""
 
-    known_types: ClassVar[set[type]] = {str}
+    known_types: ClassVar[set[type]] = set()
+    """The set of Python types this StateValue can be converted to. Populated during registration."""
 
     @property
     def value(self) -> T:
@@ -48,6 +49,10 @@ class BaseStateValue(Generic[T]):
     def from_raw(cls, raw: Any) -> "BaseStateValue":
         return cls(raw)
 
+    def __init_subclass__(cls) -> None:
+        cls.known_types = set()
+        return super().__init_subclass__()
+
 
 class DateTimeStateValue(BaseStateValue[ZonedDateTime]):
     """Semantic state value for date/time-ish states.
@@ -56,7 +61,6 @@ class DateTimeStateValue(BaseStateValue[ZonedDateTime]):
     """
 
     python_type: ClassVar[type[ZonedDateTime]] = ZonedDateTime
-    known_types: ClassVar[set[type]] = {ZonedDateTime, PlainDateTime, Date, str, datetime, date}
 
     @classmethod
     def register(cls, registry: "TypeRegistry") -> None:
@@ -143,7 +147,6 @@ class TimeStateValue(BaseStateValue[Time]):
     """
 
     python_type: ClassVar[type[Time]] = Time
-    known_types: ClassVar[set[type]] = {Time, str, time}
 
     def to_string(self) -> str:
         """Get this Time as an ISO 8601 string."""
@@ -194,7 +197,6 @@ class StrStateValue(BaseStateValue[str]):
     """
 
     python_type: ClassVar[type[str]] = str
-    known_types: ClassVar[set[type]] = {str}
 
     @classmethod
     def from_raw(cls, value: Any) -> Self:
@@ -216,7 +218,6 @@ class BoolStateValue(BaseStateValue[bool]):
     """
 
     python_type: ClassVar[type[bool]] = bool
-    known_types: ClassVar[set[type]] = {bool, str}
 
     def to_string(self) -> str:
         """Get this BoolStateValue as 'true'/'false' string."""
@@ -256,7 +257,6 @@ class NumericStateValue(BaseStateValue[Decimal]):
     """
 
     python_type: ClassVar[type[Decimal]] = Decimal
-    known_types: ClassVar[set[type]] = {Decimal, int, float, str}
 
     def to_int(self) -> int:
         if self.value is None:
