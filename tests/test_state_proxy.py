@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from hassette import Hassette
 
 
-class TestStateProxyResourceInit:
+class TestStateProxyInit:
     """Tests for initialization and dependencies."""
 
     async def test_waits_for_dependencies(self, hassette_with_state_proxy: "Hassette") -> None:
@@ -96,7 +96,7 @@ def proxy():
     return proxy
 
 
-class TestStateProxyResourceGetState:
+class TestStateProxyGetState:
     """Tests for get_state method."""
 
     async def test_returns_state_when_ready_and_exists(self, proxy: "StateProxy") -> None:
@@ -144,7 +144,7 @@ class TestStateProxyResourceGetState:
         assert all(r is not None for r in results)
 
 
-class TestStateProxyResourceStateChanged:
+class TestStateProxyStateChanged:
     """Tests for on_state_changed handler."""
 
     async def test_adds_new_entity(self, hassette_with_state_proxy: "Hassette") -> None:
@@ -250,7 +250,7 @@ class TestStateProxyResourceStateChanged:
             assert f"light.test_{i}" in proxy.states
 
 
-class TestStateProxyResourceWebsocketListeners:
+class TestStateProxyWebsocketListeners:
     """Tests for websocket events that trigger clear/sync states."""
 
     async def test_clears_cache_on_stop(self, proxy: "StateProxy") -> None:
@@ -342,7 +342,7 @@ class TestStateProxyResourceWebsocketListeners:
         assert not proxy.is_ready()
 
 
-class TestStateProxyResourceShutdown:
+class TestStateProxyShutdown:
     """Tests for shutdown behavior."""
 
     async def test_removes_all_listeners(self, hassette_with_state_proxy: "Hassette") -> None:
@@ -372,15 +372,20 @@ class TestStateProxyResourceShutdown:
     async def test_marks_not_ready_on_shutdown(self, proxy: "StateProxy") -> None:
         """Shutdown marks proxy as not ready."""
 
-        assert proxy.is_ready()
+        orig_state = proxy.is_ready()
+        if not orig_state:
+            proxy.mark_ready(reason="Test setup")
 
         with patch.object(proxy, "mark_not_ready") as mock_mark_not_ready:
             await proxy.on_shutdown()
 
         mock_mark_not_ready.assert_called_once()
 
+        if orig_state:
+            proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
-class TestStateProxyResourceConcurrency:
+
+class TestStateProxyConcurrency:
     """Tests for thread-safety and concurrency."""
 
     async def test_concurrent_reads_dont_block(self, proxy: "StateProxy") -> None:

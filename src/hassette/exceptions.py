@@ -108,36 +108,27 @@ class CannotOverrideFinalError(TypeError, HassetteError):
         super().__init__(msg)
 
 
-class UnableToExtractParameterError(HassetteError):
-    """Custom exception to indicate that a parameter could not be extracted for dependency injection
-    due to an unexpected error.
+class DependencyInjectionError(HassetteError):
+    """Raised when dependency injection fails due to invalid handler signature or annotations.
+
+    This exception indicates a user error in handler definition, such as:
+    - Using invalid parameter types (*args, positional-only)
+    - Missing required type annotations
+    - Incompatible annotation types
+
+    These errors should be fixed by updating the handler signature.
     """
 
-    def __init__(self, parameter_name: str, parameter_type: type, original_exception: Exception):
-        param_type_name = getattr(parameter_type, "__name__", str(parameter_type))
 
-        msg = (
-            f"Unable to extract parameter '{parameter_name}' of type '{param_type_name}' "
-            f"for dependency injection: {type(original_exception).__name__}: {original_exception}"
-        )
-        super().__init__(msg)
+class DependencyResolutionError(HassetteError):
+    """Raised when dependency injection fails during runtime extraction or conversion.
 
+    This exception indicates a runtime issue with:
+    - Extracting parameter values from events
+    - Converting values to expected types
+    - Type mismatches between extracted values and annotations
 
-class InvalidDependencyReturnTypeError(Exception):
-    """Exception raised when a dependency is found but cannot be resolved to the expected type."""
-
-    def __init__(self, resolved_type: Any):
-        self.resolved_type = resolved_type
-
-
-class InvalidDependencyInjectionSignatureError(HassetteError):
-    """Custom exception to indicate that a function signature is invalid for dependency injection."""
-
-
-class CallListenerError(HassetteError):
-    """Custom exception to indicate that a listener could not be called.
-
-    This will also be raised if a DI annotation cannot be resolved to the expected type.
+    These errors may indicate issues with event data, converter logic, or type registry.
     """
 
 

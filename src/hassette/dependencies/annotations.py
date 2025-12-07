@@ -14,7 +14,7 @@ from hassette.bus import accessors as A
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.context import get_state_registry, get_type_registry
 from hassette.events import CallServiceEvent, Event, HassContext
-from hassette.exceptions import DomainNotFoundError, InvalidDependencyReturnTypeError, InvalidEntityIdError
+from hassette.exceptions import DependencyResolutionError, DomainNotFoundError, InvalidEntityIdError
 from hassette.models.states import BaseState, StateT, StateValueT
 
 if typing.TYPE_CHECKING:
@@ -60,11 +60,11 @@ def ensure_present(accessor: Callable[[T], R]) -> Callable[[T], R]:
 
         # Check if the result is None or MISSING_VALUE
         if result is None or result is MISSING_VALUE:
-            raise InvalidDependencyReturnTypeError(type(result))
+            raise DependencyResolutionError(f"Required dependency returned {type(result).__name__}, expected a value")
 
         # Check if the result is a tuple containing None or MISSING_VALUE
         if isinstance(result, tuple) and any(r is None or r is MISSING_VALUE for r in result):
-            raise InvalidDependencyReturnTypeError(type(result))
+            raise DependencyResolutionError("Required dependency returned tuple with None or MISSING_VALUE")
 
         return result
 
@@ -85,14 +85,14 @@ def convert_state_dict_to_model(value: Any, model: type[BaseState]) -> BaseState
         The typed state model instance
 
     Raises:
-        InvalidDependencyReturnTypeError: If value is not a dict or model instance
+        DependencyResolutionError: If value is not a dict or model instance
         ValidationError: If the state dict doesn't match the model schema
     """
     if isinstance(value, model):
         return value
 
     if not isinstance(value, dict):
-        raise InvalidDependencyReturnTypeError(type(value))
+        raise DependencyResolutionError(f"Cannot convert {type(value).__name__} to {model.__name__}, expected dict")
 
     return model.model_validate(value)
 
@@ -110,12 +110,12 @@ def convert_state_dict_to_model_inferred(value: Any) -> BaseState:
         The typed state model instance
 
     Raises:
-        InvalidDependencyReturnTypeError: If conversion fails or no model found for domain
+        DependencyResolutionError: If conversion fails or no model found for domain
     """
     registry = get_state_registry()
     converted = registry.try_convert_state(value)
     if converted is None:
-        raise InvalidDependencyReturnTypeError(type(value))
+        raise DependencyResolutionError(f"Cannot infer model for state dict: {type(value).__name__}")
 
     return converted
 

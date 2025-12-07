@@ -1,26 +1,18 @@
-import asyncio
 import contextlib
 import inspect
 import itertools
-import time
 import typing
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any, cast
 
-from hassette.dependencies.extraction import extract_from_signature, validate_di_signature
-from hassette.exceptions import (
-    CallListenerError,
-    InvalidDependencyInjectionSignatureError,
-    InvalidDependencyReturnTypeError,
-    UnableToExtractParameterError,
-)
-from hassette.utils.exception_utils import get_short_traceback
+from hassette.bus.rate_limiting import RateLimiter
+from hassette.dependencies.injector import ParameterInjector
 from hassette.utils.func_utils import callable_name, callable_short_name
-from hassette.utils.type_utils import get_optional_type_arg, get_typed_signature, is_optional_type
+from hassette.utils.type_utils import get_typed_signature
 
-from .utils import extract_with_error_handling, normalize_where, warn_or_raise_on_incorrect_type
+from .utils import normalize_where
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -134,7 +126,7 @@ class Listener:
 
 
 class HandlerAdapter:
-    """Unified handler adapter that handles signature normalization and rate limiting."""
+    """Handler adapter that composes dependency injection and rate limiting."""
 
     def __init__(
         self,
@@ -145,86 +137,54 @@ class HandlerAdapter:
         debounce: float | None = None,
         throttle: float | None = None,
     ):
-        if debounce and throttle:
-            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
-
         self.handler_name = handler_name
         self.handler = handler
-        self.signature = signature
         self.task_bucket = task_bucket
 
-        validate_di_signature(signature)
+        # Dependency injection setup
+        self.injector = ParameterInjector(handler_name, signature)
 
-        # Rate limiting state
-        self._debounce_task: asyncio.Task | None = None
-        self._throttle_last_time = 0.0
-        self._throttle_lock = asyncio.Lock()
+        # Rate limiting setup
+        self.rate_limiter: RateLimiter | None = None
+        if debounce or throttle:
+            if debounce and throttle:
+                raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
+            self.rate_limiter = RateLimiter(
+                task_bucket=task_bucket,
+                debounce=debounce,
+                throttle=throttle,
+            )
 
-        # Apply rate limiting
-        if debounce and debounce > 0:
-            self.call = self._make_debounced_call(debounce)
-        elif throttle and throttle > 0:
-            self.call = self._make_throttled_call(throttle)
-        else:
-            self.call = self._direct_call
-
-    async def _direct_call(self, event: "Event[Any]", **kwargs: Any) -> None:
-        """Call handler with dependency injection.
-
-        Extracts required parameters from the event using type annotations
-        and injects them as kwargs.
+    async def call(self, event: "Event[Any]", **kwargs: Any) -> None:
+        """Call handler with dependency injection and optional rate limiting.
 
         Args:
             event: The event to pass to the handler.
             **kwargs: Additional keyword arguments to pass to the handler.
 
         Raises:
-            CallListenerError: If an error occurs during handler execution.
-            UnableToExtractParameterError: If parameter extraction fails.
+            DependencyInjectionError: If signature validation fails.
+            DependencyResolutionError: If parameter extraction/conversion fails.
+            Exception: If an error occurs during handler execution.
         """
+        if self.rate_limiter:
+            await self.rate_limiter.call(self._direct_call, event, **kwargs)
+        else:
+            await self._direct_call(event, **kwargs)
 
-        kwargs = convert_params(self.handler_name, event, self.signature, **kwargs)
+    async def _direct_call(self, event: "Event[Any]", **kwargs: Any) -> None:
+        """Call handler directly with dependency injection (no rate limiting).
 
-        # actually execute the call
+        Args:
+            event: The event to pass to the handler.
+            **kwargs: Additional keyword arguments to pass to the handler.
+        """
+        # Inject parameters
+        kwargs = self.injector.inject_parameters(event, **kwargs)
 
-        try:
-            await self.handler(**kwargs)
-        except CallListenerError:
-            raise
-        except Exception as e:
-            LOGGER.error("Error while executing handler %s: %s", self.handler_name, get_short_traceback())
-            raise CallListenerError(f"Error while executing handler {self.handler_name}") from e
-
-    def _make_debounced_call(self, seconds: float):
-        """Create a debounced version of the call method."""
-
-        async def debounced_call(event: "Event[Any]", **kwargs: Any) -> None:
-            # Cancel previous debounce
-            if self._debounce_task and not self._debounce_task.done():
-                self._debounce_task.cancel()
-
-            async def delayed_call():
-                try:
-                    await asyncio.sleep(seconds)
-                    await self._direct_call(event, **kwargs)
-                except asyncio.CancelledError:
-                    pass
-
-            self._debounce_task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
-
-        return debounced_call
-
-    def _make_throttled_call(self, seconds: float):
-        """Create a throttled version of the call method."""
-
-        async def throttled_call(event: "Event[Any]", **kwargs: Any) -> None:
-            async with self._throttle_lock:
-                now = time.monotonic()
-                if now - self._throttle_last_time >= seconds:
-                    self._throttle_last_time = now
-                    await self._direct_call(event, **kwargs)
-
-        return throttled_call
+        # DependencyResolutionError already has good context, just propagate
+        # Other exceptions from handler code should also propagate naturally
+        await self.handler(**kwargs)
 
 
 @dataclass(slots=True)
@@ -266,71 +226,3 @@ def make_async_handler(fn: "HandlerType", task_bucket: "TaskBucket") -> "AsyncHa
         An async handler that wraps the original function.
     """
     return cast("AsyncHandlerType", task_bucket.make_async_adapter(fn))
-
-
-def convert_params(handler_name: str, event: "Event[Any]", signature: inspect.Signature, **kwargs) -> dict[str, Any]:
-    """Extract parameters for the handler based on its signature and the event.
-
-    Args:
-        handler_name: The name of the handler function.
-        event: The event to extract parameters from.
-        signature: The signature of the handler function.
-        **kwargs: Additional keyword arguments to pass to the handler.
-
-    Returns:
-        A dictionary of parameters to pass to the handler.
-
-    Raises:
-        CallListenerError: If parameter extraction or conversion fails.
-    """
-
-    try:
-        param_details = extract_from_signature(signature)
-
-        for param_name, (param_type, annotation_details) in param_details.items():
-            if param_name in kwargs:
-                LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", param_name)
-
-            extractor = annotation_details.extractor
-            converter = annotation_details.converter
-
-            extracted_value = extract_with_error_handling(event, extractor, param_name, param_type, handler_name)
-            param_is_optional = is_optional_type(param_type)
-
-            if param_is_optional and extracted_value is None:
-                kwargs[param_name] = None
-                continue
-
-            if param_is_optional:
-                param_type = get_optional_type_arg(param_type)
-
-            if converter:
-                extracted_value = converter(extracted_value, param_type)
-
-            warn_or_raise_on_incorrect_type(param_name, param_type, extracted_value, handler_name)
-            kwargs[param_name] = extracted_value
-
-    except InvalidDependencyReturnTypeError as e:
-        LOGGER.error("Handler '%s' - dependency returned invalid type: '%s'", handler_name, e.resolved_type)
-        raise CallListenerError(
-            f"Listener '{handler_name}' cannot be called due to invalid dependency: "
-            f"expected '{param_type}', got '{e.resolved_type}'"
-        ) from e
-
-    except InvalidDependencyInjectionSignatureError as e:
-        LOGGER.error("Handler '%s' has invalid DI signature: %s", handler_name, e)
-        raise CallListenerError(f"Listener '{handler_name}' cannot be called due to invalid DI signature") from e
-
-    except UnableToExtractParameterError as e:
-        LOGGER.error(
-            "Handler '%s' - unable to extract parameter '%s' of type '%s': %s",
-            handler_name,
-            param_name,
-            param_type,
-            get_short_traceback(),
-        )
-        raise CallListenerError(
-            f"Listener {handler_name} cannot be called due to extraction error for parameter '{param_name}'"
-        ) from e
-
-    return kwargs

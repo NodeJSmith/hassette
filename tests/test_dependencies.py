@@ -9,7 +9,6 @@ import pytest
 
 from hassette import MISSING_VALUE
 from hassette import dependencies as D
-from hassette.bus.listeners import convert_params
 from hassette.context import get_state_registry
 from hassette.dependencies.extraction import (
     extract_from_annotated,
@@ -20,11 +19,11 @@ from hassette.dependencies.extraction import (
     is_event_type,
     validate_di_signature,
 )
+from hassette.dependencies.injector import ParameterInjector
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
 from hassette.exceptions import (
-    CallListenerError,
-    InvalidDependencyInjectionSignatureError,
-    InvalidDependencyReturnTypeError,
+    DependencyInjectionError,
+    DependencyResolutionError,
 )
 from hassette.models import states
 from hassette.utils.type_utils import get_typed_signature
@@ -443,7 +442,7 @@ class TestSignatureValidation:
             pass
 
         signature = get_typed_signature(handler)
-        with pytest.raises(InvalidDependencyInjectionSignatureError):
+        with pytest.raises(DependencyInjectionError):
             validate_di_signature(signature)
 
     def test_validate_di_signature_with_positional_only(self):
@@ -457,7 +456,7 @@ class TestSignatureValidation:
             pass
 
         signature = get_typed_signature(handler)
-        with pytest.raises(InvalidDependencyInjectionSignatureError):
+        with pytest.raises(DependencyInjectionError):
             validate_di_signature(signature)
 
 
@@ -641,25 +640,25 @@ class TestRequiredAnnotations:
     """Test that required (non-Maybe) annotations raise when value is None."""
 
     def test_state_new_raises_on_none(self, state_change_events: list[RawStateChangeEvent]):
-        """Test StateNew raises InvalidDependencyReturnTypeError when new_state is None."""
+        """Test StateNew raises DependencyResolutionError when new_state is None."""
         # Find event where new_state is None (entity removed)
         event = next((e for e in state_change_events if e.payload.data.new_state is None), None)
         assert event is not None, "No event with new_state=None found"
 
         _, annotation_details = extract_from_annotated(D.StateNew[states.BaseState])
 
-        with pytest.raises(InvalidDependencyReturnTypeError):
+        with pytest.raises(DependencyResolutionError):
             annotation_details.extractor(event)
 
     def test_state_old_raises_on_none(self, state_change_events: list[RawStateChangeEvent]):
-        """Test StateOld raises InvalidDependencyReturnTypeError when old_state is None."""
+        """Test StateOld raises DependencyResolutionError when old_state is None."""
         # Find event where old_state is None (first state)
         event = next((e for e in state_change_events if e.payload.data.old_state is None), None)
         assert event is not None, "No event with old_state=None found"
 
         _, annotation_details = extract_from_annotated(D.StateOld[states.BaseState])
 
-        with pytest.raises(InvalidDependencyReturnTypeError):
+        with pytest.raises(DependencyResolutionError):
             annotation_details.extractor(event)
 
     def test_entity_id_succeeds_with_value(self, state_change_events: list[RawStateChangeEvent]):
@@ -728,7 +727,8 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            kwargs = convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
 
             state = kwargs["new_state"]
             if state_change_event.payload.data.new_state is None:
@@ -750,7 +750,8 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            kwargs = convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
 
             state = kwargs["new_state"]
             if state_change_event.payload.data.new_state is None:
@@ -771,7 +772,8 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            kwargs = convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
 
             old_state = kwargs["old_state"]
 
@@ -792,7 +794,8 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            kwargs = convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
 
             new_state = kwargs["new_state"]
             old_state = kwargs["old_state"]
@@ -815,7 +818,8 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            kwargs = convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
 
             new_state = kwargs["new_state"]
             old_state = kwargs["old_state"]
@@ -848,8 +852,9 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            with pytest.raises(CallListenerError):
-                convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            with pytest.raises(DependencyResolutionError):
+                injector.inject_parameters(state_change_event)
 
     async def test_maybe_new_state_value_allows_none(
         self, state_change_events_with_new_state: list[RawStateChangeEvent]
@@ -869,7 +874,8 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            kwargs = convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
             value = kwargs["value"]
 
             assert value is None, "State value should be None when state is None"
@@ -892,8 +898,9 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            with pytest.raises(CallListenerError):
-                convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            with pytest.raises(DependencyResolutionError):
+                injector.inject_parameters(state_change_event)
 
     async def test_new_state_value_converted_to_correct_type(
         self, state_change_events_with_new_state: list[RawStateChangeEvent]
@@ -902,8 +909,6 @@ class TestDependencyInjectionHandlesTypeConversion:
 
         for state_change_event in state_change_events_with_new_state:
             new_state = state_change_event.payload.data.new_state
-            if new_state.get("state") is None:
-                continue
 
             domain = state_change_event.payload.data.domain
 
@@ -911,7 +916,10 @@ class TestDependencyInjectionHandlesTypeConversion:
             state_value_type = get_state_registry().get_value_type_for_domain(domain)
 
             try:
-                state_class.model_validate(new_state)
+                new_state_obj = state_class.model_validate(new_state)
+                # check this here since unknown and unavailable states will get converted to None
+                if new_state_obj.value is None:
+                    continue
             except Exception:
                 continue
 
@@ -919,7 +927,8 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            kwargs = convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
             value = kwargs["value"]
 
             assert isinstance(value, state_value_type.python_type), (
@@ -941,7 +950,8 @@ class TestDependencyInjectionHandlesTypeConversion:
                 pass
 
             signature = get_typed_signature(handler)
-            kwargs = convert_params(handler, state_change_event, signature)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
 
             value = kwargs["value"]
 

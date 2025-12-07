@@ -7,7 +7,7 @@ import pytest
 from hassette import dependencies as D
 from hassette.bus.listeners import HandlerAdapter, Listener
 from hassette.events import Event, RawStateChangeEvent
-from hassette.exceptions import InvalidDependencyReturnTypeError
+from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.task_bucket import TaskBucket
 
@@ -159,14 +159,15 @@ class TestDebounceLogic:
         # First call
         await adapter.call(mock_event("first"))
         await asyncio.sleep(0.1)  # Wait 100ms
-        assert adapter._debounce_task is not None, "Debounce task should be created"
-        assert not adapter._debounce_task.done(), "Debounce task should still be pending"
+        assert adapter.rate_limiter is not None, "Rate limiter should be created"
+        assert adapter.rate_limiter._debounce_task is not None, "Debounce task should be created"
+        assert not adapter.rate_limiter._debounce_task.done(), "Debounce task should still be pending"
 
         # Second call should cancel first
         await adapter.call(mock_event("second"))
         await asyncio.sleep(0.1)  # Wait another 100ms
-        assert adapter._debounce_task is not None, "Debounce task should be created"
-        assert not adapter._debounce_task.done(), "Debounce task should still be pending"
+        assert adapter.rate_limiter._debounce_task is not None, "Debounce task should be created"
+        assert not adapter.rate_limiter._debounce_task.done(), "Debounce task should still be pending"
 
         # Third call should cancel second
         await adapter.call(mock_event("third"))
@@ -176,7 +177,7 @@ class TestDebounceLogic:
 
         # Only the last call should execute
         assert calls == ["third"], "Only the last call should be processed after debounce"
-        assert adapter._debounce_task.done(), "Debounce task should be completed"
+        assert adapter.rate_limiter._debounce_task.done(), "Debounce task should be completed"
 
 
 class TestThrottleLogic:
@@ -360,12 +361,11 @@ class TestDependencyValidationErrors:
     """Test that listeners properly handle dependency resolution errors."""
 
     async def test_required_state_with_none_raises_error(self, bucket_fixture: TaskBucket):
-        """Test that using StateNew with None value raises CallListenerError."""
+        """Test that using StateNew with None value raises DependencyResolutionError."""
 
         # Create a mock RawStateChangeEvent where new_state is None
         from hassette.events.base import HassPayload
         from hassette.events.hass.hass import RawStateChangePayload
-        from hassette.exceptions import CallListenerError
 
         payload = HassPayload(
             event_type="state_changed",
@@ -384,11 +384,10 @@ class TestDependencyValidationErrors:
         async_handler = bucket_fixture.make_async_adapter(handler)
         adapter = create_adapter(async_handler, bucket_fixture)
 
-        # Should raise CallListenerError wrapping InvalidDependencyReturnTypeError
-        with pytest.raises(CallListenerError) as exc_info:
+        # Should raise DependencyResolutionError when new_state is None
+        with pytest.raises(DependencyResolutionError):
             await adapter.call(event)
 
-        assert isinstance(exc_info.value.__cause__, InvalidDependencyReturnTypeError)
         assert len(calls) == 0  # Handler should not be called
 
     async def test_maybe_state_with_none_succeeds(self, bucket_fixture: TaskBucket):
@@ -481,7 +480,6 @@ class TestDependencyValidationErrors:
 
         from hassette.events.base import HassPayload
         from hassette.events.hass.hass import RawStateChangePayload
-        from hassette.exceptions import CallListenerError
 
         payload = HassPayload(
             event_type="state_changed",
@@ -503,7 +501,7 @@ class TestDependencyValidationErrors:
         async_handler = bucket_fixture.make_async_adapter(handler)
         adapter = create_adapter(async_handler, bucket_fixture)
 
-        with pytest.raises(CallListenerError):
+        with pytest.raises(DependencyResolutionError):
             await adapter.call(event)
 
         assert len(calls) == 0

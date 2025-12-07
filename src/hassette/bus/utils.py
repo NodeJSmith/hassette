@@ -8,8 +8,7 @@ from typing import Any, TypeGuard
 from boltons.iterutils import is_collection
 
 from hassette.const import NOT_PROVIDED
-from hassette.exceptions import InvalidDependencyReturnTypeError, UnableToExtractParameterError
-from hassette.utils.exception_utils import get_short_traceback
+from hassette.exceptions import DependencyResolutionError
 from hassette.utils.type_utils import get_optional_type_arg, is_optional_type, normalize_for_isinstance
 
 if typing.TYPE_CHECKING:
@@ -37,7 +36,7 @@ def get_raise_on_incorrect_type():
 
 
 def extract_with_error_handling(
-    event: "Event[Any]", extractor: Callable[["Event[Any]"], Any], param_name: str, param_type: type, handler_name: str
+    event: "Event[Any]", extractor: Callable[["Event[Any]"], Any], param_name: str, param_type: type
 ) -> Any:
     """Extract a parameter value using the given extractor, with error handling.
 
@@ -46,41 +45,24 @@ def extract_with_error_handling(
         extractor: The extractor callable.
         param_name: The name of the parameter being extracted.
         param_type: The expected type of the parameter.
-        handler_name: The name of the handler function.
 
     Returns:
         The extracted parameter value.
 
     Raises:
-        CallListenerError: If extraction results in an invalid type.
-        UnableToExtractParameterError: If extraction fails for an unexpected reason.
+        DependencyResolutionError: If extraction or conversion fails.
     """
 
     try:
         extracted_value = extractor(event)
-    except InvalidDependencyReturnTypeError as e:
-        # Log detailed error
-        LOGGER.error(
-            "Handler %s - invalid return type for parameter '%s' of type %s: %s",
-            handler_name,
-            param_name,
-            param_type,
-            get_short_traceback(),
-        )
-        # Re-raise as CallListenerError to indicate handler cannot be called
-        raise e
-
+    except DependencyResolutionError:
+        # Already has detailed context, just re-raise for caller to log
+        raise
     except Exception as e:
-        # Log detailed error
-        LOGGER.error(
-            "Handler %s - failed to extract parameter '%s' of type %s: %s",
-            handler_name,
-            param_name,
-            param_type,
-            get_short_traceback(),
-        )
-        # Re-raise to prevent handler from running with missing/invalid data
-        raise UnableToExtractParameterError(param_name, param_type, e) from e
+        # Wrap unexpected errors with context
+        raise DependencyResolutionError(
+            f"Failed to extract parameter '{param_name}' (expected {param_type.__name__})"
+        ) from e
 
     return extracted_value
 
@@ -113,7 +95,10 @@ def warn_or_raise_on_incorrect_type(param_name: str, param_type: type, param_val
         msg = msg_template % (handler_name, param_name, param_type, type(param_value))
 
         if get_raise_on_incorrect_type():
-            raise InvalidDependencyReturnTypeError(type(param_value))
+            raise DependencyResolutionError(
+                f"Parameter '{param_name}' type mismatch: "
+                f"expected {param_type.__name__}, got {type(param_value).__name__}"
+            )
 
         LOGGER.warning(msg)
 
