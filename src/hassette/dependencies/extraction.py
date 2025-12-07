@@ -1,5 +1,6 @@
 import inspect
 from inspect import Signature, isclass
+from types import GenericAlias
 from typing import Annotated, Any, get_args, get_origin
 from warnings import warn
 
@@ -48,15 +49,21 @@ def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetai
         Tuple of (type, extractor) if valid Annotated type with callable metadata.
         None otherwise.
     """
-    if not is_annotated_type(annotation):
+    if not is_annotated_type(annotation) and not isinstance(annotation, GenericAlias):
         return None
 
-    args = get_args(annotation)
-    if len(args) < 2:
-        return None
+    # handle things like type StateValueNew[T] = Annotated[...]
+    if isinstance(annotation, GenericAlias):
+        base_type = get_args(annotation)[0]
+        args = get_args(getattr(annotation, "__value__", None))
+        details = args[1]
+    else:
+        args = get_args(annotation)
+        if len(args) < 2:
+            return None
 
-    base_type = args[0]
-    details = args[1]
+        base_type = args[0]
+        details = args[1]
 
     if not isinstance(details, AnnotationDetails):
         if callable(details):

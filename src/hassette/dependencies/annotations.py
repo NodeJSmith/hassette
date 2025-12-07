@@ -1,6 +1,6 @@
 # ruff: noqa: UP040
 
-# disabling UP040 - the TypeAlias definitions here are useful because we can use StateT and StateValueT
+# disabling UP040 - the TypeAlias definitions here are useful because we can use StateT
 # to provide better type hints in handlers that use these dependencies.
 
 # the new `type` doesn't work quite as well for this purpose
@@ -15,7 +15,7 @@ from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.context import get_state_registry, get_type_registry
 from hassette.events import CallServiceEvent, Event, HassContext
 from hassette.exceptions import DependencyResolutionError, DomainNotFoundError, InvalidEntityIdError
-from hassette.models.states import BaseState, StateT, StateValueT
+from hassette.models.states import BaseState, StateT
 
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
@@ -259,11 +259,13 @@ async def handler(old_state: D.MaybeStateOld[states.LightState]):
 # These annotations extract the raw state value ("on", 23.5, etc.) and convert it
 # to a specific Python type using the TypeRegistry.
 
+# See more: https://github.com/pydantic/pydantic/issues/8202#issuecomment-2453578622
+
 # Extractor: _get_state_value_extractor("new_state") -> raw state value
 # Converter: convert_state_value_via_registry() -> StateValueT (bool, float, str, etc.)
 # Returns: Typed Python value
-StateValueNew: TypeAlias = Annotated[
-    StateValueT,
+type StateValueNew[T] = Annotated[
+    T,
     AnnotationDetails["RawStateChangeEvent"](
         ensure_present(_get_state_value_extractor("new_state")), convert_state_value_via_registry
     ),
@@ -281,12 +283,13 @@ async def handler(state: D.StateValueNew[bool]):
 # Extractor: _get_state_value_extractor("old_state") -> raw state value
 # Converter: convert_state_value_via_registry() -> StateValueT (bool, float, str, etc.)
 # Returns: Typed Python value
-StateValueOld: TypeAlias = Annotated[
-    StateValueT,
+type StateValueOld[T] = Annotated[
+    T,
     AnnotationDetails["RawStateChangeEvent"](
         ensure_present(_get_state_value_extractor("old_state")), convert_state_value_via_registry
     ),
 ]
+print(StateValueOld)
 """Extract the old state value from a StateChangeEvent and convert to target type.
 
 Example:
@@ -300,8 +303,8 @@ async def handler(old_state: D.StateValueOld[bool]):
 # Extractor: _get_state_value_extractor("new_state") -> raw state value
 # Converter: convert_state_value_via_registry() -> StateValueT (bool, float, str, etc.)
 # Returns: Typed Python value or None
-MaybeStateValueNew: TypeAlias = Annotated[
-    StateValueT | None,
+type MaybeStateValueNew[T] = Annotated[
+    T | None,
     AnnotationDetails["RawStateChangeEvent"](_get_state_value_extractor("new_state"), convert_state_value_via_registry),
 ]
 """Extract the new state value from a StateChangeEvent, allowing for None.
@@ -317,8 +320,8 @@ async def handler(state: D.MaybeStateValueNew[bool]):
 # Extractor: _get_state_value_extractor("old_state") -> raw state value
 # Converter: convert_state_value_via_registry() -> StateValueT (bool, float, str, etc.)
 # Returns: Typed Python value or None
-MaybeStateValueOld: TypeAlias = Annotated[
-    StateValueT | None,
+type MaybeStateValueOld[T] = Annotated[
+    T | None,
     AnnotationDetails["RawStateChangeEvent"](_get_state_value_extractor("old_state"), convert_state_value_via_registry),
 ]
 """Extract the old state value from a StateChangeEvent, allowing for None.
