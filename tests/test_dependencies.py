@@ -26,6 +26,14 @@ from hassette.exceptions import (
     DependencyResolutionError,
 )
 from hassette.models import states
+from hassette.types.state_value import (
+    BaseStateValue,
+    BoolStateValue,
+    DateTimeStateValue,
+    NumericStateValue,
+    StrStateValue,
+    TimeStateValue,
+)
 from hassette.utils.type_utils import get_typed_signature
 
 
@@ -892,13 +900,23 @@ class TestDependencyInjectionHandlesTypeConversion:
 
             domain = state_change_event.payload.data.domain
 
+            state_class = get_state_registry().get_class_for_domain(domain)
             state_value_type = get_state_registry().get_value_type_for_domain(domain)
+
+            try:
+                new_state_obj = state_class.model_validate(new_state)
+                # check this here since unknown and unavailable states will get converted to None
+                if new_state_obj.value is None:
+                    continue
+            except Exception:
+                continue
 
             def handler(value: D.StateValueNew[state_value_type.python_type]):
                 pass
 
             signature = get_typed_signature(handler)
             injector = ParameterInjector(handler.__name__, signature)
+            print(state_change_event)
             with pytest.raises(DependencyResolutionError):
                 injector.inject_parameters(state_change_event)
 
@@ -957,4 +975,62 @@ class TestDependencyInjectionHandlesTypeConversion:
 
             assert isinstance(value, state_value_type.python_type), (
                 f"State value should be converted to {state_value_type.python_type}, got {type(value)}"
+            )
+
+
+STATE_VALUE_TYPES = [
+    DateTimeStateValue,
+    TimeStateValue,
+    BoolStateValue,
+    StrStateValue,
+    NumericStateValue,
+]
+
+
+@pytest.mark.usefixtures("with_state_registry")
+class TestDependencyInjectionStateValueConversions:
+    """Test that all registered StateValue types can be used in DI.
+
+    For example, assert that if we annotate something with D.StateValueNew[int],
+    it correctly converts the state value to int.
+    """
+
+    @pytest.mark.parametrize(
+        ("state_value_type", "python_type"), [(svt, t) for svt in STATE_VALUE_TYPES for t in svt.known_types]
+    )
+    async def test_state_value_new_conversion(
+        self,
+        state_change_events_with_new_state: list[RawStateChangeEvent],
+        state_value_type: BaseStateValue,
+        python_type: type,
+    ):
+        """Test that StateValueNew[type] works for all registered types."""
+
+        for state_change_event in state_change_events_with_new_state:
+            new_state = state_change_event.payload.data.new_state
+
+            domain = state_change_event.payload.data.domain
+
+            state_class = get_state_registry().get_class_for_domain(domain)
+            if state_class.state_value_type is not state_value_type:
+                continue
+
+            try:
+                new_state_obj = state_class.model_validate(new_state)
+                # check this here since unknown and unavailable states will get converted to None
+                if new_state_obj.value is None:
+                    continue
+            except Exception:
+                continue
+
+            def handler(value: D.StateValueNew[python_type]):
+                pass
+
+            signature = get_typed_signature(handler)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
+            value = kwargs["value"]
+
+            assert isinstance(value, python_type), (
+                f"State value should be converted to {python_type}, got {type(value)}"
             )
