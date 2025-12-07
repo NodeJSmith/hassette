@@ -83,7 +83,7 @@ class TestStateProxyInit:
             await proxy.on_initialize()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def proxy():
     mock_hassette = Mock()
     mock_hassette.config.state_proxy_log_level = "DEBUG"
