@@ -19,6 +19,7 @@ def tests(session: "Session"):
         "pytest",
         "-W",
         "error",
+        "--tb=line",
         external=True,
     )
 
@@ -40,5 +41,6 @@ def tests_with_coverage(session: "Session"):
         "--cov-report=term-missing:skip-covered",
         "--cov-report=xml",
         "--cov-report=html",
+        "--tb=line",
         external=True,
     )
