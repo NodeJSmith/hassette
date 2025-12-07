@@ -6,6 +6,8 @@ from typing import Any
 from aiohttp import web
 from whenever import PlainDateTime
 
+from hassette.utils.request_utils import orjson_dump
+
 # Key = tuple[str, str, str]  # (METHOD, PATH, QUERYSTRING)
 
 
@@ -82,7 +84,7 @@ class SimpleTestServer:
         exp = bucket.popleft()
         if exp.json is None:
             return web.Response(status=exp.status)
-        return web.json_response(exp.json, status=exp.status)
+        return web.json_response(exp.json, status=exp.status, dumps=orjson_dump)
 
     # ----- teardown assertions -----
 
