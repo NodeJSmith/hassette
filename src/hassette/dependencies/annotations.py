@@ -174,7 +174,7 @@ def _get_state_value_extractor(name: Literal["new_state", "old_state"]) -> Calla
         if state_value_type is None:
             raise DomainNotFoundError(domain)
 
-        return state_value_type.from_raw(state_dict.get("state")).to_python()
+        return state_value_type.from_raw(state_dict.get("state"))
 
     return _state_value_extractor
 
