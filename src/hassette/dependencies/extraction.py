@@ -60,13 +60,9 @@ def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetai
 
     if not isinstance(details, AnnotationDetails):
         if callable(details):
-            warn(
-                "Using bare callables in Annotated is deprecated. "
-                "Please wrap extractor callables in AnnotationDetails.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
             return (base_type, AnnotationDetails(extractor=details))
+
+        warn(f"Invalid Annotated metadata: {details} is not AnnotationDetails or callable extractor", stacklevel=2)
 
         return None
 

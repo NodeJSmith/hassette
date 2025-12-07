@@ -235,26 +235,29 @@ class TestTypeAliasExtractors:
 class TestExtractFromAnnotated:
     """Test extract_from_annotated function."""
 
-    def test_extract_with_callable_metadata_warns(self):
-        """Test that using bare callable in Annotated issues deprecation warning and returns correct extractor."""
+    def test_extract_with_callable_metadata_wraps_in_annodation_details(self):
+        """Test that callable metadata is wrapped in AnnotationDetails."""
 
         def my_extractor(_event):
             return "extracted"
 
         annotation = Annotated[str, my_extractor]
 
-        with pytest.warns(DeprecationWarning, match="Using bare callables in Annotated is deprecated"):
-            param_details_dict = extract_from_annotated(annotation)
+        param_details_dict = extract_from_annotated(annotation)
 
         assert param_details_dict is not None
         base_type, annotation_details = param_details_dict
         assert base_type is str
         assert annotation_details.extractor is my_extractor
 
-    def test_extract_with_non_callable_metadata(self):
+    def test_extract_with_non_callable_metadata_warns(self):
         """Test that non-callable metadata returns None."""
         annotation = Annotated[str, "not_callable"]
-        param_details_dict = extract_from_annotated(annotation)
+
+        with pytest.warns(
+            UserWarning, match="Invalid Annotated metadata: not_callable is not AnnotationDetails or callable extractor"
+        ):
+            param_details_dict = extract_from_annotated(annotation)
 
         assert param_details_dict is None
 
@@ -1022,8 +1025,6 @@ def pytest_generate_tests(metafunc):
         ]
 
         state_value_test_params = [(svt, t) for svt in state_value_types for t in svt.known_types]
-        for svt, t in state_value_test_params:
-            print(f"Param: {svt.__name__} -> {t.__name__}")
 
         metafunc.parametrize(
             ("state_value_type", "python_type"),
