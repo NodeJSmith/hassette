@@ -57,7 +57,16 @@ class TypeRegistry(Resource):
             self.logger.debug("Registered StateValue %s", state_cls.__name__)
 
     def convert(self, value: BaseStateValue, to_type: type[Any]) -> Any:
-        key = (to_type, type(value))
+        """Convert a StateValue to a target Python type.
+
+        Args:
+            value: The StateValue instance to convert.
+            to_type: The target Python type.
+
+        Returns:
+            The converted value.
+        """
+        key = (type(value), to_type)
 
         if to_type is type(value):
             return value
