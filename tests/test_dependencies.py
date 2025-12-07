@@ -26,14 +26,7 @@ from hassette.exceptions import (
     DependencyResolutionError,
 )
 from hassette.models import states
-from hassette.types.state_value import (
-    BaseStateValue,
-    BoolStateValue,
-    DateTimeStateValue,
-    NumericStateValue,
-    StrStateValue,
-    TimeStateValue,
-)
+from hassette.types.state_value import BaseStateValue
 from hassette.utils.type_utils import get_typed_signature
 
 
@@ -978,13 +971,65 @@ class TestDependencyInjectionHandlesTypeConversion:
             )
 
 
-STATE_VALUE_TYPES = [
-    DateTimeStateValue,
-    TimeStateValue,
-    BoolStateValue,
-    StrStateValue,
-    NumericStateValue,
-]
+def pytest_generate_tests(metafunc):
+    """Generate test parameters dynamically for tests that need state value types.
+
+    This module-level hook allows us to parametrize tests after TypeRegistry has been
+    built. Since the test uses session-scoped fixtures, we build the registries here
+    if they haven't been built yet.
+    """
+    # Only parametrize the specific test that needs state value types
+    if (
+        metafunc.cls is not None
+        and metafunc.cls.__name__ == "TestDependencyInjectionStateValueConversions"
+        and metafunc.function.__name__ == "test_state_value_new_conversion"
+    ):
+        # Ensure TypeRegistry is built so known_types is populated
+        from unittest.mock import Mock
+
+        from hassette.context import get_hassette
+        from hassette.core.state_registry import StateRegistry
+        from hassette.core.type_registry import TypeRegistry
+        from hassette.types.state_value import (
+            BoolStateValue,
+            DateTimeStateValue,
+            NumericStateValue,
+            StrStateValue,
+            TimeStateValue,
+        )
+
+        # Build registries if not already built (idempotent)
+        try:
+            curr_hassette = get_hassette()
+        except RuntimeError:
+            curr_hassette = Mock()
+            curr_hassette.config.log_level = "CRITICAL"
+            curr_hassette.config.task_bucket_log_level = "CRITICAL"
+
+        state_registry = StateRegistry.create(curr_hassette, curr_hassette)
+        state_registry.build_registry()
+
+        type_registry = TypeRegistry.create(curr_hassette, curr_hassette)
+        type_registry.build_registry()
+
+        # Now known_types should be populated
+        state_value_types = [
+            DateTimeStateValue,
+            TimeStateValue,
+            BoolStateValue,
+            StrStateValue,
+            NumericStateValue,
+        ]
+
+        state_value_test_params = [(svt, t) for svt in state_value_types for t in svt.known_types]
+        for svt, t in state_value_test_params:
+            print(f"Param: {svt.__name__} -> {t.__name__}")
+
+        metafunc.parametrize(
+            ("state_value_type", "python_type"),
+            state_value_test_params,
+            ids=[f"{svt.__name__}-{pt.__name__}" for svt, pt in state_value_test_params],
+        )
 
 
 @pytest.mark.usefixtures("with_state_registry")
@@ -995,9 +1040,6 @@ class TestDependencyInjectionStateValueConversions:
     it correctly converts the state value to int.
     """
 
-    @pytest.mark.parametrize(
-        ("state_value_type", "python_type"), [(svt, t) for svt in STATE_VALUE_TYPES for t in svt.known_types]
-    )
     async def test_state_value_new_conversion(
         self,
         state_change_events_with_new_state: list[RawStateChangeEvent],
@@ -1012,7 +1054,7 @@ class TestDependencyInjectionStateValueConversions:
             domain = state_change_event.payload.data.domain
 
             state_class = get_state_registry().get_class_for_domain(domain)
-            if state_class.state_value_type is not state_value_type:
+            if state_class.state_value_type is not type(state_value_type):
                 continue
 
             try:
