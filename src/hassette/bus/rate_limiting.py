@@ -86,6 +86,7 @@ class RateLimiter:
                 await asyncio.sleep(self.debounce)
                 await handler(*args, **kwargs)
             except asyncio.CancelledError:
+                # Task was cancelled (e.g., due to a new debounce call); safe to ignore.
                 pass
 
         self._debounce_task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
