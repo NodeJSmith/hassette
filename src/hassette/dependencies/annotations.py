@@ -8,19 +8,18 @@
 import typing
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Any, Literal, TypeAlias, TypeVar
+from typing import Annotated, Any, TypeAlias, TypeVar
 
 from hassette.bus import accessors as A
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
-from hassette.context import get_state_registry, get_type_registry
-from hassette.events import CallServiceEvent, Event, HassContext
-from hassette.exceptions import DependencyResolutionError, DomainNotFoundError, InvalidEntityIdError
-from hassette.models.states import BaseState, StateT
 from hassette.core.state_registry import convert_state_dict_to_model
+from hassette.events import Event, HassContext
+from hassette.events.hass.hass import TypedStateChangeEvent as ActualTypedStateChangeEvent
+from hassette.exceptions import DependencyResolutionError
+from hassette.models.states import StateT
 
 if typing.TYPE_CHECKING:
-    from hassette import RawStateChangeEvent
-
+    from hassette import RawStateChangeEvent  # noqa: F401
 
 T = TypeVar("T", bound=Event[Any])
 R = TypeVar("R")
@@ -63,56 +62,9 @@ def ensure_present(accessor: Callable[[T], R]) -> Callable[[T], R]:
         if result is None or result is MISSING_VALUE:
             raise DependencyResolutionError(f"Required dependency returned {type(result).__name__}, expected a value")
 
-        # Check if the result is a tuple containing None or MISSING_VALUE
-        if isinstance(result, tuple) and any(r is None or r is MISSING_VALUE for r in result):
-            raise DependencyResolutionError("Required dependency returned tuple with None or MISSING_VALUE")
-
         return result
 
     return wrapper
-
-
-def convert_state_dict_to_model_inferred(value: Any) -> BaseState:
-    """Convert a raw state dict to a typed state model, inferring the model class from the domain.
-
-    This converter uses the StateRegistry to determine the appropriate model class based on
-    the domain in the state dict, then performs the conversion.
-
-    Args:
-        value: The raw state dict from Home Assistant
-
-    Returns:
-        The typed state model instance
-
-    Raises:
-        DependencyResolutionError: If conversion fails or no model found for domain
-    """
-    registry = get_state_registry()
-    converted = registry.try_convert_state(value)
-    if converted is None:
-        raise DependencyResolutionError(f"Cannot infer model for state dict: {type(value).__name__}")
-
-    return converted
-
-
-def convert_state_value_via_registry(value: Any, to_type: type) -> Any:
-    """Convert a raw state value to a specific Python type using the TypeRegistry.
-
-    This converter is used by state value extractors (StateValueNew, StateValueOld) to transform
-    raw Home Assistant state values (like "on", "23.5", timestamps) into properly typed Python
-    values using registered conversion functions.
-
-    Args:
-        value: The raw state value from Home Assistant
-        to_type: The target Python type (e.g., bool, float, ZonedDateTime)
-
-    Returns:
-        The converted value in the target type
-
-    Raises:
-        TypeError: If no conversion is registered for the value type -> target type
-    """
-    return get_type_registry().convert(value, to_type)
 
 
 def identity(x: Any) -> Any:
@@ -123,35 +75,27 @@ def identity(x: Any) -> Any:
     return x
 
 
-def _get_state_value_extractor(name: Literal["new_state", "old_state"]) -> Callable[["RawStateChangeEvent"], Any]:
-    """Create an extractor function for state values from old or new state.
+# ======================================================================================
+# Typed State Change Event
+# ======================================================================================
+# This annotation converts a RawStateChangeEvent into a TypedStateChangeEvent
+# with typed state objects using the StateRegistry.
 
-    Args:
-        name: Which state to extract from ("new_state" or "old_state")
+# Extractor: identity (full event)
+# Converter: create_typed_state_change_event() -> _TypedStateChangeEvent[StateT]
+# Returns: TypedStateChangeEvent with typed state
+TypedStateChangeEvent: TypeAlias = Annotated[
+    ActualTypedStateChangeEvent[StateT],
+    AnnotationDetails["RawStateChangeEvent"](identity, ActualTypedStateChangeEvent.create_typed_state_change_event),
+]
+"""Convert a RawStateChangeEvent into a TypedStateChangeEvent with typed state objects.
 
-    Returns:
-        An extractor function that retrieves the state value from the specified state
-    """
-
-    def _state_value_extractor(event: "RawStateChangeEvent") -> Any:
-        data = event.payload.data
-        state_dict = getattr(data, name)
-        if state_dict is None:
-            return MISSING_VALUE
-
-        entity_id = state_dict.get("entity_id")
-        domain = entity_id.split(".")[0] if entity_id and "." in entity_id else None
-
-        if domain is None:
-            raise InvalidEntityIdError(entity_id)
-
-        state_value_type = get_state_registry().get_value_type_for_domain(domain)
-        if state_value_type is None:
-            raise DomainNotFoundError(domain)
-
-        return state_value_type.from_raw(state_dict.get("state"))
-
-    return _state_value_extractor
+Example:
+```python
+async def handler(event: D.TypedStateChangeEvent[states.LightState]):
+    brightness = event.payload.data.new_state.attributes.brightness
+```
+"""
 
 
 # ======================================================================================
@@ -229,87 +173,6 @@ async def handler(old_state: D.MaybeStateOld[states.LightState]):
 
 
 # ======================================================================================
-# State Value Extractors
-# ======================================================================================
-# These annotations extract the raw state value ("on", 23.5, etc.) and convert it
-# to a specific Python type using the TypeRegistry.
-
-# See more: https://github.com/pydantic/pydantic/issues/8202#issuecomment-2453578622
-
-# Extractor: _get_state_value_extractor("new_state") -> raw state value
-# Converter: convert_state_value_via_registry() -> StateValueT (bool, float, str, etc.)
-# Returns: Typed Python value
-type StateValueNew[T] = Annotated[
-    T,
-    AnnotationDetails["RawStateChangeEvent"](
-        ensure_present(_get_state_value_extractor("new_state")), convert_state_value_via_registry
-    ),
-]
-"""Extract the new state value from a StateChangeEvent and convert to target type.
-
-Example:
-```python
-async def handler(state: D.StateValueNew[bool]):
-    if state:
-        self.logger.info("Light is on")
-```
-"""
-
-# Extractor: _get_state_value_extractor("old_state") -> raw state value
-# Converter: convert_state_value_via_registry() -> StateValueT (bool, float, str, etc.)
-# Returns: Typed Python value
-type StateValueOld[T] = Annotated[
-    T,
-    AnnotationDetails["RawStateChangeEvent"](
-        ensure_present(_get_state_value_extractor("old_state")), convert_state_value_via_registry
-    ),
-]
-"""Extract the old state value from a StateChangeEvent and convert to target type.
-
-Example:
-```python
-async def handler(old_state: D.StateValueOld[bool]):
-    if old_state:
-        self.logger.info("Light was on")
-```
-"""
-
-# Extractor: _get_state_value_extractor("new_state") -> raw state value
-# Converter: convert_state_value_via_registry() -> StateValueT (bool, float, str, etc.)
-# Returns: Typed Python value or None
-type MaybeStateValueNew[T] = Annotated[
-    T | None,
-    AnnotationDetails["RawStateChangeEvent"](_get_state_value_extractor("new_state"), convert_state_value_via_registry),
-]
-"""Extract the new state value from a StateChangeEvent, allowing for None.
-
-Example:
-```python
-async def handler(state: D.MaybeStateValueNew[bool]):
-    if state is not None:
-        self.logger.info("Light is on")
-```
-"""
-
-# Extractor: _get_state_value_extractor("old_state") -> raw state value
-# Converter: convert_state_value_via_registry() -> StateValueT (bool, float, str, etc.)
-# Returns: Typed Python value or None
-type MaybeStateValueOld[T] = Annotated[
-    T | None,
-    AnnotationDetails["RawStateChangeEvent"](_get_state_value_extractor("old_state"), convert_state_value_via_registry),
-]
-"""Extract the old state value from a StateChangeEvent, allowing for None.
-
-Example:
-```python
-async def handler(old_state: D.MaybeStateValueOld[bool]):
-    if old_state is not None:
-        self.logger.info("Light was on")
-```
-"""
-
-
-# ======================================================================================
 # Identity & Metadata Extractors
 # ======================================================================================
 # These annotations extract simple identity and metadata fields from events.
@@ -352,7 +215,6 @@ async def handler(domain: D.Domain):
         self.logger.info("Light entity event")
 ```
 """
-
 # Extractor: get_domain() -> str | FalseySentinel
 # Converter: None
 # Returns: Domain string or MISSING_VALUE
@@ -375,107 +237,3 @@ async def handler(context: D.EventContext):
         self.logger.info("Triggered by user: %s", context.user_id)
 ```
 """
-
-
-# ======================================================================================
-# Service Call Extractors
-# ======================================================================================
-# These annotations extract data from service call events.
-
-# Extractor: get_service() -> str
-# Converter: None
-# Returns: Service name string, raises if None/MISSING_VALUE
-Service: TypeAlias = Annotated[str, AnnotationDetails[CallServiceEvent](ensure_present(A.get_service))]
-"""Extract the service name from a CallServiceEvent.
-
-Returns the service name string (e.g., "turn_on", "turn_off").
-
-Example:
-```python
-async def handler(service: D.Service):
-    if service == "turn_on":
-        self.logger.info("Light turned on")
-```
-"""
-
-# Extractor: get_service() -> str | FalseySentinel
-# Converter: None
-# Returns: Service name string or MISSING_VALUE
-MaybeService: TypeAlias = Annotated[str | FalseySentinel, AnnotationDetails[CallServiceEvent](A.get_service)]
-"""Extract the service name from a CallServiceEvent, returning MISSING_VALUE sentinel if not present."""
-
-# Extractor: get_service_data() -> dict[str, Any]
-# Converter: None
-# Returns: Service data dict (empty dict if not present)
-ServiceData: TypeAlias = Annotated[dict[str, Any], AnnotationDetails[CallServiceEvent](A.get_service_data)]
-"""Extract the service_data dictionary from a CallServiceEvent.
-
-Returns the service data dictionary containing parameters passed to the service call.
-Returns an empty dict if no service_data is present.
-
-Example:
-```python
-async def handler(service_data: D.ServiceData):
-    brightness = service_data.get("brightness")
-    if brightness:
-        self.logger.info("Brightness set to %s", brightness)
-```
-"""
-
-
-# ======================================================================================
-# Attribute Extractors
-# ======================================================================================
-# These factory functions create extractors for specific state attributes.
-# They convert the full state object to access properly typed attributes.
-
-
-def AttrNew(name: str) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N802
-    """Factory for creating annotated types to extract specific attributes from the new state.
-
-    Usage:
-    ```python
-    from typing import Annotated
-    from hassette import dependencies as D
-
-    async def handler(
-        brightness: Annotated[int | None, D.AttrNew("brightness")],
-    ):
-        pass
-    ```
-    """
-
-    def _inner(event: "RawStateChangeEvent") -> Any:
-        if event.payload.data.new_state is None:
-            return MISSING_VALUE
-
-        registry = get_state_registry()
-        converted = registry.try_convert_state(event.payload.data.new_state)
-        return getattr(converted.attributes, name, MISSING_VALUE)
-
-    return AnnotationDetails["RawStateChangeEvent"](_inner)
-
-
-def AttrOld(name: str) -> AnnotationDetails["RawStateChangeEvent"]:  # noqa: N802
-    """Factory for creating annotated types to extract specific attributes from the old state.
-
-    Usage:
-    ```python
-    from typing import Annotated
-    from hassette import dependencies as D
-
-    async def handler(
-        brightness: Annotated[int | None, D.AttrOld("brightness")],
-    ):
-        pass
-    """
-
-    def _inner(event: "RawStateChangeEvent") -> Any:
-        if event.payload.data.old_state is None:
-            return MISSING_VALUE
-
-        registry = get_state_registry()
-        converted = registry.try_convert_state(event.payload.data.old_state)
-        return getattr(converted.attributes, name, MISSING_VALUE)
-
-    return AnnotationDetails["RawStateChangeEvent"](_inner)
