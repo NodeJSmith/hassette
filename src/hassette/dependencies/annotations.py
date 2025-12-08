@@ -289,7 +289,6 @@ type StateValueOld[T] = Annotated[
         ensure_present(_get_state_value_extractor("old_state")), convert_state_value_via_registry
     ),
 ]
-print(StateValueOld)
 """Extract the old state value from a StateChangeEvent and convert to target type.
 
 Example:
