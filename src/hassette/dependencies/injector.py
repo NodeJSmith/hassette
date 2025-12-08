@@ -19,20 +19,8 @@ LOGGER = logging.getLogger(__name__)
 class ParameterInjector:
     """Handles dependency injection for event handler parameters.
 
-    This class extracts parameters from events based on handler signature annotations,
-    performs type conversions, and validates extracted values.
-
-    Attributes:
-        handler_name: The name of the handler function for error reporting.
-        signature: The inspect.Signature of the handler.
-        param_details: Extracted parameter details from annotations.
-
-    Example:
-        ```python
-        injector = ParameterInjector("my_handler", signature)
-        kwargs = injector.inject_parameters(event, existing_arg=value)
-        await handler(**kwargs)
-        ```
+    This class uses parameter annotation details extracted from a handler's signature
+    to extract and convert parameters from events, returning a dictionary of injected parameters.
     """
 
     def __init__(self, handler_name: str, signature: inspect.Signature):
