@@ -182,8 +182,6 @@ class HandlerAdapter:
         # Inject parameters
         kwargs = self.injector.inject_parameters(event, **kwargs)
 
-        # DependencyResolutionError already has good context, just propagate
-        # Other exceptions from handler code should also propagate naturally
         await self.handler(**kwargs)
 
 
