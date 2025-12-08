@@ -108,7 +108,11 @@ class CannotOverrideFinalError(TypeError, HassetteError):
         super().__init__(msg)
 
 
-class DependencyInjectionError(HassetteError):
+class DependencyError(HassetteError):
+    """Base class for dependency-related errors."""
+
+
+class DependencyInjectionError(DependencyError):
     """Raised when dependency injection fails due to invalid handler signature or annotations.
 
     This exception indicates a user error in handler definition, such as:
@@ -120,7 +124,7 @@ class DependencyInjectionError(HassetteError):
     """
 
 
-class DependencyResolutionError(HassetteError):
+class DependencyResolutionError(DependencyError):
     """Raised when dependency injection fails during runtime extraction or conversion.
 
     This exception indicates a runtime issue with:
