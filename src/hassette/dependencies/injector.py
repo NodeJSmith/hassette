@@ -3,7 +3,10 @@
 import inspect
 import logging
 import typing
-from typing import Any
+from collections.abc import Callable
+from contextlib import suppress
+from types import UnionType
+from typing import Any, get_args
 
 from hassette.exceptions import DependencyError, DependencyInjectionError, DependencyResolutionError
 from hassette.utils.type_utils import get_optional_type_arg, is_optional_type
@@ -124,14 +127,42 @@ class ParameterInjector:
         # Get target type (unwrap Optional if needed)
         target_type = get_optional_type_arg(param_type) if param_is_optional else param_type
 
-        # Convert if converter exists
-        if converter:
-            try:
-                extracted_value = converter(extracted_value, target_type)
-            except Exception as e:
-                raise DependencyResolutionError(
-                    f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
-                    f"to type '{target_type}': {e}"
-                ) from e
+        # No conversion needed
+        if not converter:
+            return extracted_value
 
-        return extracted_value
+        # Convert if converter exists
+        if type(target_type) is UnionType:
+            for t in get_args(target_type):
+                with suppress(Exception):
+                    return self._convert_value(converter, extracted_value, param_name, t)
+            raise DependencyResolutionError(
+                f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
+                f"to any type in Union '{target_type}'"
+            )
+
+        # not a union type
+        return self._convert_value(converter, extracted_value, param_name, target_type)
+
+    def _convert_value(
+        self, converter: Callable[[Any, type], Any], extracted_value: Any, param_name: str, target_type: type
+    ) -> Any:
+        """Convert a value to the target type using the converter.
+
+        Args:
+            value: The value to convert.
+            target_type: The type to convert to.
+
+        Returns:
+            The converted value.
+
+        Raises:
+            DependencyResolutionError: If conversion fails.
+        """
+        try:
+            return converter(extracted_value, target_type)
+        except Exception as e:
+            raise DependencyResolutionError(
+                f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
+                f"to type '{target_type}': {e}"
+            ) from e
