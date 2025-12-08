@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 from dataclasses import dataclass
+from typing import Annotated
 
 import pytest
 
@@ -10,6 +11,7 @@ from hassette.events import Event, RawStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.task_bucket import TaskBucket
+from hassette.test_utils.helpers import make_full_state_change_event, make_light_state_dict
 
 
 @dataclass(frozen=True, slots=True)
@@ -478,17 +480,10 @@ class TestDependencyValidationErrors:
     async def test_multiple_required_deps_first_fails(self, bucket_fixture: TaskBucket):
         """Test that if first required dep fails, handler is not called."""
 
-        from hassette.events.base import HassPayload
-        from hassette.events.hass.hass import RawStateChangePayload
+        old_dict = make_light_state_dict("light.test", "on", brightness=100)
 
-        payload = HassPayload(
-            event_type="state_changed",
-            data=RawStateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
-            origin="LOCAL",
-            time_fired="2024-01-01T00:00:00+00:00",
-            context={"id": "test", "parent_id": None, "user_id": None},
-        )
-        event = RawStateChangeEvent(topic="hass.event.state_changed", payload=payload)
+        # make and send update event
+        event = make_full_state_change_event("light.test", old_dict, None)
 
         calls = []
 
@@ -505,3 +500,67 @@ class TestDependencyValidationErrors:
             await adapter.call(event)
 
         assert len(calls) == 0
+
+    async def test_attr_is_injected_correctly(self, bucket_fixture: TaskBucket):
+        """Test that attribute dependencies are injected correctly."""
+
+        old_dict = make_light_state_dict("light.test", "on", brightness=100)
+
+        # make and send update event
+        event = make_full_state_change_event(
+            "light.test",
+            old_dict,
+            make_light_state_dict("light.test", "on", brightness=200),
+        )
+        results = []
+
+        def handler(
+            new_brightness: Annotated[int | None, D.AttrNew("brightness")],  # Should be 200
+            old_brightness: Annotated[int | None, D.AttrOld("brightness")],  # Should be 100
+        ):
+            results.append((new_brightness, old_brightness))
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        await adapter.call(event)
+
+        assert len(results) == 1
+        new_brightness, old_brightness = results[0]
+        assert new_brightness == 200
+        assert old_brightness == 100
+
+    async def test_useful_error_raised_if_attr_not_used_with_annotation(self, bucket_fixture: TaskBucket):
+        """Test that useful error is raised if AttrNew/AttrOld used without Annotated.
+
+        This is a reminder to implement this
+        """
+
+        old_dict = make_light_state_dict("light.test", "on", brightness=100)
+
+        # make and send update event
+        event = make_full_state_change_event(
+            "light.test",
+            old_dict,
+            make_light_state_dict("light.test", "on", brightness=200),
+        )
+        results = []
+
+        def handler(
+            new_brightness: D.AttrNew("brightness"),  # Should be 200
+            old_brightness: D.AttrOld("brightness"),  # Should be 100
+        ):
+            results.append((new_brightness, old_brightness))
+
+        async_handler = bucket_fixture.make_async_adapter(handler)
+        adapter = create_adapter(async_handler, bucket_fixture)
+
+        with pytest.raises(
+            DependencyResolutionError, match=r"Attribute dependencies must be used with typing.Annotated"
+        ):
+            await adapter.call(event)
+
+        assert len(results) == 1
+        new_brightness, old_brightness = results[0]
+        assert new_brightness == 200
+        assert old_brightness == 100

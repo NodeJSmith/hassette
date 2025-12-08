@@ -1,3 +1,9 @@
+"""Tests for ServiceDataWhere predicate.
+
+Tests the ServiceDataWhere predicate which matches service_data dictionaries
+with support for exact values, callables, glob patterns, and ANY_VALUE checks.
+"""
+
 import typing
 from types import SimpleNamespace
 
@@ -41,6 +47,17 @@ def test_service_data_where_exact_value_matching() -> None:
     assert predicate(non_matching_entity) is False
 
 
+def test_service_data_where_exact_match() -> None:
+    """Test ServiceDataWhere with exact value matching."""
+    event = _make_event({"entity_id": "light.kitchen", "brightness": 255})
+
+    predicate = ServiceDataWhere({"entity_id": "light.kitchen", "brightness": 255})
+    assert predicate(event) is True
+
+    predicate = ServiceDataWhere({"entity_id": "light.living"})
+    assert predicate(event) is False
+
+
 def test_service_data_where_with_callable_conditions() -> None:
     """Test that ServiceDataWhere works with callable condition functions."""
 
@@ -56,6 +73,17 @@ def test_service_data_where_with_callable_conditions() -> None:
     assert predicate(low_brightness) is False
 
 
+def test_service_data_where_with_callable() -> None:
+    """Test ServiceDataWhere with callable conditions."""
+    event = _make_event({"brightness": 255})
+
+    def brightness_gt_200(value: int) -> bool:
+        return value > 200
+
+    predicate = ServiceDataWhere({"brightness": brightness_gt_200})
+    assert predicate(event) is True
+
+
 def test_service_data_where_with_glob_patterns() -> None:
     """Test that ServiceDataWhere automatically handles glob patterns."""
     predicate = ServiceDataWhere({"entity_id": "light.*"})
@@ -69,6 +97,17 @@ def test_service_data_where_with_glob_patterns() -> None:
     assert predicate(sensor_temp) is False
 
 
+def test_service_data_where_with_globs() -> None:
+    """Test ServiceDataWhere with automatic glob pattern handling."""
+    event = _make_event({"entity_id": "light.kitchen"})
+
+    predicate = ServiceDataWhere({"entity_id": "light.*"})
+    assert predicate(event) is True
+
+    predicate = ServiceDataWhere({"entity_id": "sensor.*"})
+    assert predicate(event) is False
+
+
 def test_service_data_where_multiple_conditions() -> None:
     """Test that ServiceDataWhere evaluates all conditions (AND logic)."""
     predicate = ServiceDataWhere(
@@ -79,23 +118,31 @@ def test_service_data_where_multiple_conditions() -> None:
         }
     )
 
+    # All conditions match
     matching_event = _make_event({"entity_id": "light.kitchen", "brightness": 255, "transition": 2})
-
-    missing_brightness = _make_event({"entity_id": "light.kitchen", "transition": 2})
-
-    wrong_transition = _make_event({"entity_id": "light.kitchen", "brightness": 255, "transition": 1})
-
     assert predicate(matching_event) is True
+
+    # Missing brightness key
+    missing_brightness = _make_event({"entity_id": "light.kitchen", "transition": 2})
     assert predicate(missing_brightness) is False
+
+    # Wrong transition value
+    wrong_transition = _make_event({"entity_id": "light.kitchen", "brightness": 255, "transition": 5})
     assert predicate(wrong_transition) is False
 
+    # Wrong entity pattern
+    wrong_entity = _make_event({"entity_id": "sensor.temp", "brightness": 255, "transition": 2})
+    assert predicate(wrong_entity) is False
 
-def test_service_data_where_from_kwargs() -> None:
-    """Test the ServiceDataWhere.from_kwargs convenience constructor."""
-    predicate = ServiceDataWhere.from_kwargs(entity_id="light.*", brightness=255)
 
-    matching_event = _make_event({"entity_id": "light.kitchen", "brightness": 255})
-    non_matching_event = _make_event({"entity_id": "sensor.temp", "brightness": 255})
+def test_service_data_where_with_not_provided() -> None:
+    """Test ServiceDataWhere requiring key presence with ANY_VALUE."""
+    event = _make_event({"entity_id": "light.kitchen"})
 
-    assert predicate(matching_event) is True
-    assert predicate(non_matching_event) is False
+    # Key exists
+    predicate = ServiceDataWhere({"entity_id": ANY_VALUE})
+    assert predicate(event) is True
+
+    # Key missing
+    predicate = ServiceDataWhere({"brightness": ANY_VALUE})
+    assert predicate(event) is False

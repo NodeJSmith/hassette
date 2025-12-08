@@ -10,9 +10,14 @@ from hassette import Hassette, HassetteConfig
 tracemalloc.start()
 
 TEST_DATA_PATH = Path.cwd().joinpath("tests", "data")
-ENV_FILE = TEST_DATA_PATH.joinpath(".env")
-TEST_TOML_FILE = TEST_DATA_PATH.joinpath("hassette.toml")
-APPS_TOML_TEMPLATE = TEST_DATA_PATH.joinpath("hassette_apps.toml")
+TEST_CONFIG_PATH = TEST_DATA_PATH / "config"
+TEST_EVENTS_PATH = TEST_DATA_PATH / "events"
+TEST_API_RESPONSES_PATH = TEST_DATA_PATH / "api_responses"
+TEST_APPS_PATH = TEST_DATA_PATH / "apps"
+
+ENV_FILE = TEST_CONFIG_PATH / ".env"
+TEST_TOML_FILE = TEST_CONFIG_PATH / "hassette.toml"
+APPS_TOML_TEMPLATE = TEST_CONFIG_PATH / "hassette_apps.toml"
 
 assert ENV_FILE.exists(), f"Environment file {ENV_FILE} does not exist"
 assert TEST_TOML_FILE.exists(), f"Test TOML file {TEST_TOML_FILE} does not exist"
@@ -53,7 +58,7 @@ class TestConfig(HassetteConfig):
     task_bucket_log_level: str = "DEBUG"
     autodetect_apps: bool = False
 
-    app_dir: Path = TEST_DATA_PATH
+    app_dir: Path = TEST_APPS_PATH
 
     def model_post_init(self, *args):
         # override this to avoid values being set by defaults.py
@@ -102,6 +107,30 @@ def test_data_path():
 
 
 @pytest.fixture(scope="session")
+def test_config_path():
+    """Provide the path to the test config directory."""
+    return TEST_CONFIG_PATH
+
+
+@pytest.fixture(scope="session")
+def test_events_path():
+    """Provide the path to the test events directory."""
+    return TEST_EVENTS_PATH
+
+
+@pytest.fixture(scope="session")
+def test_api_responses_path():
+    """Provide the path to the test API responses directory."""
+    return TEST_API_RESPONSES_PATH
+
+
+@pytest.fixture(scope="session")
+def test_apps_path():
+    """Provide the path to the test apps directory."""
+    return TEST_APPS_PATH
+
+
+@pytest.fixture(scope="session")
 def apps_config_file(tmp_path_factory):
     """Return a temporary hassette.toml populated with app definitions for app-centric tests."""
 
@@ -121,7 +150,7 @@ def test_config_with_apps(apps_config_file):
             "env_file": [ENV_FILE],
         }
 
-    config = AppsTestConfig(run_health_service=False, app_dir=TEST_DATA_PATH)
+    config = AppsTestConfig(run_health_service=False, app_dir=TEST_APPS_PATH)
 
     return config
 
@@ -132,7 +161,7 @@ def my_app_class():
     Provide the MyApp class for testing.
     This is used to ensure the MyApp class is available for tests that require it.
     """
-    from data.my_app import MyApp
+    from data.apps.my_app import MyApp
 
     return MyApp
 

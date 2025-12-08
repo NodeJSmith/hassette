@@ -8,7 +8,7 @@
 [![PyPI version](https://badge.fury.io/py/hassette.svg)](https://badge.fury.io/py/hassette)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Documentation Status](https://readthedocs.org/projects/hassette/badge/?version=stable)](https://hassette.readthedocs.io/en/latest/?badge=stable)
+[![Documentation Status](https://readthedocs.org/projects/hassette/badge/?version=stable)](https://hassette.readthedocs.io/en/stable/?badge=stable)
 [![codecov](https://codecov.io/github/NodeJSmith/hassette/graph/badge.svg?token=I3E5S2E3X8)](https://codecov.io/github/NodeJSmith/hassette)
 
 A simple, modern, async-first Python framework for building Home Assistant automations.
@@ -75,13 +75,13 @@ Run it:
 uv run hassette
 ```
 
-See the [Getting Started guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/) for detailed instructions.
+See the [Getting Started guide](https://hassette.readthedocs.io/en/stable/pages/getting-started/) for detailed instructions.
 
 ## 🔄 Coming from AppDaemon?
 
 Check out our dedicated comparison guide:
 
-- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/pages/appdaemon-comparison/)
+- [AppDaemon Comparison](https://hassette.readthedocs.io/en/stable/pages/appdaemon-comparison/)
 
 ## 📖 More Examples
 
@@ -97,8 +97,8 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 - [Laundry Room Lights](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/laundry_room_light.py) - Motion-based lighting
 
 **Configuration examples**:
-- [Docker Compose Guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/docker/) - Docker deployment setup
-- [HassetteConfig](https://hassette.readthedocs.io/en/latest/reference/hassette/config/core/#hassette.config.config.HassetteConfig) - Complete configuration reference
+- [Docker Compose Guide](https://hassette.readthedocs.io/en/stable/pages/getting-started/docker/) - Docker deployment setup
+- [HassetteConfig](https://hassette.readthedocs.io/en/stable/reference/hassette/config/core/#hassette.config.config.HassetteConfig) - Complete configuration reference
 
 ## 🛣️ Status & Roadmap
 

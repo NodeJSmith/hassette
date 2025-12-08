@@ -1,13 +1,13 @@
 [hassette]
 base_url = "http://127.0.0.1:8123"
-app_dir = "tests/data"
+app_dir = "tests/data/apps"
 
 [apps.my_app]
 enabled = true
 filename = "my_app.py"
 class_name = "MyApp"
 display_name = "My Test App"
-app_dir = "tests/data"
+app_dir = "tests/data/apps"
 config = { test_entity = "input_button.test", instance_name = "unique_instance_name" }
 
 [apps.my_app_sync]
@@ -15,7 +15,7 @@ enabled = true
 filename = "my_app_sync.py"
 class_name = "MyAppSync"
 display_name = "My Test App Sync"
-app_dir = "tests/data"
+app_dir = "tests/data/apps"
 # instance_name left off for testing default behavior
 config = { test_entity = "input_button.test" }
 
@@ -24,7 +24,7 @@ enabled = false
 filename = "disabled_app.py"
 class_name = "DisabledApp"
 display_name = "Disabled App"
-app_dir = "tests/data"
+app_dir = "tests/data/apps"
 config = { test_entity = "input_button.test", instance_name = "disabled_instance" }
 
 
@@ -33,5 +33,5 @@ enabled = false
 filename = "non_existent_file.py"
 class_name = "MissingClass"
 display_name = "Missing App"
-app_dir = "tests/data"
+app_dir = "tests/data/apps"
 config = { test_entity = "input_button.test", instance_name = "missing" }

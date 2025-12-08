@@ -66,23 +66,23 @@ class BusService(Service):
         if exc:
             self.logger.error("Bus background task failed", exc_info=exc)
 
-    def add_listener(self, listener: "Listener") -> asyncio.Task:
+    def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Add a listener to the bus."""
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
-    def remove_listener(self, listener: "Listener") -> asyncio.Task:
+    def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus."""
         return self.remove_listener_by_id(listener.topic, listener.listener_id)
 
-    def remove_listener_by_id(self, topic: str, listener_id: int) -> asyncio.Task:
+    def remove_listener_by_id(self, topic: str, listener_id: int) -> asyncio.Task[None]:
         """Remove a listener by its ID."""
         return self.task_bucket.spawn(self.router.remove_listener_by_id(topic, listener_id), name="bus:remove_listener")
 
-    def remove_listeners_by_owner(self, owner: str) -> asyncio.Task:
+    def remove_listeners_by_owner(self, owner: str) -> asyncio.Task[None]:
         """Remove all listeners owned by a specific owner."""
         return self.task_bucket.spawn(self.router.clear_owner(owner), name="bus:remove_listeners_by_owner")
 
-    def get_listeners_by_owner(self, owner: str) -> asyncio.Task:
+    def get_listeners_by_owner(self, owner: str) -> asyncio.Task[list["Listener"]]:
         """Get all listeners owned by a specific owner."""
         return self.task_bucket.spawn(self.router.get_listeners_by_owner(owner), name="bus:get_listeners_by_owner")
 

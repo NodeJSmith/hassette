@@ -11,6 +11,7 @@ from hassette.types import topics
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.bus import Subscription
     from hassette.events import HassStateDict
 
 LOGGER = getLogger(__name__)
@@ -20,6 +21,7 @@ class StateProxy(Resource):
     states: dict[str, "HassStateDict"]
     lock: FairAsyncRLock
     bus: Bus
+    state_change_sub: "Subscription | None"
 
     @classmethod
     def create(cls, hassette: "Hassette", parent: "Resource"):
@@ -36,6 +38,7 @@ class StateProxy(Resource):
         inst.states = {}
         inst.lock = FairAsyncRLock()
         inst.bus = inst.add_child(Bus, priority=100)
+        inst.state_change_sub = None
         return inst
 
     @property
@@ -57,9 +60,7 @@ class StateProxy(Resource):
 
         self.logger.debug("Dependencies ready, performing initial state sync")
 
-        # Subscribe to events with high priority before syncing to avoid race conditions
-        # Priority 100 ensures state proxy updates before app handlers (priority 0)
-        self.bus.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
+        self.subscribe_to_events()
 
         self.bus.on_websocket_connected(handler=self.on_reconnect)
         self.bus.on_websocket_disconnected(handler=self.on_disconnect)
@@ -73,6 +74,9 @@ class StateProxy(Resource):
         except Exception as e:
             self.logger.exception("Failed to perform initial state sync: %s", e)
             raise
+
+    def subscribe_to_events(self) -> None:
+        self.state_change_sub = self.bus.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
 
     async def on_shutdown(self) -> None:
         """Shutdown the state proxy and clean up resources."""
@@ -96,7 +100,7 @@ class StateProxy(Resource):
         """
         if not self.is_ready():
             raise ResourceNotReadyError(
-                f"StateProxy is not ready (status: {self.status}). "
+                f"StateProxy is not ready (reason: {self._ready_reason}). "
                 "Call await state_proxy.wait_until_ready() before accessing states."
             )
 
@@ -118,7 +122,7 @@ class StateProxy(Resource):
         """
         if not self.is_ready():
             raise ResourceNotReadyError(
-                f"StateProxy is not ready (status: {self.status}). "
+                f"StateProxy is not ready (reason: {self._ready_reason}). "
                 "Call await state_proxy.wait_until_ready() before accessing states."
             )
 
@@ -184,6 +188,9 @@ class StateProxy(Resource):
         self.logger.info("WebSocket disconnected, clearing state cache")
         async with self.lock:
             self.states.clear()
+        if self.state_change_sub is not None:
+            self.state_change_sub.cancel()
+            self.state_change_sub = None
         self.mark_not_ready(reason="Disconnected")
 
     async def on_reconnect(self) -> None:
@@ -197,6 +204,7 @@ class StateProxy(Resource):
             await self._load_cache()
 
             self.logger.info("State resync complete, tracking %d entities", len(self.states))
+            self.subscribe_to_events()
             self.mark_ready(reason="Connected")
 
         except Exception as e:

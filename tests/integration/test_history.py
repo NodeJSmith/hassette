@@ -7,7 +7,7 @@ from whenever import PlainDateTime
 from hassette.api import Api
 from hassette.test_utils.test_server import SimpleTestServer
 
-TEST_DATA_PATH = Path.cwd().joinpath("tests", "data")
+TEST_DATA_PATH = Path.cwd().joinpath("tests", "data", "api_responses")
 
 history_raw = json.loads((TEST_DATA_PATH / "full_history.json").read_text())
 history_minimal_raw = json.loads((TEST_DATA_PATH / "minimal_history.json").read_text())

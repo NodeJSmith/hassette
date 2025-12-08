@@ -70,7 +70,7 @@ class TaskBucket(Resource):
         task.add_done_callback(lambda t: self._tasks.discard(t))
         task.add_done_callback(_done)
 
-    def spawn(self, coro: CoroLikeT, *, name: str | None = None) -> asyncio.Task[Any]:
+    def spawn(self, coro: CoroLikeT[T], *, name: str | None = None) -> asyncio.Task[T]:
         """Convenience: create and track a new task."""
         self.logger.debug("Spawning task %s in bucket %s", name or repr(coro), self.unique_name)
         current_thread = threading.get_ident()
@@ -89,7 +89,7 @@ class TaskBucket(Resource):
                     self.hassette._loop_thread_id,
                 )
             # Cross-thread: create the task on the real loop thread and wait for the handle
-            result: Future[asyncio.Task[Any]] = Future()
+            result: Future[asyncio.Task[T]] = Future()
 
             def _create() -> None:
                 try:

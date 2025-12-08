@@ -135,24 +135,28 @@ class Bus(Resource):
         inst.mark_ready(reason="Bus initialized")
         return inst
 
+    async def on_shutdown(self) -> None:
+        """Cleanup all listeners owned by this bus's owner on shutdown."""
+        await self.remove_all_listeners()
+
     @property
     def config_log_level(self):
         """Return the log level from the config for this resource."""
         return self.hassette.config.bus_service_log_level
 
-    def add_listener(self, listener: "Listener") -> asyncio.Task:
+    def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Add a listener to the bus."""
         return self.bus_service.add_listener(listener)
 
-    def remove_listener(self, listener: "Listener") -> asyncio.Task:
+    def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus."""
         return self.bus_service.remove_listener(listener)
 
-    def remove_all_listeners(self) -> asyncio.Task:
+    def remove_all_listeners(self) -> asyncio.Task[None]:
         """Remove all listeners owned by this bus's owner."""
         return self.bus_service.remove_listeners_by_owner(self.owner_id)
 
-    def get_listeners(self) -> asyncio.Task:
+    def get_listeners(self) -> asyncio.Task[list["Listener"]]:
         """Get all listeners owned by this bus's owner."""
         return self.bus_service.get_listeners_by_owner(self.owner_id)
 

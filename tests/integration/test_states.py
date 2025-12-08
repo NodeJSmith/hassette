@@ -20,31 +20,28 @@ from hassette.test_utils.helpers import (
 )
 from hassette.types import topics
 
+from ..base_classes import StatesTestCase  # noqa: TID252
+
 if TYPE_CHECKING:
     from hassette import Hassette
 
 
-class TestStatesClassInit:
+class TestStatesClassInit(StatesTestCase):
     """Tests for States class initialization."""
 
     async def test_create_returns_instance(self, hassette_with_state_proxy: "Hassette") -> None:
         """States.create returns a configured States instance."""
-        hassette = hassette_with_state_proxy
+        self.setup_hassette(hassette_with_state_proxy)
 
-        # Create a States instance
-        states_instance = States.create(hassette, hassette)
-
-        assert isinstance(states_instance, States)
-        assert states_instance.hassette is hassette
+        assert isinstance(self.states_instance, States)
+        assert self.states_instance.hassette is self.hassette
 
     async def test_accesses_state_proxy(self, hassette_with_state_proxy: "Hassette") -> None:
         """States instance accesses the StateProxy."""
-        hassette = hassette_with_state_proxy
-
-        states_instance = States.create(hassette, hassette)
+        self.setup_hassette(hassette_with_state_proxy)
 
         # Should be able to access state proxy
-        assert states_instance._state_proxy is hassette._state_proxy
+        assert self.states_instance._state_proxy is self.proxy
 
 
 class TestStatesDomainAccessors:
