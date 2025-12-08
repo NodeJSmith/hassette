@@ -242,12 +242,16 @@ class BoolStateValue(BaseStateValue[bool]):
             return cls(value)
 
         if isinstance(value, str):
-            if value.lower() == "on":
-                return cls(True)
-            if value.lower() == "off":
-                return cls(False)
+            lower_val = value.lower()
+            match lower_val:
+                case "on" | "true" | "yes" | "1":
+                    return cls(True)
+                case "off" | "false" | "no" | "0":
+                    return cls(False)
+                case _:
+                    pass
 
-        raise ValueError(f"State must be a boolean or 'on'/'off' string, got {value!r}")
+        raise ValueError(f"State must be a boolean-like value, got {value!r}")
 
 
 class NumericStateValue(BaseStateValue[Decimal]):
