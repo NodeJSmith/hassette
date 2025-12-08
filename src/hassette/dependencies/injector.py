@@ -5,7 +5,7 @@ import logging
 import typing
 from typing import Any
 
-from hassette.exceptions import DependencyInjectionError, DependencyResolutionError
+from hassette.exceptions import DependencyError, DependencyInjectionError, DependencyResolutionError
 from hassette.utils.type_utils import get_optional_type_arg, is_optional_type
 
 from .extraction import AnnotationDetails, extract_from_signature, validate_di_signature
@@ -70,7 +70,7 @@ class ParameterInjector:
                 kwargs[param_name] = self._extract_and_convert_parameter(
                     event, param_name, param_type, annotation_details
                 )
-            except (DependencyInjectionError, DependencyResolutionError):
+            except DependencyError:
                 # Already formatted, just re-raise
                 raise
             except Exception as e:
