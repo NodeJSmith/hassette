@@ -1,10 +1,12 @@
 import logging
 import typing
-from dataclasses import dataclass, field
-from typing import Any, Literal, Self
+from dataclasses import asdict, dataclass, field
+from typing import Any, Generic, Literal
 
 from hassette.const import MISSING_VALUE
+from hassette.core.state_registry import convert_state_dict_to_model
 from hassette.events.base import Event, HassPayload
+from hassette.models.states import StateT
 from hassette.types import topics
 
 from .raw import HassEventEnvelopeDict, HassStateDict
@@ -150,82 +152,24 @@ class RawStateChangePayload:
         """Extract the domain from the entity_id."""
         return self.entity_id.split(".", 1)[0]
 
-    @classmethod
-    def create_from_event(
-        cls, entity_id: str, old_state: HassStateDict | None = None, new_state: HassStateDict | None = None
-    ) -> Self:
-        if entity_id is None:
-            raise ValueError("State change event data must contain 'entity_id' key")
 
-        return cls(entity_id=entity_id, old_state=old_state, new_state=new_state)
+@dataclass(slots=True, frozen=True)
+class TypedStateChangePayload(Generic[StateT]):
+    """Payload for a state_changed event in Home Assistant, with typed state data."""
 
+    entity_id: str
+    """The entity ID of the entity that changed state."""
 
-# @dataclass(slots=True, frozen=True)
-# class TypedStateChangePayload(Generic[StateT]):
-#     """Payload for a state_changed event in Home Assistant, with typed state data."""
+    old_state: StateT | None
+    """The previous state of the entity before it changed. Omitted if the state is set for the first time."""
 
-#     entity_id: str
-#     """The entity ID of the entity that changed state."""
+    new_state: StateT | None
+    """The new state of the entity. Omitted if the state has been removed."""
 
-#     old_state: StateT | None
-#     """The previous state of the entity before it changed. Omitted if the state is set for the first time."""
-
-#     new_state: StateT | None
-#     """The new state of the entity. Omitted if the state has been removed."""
-
-#     @property
-#     def state_value_has_changed(self) -> bool:
-#         """Check if the state value has changed between old and new states.
-
-#         Appropriately handles cases where either state may be None.
-
-#         Returns:
-#             True if the state value has changed, False otherwise.
-#         """
-#         return self.old_state_value != self.new_state_value
-
-#     @property
-#     def new_state_value(self) -> "Any | FalseySentinel":
-#         """Return the value of the new state, or MISSING_VALUE if not present."""
-#         return self.new_state.value if self.new_state is not None else MISSING_VALUE
-
-#     @property
-#     def old_state_value(self) -> "Any | FalseySentinel":
-#         """Return the value of the old state, or MISSING_VALUE if not present."""
-#         return self.old_state.value if self.old_state is not None else MISSING_VALUE
-
-#     @property
-#     def has_new_state(self) -> bool:
-#         """Check if the new state is not None - not a TypeGuard."""
-#         return self.new_state is not None
-
-#     @property
-#     def has_old_state(self) -> bool:
-#         """Check if the old state is not None - not a TypeGuard."""
-#         return self.old_state is not None
-
-#     @property
-#     def domain(self) -> str:
-#         """Extract the domain from the entity_id."""
-#         return self.entity_id.split(".", 1)[0]
-
-#     @classmethod
-#     def create_from_event(
-#         cls, entity_id: str, old_state: HassStateDict | None = None, new_state: HassStateDict | None = None
-#     ) -> Self:
-#         if entity_id is None:
-#             raise ValueError("State change event data must contain 'entity_id' key")
-
-#         registry = get_state_registry()
-
-#         new_state_obj = registry.try_convert_state(new_state) if new_state is not None else None
-#         old_state_obj = registry.try_convert_state(old_state) if old_state is not None else None
-
-#         return cls(entity_id=entity_id, old_state=old_state_obj, new_state=new_state_obj)  # pyright: ignore
-
-
-# class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]]):
-#     """Event representing a state change in Home Assistant, with typed state data."""
+    @property
+    def domain(self) -> str:
+        """Extract the domain from the entity_id."""
+        return self.entity_id.split(".", 1)[0]
 
 
 class RawStateChangeEvent(Event[HassPayload[RawStateChangePayload]]):
@@ -290,7 +234,7 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
         case "state_changed":
             return RawStateChangeEvent(
                 topic=topics.HASS_EVENT_STATE_CHANGED,
-                payload=HassPayload(**event_payload, data=RawStateChangePayload.create_from_event(**event_data)),
+                payload=HassPayload(**event_payload, data=RawStateChangePayload(**event_data)),
             )
 
         case "call_service":
@@ -343,6 +287,33 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
 
     # fallback to generic event
     return Event(topic=f"hass.event.{event_type}", payload=HassPayload(**event_payload, data=event_data))
+
+
+class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]]):
+    """Event representing a state change in Home Assistant, with typed state data.
+
+    This is not used directly; use the TypedStateChangeEvent annotation in dependencies instead.
+    """
+
+    @classmethod
+    def create_typed_state_change_event(cls, event: "RawStateChangeEvent", to_type: type):
+        entity_id = event.payload.data.entity_id
+        old_state = event.payload.data.old_state
+        new_state = event.payload.data.new_state
+
+        if entity_id is None:
+            raise ValueError("State change event data must contain 'entity_id' key")
+
+        new_state_obj = convert_state_dict_to_model(new_state, to_type) if new_state is not None else None
+        old_state_obj = convert_state_dict_to_model(old_state, to_type) if old_state is not None else None
+        curr_payload = {k: v for k, v in asdict(event.payload).items() if k != "data"}
+        payload = TypedStateChangePayload[StateT](
+            entity_id=entity_id,
+            old_state=old_state_obj,  # type: ignore
+            new_state=new_state_obj,  # type: ignore
+        )
+
+        return TypedStateChangeEvent(topic=event.topic, payload=HassPayload(**curr_payload, data=payload))
 
 
 type HassEvent = Event[HassPayload[Any]]
