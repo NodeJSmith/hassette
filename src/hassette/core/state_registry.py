@@ -281,3 +281,29 @@ class StateRegistry(Resource):
                 tb,
             )
             raise UnableToConvertStateError(entity_id, state_class) from e
+
+
+def convert_state_dict_to_model(value: typing.Any, model: type["BaseState"]) -> "BaseState":
+    """Convert a raw Home Assistant state dict to a typed state model.
+
+    This converter is used by state object extractors (StateNew, StateOld, etc.) to transform
+    the raw state dictionary from Home Assistant into a strongly-typed Pydantic model.
+
+    Args:
+        value: The raw state dict from Home Assistant
+        model: The target state model class (e.g., LightState, SensorState)
+
+    Returns:
+        The typed state model instance
+
+    Raises:
+        TypeError: If value is not a dict or model instance
+        ValidationError: If the state dict doesn't match the model schema
+    """
+    if isinstance(value, model):
+        return value
+
+    if not isinstance(value, dict):
+        raise TypeError(f"Cannot convert {type(value).__name__} to {model.__name__}, expected dict")
+
+    return model.model_validate(value)

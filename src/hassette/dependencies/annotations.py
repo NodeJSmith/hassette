@@ -16,6 +16,7 @@ from hassette.context import get_state_registry, get_type_registry
 from hassette.events import CallServiceEvent, Event, HassContext
 from hassette.exceptions import DependencyResolutionError, DomainNotFoundError, InvalidEntityIdError
 from hassette.models.states import BaseState, StateT
+from hassette.core.state_registry import convert_state_dict_to_model
 
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
@@ -69,32 +70,6 @@ def ensure_present(accessor: Callable[[T], R]) -> Callable[[T], R]:
         return result
 
     return wrapper
-
-
-def convert_state_dict_to_model(value: Any, model: type[BaseState]) -> BaseState:
-    """Convert a raw Home Assistant state dict to a typed state model.
-
-    This converter is used by state object extractors (StateNew, StateOld, etc.) to transform
-    the raw state dictionary from Home Assistant into a strongly-typed Pydantic model.
-
-    Args:
-        value: The raw state dict from Home Assistant
-        model: The target state model class (e.g., LightState, SensorState)
-
-    Returns:
-        The typed state model instance
-
-    Raises:
-        DependencyResolutionError: If value is not a dict or model instance
-        ValidationError: If the state dict doesn't match the model schema
-    """
-    if isinstance(value, model):
-        return value
-
-    if not isinstance(value, dict):
-        raise DependencyResolutionError(f"Cannot convert {type(value).__name__} to {model.__name__}, expected dict")
-
-    return model.model_validate(value)
 
 
 def convert_state_dict_to_model_inferred(value: Any) -> BaseState:
