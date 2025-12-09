@@ -1,17 +1,16 @@
 import asyncio
 import inspect
 from dataclasses import dataclass
-from typing import Annotated
 
 import pytest
 
 from hassette import dependencies as D
 from hassette.bus.listeners import HandlerAdapter, Listener
-from hassette.events import Event, RawStateChangeEvent
+from hassette.events import Event
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.task_bucket import TaskBucket
-from hassette.test_utils.helpers import make_full_state_change_event, make_light_state_dict
+from hassette.test_utils.helpers import make_full_state_change_event, make_light_state_dict, make_state_dict
 
 
 @dataclass(frozen=True, slots=True)
@@ -365,18 +364,9 @@ class TestDependencyValidationErrors:
     async def test_required_state_with_none_raises_error(self, bucket_fixture: TaskBucket):
         """Test that using StateNew with None value raises DependencyResolutionError."""
 
-        # Create a mock RawStateChangeEvent where new_state is None
-        from hassette.events.base import HassPayload
-        from hassette.events.hass.hass import RawStateChangePayload
-
-        payload = HassPayload(
-            event_type="state_changed",
-            data=RawStateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
-            origin="LOCAL",
-            time_fired="2024-01-01T00:00:00+00:00",
-            context={"id": "test", "parent_id": None, "user_id": None},
-        )
-        event = RawStateChangeEvent(topic="hass.event.state_changed", payload=payload)
+        # Create mock states
+        old_state = make_state_dict(entity_id="test.entity", state="off")
+        state_change_event = make_full_state_change_event("test.entity", old_state, None)
 
         calls = []
 
@@ -388,24 +378,16 @@ class TestDependencyValidationErrors:
 
         # Should raise DependencyResolutionError when new_state is None
         with pytest.raises(DependencyResolutionError):
-            await adapter.call(event)
+            await adapter.call(state_change_event)
 
         assert len(calls) == 0  # Handler should not be called
 
     async def test_maybe_state_with_none_succeeds(self, bucket_fixture: TaskBucket):
         """Test that using MaybeStateNew with None value succeeds."""
 
-        from hassette.events.base import HassPayload
-        from hassette.events.hass.hass import RawStateChangePayload
-
-        payload = HassPayload(
-            event_type="state_changed",
-            data=RawStateChangePayload(entity_id="test.entity", old_state=None, new_state=None),
-            origin="LOCAL",
-            time_fired="2024-01-01T00:00:00+00:00",
-            context={"id": "test", "parent_id": None, "user_id": None},
-        )
-        event = RawStateChangeEvent(topic="hass.event.state_changed", payload=payload)
+        # Create mock states
+        old_state = make_state_dict(entity_id="test.entity", state="off")
+        state_change_event = make_full_state_change_event("test.entity", old_state, None)
 
         calls = []
 
@@ -416,7 +398,7 @@ class TestDependencyValidationErrors:
         adapter = create_adapter(async_handler, bucket_fixture)
 
         # Should succeed
-        await adapter.call(event)
+        await adapter.call(state_change_event)
 
         assert len(calls) == 1
         assert calls[0] is None
@@ -424,38 +406,10 @@ class TestDependencyValidationErrors:
     async def test_mixed_maybe_and_required_all_succeed(self, bucket_fixture: TaskBucket):
         """Test handler with both Maybe and required deps when all resolve."""
 
-        from hassette.events.base import HassPayload
-        from hassette.events.hass.hass import RawStateChangePayload
-        from hassette.models.states.base import BaseState
-
         # Create mock states
-        old_state = BaseState(
-            entity_id="test.entity",
-            value="off",
-            last_changed="2024-01-01T00:00:00+00:00",
-            last_reported="2024-01-01T00:00:00+00:00",
-            last_updated="2024-01-01T00:00:00+00:00",
-            context={"id": "test", "parent_id": None, "user_id": None},
-            attributes={},
-        )
-        new_state = BaseState(
-            entity_id="test.entity",
-            value="on",
-            last_changed="2024-01-01T00:00:01+00:00",
-            last_reported="2024-01-01T00:00:01+00:00",
-            last_updated="2024-01-01T00:00:01+00:00",
-            context={"id": "test2", "parent_id": None, "user_id": None},
-            attributes={},
-        )
-
-        payload = HassPayload(
-            event_type="state_changed",
-            data=RawStateChangePayload(entity_id="test.entity", old_state=old_state, new_state=new_state),
-            origin="LOCAL",
-            time_fired="2024-01-01T00:00:01+00:00",
-            context={"id": "test", "parent_id": None, "user_id": None},
-        )
-        event = RawStateChangeEvent(topic="hass.event.state_changed", payload=payload)
+        old_state = make_state_dict(entity_id="test.entity", state="off")
+        new_state = make_state_dict(entity_id="test.entity", state="on")
+        state_change_event = make_full_state_change_event("test.entity", old_state, new_state)
 
         results = []
 
@@ -469,7 +423,7 @@ class TestDependencyValidationErrors:
         async_handler = bucket_fixture.make_async_adapter(handler)
         adapter = create_adapter(async_handler, bucket_fixture)
 
-        await adapter.call(event)
+        await adapter.call(state_change_event)
 
         assert len(results) == 1
         new, old, eid = results[0]
@@ -487,10 +441,8 @@ class TestDependencyValidationErrors:
 
         calls = []
 
-        def handler(
-            new_state: D.StateNew[states.BaseState],  # Will fail
-            entity_id: D.EntityId,  # Would succeed
-        ):
+        # StateNew will fail, EntityId will succeed
+        def handler(new_state: D.StateNew[states.BaseState], entity_id: D.EntityId):
             calls.append((new_state, entity_id))
 
         async_handler = bucket_fixture.make_async_adapter(handler)
@@ -500,67 +452,3 @@ class TestDependencyValidationErrors:
             await adapter.call(event)
 
         assert len(calls) == 0
-
-    async def test_attr_is_injected_correctly(self, bucket_fixture: TaskBucket):
-        """Test that attribute dependencies are injected correctly."""
-
-        old_dict = make_light_state_dict("light.test", "on", brightness=100)
-
-        # make and send update event
-        event = make_full_state_change_event(
-            "light.test",
-            old_dict,
-            make_light_state_dict("light.test", "on", brightness=200),
-        )
-        results = []
-
-        def handler(
-            new_brightness: Annotated[int | None, D.AttrNew("brightness")],  # Should be 200
-            old_brightness: Annotated[int | None, D.AttrOld("brightness")],  # Should be 100
-        ):
-            results.append((new_brightness, old_brightness))
-
-        async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = create_adapter(async_handler, bucket_fixture)
-
-        await adapter.call(event)
-
-        assert len(results) == 1
-        new_brightness, old_brightness = results[0]
-        assert new_brightness == 200
-        assert old_brightness == 100
-
-    async def test_useful_error_raised_if_attr_not_used_with_annotation(self, bucket_fixture: TaskBucket):
-        """Test that useful error is raised if AttrNew/AttrOld used without Annotated.
-
-        This is a reminder to implement this
-        """
-
-        old_dict = make_light_state_dict("light.test", "on", brightness=100)
-
-        # make and send update event
-        event = make_full_state_change_event(
-            "light.test",
-            old_dict,
-            make_light_state_dict("light.test", "on", brightness=200),
-        )
-        results = []
-
-        def handler(
-            new_brightness: D.AttrNew("brightness"),  # Should be 200
-            old_brightness: D.AttrOld("brightness"),  # Should be 100
-        ):
-            results.append((new_brightness, old_brightness))
-
-        async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = create_adapter(async_handler, bucket_fixture)
-
-        with pytest.raises(
-            DependencyResolutionError, match=r"Attribute dependencies must be used with typing.Annotated"
-        ):
-            await adapter.call(event)
-
-        assert len(results) == 1
-        new_brightness, old_brightness = results[0]
-        assert new_brightness == 200
-        assert old_brightness == 100

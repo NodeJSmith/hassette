@@ -26,8 +26,6 @@ EXCLUDE_CLASSES = [
 
 STATES_PATH = Path(states.__file__).parent
 
-print(f"States models are located in: {STATES_PATH}")
-
 
 @pytest.fixture(scope="module")
 def all_models():

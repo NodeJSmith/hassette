@@ -2,12 +2,12 @@
 
 import inspect
 from collections import defaultdict
-from contextlib import suppress
 from typing import Annotated
 
 import pytest
 
 from hassette import MISSING_VALUE
+from hassette import accessors as A
 from hassette import dependencies as D
 from hassette.context import get_state_registry
 from hassette.dependencies.extraction import (
@@ -26,8 +26,15 @@ from hassette.exceptions import (
     DependencyResolutionError,
 )
 from hassette.models import states
-from hassette.types.state_value import BaseStateValue
 from hassette.utils.type_utils import get_typed_signature
+
+
+def get_random_model(exclude_models: list[type[states.BaseState]]) -> type[states.BaseState]:
+    all_models = [states.LightState, states.SwitchState, states.SensorState]
+    for model in all_models:
+        if model not in exclude_models:
+            return model
+    return states.BaseState  # Fallback, should not happen in this test
 
 
 @pytest.mark.usefixtures("with_state_registry")
@@ -66,86 +73,6 @@ class TestTypeDetection:
 
 
 @pytest.mark.usefixtures("with_state_registry")
-class TestParameterizedExtractors:
-    """Test parameterized extractor classes (AttrNew, AttrOld, AttrOldAndNew)."""
-
-    def test_attr_new_extractor(self, state_change_events: list[RawStateChangeEvent]):
-        """Test AttrNew extracts attribute from new state."""
-        # Find an event with friendly_name in new_state
-        event = next(
-            (
-                e
-                for e in state_change_events
-                if e.payload.data.new_state and "friendly_name" in e.payload.data.new_state.get("attributes", {})
-            ),
-            None,
-        )
-        assert event is not None, "No events with friendly_name found"
-
-        param_details_dict = D.AttrNew("friendly_name")
-        result = param_details_dict.extractor(event)
-        assert result is not None
-        assert result == event.payload.data.new_state.get("attributes", {}).get("friendly_name")
-
-    def test_attr_new_extractor_missing_attribute(self, state_change_events: list[RawStateChangeEvent]):
-        """Test AttrNew returns MISSING_VALUE for missing attribute."""
-        # Find an event where new_state does not have 'non_existent_attr'
-        event = next(
-            (
-                e
-                for e in state_change_events
-                if e.payload.data.new_state
-                and "non_existent_attr" not in e.payload.data.new_state.get("attributes", {})
-            ),
-            None,
-        )
-        assert event is not None, "No suitable event found"
-
-        param_details_dict = D.AttrNew("non_existent_attr")
-
-        result = param_details_dict.extractor(event)
-
-        assert result is MISSING_VALUE
-
-    def test_attr_old_extractor(self, state_change_events: list[RawStateChangeEvent]):
-        """Test AttrOld extracts attribute from old state."""
-        # Find an event with old_state and friendly_name
-        event = next(
-            (
-                e
-                for e in state_change_events
-                if e.payload.data.old_state and "friendly_name" in e.payload.data.old_state.get("attributes", {})
-            ),
-            None,
-        )
-        assert event is not None, "No events with old_state and friendly_name found"
-
-        param_details_dict = D.AttrOld("friendly_name")
-        result = param_details_dict.extractor(event)
-        assert result is not None
-        assert result == event.payload.data.old_state.get("attributes", {}).get("friendly_name")
-
-    def test_attr_new_with_different_types(self, state_change_events: list[RawStateChangeEvent]):
-        """Test AttrNew with different attribute types."""
-        # Test with editable (boolean)
-        event = next(
-            (
-                e
-                for e in state_change_events
-                if e.payload.data.new_state and "editable" in e.payload.data.new_state.get("attributes", {})
-            ),
-            None,
-        )
-
-        if not event:
-            raise AssertionError("No events with 'editable' attribute found")
-
-        param_details_dict = D.AttrNew("editable")
-        result = param_details_dict.extractor(event)
-        assert isinstance(result, bool)
-
-
-@pytest.mark.usefixtures("with_state_registry")
 class TestTypeAliasExtractors:
     """Test pre-defined type alias extractors (EntityId, Domain, etc.)."""
 
@@ -153,7 +80,7 @@ class TestTypeAliasExtractors:
         """Test EntityId type alias extracts entity_id."""
 
         # get an event of each type
-        event_types = defaultdict(list)
+        event_types: defaultdict[type[Event], list[Event]] = defaultdict(list)
         for event in all_events:
             if "automation_reloaded" in event.topic:
                 continue
@@ -208,17 +135,6 @@ class TestTypeAliasExtractors:
                 # check only for "not MISSING_VALUE", as we get domain from a few different places
                 # and the test shouldn't need to be aware of that
                 assert result is not MISSING_VALUE, f"Domain extractor returned MISSING_VALUE for event: {event}"
-
-    def test_service_data_extractor(self, other_events: list[Event]):
-        """Test ServiceData type alias extracts service data from CallServiceEvent."""
-        call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
-        assert call_service_event is not None, "No CallServiceEvent found in test data"
-
-        _, annotation_details = extract_from_annotated(D.ServiceData)
-        result = annotation_details.extractor(call_service_event)
-
-        assert isinstance(result, dict)
-        assert result == call_service_event.payload.data.service_data
 
     def test_event_context_extractor(self, state_change_events: list[RawStateChangeEvent]):
         """Test EventContext type alias extracts context."""
@@ -300,34 +216,6 @@ class TestExtractFromEventType:
 class TestSignatureExtraction:
     """Test signature extraction and validation."""
 
-    def test_extract_from_signature_with_annotation(self, state_change_events: list[RawStateChangeEvent]):
-        """Test extracting parameters with Annotation from signature."""
-
-        def handler(
-            new_state: D.StateNew[states.LightState],
-            friendly_name: Annotated[str, D.AttrNew("friendly_name")],
-        ):
-            pass
-
-        signature = get_typed_signature(handler)
-        param_details_dict = extract_from_signature(signature)
-
-        assert len(param_details_dict) == 2
-        assert "new_state" in param_details_dict
-        assert "friendly_name" in param_details_dict
-
-        new_state_type, annotation_details = param_details_dict["new_state"]
-        new_state_extractor = annotation_details.extractor
-        assert new_state_type is states.LightState
-        # Verify the extractor is wrapped (due to StateNew being required)
-        # Check that it still extracts correctly by testing with a real event
-        test_event = next(
-            e for e in state_change_events if e.payload.data.new_state is not None and e.payload.data.domain == "light"
-        )
-        extracted_state = new_state_extractor(test_event)
-        assert extracted_state is not None
-        assert extracted_state == test_event.payload.data.new_state
-
     def test_extract_from_signature_with_event_type(self):
         """Test extracting Event-typed parameters from signature."""
 
@@ -367,10 +255,7 @@ class TestSignatureExtraction:
     def test_extract_from_signature_with_kwargs(self):
         """Test that **kwargs is allowed."""
 
-        def handler(
-            new_state: D.StateNew[states.LightState],
-            **kwargs,
-        ):
+        def handler(new_state: D.StateNew[states.LightState], **kwargs):
             pass
 
         signature = get_typed_signature(handler)
@@ -425,11 +310,7 @@ class TestSignatureValidation:
     def test_validate_di_signature_valid(self):
         """Test that valid DI signatures don't raise."""
 
-        def handler(
-            new_state: D.StateNew[states.LightState],
-            entity_id: D.EntityId,
-            **kwargs,
-        ):
+        def handler(new_state: D.StateNew[states.LightState], entity_id: D.EntityId, **kwargs):
             pass
 
         signature = get_typed_signature(handler)
@@ -439,10 +320,7 @@ class TestSignatureValidation:
     def test_validate_di_signature_with_var_positional(self):
         """Test that *args raises ValueError."""
 
-        def handler(
-            new_state: D.StateNew[states.LightState],
-            *args,
-        ):
+        def handler(new_state: D.StateNew[states.LightState], *args):
             pass
 
         signature = get_typed_signature(handler)
@@ -452,109 +330,12 @@ class TestSignatureValidation:
     def test_validate_di_signature_with_positional_only(self):
         """Test that positional-only parameters raise ValueError."""
 
-        def handler(
-            new_state: D.StateNew[states.LightState],
-            positional_only,
-            /,
-        ):
+        def handler(new_state: D.StateNew[states.LightState], positional_only, /):
             pass
 
         signature = get_typed_signature(handler)
         with pytest.raises(DependencyInjectionError):
             validate_di_signature(signature)
-
-
-@pytest.mark.usefixtures("with_state_registry")
-class TestEndToEndDI:
-    """End-to-end tests with real event data."""
-
-    def test_extract_multiple_attributes_from_event(self, state_change_events: list[RawStateChangeEvent]):
-        """Test extracting multiple pieces of data from same event."""
-        # Find suitable event
-        event = next(
-            (
-                e
-                for e in state_change_events
-                if e.payload.data.new_state and "friendly_name" in e.payload.data.new_state.get("attributes", {})
-            ),
-            None,
-        )
-        assert event is not None
-
-        # Define handler signature
-        def handler(
-            new_state: D.StateNew[states.BaseState],
-            entity_id: D.EntityId,
-            friendly_name: Annotated[str, D.AttrNew("friendly_name")],
-            context: D.EventContext,
-        ):
-            pass
-
-        # Extract from signature
-        signature = get_typed_signature(handler)
-        param_details_dict = extract_from_signature(signature)
-
-        # Apply extractors to event
-        extracted_values = {name: details.extractor(event) for name, (_, details) in param_details_dict.items()}
-
-        assert extracted_values["new_state"] == event.payload.data.new_state
-        assert extracted_values["entity_id"] == event.payload.data.entity_id
-        assert extracted_values["friendly_name"] == event.payload.data.new_state.get("attributes", {}).get(
-            "friendly_name"
-        )
-        assert extracted_values["context"] == event.payload.context
-
-    def test_extract_from_call_service_event(self, other_events: list[Event]):
-        """Test extraction from CallServiceEvent."""
-        event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
-        assert event is not None
-
-        def handler(
-            domain: D.Domain,
-            service_data: D.ServiceData,
-        ):
-            pass
-
-        signature = get_typed_signature(handler)
-        param_details_dict = extract_from_signature(signature)
-        extracted_values = {name: details.extractor(event) for name, (_, details) in param_details_dict.items()}
-
-        assert extracted_values["domain"] == event.payload.data.domain
-        assert extracted_values["service_data"] == event.payload.data.service_data
-
-    def test_mixed_di_strategies_in_one_handler(self, state_change_events: list[RawStateChangeEvent]):
-        """Test handler using multiple DI strategies together."""
-        event = next(
-            (
-                e
-                for e in state_change_events
-                if e.payload.data.new_state and "friendly_name" in e.payload.data.new_state.get("attributes", {})
-            ),
-            None,
-        )
-        assert event is not None
-
-        def handler(
-            event_param: RawStateChangeEvent,  # Event type (identity)
-            new_state: D.StateNew[states.BaseState],  # Annotation TypeAlias
-            friendly_name: Annotated[str, D.AttrNew("friendly_name")],  # Parameterized extractor
-            entity_id: D.EntityId,  # Type alias with accessor
-        ):
-            pass
-
-        signature = get_typed_signature(handler)
-        param_details_dict = extract_from_signature(signature)
-
-        assert len(param_details_dict) == 4
-        extracted_values = {name: details.extractor(event) for name, (_, details) in param_details_dict.items()}
-
-        # All strategies should work together
-        assert extracted_values["event_param"] is event
-        assert extracted_values["new_state"] == event.payload.data.new_state
-        assert extracted_values["friendly_name"] == event.payload.data.new_state.get("attributes", {}).get(
-            "friendly_name"
-        )
-        assert extracted_values["entity_id"] == event.payload.data.entity_id
 
 
 @pytest.mark.usefixtures("with_state_registry")
@@ -627,17 +408,6 @@ class TestMaybeAnnotations:
         assert result is not MISSING_VALUE
         assert result == call_service_event.payload.data.domain
 
-    def test_maybe_service_with_value(self, other_events: list[Event]):
-        """Test MaybeService returns service name when present."""
-        call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
-        assert call_service_event is not None, "No CallServiceEvent found"
-
-        _, annotation_details = extract_from_annotated(D.MaybeService)
-        result = annotation_details.extractor(call_service_event)
-
-        assert result is not MISSING_VALUE
-        assert result == call_service_event.payload.data.service
-
 
 @pytest.mark.usefixtures("with_state_registry")
 class TestRequiredAnnotations:
@@ -688,8 +458,69 @@ class TestRequiredAnnotations:
 
 
 @pytest.mark.usefixtures("with_state_registry")
+class TestCustomDI:
+    """Test custom dependency injection extractors."""
+
+    def test_custom_extractor_used(self, state_change_events: list[RawStateChangeEvent]):
+        """Test that a custom extractor function is used."""
+
+        def custom_extractor(event: RawStateChangeEvent) -> str:
+            return f"custom-{event.payload.data.entity_id}"
+
+        annotation = Annotated[str, custom_extractor]
+
+        event = state_change_events[0]
+
+        base_type, annotation_details = extract_from_annotated(annotation)
+        result = annotation_details.extractor(event)
+
+        assert base_type is str
+        assert result == f"custom-{event.payload.data.entity_id}"
+
+    def test_attr_new_example_works(self, state_change_events: list[RawStateChangeEvent]):
+        """Test that custom extractor for attribute new value works."""
+
+        def handler(brightness: Annotated[float, A.get_attr_new("brightness")]):
+            print("Brightness changed to %s", brightness)
+
+        # Find event where new_state has brightness attribute
+        event = next(
+            (
+                e
+                for e in state_change_events
+                if e.payload.data.new_state and "brightness" in e.payload.data.new_state.get("attributes", {})
+            ),
+            None,
+        )
+        assert event is not None, "No event with brightness attribute in new_state found"
+
+        signature = get_typed_signature(handler)
+        injector = ParameterInjector(handler.__name__, signature)
+        kwargs = injector.inject_parameters(event)
+        result = kwargs["brightness"]
+
+        expected_brightness = event.payload.data.new_state.get("attributes", {}).get("brightness")
+
+        assert result == expected_brightness, f"Expected brightness {expected_brightness}, got {result}"
+
+
+@pytest.mark.usefixtures("with_state_registry")
 class TestDependencyInjectionHandlesTypeConversion:
     """Test that dependency injection handles type conversion correctly."""
+
+    async def test_raw_state_change_event_extractor_returns_event(self, state_change_events: list[RawStateChangeEvent]):
+        """Test that RawStateChangeEvent extractor returns the event as-is."""
+        for state_change_event in state_change_events:
+
+            def handler(event: RawStateChangeEvent):
+                pass
+
+            signature = get_typed_signature(handler)
+            injector = ParameterInjector(handler.__name__, signature)
+            kwargs = injector.inject_parameters(state_change_event)
+            result = kwargs["event"]
+
+            assert result is state_change_event, "Extractor should return the event as-is"
 
     async def test_state_conversion(self, state_change_events_with_new_state: list[RawStateChangeEvent]):
         """Test that StateNew converts BaseState to domain-specific state type."""
@@ -831,249 +662,95 @@ class TestDependencyInjectionHandlesTypeConversion:
             assert isinstance(new_state, model), f"New state should be {model.__name__}, got {type(new_state)}"
             assert isinstance(old_state, model), f"Old state should be {model.__name__}, got {type(old_state)}"
 
-    async def test_new_state_value_fails_when_invalid_value(
-        self, state_change_events_with_new_state: list[RawStateChangeEvent]
-    ):
-        """Test that StateValueNew raises when state value is invalid.
-
-        E.g. if state should be a ZonedDateTime but we get 'unknown', this should raise.
-        """
+    async def test_typed_state_change_event(self, state_change_events_with_new_state: list[RawStateChangeEvent]):
+        """Test TypedStateChangeEvent provides typed states."""
 
         for state_change_event in state_change_events_with_new_state:
-            new_state = state_change_event.payload.data.new_state
+            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
 
-            domain = state_change_event.payload.data.domain
-
-            state_class = get_state_registry().get_class_for_domain(domain)
-            state_value_type = get_state_registry().get_value_type_for_domain(domain)
-
-            # if we don't fail, continue to next event
-            with suppress(Exception):
-                state_class.model_validate(new_state)
-                continue
-
-            def handler(value: D.StateValueNew[state_value_type.python_type]):
-                pass
-
-            signature = get_typed_signature(handler)
-            injector = ParameterInjector(handler.__name__, signature)
-            with pytest.raises(DependencyResolutionError):
-                injector.inject_parameters(state_change_event)
-
-    async def test_maybe_new_state_value_allows_none(
-        self, state_change_events_with_new_state: list[RawStateChangeEvent]
-    ):
-        """Test that MaybeStateValueNew allows state value to be None."""
-
-        for state_change_event in state_change_events_with_new_state:
-            new_state = state_change_event.payload.data.new_state
-            if new_state.get("state") is not None:
-                continue
-
-            domain = state_change_event.payload.data.domain
-
-            state_value_type = get_state_registry().get_value_type_for_domain(domain)
-
-            def handler(value: D.MaybeStateValueNew[state_value_type.python_type]):
-                pass
-
-            signature = get_typed_signature(handler)
-            injector = ParameterInjector(handler.__name__, signature)
-            kwargs = injector.inject_parameters(state_change_event)
-            value = kwargs["value"]
-
-            assert value is None, "State value should be None when state is None"
-
-    async def test_new_state_value_raises_if_result_is_none(
-        self, state_change_events_with_new_state: list[RawStateChangeEvent]
-    ):
-        """Test that StateValueNew raises when state value is None."""
-
-        for state_change_event in state_change_events_with_new_state:
-            new_state = state_change_event.payload.data.new_state
-            if new_state.get("state") is not None:
-                continue
-
-            domain = state_change_event.payload.data.domain
-
-            state_class = get_state_registry().get_class_for_domain(domain)
-            state_value_type = get_state_registry().get_value_type_for_domain(domain)
-
-            try:
-                new_state_obj = state_class.model_validate(new_state)
-                # check this here since unknown and unavailable states will get converted to None
-                if new_state_obj.value is None:
-                    continue
-            except Exception:
-                continue
-
-            def handler(value: D.StateValueNew[state_value_type.python_type]):
-                pass
-
-            signature = get_typed_signature(handler)
-            injector = ParameterInjector(handler.__name__, signature)
-            print(state_change_event)
-            with pytest.raises(DependencyResolutionError):
-                injector.inject_parameters(state_change_event)
-
-    async def test_new_state_value_converted_to_correct_type(
-        self, state_change_events_with_new_state: list[RawStateChangeEvent]
-    ):
-        """Test that StateValueNew converts to correct Python type based on state value."""
-
-        for state_change_event in state_change_events_with_new_state:
-            new_state = state_change_event.payload.data.new_state
-
-            domain = state_change_event.payload.data.domain
-
-            state_class = get_state_registry().get_class_for_domain(domain)
-            state_value_type = get_state_registry().get_value_type_for_domain(domain)
-
-            try:
-                new_state_obj = state_class.model_validate(new_state)
-                # check this here since unknown and unavailable states will get converted to None
-                if new_state_obj.value is None:
-                    continue
-            except Exception:
-                continue
-
-            def handler(value: D.StateValueNew[state_value_type.python_type]):
-                pass
-
-            signature = get_typed_signature(handler)
-            injector = ParameterInjector(handler.__name__, signature)
-            kwargs = injector.inject_parameters(state_change_event)
-            value = kwargs["value"]
-
-            assert isinstance(value, state_value_type.python_type), (
-                f"State value should be converted to {state_value_type.python_type}, got {type(value)}"
-            )
-
-    async def test_old_state_value_converted_to_correct_type(
-        self, state_change_events_with_old_state: list[RawStateChangeEvent]
-    ):
-        """Test that StateValueOld converts to correct Python type based on state value."""
-        for state_change_event in state_change_events_with_old_state:
-            domain = state_change_event.payload.data.domain
-
-            state_value_type = get_state_registry().get_value_type_for_domain(domain)
-            if state_value_type.python_type is not state_value_type:
-                continue
-
-            def handler(value: D.StateValueOld[state_value_type.python_type]):
+            def handler(event: D.TypedStateChangeEvent[model]):
                 pass
 
             signature = get_typed_signature(handler)
             injector = ParameterInjector(handler.__name__, signature)
             kwargs = injector.inject_parameters(state_change_event)
 
-            value = kwargs["value"]
+            event = kwargs["event"]
+            new_state = event.payload.data.new_state
+            old_state = event.payload.data.old_state
 
-            assert isinstance(value, state_value_type.python_type), (
-                f"State value should be converted to {state_value_type.python_type}, got {type(value)}"
-            )
+            assert isinstance(new_state, model), f"New state should be {model.__name__}, got {type(new_state)}"
+            if old_state is not None:
+                assert isinstance(old_state, model), f"Old state should be {model.__name__}, got {type(old_state)}"
 
-
-def pytest_generate_tests(metafunc):
-    """Generate test parameters dynamically for tests that need state value types.
-
-    This module-level hook allows us to parametrize tests after TypeRegistry has been
-    built. Since the test uses session-scoped fixtures, we build the registries here
-    if they haven't been built yet.
-    """
-    # Only parametrize the specific test that needs state value types
-    if (
-        metafunc.cls is not None
-        and metafunc.cls.__name__ == "TestDependencyInjectionStateValueConversions"
-        and metafunc.function.__name__ == "test_state_value_new_conversion"
+    async def test_typed_annotation_with_wrong_type_raise_validation_error(
+        self, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
-        # Ensure TypeRegistry is built so known_types is populated
-        from unittest.mock import Mock
+        """Test TypedStateChangeEvent provides typed states."""
 
-        from hassette.context import get_hassette
-        from hassette.core.state_registry import StateRegistry
-        from hassette.core.type_registry import TypeRegistry
-        from hassette.types.state_value import (
-            BoolStateValue,
-            DateTimeStateValue,
-            NumericStateValue,
-            StrStateValue,
-            TimeStateValue,
-        )
+        for state_change_event in state_change_events_with_new_state:
+            correct_model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            incorrect_model = get_random_model([correct_model])
 
-        # Build registries if not already built (idempotent)
-        try:
-            curr_hassette = get_hassette()
-        except RuntimeError:
-            curr_hassette = Mock()
-            curr_hassette.config.log_level = "CRITICAL"
-            curr_hassette.config.task_bucket_log_level = "CRITICAL"
+            def typed_state_change_handler(event: D.TypedStateChangeEvent[incorrect_model]):
+                pass
 
-        state_registry = StateRegistry.create(curr_hassette, curr_hassette)
-        state_registry.build_registry()
+            def new_state_handler(new_state: D.StateNew[incorrect_model]):
+                pass
 
-        type_registry = TypeRegistry.create(curr_hassette, curr_hassette)
-        type_registry.build_registry()
+            for handler in (typed_state_change_handler, new_state_handler):
+                signature = get_typed_signature(handler)
+                injector = ParameterInjector(handler.__name__, signature)
 
-        # Now known_types should be populated
-        state_value_types = [
-            DateTimeStateValue,
-            TimeStateValue,
-            BoolStateValue,
-            StrStateValue,
-            NumericStateValue,
-        ]
-
-        state_value_test_params = [(svt, t) for svt in state_value_types for t in svt.known_types]
-
-        metafunc.parametrize(
-            ("state_value_type", "python_type"),
-            state_value_test_params,
-            ids=[f"{svt.__name__}-{pt.__name__}" for svt, pt in state_value_test_params],
-        )
+                with pytest.raises(DependencyResolutionError, match=r".*validation error.*"):
+                    injector.inject_parameters(state_change_event)
 
 
 @pytest.mark.usefixtures("with_state_registry")
-class TestDependencyInjectionStateValueConversions:
-    """Test that all registered StateValue types can be used in DI.
+class TestDependencyInjectionTypeConversionHandlesUnions:
+    """Test that dependency injection handles Union type annotations correctly."""
 
-    For example, assert that if we annotate something with D.StateValueNew[int],
-    it correctly converts the state value to int.
-    """
-
-    async def test_state_value_new_conversion(
-        self,
-        state_change_events_with_new_state: list[RawStateChangeEvent],
-        state_value_type: BaseStateValue,
-        python_type: type,
+    async def test_typed_annotation_union_finds_correct_type(
+        self, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
-        """Test that StateValueNew[type] works for all registered types."""
+        """Test TypedStateChangeEvent provides typed states."""
 
         for state_change_event in state_change_events_with_new_state:
-            new_state = state_change_event.payload.data.new_state
+            correct_model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            incorrect_model = get_random_model([correct_model])
 
-            domain = state_change_event.payload.data.domain
-
-            state_class = get_state_registry().get_class_for_domain(domain)
-            if state_class.state_value_type is not type(state_value_type):
-                continue
-
-            try:
-                new_state_obj = state_class.model_validate(new_state)
-                # check this here since unknown and unavailable states will get converted to None
-                if new_state_obj.value is None:
-                    continue
-            except Exception:
-                continue
-
-            def handler(value: D.StateValueNew[python_type]):
+            def typed_state_change_handler(event: D.TypedStateChangeEvent[incorrect_model | correct_model]):
                 pass
 
-            signature = get_typed_signature(handler)
-            injector = ParameterInjector(handler.__name__, signature)
-            kwargs = injector.inject_parameters(state_change_event)
-            value = kwargs["value"]
+            def new_state_handler(new_state: D.StateNew[incorrect_model | correct_model]):
+                pass
 
-            assert isinstance(value, python_type), (
-                f"State value should be converted to {python_type}, got {type(value)}"
-            )
+            for handler in (typed_state_change_handler, new_state_handler):
+                signature = get_typed_signature(handler)
+                injector = ParameterInjector(handler.__name__, signature)
+
+                # consider not raising as successs
+                injector.inject_parameters(state_change_event)
+
+    async def test_typed_annotation_union_with_all_wrong_types_raises(
+        self, state_change_events_with_new_state: list[RawStateChangeEvent]
+    ):
+        """Test TypedStateChangeEvent provides typed states."""
+
+        for state_change_event in state_change_events_with_new_state:
+            correct_model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            incorrect_model = get_random_model([correct_model])
+            another_incorrect_model = get_random_model([correct_model, incorrect_model])
+
+            def typed_state_change_handler(event: D.TypedStateChangeEvent[incorrect_model | another_incorrect_model]):
+                pass
+
+            def new_state_handler(new_state: D.StateNew[incorrect_model | another_incorrect_model]):
+                pass
+
+            for handler in (typed_state_change_handler, new_state_handler):
+                signature = get_typed_signature(handler)
+                injector = ParameterInjector(handler.__name__, signature)
+
+                with pytest.raises(DependencyResolutionError, match=r".* to any type in Union.*"):
+                    injector.inject_parameters(state_change_event)

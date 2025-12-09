@@ -1,8 +1,6 @@
 import os
 import typing
-from typing import Annotated, cast
-
-from whenever import ZonedDateTime
+from typing import cast
 
 from hassette import App, AppConfig
 from hassette import dependencies as D
@@ -56,8 +54,6 @@ class MyApp(App[MyAppUserConfig]):
         self,
         new_state: D.StateNew[states.InputButtonState],
         old_state: D.StateOld[states.InputButtonState],
-        new_state_value: D.StateValueNew[ZonedDateTime],
-        friendly_name: Annotated[str, D.AttrNew("friendly_name")],
         **kwargs,
     ) -> None:
         if new_state is None:
@@ -66,7 +62,7 @@ class MyApp(App[MyAppUserConfig]):
         if old_state is None:
             raise ValueError("old_state should not be None in handle_event_sync")
 
-        self.logger.info("new_state: %s, kwargs: %s, friendly_name: %s", new_state, kwargs, friendly_name)
+        self.logger.info("new_state: %s, kwargs: %s", new_state, kwargs)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)
 
