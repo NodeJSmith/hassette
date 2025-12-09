@@ -12,7 +12,7 @@ from .annotations import AnnotationDetails, identity
 
 def is_annotated_type(annotation: Any) -> bool:
     """Check if annotation is an Annotated type."""
-    return get_origin(annotation) is Annotated
+    return get_origin(annotation) is Annotated or isinstance(annotation, GenericAlias)
 
 
 def is_event_type(annotation: Any) -> bool:
@@ -50,7 +50,7 @@ def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetai
         Tuple of (type, extractor) if valid Annotated type with callable metadata.
         None otherwise.
     """
-    if not is_annotated_type(annotation) and not isinstance(annotation, GenericAlias):
+    if not is_annotated_type(annotation):
         return None
 
     result = _get_base_type_and_details(annotation)
