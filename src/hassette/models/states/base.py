@@ -1,31 +1,61 @@
 from decimal import Decimal
 from inspect import get_annotations
 from logging import getLogger
-from types import NoneType
-from typing import Any, ClassVar, Generic, TypeVar, get_args
+from typing import ClassVar, Generic, TypeVar, get_args
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Time, ZonedDateTime
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
+from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
 from hassette.exceptions import NoDomainAnnotationError
-from hassette.types.state_value import (
-    BaseStateValue,
-    BoolStateValue,
-    DateTimeStateValue,
-    NumericStateValue,
-    StrStateValue,
-    TimeStateValue,
+from hassette.types.value_converters import (
+    BaseValueConverter,
+    BoolValueConverter,
+    DateTimeValueConverter,
+    NumericValueConverter,
+    StrValueConverter,
+    TimeValueConverter,
 )
-from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
+from hassette.utils.date_utils import (
+    convert_datetime_str_to_system_tz,
+    convert_utc_timestamp_to_system_tz,
+)
 
-StateT = TypeVar("StateT", bound="BaseState", default="BaseState", covariant=True)
+StateT = TypeVar("StateT", bound="BaseState", covariant=True)
 """Represents a specific state type, e.g., LightState, CoverState, etc."""
 
+
+type StrStateValue = str | None
+"""Represents a string state value or None."""
+
+type DateTimeStateValue = ZonedDateTime | PlainDateTime | Date | None
+"""Represents a datetime state value or None."""
+
+type TimeStateValue = Time | None
+"""Represents a time state value or None."""
+
+type BoolStateValue = bool | None
+"""Represents a boolean state value or None."""
+
+type NumericStateValue = Decimal | None
+"""Represents a numeric state value or None."""
+
 StateValueT = TypeVar(
-    "StateValueT", ZonedDateTime, Time, str, bool, Decimal, Any, NoneType, default=Any, covariant=True
+    "StateValueT",
+    StrStateValue,
+    DateTimeStateValue,
+    TimeStateValue,
+    BoolStateValue,
+    NumericStateValue,
+    covariant=True,
 )
 """Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
-
 
 LOGGER = getLogger(__name__)
 
@@ -73,8 +103,8 @@ class BaseState(BaseModel, Generic[StateValueT]):
     # Leaving them off unless we find a use case or get a feature request for them.
     # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
 
-    state_value_type: ClassVar[type[BaseStateValue]] = BaseStateValue
-    """The type of the state value."""
+    value_converter: ClassVar[type[BaseValueConverter]] = BaseValueConverter
+    """The converter class used to convert raw state values."""
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 
@@ -106,7 +136,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
     is_unavailable: bool = Field(default=False)
     """Whether the state is 'unavailable'."""
 
-    value: StateValueT | None = Field(..., validation_alias=AliasChoices("state", "value"))
+    value: StateValueT = Field(..., validation_alias=AliasChoices("state", "value"))
     """The state value, e.g. 'on', 'off', 23.5, etc."""
 
     attributes: AttributesBase = Field(...)
@@ -159,10 +189,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
             values["is_unavailable"] = True
             values["state"] = state = None
 
-        if isinstance(state, BaseStateValue):
+        if isinstance(state, BaseValueConverter):
             values["state"] = state.to_python()
 
-        values["state"] = cls.state_value_type.from_raw(state).to_python()
+        values["state"] = cls.value_converter.from_raw(state).to_python()
 
         return values
 
@@ -191,34 +221,34 @@ class BaseState(BaseModel, Generic[StateValueT]):
         return domain
 
 
-class StringBaseState(BaseState[str]):
+class StringBaseState(BaseState[StrStateValue]):
     """Base class for string states."""
 
-    state_value_type: ClassVar[type] = StrStateValue
-    """The type of the state value."""
+    value_converter: ClassVar[type[BaseValueConverter]] = StrValueConverter
+    """The converter class used to convert raw state values."""
 
 
-class DateTimeBaseState(BaseState[ZonedDateTime]):
+class DateTimeBaseState(BaseState[DateTimeStateValue]):
     """Base class for datetime states.
 
     Valid state values are ZonedDateTime, PlainDateTime, Date, or None.
     """
 
-    state_value_type: ClassVar[type] = DateTimeStateValue
-    """The type of the state value."""
+    value_converter: ClassVar[type[BaseValueConverter]] = DateTimeValueConverter
+    """The converter class used to convert raw state values."""
 
 
-class TimeBaseState(BaseState[Time]):
+class TimeBaseState(BaseState[TimeStateValue]):
     """Base class for Time states.
 
     Valid state values are Time or None.
     """
 
-    state_value_type: ClassVar[type] = TimeStateValue
-    """The type of the state value."""
+    value_converter: ClassVar[type[BaseValueConverter]] = TimeValueConverter
+    """The converter class used to convert raw state values."""
 
 
-class BoolBaseState(BaseState[bool]):
+class BoolBaseState(BaseState[BoolStateValue]):
     """Base class for boolean states.
 
     Valids state values are True, False, or None.
@@ -226,16 +256,16 @@ class BoolBaseState(BaseState[bool]):
     Will convert string values "on" and "off" to boolean True and False.
     """
 
-    state_value_type: ClassVar[type] = BoolStateValue
-    """The type of the state value."""
+    value_converter: ClassVar[type[BaseValueConverter]] = BoolValueConverter
+    """The converter class used to convert raw state values."""
 
 
-class NumericBaseState(BaseState[Decimal]):
+class NumericBaseState(BaseState[NumericStateValue]):
     """Base class for numeric states.
 
     Will convert string values to float or int.
     Valid state values are int, float, or None.
     """
 
-    state_value_type: ClassVar[type] = NumericStateValue
+    value_converter: ClassVar[type[BaseValueConverter]] = NumericValueConverter
     """The type of the state value."""

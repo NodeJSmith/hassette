@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from hassette.resources.base import Resource
-from hassette.types.state_value import BaseStateValue
+from hassette.types.value_converters import BaseValueConverter
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -17,7 +17,7 @@ class TypeRegistry(Resource):
     corresponding state classes, and conversion between these and python representations.
     """
 
-    conversion_map: dict[tuple[type[BaseStateValue], type[Any]], Callable[[BaseStateValue], Any]]
+    conversion_map: dict[tuple[type[BaseValueConverter], type[Any]], Callable[[BaseValueConverter], Any]]
 
     async def after_initialize(self) -> None:
         self.build_registry()
@@ -39,10 +39,10 @@ class TypeRegistry(Resource):
         return inst
 
     def build_registry(self) -> None:
-        from hassette.types.state_value import BaseStateValue
+        from hassette.types.value_converters import BaseValueConverter
 
-        queue: deque[type[BaseStateValue]] = deque(BaseStateValue.__subclasses__())
-        seen: set[type[BaseStateValue]] = set()
+        queue: deque[type[BaseValueConverter]] = deque(BaseValueConverter.__subclasses__())
+        seen: set[type[BaseValueConverter]] = set()
 
         while queue:
             state_cls = queue.popleft()
@@ -56,7 +56,7 @@ class TypeRegistry(Resource):
             state_cls.register(self)
             self.logger.debug("Registered StateValue %s", state_cls.__name__)
 
-    def convert(self, value: BaseStateValue, to_type: type[Any]) -> Any:
+    def convert(self, value: BaseValueConverter, to_type: type[Any]) -> Any:
         """Convert a StateValue to a target Python type.
 
         Args:
@@ -80,23 +80,23 @@ class TypeRegistry(Resource):
             raise TypeError(f"No conversion registered from {type(value).__name__} to {to_type!r}") from e
 
         # convert to the state value type so we can pass to the conversion function
-        if not isinstance(value, BaseStateValue):
-            value = BaseStateValue.from_raw(value)
+        if not isinstance(value, BaseValueConverter):
+            value = BaseValueConverter.from_raw(value)
 
         try:
             return fn(value)
         except Exception as e:
             raise RuntimeError(f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}") from e
 
-    def register[T: BaseStateValue](
-        self, state_value_cls: type[T], to_type: type[Any], conversion_method: Callable[[T], Any]
+    def register[T: BaseValueConverter](
+        self, value_converter: type[T], to_type: type[Any], conversion_method: Callable[[T], Any]
     ) -> None:
         """Register a conversion from a StateValue subclass to a target Python type.
 
         Args:
-            state_value_cls: The StateValue subclass.
+            value_converter: The ValueConverter subclass.
             to_type: The target Python type.
-            conversion_method: The method to convert from the StateValue subclass to the target type.
+            conversion_method: The method to convert from the ValueConverter subclass to the target type.
 
         Examples:
             ```python
@@ -104,8 +104,8 @@ class TypeRegistry(Resource):
             ```
         """
 
-        self.conversion_map[(state_value_cls, to_type)] = conversion_method  # pyright: ignore[reportArgumentType]
+        self.conversion_map[(value_converter, to_type)] = conversion_method  # pyright: ignore[reportArgumentType]
 
-        state_value_cls.known_types.add(to_type)
+        value_converter.known_types.add(to_type)
 
-        self.logger.debug("Registered conversion from %s to %s", state_value_cls.__name__, to_type.__name__)
+        self.logger.debug("Registered conversion from %s to %s", value_converter.__name__, to_type.__name__)

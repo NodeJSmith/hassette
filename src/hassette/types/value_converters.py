@@ -13,8 +13,8 @@ if typing.TYPE_CHECKING:
 T = typing.TypeVar("T")
 
 
-class BaseStateValue(Generic[T]):
-    """Runtime representation of a state's value."""
+class BaseValueConverter(Generic[T]):
+    """Base converter for state value types."""
 
     _value: T
     """The internal canonical value."""
@@ -46,7 +46,7 @@ class BaseStateValue(Generic[T]):
         registry.register(cls, cls.python_type, cls.to_python)
 
     @classmethod
-    def from_raw(cls, raw: Any) -> "BaseStateValue":
+    def from_raw(cls, raw: Any) -> "BaseValueConverter":
         return cls(raw)
 
     def __init_subclass__(cls) -> None:
@@ -54,8 +54,8 @@ class BaseStateValue(Generic[T]):
         return super().__init_subclass__()
 
 
-class DateTimeStateValue(BaseStateValue[ZonedDateTime]):
-    """Semantic state value for date/time-ish states.
+class DateTimeValueConverter(BaseValueConverter[ZonedDateTime]):
+    """Converter for datetime-like state values.
 
     Internally canonicalized to ZonedDateTime.
     """
@@ -68,13 +68,13 @@ class DateTimeStateValue(BaseStateValue[ZonedDateTime]):
         super().register(registry)
 
         # extra projections — no lambdas, just method references
-        registry.register(cls, ZonedDateTime, DateTimeStateValue.to_python)
-        registry.register(cls, PlainDateTime, DateTimeStateValue.plain_datetime)
-        registry.register(cls, Date, DateTimeStateValue.date)
+        registry.register(cls, ZonedDateTime, cls.to_python)
+        registry.register(cls, PlainDateTime, cls.plain_datetime)
+        registry.register(cls, Date, cls.date)
 
-        registry.register(cls, date, DateTimeStateValue.stdlib_date)
-        registry.register(cls, datetime, DateTimeStateValue.stdlib_datetime)
-        registry.register(cls, str, DateTimeStateValue.iso_string)
+        registry.register(cls, date, cls.stdlib_date)
+        registry.register(cls, datetime, cls.stdlib_datetime)
+        registry.register(cls, str, cls.iso_string)
 
     def date(self) -> Date:
         """Get the date portion of this ZonedDateTime as a Whenever Date."""
@@ -140,8 +140,8 @@ class DateTimeStateValue(BaseStateValue[ZonedDateTime]):
         raise ValueError(f"State must be a datetime-like string, got {value!r}")
 
 
-class TimeStateValue(BaseStateValue[Time]):
-    """Semantic state value for time-ish states.
+class TimeValueConverter(BaseValueConverter[Time]):
+    """Converter for time-like state values.
 
     Internally canonicalized to Time.
     """
@@ -167,9 +167,9 @@ class TimeStateValue(BaseStateValue[Time]):
         super().register(registry)
 
         # extra projections — no lambdas, just method references
-        registry.register(cls, Time, TimeStateValue.to_python)
-        registry.register(cls, str, TimeStateValue.to_string)
-        registry.register(cls, time, TimeStateValue.to_stdlib_time)
+        registry.register(cls, Time, cls.to_python)
+        registry.register(cls, str, cls.to_string)
+        registry.register(cls, time, cls.to_stdlib_time)
 
     @classmethod
     def from_raw(cls, value: Any) -> Self:
@@ -190,8 +190,8 @@ class TimeStateValue(BaseStateValue[Time]):
         raise ValueError(f"State must be a time-like string, got {value!r}")
 
 
-class StrStateValue(BaseStateValue[str]):
-    """Semantic state value for string states.
+class StrValueConverter(BaseValueConverter[str]):
+    """Converter for string state values.
 
     Internally canonicalized to str.
     """
@@ -211,8 +211,8 @@ class StrStateValue(BaseStateValue[str]):
         return cls(str(value))
 
 
-class BoolStateValue(BaseStateValue[bool]):
-    """Semantic state value for boolean states.
+class BoolValueConverter(BaseValueConverter[bool]):
+    """Converter for boolean state values.
 
     Internally canonicalized to bool.
     """
@@ -229,7 +229,7 @@ class BoolStateValue(BaseStateValue[bool]):
     def register(cls, registry: "TypeRegistry") -> None:
         super().register(registry)
 
-        registry.register(cls, str, BoolStateValue.to_string)
+        registry.register(cls, str, cls.to_string)
 
     @classmethod
     def from_raw(cls, value: Any) -> Self:
@@ -254,8 +254,8 @@ class BoolStateValue(BaseStateValue[bool]):
         raise ValueError(f"State must be a boolean-like value, got {value!r}")
 
 
-class NumericStateValue(BaseStateValue[Decimal]):
-    """Semantic state value for numeric states.
+class NumericValueConverter(BaseValueConverter[Decimal]):
+    """Converter for numeric state values.
 
     Internally canonicalized to decimal.
     """
@@ -278,8 +278,8 @@ class NumericStateValue(BaseStateValue[Decimal]):
         super().register(registry)
 
         # extra projections — no lambdas, just method references
-        registry.register(cls, int, NumericStateValue.to_int)
-        registry.register(cls, float, NumericStateValue.to_float)
+        registry.register(cls, int, cls.to_int)
+        registry.register(cls, float, cls.to_float)
         registry.register(cls, str, lambda self: str(self.value))
 
     @classmethod

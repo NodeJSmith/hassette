@@ -1,11 +1,3 @@
-from .state_value import (
-    BaseStateValue,
-    BoolStateValue,
-    DateTimeStateValue,
-    NumericStateValue,
-    StrStateValue,
-    TimeStateValue,
-)
 from .types import (
     AsyncHandlerType,
     ChangeType,
@@ -17,21 +9,29 @@ from .types import (
     SyncHandler,
     TriggerProtocol,
 )
+from .value_converters import (
+    BaseValueConverter,
+    BoolValueConverter,
+    DateTimeValueConverter,
+    NumericValueConverter,
+    StrValueConverter,
+    TimeValueConverter,
+)
 
 __all__ = [
     "AsyncHandlerType",
-    "BaseStateValue",
-    "BoolStateValue",
+    "BaseValueConverter",
+    "BoolValueConverter",
     "ChangeType",
     "ComparisonCondition",
-    "DateTimeStateValue",
+    "DateTimeValueConverter",
     "HandlerType",
     "JobCallable",
-    "NumericStateValue",
+    "NumericValueConverter",
     "Predicate",
     "ScheduleStartType",
-    "StrStateValue",
+    "StrValueConverter",
     "SyncHandler",
-    "TimeStateValue",
+    "TimeValueConverter",
     "TriggerProtocol",
 ]
