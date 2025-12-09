@@ -34,28 +34,45 @@ handlers can also accept arbitrary kwargs.
 
 ## Dependency Injection for Handlers
 
-Hassette uses type annotations with the
-[Annotated][typing.Annotated]
-type combined with dependency markers from [dependencies][hassette.dependencies]
-to automatically extract and inject event data into your handler parameters.
+Hassette uses dependency injection (DI) to provide event data to your handlers. The type
+annotations on your handler parameters tell Hassette what data to extract from the event.
+
+Common annotations are provided in the [`hassette.dependencies`][hassette.dependencies] module,
+but you can also create your own custom extractors as needed.
 
 ### Basic Patterns
 
-**Option 1: Receive the full event** (simplest):
+**Option 1: Receive the full event in raw form** (simplest):
+This gives you the raw event object, with the state data in untyped dicts.
 
 ```python
-from hassette.events import StateChangeEvent
+from hassette.events import RawStateChangeEvent
 
-async def on_motion(self, event: StateChangeEvent):
+async def on_motion(self, event: RawStateChangeEvent):
     entity_id = event.payload.data.entity_id
-    new_value = event.payload.data.new_state_value
+    new_value = event.payload.data.get("new_state",{}).get("state")
     self.logger.info("Motion: %s -> %s", entity_id, new_value)
 ```
 
-**Option 2: Extract specific data** (recommended):
+**Option 2: Receive full event with typed state objects** (better):
+This gives you typed state objects for easier access to attributes.
 
 ```python
-from typing import Annotated
+from hassette import dependencies as D
+from hassette import states
+
+async def on_motion(
+    self,
+    event: D.TypedStateChangeEvent[states.BinarySensorState],
+):
+    entity_id = event.payload.data.entity_id
+    new_value = event.payload.data.new_state.value
+    self.logger.info("Motion: %s -> %s", entity_id, new_value)
+```
+
+**Option 3: Extract specific data** (recommended):
+
+```python
 from hassette import dependencies as D
 from hassette import states
 
@@ -68,7 +85,7 @@ async def on_motion(
     self.logger.info("Motion detected: %s", friendly_name)
 ```
 
-**Option 3: No event data needed**:
+**Option 4: No event data needed**:
 
 ```python
 async def on_heartbeat(self) -> None:
@@ -83,7 +100,9 @@ Import these from `hassette.dependencies` (commonly aliased as `D`):
 
 - `StateNew` - Extract the new state object from a state change event
 - `StateOld` - Extract the old state object (may be None for initial states)
-- `StateOldAndNew` - Extract both states as a tuple `(old, new)`
+- `MaybeStateOld` - Like `StateOld`, but can be `MISSING_VALUE` if no old state exists
+- `MaybeStateNew` - Like `StateNew`, but can be `MISSING_VALUE` if no new state exists
+
 
 ```python
 from typing import Annotated
@@ -99,64 +118,6 @@ async def on_light_change(
                         new_state.entity_id,
                         old_state.value,
                         new_state.value)
-```
-
-#### Attribute Extractors
-
-Attribute extractors allow you to pull specific attributes from state objects. They must be used
-with `Annotated`, unlike the other extractors, because they require an argument specifying the attribute name.
-
-- `AttrNew("attribute_name")` - Extract an attribute from the new state
-- `AttrOld("attribute_name")` - Extract an attribute from the old state
-- `AttrOldAndNew("attribute_name")` - Extract attribute from both states as tuple
-
-```python
-async def on_battery_change(
-    self,
-    battery_level: Annotated[int | None, D.AttrNew("battery_level")],
-    entity_id: D.EntityId,
-):
-    if battery_level is not None and battery_level < 20:
-        self.logger.warning("%s battery low: %d%%", entity_id, battery_level)
-```
-
-!!! warning "Missing Attributes"
-    If an attribute doesn't exist, the extractor returns `MISSING_VALUE` (a falsy sentinel).
-    Always check for `None` or use `is not MISSING_VALUE` if you need to distinguish
-    between missing and `None`.
-
-!!! tip
-    If you find yourself frequently needing to extract the same attribute, consider assigning
-    it to a constant to simplify reuse:
-
-    ```python
-
-    BATTERY_LEVEL = Annotated[int | None, D.AttrNew("battery_level")]
-    async def on_battery_change(
-        self,
-        battery_level: BATTERY_LEVEL,
-        entity_id: D.EntityId,
-    ):
-        if battery_level and battery_level < 20:
-            self.logger.warning("%s battery low: %d%%", entity_id, battery_level)
-    ```
-
-#### Value Extractors
-
-State value extractors pull just the state value from the state object. These are generic, allowing you to
-specify the expected type.
-
-- `StateValueNew` - Extract just the state value string (e.g., "on", "off")
-- `StateValueOld` - Extract the old state value string
-
-```python
-async def on_state_change(
-    self,
-    old_value: D.StateValueOld[str],
-    new_value: D.StateValueNew[str],
-):
-    if old_value != new_value:
-        self.logger.info("State changed: %s -> %s", old_value, new_value)
 ```
 
 #### Identity Extractors
@@ -180,19 +141,17 @@ async def on_service_call(
 
 #### Other Extractors
 
-- `ServiceData` - Extract the service_data dict from service calls
 - `EventContext` - Extract the Home Assistant event context
 
 ```python
 async def on_light_service(
     self,
-    service_data: D.ServiceData,
+    new_state: D.StateNew[states.LightState],
+    context: D.EventContext,
 ):
-    brightness = service_data.get("brightness")
-    if brightness and brightness > 200:
-        self.logger.info("Bright light requested: %d", brightness)
+    self.logger.info("Light %s changed in context %s",
+                    new_state.entity_id, context.id)
 ```
-
 ### Combining Multiple Dependencies
 
 You can extract multiple pieces of data in a single handler:
@@ -201,14 +160,17 @@ You can extract multiple pieces of data in a single handler:
 async def on_climate_change(
     self,
     new_state: D.StateNew[states.ClimateState],
-    old_temp: Annotated[float | None, D.AttrOld("current_temperature")],
-    new_temp: Annotated[float | None, D.AttrNew("current_temperature")],
+    old_state: D.MaybeStateOld[states.ClimateState],
     entity_id: D.EntityId,
 ):
-    if old_temp and new_temp and abs(new_temp - old_temp) > 2:
-        friendly_name = new_state.attributes.friendly_name or entity_id
-        self.logger.warning("%s temperature jumped from %.1f to %.1f",
-                          friendly_name, old_temp, new_temp)
+    old_temp = old_state.attributes.current_temperature if old_state else "N/A"
+    new_temp = new_state.attributes.current_temperature
+    self.logger.info(
+        "Climate %s temperature changed: %s -> %s",
+        entity_id,
+        old_temp,
+        new_temp,
+    )
 ```
 
 ### Mixing DI with kwargs
@@ -220,17 +182,17 @@ async def on_initialize(self):
     self.bus.on_state_change(
         "sensor.temperature",
         handler=self.on_temp_change,
-        threshold=25.0,  # Custom kwarg
+        kwargs={"threshold": 75.0},
     )
 
 async def on_temp_change(
     self,
-    new_temp: Annotated[float, D.AttrNew("temperature")],
+    new_state: D.StateNew[states.SensorState],
     threshold: float,  # From kwargs
 ):
-    if new_temp > threshold:
+    if new_state.attributes.temperature > threshold:
         self.logger.warning("Temperature %.1f exceeds threshold %.1f",
-                          new_temp, threshold)
+                          new_state.attributes.temperature, threshold)
 ```
 
 ### Restrictions
@@ -257,15 +219,9 @@ from typing import Annotated, TypeAlias
 from hassette.events import Event
 from hassette import accessors as A
 
+def handler(brightness: Annotated[float, A.get_attr_new("brightness")]):
+    self.logger.info("Brightness changed to %s", brightness)
 
-Temperature: TypeAlias = Annotated[float, A.get_attr_new("temperature")]
-
-# Use in handler
-async def on_event(
-    self,
-    temperature: Temperature
-):
-    self.logger.info("Current temperature: %s", temperature)
 ```
 
 ## Event Model
@@ -273,9 +229,8 @@ async def on_event(
 Every event you receive from the bus is an [`Event`][hassette.events.base.Event]
 dataclass with two main fields:
 
-- `topic` — a string identifier describing what happened, such as
-  `hass.event.state_changed` or `hassette.event.service_status`.
-- `payload` — a typed wrapper containing the event data.
+- `topic` — a string identifier describing what happened, such as `hass.event.state_changed` or `hassette.event.service_status`.
+- `payload` — an untyped object containing event-specific data.
 
 Home Assistant events use the format `hass.event.<event_type>` (e.g.,
 `hass.event.state_changed` or `hass.event.call_service`). Hassette
@@ -346,29 +301,6 @@ self.bus.on_call_service(domain="light", service="turn_*",
 For more complex patterns, use `self.bus.on(...)` with predicate-based
 filters.
 
-
-## Working with Event Data
-
-Each event's `payload.data` contains the actual content.
-
-- **State changes** → `entity_id`, `old_state`, `new_state` (both state
-  objects are typed Pydantic models inheriting from
-  [`BaseState`][hassette.models.states.base.BaseState])
-
-  Common properties:
-
-  - `.value` - the state value (e.g., `"on"`)
-  - `.attributes` - a Pydantic model of all attributes
-  - `.domain` and `.entity_id` - convenience accessors
-  - `.last_changed` / `.last_updated` - timestamps
-
-- **Service calls** → [`CallServicePayload`][hassette.events.hass.hass.CallServicePayload]
-  with `domain`, `service`, and `service_data` fields.
-
-!!! note "Coming Soon"
-    More detailed guides on working with events, state objects, and service calls
-    are coming soon!
-
 ## Advanced Subscriptions
 
 For more complex scenarios, subscribe directly to any topic:
@@ -379,8 +311,7 @@ For more complex scenarios, subscribe directly to any topic:
 
 ### Passing Arguments
 
-You can pass additional arguments to your handler using `args` and
-`kwargs`:
+You can pass additional arguments to your handler `kwargs`:
 
 ```python
 --8<-- "pages/core-concepts/bus/passing_arguments_example.py"
@@ -399,6 +330,7 @@ If you need to apply OR logic, combine multiple predicates using
 from datetime import datetime
 
 from hassette import predicates as P
+from hassette import conditions as C
 
 self.bus.on_state_change(
     "binary_sensor.front_door",
@@ -414,7 +346,7 @@ self.bus.on_state_change(
 self.bus.on_state_change(
     "media_player.living_room",
     handler=self.on_media_change,
-    where=P.StateTo(P.IsIn(["playing", "paused"]))
+    where=P.StateTo(C.IsIn(["playing", "paused"]))
 )
 
 # AnyOf example
