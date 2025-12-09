@@ -113,6 +113,7 @@ class ParameterInjector:
         # Extract the value
         try:
             extracted_value = extractor(event)
+            extracted_type = type(extracted_value)
         except Exception as e:
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to extract parameter '{param_name}' "
@@ -135,17 +136,23 @@ class ParameterInjector:
         if type(target_type) is UnionType:
             for t in get_args(target_type):
                 with suppress(Exception):
-                    return self._convert_value(converter, extracted_value, param_name, t)
+                    return self._convert_value(converter, extracted_value, param_name, t, extracted_type)
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
+                f"of type '{extracted_type}' "
                 f"to any type in Union '{target_type}'"
             )
 
         # not a union type
-        return self._convert_value(converter, extracted_value, param_name, target_type)
+        return self._convert_value(converter, extracted_value, param_name, target_type, extracted_type)
 
     def _convert_value(
-        self, converter: Callable[[Any, type], Any], extracted_value: Any, param_name: str, target_type: type
+        self,
+        converter: Callable[[Any, type], Any],
+        extracted_value: Any,
+        param_name: str,
+        target_type: type,
+        extracted_type: type,
     ) -> Any:
         """Convert a value to the target type using the converter.
 
@@ -164,5 +171,6 @@ class ParameterInjector:
         except Exception as e:
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
+                f"of type '{extracted_type}' "
                 f"to type '{target_type}': {e}"
             ) from e
