@@ -71,7 +71,7 @@ def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetai
 
 
 def _get_base_type_and_details(annotation: Any) -> tuple[Any, AnnotationDetails] | None:
-    # handle things like type StateValueNew[T] = Annotated[...]
+    # handle things like `type TypedStateChangeEvent[T] = Annotated[...]`
     if isinstance(annotation, GenericAlias):
         base_type = _get_base_type(annotation)
 
