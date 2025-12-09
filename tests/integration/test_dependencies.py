@@ -1,3 +1,8 @@
+# pyright: reportInvalidTypeForm=none
+
+# disabling reportInvalidTypeForm - i know this is invalid, but it works best for the dynamic
+# nature of the tests
+
 """Tests for dependency injection extractors and type annotation handling."""
 
 import inspect
