@@ -47,7 +47,7 @@ def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetai
     """Extract type and extractor from Annotated[Type, extractor].
 
     Returns:
-        Tuple of (type, extractor) if valid Annotated type with callable metadata.
+        Tuple of (type, AnnotationDetails) if valid Annotated type with callable metadata.
         None otherwise.
     """
     if not is_annotated_type(annotation):
