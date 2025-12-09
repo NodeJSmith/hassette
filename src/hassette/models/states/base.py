@@ -31,28 +31,13 @@ StateT = TypeVar("StateT", bound="BaseState", covariant=True)
 """Represents a specific state type, e.g., LightState, CoverState, etc."""
 
 
-type StrStateValue = str | None
-"""Represents a string state value or None."""
-
-type DateTimeStateValue = ZonedDateTime | PlainDateTime | Date | None
-"""Represents a datetime state value or None."""
-
-type TimeStateValue = Time | None
-"""Represents a time state value or None."""
-
-type BoolStateValue = bool | None
-"""Represents a boolean state value or None."""
-
-type NumericStateValue = Decimal | None
-"""Represents a numeric state value or None."""
-
 StateValueT = TypeVar(
     "StateValueT",
-    StrStateValue,
-    DateTimeStateValue,
-    TimeStateValue,
-    BoolStateValue,
-    NumericStateValue,
+    str | None,
+    ZonedDateTime | PlainDateTime | Date | None,
+    Time | None,
+    bool | None,
+    int | float | Decimal | None,
     covariant=True,
 )
 """Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
@@ -221,14 +206,14 @@ class BaseState(BaseModel, Generic[StateValueT]):
         return domain
 
 
-class StringBaseState(BaseState[StrStateValue]):
+class StringBaseState(BaseState[str | None]):
     """Base class for string states."""
 
     value_converter: ClassVar[type[BaseValueConverter]] = StrValueConverter
     """The converter class used to convert raw state values."""
 
 
-class DateTimeBaseState(BaseState[DateTimeStateValue]):
+class DateTimeBaseState(BaseState[ZonedDateTime | PlainDateTime | Date | None]):
     """Base class for datetime states.
 
     Valid state values are ZonedDateTime, PlainDateTime, Date, or None.
@@ -238,7 +223,7 @@ class DateTimeBaseState(BaseState[DateTimeStateValue]):
     """The converter class used to convert raw state values."""
 
 
-class TimeBaseState(BaseState[TimeStateValue]):
+class TimeBaseState(BaseState[Time | None]):
     """Base class for Time states.
 
     Valid state values are Time or None.
@@ -248,10 +233,10 @@ class TimeBaseState(BaseState[TimeStateValue]):
     """The converter class used to convert raw state values."""
 
 
-class BoolBaseState(BaseState[BoolStateValue]):
+class BoolBaseState(BaseState[bool | None]):
     """Base class for boolean states.
 
-    Valids state values are True, False, or None.
+    Valid state values are True, False, or None.
 
     Will convert string values "on" and "off" to boolean True and False.
     """
@@ -260,11 +245,11 @@ class BoolBaseState(BaseState[BoolStateValue]):
     """The converter class used to convert raw state values."""
 
 
-class NumericBaseState(BaseState[NumericStateValue]):
+class NumericBaseState(BaseState[int | float | Decimal | None]):
     """Base class for numeric states.
 
-    Will convert string values to float or int.
-    Valid state values are int, float, or None.
+    Will convert string values to float, int, or Decimal.
+    Valid state values are int, float, Decimal, or None.
     """
 
     value_converter: ClassVar[type[BaseValueConverter]] = NumericValueConverter
