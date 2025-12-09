@@ -1,6 +1,6 @@
 # another actual app that I use, not meant to be comparable to any AD example app
 
-from hassette import App, AppConfig, entities
+from hassette import App, AppConfig, entities, states
 from hassette import dependencies as D
 
 
@@ -15,15 +15,12 @@ class LaundryRoomLightAppConfig(AppConfig):
 class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
     toggle_entity: str = "input_boolean.ad_laundry_room_lights"
 
-    async def toggle_enabled(
-        self,
-        new_value: D.StateValueNew,
-    ) -> None:
+    async def toggle_enabled(self, new_state: D.StateNew[states.InputBooleanState]) -> None:
         """Handle toggling the enabled state using dependency injection.
 
         DI extracts the new state value directly.
         """
-        self.enabled = new_value
+        self.enabled = new_state.value
 
     async def on_initialize(self) -> None:
         """Use the `on_initialize` lifecycle hook to set up the app."""
@@ -54,7 +51,7 @@ class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
 
     async def motion_cleared(
         self,
-        new_value: D.StateValueNew,
+        new_state: D.StateNew[states.BinarySensorState],
     ) -> None:
         """Handle motion cleared using dependency injection.
 
@@ -64,7 +61,7 @@ class LaundryRoomLightsApp(App[LaundryRoomLightAppConfig]):
             self.logger.info("%s is disabled", self.toggle_entity)
             return
 
-        if new_value is not False:
+        if new_state.value is not False:
             self.logger.debug("Received motion event with state not 'off'")
             return
 

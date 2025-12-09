@@ -42,15 +42,14 @@ class Presence(App[PresenceAppConfig]):
     async def presence_change(
         self,
         new_state: D.StateNew[states.DeviceTrackerState],
-        old_value: D.StateValueOld,
-        new_value: D.StateValueNew,
+        old_state: D.MaybeStateOld[states.DeviceTrackerState],
         entity_id: D.EntityId,
     ):
         """Handle presence changes using dependency injection.
 
         DI automatically extracts:
         - new_state: Full device tracker state
-        - old_value/new_value: State values (e.g., "home", "not_home")
+        - old_state: Previous device tracker state, or None if not available
         - entity_id: The device tracker entity ID
         """
         assert not isinstance(entity_id, FalseySentinel), "Entity ID must be provided"
@@ -58,8 +57,8 @@ class Presence(App[PresenceAppConfig]):
 
         tracker_entity = f"sensor.{person.lower()}_tracker"
 
-        new = new_value
-        old = old_value
+        new = new_state.value
+        old = old_state.value if old_state is not None else "not_home"
         announce_app: Sound | None = self.hassette.get_app("Sound")  # pyright: ignore[reportAssignmentType]
 
         await self.api.set_state(tracker_entity, state=new)
