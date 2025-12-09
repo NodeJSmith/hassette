@@ -20,7 +20,7 @@ from hassette.dependencies.extraction import (
     validate_di_signature,
 )
 from hassette.dependencies.injector import ParameterInjector
-from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
+from hassette.events import CallServiceEvent, Event, HassContext, RawStateChangeEvent
 from hassette.exceptions import (
     DependencyInjectionError,
     DependencyResolutionError,
@@ -138,13 +138,13 @@ class TestTypeAliasExtractors:
 
     def test_event_context_extractor(self, state_change_events: list[RawStateChangeEvent]):
         """Test EventContext type alias extracts context."""
-        event = state_change_events[0]
+        for event in state_change_events:
+            _, annotation_details = extract_from_annotated(D.EventContext)
+            raw_result = annotation_details.extractor(event)
+            converted_result = annotation_details.converter(raw_result, None)
 
-        _, annotation_details = extract_from_annotated(D.EventContext)
-        result = annotation_details.extractor(event)
-
-        assert isinstance(result, dict)
-        assert "id" in result
+            assert isinstance(raw_result, dict)
+            assert isinstance(converted_result, HassContext)
 
 
 @pytest.mark.usefixtures("with_state_registry")

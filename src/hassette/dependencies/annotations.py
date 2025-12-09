@@ -222,9 +222,9 @@ MaybeDomain: TypeAlias = Annotated[str | FalseySentinel, AnnotationDetails(A.get
 """Extract the domain from a HassEvent, returning MISSING_VALUE sentinel if not present."""
 
 # Extractor: get_context() -> HassContext
-# Converter: None
+# Converter: lambda to create HassContext
 # Returns: HassContext object
-EventContext: TypeAlias = Annotated[HassContext, AnnotationDetails[Event](A.get_context)]
+EventContext: TypeAlias = Annotated[HassContext, AnnotationDetails[Event](A.get_context, lambda x, _: HassContext(**x))]
 """Extract the context object from a HassEvent.
 
 Returns the Home Assistant context object containing metadata about the event
