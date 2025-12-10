@@ -6,12 +6,13 @@ import typing
 from collections.abc import Callable
 from contextlib import suppress
 from types import UnionType
-from typing import Any, get_args
+from typing import Any, get_args, get_origin
 
+from hassette.context import get_type_registry
 from hassette.exceptions import DependencyError, DependencyInjectionError, DependencyResolutionError
-from hassette.utils.type_utils import get_optional_type_arg, is_optional_type
+from hassette.utils.type_utils import get_optional_type_arg, is_optional_type, normalize_for_isinstance
 
-from .extraction import AnnotationDetails, extract_from_signature, validate_di_signature
+from .extraction import extract_from_signature, validate_di_signature
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -71,7 +72,11 @@ class ParameterInjector:
 
             try:
                 kwargs[param_name] = self._extract_and_convert_parameter(
-                    event, param_name, param_type, annotation_details
+                    event,
+                    param_name,
+                    param_type,
+                    annotation_details.extractor,
+                    annotation_details.converter,
                 )
             except DependencyError:
                 # Already formatted, just re-raise
@@ -91,7 +96,12 @@ class ParameterInjector:
         return kwargs
 
     def _extract_and_convert_parameter(
-        self, event: "Event[Any]", param_name: str, param_type: type, annotation_details: AnnotationDetails
+        self,
+        event: "Event[Any]",
+        param_name: str,
+        param_type: type,
+        extractor: Callable[[Any], Any],
+        converter: Callable[[Any, type], Any] | None = None,
     ) -> Any:
         """Extract and convert a single parameter value.
 
@@ -99,7 +109,8 @@ class ParameterInjector:
             event: The event to extract from.
             param_name: Name of the parameter.
             param_type: Expected type of the parameter.
-            annotation_details: AnnotationDetails containing extractor and converter.
+            extractor: Callable to extract the value from the event.
+            converter: Optional callable to convert the extracted value to the target type.
 
         Returns:
             The extracted and converted parameter value.
@@ -107,9 +118,6 @@ class ParameterInjector:
         Raises:
             DependencyResolutionError: If extraction or conversion fails.
         """
-        extractor = annotation_details.extractor
-        converter = annotation_details.converter
-
         # Extract the value
         try:
             extracted_value = extractor(event)
@@ -128,9 +136,18 @@ class ParameterInjector:
         # Get target type (unwrap Optional if needed)
         target_type = get_optional_type_arg(param_type) if param_is_optional else param_type
 
-        # No conversion needed
         if not converter:
-            return extracted_value
+            if not self._needs_conversion(extracted_value, target_type):
+                LOGGER.debug(
+                    "Handler '%s' - skipping conversion for parameter '%s' of type '%s'",
+                    self.handler_name,
+                    param_name,
+                    target_type,
+                )
+                return extracted_value
+
+            # use TypeRegistry if no converter provided
+            converter = get_type_registry().convert
 
         # Convert if converter exists
         if type(target_type) is UnionType:
@@ -145,6 +162,15 @@ class ParameterInjector:
 
         # not a union type
         return self._convert_value(converter, extracted_value, param_name, target_type, extracted_type)
+
+    def _needs_conversion(self, extracted_value: Any, target_type: type) -> bool:
+        """Check if a value needs conversion to the target type."""
+        try:
+            norm_tt = normalize_for_isinstance(target_type)
+            return not isinstance(extracted_value, norm_tt)
+        except TypeError:
+            origin = get_origin(target_type)
+            return isinstance(origin, type) and not isinstance(extracted_value, origin)
 
     def _convert_value(
         self,
