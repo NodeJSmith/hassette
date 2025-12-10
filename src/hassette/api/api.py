@@ -600,7 +600,7 @@ class Api(Resource):
 
         Example:
             ```python
-            date: ZonedDateTime = await self.api.get_state_value_typed("input_datetime.test", states.InputDateTimeState)
+            date: ZonedDateTime = await self.api.get_state_value_typed("input_datetime.test")
             ```
 
         Warning:
@@ -608,9 +608,13 @@ class Api(Resource):
             as we cannot be sure of the actual type without additional context. For these cases, you are responsible
             for converting the string to the desired type.
         """
-        state = await self.get_state(entity_id)
+        state_raw = await self.get_state_raw(entity_id)
+        state = state_raw.get("state")
 
-        return state.value
+        model = self.hassette.state_registry.get_class_for_domain(entity_id.split(".")[0])
+        if not model:
+            return state
+        return self.hassette.type_registry.convert(state, model.value_type)
 
     async def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
         """Get a specific attribute of an entity.
