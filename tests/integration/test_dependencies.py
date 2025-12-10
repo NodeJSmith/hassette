@@ -508,6 +508,34 @@ class TestCustomDI:
 
         assert result == expected_brightness, f"Expected brightness {expected_brightness}, got {result}"
 
+    def test_attr_new_return_type(self, state_change_events: list[RawStateChangeEvent]):
+        """Test that custom extractor for attribute new value works."""
+
+        def handler(brightness: Annotated[float, A.get_attr_new("brightness")]):
+            print("Brightness changed to %s", brightness)
+
+        # Find event where new_state has brightness attribute
+        event = next(
+            (
+                e
+                for e in state_change_events
+                if e.payload.data.new_state and "brightness" in e.payload.data.new_state.get("attributes", {})
+            ),
+            None,
+        )
+        assert event is not None, "No event with brightness attribute in new_state found"
+
+        signature = get_typed_signature(handler)
+        injector = ParameterInjector(handler.__name__, signature)
+        kwargs = injector.inject_parameters(event)
+        result = kwargs["brightness"]
+
+        assert isinstance(result, float), f"Expected result to be float, got {type(result)}"
+
+        expected_brightness = event.payload.data.new_state.get("attributes", {}).get("brightness")
+
+        assert result == expected_brightness, f"Expected brightness {expected_brightness}, got {result}"
+
 
 @pytest.mark.usefixtures("with_state_registry")
 class TestDependencyInjectionHandlesTypeConversion:
