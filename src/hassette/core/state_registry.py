@@ -156,6 +156,29 @@ class StateRegistry(Resource):
 
         return [self.domain_to_class[domain] for domain in self.all_domains()]
 
+    def list_domain_mappings(self) -> list[tuple[str, type["BaseState"]]]:
+        """List all registered domain to state class mappings.
+
+        Returns a sorted list of (domain, state_class) tuples. Useful for debugging
+        and inspection of registered state models.
+
+        Returns:
+            List of (domain, state_class) tuples sorted by domain name.
+
+        Example:
+            ```python
+            from hassette.core.context import get_state_registry
+
+            state_registry = get_state_registry()
+            mappings = state_registry.list_domain_mappings()
+            for domain, state_class in mappings:
+                print(f"{domain} → {state_class.__name__}")
+            ```
+        """
+        items = [(domain, state_class) for domain, state_class in self.domain_to_class.items()]
+        items.sort(key=lambda x: x[0])  # Sort by domain name
+        return items
+
     def clear(self) -> None:
         """Clear all registered state classes.
 
