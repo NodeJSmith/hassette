@@ -1,11 +1,11 @@
 import inspect
 from inspect import Signature, isclass
-from types import GenericAlias, UnionType
+from types import GenericAlias
 from typing import Annotated, Any, get_args, get_origin
 from warnings import warn
 
 from hassette.exceptions import DependencyInjectionError
-from hassette.utils.type_utils import is_optional_type
+from hassette.utils.type_utils import get_base_type
 
 from .annotations import AnnotationDetails, identity
 
@@ -73,7 +73,7 @@ def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetai
 def _get_base_type_and_details(annotation: Any) -> tuple[Any, AnnotationDetails] | None:
     # handle things like `type TypedStateChangeEvent[T] = Annotated[...]`
     if isinstance(annotation, GenericAlias):
-        base_type = _get_base_type(annotation)
+        base_type = get_base_type(annotation)
 
         args = get_args(getattr(annotation, "__value__", None))
         details = args[1]
@@ -84,23 +84,11 @@ def _get_base_type_and_details(annotation: Any) -> tuple[Any, AnnotationDetails]
     if len(args) < 2:
         return None
 
-    base_type = _get_base_type(annotation)
+    base_type = get_base_type(annotation)
 
     details = args[1]
 
     return (base_type, details)
-
-
-def _get_base_type(annotation: Any) -> Any:
-    base_type = get_args(annotation)[0] if isinstance(annotation, GenericAlias) else annotation
-
-    while get_args(base_type):
-        # if we're now at the point where base_type is Optional[T], stop unwrapping
-        if is_optional_type(base_type) or get_origin(base_type) is UnionType:
-            break
-        base_type = get_args(base_type)[0]
-
-    return base_type
 
 
 def extract_from_event_type(annotation: Any) -> None | tuple[Any, AnnotationDetails]:

@@ -4,13 +4,10 @@ import typing
 from collections.abc import Callable
 from contextlib import suppress
 from functools import lru_cache
-from types import UnionType
+from types import GenericAlias, UnionType
 from typing import Any, ForwardRef, TypeAliasType, Union, get_args, get_origin
 
 from pydantic._internal._typing_extra import try_eval_type
-
-if typing.TYPE_CHECKING:
-    from hassette.types import BaseValueConverter
 
 
 @lru_cache(maxsize=128)
@@ -146,23 +143,14 @@ def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     return annotation
 
 
-def get_state_value_type(cls: type[Any]) -> type["BaseValueConverter"]:
-    """Return the concrete value type used in BaseState[...] for the given state class."""
-    # 1. Look for a parameterized BaseState[...] directly in the MRO
-    for base in cls.__mro__:
-        if hasattr(base, "value_type"):
-            return base.state_value_type
+def get_base_type(annotation: Any) -> Any:
+    """Get the base type from a potentially generic annotation, stopping at Optional or Union types."""
+    base_type = get_args(annotation)[0] if isinstance(annotation, GenericAlias) else annotation
 
-    from hassette.types import BaseValueConverter
+    while get_args(base_type):
+        # if we're now at the point where base_type is Optional[T], stop unwrapping
+        if is_optional_type(base_type) or get_origin(base_type) is UnionType:
+            break
+        base_type = get_args(base_type)[0]
 
-    return BaseValueConverter
-
-
-def get_normalized_state_value_type(cls: type[Any]) -> type | tuple[type, ...]:
-    """Return the normalized value type used in BaseState[...] for the given state class.
-
-    This is suitable for use with isinstance() checks.
-    """
-    value_type = get_state_value_type(cls)
-    normalized_type = normalize_for_isinstance(value_type)
-    return normalized_type
+    return base_type
