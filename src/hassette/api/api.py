@@ -165,7 +165,7 @@ import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.bus.accessors import get_path
-from hassette.const.misc import MISSING_VALUE
+from hassette.const.misc import FalseySentinel
 from hassette.exceptions import EntityNotFoundError, UnableToConvertStateError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
@@ -612,7 +612,7 @@ class Api(Resource):
 
         return state.value
 
-    async def get_attribute(self, entity_id: str, attribute: str) -> Any | None:
+    async def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
         """Get a specific attribute of an entity.
 
         Args:
@@ -620,14 +620,11 @@ class Api(Resource):
             attribute: The name of the attribute to retrieve. Can be a dot-separated path for nested attributes.
 
         Returns:
-            The value of the specified attribute, or None if it does not exist.
+            The value of the specified attribute, or MISSING_VALUE sentinel if the attribute does not exist.
         """
 
         entity = await self.get_state(entity_id)
-        value = get_path(attribute)(entity.attributes)
-        if value is MISSING_VALUE:
-            return None
-        return value
+        return get_path(attribute)(entity.attributes)
 
     async def get_history(
         self,
