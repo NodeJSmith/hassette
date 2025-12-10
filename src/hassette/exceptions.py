@@ -247,3 +247,7 @@ class InvalidEntityIdError(StateRegistryError):
         """
         super().__init__(f"Invalid or malformed entity ID: {entity_id!r}")
         self.entity_id = entity_id
+
+
+class UnableToConvertValueError(HassetteError):
+    """Raised when a raw value cannot be converted from one type to another via the TypeRegistry."""
