@@ -92,9 +92,12 @@ def get_hassette_config() -> "HassetteConfig":
     try:
         config = HASSETTE_CONFIG.get()
         return config
-    except LookupError:
+    except LookupError as e:
         LOGGER.debug("HassetteConfig not found in context, attempting to get from Hassette instance.")
-        return get_hassette().config
+        c = get_hassette().config
+        if c is None:
+            raise HassetteNotInitializedError("No HassetteConfig found in context or Hassette instance.") from e
+        return c
 
 
 def get_state_registry() -> "StateRegistry":
@@ -102,9 +105,12 @@ def get_state_registry() -> "StateRegistry":
     try:
         registry = HASSETTE_STATE_REGISTRY.get()
         return registry
-    except LookupError:
+    except LookupError as e:
         LOGGER.debug("StateRegistry not found in context, attempting to get from Hassette instance.")
-        return get_hassette().state_registry
+        sr = get_hassette().state_registry
+        if sr is None:
+            raise HassetteNotInitializedError("No StateRegistry found in context or Hassette instance.") from e
+        return sr
 
 
 def get_type_registry() -> "TypeRegistry":
@@ -112,9 +118,12 @@ def get_type_registry() -> "TypeRegistry":
     try:
         registry = HASSETTE_TYPE_REGISTRY.get()
         return registry
-    except LookupError:
+    except LookupError as e:
         LOGGER.debug("TypeRegistry not found in context, attempting to get from Hassette instance.")
-        return get_hassette().type_registry
+        tr = get_hassette().type_registry
+        if tr is None:
+            raise HassetteNotInitializedError("No TypeRegistry found in context or Hassette instance.") from e
+        return tr
 
 
 ## Context Managers ##
