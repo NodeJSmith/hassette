@@ -1,31 +1,14 @@
 from decimal import Decimal
 from inspect import get_annotations
 from logging import getLogger
-from typing import ClassVar, Generic, TypeVar, get_args
+from typing import Any, ClassVar, Generic, TypeVar, get_args
 
-from pydantic import (
-    AliasChoices,
-    BaseModel,
-    ConfigDict,
-    Field,
-    field_validator,
-    model_validator,
-)
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
+from hassette.context import get_type_registry
 from hassette.exceptions import NoDomainAnnotationError
-from hassette.types.value_converters import (
-    BaseValueConverter,
-    BoolValueConverter,
-    DateTimeValueConverter,
-    NumericValueConverter,
-    StrValueConverter,
-    TimeValueConverter,
-)
-from hassette.utils.date_utils import (
-    convert_datetime_str_to_system_tz,
-    convert_utc_timestamp_to_system_tz,
-)
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
 StateT = TypeVar("StateT", bound="BaseState", covariant=True)
 """Represents a specific state type, e.g., LightState, CoverState, etc."""
@@ -88,10 +71,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
     # Leaving them off unless we find a use case or get a feature request for them.
     # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
 
-    value_converter: ClassVar[type[BaseValueConverter]] = BaseValueConverter
-    """The converter class used to convert raw state values."""
-
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
+
+    value_type: ClassVar[type | tuple[type, ...]] = (str, type(None))
+    """The Python type of the state value, e.g. bool for BinarySensorState."""
 
     domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""
@@ -174,10 +157,8 @@ class BaseState(BaseModel, Generic[StateValueT]):
             values["is_unavailable"] = True
             values["state"] = state = None
 
-        if isinstance(state, BaseValueConverter):
-            values["state"] = state.to_python()
-
-        values["state"] = cls.value_converter.from_raw(state).to_python()
+        tr = get_type_registry()
+        values["state"] = tr.convert(state, cls.value_type)
 
         return values
 
@@ -209,8 +190,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
 class StringBaseState(BaseState[str | None]):
     """Base class for string states."""
 
-    value_converter: ClassVar[type[BaseValueConverter]] = StrValueConverter
-    """The converter class used to convert raw state values."""
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (str, type(None))
 
 
 class DateTimeBaseState(BaseState[ZonedDateTime | PlainDateTime | Date | None]):
@@ -219,8 +199,7 @@ class DateTimeBaseState(BaseState[ZonedDateTime | PlainDateTime | Date | None]):
     Valid state values are ZonedDateTime, PlainDateTime, Date, or None.
     """
 
-    value_converter: ClassVar[type[BaseValueConverter]] = DateTimeValueConverter
-    """The converter class used to convert raw state values."""
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (ZonedDateTime, PlainDateTime, Date, type(None))
 
 
 class TimeBaseState(BaseState[Time | None]):
@@ -229,8 +208,7 @@ class TimeBaseState(BaseState[Time | None]):
     Valid state values are Time or None.
     """
 
-    value_converter: ClassVar[type[BaseValueConverter]] = TimeValueConverter
-    """The converter class used to convert raw state values."""
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (Time, type(None))
 
 
 class BoolBaseState(BaseState[bool | None]):
@@ -241,8 +219,7 @@ class BoolBaseState(BaseState[bool | None]):
     Will convert string values "on" and "off" to boolean True and False.
     """
 
-    value_converter: ClassVar[type[BaseValueConverter]] = BoolValueConverter
-    """The converter class used to convert raw state values."""
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (bool, type(None))
 
 
 class NumericBaseState(BaseState[int | float | Decimal | None]):
@@ -252,5 +229,4 @@ class NumericBaseState(BaseState[int | float | Decimal | None]):
     Valid state values are int, float, Decimal, or None.
     """
 
-    value_converter: ClassVar[type[BaseValueConverter]] = NumericValueConverter
-    """The type of the state value."""
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (int, float, Decimal, type(None))
