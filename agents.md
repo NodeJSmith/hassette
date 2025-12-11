@@ -120,30 +120,31 @@ Hassette provides a dependency injection system for event handlers, allowing aut
 
 **Files**:
 - `dependencies/__init__.py` - Public API and documentation
-- `dependencies/classes.py` - Dependency marker classes
+- `dependencies/annotations.py` - Dependency marker classes
 - `dependencies/extraction.py` - Signature inspection and extraction logic
+- `dependencies/injector.py` - Runtime injector for dependency injection
 
 **Integration**: The `Bus` resource (`core/resources/bus/bus.py`) uses `extract_from_signature` and `validate_di_signature` to process handler signatures and inject values at runtime.
 
 ### Available Dependencies
 
 **State Extractors**:
-- `StateNew` - Extract new state object from state change events
-- `StateOld` - Extract old state object (may be None)
-- `StateOldAndNew` - Extract both states as tuple
+- `StateNew[T]` - Extract new state object, raises if missing
+- `StateOld[T]` - Extract old state object, raises if missing
+- `MaybeStateNew[T]` - Extract new state object, allows None
+- `MaybeStateOld[T]` - Extract old state object, allows None
 
-**Attribute Extractors**:
-- `AttrNew("attribute_name")` - Extract attribute from new state
-- `AttrOld("attribute_name")` - Extract attribute from old state
-- `AttrOldAndNew("attribute_name")` - Extract from both states
+**Identity Extractors**:
+- `EntityId` - Extract entity ID, raises if missing
+- `MaybeEntityId` - Extract entity ID, returns sentinel if missing
+- `Domain` - Extract domain (e.g., "light", "sensor"), raises if missing
+- `MaybeDomain` - Extract domain, returns sentinel if missing
 
-**Value & Identity Extractors**:
-- `EntityId` - Extract entity ID from any event
-- `Domain` - Extract domain (e.g., "light", "sensor")
-- `Service` - Extract service name from service call events
-- `StateValueNew` / `StateValueOld` - Extract state value strings
-- `ServiceData` - Extract service_data dict from service calls
+**Other Extractors**:
 - `EventContext` - Extract Home Assistant event context
+- `TypedStateChangeEvent[T]` - Convert raw event to typed event
+
+**Note**: For attribute extraction and other advanced use cases, use custom extractors with the `Annotated` type and accessors from `hassette.bus.accessors`. See the DI documentation for examples.
 
 ### Usage Pattern
 
@@ -151,13 +152,16 @@ Hassette provides a dependency injection system for event handlers, allowing aut
 from typing import Annotated
 from hassette import states
 from hassette import dependencies as D
+from hassette import accessors as A
 
 async def handler(
     new_state: D.StateNew[states.LightState],
-    brightness: Annotated[int | None, D.AttrNew("brightness")],
     entity_id: D.EntityId,
 ):
     # Parameters automatically extracted and injected
+    brightness = new_state.attributes.brightness
+    # Or use a custom extractor for attributes:
+    # brightness: Annotated[int | None, A.get_attr_new("brightness")]
     if brightness and brightness > 200:
         self.logger.info("%s is bright: %d", entity_id, brightness)
 ```

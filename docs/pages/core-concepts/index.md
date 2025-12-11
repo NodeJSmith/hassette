@@ -92,7 +92,18 @@ Learn more about writing apps in the [apps](apps/index.md) section.
 ## See Also
 
 - [Apps](apps/index.md) – how apps fit into the overall architecture.
-- [Scheduler](scheduler/index.md) – scheduling jobs and intervals.
 - [Bus](bus/index.md) – subscribing to and handling events.
+- [Scheduler](scheduler/index.md) – scheduling jobs and intervals.
 - [API](api/index.md) – interacting with Home Assistant.
+- [States](states/index.md) – working with state models.
 - [Configuration](configuration/index.md) – Hassette and app configuration.
+
+## Advanced Topics
+
+For deeper dives into advanced features:
+
+- [Dependency Injection](../advanced/dependency-injection.md) – automatic event data extraction and type conversion.
+- [Type Registry](../advanced/type-registry.md) – automatic value type conversion system.
+- [State Registry](../advanced/state-registry.md) – domain to state model mapping.
+- [Custom States](../advanced/custom-states.md) – defining your own state classes.
+- [Value Converters](../advanced/value-converters.md) – complete reference of built-in type converters.

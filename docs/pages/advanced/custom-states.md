@@ -136,7 +136,7 @@ class MyApp(App):
     async def on_reddit_change(
         self,
         new_state: D.StateNew[RedditState],
-        karma: Annotated[int | None, D.AttrNew("karma")]
+        karma: Annotated[int | None, A.get_attr_new("karma")],
     ):
         print(f"New karma: {karma}")
 ```

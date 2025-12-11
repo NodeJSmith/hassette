@@ -94,63 +94,48 @@ async def on_heartbeat(self) -> None:
 
 ### Available Dependencies
 
+!!! info "Complete DI Documentation"
+    For a comprehensive guide to dependency injection including all available annotations, Union type support, custom extractors, and advanced patterns, see the [Dependency Injection](../../advanced/dependency-injection.md) documentation.
+
 Import these from `hassette.dependencies` (commonly aliased as `D`):
 
 #### State Extractors
 
-- `StateNew` - Extract the new state object from a state change event
-- `StateOld` - Extract the old state object (may be None for initial states)
-- `MaybeStateOld` - Like `StateOld`, but can be `MISSING_VALUE` if no old state exists
-- `MaybeStateNew` - Like `StateNew`, but can be `MISSING_VALUE` if no new state exists
-
+- `StateNew[T]` - Extract the new state object, raises if missing
+- `StateOld[T]` - Extract the old state object, raises if missing
+- `MaybeStateNew[T]` - Extract new state, allows None
+- `MaybeStateOld[T]` - Extract old state, allows None
 
 ```python
-from typing import Annotated
 from hassette import dependencies as D, states
 
 async def on_light_change(
     self,
     new_state: D.StateNew[states.LightState],
-    old_state: D.StateOld[states.LightState | None],
+    old_state: D.MaybeStateOld[states.LightState],
 ):
-    if old_state and old_state.value != new_state.value:
+    if old_state and old_state.state != new_state.state:
         self.logger.info("Light %s: %s -> %s",
                         new_state.entity_id,
-                        old_state.value,
-                        new_state.value)
+                        old_state.state,
+                        new_state.state)
 ```
 
 #### Identity Extractors
 
-- `EntityId` - Extract the entity ID from any event
-- `Domain` - Extract the domain (e.g., "light", "sensor")
-- `Service` - Extract the service name from service call events
-
-```python
-from hassette.events import CallServiceEvent
-from hassette import dependencies as D
-
-async def on_service_call(
-    self,
-    domain: D.Domain,
-    service: D.Service,
-    entity_id: D.EntityId,
-):
-    self.logger.info("Service called: %s.%s on %s", domain, service, entity_id)
-```
-
-#### Other Extractors
-
+- `EntityId` - Extract the entity ID, raises if missing
+- `Domain` - Extract the domain, raises if missing
 - `EventContext` - Extract the Home Assistant event context
 
 ```python
-async def on_light_service(
+from hassette import dependencies as D
+
+async def on_any_change(
     self,
-    new_state: D.StateNew[states.LightState],
-    context: D.EventContext,
+    entity_id: D.EntityId,
+    domain: D.Domain,
 ):
-    self.logger.info("Light %s changed in context %s",
-                    new_state.entity_id, context.id)
+    self.logger.info("Entity %s (domain: %s) changed", entity_id, domain)
 ```
 ### Combining Multiple Dependencies
 

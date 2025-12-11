@@ -64,17 +64,19 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
   ```python
   from typing import Annotated
   from hassette import dependencies as D, states
+  from hassette import accessors as A
 
   async def handler(
       new_state: D.StateNew[states.LightState],
-      brightness: Annotated[int | None, D.AttrNew("brightness")],
       entity_id: D.EntityId,
+      # For attributes, use custom extractors:
+      brightness: Annotated[int | None, A.get_attr_new("brightness")],
   ):
       # Parameters automatically extracted and injected
       pass
   ```
 
-- **Available dependencies**: `StateNew`, `StateOld`, `StateOldAndNew`, `AttrNew(name)`, `AttrOld(name)`, `AttrOldAndNew(name)`, `EntityId`, `Domain`, `Service`, `StateValueNew`, `StateValueOld`, `ServiceData`, `EventContext`
+- **Available dependencies**: `StateNew`, `StateOld`, `MaybeStateNew`, `MaybeStateOld`, `EntityId`, `MaybeEntityId`, `Domain`, `MaybeDomain`, `EventContext`, `TypedStateChangeEvent`. For attribute extraction and other advanced cases, use custom extractors with `Annotated` and accessors from `hassette.bus.accessors`.
 - **Integration**: `Bus` resource (`core/resources/bus/bus.py`) uses `extract_from_signature` and `validate_di_signature` to process handler signatures and inject values at call time
 
 ## Event Bus Usage

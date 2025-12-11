@@ -384,11 +384,13 @@ class ButtonHandler(App):
 ```
 
 Available dependency markers include:
-- `StateNew`, `StateOld` - Extract state objects from state change events
-- `AttrNew("name")`, `AttrOld("name")` - Extract specific attributes
-- `EntityId`, `Domain`, `Service` - Extract identifiers
-- `StateValueNew`, `StateValueOld` - Extract state values (e.g., "on"/"off")
-- `ServiceData`, `EventContext` - Extract service data or event context
+- `StateNew`, `StateOld`, `MaybeStateNew`, `MaybeStateOld` - Extract state objects from state change events
+- `EntityId`, `MaybeEntityId` - Extract entity IDs
+- `Domain`, `MaybeDomain` - Extract domain names
+- `EventContext` - Extract Home Assistant event context
+- `TypedStateChangeEvent[T]` - Convert raw event to typed event
+
+For more details and advanced usage, see the [Dependency Injection](advanced/dependency-injection.md) documentation.
 
 You can also receive the full event object if you prefer:
 
@@ -526,7 +528,7 @@ class ButtonPressed(App):
 **With event object**:
 
 ```python
-from hassette import App, StateChangeEvent, states
+from hassette import App, dependencies as D, states
 
 
 class ButtonPressed(App):
@@ -537,7 +539,7 @@ class ButtonPressed(App):
         )
         self.logger.info(f"Subscribed: {sub}")
 
-    def button_pressed(self, event: StateChangeEvent[states.ButtonState]) -> None:
+    def button_pressed(self, event: D.TypedStateChangeEvent[states.ButtonState]) -> None:
         self.logger.info(f"Button pressed: {event}")
 ```
 
@@ -838,8 +840,7 @@ def on_motion(self, entity, attribute, old, new, **kwargs):
 
 **Hassette**:
 ```python
-from hassette.events import StateChangeEvent
-from hassette import states
+from hassette import dependencies as D, states
 
 async def on_initialize(self):
     self.bus.on_state_change(
@@ -848,8 +849,8 @@ async def on_initialize(self):
         changed_to="on"
     )
 
-async def on_motion(self, event: StateChangeEvent[states.BinarySensorState]):
-    self.logger.info(f"Motion detected on {event.payload.data.entity_id}")
+async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]):
+    self.logger.info(f"Motion detected on {new_state.entity_id}")
 ```
 
 #### Service Calls
