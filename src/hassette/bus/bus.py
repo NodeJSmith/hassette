@@ -182,7 +182,6 @@ class Bus(Resource):
             once: If True, the handler will be called only once and then removed.
             debounce: If set, applies a debounce to the handler.
             throttle: If set, applies a throttle to the handler.
-            priority: Priority for listener ordering. Higher values run first. Default is 0 for app handlers.
 
         Returns:
             A subscription object that can be used to manage the listener.
