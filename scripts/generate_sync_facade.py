@@ -1,8 +1,8 @@
 #!/usr/bin/env -S uv run --script
-
 import argparse
 import ast
 import itertools
+import subprocess
 import textwrap
 from pathlib import Path
 
@@ -190,6 +190,14 @@ def generate_sync(api_path: Path) -> str:
     return HEADER + CLASS_HEADER + wrappers_str
 
 
+def run_ruff(path: Path) -> None:
+    # format
+    subprocess.run(["ruff", "format", str(path)])
+
+    # validate
+    subprocess.run(["ruff", "check", str(path)], check=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate sync.py facade from api.py")
     parser.add_argument(
@@ -214,6 +222,7 @@ def main() -> None:
 
     code = generate_sync(api_path)
     out_path.write_text(code, encoding="utf8")
+    run_ruff(out_path)
     print(f"Wrote {out_path}")
 
 

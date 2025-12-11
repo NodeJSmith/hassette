@@ -24,6 +24,15 @@ repos:
 
   - repo: local
     hooks:
+      # regenerate sync.py
+      - id: generate_sync_facade
+        name: Generate sync.py facade
+        language: python
+        entry: python scripts/generate_sync_facade.py
+        pass_filenames: false
+        files: src/hassette/api/api.py
+
+      # ensure codecov yaml is valid
       - id: check-codecov-yml
         name: Check codecov.yml validity
         language: system
