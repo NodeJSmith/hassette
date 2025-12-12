@@ -172,6 +172,9 @@ class TypeRegistry:
         # handle tuple
         if isinstance(to_type, tuple):
             for tt in to_type:
+                if tt is type(None) and value is not None:
+                    LOGGER.warning("Not attempting to convert %r to NoneType", value)
+                    continue
                 try:
                     return self.convert(value, tt)
                 except UnableToConvertValueError:
@@ -189,10 +192,18 @@ class TypeRegistry:
         if value is None:
             return value
 
-        try:
-            fn = self.conversion_map[key]
-        except KeyError as e:
-            raise TypeError(f"No conversion registered from {from_type.__name__} to {to_type.__name__}") from e
+        if to_type is type(None) and value is not None:
+            LOGGER.warning("Not attempting to convert %r to NoneType", value)
+            raise UnableToConvertValueError(f"Cannot convert {value!r} to NoneType")
+
+        # if we don't have this in our map, attempt to just convert using it as a constructor
+        if key not in self.conversion_map and to_type is not type(None):
+            try:
+                return to_type(value)
+            except Exception as e:
+                raise UnableToConvertValueError(f"Unable to convert {value!r} to {to_type}") from e
+
+        fn = self.conversion_map[key]
 
         try:
             return fn.func(value)
