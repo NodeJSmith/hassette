@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 from hassette import context
 from hassette.api import Api
+from hassette.app.app import App
+from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.exceptions import AppPrecheckFailedError
@@ -165,12 +167,12 @@ class Hassette(Resource):
         return self._loop
 
     @property
-    def apps(self):
+    def apps(self) -> dict[str, dict[int, App[AppConfig]]]:
         """Get the currently loaded apps."""
         # note: return type left deliberately empty to allow underlying call to define it
         return self._app_handler.apps
 
-    def get_app(self, app_name: str, index: int = 0):
+    def get_app(self, app_name: str, index: int = 0) -> App[AppConfig] | None:
         """Get a specific app instance if running.
 
         Args:
