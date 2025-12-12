@@ -20,16 +20,46 @@ from hassette.test_utils.helpers import (
     make_sensor_state_dict,
     make_switch_state_dict,
 )
-from hassette.types import topics
-
-from ..base_classes import StateProxyTestCase  # noqa: TID252
+from hassette.types import Topic
 
 if TYPE_CHECKING:
     from hassette import Hassette
 
 
-class TestStateProxyInit(StateProxyTestCase):
-    """Tests for initialization and dependencies."""
+class TestStateProxyInit:
+    proxy: "StateProxy"
+
+    def setup_hassette(self, hassette: "Hassette") -> None:
+        """Set up Hassette instance and extract StateProxy.
+
+        Args:
+            hassette: The Hassette instance from fixture
+        """
+        self.hassette = hassette
+        self.api = hassette.api
+        self.bus = hassette._bus
+        self.proxy = hassette._state_proxy
+
+    async def send_state_event(
+        self,
+        entity_id: str,
+        old_state_dict: dict | None,
+        new_state_dict: dict | None,
+    ) -> None:
+        """Helper to send a state change event.
+
+        Args:
+            entity_id: Entity ID for the state change
+            old_state_dict: Old state dictionary (or None)
+            new_state_dict: New state dictionary (or None)
+        """
+        from hassette.test_utils.helpers import make_full_state_change_event
+        from hassette.types import Topic
+
+        event = make_full_state_change_event(entity_id, old_state_dict, new_state_dict)
+        await self.hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        # Give time for event processing
+        await asyncio.sleep(0.1)
 
     async def test_waits_for_dependencies(self, hassette_with_state_proxy: "Hassette") -> None:
         """State proxy waits for WebSocket, API, and Bus services before initializing."""
@@ -61,7 +91,7 @@ class TestStateProxyInit(StateProxyTestCase):
         listeners = await self.proxy.bus.get_listeners()
         assert len(listeners) > 0, "Should have listeners after initialization"
         topic_set = {listener.topic for listener in listeners}
-        assert topics.HASS_EVENT_STATE_CHANGED in topic_set, "Should subscribe to state_changed"
+        assert Topic.HASS_EVENT_STATE_CHANGED in topic_set, "Should subscribe to state_changed"
 
     async def test_raises_on_api_failure_during_init(self, hassette_with_state_proxy: "Hassette") -> None:
         """State proxy raises exception if API fails during initial sync."""
@@ -152,7 +182,7 @@ class TestStateProxyStateChanged:
         light_dict = make_light_state_dict("light.new_light", "on", brightness=100)
         event = make_full_state_change_event("light.new_light", None, light_dict)
 
-        await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.sleep(0.1)  # Give time for event processing
 
         # Verify entity was added
@@ -180,7 +210,7 @@ class TestStateProxyStateChanged:
             make_light_state_dict("light.test", "on", brightness=200),
         )
 
-        await hassette_with_state_proxy.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
+        await hassette_with_state_proxy.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.wait_for(wait_for.wait(), timeout=1.0)
 
         # Verify entity was updated
@@ -204,7 +234,7 @@ class TestStateProxyStateChanged:
         # Send removal event (new_state=None)
         event = make_full_state_change_event("light.test", old_dict, None)
 
-        await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
         await asyncio.wait_for(wait_for.wait(), timeout=1.0)
 
         # Verify entity was removed
@@ -230,7 +260,7 @@ class TestStateProxyStateChanged:
             ("switch.test", switch_dict),
         ]:
             event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
+            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.wait_for(wait_for.wait(), timeout=1.0)
 
@@ -254,7 +284,7 @@ class TestStateProxyStateChanged:
         for i in range(10):
             light_dict = make_light_state_dict(f"light.test_{i}", "on", brightness=i * 10)
             event = make_full_state_change_event(f"light.test_{i}", None, light_dict)
-            events.append((topics.HASS_EVENT_STATE_CHANGED, event))
+            events.append((Topic.HASS_EVENT_STATE_CHANGED, event))
 
         # Send all events
         await asyncio.gather(*[hassette.send_event(topic, event) for topic, event in events])
@@ -442,7 +472,7 @@ class TestStateProxyConcurrency:
                 max_brightness = i
             light_dict = make_light_state_dict("light.test", "on", brightness=i)
             event = make_full_state_change_event("light.test", light_dict, light_dict)
-            events.append((topics.HASS_EVENT_STATE_CHANGED, event))
+            events.append((Topic.HASS_EVENT_STATE_CHANGED, event))
 
         await asyncio.gather(*[hassette.send_event(topic, event) for topic, event in events])
         await asyncio.wait_for(wait_for.wait(), timeout=1.0)
@@ -476,7 +506,7 @@ class TestStateProxyConcurrency:
             for i in range(10):
                 light_dict = make_light_state_dict("light.test", "on", brightness=100 + i * 10)
                 event = make_full_state_change_event("light.test", None, light_dict)
-                await hassette.send_event(topics.HASS_EVENT_STATE_CHANGED, event)
+                await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
                 await asyncio.sleep(0.01)
 
         # Run reads and writes concurrently

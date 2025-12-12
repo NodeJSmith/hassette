@@ -30,7 +30,7 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 from hassette.resources.base import Service
-from hassette.types import topics
+from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -410,10 +410,10 @@ class WebsocketService(Service):
 
     async def _send_connection_lost_event(self) -> None:
         """Send a connection lost event to the event bus."""
-        event = HassetteSimpleEvent.create_event(topic=topics.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
+        event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         await self.hassette.send_event(event.topic, event)
 
     async def _send_connection_established_event(self) -> None:
         """Send a connection established event to the event bus."""
-        event = HassetteSimpleEvent.create_event(topic=topics.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
+        event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await self.hassette.send_event(event.topic, event)

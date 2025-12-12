@@ -7,7 +7,7 @@ from hassette.bus import Bus
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
-from hassette.types import topics
+from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -76,7 +76,7 @@ class StateProxy(Resource):
             raise
 
     def subscribe_to_events(self) -> None:
-        self.state_change_sub = self.bus.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
+        self.state_change_sub = self.bus.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
 
     async def on_shutdown(self) -> None:
         """Shutdown the state proxy and clean up resources."""

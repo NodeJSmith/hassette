@@ -14,7 +14,7 @@ import pytest
 from hassette import MISSING_VALUE
 from hassette import accessors as A
 from hassette import dependencies as D
-from hassette.context import get_state_registry
+from hassette.core.state_registry import STATE_REGISTRY
 from hassette.dependencies.extraction import (
     extract_from_annotated,
     extract_from_event_type,
@@ -42,7 +42,6 @@ def get_random_model(exclude_models: list[type[states.BaseState]]) -> type[state
     return states.BaseState  # Fallback, should not happen in this test
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestTypeDetection:
     """Test type detection functions for DI annotations."""
 
@@ -77,7 +76,6 @@ class TestTypeDetection:
         assert is_event_type(inspect.Parameter.empty) is False
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestTypeAliasExtractors:
     """Test pre-defined type alias extractors (EntityId, Domain, etc.)."""
 
@@ -152,7 +150,6 @@ class TestTypeAliasExtractors:
             assert isinstance(converted_result, HassContext)
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestExtractFromAnnotated:
     """Test extract_from_annotated function."""
 
@@ -188,7 +185,6 @@ class TestExtractFromAnnotated:
         assert extract_from_annotated(int) is None
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestExtractFromEventType:
     """Test extract_from_event_type function."""
 
@@ -217,7 +213,6 @@ class TestExtractFromEventType:
         assert extract_from_event_type(dict) is None
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestSignatureExtraction:
     """Test signature extraction and validation."""
 
@@ -308,7 +303,6 @@ class TestSignatureExtraction:
         assert "event" in param_details_dict
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestSignatureValidation:
     """Test signature validation for DI."""
 
@@ -343,7 +337,6 @@ class TestSignatureValidation:
             validate_di_signature(signature)
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestMaybeAnnotations:
     """Test Maybe* type aliases that allow None/MISSING_VALUE."""
 
@@ -414,7 +407,6 @@ class TestMaybeAnnotations:
         assert result == call_service_event.payload.data.domain
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestRequiredAnnotations:
     """Test that required (non-Maybe) annotations raise when value is None."""
 
@@ -462,7 +454,6 @@ class TestRequiredAnnotations:
         assert result == call_service_event.payload.data.domain
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestCustomDI:
     """Test custom dependency injection extractors."""
 
@@ -537,7 +528,6 @@ class TestCustomDI:
         assert result == expected_brightness, f"Expected brightness {expected_brightness}, got {result}"
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestDependencyInjectionHandlesTypeConversion:
     """Test that dependency injection handles type conversion correctly."""
 
@@ -559,7 +549,7 @@ class TestDependencyInjectionHandlesTypeConversion:
         """Test that StateNew converts BaseState to domain-specific state type."""
 
         for state_change_event in state_change_events_with_new_state:
-            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             domain = state_change_event.payload.data.domain
 
             _, annotation_details = extract_from_annotated(D.StateNew[model])
@@ -584,11 +574,11 @@ class TestDependencyInjectionHandlesTypeConversion:
             assert isinstance(state, states.BaseState), f"State should be BaseState, got {type(state)}"
             assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
 
-    async def test_maybe_state_conversion(self, state_change_events: list[RawStateChangeEvent], with_state_registry):
+    async def test_maybe_state_conversion(self, state_change_events: list[RawStateChangeEvent]):
         """Test that MaybeStateNew converts BaseState to domain-specific state type."""
 
         for state_change_event in state_change_events:
-            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             domain = state_change_event.payload.data.domain
 
             def handler(new_state: D.MaybeStateNew[model]):
@@ -605,9 +595,7 @@ class TestDependencyInjectionHandlesTypeConversion:
                 assert isinstance(state, model), f"State should be converted to {model.__name__}, got {type(state)}"
                 assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
 
-    async def test_maybe_state_as_base_state_stays_base_state(
-        self, state_change_events: list[RawStateChangeEvent], with_state_registry
-    ):
+    async def test_maybe_state_as_base_state_stays_base_state(self, state_change_events: list[RawStateChangeEvent]):
         """Test that MaybeStateNew[BaseState] returns BaseState without conversion."""
 
         for state_change_event in state_change_events:
@@ -634,7 +622,7 @@ class TestDependencyInjectionHandlesTypeConversion:
         """Test StateNew and MaybeStateOld conversion when only new_state is present."""
 
         for state_change_event in state_change_events_with_new_state:
-            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
 
             def handler(new_state: D.StateNew[model], old_state: D.MaybeStateOld[model]):
                 pass
@@ -656,7 +644,7 @@ class TestDependencyInjectionHandlesTypeConversion:
         """Test MaybeStateNew and StateOld conversion when only old_state is present."""
 
         for state_change_event in state_change_events_with_old_state:
-            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
 
             def handler(new_state: D.MaybeStateNew[model], old_state: D.StateOld[model]):
                 pass
@@ -680,7 +668,7 @@ class TestDependencyInjectionHandlesTypeConversion:
     ):
         """Test StateNew and StateOld conversion when both states are present."""
         for state_change_event in state_change_events_with_both_states:
-            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
 
             def handler(new_state: D.StateNew[model], old_state: D.StateOld[model]):
                 pass
@@ -699,7 +687,7 @@ class TestDependencyInjectionHandlesTypeConversion:
         """Test TypedStateChangeEvent provides typed states."""
 
         for state_change_event in state_change_events_with_new_state:
-            model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
 
             def handler(event: D.TypedStateChangeEvent[model]):
                 pass
@@ -722,7 +710,7 @@ class TestDependencyInjectionHandlesTypeConversion:
         """Test TypedStateChangeEvent provides typed states."""
 
         for state_change_event in state_change_events_with_new_state:
-            correct_model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             incorrect_model = get_random_model([correct_model])
 
             def typed_state_change_handler(event: D.TypedStateChangeEvent[incorrect_model]):
@@ -739,7 +727,6 @@ class TestDependencyInjectionHandlesTypeConversion:
                     injector.inject_parameters(state_change_event)
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestDependencyInjectionTypeConversionHandlesUnions:
     """Test that dependency injection handles Union type annotations correctly."""
 
@@ -749,7 +736,7 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
         """Test TypedStateChangeEvent provides typed states."""
 
         for state_change_event in state_change_events_with_new_state:
-            correct_model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             incorrect_model = get_random_model([correct_model])
 
             def typed_state_change_handler(event: D.TypedStateChangeEvent[incorrect_model | correct_model]):
@@ -771,7 +758,7 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
         """Test TypedStateChangeEvent provides typed states."""
 
         for state_change_event in state_change_events_with_new_state:
-            correct_model = get_state_registry().get_class_for_domain(state_change_event.payload.data.domain)
+            correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             incorrect_model = get_random_model([correct_model])
             another_incorrect_model = get_random_model([correct_model, incorrect_model])
 

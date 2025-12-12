@@ -6,7 +6,7 @@ from typing import Any, Generic, Literal
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
 from hassette.models.states import StateT
-from hassette.types import topics
+from hassette.types import Topic
 
 from .raw import HassEventEnvelopeDict, HassStateDict
 
@@ -232,53 +232,53 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
     match event_type:
         case "state_changed":
             return RawStateChangeEvent(
-                topic=topics.HASS_EVENT_STATE_CHANGED,
+                topic=Topic.HASS_EVENT_STATE_CHANGED,
                 payload=HassPayload(**event_payload, data=RawStateChangePayload(**event_data)),
             )
 
         case "call_service":
             return CallServiceEvent(
-                topic=topics.HASS_EVENT_CALL_SERVICE,
+                topic=Topic.HASS_EVENT_CALL_SERVICE,
                 payload=HassPayload(**event_payload, data=CallServicePayload(**event_data)),
             )
         case "component_loaded":
             return ComponentLoadedEvent(
-                topic=topics.HASS_EVENT_COMPONENT_LOADED,
+                topic=Topic.HASS_EVENT_COMPONENT_LOADED,
                 payload=HassPayload(**event_payload, data=ComponentLoadedPayload(**event_data)),
             )
         case "service_registered":
             return ServiceRegisteredEvent(
-                topic=topics.HASS_EVENT_SERVICE_REGISTERED,
+                topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
                 payload=HassPayload(**event_payload, data=ServiceRegisteredPayload(**event_data)),
             )
         case "service_removed":
             return ServiceRemovedEvent(
-                topic=topics.HASS_EVENT_SERVICE_REMOVED,
+                topic=Topic.HASS_EVENT_SERVICE_REMOVED,
                 payload=HassPayload(**event_payload, data=ServiceRemovedPayload(**event_data)),
             )
         case "logbook_entry":
             return LogbookEntryEvent(
-                topic=topics.HASS_EVENT_LOGBOOK_ENTRY,
+                topic=Topic.HASS_EVENT_LOGBOOK_ENTRY,
                 payload=HassPayload(**event_payload, data=LogbookEntryPayload(**event_data)),
             )
         case "user_added":
             return UserAddedEvent(
-                topic=topics.HASS_EVENT_USER_ADDED,
+                topic=Topic.HASS_EVENT_USER_ADDED,
                 payload=HassPayload(**event_payload, data=UserAddedPayload(**event_data)),
             )
         case "user_removed":
             return UserRemovedEvent(
-                topic=topics.HASS_EVENT_USER_REMOVED,
+                topic=Topic.HASS_EVENT_USER_REMOVED,
                 payload=HassPayload(**event_payload, data=UserRemovedPayload(**event_data)),
             )
         case "automation_triggered":
             return AutomationTriggeredEvent(
-                topic=topics.HASS_EVENT_AUTOMATION_TRIGGERED,
+                topic=Topic.HASS_EVENT_AUTOMATION_TRIGGERED,
                 payload=HassPayload(**event_payload, data=AutomationTriggeredPayload(**event_data)),
             )
         case "script_started":
             return ScriptStartedEvent(
-                topic=topics.HASS_EVENT_SCRIPT_STARTED,
+                topic=Topic.HASS_EVENT_SCRIPT_STARTED,
                 payload=HassPayload(**event_payload, data=ScriptStartedPayload(**event_data)),
             )
         case _:

@@ -11,7 +11,7 @@ class CustomOuterDefinition(BaseState):
     domain: typing.Literal["custom_outer"]
 
 
-def test_custom_class_defined_inside_function_returns_base_state_with_unregistered_class(
+def test_custom_class_defined_inside_function_still_returns_custom_state(
     hassette_with_state_registry: "Hassette",
 ) -> None:
     """try_convert_state will return BaseState if a custom state class is defined inside a
@@ -32,10 +32,7 @@ def test_custom_class_defined_inside_function_returns_base_state_with_unregister
 
     value = hassette.state_registry.try_convert_state(state_dict)
     assert value is not None, "State conversion failed"
-    assert type(value) is BaseState, f"Expected BaseState, got {type(value)}"
-    assert type(value) is not CustomStateWithoutRegister, (
-        "Expected not to get CustomStateWithoutRegister since it was not registered"
-    )
+    assert type(value) is CustomStateWithoutRegister, f"CustomStateWithoutRegister BaseState, got {type(value)}"
 
 
 def test_custom_class_nested_definition_returns_proper_state_after_register(

@@ -177,23 +177,6 @@ async def handler(
         self.logger.info("%s is very bright: %d", entity_id, brightness)
 ```
 
-### How It Works
-
-The dependency injection system uses TypeRegistry as the default converter in `ParameterInjector`:
-
-```python
-# From src/hassette/dependencies/injector.py
-def __init__(
-    self,
-    target_type: type[T],
-    converter: Callable[[Any, type[T]], T] | None = None,
-):
-    self.target_type = target_type
-    # In actual code, TypeRegistry is accessed via context
-    from hassette.context import get_type_registry
-    self.converter = converter or get_type_registry().convert
-```
-
 When a custom extractor returns a value, if the value type doesn't match the annotated type, the TypeRegistry is called to perform the conversion automatically.
 
 ### Bypassing Automatic Conversion
@@ -213,6 +196,23 @@ async def handler(
     # Handle conversion yourself
     brightness = int(brightness_raw) if brightness_raw else None
 ```
+
+Or to use your own converter function:
+
+```python
+from typing import Annotated, Any
+
+# define your own conversion method
+def converter(value: Any) -> int:
+    return int(value) if value else 0
+
+async def handler(
+    # Pass `converter` after extractor function
+    brightness: Annotated[int, A.get_attr_new("brightness"), converter],
+):
+    assert isinstance(brightness, int)
+```
+
 
 ## Relationship with StateRegistry
 
@@ -234,22 +234,6 @@ The TypeRegistry and StateRegistry work together but serve different purposes:
 4. **TypeRegistry** converts the state value to match `value_type`
 5. Pydantic continues validation with the properly typed value
 
-```python
-# Complete flow example
-from hassette.context import get_state_registry, get_type_registry
-
-state_registry = get_state_registry()
-type_registry = get_type_registry()
-
-# 1. StateRegistry picks the model class
-model_class = state_registry.get_class_for_domain("sensor")  # Returns SensorState
-
-# 2. Model creation triggers validation
-# 3. BaseState validator checks value_type = (str, int, float)
-# 4. TypeRegistry converts "23.5" → 23.5 (float)
-# 5. Validation completes successfully
-sensor_state = model_class(entity_id="sensor.temperature", state="23.5")
-```
 
 ## Built-in Converters
 
@@ -379,21 +363,15 @@ async def handler(
         self.logger.info("Night mode with color %s", color)
 ```
 
-## Error Handling
-
-The TypeRegistry provides detailed error messages when conversions fail:
-
 ### Conversion Errors
 
 When a conversion fails, the TypeRegistry wraps the error with context:
 
 ```python
-from hassette.context import get_type_registry
-
-type_registry = get_type_registry()
+from hassette import TYPE_REGISTERY
 
 try:
-    result = type_registry.convert("not_a_number", int)
+    result = TYPE_REGISTRY.convert("not_a_number", int)
 except ValueError as e:
     # Error message uses the error_message from the converter
     print(e)  # Error details about the conversion failure
@@ -404,15 +382,13 @@ except ValueError as e:
 If no converter is registered for a type pair, a `TypeError` is raised:
 
 ```python
-from hassette.context import get_type_registry
-
-type_registry = get_type_registry()
+from hassette import TYPE_REGISTRY
 
 class CustomType:
     pass
 
 try:
-    result = type_registry.convert("value", CustomType)
+    result = TYPE_REGISTRY.convert("value", CustomType)
 except TypeError as e:
     print(e)  # "No converter registered for str -> CustomType"
 ```
@@ -444,12 +420,10 @@ The TypeRegistry provides methods to inspect registered converters:
 ### List All Conversions
 
 ```python
-from hassette.context import get_type_registry
-
-type_registry = get_type_registry()
+from hassette import TYPE_REGISTRY
 
 # Get all registered conversions
-conversions = type_registry.list_conversions()
+conversions = TYPE_REGISTRY.list_conversions()
 
 for from_type, to_type, entry in conversions:
     print(f"{from_type.__name__} → {to_type.__name__}: {entry.description}")
@@ -467,14 +441,12 @@ int → float: Convert integer to float
 ### Check for Specific Converter
 
 ```python
-from hassette.context import get_type_registry
-
-type_registry = get_type_registry()
+from hassette import TYPE_REGISTRY
 
 # Check if a converter exists
 key = (str, int)
-if key in type_registry.conversion_map:
-    entry = type_registry.conversion_map[key]
+if key in TYPE_REGISTRY.conversion_map:
+    entry = TYPE_REGISTRY.conversion_map[key]
     print(f"Converter found: {entry.description}")
 else:
     print("No converter registered")
@@ -483,49 +455,14 @@ else:
 ### Get Converter Details
 
 ```python
-from hassette.context import get_type_registry
-
-type_registry = get_type_registry()
+from hassette import TYPE_REGISTRY
 
 # Get details about a specific converter
-entry = type_registry.conversion_map.get((str, bool))
+entry = TYPE_REGISTRY.conversion_map.get((str, bool))
 if entry:
     print(f"Description: {entry.description}")
     print(f"Error format: {entry.error_message_format}")
     print(f"Converter: {entry.converter}")
-```
-
-## Performance Considerations
-
-### Conversion Lookup
-
-The TypeRegistry uses dictionary lookup with tuple keys for O(1) conversion lookup:
-
-```python
-# Internal structure
-_conversion_map: dict[tuple[type, type], TypeConverterEntry]
-```
-
-This means converter lookup is extremely fast regardless of the number of registered converters.
-
-### Caching
-
-The TypeRegistry does not cache conversion results because:
-1. The conversion itself is typically very fast (type coercion)
-2. Values are usually converted once during model creation
-3. Caching would add memory overhead with minimal benefit
-
-If you need to convert the same value multiple times, consider caching at the application level:
-
-```python
-from functools import lru_cache
-from hassette.context import get_type_registry
-
-@lru_cache(maxsize=128)
-def get_parsed_config(config_str: str) -> MyConfig:
-    """Parse and cache configuration."""
-    type_registry = get_type_registry()
-    return type_registry.convert(config_str, MyConfig)
 ```
 
 ### Union Type Performance
@@ -589,7 +526,7 @@ Register custom converters at module import time using decorators:
 
 ```python
 # my_converters.py
-from hassette.core.type_registry import register_type_converter_fn
+from hassette import register_type_converter_fn
 
 @register_type_converter_fn(...)  # Registered when module is imported
 def my_converter(...):
@@ -604,25 +541,23 @@ Always test custom converters with edge cases:
 
 ```python
 import pytest
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
 def test_custom_converter():
     """Test custom RGB converter."""
-    type_registry = get_type_registry()
-
     # Valid conversion
-    result = type_registry.convert("255,128,0", RGBColor)
+    result = TYPE_REGISTRY.convert("255,128,0", RGBColor)
     assert result.red == 255
     assert result.green == 128
     assert result.blue == 0
 
     # Invalid format
     with pytest.raises(ValueError, match="Invalid RGB format"):
-        type_registry.convert("not_rgb", RGBColor)
+        TYPE_REGISTRY.convert("not_rgb", RGBColor)
 
     # Out of range
     with pytest.raises(ValueError, match="must be between 0 and 255"):
-        type_registry.convert("300,128,0", RGBColor)
+        TYPE_REGISTRY.convert("300,128,0", RGBColor)
 ```
 ## Common Patterns
 

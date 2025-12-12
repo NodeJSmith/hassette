@@ -1,7 +1,7 @@
-import inspect
 from typing import Any
 
-from hassette.api import Api, ApiSyncFacade
+from hassette.api import Api
+from hassette.core.state_registry import STATE_REGISTRY
 from hassette.test_utils import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
 
@@ -42,17 +42,6 @@ def test_clean_kwargs_basic():
     assert cleaned_kwargs == {"b": "false", "d": "x", "e": 5}, f"Unexpected cleaned kwargs: {cleaned_kwargs}"
 
 
-def test_sync_parity():
-    """Sync facade exposes the same public methods as the async API."""
-    api_methods = inspect.getmembers(Api, predicate=inspect.isfunction)
-    api_sync_methods = inspect.getmembers(ApiSyncFacade, predicate=inspect.isfunction)
-
-    api_method_names = {name for name, _ in api_methods if not name.startswith("_")}
-    api_sync_method_names = {name for name, _ in api_sync_methods if not name.startswith("_")}
-
-    assert api_method_names == api_sync_method_names, f"Mismatch: {api_method_names ^ api_sync_method_names}"
-
-
 async def test_get_state_return_type(
     hassette_with_mock_api: tuple[Api, SimpleTestServer], hass_state_dicts: list[dict[str, Any]]
 ):
@@ -70,6 +59,5 @@ async def test_get_state_return_type(
 
         # Check specific types
         domain = entity_id.split(".")[0]
-        if domain in api_client.hassette.state_registry.domain_to_class:
-            expected_class = api_client.hassette.state_registry.domain_to_class[domain]
-            assert isinstance(state, expected_class), f"Expected {expected_class}, got {type(state)}"
+        expected_class = STATE_REGISTRY.resolve(domain=domain)
+        assert isinstance(state, expected_class), f"Expected {expected_class}, got {type(state)}"

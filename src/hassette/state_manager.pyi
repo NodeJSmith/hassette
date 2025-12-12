@@ -34,7 +34,7 @@ class DomainStates(typing.Generic[StateT]):
     def get(self, entity_id: str) -> StateT | None: ...
     def __getitem__(self, entity_id: str) -> StateT: ...
 
-class States(Resource):
+class StateManager(Resource):
     """Resource for managing Home Assistant states.
 
     Provides typed access to entity states by domain through dynamic properties.
@@ -56,7 +56,7 @@ class States(Resource):
     @property
     def _state_proxy(self) -> StateProxy: ...
     @classmethod
-    def create(cls, hassette: Hassette, parent: Resource) -> States: ...
+    def create(cls, hassette: Hassette, parent: Resource) -> StateManager: ...
 
     # Known domain properties with full typing
     @property

@@ -10,8 +10,6 @@ from hassette.exceptions import HassetteNotInitializedError
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette, HassetteConfig, TaskBucket
-    from hassette.core.state_registry import StateRegistry
-    from hassette.core.type_registry import TypeRegistry
 
 LOGGER = getLogger(__name__)
 
@@ -21,8 +19,6 @@ HASSETTE_SET_LOCATION: ContextVar[str | None] = ContextVar("HASSETTE_SET_LOCATIO
 
 
 HASSETTE_CONFIG: ContextVar["HassetteConfig"] = ContextVar("HASSETTE_CONFIG")
-HASSETTE_STATE_REGISTRY: ContextVar["StateRegistry"] = ContextVar("HASSETTE_STATE_REGISTRY")
-HASSETTE_TYPE_REGISTRY: ContextVar["TypeRegistry"] = ContextVar("HASSETTE_TYPE_REGISTRY")
 
 ## Setters ##
 
@@ -61,20 +57,6 @@ def set_global_hassette_config(config: "HassetteConfig") -> None:
     HASSETTE_CONFIG.set(config)
 
 
-def set_global_state_registry(registry: "StateRegistry") -> None:
-    """Set the global StateRegistry instance. This can be overriden using the `use` context manager."""
-    if HASSETTE_STATE_REGISTRY.get(None) is not None:
-        raise RuntimeError("StateRegistry is already set in context.")
-    HASSETTE_STATE_REGISTRY.set(registry)
-
-
-def set_global_type_registry(registry: "TypeRegistry") -> None:
-    """Set the global TypeRegistry instance. This can be overriden using the `use` context manager."""
-    if HASSETTE_TYPE_REGISTRY.get(None) is not None:
-        raise RuntimeError("TypeRegistry is already set in context.")
-    HASSETTE_TYPE_REGISTRY.set(registry)
-
-
 ## Getters ##
 
 
@@ -98,32 +80,6 @@ def get_hassette_config() -> "HassetteConfig":
         if c is None:
             raise HassetteNotInitializedError("No HassetteConfig found in context or Hassette instance.") from e
         return c
-
-
-def get_state_registry() -> "StateRegistry":
-    """Get the current StateRegistry from the Hassette instance in context."""
-    try:
-        registry = HASSETTE_STATE_REGISTRY.get()
-        return registry
-    except LookupError as e:
-        LOGGER.debug("StateRegistry not found in context, attempting to get from Hassette instance.")
-        sr = get_hassette().state_registry
-        if sr is None:
-            raise HassetteNotInitializedError("No StateRegistry found in context or Hassette instance.") from e
-        return sr
-
-
-def get_type_registry() -> "TypeRegistry":
-    """Get the current TypeRegistry from the Hassette instance in context."""
-    try:
-        registry = HASSETTE_TYPE_REGISTRY.get()
-        return registry
-    except LookupError as e:
-        LOGGER.debug("TypeRegistry not found in context, attempting to get from Hassette instance.")
-        tr = get_hassette().type_registry
-        if tr is None:
-            raise HassetteNotInitializedError("No TypeRegistry found in context or Hassette instance.") from e
-        return tr
 
 
 ## Context Managers ##
@@ -157,23 +113,3 @@ def use_task_bucket(bucket: "TaskBucket") -> Generator[None, Any]:
         yield
     finally:
         CURRENT_BUCKET.reset(token)
-
-
-@contextmanager
-def use_state_registry(registry: "StateRegistry") -> Generator[None, Any]:
-    """Temporarily set the global StateRegistry within a block."""
-    token = HASSETTE_STATE_REGISTRY.set(registry)
-    try:
-        yield
-    finally:
-        HASSETTE_STATE_REGISTRY.reset(token)
-
-
-@contextmanager
-def use_type_registry(registry: "TypeRegistry") -> Generator[None, Any]:
-    """Temporarily set the global TypeRegistry within a block."""
-    token = HASSETTE_TYPE_REGISTRY.set(registry)
-    try:
-        yield
-    finally:
-        HASSETTE_TYPE_REGISTRY.reset(token)

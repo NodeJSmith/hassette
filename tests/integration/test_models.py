@@ -8,7 +8,7 @@ from typing import cast
 
 import pytest
 
-from hassette.context import get_state_registry
+from hassette.core.state_registry import STATE_REGISTRY
 from hassette.models import states
 from hassette.models.states import base
 
@@ -51,9 +51,8 @@ def all_models():
 
 def test_all_domains_registered(hassette_with_state_proxy: "Hassette", all_models: dict[str, type[states.BaseState]]):
     """Test that all state models are registered in the state registry."""
-    registry = get_state_registry()
 
-    registered_domains = registry.all_domains()
+    registered_domains = [x.domain for x in STATE_REGISTRY._registry]
     missing_domains = []
 
     for model_cls in all_models.values():
@@ -82,11 +81,10 @@ def test_all_domains_registered(hassette_with_state_proxy: "Hassette", all_model
     print(f"All {len(all_models)} state models are properly registered in the registry.")
 
 
-def test_all_classes_in_registry(hassette_with_state_proxy: "Hassette", all_models: dict[str, type[states.BaseState]]):
+def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
     """Test that all state models are included in the state registry."""
-    registry = get_state_registry()
 
-    registered_classes = registry.all_classes()
+    registered_classes = [v for v in STATE_REGISTRY._registry.values()]
     missing_classes = []
 
     for model_cls in all_models.values():
@@ -110,11 +108,9 @@ def test_all_classes_in_registry(hassette_with_state_proxy: "Hassette", all_mode
 
 
 def test_registry_can_convert_all_domains(
-    hassette_with_state_proxy: "Hassette",
     all_models: dict[str, type[states.BaseState]],
 ):
     """Test that the registry can look up classes for all known domains."""
-    registry = get_state_registry()
 
     for model_cls in all_models.values():
         model_cls = cast("type[states.BaseState]", model_cls)
@@ -124,7 +120,7 @@ def test_registry_can_convert_all_domains(
             continue
 
         domain = model_cls.get_domain()
-        retrieved_class = registry.get_class_for_domain(domain)
+        retrieved_class = STATE_REGISTRY.resolve(domain=domain)
 
         assert retrieved_class is model_cls, (
             f"Registry returned {retrieved_class} for domain '{domain}', expected {model_cls}"

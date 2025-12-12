@@ -6,6 +6,8 @@ from .bus import Bus, accessors, conditions, predicates
 from .config import HassetteConfig
 from .const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
 from .core.core import Hassette
+from .core.state_registry import STATE_REGISTRY
+from .core.type_registry import TYPE_REGISTRY, register_simple_type_converter, register_type_converter_fn
 from .events import RawStateChangeEvent
 from .models import entities, states
 from .models.services import ServiceResponse
@@ -18,6 +20,8 @@ __all__ = [
     "ANY_VALUE",
     "MISSING_VALUE",
     "NOT_PROVIDED",
+    "STATE_REGISTRY",
+    "TYPE_REGISTRY",
     "Api",
     "App",
     "AppConfig",
@@ -34,5 +38,7 @@ __all__ = [
     "entities",
     "only_app",
     "predicates",
+    "register_simple_type_converter",
+    "register_type_converter_fn",
     "states",
 ]

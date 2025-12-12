@@ -8,7 +8,7 @@ from contextlib import suppress
 from types import UnionType
 from typing import Any, get_args, get_origin
 
-from hassette.context import get_type_registry
+from hassette.core.type_registry import TYPE_REGISTRY
 from hassette.exceptions import DependencyError, DependencyInjectionError, DependencyResolutionError
 from hassette.utils.type_utils import get_optional_type_arg, is_optional_type, normalize_for_isinstance
 
@@ -147,7 +147,7 @@ class ParameterInjector:
                 return extracted_value
 
             # use TypeRegistry if no converter provided
-            converter = get_type_registry().convert
+            converter = TYPE_REGISTRY.convert
 
         # Convert if converter exists
         if type(target_type) is UnionType:

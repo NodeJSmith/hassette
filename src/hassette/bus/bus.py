@@ -89,7 +89,7 @@ from typing_extensions import TypedDict
 import hassette.bus.predicates as P
 from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
-from hassette.types import ComparisonCondition, topics
+from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
 from hassette.utils.func_utils import callable_short_name
 
@@ -263,7 +263,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))  # allow extra guards
 
-        return self.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_attribute_change(
         self,
@@ -336,7 +336,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_call_service(
         self,
@@ -391,7 +391,7 @@ class Bus(Resource):
                 if other:
                     preds.append(P.AllOf.ensure_iterable(other))
 
-        return self.on(topic=topics.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_component_loaded(
         self,
@@ -430,7 +430,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_service_registered(
         self,
@@ -475,7 +475,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_homeassistant_restart(
         self,
@@ -580,7 +580,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_hassette_service_failed(
         self,
@@ -675,7 +675,7 @@ class Bus(Resource):
         """
 
         return self.on(
-            topic=topics.HASSETTE_EVENT_WEBSOCKET_CONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
+            topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
         )
 
     def on_websocket_disconnected(
@@ -699,5 +699,5 @@ class Bus(Resource):
         """
 
         return self.on(
-            topic=topics.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
+            topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
         )

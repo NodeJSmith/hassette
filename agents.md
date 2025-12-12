@@ -175,7 +175,7 @@ async def handler(
 ## Event Bus Usage
 
 ### Topics and Events
-- Topics defined in `src/hassette/topics.py`
+- Topics defined in `src/hassette/types/enums.py`
 - Common events: `HASS_EVENT_STATE_CHANGED`, `HASSETTE_EVENT_SERVICE_STATUS`, `HASSETTE_EVENT_APP_LOAD_COMPLETED`
 
 ### Bus Helpers
@@ -336,7 +336,7 @@ config = [
 ### Models and Events
 - `src/hassette/events/`: Event definitions and handling
 - `src/hassette/models/`: Home Assistant entity and state models
-- `src/hassette/topics.py`: Event topic definitions
+- `src/hassette/enums.py`: Event topic definitions
 
 ### Examples and Tests
 - `examples/`: Complete example applications

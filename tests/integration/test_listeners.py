@@ -357,7 +357,6 @@ class TestListenerIntegration:
             )
 
 
-@pytest.mark.usefixtures("with_state_registry")
 class TestDependencyValidationErrors:
     """Test that listeners properly handle dependency resolution errors."""
 

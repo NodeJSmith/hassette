@@ -12,7 +12,7 @@ from hassette.config.classes import AppManifest
 from hassette.events.base import Event
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
-from hassette.states import States
+from hassette.state_manager import StateManager
 from hassette.types.enums import ResourceRole
 from hassette.utils.date_utils import now
 
@@ -73,8 +73,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     bus: "Bus"
     """Event bus instance for event handlers owned by this app."""
 
-    states: "States"
-    """States proxy instance for accessing Home Assistant states."""
+    states: "StateManager"
+    """States manager instance for accessing Home Assistant states."""
 
     app_config: AppConfigT
     """Configuration for this app instance."""
@@ -97,7 +97,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         inst.api = inst.add_child(Api)
         inst.scheduler = inst.add_child(Scheduler)
         inst.bus = inst.add_child(Bus, priority=0)
-        inst.states = inst.add_child(States)
+        inst.states = inst.add_child(StateManager)
         return inst
 
     @property

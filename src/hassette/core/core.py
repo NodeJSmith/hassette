@@ -10,12 +10,11 @@ from hassette import context
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
-from hassette.core.state_registry import StateRegistry
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
-from hassette.states import States
+from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
@@ -30,7 +29,8 @@ from .health_service import HealthService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .state_proxy import StateProxy
-from .type_registry import TypeRegistry
+from .state_registry import STATE_REGISTRY, StateRegistry
+from .type_registry import TYPE_REGISTRY, TypeRegistry
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
@@ -52,8 +52,8 @@ class Hassette(Resource):
     api: Api
     """API service for handling HTTP requests."""
 
-    states: States
-    """States proxy instance for accessing Home Assistant states."""
+    states: StateManager
+    """States manager instance for accessing Home Assistant states."""
 
     state_registry: StateRegistry
     """State registry for managing state class registrations and conversions."""
@@ -94,17 +94,17 @@ class Hassette(Resource):
         self._scheduler_service = self.add_child(SchedulerService)
 
         self._api_service = self.add_child(ApiResource)
-
-        # state proxy
         self._state_proxy = self.add_child(StateProxy)
-        self._states = self.add_child(States)
 
         # internal instances
         self._bus = self.add_child(Bus)
         self._scheduler = self.add_child(Scheduler)
+
+        # public instances
+        self.states = self.add_child(StateManager)
         self.api = self.add_child(Api)
-        self.state_registry = self.add_child(StateRegistry)
-        self.type_registry = self.add_child(TypeRegistry)
+        self.state_registry = STATE_REGISTRY
+        self.type_registry = TYPE_REGISTRY
 
         self.logger.info("All components registered...")
 

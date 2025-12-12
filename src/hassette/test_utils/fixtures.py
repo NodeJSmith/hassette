@@ -2,16 +2,11 @@ import contextlib
 import json
 import random
 import typing
-from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
-from unittest.mock import Mock
 
 import pytest
 
-from hassette.context import get_hassette
-from hassette.core.state_registry import StateRegistry
-from hassette.core.type_registry import TypeRegistry
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
 from .harness import HassetteHarness
@@ -238,31 +233,6 @@ def hass_state_dicts(state_change_events: list[RawStateChangeEvent]) -> list[dic
         if event.payload.data.old_state:
             states.append(event.payload.data.old_state)
     return states
-
-
-@pytest.fixture(scope="session")
-def with_state_registry() -> Generator[None, typing.Any]:
-    """Fixture that provides a context with a ready StateRegistry."""
-
-    from hassette.context import use_state_registry, use_type_registry
-
-    try:
-        curr_hassette = get_hassette()
-    except RuntimeError:
-        curr_hassette = Mock()
-        curr_hassette.config.log_level = "CRITICAL"
-        curr_hassette.config.task_bucket_log_level = "CRITICAL"
-
-    state_registry = StateRegistry.create(curr_hassette, curr_hassette)
-    state_registry.build_registry()
-    state_registry.mark_ready()
-
-    type_registry = TypeRegistry.create(curr_hassette, curr_hassette)
-    type_registry.build_registry()
-    type_registry.mark_ready()
-
-    with use_state_registry(state_registry), use_type_registry(type_registry):
-        yield
 
 
 @pytest.fixture(autouse=True)

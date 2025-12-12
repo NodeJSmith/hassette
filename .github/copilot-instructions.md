@@ -137,7 +137,7 @@ These notes make AI coding agents productive quickly in this repo. Focus on the 
 - Services: `src/hassette/core/services/{websocket_service.py,api_resource.py,bus_service.py,scheduler_service.py,app_handler.py,file_watcher.py,service_watcher.py,health_service.py}`
 - App resources: `src/hassette/core/resources/{api/api.py,api/sync.py,bus/bus.py,scheduler/scheduler.py,app/app.py}`
 - Config: `src/hassette/config/{core.py,classes.py,helpers.py,defaults.py}`
-- Events & models: `src/hassette/events/**`, `src/hassette/models/**`, `src/hassette/topics.py`
+- Events & models: `src/hassette/events/**`, `src/hassette/models/**`, `src/hassette/enums.py`
 - Examples & tests: `examples/`, `tests/` (fixtures in `tests/conftest.py`)
 
 ## Code Conventions

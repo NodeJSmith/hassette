@@ -1,3 +1,4 @@
+from contextlib import suppress
 from decimal import Decimal
 from inspect import get_annotations
 from logging import getLogger
@@ -6,7 +7,8 @@ from typing import Any, ClassVar, Generic, TypeVar, get_args
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
-from hassette.context import get_type_registry
+from hassette.core.state_registry import register_state_converter
+from hassette.core.type_registry import TYPE_REGISTRY
 from hassette.exceptions import NoDomainAnnotationError
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
@@ -124,6 +126,11 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
         return len(self.attributes.entity_id) > 1  # type: ignore
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        with suppress(NoDomainAnnotationError):
+            register_state_converter(cls, domain=cls.get_domain())
+
     @field_validator("last_changed", "last_reported", "last_updated", mode="before")
     @classmethod
     def _validate_datetime_fields(cls, value):
@@ -157,8 +164,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
             values["is_unavailable"] = True
             values["state"] = state = None
 
-        tr = get_type_registry()
-        values["state"] = tr.convert(state, cls.value_type)
+        values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
 
         return values
 

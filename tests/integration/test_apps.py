@@ -8,7 +8,7 @@ import pytest
 from hassette import Hassette
 from hassette.bus import Listener
 from hassette.core.app_handler import AppHandler, load_app_class_from_manifest
-from hassette.types.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED
+from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
     from data.my_app import MyApp
@@ -68,7 +68,7 @@ class TestApps:
             Listener.create(
                 self.app_handler.task_bucket,
                 owner="test",
-                topic=HASSETTE_EVENT_APP_LOAD_COMPLETED,
+                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 handler=handler,
                 where=None,
             )
@@ -95,7 +95,7 @@ class TestApps:
             Listener.create(
                 self.app_handler.task_bucket,
                 owner="test",
-                topic=HASSETTE_EVENT_APP_LOAD_COMPLETED,
+                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 handler=handler,
                 where=None,
             )
@@ -135,7 +135,7 @@ class TestApps:
             Listener.create(
                 self.app_handler.task_bucket,
                 owner="test",
-                topic=HASSETTE_EVENT_APP_LOAD_COMPLETED,
+                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 handler=handler,
                 where=None,
             )

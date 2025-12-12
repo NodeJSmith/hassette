@@ -146,7 +146,7 @@ def normalize_where(where: "Predicate | Sequence[Predicate] | None"):
     if _is_predicate_collection(where):
         from .predicates import AllOf
 
-        return AllOf.ensure_iterable(where)  # type: ignore[arg-type]
+        return AllOf.ensure_iterable(where)
 
     # help the type checker know that `where` is not an Sequence here
     if typing.TYPE_CHECKING:

@@ -611,7 +611,7 @@ class Api(Resource):
         state_raw = await self.get_state_raw(entity_id)
         state = state_raw.get("state")
 
-        model = self.hassette.state_registry.get_class_for_domain(entity_id.split(".")[0])
+        model = self.hassette.state_registry.resolve(domain=entity_id.split(".")[0])
         if not model:
             return state
         return self.hassette.type_registry.convert(state, model.value_type)

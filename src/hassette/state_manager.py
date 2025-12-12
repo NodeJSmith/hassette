@@ -152,7 +152,7 @@ class DomainStates(Generic[StateT]):
         return value
 
 
-class States(Resource):
+class StateManager(Resource):
     """Resource for managing Home Assistant states.
 
     Provides typed access to entity states by domain through dynamic properties.
@@ -194,7 +194,7 @@ class States(Resource):
 
         return inst
 
-    def __getattr__(self, name: str) -> "DomainStates[BaseState]":
+    def __getattr__(self, domain: str) -> "DomainStates[BaseState]":
         """Dynamically access domain states by property name.
 
         This method provides dynamic access to domain states at runtime while
@@ -225,27 +225,27 @@ class States(Resource):
             ```
         """
         # Avoid recursion for internal attributes
-        if name.startswith("_") or name in ("hassette", "parent", "name"):
-            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        if domain.startswith("_") or domain in ("hassette", "parent", "name"):
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{domain}'")
 
         try:
-            state_class = self.hassette.state_registry.get_class_for_domain(name)
+            state_class = self.hassette.state_registry.resolve(domain=domain)
         except RegistryNotReadyError:
             raise AttributeError(
-                f"State registry not initialized. Cannot access domain '{name}'. "
+                f"State registry not initialized. Cannot access domain '{domain}'. "
                 "Ensure state modules are imported before accessing States properties."
             ) from None
 
         if state_class is None:
             warn(
-                f"Domain '{name}' not registered, returning DomainStates[BaseState]. "
+                f"Domain '{domain}' not registered, returning DomainStates[BaseState]. "
                 f"For better type support, create a custom state class that registers this domain.",
                 stacklevel=2,
             )
-            return DomainStates[BaseState](self._state_proxy.get_domain_states(name), BaseState)
+            return DomainStates[BaseState](self._state_proxy.get_domain_states(domain), BaseState)
 
         # Domain is registered, use its specific class
-        return DomainStates[state_class](self._state_proxy.get_domain_states(name), state_class)
+        return DomainStates[state_class](self._state_proxy.get_domain_states(domain), state_class)
 
     @property
     def all(self) -> dict[str, "HassStateDict"]:
