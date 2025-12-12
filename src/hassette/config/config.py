@@ -206,9 +206,6 @@ class HassetteConfig(BaseSettings):
     default_cache_size: int = Field(default=100 * 1024 * 1024)
     """Default size limit for caches in bytes. Defaults to 100 MiB."""
 
-    raise_on_incorrect_dependency_type: bool = Field(default=True)
-    """Whether to raise an error if a dependency injection type does not match the expected type."""
-
     asyncio_debug_mode: bool = Field(default=False)
     """Whether to enable asyncio debug mode."""
 

@@ -476,3 +476,24 @@ def is_predicate_collection(obj: Any) -> TypeGuard[Sequence["Predicate"]]:
         return False
     # boltons.is_collection filters out scalars for us; we just fence off types we don't want
     return is_collection(obj)
+
+
+def normalize_where(where: "Predicate | Sequence[Predicate] | None"):
+    """Normalize a 'where' clause into a single Predicate (usually AllOf.ensure_iterable), or None.
+
+    - If where is None → None
+    - If where is a predicate collection (list/tuple/set/...) → AllOf.ensure_iterable(where)
+    - Otherwise (single predicate or mapping handled elsewhere) → where
+    """
+    if where is None:
+        return None
+
+    # prevent circular import only when needed
+    if is_predicate_collection(where):
+        return AllOf.ensure_iterable(where)
+
+    # help the type checker know that `where` is not an Sequence here
+    if typing.TYPE_CHECKING:
+        assert not isinstance(where, Sequence)
+
+    return where  # single predicate or mapping gets handled by the caller

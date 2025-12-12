@@ -42,5 +42,4 @@ log_all_hassette_events = false
 allow_reload_in_prod = false
 allow_only_app_in_prod = false
 default_cache_size = 104857600                # 100 MiB
-raise_on_incorrect_dependency_type = true
 asyncio_debug_mode = false

@@ -6,8 +6,7 @@ for composing and normalizing predicates.
 
 from types import SimpleNamespace
 
-from hassette.bus.utils import normalize_where
-from hassette.event_handling.predicates import AllOf, AnyOf, Guard, Not, ensure_tuple
+from hassette.event_handling.predicates import AllOf, AnyOf, Guard, Not, ensure_tuple, normalize_where
 
 
 def always_true(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001

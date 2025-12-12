@@ -9,10 +9,9 @@ from typing import Any, cast
 
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
+from hassette.event_handling.predicates import normalize_where
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
-
-from .utils import normalize_where
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
