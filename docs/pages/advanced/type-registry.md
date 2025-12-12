@@ -160,7 +160,7 @@ The TypeRegistry powers automatic type conversion in the dependency injection sy
 
 ### Type Conversion in Custom Extractors
 
-When you use `Annotated` with custom extractors from `hassette.bus.accessors`, the TypeRegistry automatically converts extracted values:
+When you use `Annotated` with custom extractors from `hassette.event_handling.accessors`, the TypeRegistry automatically converts extracted values:
 
 ```python
 from typing import Annotated

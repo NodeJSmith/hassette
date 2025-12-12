@@ -27,7 +27,7 @@ and pass it to your handler.
 
 If you need to write your own dependencies, you can easily do so by annotating
 your parameter(s) with `Annotated` and either using an existing accessor from
-[accessors][hassette.bus.accessors] or writing your own accessor function.
+[accessors][hassette.event_handling.accessors] or writing your own accessor function.
 
 Examples:
     Extracting the new state object from a RawStateChangeEvent

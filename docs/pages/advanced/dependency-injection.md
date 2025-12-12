@@ -250,7 +250,7 @@ async def on_temp_change(
 
 ## Custom Extractors
 
-You can create custom extractors using the `Annotated` type and either existing accessors from [`hassette.bus.accessors`][hassette.bus.accessors] or your own callable:
+You can create custom extractors using the `Annotated` type and either existing accessors from [`accessors`][hassette.event_handling.accessors] or your own callable:
 
 ### Using Built-in Accessors
 
@@ -479,8 +479,6 @@ async def handler(
 # Error: "Cannot convert 'not_a_number' to integer"
 ```
 
-See [TypeRegistry - Error Handling](type-registry.md#error-handling) for more details.
-
 ## Handler Signature Restrictions
 
 DI handlers have some restrictions to ensure unambiguous parameter injection:
@@ -507,10 +505,9 @@ Under the hood, Hassette's DI system:
 5. **Injects values** at call time, passing extracted and converted values as keyword arguments
 
 The core implementation lives in:
-- [`hassette.dependencies.extraction`][hassette.dependencies.extraction] - Signature inspection and parameter extraction
-- [`hassette.dependencies.annotations`][hassette.dependencies.annotations] - Pre-defined DI annotations
-- [`hassette.types.value_converters`][hassette.types.value_converters] - Type conversion logic
-- [`hassette.bus.accessors`][hassette.bus.accessors] - Low-level event data accessors
+- [`extraction`][hassette.bus.extraction] - Signature inspection and parameter extraction
+- [`dependencies`][hassette.event_handling.dependencies] - Pre-defined DI annotations
+- [`accessors`][hassette.event_handling.accessors] - Low-level event data accessors
 
 ## See Also
 

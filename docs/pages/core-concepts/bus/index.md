@@ -196,7 +196,7 @@ async def on_temp_change(
 
 ### Custom Extractors
 
-Extractors only need to be a callable that accepts an `Event` and returns the desired value. This means that you can create your own extractors as needed, use accessors from `hassette.bus.accessors`, or any other callable.
+Extractors only need to be a callable that accepts an `Event` and returns the desired value. This means that you can create your own extractors as needed, use accessors from `hassette.event_handling.accessors`, or any other callable.
 
 ```python
 from typing import Annotated, TypeAlias
@@ -346,7 +346,7 @@ self.bus.on_call_service(
 )
 ```
 
-See [`hassette.bus.predicates`][hassette.bus.predicates] for the full list of built-ins.
+See [`predicates`][hassette.event_handling.predicates] for the full list of built-ins.
 
 !!! note "Coming Soon"
     Predicates, conditions, and accessors can do a lot, and this documentation

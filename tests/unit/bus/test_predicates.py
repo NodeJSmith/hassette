@@ -1,4 +1,4 @@
-"""Tests for predicate architecture in hassette.bus.predicates.
+"""Tests for predicate architecture in hassette.event_handling.predicates.
 
 This module tests the core predicate system including:
 - ValueIs predicate with various conditions

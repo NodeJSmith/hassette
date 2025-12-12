@@ -177,7 +177,7 @@ class Bus(Resource):
             topic: The event topic to listen to.
             handler: The function to call when the event matches.
             where: Optional predicates to filter events. These can be custom callables or predefined predicates from
-                `hassette.bus.predicates`. They will receive the full event for evaluation.
+                `hassette.event_handling.predicates`. They will receive the full event for evaluation.
             kwargs: Keyword arguments to pass to the handler.
             once: If True, the handler will be called only once and then removed.
             debounce: If set, applies a debounce to the handler.
