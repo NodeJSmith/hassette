@@ -108,7 +108,7 @@ PayloadT = TypeVar("PayloadT", bound=EventPayload[Any], covariant=True)
 class Event(Generic[PayloadT]):
     """Base event with strongly typed payload."""
 
-    topic: "Topic"
+    topic: "Topic | str"
     """Topic of the event."""
 
     payload: PayloadT
