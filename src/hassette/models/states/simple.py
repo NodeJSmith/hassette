@@ -84,7 +84,7 @@ class SttState(StringBaseState):
     domain: Literal["stt"]
 
 
-class SwitchState(StringBaseState):
+class SwitchState(BoolBaseState):
     """Representation of a Home Assistant switch state.
 
     See: https://www.home-assistant.io/integrations/switch/

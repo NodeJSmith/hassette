@@ -2,10 +2,10 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, StringBaseState
+from .base import AttributesBase, BoolBaseState
 
 
-class SirenState(StringBaseState):
+class SirenState(BoolBaseState):
     """Representation of a Home Assistant siren state.
 
     See: https://www.home-assistant.io/integrations/siren/
