@@ -80,12 +80,10 @@ register_simple_type_converter(
 The TypeRegistry uses a dictionary with `(from_type, to_type)` tuples as keys for O(1) lookup performance:
 
 ```python
-from hassette.context import get_type_registry
-
-type_registry = get_type_registry()
+from hassette import TYPE_REGISTRY
 
 # Convert a value
-result = type_registry.convert("42", int)  # Returns 42 as int
+result = TYPE_REGISTRY.convert("42", int)  # Returns 42 as int
 ```
 
 ## Integration with State Models
@@ -237,7 +235,7 @@ The TypeRegistry and StateRegistry work together but serve different purposes:
 
 ## Built-in Converters
 
-Hassette includes comprehensive built-in converters in `src/hassette/types/value_converters.py`:
+Hassette includes comprehensive built-in conversion:
 
 ### Numeric Conversions
 - `str` ↔ `int`: Basic integer conversion

@@ -20,7 +20,7 @@ class MyCustomState(StringBaseState):
     domain: Literal["my_custom_domain"]
 ```
 
-That's it! The state class will automatically register itself when the module is imported, and you can use it throughout your app.
+That's it! The state class will automatically register itself when the class is created, and you can use it throughout your app.
 
 ## Choosing a Base Class
 
@@ -144,7 +144,8 @@ class MyApp(App):
 ### Direct API Access
 
 ```python
-reddit_state = await self.api.get_state("reddit.my_account", RedditState)
+reddit_state = await self.api.get_state("reddit.my_account")
+assert isinstance(reddit_state, RedditState)
 if reddit_state.attributes.subreddit:
     print(f"Subreddit: {reddit_state.attributes.subreddit}")
 ```
@@ -234,8 +235,7 @@ class ImageMonitorApp(App):
 2. **Use Literal for domain** - Always use `Literal["domain_name"]` to enable auto-registration
 3. **Choose the right base class** - Match the base class to your entity's state value type
 4. **Document your attributes** - Add docstrings to custom attribute classes
-5. **Import early** - Ensure your custom state modules are imported before any state conversion happens
-6. **Use typing** - Leverage type hints throughout for better IDE support and type checking
+5. **Use typing** - Leverage type hints throughout for better IDE support and type checking
 
 ## Troubleshooting
 
@@ -244,15 +244,14 @@ class ImageMonitorApp(App):
 If your custom state class isn't being recognized:
 
 1. **Check the domain field** - Ensure you have `domain: Literal["your_domain"]`
-2. **Import the module** - The class must be imported for registration to occur
-3. **Check for errors** - Look for registration errors in debug logs
+2. **Check for errors** - Look for registration errors in debug logs
 
 ### Type hints not working
 
 If IDE autocomplete isn't working:
 
 1. **Use get_states()** - For custom domains, use `self.states.get_states(CustomState)`
-2. **Add to stub file** - For permanent custom domains, you can add them to `hassette/states.pyi`
+2. **Add to stub file** - For permanent custom domains, you can add them to `hassette/state_manager/state_manager.pyi`
 
 ### State conversion fails
 

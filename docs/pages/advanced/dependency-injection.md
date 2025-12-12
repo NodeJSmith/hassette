@@ -348,7 +348,7 @@ async def on_light_change(
 
     # Extractor returns string "on" from HA
     # TypeRegistry automatically converts to bool
-    is_on: Annotated[bool, A.get_attr_new("state")],
+    is_on: Annotated[bool, A.get_state_value_new],
 ):
     if is_on and brightness and brightness > 200:
         self.logger.info("Light is very bright: %d", brightness)

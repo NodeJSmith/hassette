@@ -4,16 +4,13 @@ This page provides a comprehensive reference of all built-in type converters reg
 
 ## Overview
 
-All built-in converters are registered in `src/hassette/types/value_converters.py` and are available immediately when Hassette initializes. You can view all registered conversions programmatically:
+All built-in converters are registered in `src/hassette/core/type_registry.py` and are available immediately when Hassette initializes. You can view all registered conversions programmatically:
 
 ```python
-from hassette.context import get_type_registry
-
-# Get the TypeRegistry instance
-type_registry = get_type_registry()
+from hassette import TYPE_REGISTRY
 
 # List all conversions
-conversions = type_registry.list_conversions()
+conversions = TYPE_REGISTRY.list_conversions()
 for from_type, to_type, entry in conversions:
     print(f"{from_type.__name__} → {to_type.__name__}: {entry.description}")
 ```
@@ -31,13 +28,12 @@ for from_type, to_type, entry in conversions:
 
 **Examples:**
 ```python
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
-type_registry.convert("42", int)      # → 42
-type_registry.convert(42, str)        # → "42"
-type_registry.convert(42, float)      # → 42.0
-type_registry.convert(42.7, int)      # → 42 (truncates)
+TYPE_REGISTRY.convert("42", int)      # → 42
+TYPE_REGISTRY.convert(42, str)        # → "42"
+TYPE_REGISTRY.convert(42, float)      # → 42.0
+TYPE_REGISTRY.convert(42.7, int)      # → 42 (truncates)
 ```
 
 ### Floating-Point Conversions
@@ -49,11 +45,10 @@ type_registry.convert(42.7, int)      # → 42 (truncates)
 
 **Examples:**
 ```python
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
-type_registry.convert("23.5", float)  # → 23.5
-type_registry.convert(23.5, str)      # → "23.5"
+TYPE_REGISTRY.convert("23.5", float)  # → 23.5
+TYPE_REGISTRY.convert(23.5, str)      # → "23.5"
 ```
 
 ### Decimal Conversions
@@ -70,12 +65,11 @@ High-precision decimal arithmetic using Python's `Decimal` type.
 **Examples:**
 ```python
 from decimal import Decimal
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
-type_registry.convert("0.1", Decimal)      # → Decimal('0.1')
-type_registry.convert(0.1, Decimal)        # → Decimal('0.1000000000000000055511151231257827021181583404541015625')
-type_registry.convert(Decimal("42.7"), int)  # → 42
+TYPE_REGISTRY.convert("0.1", Decimal)      # → Decimal('0.1')
+TYPE_REGISTRY.convert(0.1, Decimal)        # → Decimal('0.1000000000000000055511151231257827021181583404541015625')
+TYPE_REGISTRY.convert(Decimal("42.7"), int)  # → 42
 ```
 
 ## Boolean Conversions
@@ -92,15 +86,14 @@ Hassette provides Home Assistant-aware boolean conversion that handles HA's stri
 
 **Examples:**
 ```python
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
-type_registry.convert("on", bool)      # → True
-type_registry.convert("OFF", bool)     # → False
-type_registry.convert("true", bool)    # → True
-type_registry.convert("yes", bool)     # → True
-type_registry.convert("0", bool)       # → False
-type_registry.convert("invalid", bool) # → Raises ValueError
+TYPE_REGISTRY.convert("on", bool)      # → True
+TYPE_REGISTRY.convert("OFF", bool)     # → False
+TYPE_REGISTRY.convert("true", bool)    # → True
+TYPE_REGISTRY.convert("yes", bool)     # → True
+TYPE_REGISTRY.convert("0", bool)       # → False
+TYPE_REGISTRY.convert("invalid", bool) # → Raises ValueError
 ```
 
 ### Other Boolean Conversions
@@ -111,11 +104,10 @@ type_registry.convert("invalid", bool) # → Raises ValueError
 
 **Examples:**
 ```python
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
-type_registry.convert(True, str)   # → "True"
-type_registry.convert(False, str)  # → "False"
+TYPE_REGISTRY.convert(True, str)   # → "True"
+TYPE_REGISTRY.convert(False, str)  # → "False"
 ```
 
 ## DateTime Conversions
@@ -140,28 +132,27 @@ Hassette uses the [`whenever`](https://github.com/ariebovenberg/whenever) librar
 **Examples:**
 ```python
 from whenever import ZonedDateTime, Date, Time
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
 
 # Full ISO 8601 datetime
-type_registry.convert("2023-12-25T09:00:00-05:00", ZonedDateTime)
+TYPE_REGISTRY.convert("2023-12-25T09:00:00-05:00", ZonedDateTime)
 # → ZonedDateTime with Eastern timezone
 
 # Plain datetime (assumes system timezone)
-type_registry.convert("2023-12-25T09:00:00", ZonedDateTime)
+TYPE_REGISTRY.convert("2023-12-25T09:00:00", ZonedDateTime)
 # → ZonedDateTime in system timezone
 
 # Date only (assumes midnight)
-type_registry.convert("2023-12-25", ZonedDateTime)
+TYPE_REGISTRY.convert("2023-12-25", ZonedDateTime)
 # → ZonedDateTime at midnight in system timezone
 
 # Date
-type_registry.convert("2023-12-25", Date)
+TYPE_REGISTRY.convert("2023-12-25", Date)
 # → Date(2023, 12, 25)
 
 # Time
-type_registry.convert("09:30:00", Time)
+TYPE_REGISTRY.convert("09:30:00", Time)
 # → Time(9, 30, 0)
 ```
 
@@ -175,14 +166,13 @@ type_registry.convert("09:30:00", Time)
 **Examples:**
 ```python
 from whenever import ZonedDateTime, Time
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
 zdt = ZonedDateTime(2023, 12, 25, 9, 0, 0, tz="America/New_York")
-type_registry.convert(zdt, str)  # → "2023-12-25T09:00:00-05:00"
+TYPE_REGISTRY.convert(zdt, str)  # → "2023-12-25T09:00:00-05:00"
 
 t = Time(9, 30, 0)
-type_registry.convert(t, str)    # → "09:30:00"
+TYPE_REGISTRY.convert(t, str)    # → "09:30:00"
 ```
 
 ### whenever Type Conversions
@@ -195,12 +185,11 @@ type_registry.convert(t, str)    # → "09:30:00"
 **Examples:**
 ```python
 from whenever import ZonedDateTime
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
 zdt = ZonedDateTime(2023, 12, 25, 9, 0, 0, tz="America/New_York")
-type_registry.convert(zdt, Instant)       # → Instant representing same moment
-type_registry.convert(zdt, PlainDateTime) # → PlainDateTime(2023, 12, 25, 9, 0, 0)
+TYPE_REGISTRY.convert(zdt, Instant)       # → Instant representing same moment
+TYPE_REGISTRY.convert(zdt, PlainDateTime) # → PlainDateTime(2023, 12, 25, 9, 0, 0)
 ```
 
 ### String to Python stdlib DateTime Types
@@ -216,20 +205,19 @@ For compatibility with code expecting Python's standard library datetime types:
 **Examples:**
 ```python
 from datetime import datetime, date, time
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
 
 # Datetime (timezone-aware)
-type_registry.convert("2023-12-25T09:00:00-05:00", datetime)
+TYPE_REGISTRY.convert("2023-12-25T09:00:00-05:00", datetime)
 # → datetime.datetime(2023, 12, 25, 9, 0, 0, tzinfo=...)
 
 # Date
-type_registry.convert("2023-12-25", date)
+TYPE_REGISTRY.convert("2023-12-25", date)
 # → datetime.date(2023, 12, 25)
 
 # Time
-type_registry.convert("09:30:00", time)
+TYPE_REGISTRY.convert("09:30:00", time)
 # → datetime.time(9, 30, 0)
 ```
 
@@ -243,11 +231,10 @@ type_registry.convert("09:30:00", time)
 ```python
 from whenever import Time
 from datetime import time as stdlib_time
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
 wt = Time(9, 30, 0)
-type_registry.convert(wt, stdlib_time)  # → time(9, 30, 0)
+TYPE_REGISTRY.convert(wt, stdlib_time)  # → time(9, 30, 0)
 ```
 
 ## Usage in State Models
@@ -296,25 +283,24 @@ All converters raise exceptions when conversion fails:
 
 **Examples of Error Cases:**
 ```python
-from hassette.context import get_type_registry
+from hassette import TYPE_REGISTRY
 
-type_registry = get_type_registry()
 
 # Invalid integer
 try:
-    type_registry.convert("not_a_number", int)
+    TYPE_REGISTRY.convert("not_a_number", int)
 except ValueError as e:
     print(e)  # "Cannot convert 'not_a_number' to integer"
 
 # Invalid boolean
 try:
-    type_registry.convert("maybe", bool)
+    TYPE_REGISTRY.convert("maybe", bool)
 except ValueError as e:
     print(e)  # "String must be a boolean-like value..."
 
 # No converter registered
 try:
-    type_registry.convert("value", list)
+    TYPE_REGISTRY.convert("value", list)
 except TypeError as e:
     print(e)  # "No converter registered for str -> list"
 ```
@@ -367,7 +353,7 @@ from hassette.context import get_type_registry
 @lru_cache(maxsize=128)
 def parse_config(config_str: str) -> MyConfig:
     type_registry = get_type_registry()
-    return type_registry.convert(config_str, MyConfig)
+    return TYPE_REGISTRY.convert(config_str, MyConfig)
 ```
 
 ## Complete Conversion Table

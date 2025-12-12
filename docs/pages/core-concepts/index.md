@@ -6,8 +6,6 @@ Hassette has a lot of moving parts, but at its core it’s simple: everything re
 - **Events** describe what happened—state changes, service calls, lifecycle transitions, or scheduled triggers.
 - **Resources** are everything else: API clients, the event bus, the scheduler, etc.
 
-In practice, apps use resources to react to events.
-
 ## Hassette Architecture
 
 At runtime the `Hassette` class is the entry point. It receives a `HassetteConfig` instance that defines where to find Home Assistant, your apps, and related configuration. From there it starts the core services:
@@ -17,12 +15,14 @@ At runtime the `Hassette` class is the entry point. It receives a `HassetteConfi
 - `BusService` – routes events from the socket to subscribed apps.
 - `SchedulerService` – runs scheduled jobs.
 - `AppHandler` – discovers, loads, and initializes your apps.
+- `StateProxy` - tracks state changes and provides a consistent view of Home Assistant states.
 
 Each app is loaded through `AppHandler` and receives its own lightweight handles:
 
 - `Api` – wrapper around `ApiResource` for making API calls.
 - `Bus` – subscribe to and handle events.
 - `Scheduler` – schedule and manage jobs.
+- `States` – access and manage Home Assistant entity states.
 
 ### Diagram
 
@@ -41,6 +41,7 @@ graph TB
             BUS_SVC[BusService<br/>Routes Events]
             SCHED_SVC[SchedulerService<br/>Runs Jobs]
             APP_HDL[AppHandler<br/>Manages Apps]
+            STATE_PROXY[StateProxy<br/>Tracks States]
         end
     end
 
@@ -51,6 +52,7 @@ graph TB
             APP_API[Api]
             APP_BUS[Bus]
             APP_SCHED[Scheduler]
+            APP_STATES[States]
         end
     end
 
@@ -63,16 +65,19 @@ graph TB
     HASSETTE --> BUS_SVC
     HASSETTE --> SCHED_SVC
     HASSETTE --> APP_HDL
+    HASSETTE --> STATE_PROXY
 
     APP_HDL --> APP1
 
     APP1 -.-> APP_API
     APP1 -.-> APP_BUS
     APP1 -.-> APP_SCHED
+    APP1 -.-> APP_STATES
 
     APP_API --> API_RES
     APP_BUS --> BUS_SVC
     APP_SCHED --> SCHED_SVC
+    APP_STATES --> STATE_PROXY
 
     API_RES <-.->|REST/WebSocket| HA
 
@@ -83,8 +88,8 @@ graph TB
 
     class HA haStyle
     class HASSETTE coreStyle
-    class WS,API_RES,BUS_SVC,SCHED_SVC,APP_HDL serviceStyle
-    class APP1,APP_API,APP_BUS,APP_SCHED appStyle
+    class WS,API_RES,BUS_SVC,SCHED_SVC,APP_HDL,STATE_PROXY serviceStyle
+    class APP1,APP_API,APP_BUS,APP_SCHED,APP_STATES appStyle
 ```
 
 Learn more about writing apps in the [apps](apps/index.md) section.
