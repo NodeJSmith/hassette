@@ -16,15 +16,7 @@ StateT = TypeVar("StateT", bound="BaseState", covariant=True)
 """Represents a specific state type, e.g., LightState, CoverState, etc."""
 
 
-StateValueT = TypeVar(
-    "StateValueT",
-    str | None,
-    ZonedDateTime | PlainDateTime | Date | None,
-    Time | None,
-    bool | None,
-    int | float | Decimal | None,
-    covariant=True,
-)
+StateValueT = TypeVar("StateValueT", covariant=True)
 """Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
 
 LOGGER = getLogger(__name__)
