@@ -68,7 +68,6 @@ class StateProxy(Resource):
         try:
             await self._load_cache()
 
-            self.logger.info("Initial state sync complete, tracking %d entities", len(self.states))
             self.mark_ready(reason="Initial state sync complete")
 
         except Exception as e:
@@ -203,7 +202,6 @@ class StateProxy(Resource):
         try:
             await self._load_cache()
 
-            self.logger.info("State resync complete, tracking %d entities", len(self.states))
             self.subscribe_to_events()
             self.mark_ready(reason="Connected")
 
