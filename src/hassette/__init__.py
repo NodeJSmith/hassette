@@ -12,7 +12,7 @@ from .events import RawStateChangeEvent
 from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
-from .task_bucket import TaskBucket
+from .task_bucket.task_bucket import TaskBucket
 
 logging.getLogger("hassette").addHandler(logging.NullHandler())
 
