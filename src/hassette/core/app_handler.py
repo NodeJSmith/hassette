@@ -10,7 +10,7 @@ import anyio
 from deepdiff import DeepDiff
 from humanize import precisedelta
 
-import hassette.bus.accessors as A
+import hassette.event_handling.accessors as A
 from hassette.app.app import App
 from hassette.bus import Bus
 from hassette.events.hassette import HassetteSimpleEvent

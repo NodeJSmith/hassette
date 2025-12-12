@@ -4,10 +4,9 @@ from types import GenericAlias
 from typing import Annotated, Any, get_args, get_origin
 from warnings import warn
 
+from hassette.event_handling.dependencies import AnnotationDetails, identity
 from hassette.exceptions import DependencyInjectionError
 from hassette.utils.type_utils import get_base_type
-
-from .annotations import AnnotationDetails, identity
 
 
 def is_annotated_type(annotation: Any) -> bool:

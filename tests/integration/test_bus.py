@@ -8,9 +8,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from hassette.bus.conditions import IsOrContains
 from hassette.bus.listeners import Subscription
-from hassette.bus.predicates import (
+from hassette.event_handling.conditions import IsOrContains
+from hassette.event_handling.predicates import (
     AllOf,
     AttrDidChange,
     EntityMatches,

@@ -7,8 +7,8 @@ with support for exact values, callables, glob patterns, and ANY_VALUE checks.
 import typing
 from types import SimpleNamespace
 
-from hassette.bus.predicates import ServiceDataWhere
 from hassette.const import ANY_VALUE
+from hassette.event_handling.predicates import ServiceDataWhere
 from hassette.events import Event
 
 

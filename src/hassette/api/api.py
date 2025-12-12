@@ -164,8 +164,8 @@ from typing import Any, Literal, overload
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
-from hassette.bus.accessors import get_path
 from hassette.const.misc import FalseySentinel
+from hassette.event_handling.accessors import get_path
 from hassette.exceptions import EntityNotFoundError, UnableToConvertStateError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry

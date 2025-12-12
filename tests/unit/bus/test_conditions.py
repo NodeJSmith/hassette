@@ -4,7 +4,8 @@ Tests condition matchers like Contains, EndsWith, StartsWith, Present, Missing,
 Glob, Regex, etc. that are used within predicates to test extracted values.
 """
 
-from hassette.bus.conditions import (
+from hassette.const import MISSING_VALUE
+from hassette.event_handling.conditions import (
     Contains,
     EndsWith,
     Glob,
@@ -13,7 +14,6 @@ from hassette.bus.conditions import (
     Regex,
     StartsWith,
 )
-from hassette.const import MISSING_VALUE
 
 
 def test_contains_condition_comprehensive() -> None:

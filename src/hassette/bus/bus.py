@@ -86,14 +86,14 @@ from typing import Any, TypeVar, Unpack
 
 from typing_extensions import TypedDict
 
-import hassette.bus.predicates as P
 from hassette.const import NOT_PROVIDED
+from hassette.event_handling import predicates as P
+from hassette.event_handling.accessors import get_path
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
 from hassette.utils.func_utils import callable_short_name
 
-from .accessors import get_path
 from .listeners import Listener, Subscription
 
 if typing.TYPE_CHECKING:

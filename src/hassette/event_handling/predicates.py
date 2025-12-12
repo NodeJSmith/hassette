@@ -43,12 +43,15 @@ Examples:
 
 import inspect
 import typing
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from inspect import isawaitable, iscoroutinefunction
 from logging import getLogger
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeGuard, TypeVar
 
-from hassette.const import ANY_VALUE, MISSING_VALUE
+from boltons.iterutils import is_collection
+
+from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
 from hassette.events.base import EventT
 from hassette.types import ChangeType, ComparisonCondition
 from hassette.utils.glob_utils import is_glob
@@ -66,11 +69,13 @@ from .accessors import (
     get_state_value_old_new,
 )
 from .conditions import Glob, Present
-from .utils import compare_value, ensure_tuple
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Sequence
+    from hassette.events import Event
+    from hassette.types import ChangeType, Predicate
 
+
+if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
     from hassette.events import CallServiceEvent, Event, HassEvent
     from hassette.types import Predicate
@@ -144,7 +149,7 @@ class ValueIs(Generic[EventT, V]):
     """
 
     source: Callable[[EventT], V]
-    condition: ChangeType = ANY_VALUE
+    condition: "ChangeType" = ANY_VALUE
 
     def __call__(self, event: EventT) -> bool:
         if self.condition is ANY_VALUE:
@@ -199,7 +204,7 @@ class IsMissing:
 class StateFrom:
     """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'old' value."""
 
-    condition: ChangeType
+    condition: "ChangeType"
 
     def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_state_value_old, condition=self.condition)(event)
@@ -209,7 +214,7 @@ class StateFrom:
 class StateTo:
     """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'new' value."""
 
-    condition: ChangeType
+    condition: "ChangeType"
 
     def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_state_value_new, condition=self.condition)(event)
@@ -235,7 +240,7 @@ class AttrFrom:
     """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
-    condition: ChangeType
+    condition: "ChangeType"
 
     def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(event)
@@ -246,7 +251,7 @@ class AttrTo:
     """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
-    condition: ChangeType
+    condition: "ChangeType"
 
     def __call__(self, event: "RawStateChangeEvent") -> bool:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
@@ -355,11 +360,13 @@ class ServiceDataWhere:
         ServiceDataWhere({"brightness": IsIn([100, 200, 255])})
     """
 
-    spec: Mapping[str, ChangeType]
+    spec: Mapping[str, "ChangeType"]
     auto_glob: bool = True
     _predicates: tuple["Predicate[CallServiceEvent]", ...] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        from hassette.types import ChangeType
+
         preds: list[Predicate[CallServiceEvent]] = []
 
         for k, cond in self.spec.items():
@@ -382,7 +389,7 @@ class ServiceDataWhere:
         return all(p(event) for p in self._predicates)
 
     @classmethod
-    def from_kwargs(cls, *, auto_glob: bool = True, **spec: ChangeType) -> "ServiceDataWhere":
+    def from_kwargs(cls, *, auto_glob: bool = True, **spec: "ChangeType") -> "ServiceDataWhere":
         """Ergonomic constructor for literal kwargs.
 
         Example
@@ -390,3 +397,82 @@ class ServiceDataWhere:
         >>> ServiceDataWhere.from_kwargs(entity_id="light.*", brightness=200)
         """
         return cls(spec=spec, auto_glob=auto_glob)
+
+
+def compare_value(actual: Any, condition: "ChangeType") -> bool:
+    """Compare an actual value against a condition.
+
+    Args:
+        actual: The actual value to compare.
+        condition: The condition to compare against. Can be a literal value or a callable.
+
+    Returns:
+        True if the actual value matches the condition, False otherwise.
+
+    Behavior:
+        - If condition is NOT_PROVIDED, treat as 'no constraint' (True).
+        - If condition is a non-callable, compare for equality only.
+        - If condition is a callable, call and ensure bool.
+        - Async/coroutine predicates are explicitly disallowed (raise).
+
+    Warnings:
+        - This function does not handle collections any differently than other literals, it will compare
+            them for equality only. Use specific conditions like IsIn/NotIn/Intersects for collection membership tests.
+    """
+    if condition is NOT_PROVIDED:
+        return True
+
+    if not callable(condition):
+        return actual == condition
+
+    # Disallow async predicates to keep filters pure/fast.
+    if iscoroutinefunction(condition):
+        raise TypeError("Async predicates are not supported; make the condition synchronous.")
+
+    if typing.TYPE_CHECKING:
+        condition = typing.cast("Callable[[Any], bool]", condition)
+
+    result = condition(actual)
+
+    if isawaitable(result):
+        raise TypeError("Predicate returned an awaitable; make it return bool.")
+
+    # Fallback: callable but not declared as PredicateCallable; still require bool.
+    if not isinstance(result, bool):
+        raise TypeError(f"Predicate must return bool, got {type(result)}")
+    return result
+
+
+def ensure_tuple(where: "Predicate | Sequence[Predicate]") -> tuple["Predicate", ...]:
+    """Ensure the 'where' is a flat tuple of predicates, flattening *only* predicate collections.
+
+    Recurses into list/tuple/set/frozenset; leaves Mapping, strings/bytes, and callables intact.
+    """
+    if is_predicate_collection(where):
+        out: list[Predicate] = []
+        # mypy/pyright: guarded by _is_predicate_collection, so safe to iterate
+        for item in typing.cast("Sequence[Predicate | Sequence[Predicate]]", where):
+            out.extend(ensure_tuple(item))
+        return tuple(out)
+
+    return (typing.cast("Predicate", where),)
+
+
+def is_predicate_collection(obj: Any) -> TypeGuard[Sequence["Predicate"]]:
+    """Return True for *predicate collections* we want to recurse into.
+
+    We treat only list/tuple/set/frozenset-like things as collections of predicates.
+    We explicitly DO NOT recurse into:
+      - mappings (those feed ServiceDataWhere elsewhere),
+      - strings/bytes,
+      - callables (predicates are callables; don't explode them),
+      - None.
+    """
+    if obj is None:
+        return False
+    if callable(obj):
+        return False
+    if isinstance(obj, (str, bytes, Mapping)):
+        return False
+    # boltons.is_collection filters out scalars for us; we just fence off types we don't want
+    return is_collection(obj)

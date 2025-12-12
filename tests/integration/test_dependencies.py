@@ -14,8 +14,7 @@ import pytest
 from hassette import MISSING_VALUE
 from hassette import accessors as A
 from hassette import dependencies as D
-from hassette.core.state_registry import STATE_REGISTRY
-from hassette.dependencies.extraction import (
+from hassette.bus.extraction import (
     extract_from_annotated,
     extract_from_event_type,
     extract_from_signature,
@@ -24,12 +23,10 @@ from hassette.dependencies.extraction import (
     is_event_type,
     validate_di_signature,
 )
-from hassette.dependencies.injector import ParameterInjector
+from hassette.bus.injection import ParameterInjector
+from hassette.core.state_registry import STATE_REGISTRY
 from hassette.events import CallServiceEvent, Event, HassContext, RawStateChangeEvent
-from hassette.exceptions import (
-    DependencyInjectionError,
-    DependencyResolutionError,
-)
+from hassette.exceptions import DependencyInjectionError, DependencyResolutionError
 from hassette.models import states
 from hassette.utils.type_utils import get_typed_signature
 

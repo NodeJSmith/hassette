@@ -1,3 +1,3 @@
-from .state_manager import StateManager
+from .state_manager import DomainStates, StateManager
 
-__all__ = ["StateManager"]
+__all__ = ["DomainStates", "StateManager"]

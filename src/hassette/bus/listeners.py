@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any, cast
 
-from hassette.bus.rate_limiting import RateLimiter
-from hassette.dependencies.injector import ParameterInjector
+from hassette.bus.injection import ParameterInjector
+from hassette.bus.rate_limiter import RateLimiter
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
 
