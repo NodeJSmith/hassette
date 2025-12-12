@@ -203,7 +203,7 @@ class StateManager(Resource):
         custom/unknown domains, use `get_states(CustomStateClass)` directly.
 
         Args:
-            name: The domain name (e.g., "light", "switch", "custom_domain").
+            domain: The domain name (e.g., "light", "switch", "custom_domain").
 
         Returns:
             DomainStates container for the requested domain.
