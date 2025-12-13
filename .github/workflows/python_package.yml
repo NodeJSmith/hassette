@@ -18,7 +18,6 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: "0.8.14"
           activate-environment: true
           enable-cache: true
 
