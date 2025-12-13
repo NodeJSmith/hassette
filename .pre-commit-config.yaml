@@ -31,6 +31,8 @@ repos:
         entry: python scripts/generate_sync_facade.py
         pass_filenames: false
         files: src/hassette/api/api.py
+        stages:
+          - pre-push
 
       # ensure codecov yaml is valid
       - id: check-codecov-yml
