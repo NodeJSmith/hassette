@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.18.0.dev2] - 2025-12-13
+
+### Changed
+- **Breaking:** Docker image switched to Debian slim
+- **Breaking:** Remove `latest` tag, latest tag will now include python version as well
+
+### Fixed
+- Use correct version of python when pulling base image
+  - (e.g. image tagged with py-3.12 uses python 3.12)
+
+
 ## [0.18.0.dev1] - 2025-12-13
 
 ### Changed
