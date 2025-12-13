@@ -44,7 +44,7 @@ jobs:
                   enable-cache: true
 
             - name: Classify release tag
-              run: uv run ./tools/check_tag_version.py --ref-name "${{ github.ref_name }}"
+              run: uv run ./tools/check_tag_version.py --ref-name $(uv version --short)
 
             - name: Docker metadata
               id: meta
