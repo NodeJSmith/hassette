@@ -6,7 +6,8 @@
         "**/node_modules",
         "**/__pycache__",
         "**/.venv",
-        "**/tests"
+        "**/tests",
+        "**/tools"
     ],
     "venvPath": ".",
     "venv": ".venv",
