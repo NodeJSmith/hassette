@@ -8,27 +8,27 @@ assignees: ''
 
 ## Documentation Issue
 
-What part of the documentation has an issue?
+What’s wrong or missing?
 
-- [ ] Missing documentation
-- [ ] Unclear/confusing explanation
-- [ ] Incorrect information
+- [ ] Missing
+- [ ] Unclear
+- [ ] Incorrect
 - [ ] Broken link
-- [ ] Typo or formatting issue
+- [ ] Typo/formatting
 - [ ] Other
 
 ## Location
 
-Where is the issue? (provide URL or file path)
+Where is it? (URL or file path)
 
 ## Current State
 
-What does the documentation currently say (or what's missing)?
+What does it currently say (or lack)?
 
 ## Suggested Improvement
 
-What would make the documentation better?
+What would make it better?
 
 ## Additional Context
 
-Add any other context or screenshots about the documentation issue here.
+Any other context or screenshots.

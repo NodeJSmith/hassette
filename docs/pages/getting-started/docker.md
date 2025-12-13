@@ -24,7 +24,7 @@ mkdir -p config apps
 cat > docker-compose.yml << 'EOF'
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:latest
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
     container_name: hassette
     restart: unless-stopped
     volumes:
@@ -154,7 +154,7 @@ If Home Assistant is also running in Docker, use Docker networking:
 ```yaml
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:latest
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
     # ... other config ...
     networks:
       - homeassistant
@@ -179,7 +179,7 @@ Use the host network if Home Assistant runs directly on the host:
 ```yaml
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:latest
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
     network_mode: host
     # ... other config ...
 ```
@@ -273,7 +273,7 @@ Here's a production-ready setup with all the bells and whistles:
 ```yaml
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:latest
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
     container_name: hassette
     restart: unless-stopped
 
@@ -380,7 +380,7 @@ git clone https://github.com/NodeJSmith/hassette.git
 cd hassette
 
 # Build
-docker build -t my-hassette:latest .
+docker build -t my-hassette:latest-py3.13 .
 
 # Use in docker-compose.yml
 ```
@@ -464,14 +464,70 @@ Nested config uses double underscores:
 HASSETTE__APPS__MY_APP__CONFIG__SETTING=value
 ```
 
-## Next Steps
+## Docker Image Tags
 
-Now that you have Hassette running in Docker:
+Hassette publishes Docker images for multiple Python versions. All tags explicitly include the Python version to avoid ambiguity.
 
-- **Build automations**: See [Core Concepts](../core-concepts/index.md) for event handling, scheduling, and API usage
-- **Monitor your apps**: Use the health endpoint or add application monitoring
-- **Add tests**: See the testing guide (coming soon) for testing your apps
-- **Deploy updates**: Run `docker compose pull && docker compose up -d` to update Hassette
+### Recommended (pin both Hassette + Python)
+
+Use this for reproducible builds:
+
+```bash
+ghcr.io/nodejsmith/hassette:<version>-py<python>
+```
+
+Examples:
+
+ - 1.2.0-py3.13
+ - 0.18.0-py3.12
+ - 0.18.0.dev1-py3.11
+
+This is the **preferred way** to consume Hassette in production.
+
+### Track latest stable release for a Python version
+
+Use this if you want automatic upgrades within a Python line:
+
+```bash
+ghcr.io/nodejsmith/hassette:latest-py<python>
+```
+
+Examples:
+
+- latest-py3.13
+- latest-py3.12
+- latest-py3.11
+
+Notes:
+
+- These tags only point to stable releases.
+- Pre-releases (.dev, a, b, rc, etc.) are never published to latest-py*.
+
+### Development / CI usage
+
+For debugging or CI pinning:
+
+```bash
+ghcr.io/nodejsmith/hassette:sha-<commit>-py<python>
+```
+
+Example:
+
+- sha-a1b2c3d-py3.13
+
+These tags are immutable but intended for internal/testing use.
+
+### What is not published
+
+- ❌ latest (without a Python version)
+- ❌ Version tags without a -py<python> suffix
+- ❌ Floating tags for pre-releases
+
+If you want a pre-release, you must explicitly request it by version.
+
+## Python versions
+
+Each release is built for multiple Python versions (currently 3.11, 3.12, 3.13). Not all Python versions may be supported indefinitely; see release notes for changes.
 
 ## See Also
 

@@ -28,7 +28,7 @@ repos:
       - id: generate_sync_facade
         name: Generate sync.py facade
         language: python
-        entry: python scripts/generate_sync_facade.py
+        entry: python tools/generate_sync_facade.py
         pass_filenames: false
         files: src/hassette/api/api.py
         stages:

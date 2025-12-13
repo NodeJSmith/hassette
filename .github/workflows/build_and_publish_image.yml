@@ -37,20 +37,24 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Install uv
+              uses: astral-sh/setup-uv@v6
+              with:
+                  activate-environment: true
+                  enable-cache: true
+
+            - name: Classify release tag
+              run: uv run ./tools/check_tag_version.py --ref-name $(uv version --short)
+
             - name: Docker metadata
               id: meta
               uses: docker/metadata-action@v5
               with:
                   images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}
                   tags: |
-                      # Always tag by short commit SHA (7 chars)
-                      type=sha,prefix=sha-,format=short
-
-                      # Only tag releases (v*) with version number and python version
-                      type=ref,event=tag,suffix=-py${{ env.PYTHON_VERSION }}
-
-                      # Only tag latest when building on a release tag (python 3.13)
-                      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && matrix.python-version == '3.13' }}
+                      type=sha,prefix=sha-,format=short,suffix=-py${{ env.PYTHON_VERSION }}
+                      type=pep440,pattern={{version}},suffix=-py${{ env.PYTHON_VERSION }}
+                      type=raw,value=latest-py${{ env.PYTHON_VERSION }},enable=${{ env.IS_STABLE_RELEASE == 'true' }}
 
             - name: Build & Push
               uses: docker/build-push-action@v6
@@ -62,3 +66,5 @@ jobs:
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
                   platforms: linux/amd64,linux/arm64
+                  build-args: |
+                      PYTHON_VERSION=${{ matrix.python-version }}

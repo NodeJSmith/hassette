@@ -8,30 +8,26 @@ assignees: ''
 
 ## Feature Description
 
-A clear and concise description of the feature you'd like to see.
+What would you like to add?
 
 ## Problem/Motivation
 
-What problem does this feature solve? Why would it be useful?
+What problem does this solve?
 
 ## Proposed Solution
 
-How would you like this feature to work?
-
-```python
-# Example of how the feature might be used
-```
+How should it work? (brief)
 
 ## Alternatives Considered
 
-Have you considered any alternative solutions or features?
+Any alternatives considered?
 
 ## Additional Context
 
-Add any other context, mockups, or examples about the feature request here.
+Any other context, mockups, or examples.
 
 ## Would you be willing to contribute this feature?
 
-- [ ] Yes, I'd like to implement this
-- [ ] No, but I can help test it
-- [ ] No, just suggesting
+- [ ] Yes, I can implement
+- [ ] I can help test
+- [ ] Just suggesting
