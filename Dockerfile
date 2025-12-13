@@ -12,11 +12,6 @@ COPY --from=uv /uv /bin/uv
 
 WORKDIR /app
 
-# add build essentials for compiling Python packages with native extensions
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy lock + manifest for dependency resolution
 ADD . /app
 
