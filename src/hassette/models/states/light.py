@@ -2,10 +2,10 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, BoolBaseState
+from .base import AttributesBase, StringBaseState
 
 
-class LightState(BoolBaseState):
+class LightState(StringBaseState):
     """Representation of a Home Assistant light state.
 
     See: https://www.home-assistant.io/integrations/light/
