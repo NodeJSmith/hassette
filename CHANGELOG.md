@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Changed
+- **Breaking:** All events now contain untyped payloads instead of typed ones
+  - `StateChangeEvent` is now `RawStateChangeEvent`
+  - There is a new DI handler for `TypedStateChangeEvent` to handle conversion if desired
 - **Breaking:** State conversion system now uses dynamic registry instead of hardcoded unions
   - `StateUnion` type has been removed - use `BaseState` in type hints instead
   - `DomainLiteral` type has been removed - no longer needed with dynamic registration
@@ -15,24 +18,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `try_convert_state` now typed to return `BaseState | None` instead of `StateUnion | None`
   - Uses registry lookup instead of Pydantic discriminated unions for conversion
   - Falls back to `BaseState` for unknown/custom domains
-  - Raises `RegistryNotReadyError` if called before any state classes are imported
   - `try_convert_state` moved to `hassette.state_registry` module
   - `states.__init__` now only imports/exports classes, no conversion logic
+- Improved dependency injection system for event handlers, including support for optional dependencies via `Maybe*` annotations
+- Renamed `states.py` to `state_manager.py` (and renamed the class) to avoid confusion with `models/states` module
+- Removed defaults from StateT and StateValueT type vars
+- Removed type constraints from StateValueT type var to allow custom types to be used
 
 ### Added
-- Dynamic state registry system (`hassette.state_registry`)
-  - State classes automatically register when defined with `domain: Literal["domain_name"]`
-  - `StateRegistry` provides `get_class_for_domain()`, `all_domains()`, and `all_classes()` methods
-  - Enables user-defined state classes for custom domains without modifying core code
-  - Registry raises `RegistryNotReadyError` if accessed before initialization
-- Type stub file (`hassette/states.pyi`) for IDE autocomplete on known domain properties
-  - Runtime uses `__getattr__` for dynamic domain access
-  - Users can access custom domains in apps via `self.states.get_states(CustomStateClass)`
+- `TypeRegistry` class for handling simple value conversion (e.g. converting "off" to False)
+- Handling of Union types
+- Handling of None types
+- Handling of type conversion for custom `Annotated` DI handlers
 
 ### Removed
 - **Breaking:** Removed `StateUnion` type - replaced with `BaseState` throughout codebase
 - **Breaking:** Removed `DomainLiteral` type - no longer needed with registry system
 - **Breaking:** Removed manual `_StateUnion` type definition from states module
+- **Breaking:** Removed StateValueOld/New, StateValueOldNew, StateOldNew, MaybeStateOldNew, AttrOld, AttrNew, AttrOldNew DI handlers
+    - These can be used still by annotating with `Annotated[<type>, A.<function>]` using provided `accessors` module
+    - They were too difficult to maintain/type properly across the framework
+
 
 ## [0.17.0] - 2025-11-22
 
