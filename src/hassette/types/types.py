@@ -1,8 +1,9 @@
 from collections.abc import Awaitable, Callable
 from datetime import time
 from pathlib import Path
-from typing import Any, Literal, Protocol, Required, TypedDict, TypeVar
+from typing import Any, Literal, Protocol, Required, TypeAlias, TypeVar
 
+from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
 
 from hassette.const.misc import FalseySentinel
@@ -58,13 +59,17 @@ class AsyncHandlerType(Protocol):
 HandlerType = SyncHandler | AsyncHandlerType
 """Type representing all valid handler types (sync or async)."""
 
-type ChangeType[V] = None | FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel]
+ChangeType = TypeAliasType(
+    "ChangeType",
+    None | FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel],
+    type_params=(V,),
+)
 """Type representing a value that can be used to specify changes in predicates."""
 
-type JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
+JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
 """Type representing a callable that can be scheduled as a job."""
 
-type ScheduleStartType = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
+ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
 """Type representing a value that can be used to specify a start time."""
 
 

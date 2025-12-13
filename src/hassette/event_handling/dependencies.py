@@ -1,5 +1,3 @@
-# ruff: noqa: UP040
-
 """Dependencies are special annotated types that extract data from events.
 
 These are designed to be used in event handlers to automatically extract commonly used
@@ -64,16 +62,10 @@ Examples:
 
 """
 
-
-# disabling UP040 - the TypeAlias definitions here are useful because we can use StateT
-# to provide better type hints in handlers that use these dependencies.
-
-# the new `type` doesn't work quite as well for this purpose
-
 import typing
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Any, TypeAlias, TypeVar
+from typing import Annotated, Any, Generic, TypeAlias, TypeVar
 
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.core.state_registry import convert_state_dict_to_model
@@ -94,7 +86,7 @@ T_Any = TypeVar("T_Any", bound=Any)
 
 
 @dataclass(slots=True, frozen=True)
-class AnnotationDetails[T: Event[Any]]:
+class AnnotationDetails(Generic[T]):
     """Details about an annotation used for dependency injection."""
 
     extractor: Callable[[T], Any]

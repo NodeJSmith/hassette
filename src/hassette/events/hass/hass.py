@@ -1,7 +1,7 @@
 import logging
 import typing
 from dataclasses import asdict, dataclass, field
-from typing import Any, Generic, Literal
+from typing import Any, Generic, Literal, TypeAlias
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
@@ -317,5 +317,5 @@ class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]])
         return TypedStateChangeEvent(topic=event.topic, payload=HassPayload(**curr_payload, data=payload))
 
 
-type HassEvent = Event[HassPayload[Any]]
+HassEvent: TypeAlias = Event[HassPayload[Any]]
 """Alias for Home Assistant events."""

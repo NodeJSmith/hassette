@@ -5,7 +5,7 @@ from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from logging import getLogger
 from string import Formatter
-from typing import Any, ClassVar, TypeVar, overload
+from typing import Any, ClassVar, Generic, TypeVar, overload
 
 from whenever import Date, Instant, OffsetDateTime, PlainDateTime, Time, ZonedDateTime
 
@@ -38,7 +38,7 @@ def get_format_fields(string_value: str) -> list[str]:
 
 
 @dataclass
-class TypeConverterEntry[T, R]:
+class TypeConverterEntry(Generic[T, R]):
     """Represents a type conversion function and its associated metadata."""
 
     func: Callable[[T], R]

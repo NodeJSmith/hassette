@@ -4,7 +4,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any
+from typing import Any, TypeVar
 
 from hassette.exceptions import HassetteNotInitializedError
 
@@ -16,9 +16,9 @@ LOGGER = getLogger(__name__)
 CURRENT_BUCKET: ContextVar["TaskBucket | None"] = ContextVar("CURRENT_BUCKET", default=None)
 HASSETTE_INSTANCE: ContextVar["Hassette"] = ContextVar("HASSETTE_INSTANCE")
 HASSETTE_SET_LOCATION: ContextVar[str | None] = ContextVar("HASSETTE_SET_LOCATION", default=None)
-
-
 HASSETTE_CONFIG: ContextVar["HassetteConfig"] = ContextVar("HASSETTE_CONFIG")
+
+T = TypeVar("T")
 
 ## Setters ##
 
@@ -86,7 +86,7 @@ def get_hassette_config() -> "HassetteConfig":
 
 
 @contextmanager
-def use[T](var: ContextVar[T], value: T) -> Generator[None, Any, Any]:
+def use(var: ContextVar[T], value: T) -> Generator[None, Any, Any]:
     """Temporarily set a ContextVar to `value` within a block."""
     token = var.set(value)
     try:

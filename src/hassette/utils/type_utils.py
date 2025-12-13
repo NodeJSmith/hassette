@@ -5,9 +5,10 @@ from collections.abc import Callable
 from contextlib import suppress
 from functools import lru_cache
 from types import GenericAlias, UnionType
-from typing import Any, ForwardRef, TypeAliasType, Union, get_args, get_origin
+from typing import Any, ForwardRef, Union, get_args, get_origin
 
 from pydantic._internal._typing_extra import try_eval_type
+from typing_extensions import TypeAliasType
 
 
 @lru_cache(maxsize=128)

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Changed
+- Allow Python 3.11 and 3.12 again!
 - **Breaking:** All events now contain untyped payloads instead of typed ones
   - `StateChangeEvent` is now `RawStateChangeEvent`
   - There is a new DI handler for `TypedStateChangeEvent` to handle conversion if desired
