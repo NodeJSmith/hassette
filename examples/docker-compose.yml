@@ -1,6 +1,6 @@
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:latest
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
     container_name: hassette
     restart: unless-stopped
     volumes:
