@@ -44,7 +44,7 @@ plugins:
   - search
   - gen-files:
       scripts:
-        - scripts/internal/gen_ref_pages.py
+        - tools/gen_ref_pages.py
   - literate-nav:
       nav_file: SUMMARY.md
   - autorefs
