@@ -720,7 +720,7 @@ class TestDependencyInjectionHandlesTypeConversion:
                 signature = get_typed_signature(handler)
                 injector = ParameterInjector(handler.__name__, signature)
 
-                with pytest.raises(DependencyResolutionError, match=r".*validation error.*"):
+                with pytest.raises(DependencyResolutionError, match=r".*failed to convert parameter.*"):
                     injector.inject_parameters(state_change_event)
 
 

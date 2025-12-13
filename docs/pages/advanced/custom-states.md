@@ -76,6 +76,28 @@ class TimeOnlyState(TimeBaseState):
     domain: Literal["time_only"]
 ```
 
+### Define your own
+For entities with state values that don't fit the predefined base classes, you can inherit directly from BaseState and provide the type parameter for the state value and `value_type` class variable:
+
+```python
+from typing import Literal, ClassVar, Any
+from enum import StrEnum
+
+from hassette.models.states.base import BaseState
+
+class MyValueType(StrEnum):
+    OPTION_A = "option_a"
+    OPTION_B = "option_b"
+    OPTION_C = "option_c"
+
+class MyCustomState(BaseState[MyValueType]):
+    domain: Literal["my_custom_domain"]
+
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (MyValueType, type(None))
+```
+
+The `value_type` class variable is used by Hassette to validate state values at runtime. It should include all acceptable types for the state value, including `None` if the state can be unset.
+
 ## Adding Custom Attributes
 
 You can define custom attributes specific to your domain by creating an attributes class:
@@ -244,7 +266,8 @@ class ImageMonitorApp(App):
 If your custom state class isn't being recognized:
 
 1. **Check the domain field** - Ensure you have `domain: Literal["your_domain"]`
-2. **Check for errors** - Look for registration errors in debug logs
+2. **Ensure that you are calling `__init_subclass__`** - If you override `__init_subclass__`, make sure to call `super().__init_subclass__()`
+3. **Check for errors** - Look for registration errors in debug logs
 
 ### Type hints not working
 

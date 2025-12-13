@@ -425,17 +425,23 @@ async def on_fan_change(
 
 ### When Conversion Happens
 
-Type conversion only occurs when:
-1. The extracted value type doesn't match the annotation type
-2. A converter is registered for the `(from_type, to_type)` pair
+Type conversion is skipped if the returned value is already the correct type or is `None`.
 
-If types already match, no conversion is performed (zero overhead).
+If the value is not `None` and does not match the expected type, Hassette will attempt to convert it using the TypeRegistry.
+The TypeRegistry will first look for a registered converter for the `(from_type, to_type)` pair. If `to_type` is a `tuple`, it will iterate
+through each type in the tuple and use the first converter that succeeds.
+
+If there is no registered converter for the `(from_type, to_type)` pair, Hassette will attempt to call `to_type` as a constructor with the value as the sole argument.
+
+If type conversion fails, Hassette will raise a `UnableToConvertValueError`. For tuples, this will be raised only if all conversions fail.
+
 
 ### Bypassing Automatic Conversion
 
 If you want to handle conversion yourself, you can:
 
 1. **Use `Any` type annotation** to receive the raw value:
+
    ```python
    from typing import Any, Annotated
 
@@ -448,6 +454,7 @@ If you want to handle conversion yourself, you can:
    ```
 
 2. **Provide a custom converter** in `AnnotationDetails`:
+
    ```python
    from hassette.dependencies.annotations import AnnotationDetails
 
@@ -476,7 +483,7 @@ async def handler(
 ):
     pass
 
-# Error: "Cannot convert 'not_a_number' to integer"
+# UnableToConvertValueError - Unable to convert 'heap' to ClimateValueType
 ```
 
 ## Handler Signature Restrictions

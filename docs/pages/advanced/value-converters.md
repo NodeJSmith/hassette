@@ -305,10 +305,6 @@ except TypeError as e:
     print(e)  # "No converter registered for str -> list"
 ```
 
-## Creating Custom Converters
-
-You can register your own converters for custom types. See [TypeRegistry - Creating Custom Converters](type-registry.md#creating-custom-converters) for detailed examples.
-
 **Quick Example:**
 ```python
 from hassette.core.type_registry import register_type_converter_fn

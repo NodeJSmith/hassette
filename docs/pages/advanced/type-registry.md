@@ -59,7 +59,7 @@ def str_to_bool(value: str) -> bool:
     raise ValueError(f"Invalid boolean value: {value}")
 ```
 
-#### Function Registration
+#### Simple Type Registration
 
 Use `register_simple_type_converter` for simple conversions:
 
@@ -259,107 +259,6 @@ Uses the `whenever` library for robust datetime handling:
 - `str` → `SystemDateTime`: Parse to system datetime
 - `str` → `LocalDateTime`: Parse to naive local datetime
 - And reverse conversions back to strings
-
-### Complex Type Conversions
-- `str` → `list`: JSON string to list
-- `str` → `dict`: JSON string to dict
-- `list` → `str`: List to JSON string
-- `dict` → `str`: Dict to JSON string
-
-## Creating Custom Converters
-
-### Simple Custom Converter
-
-For straightforward conversions, use the decorator:
-
-```python
-from hassette.core.type_registry import register_type_converter_fn
-from enum import Enum
-
-class LightMode(Enum):
-    NORMAL = "normal"
-    NIGHT = "night"
-    BRIGHT = "bright"
-
-@register_type_converter_fn(error_message="'{value}' is not a valid LightMode")
-def str_to_light_mode(value: str) -> LightMode:
-    """Convert string to LightMode enum.
-
-    Types are inferred from the function signature:
-    - from_type: str (from 'value' parameter)
-    - to_type: LightMode (from return annotation)
-    """
-    try:
-        return LightMode(value.lower())
-    except ValueError:
-        valid_modes = ", ".join(m.value for m in LightMode)
-        raise ValueError(f"Must be one of: {valid_modes}")
-```
-
-### Complex Custom Converter
-
-For more complex conversions, you can create a full converter function with validation:
-
-```python
-from hassette.core.type_registry import register_type_converter_fn
-from dataclasses import dataclass
-
-@dataclass
-class RGBColor:
-    """RGB color representation."""
-    red: int
-    green: int
-    blue: int
-
-    def __post_init__(self):
-        """Validate RGB values."""
-        for name, value in [("red", self.red), ("green", self.green), ("blue", self.blue)]:
-            if not 0 <= value <= 255:
-                raise ValueError(f"{name} must be between 0 and 255, got {value}")
-
-@register_type_converter_fn(error_message="Cannot parse '{value}' as RGB color (expected 'R,G,B')")
-def str_to_rgb(value: str) -> RGBColor:
-    """Convert string like '255,128,0' to RGBColor.
-
-    Types inferred from signature: str → RGBColor
-    """
-    try:
-        parts = value.split(",")
-        if len(parts) != 3:
-            raise ValueError("Expected 3 comma-separated values")
-
-        r, g, b = (int(p.strip()) for p in parts)
-        return RGBColor(red=r, green=g, blue=b)
-    except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid RGB format: {e}")
-
-@register_type_converter_fn
-def rgb_to_str(value: RGBColor) -> str:
-    """Convert RGBColor to string like '255,128,0'.
-
-    Types inferred from signature: RGBColor → str
-    """
-    return f"{value.red},{value.green},{value.blue}"
-```
-
-### Using Custom Converters
-
-Once registered, custom converters work automatically throughout Hassette:
-
-```python
-# In state models
-class CustomLightState(BaseState):
-    value_type: ClassVar[type] = LightMode
-
-# In dependency injection
-async def handler(
-    mode: Annotated[LightMode, A.get_attr_new("mode")],
-    color: Annotated[RGBColor | None, A.get_attr_new("rgb_color")],
-):
-    if mode == LightMode.NIGHT:
-        # TypeRegistry already converted the strings!
-        self.logger.info("Night mode with color %s", color)
-```
 
 ### Conversion Errors
 

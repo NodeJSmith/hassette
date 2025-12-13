@@ -4,7 +4,6 @@ import inspect
 import logging
 import typing
 from collections.abc import Callable
-from contextlib import suppress
 from types import UnionType
 from typing import Any, get_args, get_origin
 
@@ -151,14 +150,20 @@ class ParameterInjector:
 
         # Convert if converter exists
         if type(target_type) is UnionType:
-            for t in get_args(target_type):
-                with suppress(Exception):
+            exception_strings = []
+            last_idx = len(get_args(target_type)) - 1
+            for idx, t in enumerate(get_args(target_type)):
+                try:
                     return self._convert_value(converter, extracted_value, param_name, t, extracted_type)
-            raise DependencyResolutionError(
-                f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
-                f"of type '{extracted_type}' "
-                f"to any type in Union '{target_type}'"
-            )
+                except Exception as e:
+                    exception_strings.append(str(e))
+                    if idx == last_idx:
+                        formatted_exceptions = "\n" + "; ".join(exception_strings)
+                        raise DependencyResolutionError(
+                            f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
+                            f"of type '{extracted_type}' "
+                            f"to any type in Union '{target_type}': {formatted_exceptions}"
+                        ) from None
 
         # not a union type
         return self._convert_value(converter, extracted_value, param_name, target_type, extracted_type)
@@ -197,6 +202,6 @@ class ParameterInjector:
         except Exception as e:
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
-                f"of type '{extracted_type}' "
-                f"to type '{target_type}': {e}"
+                f"of type '{extracted_type.__name__}' "
+                f"to type '{target_type.__name__}': {e}"
             ) from e

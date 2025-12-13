@@ -173,7 +173,7 @@ class TypeRegistry:
         if isinstance(to_type, tuple):
             for tt in to_type:
                 if tt is type(None) and value is not None:
-                    LOGGER.warning("Not attempting to convert %r to NoneType", value)
+                    LOGGER.debug("Not attempting to convert %r to NoneType", value)
                     continue
                 try:
                     return self.convert(value, tt)
@@ -186,14 +186,20 @@ class TypeRegistry:
         from_type = type(value)
         key = (from_type, to_type)
 
+        # handle Any type
+        if to_type is type(Any):
+            return value
+
+        # handle exact type match
         if to_type is from_type:
             return value
 
+        # handle None value
         if value is None:
             return value
 
         if to_type is type(None) and value is not None:
-            LOGGER.warning("Not attempting to convert %r to NoneType", value)
+            LOGGER.debug("Not attempting to convert %r to NoneType", value)
             raise UnableToConvertValueError(f"Cannot convert {value!r} to NoneType")
 
         # if we don't have this in our map, attempt to just convert using it as a constructor

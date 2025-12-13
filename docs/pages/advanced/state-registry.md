@@ -28,7 +28,9 @@ LightState(
 
 ### Automatic Registration
 
-State classes register themselves automatically when they define a `domain` class variable:
+All classes that inherit from BaseState are registered automatically at class creation time if they have a valid domain.
+
+This is done via the `__init_subclass__` hook in BaseState, which adds the class to the global StateRegistry.
 
 ```python
 from hassette.models.states import BaseState
@@ -39,11 +41,6 @@ class LightState(BaseState):
     attributes: LightAttributes
 ```
 
-During Hassette startup, the StateRegistry:
-
-1. Scans all subclasses of `BaseState` using breadth-first search
-2. Calls each class's `get_domain()` method
-3. Builds a bidirectional mapping: `domain` ↔ `StateClass`
 
 ### Domain Lookup
 
@@ -55,20 +52,8 @@ from hassette.context import get_state_registry
 registry = get_state_registry()
 
 # Get class for a domain
-state_class = registry.get_class_for_domain("light")
+state_class = registry.resolve(domain="light")
 # Returns: LightState
-
-# Get domain for a class
-domain = registry.get_domain_for_class(LightState)
-# Returns: "light"
-
-# List all registered domains
-domains = registry.all_domains()
-# Returns: ["binary_sensor", "light", "sensor", "switch", ...]
-
-# List all registered classes
-classes = registry.all_classes()
-# Returns: [BinarySensorState, LightState, SensorState, ...]
 ```
 
 ## Relationship with TypeRegistry
@@ -90,13 +75,13 @@ state_dict = {
     "attributes": {"unit_of_measurement": "°C"}
 }
 
-# 2. StateRegistry determines model class based on "sensor" domain
+2. StateRegistry determines model class based on "sensor" domain
 # → Returns SensorState class
 
-# 3. Pydantic model validation begins
-# 4. BaseState._validate_domain_and_state checks value_type ClassVar
-# 5. TypeRegistry converts "23.5" (str) → 23.5 (float)
-# 6. Validation completes with properly typed value
+3. Pydantic model validation begins
+4. BaseState._validate_domain_and_state checks value_type ClassVar
+5. TypeRegistry converts "23.5" (str) → 23.5 (float)
+6. Validation completes with properly typed value
 
 sensor_state = registry.try_convert_state(state_dict)
 # Result: SensorState with state=23.5 (float)
@@ -116,12 +101,7 @@ class SensorState(BaseState):
     value_type: ClassVar[type | tuple[type, ...]] = (str, int, float)
 ```
 
-During validation, if the raw state value doesn't match `value_type`, the TypeRegistry automatically converts it:
-
-```python
-# Without value_type: state would be "23.5" (string)
-# With value_type = (str, int, float): state is 23.5 (float)
-```
+During validation, if the raw state value doesn't match `value_type`, the TypeRegistry automatically converts it.
 
 This means when you work with state models, numeric values, booleans, and datetimes are automatically the correct Python type, not strings.
 
@@ -138,11 +118,13 @@ This separation allows:
 
 **Example Benefits:**
 ```python
+from hassette import STATE_REGISTRY
+
 # StateRegistry determines this is a LightState
-light_state = registry.try_convert_state(light_dict)
+light_state = STATE_REGISTRY.try_convert_state(light_dict)
 
 # TypeRegistry also works in dependency injection
-from hassette import dependencies as D, accessors as A
+from hassette import accessors as A
 
 async def handler(
     # TypeRegistry converts attribute values too
@@ -161,9 +143,7 @@ The primary use of the StateRegistry is converting raw state dictionaries to typ
 ### Direct Conversion
 
 ```python
-from hassette.context import get_state_registry
-
-registry = get_state_registry()
+from hassette import STATE_REGISTRY
 
 # Raw state data from Home Assistant
 state_dict = {
@@ -174,7 +154,7 @@ state_dict = {
 }
 
 # Convert to typed model
-light_state = registry.try_convert_state(state_dict)
+light_state = STATE_REGISTRY.try_convert_state(state_dict)
 # Returns: LightState instance
 ```
 
@@ -229,10 +209,7 @@ Once defined, your custom state class is automatically registered and can be use
 ```python
 from hassette import dependencies as D
 
-async def on_reddit_change(
-    self,
-    new_state: D.StateNew[RedditState],
-):
+async def on_reddit_change(self, new_state: D.StateNew[RedditState]):
     print(f"Reddit karma: {new_state.attributes.karma}")
 ```
 
@@ -289,30 +266,16 @@ The conversion logic:
 
 The StateRegistry raises specific exceptions for different error conditions:
 
-### RegistryNotReadyError
-
-Raised when trying to use the registry before it's initialized:
-
-```python
-from hassette.exceptions import RegistryNotReadyError
-
-try:
-    state_class = registry.get_class_for_domain("light")
-except RegistryNotReadyError:
-    print("StateRegistry not yet initialized")
-```
-
-**Solution:** Wait for Hassette to complete initialization, or ensure you're using the registry within app lifecycle methods (e.g., `on_initialize`).
-
 ### InvalidDataForStateConversionError
 
 Raised when state data is malformed or missing required fields:
 
 ```python
+from hassette import STATE_REGISTRY
 from hassette.exceptions import InvalidDataForStateConversionError
 
 try:
-    state = registry.try_convert_state(None)  # Invalid data
+    state = STATE_REGISTRY.try_convert_state(None)  # Invalid data
 except InvalidDataForStateConversionError as e:
     print(f"Invalid state data: {e}")
 ```
@@ -322,11 +285,12 @@ except InvalidDataForStateConversionError as e:
 Raised when the entity_id format is invalid:
 
 ```python
+from hassette import STATE_REGISTRY
 from hassette.exceptions import InvalidEntityIdError
 
 try:
     # Entity ID must have format "domain.entity"
-    state = registry.try_convert_state({"entity_id": "invalid"})
+    state = STATE_REGISTRY.try_convert_state({"entity_id": "invalid"})
 except InvalidEntityIdError as e:
     print(f"Invalid entity ID: {e}")
 ```
@@ -378,15 +342,17 @@ light = self.states.light.get("light.bedroom")
 
 ### Accessing the Registry
 
-The StateRegistry is available via the application context:
+The StateRegistry can be imported from Hassette directly:
 
 ```python
-from hassette.context import get_state_registry
+from hassette import STATE_REGISTRY
 
-registry = get_state_registry()
+registry = STATE_REGISTRY
 ```
 
 In apps, you typically don't need direct access - the DI system and API methods handle conversions automatically.
+
+If you do need to access it, it is accessible through `self.hassette.state_registry`.
 
 ### Custom Converters
 

@@ -42,6 +42,21 @@ class StateRegistry:
 
     _registry: ClassVar[dict[StateKey, type["BaseState"]]] = {}
 
+    def _get_entity_id(self, data: "HassStateDict", entity_id: str | None = None) -> str:
+        if not entity_id:
+            # specifically this way so we also handle empty strings/None
+            entity_id = data.get("entity_id") or "<unknown>"
+
+        if not isinstance(entity_id, str):
+            LOGGER.error("State data has invalid 'entity_id' field: %s", data, stacklevel=2)
+            raise InvalidEntityIdError(entity_id)
+
+        if "." not in entity_id:
+            LOGGER.error("State data has malformed 'entity_id' (missing domain): %s", entity_id, stacklevel=2)
+            raise InvalidEntityIdError(entity_id)
+
+        return entity_id
+
     def try_convert_state(self, data: "HassStateDict", entity_id: str | None = None) -> "BaseState":
         """Convert a dictionary representation of a state into a specific state type.
 
@@ -82,20 +97,8 @@ class StateRegistry:
             )
             raise InvalidDataForStateConversionError(data)
 
-        if not entity_id:
-            # specifically this way so we also handle empty strings/None
-            entity_id = data.get("entity_id") or "<unknown>"
-
-        if not isinstance(entity_id, str):
-            LOGGER.error("State data has invalid 'entity_id' field: %s", data, stacklevel=2)
-            raise InvalidEntityIdError(entity_id)
-
-        if "." not in entity_id:
-            LOGGER.error("State data has malformed 'entity_id' (missing domain): %s", entity_id, stacklevel=2)
-            raise InvalidEntityIdError(entity_id)
-
-        # domain = data["domain"] if "domain" in data else entity_id.split(".", 1)[0]
-        domain = data.get("domain") or entity_id.split(".", 1)[0]
+        entity_id = self._get_entity_id(data, entity_id=entity_id)
+        domain = entity_id.split(".", 1)[0]
 
         # Look up the appropriate state class from the registry
         state_class = self.resolve(domain=domain)
@@ -161,7 +164,7 @@ class StateRegistry:
             truncated_data = truncated_data[:200] + "...[truncated]"
 
         try:
-            return state_class.model_validate(data)
+            return convert_state_dict_to_model(data, state_class)
         except Exception as e:
             tb = get_short_traceback()
 
