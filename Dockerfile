@@ -24,12 +24,11 @@ ENV UV_LINK_MODE=copy
 
 # Install deps (without project)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project --no-editable --active
+    uv sync --locked --no-install-project --no-editable --active --no-default-groups
 
 # Install project into venv (not editable, root owns at this point)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-editable --active
-
+    uv sync --locked --no-editable --active --no-default-groups
 
 # ---- Final stage ----
 FROM python:${PYTHON_VERSION}-slim
