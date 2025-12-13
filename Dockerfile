@@ -3,9 +3,12 @@
 ARG PYTHON_VERSION=3.13
 ARG UV_VERSION=0.9.8
 
+# ---- uv stage ----
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
 # ---- Builder stage ----
 FROM python:${PYTHON_VERSION}-slim AS builder
-COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /bin/
+COPY --from=uv /uv /bin/uv
 
 WORKDIR /app
 
@@ -38,6 +41,7 @@ RUN apt-get update \
     curl \
     tini \
     tzdata \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -51,10 +55,7 @@ RUN groupadd --system hassette \
     && mkdir -p "$UV_CACHE_DIR" /config /data /apps \
     && chown -R hassette:hassette /home/hassette "$UV_CACHE_DIR" /config /data /apps /app
 
-# Copy uv binary
-COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /bin/
-
-# Copy app, venv, scripts
+COPY --from=uv /uv /bin/uv
 COPY --from=builder --chown=hassette:hassette /app /app
 
 USER hassette
