@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
+ARG PYTHON_VERSION=3.13
+
 # ---- Builder stage ----
-FROM python:3.13-alpine AS builder
+FROM python:${PYTHON_VERSION}-alpine AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.9.8 /uv /bin/
 
 # uncomment this if/when we need to build packages with native extensions
@@ -23,7 +25,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --active
 
 # ---- Final stage ----
-FROM python:3.13-alpine
+FROM python:${PYTHON_VERSION}-alpine
 
 # System packages you want available at runtime
 RUN apk add --no-cache curl tini tzdata

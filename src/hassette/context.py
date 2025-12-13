@@ -86,7 +86,7 @@ def get_hassette_config() -> "HassetteConfig":
 
 
 @contextmanager
-def use[T](var: ContextVar[T], value: T) -> Generator[None, Any]:
+def use[T](var: ContextVar[T], value: T) -> Generator[None, Any, Any]:
     """Temporarily set a ContextVar to `value` within a block."""
     token = var.set(value)
     try:
@@ -96,7 +96,7 @@ def use[T](var: ContextVar[T], value: T) -> Generator[None, Any]:
 
 
 @contextmanager
-def use_hassette_config(config: "HassetteConfig") -> Generator[None, Any]:
+def use_hassette_config(config: "HassetteConfig") -> Generator[None, Any, Any]:
     """Temporarily set the global HassetteConfig within a block."""
     token = HASSETTE_CONFIG.set(config)
     try:
@@ -106,7 +106,7 @@ def use_hassette_config(config: "HassetteConfig") -> Generator[None, Any]:
 
 
 @contextmanager
-def use_task_bucket(bucket: "TaskBucket") -> Generator[None, Any]:
+def use_task_bucket(bucket: "TaskBucket") -> Generator[None, Any, Any]:
     """Temporarily set the current TaskBucket within a block."""
     token = CURRENT_BUCKET.set(bucket)
     try:

@@ -137,7 +137,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.get_states())
 
-    def get_states_iterator(self) -> Generator["BaseState[Any]", Any]:
+    def get_states_iterator(self) -> Generator["BaseState[Any]", Any, None]:
         """Get a generator to iterate over all entities in Home Assistant, converted to their appropriate state types.
 
         The returned generator yields properly typed state objects based on their domains. If

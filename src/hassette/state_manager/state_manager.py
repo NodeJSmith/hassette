@@ -102,7 +102,7 @@ class DomainStates(Generic[StateT]):
         self._model = model
         self._domain = model.get_domain()
 
-    def __iter__(self) -> typing.Generator[tuple[str, StateT], Any]:
+    def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
         """Iterate over all states in this domain."""
         for entity_id, state in self._states.items():
             try:

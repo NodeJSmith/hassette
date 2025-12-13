@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `states.py` to `state_manager.py` (and renamed the class) to avoid confusion with `models/states` module
 - Removed defaults from StateT and StateValueT type vars
 - Removed type constraints from StateValueT type var to allow custom types to be used
+- Moved `accessors`, `conditions`, `dependencies`, and `predicates` all to `hassette.event_handling` for consistency
+- Moved DI extraction and injection modules to `hassette.bus`
 
 ### Added
 - `TypeRegistry` class for handling simple value conversion (e.g. converting "off" to False)

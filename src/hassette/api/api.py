@@ -313,7 +313,7 @@ class Api(Resource):
 
         return converted
 
-    async def get_states_iterator(self) -> Generator["BaseState[Any]", Any]:
+    async def get_states_iterator(self) -> Generator["BaseState[Any]", Any, None]:
         """Get a generator to iterate over all entities in Home Assistant, converted to their appropriate state types.
 
         The returned generator yields properly typed state objects based on their domains. If

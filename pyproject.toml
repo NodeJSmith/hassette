@@ -9,7 +9,7 @@ description = "Hassette is a simple, modern, async-first Python framework for bu
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.12,<3.14"
 keywords = [
     "home-assistant",
     "automation",
