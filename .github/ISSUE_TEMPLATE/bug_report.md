@@ -8,11 +8,11 @@ assignees: ''
 
 ## Bug Description
 
-A clear and concise description of what the bug is.
+What happened?
 
 ## To Reproduce
 
-Steps to reproduce the behavior:
+Steps that show the problem (keep it minimal):
 
 1.
 2.
@@ -26,31 +26,14 @@ What you expected to happen.
 
 What actually happened.
 
-## Code Sample
+## Quick Details
 
-```python
-# Minimal code to reproduce the issue
-```
+- Hassette version:
+- Python version:
+- Home Assistant version (if applicable):
+- OS / platform:
 
-## Configuration
+## Extras
 
-```toml
-# Relevant hassette.toml configuration
-```
-
-## Environment
-
-- **Hassette version**: (e.g., 0.2.0)
-- **Python version**: (e.g., 3.11.5)
-- **Home Assistant version**: (e.g., 2024.11.0)
-- **OS**: (e.g., Ubuntu 22.04, macOS 14.0, Docker)
-
-## Logs
-
-```
-Paste relevant log output here
-```
-
-## Additional Context
-
-Add any other context about the problem here (screenshots, related issues, etc.)
+- Minimal repro snippet or config (if helpful):
+- Relevant logs:
