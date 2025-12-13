@@ -507,7 +507,9 @@ class TestCustomDI:
             (
                 e
                 for e in state_change_events
-                if e.payload.data.new_state and "brightness" in e.payload.data.new_state.get("attributes", {})
+                if e.payload.data.new_state
+                and "brightness" in e.payload.data.new_state.get("attributes", {})
+                and isinstance(e.payload.data.new_state.get("attributes", {}).get("brightness"), (int, float))
             ),
             None,
         )
