@@ -13,6 +13,7 @@ If you're familiar with the Python ecosystem, consider it like a marriage betwee
 **Key features**
 
 - **Type safe** – full type annotations and IDE support.
+- **Dependency Injection** – clean handler signatures with FastAPI style dependency injection.
 - **Async-first** – built for modern Python with async/await throughout.
 - **Simple & focused** – just Home Assistant automations, no complexity creep.
 - **Developer experience** – clear errors, solid logging, hot reloading.
@@ -48,5 +49,5 @@ Ready to build something more complex? Explore the rest of the docs:
 - Follow the [getting started guide](pages/getting-started/index.md) for local development.
 - Deploy with [Docker Compose](pages/getting-started/docker.md) for production.
 - Dive into [core app patterns](pages/core-concepts/apps/index.md).
-- Learn more about the [typed API surface](pages/core-concepts/api/index.md).
 - See how Hassette stacks up in the [AppDaemon comparison](pages/appdaemon-comparison.md).
+- Dive into the [advanced concepts](pages/advanced/index.md).

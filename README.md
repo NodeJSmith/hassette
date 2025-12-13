@@ -19,7 +19,7 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 
 - **Type Safe**: Full type annotations with Pydantic models and comprehensive IDE support
 - **Async-First**: Built for modern Python with async/await throughout
-- **Dependency Injection**: Clean handler signatures with automatic parameter extraction
+- **Dependency Injection**: Clean handler signatures with FastAPI style dependency injection
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading, and intuitive APIs
 

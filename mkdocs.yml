@@ -31,11 +31,11 @@ nav:
       - States: pages/core-concepts/states/index.md
       - Configuration: pages/core-concepts/configuration/index.md
   - Advanced:
+      - Overview: pages/advanced/index.md
       - Dependency Injection: pages/advanced/dependency-injection.md
-      - TypeRegistry: pages/advanced/type-registry.md
-      - State Registry: pages/advanced/state-registry.md
       - Custom States: pages/advanced/custom-states.md
-      - Value Converters: pages/advanced/value-converters.md
+      - State Registry: pages/advanced/state-registry.md
+      - TypeRegistry: pages/advanced/type-registry.md
   - Why Hassette?: pages/why-hassette.md
   - AppDaemon Comparison: pages/appdaemon-comparison.md
   - API Reference: reference/
