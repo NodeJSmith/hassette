@@ -1,15 +1,18 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.13
+ARG UV_VERSION=0.9.8
 
 # ---- Builder stage ----
-FROM python:${PYTHON_VERSION}-alpine AS builder
-COPY --from=ghcr.io/astral-sh/uv:0.9.8 /uv /bin/
-
-# uncomment this if/when we need to build packages with native extensions
-# RUN apk add --no-cache build-base
+FROM python:${PYTHON_VERSION}-slim AS builder
+COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /bin/
 
 WORKDIR /app
+
+# add build essentials for compiling Python packages with native extensions
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy lock + manifest for dependency resolution
 ADD . /app
@@ -24,29 +27,32 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --active
 
+
 # ---- Final stage ----
-FROM python:${PYTHON_VERSION}-alpine
+FROM python:${PYTHON_VERSION}-slim
 
 # System packages you want available at runtime
-RUN apk add --no-cache curl tini tzdata
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    tini \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 ENV UV_CACHE_DIR=/uv_cache
-# Set timezone to UTC as a default, user can override at runtime
 ENV TZ=UTC
 
-# Create non-root user first
-RUN addgroup -S hassette \
-    && adduser -S -G hassette -h /home/hassette hassette \
-    && chown -R hassette:hassette /home/hassette \
-    && mkdir -p $UV_CACHE_DIR \
-    && chown -R hassette:hassette $UV_CACHE_DIR \
-    && mkdir -p /config /data /apps \
-    && chown -R hassette:hassette /config /data /apps /app
+# Create non-root user and needed directories
+RUN groupadd --system hassette \
+    && useradd --system --gid hassette --create-home --home-dir /home/hassette hassette \
+    && mkdir -p "$UV_CACHE_DIR" /config /data /apps \
+    && chown -R hassette:hassette /home/hassette "$UV_CACHE_DIR" /config /data /apps /app
 
 # Copy uv binary
-COPY --from=ghcr.io/astral-sh/uv:0.9.8 /uv /bin/
+COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /bin/
 
 # Copy app, venv, scripts
 COPY --from=builder --chown=hassette:hassette /app /app
