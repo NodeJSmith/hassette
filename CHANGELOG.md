@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.18.0.dev3] - 2025-12-13
+
+### Changed
+- Hardcode UID/GID of 1000 for non-root user in Docker image
+
 ## [0.18.0.dev2] - 2025-12-13
 
 ### Changed

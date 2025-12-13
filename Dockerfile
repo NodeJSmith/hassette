@@ -43,10 +43,10 @@ ENV UV_CACHE_DIR=/uv_cache
 ENV TZ=UTC
 
 # Create non-root user and needed directories
-RUN groupadd --system hassette \
-    && useradd --system --gid hassette --create-home --home-dir /home/hassette hassette \
+RUN groupadd --gid 1000 hassette \
+    && useradd --uid 1000 --gid 1000 --create-home --home-dir /home/hassette hassette \
     && mkdir -p "$UV_CACHE_DIR" /config /data /apps \
-    && chown -R hassette:hassette /home/hassette "$UV_CACHE_DIR" /config /data /apps /app
+    && chown -R 1000:1000 /home/hassette "$UV_CACHE_DIR" /config /data /apps /app
 
 COPY --from=uv /uv /bin/uv
 COPY --from=builder --chown=hassette:hassette /app /app
