@@ -45,7 +45,7 @@ autocompletion and earlier error detection.
 - The Home Assistant API is async and uses Pydantic models for
   responses.
 - Features are accessed via composition: `self.bus`, `self.scheduler`,
-  and `self.api`.
+  `self.api`, and `self.states`.
 
 ## Quick reference table
 
@@ -61,8 +61,6 @@ autocompletion and earlier error detection.
 | Access app configuration          | `self.args["entity"]`                                                               | `self.app_config.entity`                                                                                        |
 | Stop a listener                   | `self.cancel_listen_state(handle)`                                                  | `subscription.cancel()`                                                                                         |
 | Stop a scheduled job              | `self.cancel_timer(handle)`                                                         | `job.cancel()`                                                                                                  |
-
-*Snapshot of common tasks.*
 
 ## Detailed Comparison
 
@@ -109,11 +107,9 @@ my_app:
 This would correspond to a Python file `my_app.py` in the directory
 `./apps` with a class `MyApp` that subclasses `Hass`.
 
-Arguments are
-accessible through the `self.args` dictionary, under the `args` key.
+Arguments are accessible through the `self.args` dictionary, under the `args` key.
 
-You
-have access to logging via `self.log()`, which is a method that is part
+You have access to logging via `self.log()`, which is a method that is part
 of AppDaemon's logging system. Because of the way the logger is
 implemented, you cannot easily see the location of the log call in your
 output, although there are some magic strings you can use to include
@@ -161,14 +157,12 @@ This would correspond to a Python file `my_app.py` in the directory
 `/apps/` with a class `MyApp` that subclasses [`App`][hassette.app.app.App] or
 [`AppSync`][hassette.app.app.AppSync].
 
-Because Hassette uses Pydantic models for
-configuration, you define a subclass of
+Because Hassette uses Pydantic models for configuration, you define a subclass of
 [`AppConfig`][hassette.app.app_config.AppConfig] to specify expected parameters and
 their types. You access configuration via the typed `self.app_config`
 attribute, which offers IDE support and validation at startup.
 
-The
-logger is part of the base class and uses Python's standard logging
+The logger is part of the base class and uses Python's standard logging
 library, the log format automatically includes the instance name, method
 name, and line number. Instance names can be set in the config file or
 default to `<ClassName>.<index>`.
@@ -239,8 +233,7 @@ either async or sync functions, and can accept arbitrary parameters. The
 scheduler methods return rich job objects that can be used to manage the
 scheduled task. If an IO or a blocking operation is needed, then you
 should either have the callback be a sync method (which will be run in a
-thread automatically) or use
-`self.task_bucket.run_in_thread()`
+thread automatically) or use `self.task_bucket.run_in_thread()`
 to manually offload the work to a thread.
 
 The scheduler is accessed via the `self.scheduler` attribute, and offers
@@ -334,11 +327,11 @@ class ButtonHandler(ADAPI):
 #### Hassette
 
 Event handlers can also be either async or sync functions, and can accept
-any arguments - including the event object, if desired. The
+any arguments, including annotated arguments for dependency injection. The
 event bus uses typed events and composable predicates for filtering. In
 this example, we listen for a service call event with a specific
 entity_id. Behind the scenes, the dictionary passed to `where` is
-converted into a predicate that checks for equality on each key/value
+converted into a [predicate][hassette.event_handling.predicates] that checks for equality on each key/value
 pair.
 
 The event bus is accessed via the `self.bus` attribute. You can cancel a
@@ -348,12 +341,16 @@ method, e.g., `subscription.cancel()`.
 !!! warning
     Handlers **cannot** use positional-only parameters (parameters before `/`) or variadic positional arguments (`*args`).
 
+!!! warning
+    The event bus works with typed events, but the data in the event payload is *untyped* at runtime. Use dependency injection or convert data
+    manually to work with typed objects.
+
 **Dependency Injection for Handlers**
 
 Hassette supports dependency injection for event handlers, allowing you to extract
-specific data from events without manually accessing the event payload. Use the
-[Annotated][typing.Annotated] type
-hint with dependency markers from [dependencies][hassette.dependencies]:
+specific data from events without manually accessing the event payload. You can use the
+dependency markers from [dependencies][hassette.dependencies] or you can create your own
+using the [Annotated][typing.Annotated] type hint.
 
 ```python
 from typing import Annotated
@@ -384,11 +381,13 @@ class ButtonHandler(App):
 ```
 
 Available dependency markers include:
-- `StateNew`, `StateOld` - Extract state objects from state change events
-- `AttrNew("name")`, `AttrOld("name")` - Extract specific attributes
-- `EntityId`, `Domain`, `Service` - Extract identifiers
-- `StateValueNew`, `StateValueOld` - Extract state values (e.g., "on"/"off")
-- `ServiceData`, `EventContext` - Extract service data or event context
+- `StateNew`, `StateOld`, `MaybeStateNew`, `MaybeStateOld` - Extract state objects from state change events
+- `EntityId`, `MaybeEntityId` - Extract entity IDs
+- `Domain`, `MaybeDomain` - Extract domain names
+- `EventContext` - Extract Home Assistant event context
+- `TypedStateChangeEvent[T]` - Convert raw event to typed event
+
+For more details and advanced usage, see the [Dependency Injection](advanced/dependency-injection.md) documentation.
 
 You can also receive the full event object if you prefer:
 
@@ -485,18 +484,12 @@ calling them out separately to align with AppDaemon. These can also be
 either async or sync functions. You can receive the full event object or
 use dependency injection to extract only the data you need.
 
-The event bus provides helpers for filtering entities and attributes. You can
-also provide additional predicates using the `where` parameter.
+The event bus subscription methods take multiple arguments to specify filters and predicates,
+including `changed`, `changed_to`, `changed_from`, and `where`. Additionally, the DI system
+can be used to enforce type safety and extract only the data you need.
 
-Like other objects, these are typed using Pydantic models -
-`StateChangeEvent` is a
-`Generic` that takes a type parameter for
-the state model, so you can specify exactly what type of entity you're
-listening for.
-
-Currently the repr of a StateChangeEvent is quite verbose, but it does
-show the full old and new state objects, which can be useful for
-debugging. Cleaning this up is on the roadmap.
+!!! note
+    If your DI annotation is not an Optional type and the data would return `None`, an error will be logged and the handler will not be called.
 
 **With dependency injection** (recommended):
 
@@ -504,7 +497,6 @@ debugging. Cleaning this up is on the roadmap.
 from typing import Annotated
 from hassette import App, states
 from hassette import dependencies as D
-
 
 class ButtonPressed(App):
     async def on_initialize(self):
@@ -526,7 +518,7 @@ class ButtonPressed(App):
 **With event object**:
 
 ```python
-from hassette import App, StateChangeEvent, states
+from hassette import App, dependencies as D, states
 
 
 class ButtonPressed(App):
@@ -537,7 +529,7 @@ class ButtonPressed(App):
         )
         self.logger.info(f"Subscribed: {sub}")
 
-    def button_pressed(self, event: StateChangeEvent[states.ButtonState]) -> None:
+    def button_pressed(self, event: D.TypedStateChangeEvent[states.ButtonState]) -> None:
         self.logger.info(f"Button pressed: {event}")
 ```
 
@@ -549,7 +541,7 @@ Note, some output has been truncated for brevity.
         topic='hass.event.state_changed',
         payload=HassPayload(
             event_type='state_changed',
-            data=StateChangePayload(
+            data=RawStateChangePayload(
                 entity_id='input_button.test_button',
                 old_state=InputButtonState(
                     domain='input_button',
@@ -679,9 +671,13 @@ For cases where you need to force a fresh read from Home Assistant or perform wr
 class StateGetter(App):
     async def on_initialize(self):
         # Force fresh read from HA (requires await)
-        office_light_state = await self.api.get_state("light.office_light_1", model=states.LightState)
+        office_light_state = await self.api.get_state("light.office_light_1")
         self.logger.info(f"{office_light_state=}")
 ```
+
+!!! note
+    Due to the nature of type annotations in Python, the method `get_state` is annotated as returning a `BaseState`. You can use type narrowing
+    or casting to help the type checker understand the specific state type you expect.
 
 ```text
 2025-10-14 06:59:35.645 INFO hassette.StateGetter.0.on_initialize:9 ─ office_light_state=
@@ -815,12 +811,6 @@ class MyApp(App[MyAppConfig]):
         brightness = self.app_config.brightness
 ```
 
-**Benefits**:
-
-- Type safety and IDE autocompletion
-- Validation at startup (catches errors before runtime)
-- Clear documentation of required/optional parameters
-
 ### 4. Event Handlers
 
 Update event and state change listeners to use typed events:
@@ -838,8 +828,7 @@ def on_motion(self, entity, attribute, old, new, **kwargs):
 
 **Hassette**:
 ```python
-from hassette.events import StateChangeEvent
-from hassette import states
+from hassette import dependencies as D, states
 
 async def on_initialize(self):
     self.bus.on_state_change(
@@ -848,8 +837,8 @@ async def on_initialize(self):
         changed_to="on"
     )
 
-async def on_motion(self, event: StateChangeEvent[states.BinarySensorState]):
-    self.logger.info(f"Motion detected on {event.payload.data.entity_id}")
+async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]):
+    self.logger.info(f"Motion detected on {new_state.entity_id}")
 ```
 
 #### Service Calls
@@ -1025,12 +1014,6 @@ self.logger.info("Value: %s", value)
 
 self.logger.error("Something went wrong")
 ```
-
-**Benefits**:
-
-- Standard Python logging interface
-- Automatic inclusion of method name and line number
-- Configurable per-app log levels in config file
 
 ### 8. Sync vs Async
 

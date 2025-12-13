@@ -1,11 +1,12 @@
 from collections.abc import Awaitable, Callable
 from datetime import time
 from pathlib import Path
-from typing import Any, Literal, Protocol, Required, TypeVar
+from typing import Any, Literal, Protocol, Required, TypeAlias, TypeVar
 
-from typing_extensions import Sentinel, TypedDict
+from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
 
+from hassette.const.misc import FalseySentinel
 from hassette.events.base import EventT
 
 LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -23,7 +24,7 @@ class Predicate(Protocol[EventT]):
 
 
 class Condition(Protocol[V_contra]):
-    """Alias for a condition callable that takes a value or Sentinel and returns a bool."""
+    """Alias for a condition callable that takes a value or FalseySentinel and returns a bool."""
 
     def __call__(self, value: V_contra, /) -> bool: ...
 
@@ -56,16 +57,20 @@ class AsyncHandlerType(Protocol):
 
 # Type aliases for any valid handler
 HandlerType = SyncHandler | AsyncHandlerType
-"""Alias for all valid handler types (sync or async)."""
+"""Type representing all valid handler types (sync or async)."""
 
-type ChangeType[V] = None | Sentinel | V | Condition[V | Sentinel] | ComparisonCondition[V | Sentinel]
-"""Alias for types that can be used to specify changes in predicates."""
+ChangeType = TypeAliasType(
+    "ChangeType",
+    None | FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel],
+    type_params=(V,),
+)
+"""Type representing a value that can be used to specify changes in predicates."""
 
-type JobCallable = Callable[..., Awaitable[None]] | Callable[..., Any]
-"""Alias for a callable that can be scheduled as a job."""
+JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
+"""Type representing a callable that can be scheduled as a job."""
 
-type ScheduleStartType = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
-"""Type for specifying start times."""
+ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
+"""Type representing a value that can be used to specify a start time."""
 
 
 class RawAppDict(TypedDict, total=False):

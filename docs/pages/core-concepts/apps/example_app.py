@@ -1,6 +1,7 @@
 from pydantic import Field
 
-from hassette import App, AppConfig, StateChangeEvent, states
+from hassette import App, AppConfig
+from hassette import dependencies as D
 
 
 class MyAppConfig(AppConfig):
@@ -12,8 +13,10 @@ class MyApp(App[MyAppConfig]):
         self.on_change_listener = self.bus.on_state_change(self.app_config.light, handler=self.on_change)
         self.minutely_logger = self.scheduler.run_minutely(self.log_every_minute)
 
-    async def on_change(self, event: StateChangeEvent[states.LightState]):
-        self.logger.info("Entity %s changed: %s", self.app_config.light, event)
+    async def on_change(self, new_state: D.StateNew, old_state: D.StateOld, entity_id: D.EntityId):
+        self.logger.info("Entity %s changed: %s", self.app_config.light, entity_id)
+        self.logger.info("Old state: %s", old_state)
+        self.logger.info("New state: %s", new_state)
 
     async def log_every_minute(self):
         self.logger.info("One minute passed")

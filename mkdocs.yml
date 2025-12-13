@@ -29,8 +29,13 @@ nav:
       - Scheduler: pages/core-concepts/scheduler/index.md
       - API: pages/core-concepts/api/index.md
       - States: pages/core-concepts/states/index.md
-      - Custom States: pages/core-concepts/states/custom-states.md
       - Configuration: pages/core-concepts/configuration/index.md
+  - Advanced:
+      - Overview: pages/advanced/index.md
+      - Dependency Injection: pages/advanced/dependency-injection.md
+      - Custom States: pages/advanced/custom-states.md
+      - State Registry: pages/advanced/state-registry.md
+      - TypeRegistry: pages/advanced/type-registry.md
   - Why Hassette?: pages/why-hassette.md
   - AppDaemon Comparison: pages/appdaemon-comparison.md
   - API Reference: reference/

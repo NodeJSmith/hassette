@@ -1,20 +1,17 @@
-import asyncio
 import contextlib
 import inspect
 import itertools
-import time
 import typing
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Any, ParamSpec, TypeVar, cast
+from typing import Any, cast
 
-from hassette.dependencies.extraction import extract_from_signature, validate_di_signature
-from hassette.exceptions import CallListenerError
-from hassette.utils.exception_utils import get_short_traceback
+from hassette.bus.injection import ParameterInjector
+from hassette.bus.rate_limiter import RateLimiter
+from hassette.event_handling.predicates import normalize_where
 from hassette.utils.func_utils import callable_name, callable_short_name
-
-from .utils import extract_with_error_handling, normalize_where, warn_or_raise_on_incorrect_type
+from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,9 +21,6 @@ if typing.TYPE_CHECKING:
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
 
 LOGGER = getLogger(__name__)
-
-PS = ParamSpec("PS")
-RT = TypeVar("RT")
 
 seq = itertools.count(1)
 
@@ -103,7 +97,7 @@ class Listener:
         priority: int = 0,
     ) -> "Listener":
         pred = normalize_where(where)
-        signature = inspect.signature(handler)
+        signature = get_typed_signature(handler)
 
         # Create async handler
         async_handler = make_async_handler(handler, task_bucket)
@@ -131,7 +125,7 @@ class Listener:
 
 
 class HandlerAdapter:
-    """Unified handler adapter that handles signature normalization and rate limiting."""
+    """Handler adapter that composes dependency injection and rate limiting."""
 
     def __init__(
         self,
@@ -142,93 +136,52 @@ class HandlerAdapter:
         debounce: float | None = None,
         throttle: float | None = None,
     ):
-        if debounce and throttle:
-            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
-
         self.handler_name = handler_name
         self.handler = handler
-        self.signature = signature
         self.task_bucket = task_bucket
 
-        # Validate signature for DI (all handlers must use DI now)
-        validate_di_signature(signature)
+        # Dependency injection setup
+        self.injector = ParameterInjector(handler_name, signature)
 
-        # Rate limiting state
-        self._debounce_task: asyncio.Task | None = None
-        self._throttle_last_time = 0.0
-        self._throttle_lock = asyncio.Lock()
+        # Rate limiting setup
+        self.rate_limiter: RateLimiter | None = None
+        if debounce or throttle:
+            if debounce and throttle:
+                raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
+            self.rate_limiter = RateLimiter(
+                task_bucket=task_bucket,
+                debounce=debounce,
+                throttle=throttle,
+            )
 
-        # Apply rate limiting
-        if debounce and debounce > 0:
-            self.call = self._make_debounced_call(debounce)
-        elif throttle and throttle > 0:
-            self.call = self._make_throttled_call(throttle)
-        else:
-            self.call = self._direct_call
-
-    async def _direct_call(self, event: "Event[Any]", **kwargs: Any) -> None:
-        """Call handler with dependency injection.
-
-        Extracts required parameters from the event using type annotations
-        and injects them as kwargs.
+    async def call(self, event: "Event[Any]", **kwargs: Any) -> None:
+        """Call handler with dependency injection and optional rate limiting.
 
         Args:
             event: The event to pass to the handler.
             **kwargs: Additional keyword arguments to pass to the handler.
 
         Raises:
-            CallListenerError: If an error occurs during handler execution.
-            UnableToExtractParameterError: If parameter extraction fails.
+            DependencyInjectionError: If signature validation fails.
+            DependencyResolutionError: If parameter extraction/conversion fails.
+            Exception: If an error occurs during handler execution.
         """
+        if self.rate_limiter:
+            await self.rate_limiter.call(self._direct_call, event, **kwargs)
+        else:
+            await self._direct_call(event, **kwargs)
 
-        param_details = extract_from_signature(self.signature)
+    async def _direct_call(self, event: "Event[Any]", **kwargs: Any) -> None:
+        """Call handler directly with dependency injection (no rate limiting).
 
-        for param_name, (param_type, extractor) in param_details.items():
-            if param_name in kwargs:
-                LOGGER.warning("Parameter '%s' provided in kwargs will be overridden by DI", param_name)
+        Args:
+            event: The event to pass to the handler.
+            **kwargs: Additional keyword arguments to pass to the handler.
+        """
+        # Inject parameters
+        kwargs = self.injector.inject_parameters(event, **kwargs)
 
-            kwargs[param_name] = extracted_value = extract_with_error_handling(
-                event, extractor, param_name, param_type, self.handler_name
-            )
-
-            warn_or_raise_on_incorrect_type(param_name, param_type, extracted_value, self.handler_name)
-
-        try:
-            await self.handler(**kwargs)
-        except Exception as e:
-            LOGGER.error("Error while executing handler %s: %s", self.handler_name, get_short_traceback())
-            raise CallListenerError(f"Error while executing handler {self.handler_name}") from e
-
-    def _make_debounced_call(self, seconds: float):
-        """Create a debounced version of the call method."""
-
-        async def debounced_call(event: "Event[Any]", **kwargs: Any) -> None:
-            # Cancel previous debounce
-            if self._debounce_task and not self._debounce_task.done():
-                self._debounce_task.cancel()
-
-            async def delayed_call():
-                try:
-                    await asyncio.sleep(seconds)
-                    await self._direct_call(event, **kwargs)
-                except asyncio.CancelledError:
-                    pass
-
-            self._debounce_task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
-
-        return debounced_call
-
-    def _make_throttled_call(self, seconds: float):
-        """Create a throttled version of the call method."""
-
-        async def throttled_call(event: "Event[Any]", **kwargs: Any) -> None:
-            async with self._throttle_lock:
-                now = time.monotonic()
-                if now - self._throttle_last_time >= seconds:
-                    self._throttle_last_time = now
-                    await self._direct_call(event, **kwargs)
-
-        return throttled_call
+        await self.handler(**kwargs)
 
 
 @dataclass(slots=True)

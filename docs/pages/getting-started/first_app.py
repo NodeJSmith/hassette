@@ -1,4 +1,5 @@
-from hassette import App, AppConfig, StateChangeEvent, states
+from hassette import App, AppConfig, states
+from hassette import dependencies as D
 
 
 class MyConfig(AppConfig):
@@ -29,8 +30,8 @@ class MyApp(App[MyConfig]):
         self.logger.info("Total lights: %d", len(self.states.light))
         self.logger.info("Total sensors: %d", len(self.states.sensor))
 
-    async def changed(self, event: StateChangeEvent[states.SunState]):
-        self.logger.info("Sun changed: %s", event.payload.data)
+    async def changed(self, new_state: D.StateNew[states.SunState]):
+        self.logger.info("Sun changed: %s", new_state.value)
 
     async def log_heartbeat(self):
         self.logger.info("Heartbeat")

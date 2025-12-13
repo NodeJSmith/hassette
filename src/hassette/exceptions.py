@@ -108,70 +108,36 @@ class CannotOverrideFinalError(TypeError, HassetteError):
         super().__init__(msg)
 
 
-class UnableToExtractParameterError(HassetteError):
-    """Custom exception to indicate that a parameter could not be extracted for dependency injection
-    due to an unexpected error.
+class DependencyError(HassetteError):
+    """Base class for dependency-related errors."""
+
+
+class DependencyInjectionError(DependencyError):
+    """Raised when dependency injection fails due to invalid handler signature or annotations.
+
+    This exception indicates a user error in handler definition, such as:
+    - Using invalid parameter types (*args, positional-only)
+    - Missing required type annotations
+    - Incompatible annotation types
+
+    These errors should be fixed by updating the handler signature.
     """
 
-    def __init__(self, parameter_name: str, parameter_type: type, original_exception: Exception):
-        param_type_name = getattr(parameter_type, "__name__", str(parameter_type))
 
-        msg = (
-            f"Unable to extract parameter '{parameter_name}' of type '{param_type_name}' "
-            f"for dependency injection: {type(original_exception).__name__}: {original_exception}"
-        )
-        super().__init__(msg)
+class DependencyResolutionError(DependencyError):
+    """Raised when dependency injection fails during runtime extraction or conversion.
 
+    This exception indicates a runtime issue with:
+    - Extracting parameter values from events
+    - Converting values to expected types
+    - Type mismatches between extracted values and annotations
 
-class InvalidDependencyReturnTypeError(Exception):
-    """Exception raised when a dependency is found but cannot be resolved to the expected type."""
-
-    def __init__(self, resolved_type: Any):
-        self.resolved_type = resolved_type
-
-
-class CallListenerError(HassetteError):
-    """Custom exception to indicate that a listener could not be called.
-
-    This will also be raised if a DI annotation cannot be resolved to the expected type.
+    These errors may indicate issues with event data, converter logic, or type registry.
     """
 
 
 class StateRegistryError(HassetteError):
     """Base exception for state registry errors."""
-
-
-class StateNotRegisteredError(StateRegistryError):
-    """Raised when attempting to access a state class that hasn't been registered."""
-
-    def __init__(self, domain: str) -> None:
-        """Initialize the error with the missing domain.
-
-        Args:
-            domain: The domain that wasn't found in the registry.
-        """
-        super().__init__(f"No state class registered for domain: {domain}")
-        self.domain = domain
-
-
-class DuplicateDomainError(StateRegistryError):
-    """Raised when attempting to register a domain that's already registered."""
-
-    def __init__(self, domain: str, existing_class: type["BaseState"], new_class: type["BaseState"]) -> None:
-        """Initialize the error with domain and conflicting classes.
-
-        Args:
-            domain: The domain that's already registered.
-            existing_class: The class that's currently registered for this domain.
-            new_class: The class that attempted to register for this domain.
-        """
-        super().__init__(
-            f"Domain '{domain}' is already registered to {existing_class.__name__}, "
-            f"cannot register {new_class.__name__}"
-        )
-        self.domain = domain
-        self.existing_class = existing_class
-        self.new_class = new_class
 
 
 class RegistryNotReadyError(StateRegistryError):
@@ -184,3 +150,104 @@ class RegistryNotReadyError(StateRegistryError):
             "No state classes have been registered yet. "
             "Ensure state modules are imported before attempting state conversion."
         )
+
+
+class NoDomainAnnotationError(StateRegistryError):
+    """Raised when a state class does not define a domain annotation or the annotation is empty.
+
+    Generally ignored, this indicates that the class is a base class and not intended to be registered.
+
+    """
+
+    def __init__(self, state_class: type["BaseState[Any]"]) -> None:
+        """Initialize the error with the offending class.
+
+        Args:
+            state_class: The class that lacks a domain annotation.
+        """
+        super().__init__(
+            f"State class {state_class.__name__} does not define a domain annotation or the annotation is empty."
+        )
+        self.state_class = state_class
+
+
+class DomainNotFoundError(StateRegistryError):
+    """Raised when no state class is found for a given domain."""
+
+    def __init__(self, domain: str):
+        """Initialize the error with the offending domain.
+
+        Args:
+            domain: The domain that has no associated state class.
+        """
+        super().__init__(f"No state class found for domain '{domain}'.")
+        self.domain = domain
+
+
+class HassetteNotInitializedError(RuntimeError):
+    """Exception raised when Hassette is not initialized in the current context."""
+
+
+class InvalidDataForStateConversionError(StateRegistryError):
+    """Raised when the data provided for state conversion is invalid or malformed."""
+
+    def __init__(self, data: Any):
+        """Initialize the error with the offending data.
+
+        Args:
+            data: The invalid data provided for state conversion.
+        """
+        super().__init__(f"Invalid or malformed data provided for state conversion: {data!r}")
+        self.data = data
+
+
+class UnableToConvertStateError(StateRegistryError):
+    """Raised when a state dictionary cannot be converted to a specific state class."""
+
+    def __init__(self, entity_id: str, state_class: type["BaseState"]) -> None:
+        """Initialize the error with the offending entity ID.
+
+        Args:
+            entity_id: The entity ID that could not be converted.
+            state_class: The state class that conversion was attempted to.
+        """
+        super().__init__(f"Unable to convert state for entity_id '{entity_id}' to class {state_class.__name__}.")
+        self.entity_id = entity_id
+        self.state_class = state_class
+
+
+class ConvertedTypeDoesNotMatchError(StateRegistryError):
+    """Raised when a converted state does not match the expected type."""
+
+    def __init__(self, entity_id: str, expected_class: type["BaseState"], actual_class: type["BaseState"]) -> None:
+        """Initialize the error with the offending entity ID.
+
+        Args:
+            entity_id: The entity ID that was converted.
+            expected_class: The expected state class.
+            actual_class: The actual state class returned.
+        """
+        super().__init__(
+            f"Converted state for entity_id '{entity_id}' is of type {actual_class.__name__}, "
+            f"expected {expected_class.__name__}."
+        )
+        self.entity_id = entity_id
+        self.expected_class = expected_class
+        self.actual_class = actual_class
+
+
+class InvalidEntityIdError(StateRegistryError):
+    """Raised when an entity ID is invalid or malformed."""
+
+    def __init__(self, entity_id: Any):
+        """Initialize the error with the offending entity ID.
+
+        Args:
+            entity_id: The invalid entity ID.
+        """
+        super().__init__(f"Invalid or malformed entity ID: {entity_id!r}")
+        self.entity_id = entity_id
+
+
+class UnableToConvertValueError(HassetteError):
+    """Raised when a raw value cannot be converted from one type to another via the TypeRegistry."""

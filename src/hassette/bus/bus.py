@@ -86,14 +86,14 @@ from typing import Any, TypeVar, Unpack
 
 from typing_extensions import TypedDict
 
-import hassette.bus.predicates as P
 from hassette.const import NOT_PROVIDED
+from hassette.event_handling import predicates as P
+from hassette.event_handling.accessors import get_path
 from hassette.resources.base import Resource
-from hassette.types import ComparisonCondition, topics
+from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
 from hassette.utils.func_utils import callable_short_name
 
-from .accessors import get_path
 from .listeners import Listener, Subscription
 
 if typing.TYPE_CHECKING:
@@ -135,24 +135,28 @@ class Bus(Resource):
         inst.mark_ready(reason="Bus initialized")
         return inst
 
+    async def on_shutdown(self) -> None:
+        """Cleanup all listeners owned by this bus's owner on shutdown."""
+        await self.remove_all_listeners()
+
     @property
     def config_log_level(self):
         """Return the log level from the config for this resource."""
         return self.hassette.config.bus_service_log_level
 
-    def add_listener(self, listener: "Listener") -> asyncio.Task:
+    def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Add a listener to the bus."""
         return self.bus_service.add_listener(listener)
 
-    def remove_listener(self, listener: "Listener") -> asyncio.Task:
+    def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus."""
         return self.bus_service.remove_listener(listener)
 
-    def remove_all_listeners(self) -> asyncio.Task:
+    def remove_all_listeners(self) -> asyncio.Task[None]:
         """Remove all listeners owned by this bus's owner."""
         return self.bus_service.remove_listeners_by_owner(self.owner_id)
 
-    def get_listeners(self) -> asyncio.Task:
+    def get_listeners(self) -> asyncio.Task[list["Listener"]]:
         """Get all listeners owned by this bus's owner."""
         return self.bus_service.get_listeners_by_owner(self.owner_id)
 
@@ -173,12 +177,11 @@ class Bus(Resource):
             topic: The event topic to listen to.
             handler: The function to call when the event matches.
             where: Optional predicates to filter events. These can be custom callables or predefined predicates from
-                `hassette.bus.predicates`. They will receive the full event for evaluation.
+                `hassette.event_handling.predicates`. They will receive the full event for evaluation.
             kwargs: Keyword arguments to pass to the handler.
             once: If True, the handler will be called only once and then removed.
             debounce: If set, applies a debounce to the handler.
             throttle: If set, applies a throttle to the handler.
-            priority: Priority for listener ordering. Higher values run first. Default is 0 for app handlers.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -260,7 +263,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))  # allow extra guards
 
-        return self.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_attribute_change(
         self,
@@ -333,7 +336,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_call_service(
         self,
@@ -388,7 +391,7 @@ class Bus(Resource):
                 if other:
                     preds.append(P.AllOf.ensure_iterable(other))
 
-        return self.on(topic=topics.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_component_loaded(
         self,
@@ -427,7 +430,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_service_registered(
         self,
@@ -472,7 +475,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_homeassistant_restart(
         self,
@@ -577,7 +580,7 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topics.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_hassette_service_failed(
         self,
@@ -649,4 +652,52 @@ class Bus(Resource):
 
         return self.on_hassette_service_status(
             status=ResourceStatus.RUNNING, handler=handler, where=where, kwargs=kwargs, **opts
+        )
+
+    def on_websocket_connected(
+        self,
+        *,
+        handler: "HandlerType",
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Subscribe to websocket connected events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
+        return self.on(
+            topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
+        )
+
+    def on_websocket_disconnected(
+        self,
+        *,
+        handler: "HandlerType",
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Subscribe to websocket disconnected events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
+        return self.on(
+            topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
         )

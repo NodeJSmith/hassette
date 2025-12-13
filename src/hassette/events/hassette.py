@@ -2,12 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from hassette.events.base import Event, HassettePayload
-from hassette.types.enums import ResourceRole, ResourceStatus
-from hassette.types.topics import (
-    HASSETTE_EVENT_FILE_WATCHER,
-    HASSETTE_EVENT_SERVICE_STATUS,
-    HASSETTE_EVENT_WEBSOCKET_STATUS,
-)
+from hassette.types import ResourceRole, ResourceStatus, Topic
 from hassette.utils import get_traceback_string
 
 
@@ -76,7 +71,7 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
             exception_traceback=exc_tb,
         )
         return cls(
-            topic=HASSETTE_EVENT_SERVICE_STATUS,
+            topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
             payload=HassettePayload(event_type=str(payload.status), data=payload),
         )
 
@@ -85,35 +80,11 @@ class HassetteSimpleEvent(Event[HassettePayload[HassetteEmptyPayload]]):
     """Alias for simple events with empty payload."""
 
     @classmethod
-    def create_event(cls, topic: str) -> "HassetteSimpleEvent":
+    def create_event(cls, topic: Topic) -> "HassetteSimpleEvent":
         payload = HassetteEmptyPayload()
         return cls(
             topic=topic,
             payload=HassettePayload(event_type="empty", data=payload),
-        )
-
-
-class HassetteWebsocketConnectedEvent(Event[HassettePayload[WebsocketConnectedEventPayload]]):
-    """Alias for websocket connected events."""
-
-    @classmethod
-    def create_event(cls, *, url: str) -> "HassetteWebsocketConnectedEvent":
-        payload = WebsocketConnectedEventPayload(url=url)
-        return cls(
-            topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
-            payload=HassettePayload(event_type="connected", data=payload),
-        )
-
-
-class HassetteWebsocketDisconnectedEvent(Event[HassettePayload[WebsocketDisconnectedEventPayload]]):
-    """Alias for websocket disconnected events."""
-
-    @classmethod
-    def create_event(cls, *, error: str) -> "HassetteWebsocketDisconnectedEvent":
-        payload = WebsocketDisconnectedEventPayload(error=error)
-        return cls(
-            topic=HASSETTE_EVENT_WEBSOCKET_STATUS,
-            payload=HassettePayload(event_type="disconnected", data=payload),
         )
 
 
@@ -124,6 +95,6 @@ class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
     def create_event(cls, *, changed_file_path: Path) -> "HassetteFileWatcherEvent":
         payload = FileWatcherEventPayload(changed_file_path=changed_file_path)
         return cls(
-            topic=HASSETTE_EVENT_FILE_WATCHER,
+            topic=Topic.HASSETTE_EVENT_FILE_WATCHER,
             payload=HassettePayload(event_type="file_changed", data=payload),
         )

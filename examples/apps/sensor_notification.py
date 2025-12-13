@@ -40,15 +40,14 @@ class SensorNotification(App[SensorNotificationAppConfig]):
     async def state_change(
         self,
         new_state: D.StateNew[states.SensorState],
-        new_value: D.StateValueNew[str],
         entity_id: D.EntityId,
     ):
         """Handle sensor state changes using dependency injection.
 
-        DI extracts the new state, its value, and entity ID automatically.
+        DI extracts the new state and entity ID automatically.
         """
         friendly_name = new_state.attributes.friendly_name or entity_id
-        new = new_value
+        new = new_state.value
 
         if new != "":
             if self.app_config.input_select_as_list:

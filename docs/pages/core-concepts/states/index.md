@@ -286,4 +286,3 @@ class LightManager(App[LightManagerConfig]):
 
 - [API Documentation](../api/index.md) - For direct API calls to Home Assistant
 - [Event Bus](../bus/index.md) - For listening to state changes
-- [State Models](../../api-reference/models/states.md) - Complete list of state models

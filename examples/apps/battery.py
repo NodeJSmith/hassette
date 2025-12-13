@@ -1,6 +1,6 @@
 # compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/battery.py
 
-from typing import Annotated, Any
+from typing import Any
 
 from pydantic_settings import SettingsConfigDict
 
@@ -110,19 +110,15 @@ class BatterySync(AppSync[BatteryConfig]):
         self.scheduler.run_in(self.check_batteries, 10)
         self.bus.on_state_change("*", handler=self.handle_sensor_event)
 
-    def handle_sensor_event(
-        self,
-        new_state: D.StateNew[states.SensorState],
-        battery_level: Annotated[int | None, D.AttrNew("battery_level")],
-        entity_id: D.EntityId,
-    ) -> None:
+    def handle_sensor_event(self, new_state: D.StateNew[states.SensorState], entity_id: D.EntityId) -> None:
         """Example handler demonstrating dependency injection for battery monitoring.
 
         Instead of manually accessing event.payload.data.new_state, we use DI to extract:
         - new_state: The full sensor state object
-        - battery_level: The battery_level attribute (if present)
         - entity_id: The entity ID from the event
         """
+        battery_level = new_state.attributes.battery_level  # pyright: ignore[reportAttributeAccessIssue]
+
         if battery_level is not None and battery_level < self.app_config.threshold:
             friendly_name = new_state.attributes.friendly_name or entity_id
             self.logger.warning("%s battery is low: %d%%", friendly_name, battery_level)

@@ -1,12 +1,16 @@
 import itertools
+import typing
 from dataclasses import dataclass, field
-from typing import Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
-DataT = TypeVar("DataT")
+if typing.TYPE_CHECKING:
+    from hassette.types import Topic
+
+DataT = TypeVar("DataT", covariant=True)
 """Represents the data type within an event payload."""
 
 
@@ -96,7 +100,7 @@ class HassettePayload(EventPayload[DataT]):
     """The unique identifier for the event."""
 
 
-PayloadT = TypeVar("PayloadT", bound=EventPayload)
+PayloadT = TypeVar("PayloadT", bound=EventPayload[Any], covariant=True)
 """Represents the payload type of an event."""
 
 
@@ -104,12 +108,12 @@ PayloadT = TypeVar("PayloadT", bound=EventPayload)
 class Event(Generic[PayloadT]):
     """Base event with strongly typed payload."""
 
-    topic: str
+    topic: "Topic | str"
     """Topic of the event."""
 
     payload: PayloadT
     """The event payload."""
 
 
-EventT = TypeVar("EventT", bound=Event, contravariant=True)
+EventT = TypeVar("EventT", bound=Event[Any], contravariant=True)
 """Represents an event type."""

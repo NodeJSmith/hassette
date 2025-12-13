@@ -1,46 +1,23 @@
+from contextlib import suppress
+from decimal import Decimal
 from inspect import get_annotations
 from logging import getLogger
-from typing import Any, Generic, TypeVar, get_args
+from typing import Any, ClassVar, Generic, TypeVar, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
+from hassette.core.state_registry import register_state_converter
+from hassette.core.type_registry import TYPE_REGISTRY
+from hassette.exceptions import NoDomainAnnotationError, UnableToConvertValueError
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
-type StrStateValue = str | None
-"""Represents a string state value or None."""
-
-type DateTimeStateValue = ZonedDateTime | PlainDateTime | Date | None
-"""Represents a datetime state value or None."""
-
-type TimeStateValue = Time | None
-"""Represents a time state value or None."""
-
-type BoolStateValue = bool | None
-"""Represents a boolean state value or None."""
-
-type IntStateValue = int | None
-"""Represents an integer state value or None."""
-
-type NumericStateValue = float | int | None
-"""Represents a numeric state value or None."""
-
-StateT = TypeVar("StateT", bound="BaseState", default="BaseState")
+StateT = TypeVar("StateT", bound="BaseState", covariant=True)
 """Represents a specific state type, e.g., LightState, CoverState, etc."""
 
-StateValueT = TypeVar(
-    "StateValueT",
-    StrStateValue,
-    DateTimeStateValue,
-    TimeStateValue,
-    BoolStateValue,
-    IntStateValue,
-    NumericStateValue,
-    Any,
-    default=Any,
-)
-"""Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
 
+StateValueT = TypeVar("StateValueT", covariant=True)
+"""Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
 
 LOGGER = getLogger(__name__)
 
@@ -90,22 +67,8 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 
-    def __init_subclass__(cls, **kwargs) -> None:
-        """Automatically register state subclasses with the state registry.
-
-        This hook is called whenever a class inherits from BaseState. If the subclass
-        defines a domain (via a Literal type annotation), it will be automatically
-        registered in the global state registry for lookup during state conversion.
-
-        Base classes without domain literals (like StringBaseState) are skipped.
-        """
-        super().__init_subclass__(**kwargs)
-
-        # Import here to avoid circular dependency
-        from hassette.state_registry import get_registry
-
-        # Attempt to register - the registry will skip if no domain is defined
-        get_registry().register(cls)
+    value_type: ClassVar[type | tuple[type, ...]] = (str, type(None))
+    """The Python type of the state value, e.g. bool for BinarySensorState."""
 
     domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""
@@ -155,6 +118,11 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
         return len(self.attributes.entity_id) > 1  # type: ignore
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        with suppress(NoDomainAnnotationError):
+            register_state_converter(cls, domain=cls.get_domain())
+
     @field_validator("last_changed", "last_reported", "last_updated", mode="before")
     @classmethod
     def _validate_datetime_fields(cls, value):
@@ -183,10 +151,18 @@ class BaseState(BaseModel, Generic[StateValueT]):
         state = values.get("state")
         if state == "unknown":
             values["is_unknown"] = True
-            values["state"] = None
+            values["state"] = state = None
         elif state == "unavailable":
             values["is_unavailable"] = True
-            values["state"] = None
+            values["state"] = state = None
+
+        try:
+            values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
+        except UnableToConvertValueError as e:
+            LOGGER.error(
+                "Unable to convert state value %r for entity %s: %s", state, values.get("entity_id"), e, stacklevel=2
+            )
+            raise
 
         return values
 
@@ -197,114 +173,64 @@ class BaseState(BaseModel, Generic[StateValueT]):
         fields = cls.model_fields
         domain_field = fields.get("domain")
         if not domain_field:
-            raise ValueError(f"Domain not defined for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         annotations = get_annotations(cls)
         annotation = annotations.get("domain")
         if annotation is None:
-            raise ValueError(f"Domain annotation is None for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         args = get_args(annotation)
         if not args:
-            raise ValueError(f"Domain annotation has no args for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         domain = args[0]
         if not isinstance(domain, str):
-            raise ValueError(f"Domain is not a string for state class {cls.__name__}")
+            raise NoDomainAnnotationError(cls)
 
         return domain
 
 
-class StringBaseState(BaseState[StrStateValue]):
+class StringBaseState(BaseState[str | None]):
     """Base class for string states."""
 
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (str, type(None))
 
-class DateTimeBaseState(BaseState[DateTimeStateValue]):
+
+class DateTimeBaseState(BaseState[ZonedDateTime | PlainDateTime | Date | None]):
     """Base class for datetime states.
 
     Valid state values are ZonedDateTime, PlainDateTime, Date, or None.
     """
 
-    @field_validator("value", mode="before")
-    @classmethod
-    def validate_state(cls, value: DateTimeStateValue | str) -> DateTimeStateValue:
-        if value is None or isinstance(value, (ZonedDateTime, PlainDateTime, Date)):
-            return value
-        if isinstance(value, str):
-            # Try parsing as OffsetDateTime first (most common case)
-            try:
-                return convert_datetime_str_to_system_tz(value)
-            except ValueError:
-                pass
-            # Next try PlainDateTime
-            try:
-                return PlainDateTime.parse_iso(value)
-            except ValueError:
-                pass
-            # Finally try Date
-            try:
-                return Date.parse_iso(value)
-            except ValueError:
-                pass
-        raise ValueError(f"State must be a datetime, date, or None, got {value}")
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (ZonedDateTime, PlainDateTime, Date, type(None))
 
 
-class TimeBaseState(BaseState[TimeStateValue]):
+class TimeBaseState(BaseState[Time | None]):
     """Base class for Time states.
 
     Valid state values are Time or None.
     """
 
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (Time, type(None))
 
-class BoolBaseState(BaseState[BoolStateValue]):
+
+class BoolBaseState(BaseState[bool | None]):
     """Base class for boolean states.
 
-    Valids state values are True, False, or None.
+    Valid state values are True, False, or None.
 
     Will convert string values "on" and "off" to boolean True and False.
     """
 
-    @field_validator("value", mode="before")
-    @classmethod
-    def validate_state(cls, value: bool | str | None) -> BoolStateValue:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            if value.lower() == "on":
-                return True
-            if value.lower() == "off":
-                return False
-            raise ValueError(f"Invalid state value: {value}")
-        if isinstance(value, bool):
-            return value
-        raise ValueError(f"State must be a boolean or 'on'/'off' string, got {value}")
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (bool, type(None))
 
 
-class IntBaseState(BaseState[IntStateValue]):
-    """Base class for integer states."""
-
-    @field_validator("value", mode="before")
-    @classmethod
-    def validate_state(cls, value: str | int | None) -> IntStateValue:
-        """Ensure the state value is an integer or None."""
-        if value is None:
-            return None
-        return int(value)
-
-
-class NumericBaseState(BaseState[NumericStateValue]):
+class NumericBaseState(BaseState[int | float | Decimal | None]):
     """Base class for numeric states.
 
-    Will convert string values to float or int.
-    Valid state values are int, float, or None.
+    Will convert string values to float, int, or Decimal.
+    Valid state values are int, float, Decimal, or None.
     """
 
-    @field_validator("value", mode="before")
-    @classmethod
-    def validate_state(cls, value: str | int | float | None) -> NumericStateValue:
-        """Ensure the state value is a number or None."""
-        if value is None:
-            return None
-        if isinstance(value, int | float):
-            return value
-        return float(value)
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (int, float, Decimal, type(None))

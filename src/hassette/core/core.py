@@ -8,12 +8,15 @@ from dotenv import load_dotenv
 
 from hassette import context
 from hassette.api import Api
+from hassette.app.app import App
+from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
+from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.exception_utils import get_traceback_string
@@ -27,7 +30,9 @@ from .file_watcher import FileWatcherService
 from .health_service import HealthService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
-from .state_proxy import StateProxyResource
+from .state_proxy import StateProxy
+from .state_registry import STATE_REGISTRY, StateRegistry
+from .type_registry import TYPE_REGISTRY, TypeRegistry
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
@@ -49,6 +54,15 @@ class Hassette(Resource):
     api: Api
     """API service for handling HTTP requests."""
 
+    states: StateManager
+    """States manager instance for accessing Home Assistant states."""
+
+    state_registry: StateRegistry
+    """State registry for managing state class registrations and conversions."""
+
+    type_registry: TypeRegistry
+    """Type registry for managing state value type conversions."""
+
     @property
     def unique_name(self) -> str:
         return "Hassette"
@@ -59,6 +73,10 @@ class Hassette(Resource):
         self.unique_id = ""
         enable_logging(self.config.log_level)
         super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
+
+        # set context variables
+        context.set_global_hassette(self)
+        context.set_global_hassette_config(self.config)
 
         self._startup_tasks()
 
@@ -78,17 +96,17 @@ class Hassette(Resource):
         self._scheduler_service = self.add_child(SchedulerService)
 
         self._api_service = self.add_child(ApiResource)
-
-        # state proxy
-        self._state_proxy_resource = self.add_child(StateProxyResource)
+        self._state_proxy = self.add_child(StateProxy)
 
         # internal instances
         self._bus = self.add_child(Bus)
         self._scheduler = self.add_child(Scheduler)
-        self.api = self.add_child(Api)
 
-        # set context variable
-        context.HASSETTE_INSTANCE.set(self)
+        # public instances
+        self.states = self.add_child(StateManager)
+        self.api = self.add_child(Api)
+        self.state_registry = STATE_REGISTRY
+        self.type_registry = TYPE_REGISTRY
 
         self.logger.info("All components registered...")
 
@@ -149,12 +167,12 @@ class Hassette(Resource):
         return self._loop
 
     @property
-    def apps(self):
+    def apps(self) -> dict[str, dict[int, App[AppConfig]]]:
         """Get the currently loaded apps."""
         # note: return type left deliberately empty to allow underlying call to define it
         return self._app_handler.apps
 
-    def get_app(self, app_name: str, index: int = 0):
+    def get_app(self, app_name: str, index: int = 0) -> App[AppConfig] | None:
         """Get a specific app instance if running.
 
         Args:
@@ -172,13 +190,7 @@ class Hassette(Resource):
     def get_instance(cls) -> "Hassette":
         """Get the current instance of Hassette."""
 
-        inst = context.HASSETTE_INSTANCE.get(None)
-        if inst is not None:
-            return inst
-
-        raise RuntimeError(
-            "Hassette is not initialized in the current context. Use `Hassette.run_forever()` to start it."
-        )
+        return context.get_hassette()
 
     async def send_event(self, event_name: str, event: "Event[Any]") -> None:
         """Send an event to the event bus."""
@@ -202,7 +214,7 @@ class Hassette(Resource):
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
         self._loop_thread_id = threading.get_ident()
-        self.loop.set_debug(self.config.dev_mode)
+        self.loop.set_debug(self.config.asyncio_debug_mode)
 
         self.loop.set_task_factory(make_task_factory(self.task_bucket))
 

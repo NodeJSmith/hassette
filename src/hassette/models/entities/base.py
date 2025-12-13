@@ -1,34 +1,34 @@
 import typing
-from typing import Generic
+from typing import Generic, cast
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from hassette import context
-from hassette.models.states import StateT
+from hassette.models.states import StateT, StateValueT
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
 
 
-EntityT = typing.TypeVar("EntityT", bound="BaseEntity")
+EntityT = typing.TypeVar("EntityT", bound="BaseEntity", covariant=True)
 """Represents a specific entity type, e.g., LightEntity, SensorEntity, etc."""
 
 
-class BaseEntity(BaseModel, Generic[StateT]):
+class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
     """Base class for all entities."""
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
     state: StateT
-    _sync: "BaseEntitySyncFacade[StateT]" = PrivateAttr(default=None, init=False)  # pyright: ignore[reportAssignmentType]
+    _sync: "BaseEntitySyncFacade[StateT, StateValueT]" = PrivateAttr(default=None, init=False)  # pyright: ignore[reportAssignmentType]
 
     async def refresh(self) -> StateT:
-        self.state = await self.hassette.api.get_state(self.entity_id, type(self.state))
+        self.state = cast("StateT", await self.hassette.api.get_state(self.entity_id))
         return self.state
 
     @property
-    def value(self) -> str:
-        return self.state.value
+    def value(self) -> StateValueT:
+        return cast("StateValueT", self.state.value)
 
     @property
     def entity_id(self) -> str:
@@ -54,7 +54,7 @@ class BaseEntity(BaseModel, Generic[StateT]):
         return self.hassette.api
 
     @property
-    def sync(self) -> "BaseEntitySyncFacade[StateT]":
+    def sync(self) -> "BaseEntitySyncFacade[StateT, StateValueT]":
         if self._sync is None:
             self._sync = BaseEntitySyncFacade(entity=self)
         return self._sync
@@ -72,12 +72,12 @@ class BaseEntity(BaseModel, Generic[StateT]):
         return await self.api.toggle_service(self.entity_id, self.domain)
 
 
-class BaseEntitySyncFacade(Generic[StateT]):
+class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
     """Synchronous facade for BaseEntity to allow easier access to properties without async/await."""
 
-    entity: BaseEntity[StateT]
+    entity: BaseEntity[StateT, StateValueT]
 
-    def __init__(self, entity: BaseEntity[StateT]) -> None:
+    def __init__(self, entity: BaseEntity[StateT, StateValueT]) -> None:
         self.entity = entity
 
     def turn_off(self):

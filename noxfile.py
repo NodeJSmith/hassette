@@ -8,7 +8,7 @@ if typing.TYPE_CHECKING:
 nox.options.default_venv_backend = "uv|virtualenv"
 
 
-@nox.session(python=["3.13"])
+@nox.session(python=["3.11", "3.12", "3.13"])
 def tests(session: "Session"):
     session.run(
         "uv",
@@ -19,11 +19,12 @@ def tests(session: "Session"):
         "pytest",
         "-W",
         "error",
+        "--tb=line",
         external=True,
     )
 
 
-@nox.session(python=["3.13"], tags=["coverage"])
+@nox.session(python=["3.11", "3.12", "3.13"], tags=["coverage"])
 def tests_with_coverage(session: "Session"):
     session.env["COVERAGE_FILE"] = f".coverage.{session.python}"
     session.run(
@@ -40,5 +41,6 @@ def tests_with_coverage(session: "Session"):
         "--cov-report=term-missing:skip-covered",
         "--cov-report=xml",
         "--cov-report=html",
+        "--tb=line",
         external=True,
     )

@@ -2,10 +2,9 @@
 
 import typing
 
-from typing_extensions import Sentinel
-
-from hassette import App, AppConfig, StateChangeEvent, states
+from hassette import App, AppConfig, states
 from hassette import dependencies as D
+from hassette.const.misc import FalseySentinel
 
 if typing.TYPE_CHECKING:
     from sound import Sound
@@ -43,24 +42,23 @@ class Presence(App[PresenceAppConfig]):
     async def presence_change(
         self,
         new_state: D.StateNew[states.DeviceTrackerState],
-        old_value: D.StateValueOld,
-        new_value: D.StateValueNew,
+        old_state: D.MaybeStateOld[states.DeviceTrackerState],
         entity_id: D.EntityId,
     ):
         """Handle presence changes using dependency injection.
 
         DI automatically extracts:
         - new_state: Full device tracker state
-        - old_value/new_value: State values (e.g., "home", "not_home")
+        - old_state: Previous device tracker state, or None if not available
         - entity_id: The device tracker entity ID
         """
-        assert not isinstance(entity_id, Sentinel), "Entity ID must be provided"
+        assert not isinstance(entity_id, FalseySentinel), "Entity ID must be provided"
         person = new_state.attributes.friendly_name or entity_id
 
         tracker_entity = f"sensor.{person.lower()}_tracker"
 
-        new = new_value
-        old = old_value
+        new = new_state.value
+        old = old_state.value if old_state is not None else "not_home"
         announce_app: Sound | None = self.hassette.get_app("Sound")  # pyright: ignore[reportAssignmentType]
 
         await self.api.set_state(tracker_entity, state=new)
@@ -87,7 +85,7 @@ class Presence(App[PresenceAppConfig]):
             if self.app_config.notify:
                 await self.api.call_service("notify", "my_mobile_phone", message=message)
 
-    async def everyone_left(self, event: StateChangeEvent[states.DeviceTrackerState]):
+    async def everyone_left(self):
         self.logger.info("Everyone left")
         valid_modes = (self.app_config.input_select or "").split(",")
         input_select = valid_modes.pop(0)
@@ -101,7 +99,7 @@ class Presence(App[PresenceAppConfig]):
             if self.app_config.night_scene_absent:
                 await self.api.turn_on(self.app_config.night_scene_absent)
 
-    async def someone_home(self, event: StateChangeEvent[states.DeviceTrackerState]):
+    async def someone_home(self):
         self.logger.info("Someone came home")
         if self.app_config.vacation:
             await self.api.set_state(self.app_config.vacation, state="off")

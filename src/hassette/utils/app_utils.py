@@ -184,7 +184,7 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
     return clean_app_dict
 
 
-def autodetect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict]:
+def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str]) -> dict[str, AppDict]:
     """Auto-detect app manifests in the provided app directory.
 
     Args:
@@ -198,10 +198,7 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path]) -> dict[str, AppDict]
 
     app_manifests: dict[str, AppDict] = {}
 
-    config = context.HASSETTE_CONFIG.get(None)
-    if not config:
-        raise RuntimeError("HassetteConfig is not available in context")
-    default_exclude_dirs = set(config.autodetect_exclude_dirs)
+    default_exclude_dirs = set(list(map(Path, exclude_dirs)))
 
     py_files = app_dir.rglob("*.py")
     for py_file in py_files:
@@ -378,9 +375,7 @@ def load_app_class(
     if not module_path or not class_name:
         raise ValueError(f"App {display_name} is missing filename or class_name")
 
-    config = context.HASSETTE_CONFIG.get(None)
-    if not config:
-        raise RuntimeError("HassetteConfig is not available in context")
+    config = context.get_hassette_config()
 
     # exceptions are caught below to cache failures, but are re-raised so the caller still receives them
     try:

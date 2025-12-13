@@ -10,14 +10,14 @@ import anyio
 from deepdiff import DeepDiff
 from humanize import precisedelta
 
-import hassette.bus.accessors as A
+import hassette.event_handling.accessors as A
 from hassette.app.app import App
 from hassette.bus import Bus
 from hassette.events.hassette import HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.resources.base import Resource
+from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
-from hassette.types.topics import HASSETTE_EVENT_APP_LOAD_COMPLETED, HASSETTE_EVENT_FILE_WATCHER
 from hassette.utils.app_utils import (
     class_already_loaded,
     class_failed_to_load,
@@ -111,7 +111,7 @@ class AppHandler(Resource):
         if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
             if self.hassette.config.allow_reload_in_prod:
                 self.logger.warning("Allowing app reloads in production mode due to config")
-            self.bus.on(topic=HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
+            self.bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
         else:
             self.logger.warning("Not watching for app changes, dev_mode is disabled")
 
@@ -169,7 +169,7 @@ class AppHandler(Resource):
                 self.hassette._api_service,
                 self.hassette._bus_service,
                 self.hassette._scheduler_service,
-                self.hassette._state_proxy_resource,
+                self.hassette._state_proxy,
             ]
         ):
             self.logger.warning("Dependencies never became ready; skipping app startup")
@@ -189,8 +189,8 @@ class AppHandler(Resource):
                 self.logger.info("Initialized %d apps successfully, %d failed to start", success_count, fail_count)
 
             await self.hassette.send_event(
-                HASSETTE_EVENT_APP_LOAD_COMPLETED,
-                HassetteSimpleEvent.create_event(topic=HASSETTE_EVENT_APP_LOAD_COMPLETED),
+                Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+                HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
             )
         except Exception as e:
             self.logger.exception("Failed to initialize apps")
@@ -347,7 +347,7 @@ class AppHandler(Resource):
                     "Timed out while starting app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(3),
+                    get_short_traceback(5),
                 )
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
@@ -356,7 +356,7 @@ class AppHandler(Resource):
                     "Failed to start app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(3),
+                    get_short_traceback(5),
                 )
                 inst.status = ResourceStatus.STOPPED
                 self.failed_apps[app_key].append((idx, e))
@@ -404,8 +404,8 @@ class AppHandler(Resource):
         await self._reload_apps_due_to_config(reload_apps)
 
         await self.hassette.send_event(
-            HASSETTE_EVENT_APP_LOAD_COMPLETED,
-            HassetteSimpleEvent.create_event(topic=HASSETTE_EVENT_APP_LOAD_COMPLETED),
+            Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+            HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
         )
 
     def _calculate_app_changes(
