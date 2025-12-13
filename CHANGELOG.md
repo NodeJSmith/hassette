@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.18.0.dev1] - 2025-12-13
+
 ### Changed
 - Allow Python 3.11 and 3.12 again!
 - **Breaking:** All events now contain untyped payloads instead of typed ones
