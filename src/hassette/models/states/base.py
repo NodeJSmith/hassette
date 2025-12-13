@@ -9,7 +9,7 @@ from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
 from hassette.core.state_registry import register_state_converter
 from hassette.core.type_registry import TYPE_REGISTRY
-from hassette.exceptions import NoDomainAnnotationError
+from hassette.exceptions import NoDomainAnnotationError, UnableToConvertValueError
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
 StateT = TypeVar("StateT", bound="BaseState", covariant=True)
@@ -156,7 +156,13 @@ class BaseState(BaseModel, Generic[StateValueT]):
             values["is_unavailable"] = True
             values["state"] = state = None
 
-        values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
+        try:
+            values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
+        except UnableToConvertValueError as e:
+            LOGGER.error(
+                "Unable to convert state value %r for entity %s: %s", state, values.get("entity_id"), e, stacklevel=2
+            )
+            raise
 
         return values
 

@@ -2,10 +2,10 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, BoolBaseState
+from .base import AttributesBase, StringBaseState
 
 
-class RemoteState(BoolBaseState):
+class RemoteState(StringBaseState):
     """Representation of a Home Assistant remote state.
 
     See: https://www.home-assistant.io/integrations/remote/

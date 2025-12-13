@@ -2,10 +2,10 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, BoolBaseState
+from .base import AttributesBase, StringBaseState
 
 
-class UpdateState(BoolBaseState):
+class UpdateState(StringBaseState):
     """Representation of a Home Assistant update state.
 
     See: https://www.home-assistant.io/integrations/update/

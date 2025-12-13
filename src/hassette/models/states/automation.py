@@ -5,10 +5,10 @@ from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
-from .base import AttributesBase, BoolBaseState
+from .base import AttributesBase, StringBaseState
 
 
-class AutomationState(BoolBaseState):
+class AutomationState(StringBaseState):
     """Representation of a Home Assistant automation state.
 
     See: https://www.home-assistant.io/integrations/automation/

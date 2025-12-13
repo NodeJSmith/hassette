@@ -3,10 +3,10 @@ from typing import Literal
 from pydantic import Field
 from whenever import Instant, PlainDateTime, ZonedDateTime
 
-from .base import AttributesBase, BoolBaseState
+from .base import AttributesBase, StringBaseState
 
 
-class CalendarState(BoolBaseState):
+class CalendarState(StringBaseState):
     """Representation of a Home Assistant calendar state.
 
     See: https://www.home-assistant.io/integrations/calendar/
