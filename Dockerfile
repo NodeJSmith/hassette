@@ -35,7 +35,6 @@ RUN apt-get update \
     curl \
     tini \
     tzdata \
-    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
