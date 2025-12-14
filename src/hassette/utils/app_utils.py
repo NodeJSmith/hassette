@@ -198,12 +198,10 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str
 
     app_manifests: dict[str, AppDict] = {}
 
-    default_exclude_dirs = set(list(map(Path, exclude_dirs)))
-
     py_files = app_dir.rglob("*.py")
     for py_file in py_files:
         full_path = py_file.resolve()
-        if intersection := default_exclude_dirs.intersection(full_path.parts):
+        if intersection := exclude_dirs.intersection(full_path.parts):
             LOGGER.debug(
                 "Excluding auto-detected app at %s due to excluded directory %s",
                 full_path,
