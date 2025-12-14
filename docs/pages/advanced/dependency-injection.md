@@ -518,6 +518,6 @@ The core implementation lives in:
 
 ## See Also
 
-- [Type Registry](type-registry.md) — automatic type conversion system
-- [Value Converters](value-converters.md) — complete list of built-in type conversions
-- [State Registry](state-registry.md) — domain to state model mapping
+- [Type Registry](type-registry.md) - automatic type conversion system
+- [Value Converters](value-converters.md) - complete list of built-in type conversions
+- [State Registry](state-registry.md) - domain to state model mapping

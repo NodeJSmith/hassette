@@ -1,11 +1,11 @@
 # Apps
 
-Apps are the heart of Hassette — the logic *you* write to respond to events and manipulate resources.
+Apps are the heart of Hassette - the logic *you* write to respond to events and manipulate resources.
 Each app encapsulates its own behavior, configuration, and internal state, interacting with Home Assistant through a rich, typed API.
 
 Apps can be **asynchronous** or **synchronous**, depending on your needs.
 Async apps are preferred for most use cases since they integrate directly with Hassette's event loop and can run multiple tasks concurrently.
-Sync apps are supported for compatibility with legacy code or blocking libraries — they're automatically run in a background thread using `asyncio.to_thread()` so they never block the event loop.
+Sync apps are supported for compatibility with legacy code or blocking libraries - they're automatically run in a background thread using `asyncio.to_thread()` so they never block the event loop.
 
 ## App Structure
 
@@ -32,20 +32,20 @@ This small class is all you need to create a working Hassette app.
 
 ## Core Capabilities
 
-Each app automatically receives several built-in helpers — interfaces to core services that make automation easy and expressive:
+Each app automatically receives several built-in helpers - interfaces to core services that make automation easy and expressive:
 
-- `self.api` — Typed async interface to Home Assistant's REST and WebSocket APIs.
+- `self.api` - Typed async interface to Home Assistant's REST and WebSocket APIs.
   See [API](../api/index.md).
 
-- `self.bus` — Subscribe to and handle events.
+- `self.bus` - Subscribe to and handle events.
   See [Bus](../bus/index.md).
 
-- `self.scheduler` — Schedule jobs to run on intervals or cron-like expressions.
+- `self.scheduler` - Schedule jobs to run on intervals or cron-like expressions.
   See [Scheduler](../scheduler/index.md).
 
-- `self.logger` — Standard [logging.Logger][logging.Logger] instance preconfigured for your app.
+- `self.logger` - Standard [logging.Logger][logging.Logger] instance preconfigured for your app.
 
-- `self.app_config` — Parsed configuration model for this app instance, typed to your subclass of `AppConfig`.
+- `self.app_config` - Parsed configuration model for this app instance, typed to your subclass of `AppConfig`.
 
 Additional attributes like `self.instance_name` and `self.index` are available for logging and introspection.
 
@@ -78,7 +78,7 @@ Afterward, the [cleanup][hassette.resources.base.Resource.cleanup] method runs a
 If your app allocates its own resources (files, network sockets, etc.), clean them up in `on_shutdown` or `after_shutdown`.
 
 !!! warning
-    You cannot override `initialize`, `shutdown`, or `cleanup` directly — use the lifecycle hooks instead.
+    You cannot override `initialize`, `shutdown`, or `cleanup` directly - use the lifecycle hooks instead.
     Attempting to override these will raise a [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError].
 
 ## App Configuration
@@ -89,8 +89,8 @@ and environment variable support.
 
 The base `AppConfig` includes two optional fields:
 
-- `instance_name: str | None` — Used for logging and identification.
-- `log_level: str | None` — Optional log-level override; defaults to the global setting.
+- `instance_name: str | None` - Used for logging and identification.
+- `log_level: str | None` - Optional log-level override; defaults to the global setting.
 
 Because `App` is generic on the config type, specifying it allows IDEs and type checkers to infer the correct type automatically.
 
@@ -132,8 +132,8 @@ export MYAPP_REQUIRED_SECRET="s3cr3t"
 
 ## See Also
 
-- [Core Concepts](../index.md) — back to the core concepts overview
-- [Scheduler](../scheduler/index.md) — more on scheduling jobs and intervals
-- [Bus](../bus/index.md) — more on subscribing to and handling events
-- [API](../api/index.md) — more on interacting with Home Assistant's APIs
-- [Configuration](../configuration/index.md) — Hassette and app configuration
+- [Core Concepts](../index.md) - back to the core concepts overview
+- [Scheduler](../scheduler/index.md) - more on scheduling jobs and intervals
+- [Bus](../bus/index.md) - more on subscribing to and handling events
+- [API](../api/index.md) - more on interacting with Home Assistant's APIs
+- [Configuration](../configuration/index.md) - Hassette and app configuration

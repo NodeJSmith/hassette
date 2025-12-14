@@ -5,28 +5,36 @@
 
 /* Match link-in-code color to normal code-literal red */
 .rst-content a.reference code.literal {
-  color: #e74c3c !important; /* tweak to taste */
-  text-decoration: underline; /* optional — helps signal it's clickable */
+    color: #e74c3c !important;
+    /* tweak to taste */
+    text-decoration: underline;
+    /* optional - helps signal it's clickable */
 }
 
 /* Optional hover state: slightly darker red for clarity */
 .rst-content a.reference:hover code.literal {
-  color: #a60000 !important; /* tweak to taste */
+    color: #a60000 !important;
+    /* tweak to taste */
 }
 
 
 /* Center it, make it responsive, trim vertical whitespace */
 .rst-content img.hero {
-  display: block;                 /* make margin auto work */
-  margin: 2rem auto 2rem !important;  /* top/bottom tighter, centered */
-  padding: 0 !important;
-  max-width: 420px;               /* cap huge screens */
-  height: auto;
-  filter: drop-shadow(0 20px 20px rgba(0, 0, 0, 0.15));
+    display: block;
+    /* make margin auto work */
+    margin: 2rem auto 2rem !important;
+    /* top/bottom tighter, centered */
+    padding: 0 !important;
+    max-width: 420px;
+    /* cap huge screens */
+    height: auto;
+    filter: drop-shadow(0 20px 20px rgba(0, 0, 0, 0.15));
 
 }
 
 /* On very small screens, widen a bit */
 @media (max-width: 480px) {
-  .rst-content img.hero { width: 80%; }
+    .rst-content img.hero {
+        width: 80%;
+    }
 }

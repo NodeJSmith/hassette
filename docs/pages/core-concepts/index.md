@@ -3,7 +3,7 @@
 Hassette has a lot of moving parts, but at its core it’s simple: everything revolves around **apps**, **events**, and **resources**.
 
 - **Apps** are what you write. They respond to events and manipulate resources.
-- **Events** describe what happened—state changes, service calls, lifecycle transitions, or scheduled triggers.
+- **Events** describe what happened-state changes, service calls, lifecycle transitions, or scheduled triggers.
 - **Resources** are everything else: API clients, the event bus, the scheduler, etc.
 
 ## Hassette Architecture

@@ -47,7 +47,7 @@ Get running with Hassette in just a few steps.
 Ready to build something more complex? Explore the rest of the docs:
 
 - Follow the [getting started guide](pages/getting-started/index.md) for local development.
-- Deploy with [Docker Compose](pages/getting-started/docker.md) for production.
+- Deploy with [Docker Compose](pages/getting-started/docker/index.md) for production.
 - Dive into [core app patterns](pages/core-concepts/apps/index.md).
 - See how Hassette stacks up in the [AppDaemon comparison](pages/appdaemon-comparison.md).
 - Dive into the [advanced concepts](pages/advanced/index.md).

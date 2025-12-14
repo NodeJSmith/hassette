@@ -337,8 +337,8 @@ self.my_job.cancel()
 
 ## See Also
 
-- [Core Concepts](../index.md) — back to the core concepts overview
-- [Apps](../apps/index.md) — more on app anatomy, lifecycle, and capabilities
-- [Bus](../bus/index.md) — more on subscribing to and handling events
-- [API](../api/index.md) — more on interacting with Home Assistant's APIs
-- [Configuration](../configuration/index.md) — Hassette and app configuration
+- [Core Concepts](../index.md) - back to the core concepts overview
+- [Apps](../apps/index.md) - more on app anatomy, lifecycle, and capabilities
+- [Bus](../bus/index.md) - more on subscribing to and handling events
+- [API](../api/index.md) - more on interacting with Home Assistant's APIs
+- [Configuration](../configuration/index.md) - Hassette and app configuration

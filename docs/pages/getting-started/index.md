@@ -13,7 +13,7 @@ This guide walks through setting up Hassette with a simple app in a local develo
 
 ## Overview
 
-Hassette only needs a Home Assistant URL and access token. You’ll probably want an app as well—it won’t do much without one.
+Hassette only needs a Home Assistant URL and access token. You’ll probably want an app as well-it won’t do much without one.
 
 !!! tip "Should I create a package?"
     If you plan to import apps from multiple files or use `isinstance` checks, create a proper Python package with `__init__.py` files. This guide shows the package approach, but a simple directory of `.py` files works fine if you only need lightweight scripts.
@@ -103,9 +103,9 @@ class HelloWorld(App[HelloWorldConfig]):
 
 In `on_initialize`, we log the greeting and set up an event handler using `self.bus.on_state_change`.
 
-The `on_motion` handler demonstrates **dependency injection** — instead of receiving the full event object and manually accessing its properties, we use `Annotated` type hints with markers from `hassette.dependencies` to automatically extract just the data we need. This results in cleaner, more readable code.
+The `on_motion` handler demonstrates **dependency injection** - instead of receiving the full event object and manually accessing its properties, we use `Annotated` type hints with markers from `hassette.dependencies` to automatically extract just the data we need. This results in cleaner, more readable code.
 
-You don't need additional wiring—Hassette automatically discovers apps in the configured directory (controlled by `HassetteConfig.autodetect_apps`).
+You don't need additional wiring-Hassette automatically discovers apps in the configured directory (controlled by `HassetteConfig.autodetect_apps`).
 
 ### 4. Run Hassette
 
