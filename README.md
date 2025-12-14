@@ -35,27 +35,31 @@ Create a simple app (`apps/hello.py`):
 
 ```python
 from typing import Annotated
-from hassette import App, states
+
+from hassette import App
+from hassette import accessors as A
 from hassette import dependencies as D
 
-class HelloApp(App):
+
+class HelloWorld(App):
     async def on_initialize(self):
-        self.bus.on_state_change(
-            "binary_sensor.front_door",
-            handler=self.on_door_open,
-            changed_to="on"
-        )
+        self.bus.on_state_change("binary_sensor.front_door", handler=self.on_door_open, changed_to="on")
+
+        self.scheduler.run_minutely(self.check_front_door)
 
     async def on_door_open(
         self,
-        new_state: D.StateNew[states.BinarySensorState],
         entity_id: D.EntityId,
+        friendly_name: Annotated[str | None, A.get_attr_new("friendly_name")],
     ):
         self.logger.info("%s opened!", entity_id)
-        await self.api.call_service(
-            "notify", "mobile_app_phone",
-            message=f"{new_state.attributes.friendly_name or entity_id} opened!"
-        )
+        name = friendly_name or entity_id
+        await self.api.call_service("notify", "mobile_app_phone", message=f"{name} opened!")
+
+    async def check_front_door(self):
+        state = self.states.binary_sensor["front_door"]
+        self.logger.info("Front door is currently %s", state.value)
+
 ```
 
 Configure it (`config/hassette.toml`):
@@ -66,7 +70,7 @@ base_url = "http://homeassistant.local:8123"
 
 [apps.hello]
 filename = "hello.py"
-class_name = "HelloApp"
+class_name = "HelloWorld"
 ```
 
 Run it:
