@@ -489,8 +489,8 @@ except HomeAssistantError as e:
 
 ## See Also
 
-- [Core Concepts](../index.md) — back to the core concepts overview
-- [Apps](../apps/index.md) — more on app anatomy, lifecycle, and capabilities
-- [Scheduler](../scheduler/index.md) — more on scheduling jobs and intervals
-- [Bus](../bus/index.md) — more on subscribing to and handling events
-- [Configuration](../configuration/index.md) — Hassette and app configuration
+- [Core Concepts](../index.md) - back to the core concepts overview
+- [Apps](../apps/index.md) - more on app anatomy, lifecycle, and capabilities
+- [Scheduler](../scheduler/index.md) - more on scheduling jobs and intervals
+- [Bus](../bus/index.md) - more on subscribing to and handling events
+- [Configuration](../configuration/index.md) - Hassette and app configuration

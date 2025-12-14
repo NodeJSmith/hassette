@@ -3,7 +3,7 @@
 Hassette has a lot of moving parts, but at its core it’s simple: everything revolves around **apps**, **events**, and **resources**.
 
 - **Apps** are what you write. They respond to events and manipulate resources.
-- **Events** describe what happened—state changes, service calls, lifecycle transitions, or scheduled triggers.
+- **Events** describe what happened-state changes, service calls, lifecycle transitions, or scheduled triggers.
 - **Resources** are everything else: API clients, the event bus, the scheduler, etc.
 
 ## Hassette Architecture
@@ -111,4 +111,3 @@ For deeper dives into advanced features:
 - [Type Registry](../advanced/type-registry.md) – automatic value type conversion system.
 - [State Registry](../advanced/state-registry.md) – domain to state model mapping.
 - [Custom States](../advanced/custom-states.md) – defining your own state classes.
-- [Value Converters](../advanced/value-converters.md) – complete reference of built-in type converters.

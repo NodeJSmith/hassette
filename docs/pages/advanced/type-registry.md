@@ -529,4 +529,3 @@ def str_with_units_to_float(value: str) -> float:
 - [State Registry](state-registry.md) - Domain to model class mapping
 - [Dependency Injection](dependency-injection.md) - Using TypeRegistry with custom extractors
 - [State Models](../core-concepts/states/index.md) - State model reference
-- [Value Converters](value-converters.md) - Complete list of built-in converters

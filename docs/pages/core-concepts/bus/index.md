@@ -214,8 +214,8 @@ def handler(brightness: Annotated[float, A.get_attr_new("brightness")]):
 Every event you receive from the bus is an [`Event`][hassette.events.base.Event]
 dataclass with two main fields:
 
-- `topic` — a string identifier describing what happened, such as `hass.event.state_changed` or `hassette.event.service_status`.
-- `payload` — an untyped object containing event-specific data.
+- `topic` - a string identifier describing what happened, such as `hass.event.state_changed` or `hassette.event.service_status`.
+- `payload` - an untyped object containing event-specific data.
 
 Home Assistant events use the format `hass.event.<event_type>` (e.g.,
 `hass.event.state_changed` or `hass.event.call_service`). Hassette
@@ -232,10 +232,10 @@ Example:
 
 These helper methods cover the majority of use cases:
 
-- `on_state_change` — listen for entity state changes
-- `on_attribute_change` — listen for changes to a specific attribute
-- `on_call_service` — listen for service calls
-- `on` — subscribe directly to any event topic
+- `on_state_change` - listen for entity state changes
+- `on_attribute_change` - listen for changes to a specific attribute
+- `on_call_service` - listen for service calls
+- `on` - subscribe directly to any event topic
 
 Each method returns a [`Subscription`][hassette.bus.listeners.Subscription] handle,
 which you can keep to unsubscribe later.
@@ -436,8 +436,8 @@ self.bus.on_call_service(
 
 ## See Also
 
-- [Core concepts](../index.md) — back to the core concepts overview.
-- [Apps](../apps/index.md) — more on app anatomy, lifecycle, and capabilities.
-- [Scheduler](../scheduler/index.md) — more on scheduling jobs and intervals.
-- [API](../api/index.md) — more on interacting with Home Assistant's APIs.
-- [Configuration](../configuration/index.md) — Hassette and app configuration.
+- [Core concepts](../index.md) - back to the core concepts overview.
+- [Apps](../apps/index.md) - more on app anatomy, lifecycle, and capabilities.
+- [Scheduler](../scheduler/index.md) - more on scheduling jobs and intervals.
+- [API](../api/index.md) - more on interacting with Home Assistant's APIs.
+- [Configuration](../configuration/index.md) - Hassette and app configuration.

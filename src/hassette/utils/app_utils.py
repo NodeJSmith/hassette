@@ -136,7 +136,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
 
         except (UndefinedUserConfigError, InvalidInheritanceError):
             LOGGER.error(
-                "Failed to load app '%s' due to bad configuration — check previous logs for details",
+                "Failed to load app '%s' due to bad configuration - check previous logs for details",
                 app_manifest.display_name,
             )
             had_errors = True
@@ -146,7 +146,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
             had_errors = True
 
     if had_errors:
-        raise AppPrecheckFailedError("At least one app failed to load — see previous logs for details")
+        raise AppPrecheckFailedError("At least one app failed to load - see previous logs for details")
 
 
 def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
@@ -198,12 +198,10 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str
 
     app_manifests: dict[str, AppDict] = {}
 
-    default_exclude_dirs = set(list(map(Path, exclude_dirs)))
-
     py_files = app_dir.rglob("*.py")
     for py_file in py_files:
         full_path = py_file.resolve()
-        if intersection := default_exclude_dirs.intersection(full_path.parts):
+        if intersection := exclude_dirs.intersection(full_path.parts):
             LOGGER.debug(
                 "Excluding auto-detected app at %s due to excluded directory %s",
                 full_path,

@@ -16,14 +16,10 @@ from hassette.config.helpers import (
     default_data_dir,
     filter_paths_to_unique_existing,
     get_dev_mode,
-    get_log_level,
     log_level_default_factory,
 )
-from hassette.logging_ import enable_logging
 from hassette.types.types import LOG_LEVELS, AppDict, RawAppDict
 from hassette.utils.app_utils import autodetect_apps, clean_app
-
-enable_logging(get_log_level())
 
 LOGGER_NAME = "hassette.config.config" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)

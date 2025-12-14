@@ -361,7 +361,6 @@ The TypeRegistry provides comprehensive built-in conversions for common types:
 - **Numeric types**: `str` ↔ `int`, `float`, `Decimal`
 - **Boolean**: `str` → `bool` (handles `"on"`, `"off"`, `"true"`, `"false"`, etc.)
 - **DateTime types**: `str` → `datetime`, `date`, `time` (stdlib), and `whenever` types
-- **And more**: See [Value Converters Reference](value-converters.md)
 
 **Examples:**
 ```python
@@ -518,6 +517,5 @@ The core implementation lives in:
 
 ## See Also
 
-- [Type Registry](type-registry.md) — automatic type conversion system
-- [Value Converters](value-converters.md) — complete list of built-in type conversions
-- [State Registry](state-registry.md) — domain to state model mapping
+- [Type Registry](type-registry.md) - automatic type conversion system
+- [State Registry](state-registry.md) - domain to state model mapping

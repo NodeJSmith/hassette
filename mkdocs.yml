@@ -21,7 +21,12 @@ nav:
   - Home: index.md
   - Getting Started:
       - Overview: pages/getting-started/index.md
-      - Docker Deployment: pages/getting-started/docker.md
+      - Docker Deployment:
+          - Overview: pages/getting-started/docker/index.md
+          - Managing Dependencies: pages/getting-started/docker/dependencies.md
+          - Networking: pages/getting-started/docker/networking.md
+          - Image Tags: pages/getting-started/docker/image-tags.md
+          - Troubleshooting: pages/getting-started/docker/troubleshooting.md
   - Core Concepts:
       - Overview: pages/core-concepts/index.md
       - Apps: pages/core-concepts/apps/index.md

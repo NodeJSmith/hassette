@@ -3,17 +3,16 @@ from argparse import ArgumentParser
 from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
+from hassette.config.helpers import get_log_level
 from hassette.exceptions import AppPrecheckFailedError, FatalError
+from hassette.logging_ import enable_logging
 
-name = "hassette.hass_main" if __name__ == "__main__" else __name__
+name = "hassette.__main__" if __name__ == "__main__" else __name__
 
 LOGGER = getLogger(name)
 
 
 def get_parser() -> ArgumentParser:
-    """
-    Parse command line arguments for the Hassette application.
-    """
     parser = ArgumentParser(description="Hassette - A Home Assistant integration", add_help=False)
     parser.add_argument(
         "--config-file",
@@ -36,7 +35,7 @@ def get_parser() -> ArgumentParser:
 
 
 async def main() -> None:
-    """Main function to run the Hassette application."""
+    LOGGER.info("Starting Hassette...")
 
     args = get_parser().parse_known_args()[0]
 
@@ -47,18 +46,13 @@ async def main() -> None:
         HassetteConfig.model_config["toml_file"] = args.config_file
 
     config = HassetteConfig()
-
     core = Hassette(config=config)
-    core.logger.info("Starting Hassette...")
 
     await core.run_forever()
 
 
 def entrypoint() -> None:
-    """
-    This is the entry point for the Home Assistant integration.
-    It initializes the HASS_CONTEXT and starts the event loop.
-    """
+    enable_logging(get_log_level())
 
     try:
         asyncio.run(main())

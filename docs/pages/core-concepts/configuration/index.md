@@ -14,9 +14,9 @@ Hassette really only needs two things: your Home Assistant URL and an access tok
 
 Hassette searches for `hassette.toml` and `.env` in this order:
 
-1. `/config` — what is typically used in Docker setups.
-2. `./` — current working directory.
-3. `./config` — `config` subdirectory of the current working directory.
+1. `/config` - what is typically used in Docker setups.
+2. `./` - current working directory.
+3. `./config` - `config` subdirectory of the current working directory.
 
 Override either path with `--config-file / -c` and `--env-file / -e`:
 
@@ -137,8 +137,8 @@ Best practice: keep secrets in env vars or `.env`, and leave TOML for non-secret
 
 ## See also
 
-- [Core Concepts](../index.md) — back to the core concepts overview
-- [Apps](../apps/index.md) — more on app anatomy, lifecycle, and capabilities
-- [Scheduler](../scheduler/index.md) — more on scheduling jobs and intervals
-- [Bus](../bus/index.md) — more on subscribing to and handling events
-- [API](../api/index.md) — more on interacting with Home Assistant's APIs
+- [Core Concepts](../index.md) - back to the core concepts overview
+- [Apps](../apps/index.md) - more on app anatomy, lifecycle, and capabilities
+- [Scheduler](../scheduler/index.md) - more on scheduling jobs and intervals
+- [Bus](../bus/index.md) - more on subscribing to and handling events
+- [API](../api/index.md) - more on interacting with Home Assistant's APIs
