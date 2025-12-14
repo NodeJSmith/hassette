@@ -2,32 +2,58 @@
 
 set -eu # no pipefail in busybox ash
 
-## We use a virtual environment because uv REALLY doesn't like to not use one
-## plus it isolates the hassette dependencies from the host system
-## so the first step is activate it
-
-## then we look to see if there is a project to install in /apps
-## if there is, we install it
-
-## otherwise we look for hassette-requirements.txt/requirements.txt files in /config and /apps and install those
-
-# ---- Activate venv (guard bash-isms in activate) -------------------------
 # shellcheck disable=SC1091
 . /app/.venv/bin/activate
 
-APPS=/apps
+HASSETTE_VERSION=$(uv version --short --directory /app)
 
-# Check recursively under $CONF directory for additional python dependencies defined by the end-user via requirements.txt
-# find $CONF -name requirements.txt -type f -not -empty -exec uv pip install -r {} --directory $APPS \;
-# if pyproject.toml or uv.lock exists in $APPS, install that
-if [ -f $APPS/pyproject.toml ] || [ -f $APPS/uv.lock ]; then
-    echo "Installing project in $APPS"
-    uv sync --directory $APPS --no-default-groups --inexact --no-build-isolation --active # leave existing packages alone
+echo "Running Hassette version $HASSETTE_VERSION"
+
+APPS="${HASSETTE__APP_DIR:-/apps}"
+CONFIG="${HASSETTE__CONFIG_DIR:-/config}"
+ALLOW_UNLOCKED_PROJECT="${HASSETTE__ALLOW_UNLOCKED_PROJECT:-0}"
+
+# Debian package is `fd-find`; binary name is usually `fdfind`.
+FD_BIN="$(command -v fdfind || command -v fd)"
+
+# Install project deps if present
+if [ -f "$APPS/uv.lock" ]; then
+    echo "Installing locked project in $APPS"
+    uv sync --directory "$APPS" --locked --active
+elif [ -f "$APPS/pyproject.toml" ] && [ "$ALLOW_UNLOCKED_PROJECT" = "1" ]; then
+    echo "Installing unlocked project in $APPS (HASSETTE__ALLOW_UNLOCKED_PROJECT=1)"
+    uv sync --directory "$APPS" --active
 fi
 
-# find $CONF -name requirements.txt -type f -not -empty -exec uv pip install -r {} --directory $APPS \;
-if uv run scripts/compile_requirements.py && [ -f /tmp/merged_requirements.txt ]; then
-    uv pip install -r /tmp/merged_requirements.txt --no-deps --no-build-isolation
+echo "Completed sync of found project"
+
+# Build list of roots that exist
+ROOTS=""
+[ -d "$CONFIG" ] && ROOTS="$ROOTS $CONFIG"
+[ -d "$APPS" ] && ROOTS="$ROOTS $APPS"
+
+# Install requirements files (fd ignores .git/.venv/node_modules by default)
+if [ -n "$ROOTS" ]; then
+    # Find both filenames, deterministic order
+    # shellcheck disable=SC2086
+    "$FD_BIN" -t f -a -0 'requirements' --extension txt $ROOTS |
+        sort -z |
+        while IFS= read -r req; do
+            # Skip empty files (fd doesn't have a simple portable "non-empty" filter)
+            [ -s "$req" ] || continue
+            echo "Installing requirements from $req"
+            uv pip install -r "$req"
+        done
 fi
 
-exec hassette
+echo "Completed installation of found requirements.txt files"
+
+if [ -n "${HASSETTE_VERSION:-}" ]; then
+    # ensure correct version of hassette is still installed
+    echo "Ensuring hassette version ${HASSETTE_VERSION} is installed"
+    uv pip install "hassette==${HASSETTE_VERSION}"
+else
+    echo "No specific hassette version specified"
+fi
+
+exec hassette "$@"
