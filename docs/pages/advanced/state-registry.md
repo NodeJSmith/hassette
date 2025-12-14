@@ -60,38 +60,44 @@ state_class = registry.resolve(domain="light")
 
 The StateRegistry and [TypeRegistry](type-registry.md) work together to provide complete type conversion for Home Assistant state data:
 
-**StateRegistry** → Determines which state model class to use based on domain
-**TypeRegistry** → Converts raw values to proper Python types during model validation
+- **StateRegistry** → Determines which state model class to use based on domain
+- **TypeRegistry** → Converts raw values to proper Python types during model validation
 
 ### The Complete Flow
 
 When state data arrives from Home Assistant, both registries cooperate:
 
-```python
-1. Raw data from Home Assistant
-state_dict = {
-    "entity_id": "time.current",
-    "state": "12:01:01"  # String from HA
-}
+1. **Raw data arrives** from Home Assistant:
+   ```python
+   state_dict = {
+       "entity_id": "time.current",
+       "state": "12:01:01"  # String from HA
+   }
+   ```
 
-2. StateRegistry determines model class based on "time" domain
-# → Returns TimeState class
+2. **StateRegistry** determines the model class based on the `time` domain → returns `TimeState`
 
-3. Pydantic model validation begins
-4. BaseState._validate_domain_and_state checks value_type ClassVar
-5. TypeRegistry converts "12:01:01" (str) → whenever.Time
-6. Validation completes with properly typed value
+3. **Pydantic validation** begins on the `TimeState` model
 
-sensor_state = registry.try_convert_state(state_dict)
-# Result: TimeState with state=whenever.Time
-```
+4. **BaseState._validate_domain_and_state** checks the `value_type` ClassVar
+
+5. **TypeRegistry** converts `"12:01:01"` (str) → `whenever.Time`
+
+6. **Validation completes** with the properly typed value:
+   ```python
+   time_state = registry.try_convert_state(state_dict)
+   # Result: TimeState with state=whenever.Time
+   ```
 
 ### The value_type ClassVar
 
 State model classes use the `value_type` ClassVar to declare expected state value types:
 
 ```python
-from typing import ClassVar
+from typing import ClassVar, Any
+
+from whenever import Time
+
 from hassette.models.states import BaseState
 
 class TimeBaseState(BaseState[Time | None]):
