@@ -621,7 +621,7 @@ wheels = [
 
 [[package]]
 name = "hassette"
-version = "0.18.0.dev3"
+version = "0.18.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

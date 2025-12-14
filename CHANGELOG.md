@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.18.1] - 2025-12-13
+
+### Changed
+- Improve docker startup script and dependency handling
+- Rewrite docker docs to be more clear about project structure and dependency installation
+
+### Fixed
+- Fixed a bug in autodetect apps exclusion directories
+  - Previous commit had mapped the exclusion dirs to Path objects, which broke the set comparison, this has been reverted
+
 ## [0.18.0.dev3] - 2025-12-13
 
 ### Changed
