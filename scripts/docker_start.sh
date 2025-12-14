@@ -13,7 +13,7 @@ echo "Running Hassette version $HASSETTE_VERSION"
 # PROJECT_DIR is where to look for a uv.lock or pyproject.toml file for a package
 
 APP_DIR="${HASSETTE__APP_DIR:-/apps}"
-PROJECT_DIR="${HASSETTE__INSTALL_PROJECT_DIR:-/apps}"
+PROJECT_DIR="${HASSETTE__PROJECT_DIR:-/apps}"
 
 CONFIG="${HASSETTE__CONFIG_DIR:-/config}"
 ALLOW_UNLOCKED_PROJECT="${HASSETTE__ALLOW_UNLOCKED_PROJECT:-0}"

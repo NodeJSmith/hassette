@@ -3,7 +3,7 @@
 This guide walks through setting up Hassette with a simple app in a local development environment.
 
 !!! tip "Running in Docker?"
-    For production deployments or if you prefer Docker, see the [Docker Deployment](docker.md) guide instead. This page covers local development with `uv`.
+    For production deployments or if you prefer Docker, see the [Docker Deployment](docker/index.md) guide instead. This page covers local development with `uv`.
 
 ## Prerequisites
 
