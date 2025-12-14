@@ -140,11 +140,7 @@ def register_simple_type_converter(
 
 
 class TypeRegistry:
-    """Registry for state types and their conversions.
-
-    The type registry manages the mapping between raw state values (e.g. "on", "off", 23.5, 1764976201), their
-    corresponding state classes, and conversion between these and python representations.
-    """
+    """Registry for converting between types, used by State models and the Dependency Injection system."""
 
     conversion_map: ClassVar[dict[tuple[type[Any], type[Any]], TypeConverterEntry[Any, Any]]] = {}
 

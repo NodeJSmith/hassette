@@ -4,10 +4,10 @@ Hassette does a lot under the hood to make building Home Assistant automations e
 
 These features are:
 
-- Dependency injection
-- Custom states
-- The State Registry
-- The Type Registry
+- [Dependency injection](./dependency-injection.md)
+- [Custom states](./custom-states.md)
+- [The State Registry](./state-registry.md)
+- [The Type Registry](./type-registry.md)
 
 ## Dependency Injection
 
@@ -19,7 +19,7 @@ For example, `StateNew` is a built-in provider that extracts the new state from 
 
 This is as simple as using the [`Annotated`][typing.Annotated] type hint to specify a type and an extractor. Hassette does have an [accessor][hassette.event_handling.accessors] module that has built-in extractors, so for this example you could use `get_state_attr_new`. Combining these tools allows you to create powerful, reusable DI providers for your specific needs.
 
-Read more in the [Dependency Injection guide][pages/advanced/dependency-injection.md].
+Read more in the [Dependency Injection guide](./dependency-injection.md).
 
 ## Custom States
 
@@ -30,7 +30,7 @@ Home Assistant has many built in states, but many many more states that come fro
 Custom states can be defined as simply as creating a new State class from [`BaseState`][hassette.models.states.base.BaseState] or one if it's subclasses. `BaseState`
 uses `__init_subclass__` to automatically register the class with the [State Registry][hassette.core.state_registry.StateRegistry] based on its `domain` attribute. This means that once you have defined the class, it will be used automatically whenever a state with the matching domain is encountered in your automations.
 
-There is a dedicated [Custom States guide][pages/advanced/custom-states.md] that goes into more detail on how to define and use custom states in your Hassette apps.
+There is a dedicated [Custom States guide](./custom-states.md) that goes into more detail on how to define and use custom states in your Hassette apps.
 
 ## Registries
 
@@ -42,7 +42,7 @@ The State Registry contains a map of state domain names to their corresponding S
 
 The State Registry generally does not need to be interacted with directly, as the `__init_subclass__` hook automatically registers new State classes when they are defined.
 
-You can read more about the State Registry in the [State Registry guide][pages/advanced/state-registry.md].
+You can read more about the State Registry in the [State Registry guide](./state-registry.md).
 
 ### Type Registry
 
@@ -51,4 +51,4 @@ The Type Registry contains a map of custom types to their corresponding type con
 The `TypeRegistry` allows for manually registering new type converters, giving you full control over how custom types are handled in your automations. You can also
 access the registry directly if needed, which can allow you to convert between types without having to rewrite your type conversion logic.
 
-You can read more about the Type Registry in the [Type Registry guide][pages/advanced/type-registry.md].
+You can read more about the Type Registry in the [Type Registry guide](./type-registry.md).
