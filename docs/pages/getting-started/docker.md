@@ -17,7 +17,7 @@ The fastest way to get started is to use the pre-built image from GitHub Contain
 
 ```bash
 # Create directory structure
-mkdir hassette-deploy && cd hassette-deploy
+mkdir project_dir && cd project_dir
 mkdir -p config apps
 
 # Create docker-compose.yml
@@ -57,7 +57,7 @@ Now configure Hassette by creating `config/hassette.toml` and `config/.env` - se
 Hassette expects the following directory structure when running in Docker:
 
 ```
-hassette-deploy/
+project_dir/
 ├── docker-compose.yml
 ├── config/
 │   ├── hassette.toml      # Hassette configuration
@@ -200,29 +200,29 @@ base_url = "https://home.example.com"
 
 ## Apps with Dependencies
 
-If your apps need additional Python packages, create a package structure in your `apps` directory:
+If your apps need additional Python packages, create a package structure in your `project_dir` directory:
 
 ### Using pyproject.toml
 
 ```bash
-cd apps
+mkdir -p project_dir && cd project_dir
 uv init --lib  # or manually create the structure
 ```
 
-Your `apps` directory should look like:
+Your `project_dir` directory should look like:
 
 ```
-apps/
+project_dir/
 ├── pyproject.toml
 ├── uv.lock (optional but recommended)
 └── src/
-    └── my_apps/
+    └── apps/
         ├── __init__.py
         ├── app_one.py
         └── app_two.py
 ```
 
-Example `apps/pyproject.toml`:
+Example `project_dir/pyproject.toml`:
 
 ```toml
 [project]
@@ -240,14 +240,37 @@ Update `config/hassette.toml`:
 
 ```toml
 [hassette]
-app_dir = "/apps/src/my_apps"  # point to your package
+app_dir = "project_dir/src/apps"  # local development - we'll use an env var for docker
 
 [apps.app_one]
 filename = "app_one.py"
 class_name = "AppOne"
 ```
 
-The Docker startup script automatically detects and installs packages defined in `pyproject.toml`.
+Update your docker-compose.yml file:
+
+```yaml
+services:
+  hassette:
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
+    container_name: hassette
+    restart: unless-stopped
+
+    volumes:
+      - ./config:/config
+      - ./:/apps # if docker-compose is in project_dir, mount ./ to /apps
+      - data:/data
+      - uv_cache:/uv_cache
+
+    environment:
+      - HASSETTE__PROJECT_DIR=/apps # the startup script will look for uv.lock and pyproject.toml here
+      - HASSETTE__APP_DIR=/apps/src/apps # hassette will look for *.py files with App/AppSync classes here
+      - LOG_LEVEL=INFO
+      - TZ=America/New_York
+```
+
+The Docker startup script will look for your `uv.lock` and `pyproject.toml` files in the directory specified by `HASSETTE__PROJECT_DIR` to install dependencies.
+If `HASSETTE__PROJECT_DIR` is not set, it defaults to `/apps`.
 
 ### Using requirements.txt
 
@@ -278,16 +301,14 @@ services:
     restart: unless-stopped
 
     volumes:
-      - ./config:/config:ro  # Read-only configuration
-      - ./apps:/apps:ro      # Read-only apps
+      - ./config:/config
+      - ./apps:/apps
       - data:/data
       - uv_cache:/uv_cache
 
     environment:
       - LOG_LEVEL=info
       - TZ=America/New_York
-      # Optional: override config file location
-      # - HASSETTE__CONFIG_FILE=/config/hassette.toml
 
     networks:
       - homeassistant
@@ -298,14 +319,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 40s
-
-    # Resource limits (optional but recommended)
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
 
 volumes:
   uv_cache:
@@ -413,6 +426,7 @@ Common issues:
 ### Apps Not Loading
 
 1. Check app discovery:
+
    ```bash
    docker compose exec hassette ls -la /apps
    ```
@@ -454,14 +468,9 @@ environment:
   - HASSETTE__TOKEN=your_token
   - HASSETTE__BASE_URL=http://homeassistant:8123
   - HASSETTE__APP_DIR=/apps/src/my_apps
+  - HASSETTE__PROJECT_DIR=/apps
   - HASSETTE__LOG_LEVEL=debug
   - TZ=America/New_York  # System timezone
-```
-
-Nested config uses double underscores:
-
-```bash
-HASSETTE__APPS__MY_APP__CONFIG__SETTING=value
 ```
 
 ## Docker Image Tags

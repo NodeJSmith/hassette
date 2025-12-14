@@ -9,7 +9,12 @@ HASSETTE_VERSION=$(uv version --short --directory /app)
 
 echo "Running Hassette version $HASSETTE_VERSION"
 
-APPS="${HASSETTE__APP_DIR:-/apps}"
+# APP_DIR is where we start looking for actual *.py files that contain App/AppSync classes
+# PROJECT_DIR is where to look for a uv.lock or pyproject.toml file for a package
+
+APP_DIR="${HASSETTE__APP_DIR:-/apps}"
+PROJECT_DIR="${HASSETTE__INSTALL_PROJECT_DIR:-/apps}"
+
 CONFIG="${HASSETTE__CONFIG_DIR:-/config}"
 ALLOW_UNLOCKED_PROJECT="${HASSETTE__ALLOW_UNLOCKED_PROJECT:-0}"
 
@@ -17,12 +22,12 @@ ALLOW_UNLOCKED_PROJECT="${HASSETTE__ALLOW_UNLOCKED_PROJECT:-0}"
 FD_BIN="$(command -v fdfind || command -v fd)"
 
 # Install project deps if present
-if [ -f "$APPS/uv.lock" ]; then
-    echo "Installing locked project in $APPS"
-    uv sync --directory "$APPS" --locked --active
-elif [ -f "$APPS/pyproject.toml" ] && [ "$ALLOW_UNLOCKED_PROJECT" = "1" ]; then
-    echo "Installing unlocked project in $APPS (HASSETTE__ALLOW_UNLOCKED_PROJECT=1)"
-    uv sync --directory "$APPS" --active
+if [ -f "$PROJECT_DIR/uv.lock" ]; then
+    echo "Installing locked project in $PROJECT_DIR"
+    uv sync --directory "$PROJECT_DIR" --locked --active
+elif [ -f "$PROJECT_DIR/pyproject.toml" ] && [ "$ALLOW_UNLOCKED_PROJECT" = "1" ]; then
+    echo "Installing unlocked project in $PROJECT_DIR (HASSETTE__ALLOW_UNLOCKED_PROJECT=1)"
+    uv sync --directory "$PROJECT_DIR" --active
 fi
 
 echo "Completed sync of found project"
@@ -30,7 +35,7 @@ echo "Completed sync of found project"
 # Build list of roots that exist
 ROOTS=""
 [ -d "$CONFIG" ] && ROOTS="$ROOTS $CONFIG"
-[ -d "$APPS" ] && ROOTS="$ROOTS $APPS"
+[ -d "$APP_DIR" ] && ROOTS="$ROOTS $APP_DIR"
 
 # Install requirements files (fd ignores .git/.venv/node_modules by default)
 if [ -n "$ROOTS" ]; then
