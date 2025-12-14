@@ -111,4 +111,3 @@ For deeper dives into advanced features:
 - [Type Registry](../advanced/type-registry.md) – automatic value type conversion system.
 - [State Registry](../advanced/state-registry.md) – domain to state model mapping.
 - [Custom States](../advanced/custom-states.md) – defining your own state classes.
-- [Value Converters](../advanced/value-converters.md) – complete reference of built-in type converters.

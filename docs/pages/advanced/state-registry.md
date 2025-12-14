@@ -377,4 +377,3 @@ state = convert_state_dict_to_model(
 - [Type Registry](type-registry.md) - automatic value type conversion
 - [Dependency Injection](dependency-injection.md) - using StateRegistry via DI annotations
 - [Custom States](custom-states.md) - defining your own state classes
-- [Value Converters](value-converters.md) - complete list of built-in type conversions
