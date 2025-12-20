@@ -20,7 +20,7 @@ theme:
 nav:
   - Home: index.md
   - Getting Started:
-      - Overview: pages/getting-started/index.md
+      - Local Development: pages/getting-started/index.md
       - Docker Deployment:
           - Overview: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
@@ -29,11 +29,26 @@ nav:
           - Troubleshooting: pages/getting-started/docker/troubleshooting.md
   - Core Concepts:
       - Overview: pages/core-concepts/index.md
-      - Apps: pages/core-concepts/apps/index.md
-      - Bus: pages/core-concepts/bus/index.md
-      - Scheduler: pages/core-concepts/scheduler/index.md
-      - API: pages/core-concepts/api/index.md
-      - States: pages/core-concepts/states/index.md
+      - Apps:
+          - Overview: pages/core-concepts/apps/index.md
+          - Lifecycle: pages/core-concepts/apps/lifecycle.md
+          - Configuration: pages/core-concepts/apps/configuration.md
+      - Bus:
+          - Overview: pages/core-concepts/bus/index.md
+          - Writing Handlers: pages/core-concepts/bus/handlers.md
+          - Filtering & Predicates: pages/core-concepts/bus/filtering.md
+      - Scheduler:
+          - Overview: pages/core-concepts/scheduler/index.md
+          - Scheduling Methods: pages/core-concepts/scheduler/methods.md
+          - Job Management: pages/core-concepts/scheduler/management.md
+      - API:
+          - Overview: pages/core-concepts/api/index.md
+          - Entities & States: pages/core-concepts/api/entities.md
+          - Services: pages/core-concepts/api/services.md
+          - Utilities: pages/core-concepts/api/utilities.md
+      - States:
+          - Overview: pages/core-concepts/states/index.md
+          - Usage Guide: pages/core-concepts/states/usage.md
       - Configuration: pages/core-concepts/configuration/index.md
   - Advanced:
       - Overview: pages/advanced/index.md

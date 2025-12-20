@@ -42,8 +42,7 @@ The TOML file sets global defaults and declares your apps.
 
 ### Global configuration
 
-Non-app configuration can either be set in the `[hassette]` block or at the top level (not under any heading). There are too many configuration
-options to enumerate here, but the most important are:
+Non-app configuration can either be set in the `[hassette]` block or at the top level (not under any heading). The most important options are listed below (see the API reference for the full list):
 
 - `base_url` – Home Assistant URL (defaults to `http://127.0.0.1:8123`).
   - This needs to be the full URL including scheme (`http://` or `https://`) and port (if non-standard, including `:8123`).
@@ -57,7 +56,7 @@ options to enumerate here, but the most important are:
   - If `dev_mode` is enabled Hassette will
     - watch for file changes and auto-reload apps
     - extend timeouts for task completion and connections
-    - allow Hassette to continue startup if apps fail the pre-check
+    - allow Hassette to continue startup even if apps fail the pre-check
 - `import_dot_env_files` - Whether to call `load_dotenv()` on the `.env` file(s) found by Hassette
   - This is useful if you want the variables in your `.env` file(s) to be available via `os.environ` for other libraries that read from environment variables directly.
 
@@ -109,7 +108,7 @@ Multiple instances:
 
 ## Typed app configuration
 
-Apps inherit from `App`, which is generic on a config type. Subclass `AppConfig` to define fields, defaults, validators, and environment variable handling. Because `AppConfig` extends `pydantic.BaseSettings`, you get all the usual niceties (env vars, `.env`, type coercion).
+Apps inherit from `App`, which is generic on a config type. Subclass `AppConfig` to define fields, defaults, validators, and environment variable handling. Because `AppConfig` extends `pydantic.BaseSettings`, you get all the usual benefits (env vars, `.env`, type coercion).
 
 ```python
 --8<-- "pages/core-concepts/apps/typed_config_example.py"

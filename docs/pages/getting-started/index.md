@@ -13,7 +13,7 @@ This guide walks through setting up Hassette with a simple app in a local develo
 
 ## Overview
 
-Hassette only needs a Home Assistant URL and access token. You’ll probably want an app as well-it won’t do much without one.
+Hassette only needs a Home Assistant URL and access token. You’ll probably want an app as well—Hassette won’t do much without one.
 
 !!! tip "Should I create a package?"
     If you plan to import apps from multiple files or use `isinstance` checks, create a proper Python package with `__init__.py` files. This guide shows the package approach, but a simple directory of `.py` files works fine if you only need lightweight scripts.
@@ -49,7 +49,7 @@ You should see logs showing a successful connection.
 
 ### 3. Create your first app
 
-An app is a Python class inheriting from `App`. Apps are generic on a configuration type, so you get typed configuration through an `AppConfig` subclass passed as the generic parameter.
+An app is a Python class inheriting from `App`. Apps are generic over a configuration type, so you get typed configuration through an `AppConfig` subclass passed as the generic parameter.
 
 !!! note
     Apps share the `Resource` lifecycle. The primary hook is `on_initialize`, which runs when the app starts (including hot reloads). Use it to set up event listeners, schedule tasks, and perform other startup logic. `on_shutdown` is available for cleanup, but all subscriptions and scheduled jobs are tracked by the app’s `TaskBucket` and cleaned up automatically.
@@ -63,40 +63,7 @@ touch src/hassette_apps/hello_world.py
 Add the following:
 
 ```python
-from typing import Annotated
-
-from hassette import App, AppConfig, states
-from hassette import dependencies as D
-
-
-class HelloWorldConfig(AppConfig):
-    greeting: str = "Hello, World!"
-    motion_sensor: str = "binary_sensor.motion"
-
-
-class HelloWorld(App[HelloWorldConfig]):
-    async def on_initialize(self) -> None:
-        self.logger.info(self.app_config.greeting)
-
-        # Listen for motion using dependency injection
-        self.bus.on_state_change(
-            self.app_config.motion_sensor,
-            handler=self.on_motion,
-            changed_to="on",
-        )
-
-    async def on_motion(
-        self,
-        new_state: D.StateNew[states.BinarySensorState],
-        entity_id: D.EntityId,
-    ) -> None:
-        """Handler demonstrating dependency injection.
-
-        Instead of manually accessing event.payload.data, we use Annotated
-        type hints to automatically extract the new state and entity ID.
-        """
-        friendly_name = new_state.attributes.friendly_name or entity_id
-        self.logger.info("Motion detected on %s!", friendly_name)
+--8<-- "pages/getting-started/snippets/hello_world.py"
 ```
 
 `HelloWorldConfig` defines configuration fields with defaults. The app inherits from `App` with the config type specified.
@@ -147,17 +114,7 @@ Generate a long-lived access token from your Home Assistant user profile. Provid
 Use the config file to set Hassette defaults and register apps:
 
 ```toml
-[hassette]
-base_url = "http://localhost:8123"
-app_dir = "src/hassette_apps"
-
-[apps.hello_world]
-filename = "hello_world.py"
-class_name = "HelloWorld"
-enabled = true
-
-[[apps.hello_world.config]]
-greeting = "Hello from Hassette!"
+--8<-- "pages/getting-started/snippets/hassette.toml"
 ```
 
 Run Hassette with no CLI flags and it will pick up this configuration (or provide `-c` if the file lives elsewhere):

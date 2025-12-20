@@ -26,13 +26,8 @@ through code.
 ## Hassette
 
 Hassette offers similar features but with a different design philosophy.
-It is async-first, strongly typed, and built around composition instead
-of inheritance. Hassette also connects to Home Assistant via WebSocket
-and REST API, you write apps as Python classes that inherit from
-[App][hassette.app.app.App], and configuration lives in `hassette.toml`.
-Hassette apps are also written in an IDE, offering the same debugging
-benefits, but is also strongly typed, which enables better
-autocompletion and earlier error detection.
+It is async-first, strongly typed, and built around composition instead of inheritance. Hassette also connects to Home Assistant via WebSocket and REST API. You write apps as Python classes that inherit from [`App`][hassette.app.app.App], and configuration lives in `hassette.toml`.
+Hassette apps are also written in an IDE, offering the same debugging benefits, but it is also strongly typed, which enables better autocompletion and earlier error detection.
 
 **Key Points**
 
@@ -110,10 +105,7 @@ This would correspond to a Python file `my_app.py` in the directory
 Arguments are accessible through the `self.args` dictionary, under the `args` key.
 
 You have access to logging via `self.log()`, which is a method that is part
-of AppDaemon's logging system. Because of the way the logger is
-implemented, you cannot easily see the location of the log call in your
-output, although there are some magic strings you can use to include
-these.
+of AppDaemon's logging system. Because of the way the logger is implemented, you cannot easily see the location of the log call in your output. However, special placeholders can be used to include these.
 
 ```python
 from appdaemon.plugins.hass import Hass
@@ -573,7 +565,7 @@ Note, some output has been truncated for brevity.
 You can get and set entity states using `self.get_state()` and
 `self.set_state()`. The `get_state()` method can return just the state
 string or a full dictionary with attributes. Attempting to access a
-non-existent entity will return `None`, no exception is raised.
+non-existent entity will return `None`, and no exception is raised.
 AppDaemon contains a proxy service over states, so getting the state of
 an entity does not make a call directly to Home Assistant, but rather
 returns the last known state from its internal cache. When setting a
