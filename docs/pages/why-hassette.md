@@ -5,11 +5,11 @@
 
 ## Background
 
-I'm a Python developer who wanted to write Home Assistant automations in Python-not YAML. AppDaemon was the obvious choice, and I used it for years, but it never quite clicked.
+I'm a Python developer who wanted to write Home Assistant automations in Python—not YAML. AppDaemon was the obvious choice, and I used it for years, but it never quite clicked.
 
 The lack of type annotations meant I was constantly debugging to figure out what callbacks received. Silent failures were common-get a signature slightly wrong and AppDaemon just ignores your method. The wrapped `log` helper swallowed tracebacks and omitted line numbers. When I tried to write tests for my apps, I discovered AppDaemon [didn't have tests itself](https://github.com/AppDaemon/appdaemon/issues/2142) at the time.
 
-After a year of frustration I built a small tool to query states and call services. It grew-scheduling, event listeners, hot reloading-until the framework was larger than my apps. I split it into its own project and kept iterating. Hassette has been running my production automations for months now.
+After a year of frustration I built a small tool to query states and call services. It grew—scheduling, event listeners, hot reloading—until the framework was larger than my apps. I split it into its own project and kept iterating. Hassette has been running my production automations for months now.
 
 ## Principles
 

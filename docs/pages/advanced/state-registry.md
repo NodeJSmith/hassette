@@ -7,21 +7,7 @@ The **StateRegistry** is a core component of Hassette that maintains a mapping b
 When Home Assistant sends state change events, the state data arrives as untyped dictionaries. The StateRegistry allows Hassette to automatically convert these dictionaries into typed Pydantic models based on the entity's domain:
 
 ```python
-# Raw data from Home Assistant (untyped dict)
-{
-    "entity_id": "light.bedroom",
-    "state": "on",
-    "attributes": {"brightness": 200, "color_temp": 370},
-    ...
-}
-
-# After StateRegistry conversion (typed model)
-LightState(
-    entity_id="light.bedroom",
-    state="on",
-    attributes=LightAttributes(brightness=200, color_temp=370),
-    ...
-)
+--8<-- "pages/advanced/snippets/state-registry/raw_data_example.py"
 ```
 
 ## How It Works
@@ -33,12 +19,7 @@ All classes that inherit from BaseState are registered automatically at class cr
 This is done via the `__init_subclass__` hook in BaseState, which adds the class to the global StateRegistry.
 
 ```python
-from hassette.models.states import BaseState
-
-class LightState(BaseState):
-    """State model for light entities."""
-    domain: ClassVar[str] = "light"
-    attributes: LightAttributes
+--8<-- "pages/advanced/snippets/state-registry/automatic_registration.py"
 ```
 
 
@@ -47,13 +28,7 @@ class LightState(BaseState):
 When you need to convert state data, the registry provides lookup functions:
 
 ```python
-from hassette.context import get_state_registry
-
-registry = get_state_registry()
-
-# Get class for a domain
-state_class = registry.resolve(domain="light")
-# Returns: LightState
+--8<-- "pages/advanced/snippets/state-registry/domain_lookup.py"
 ```
 
 ## Relationship with TypeRegistry
@@ -94,28 +69,7 @@ When state data arrives from Home Assistant, both registries cooperate:
 State model classes use the `value_type` ClassVar to declare expected state value types:
 
 ```python
-from typing import ClassVar, Any
-
-from whenever import Time
-
-from hassette.models.states import BaseState
-
-class TimeBaseState(BaseState[Time | None]):
-    """Base class for Time states.
-
-    Valid state values are Time or None.
-    """
-
-    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (Time, type(None))
-
-
-class TimeState(TimeBaseState):
-    """Representation of a Home Assistant time state.
-
-    See: https://www.home-assistant.io/integrations/time/
-    """
-
-    domain: Literal["time"]
+--8<-- "pages/advanced/snippets/state-registry/value_type_example.py"
 ```
 
 During validation, if the raw state value doesn't match `value_type`, the TypeRegistry automatically converts it.
@@ -135,20 +89,7 @@ This separation allows:
 
 **Example Benefits:**
 ```python
-from hassette import STATE_REGISTRY
-
-# StateRegistry determines this is a LightState
-light_state = STATE_REGISTRY.try_convert_state(light_dict)
-
-# TypeRegistry also works in dependency injection
-from hassette import accessors as A
-
-async def handler(
-    # TypeRegistry converts attribute values too
-    brightness: Annotated[int, A.get_attr_new("brightness")],
-):
-    # brightness is int, not string, thanks to TypeRegistry
-    pass
+--8<-- "pages/advanced/snippets/state-registry/example_benefits.py"
 ```
 
 See [TypeRegistry](type-registry.md) for more details on automatic value conversion.
@@ -160,19 +101,7 @@ The primary use of the StateRegistry is converting raw state dictionaries to typ
 ### Direct Conversion
 
 ```python
-from hassette import STATE_REGISTRY
-
-# Raw state data from Home Assistant
-state_dict = {
-    "entity_id": "light.bedroom",
-    "state": "on",
-    "attributes": {"brightness": 200},
-    # ... more fields
-}
-
-# Convert to typed model
-light_state = STATE_REGISTRY.try_convert_state(state_dict)
-# Returns: LightState instance
+--8<-- "pages/advanced/snippets/state-registry/direct_conversion.py"
 ```
 
 The `try_convert_state` method:
@@ -186,15 +115,7 @@ The `try_convert_state` method:
 The StateRegistry integrates seamlessly with [dependency injection](dependency-injection.md):
 
 ```python
-from hassette import App, dependencies as D, states
-
-class MyApp(App):
-    async def on_light_change(
-        self,
-        new_state: D.StateNew[states.LightState],  # Automatically converted
-    ):
-        # new_state is already a LightState instance
-        brightness = new_state.attributes.brightness
+--8<-- "pages/advanced/snippets/state-registry/di_integration.py"
 ```
 
 Behind the scenes, the DI system uses `convert_state_dict_to_model()` which calls the StateRegistry.
@@ -206,28 +127,13 @@ You can define custom state classes for your own integrations or to extend exist
 ### Basic Custom State
 
 ```python
-from typing import ClassVar
-from pydantic import BaseModel
-from hassette.models.states import BaseState
-
-class RedditAttributes(BaseModel):
-    karma: int | None = None
-    subreddit: str | None = None
-    friendly_name: str | None = None
-
-class RedditState(BaseState):
-    """State model for custom reddit sensor."""
-    domain: ClassVar[str] = "reddit"
-    attributes: RedditAttributes
+--8<-- "pages/advanced/snippets/state-registry/basic_custom_state.py"
 ```
 
 Once defined, your custom state class is automatically registered and can be used throughout Hassette:
 
 ```python
-from hassette import dependencies as D
-
-async def on_reddit_change(self, new_state: D.StateNew[RedditState]):
-    print(f"Reddit karma: {new_state.attributes.karma}")
+--8<-- "pages/advanced/snippets/state-registry/basic_custom_state_usage.py"
 ```
 
 ### Domain Override
@@ -235,16 +141,7 @@ async def on_reddit_change(self, new_state: D.StateNew[RedditState]):
 If you want to override the default state class for a domain (for example, to add custom attributes), define your class after imports:
 
 ```python
-from typing import ClassVar
-from hassette.models.states import SensorState, SensorAttributes
-
-class CustomSensorAttributes(SensorAttributes):
-    custom_field: str | None = None
-
-class CustomSensorState(SensorState):
-    """Extended sensor state with custom attributes."""
-    domain: ClassVar[str] = "sensor"
-    attributes: CustomSensorAttributes
+--8<-- "pages/advanced/snippets/state-registry/domain_override.py"
 ```
 
 The StateRegistry will log a warning but use your custom class:
@@ -258,19 +155,7 @@ WARNING - Overriding original state class SensorState for domain 'sensor' with C
 The StateRegistry works with Union types, automatically selecting the correct state class:
 
 ```python
-from hassette import dependencies as D, states
-
-async def on_sensor_change(
-    self,
-    new_state: D.StateNew[states.SensorState | states.BinarySensorState],
-):
-    # StateRegistry determines the correct type based on domain
-    if new_state.domain == "sensor":
-        # new_state is SensorState
-        value = float(new_state.state)
-    else:
-        # new_state is BinarySensorState
-        is_on = new_state.state == "on"
+--8<-- "pages/advanced/snippets/state-registry/union_type_support.py"
 ```
 
 The conversion logic:
@@ -288,13 +173,7 @@ The StateRegistry raises specific exceptions for different error conditions:
 Raised when state data is malformed or missing required fields:
 
 ```python
-from hassette import STATE_REGISTRY
-from hassette.exceptions import InvalidDataForStateConversionError
-
-try:
-    state = STATE_REGISTRY.try_convert_state(None)  # Invalid data
-except InvalidDataForStateConversionError as e:
-    print(f"Invalid state data: {e}")
+--8<-- "pages/advanced/snippets/state-registry/error_handling_examples.py"
 ```
 
 ### InvalidEntityIdError
@@ -302,14 +181,7 @@ except InvalidDataForStateConversionError as e:
 Raised when the entity_id format is invalid:
 
 ```python
-from hassette import STATE_REGISTRY
-from hassette.exceptions import InvalidEntityIdError
-
-try:
-    # Entity ID must have format "domain.entity"
-    state = STATE_REGISTRY.try_convert_state({"entity_id": "invalid"})
-except InvalidEntityIdError as e:
-    print(f"Invalid entity ID: {e}")
+--8<-- "pages/advanced/snippets/state-registry/error_handling_examples.py"
 ```
 
 ### UnableToConvertStateError
@@ -317,13 +189,7 @@ except InvalidEntityIdError as e:
 Raised when conversion to the target state class fails:
 
 ```python
-from hassette.exceptions import UnableToConvertStateError
-
-try:
-    state = registry.try_convert_state(data)
-except UnableToConvertStateError as e:
-    print(f"Conversion failed: {e}")
-    # Falls back to BaseState or re-raises depending on context
+--8<-- "pages/advanced/snippets/state-registry/error_handling_examples.py"
 ```
 
 ## Integration with Other Components
@@ -333,8 +199,7 @@ except UnableToConvertStateError as e:
 The StateRegistry powers all state type conversions in [dependency injection](dependency-injection.md):
 
 ```python
-# DI annotation uses StateRegistry internally
-new_state: D.StateNew[states.LightState]
+--8<-- "pages/advanced/snippets/state-registry/integration_di.py"
 ```
 
 ### With API Resource
@@ -342,8 +207,7 @@ new_state: D.StateNew[states.LightState]
 The API's `get_state()` method uses the StateRegistry:
 
 ```python
-# Automatically converts to LightState
-light_state = await self.api.get_state("light.bedroom", states.LightState)
+--8<-- "pages/advanced/snippets/state-registry/integration_api.py"
 ```
 
 ### With States Resource
@@ -351,8 +215,7 @@ light_state = await self.api.get_state("light.bedroom", states.LightState)
 The States cache uses the StateRegistry for all state lookups:
 
 ```python
-# Returns typed LightState instance
-light = self.states.light.get("light.bedroom")
+--8<-- "pages/advanced/snippets/state-registry/integration_states.py"
 ```
 
 ## Advanced Usage
@@ -362,9 +225,7 @@ light = self.states.light.get("light.bedroom")
 The StateRegistry can be imported from Hassette directly:
 
 ```python
-from hassette import STATE_REGISTRY
-
-registry = STATE_REGISTRY
+--8<-- "pages/advanced/snippets/state-registry/accessing_registry.py"
 ```
 
 In apps, you typically don't need direct access - the DI system and API methods handle conversions automatically.
@@ -376,17 +237,7 @@ If you do need to access it, it is accessible through `self.hassette.state_regis
 For advanced use cases, you can use the lower-level conversion functions:
 
 ```python
-from hassette.core.state_registry import convert_state_dict_to_model
-from hassette.models import states
-
-# Convert with explicit target type
-state = convert_state_dict_to_model(state_dict, states.LightState)
-
-# Convert with Union type
-state = convert_state_dict_to_model(
-    state_dict,
-    states.LightState | states.SwitchState
-)
+--8<-- "pages/advanced/snippets/state-registry/custom_converters_fn.py"
 ```
 
 ## See Also
