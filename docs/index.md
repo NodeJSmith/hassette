@@ -8,7 +8,7 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 
 Hassette is a framework that helps you write Home Assistant automations in Python. Instead of using the HA user interface or writing YAML, you create "apps" as Python classes that respond to Home Assistant events, call services, and manage state.
 
-If you're familiar with the Python ecosystem, consider it like a marriage between AppDaemon and FastAPI - HA automations built on modern async Python, Pydantic models, and type safety.
+If you're familiar with the Python ecosystem, consider it like a marriage between AppDaemon and FastAPI — HA automations built on modern async Python, Pydantic models, and type safety.
 
 **Key features**
 
@@ -18,27 +18,28 @@ If you're familiar with the Python ecosystem, consider it like a marriage betwee
 - **Simple & focused** – just Home Assistant automations, no complexity creep.
 - **Developer experience** – clear errors, solid logging, hot reloading.
 
-Built by a fellow HA geek frustrated with the existing Python automation experience. Read more about [why Hassette exists](pages/why-hassette.md).
+Built by a fellow HA geek frustrated with the existing Python automation experience.
 
 ## Quickstart
 
 Get running with Hassette in just a few steps.
 
-1. **Create your first app**
 
-    ```python
-    --8<-- "pages/getting-started/first_app.py"
-    ```
+```python
+--8<-- "pages/getting-started/snippets/first_app.py"
+```
 
-2. **Run Hassette**
+1. **Run Hassette**
 
-    ```bash
-    uv run hassette -t $HOME_ASSISTANT_TOKEN \
-      --base-url 'http://127.0.0.1:8123' \
-      --app-dir .
-    ```
+```bash
+pip install hassette
 
-3. **Watch it work**
+python -m hassette -t $HOME_ASSISTANT_TOKEN \
+    --base-url 'http://127.0.0.1:8123' \
+    --app-dir .
+```
+
+1. **Watch it work**
 
     ![Hassette logs showing automation running](./_static/app-logs.png)
 
