@@ -9,36 +9,41 @@ This guide walks through setting up Hassette with a simple app in a local develo
 
 - A running Home Assistant instance with WebSocket API access.
 - A long-lived access token from your Home Assistant profile.
-- [`uv`](https://docs.astral.sh/uv/) installed.
+- `pip` or `uv` installed for running Hassette.
 
 ## Overview
 
 Hassette only needs a Home Assistant URL and access token. You’ll probably want an app as well—Hassette won’t do much without one.
 
 !!! tip "Should I create a package?"
-    If you plan to import apps from multiple files or use `isinstance` checks, create a proper Python package with `__init__.py` files. This guide shows the package approach, but a simple directory of `.py` files works fine if you only need lightweight scripts.
+    If you plan to import apps from multiple files or use `isinstance` checks, create a proper Python package that can be installed. This guide uses a simple structure for clarity.
 
-### 1. Create a directory and package for your apps
-
-`uv` is used throughout the examples, but feel free to adapt the structure to your tooling.
+### 1. Create a directory and install Hassette
 
 ```bash
-mkdir hassette_apps
-cd hassette_apps
+mkdir apps
+cd apps
 
-uv init --lib          # creates a package with __init__.py + pyproject.toml
-uv add hassette
+pip install hassette
 ```
+
+!!! note
+    If you are using `uv`, you would instead run `uv pip install hassette`.
 
 ### 2. Test connectivity
 
-Before writing an app, confirm Hassette can connect to Home Assistant.
+Before writing an app, confirm Hassette can connect to Home Assistant. You'll need your Home Assistant URL and long-lived access token.
+
+If you don't have a token yet, you can follow the steps in the [Creating a Home Assistant token](ha_token.md) guide.
 
 ```bash
-uv run hassette --base-url 'http://localhost:8123' \
+python -m hassette --base-url 'http://localhost:8123' \
   -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' \
   --app-dir .
 ```
+
+!!! note
+    If you are using `uv`, you can use `uv run hassette` instead of `python -m hassette`.
 
 You should see logs showing a successful connection.
 
@@ -49,15 +54,17 @@ You should see logs showing a successful connection.
 
 ### 3. Create your first app
 
-An app is a Python class inheriting from `App`. Apps are generic over a configuration type, so you get typed configuration through an `AppConfig` subclass passed as the generic parameter.
+An app is a Python class inheriting from the `App` class.
 
-!!! note
-    Apps share the `Resource` lifecycle. The primary hook is `on_initialize`, which runs when the app starts (including hot reloads). Use it to set up event listeners, schedule tasks, and perform other startup logic. `on_shutdown` is available for cleanup, but all subscriptions and scheduled jobs are tracked by the app’s `TaskBucket` and cleaned up automatically.
+When creating an App, you can also define a configuration class by inheriting from `AppConfig`. This allows you to specify typed configuration options for your app.
 
-Create `src/hassette_apps/hello_world.py`:
+!!! info "More about Apps"
+    See the [Writing Apps](../core-concepts/apps/index.md) guide for more details on app structure, lifecycle, and configuration.
+
+Create a file in `apps` named `hello_world.py`:
 
 ```bash
-touch src/hassette_apps/hello_world.py
+touch apps/hello_world.py
 ```
 
 Add the following:
@@ -66,95 +73,34 @@ Add the following:
 --8<-- "pages/getting-started/snippets/hello_world.py"
 ```
 
-`HelloWorldConfig` defines configuration fields with defaults. The app inherits from `App` with the config type specified.
+The `HelloWorldConfig` class defines configuration fields with defaults. The app inherits from `App` with the config type specified.
 
 In `on_initialize`, we log the greeting and set up an event handler using `self.bus.on_state_change`.
 
-The `on_motion` handler demonstrates **dependency injection** - instead of receiving the full event object and manually accessing its properties, we use `Annotated` type hints with markers from `hassette.dependencies` to automatically extract just the data we need. This results in cleaner, more readable code.
+!!! info "Lifecycle Hooks"
+    The `on_initialize` method is a lifecycle hook called when the app starts. See the [App Lifecycle](../core-concepts/apps/lifecycle.md) guide for more details.
 
-You don't need additional wiring-Hassette automatically discovers apps in the configured directory (controlled by `HassetteConfig.autodetect_apps`).
+The `on_motion` handler demonstrates **dependency injection** — instead of receiving the full event object and manually accessing its properties, we use type annotations from `hassette.dependencies` to automatically extract just the data we need. This results in cleaner, more readable code.
+
+!!! info "More about Dependency Injection"
+    See the [Dependency Injection](../advanced/dependency-injection.md) guide for more details on how it works and available dependencies.
+
+You don't need additional wiring, by default Hassette will automatically discover your apps.
 
 ### 4. Run Hassette
 
 Run Hassette again to see the app in action:
 
 ```bash
-uv run hassette --base-url 'http://localhost:8123' -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' --app-dir .
+python -m hassette --base-url 'http://localhost:8123' -t 'YOUR_LONG_LIVED_ACCESS_TOKEN' --app-dir .
 ```
 
 You should see logs showing the app starting and the greeting being logged.
 
 ![Hassette logs showing Hello World message](../../_static/getting-started-app-logs.png)
 
-## Configuration: make things easier on yourself
+That is it! Your first Hassette app is running.
 
-So far we’ve taken the long path to show the mechanics. In practice you’ll want a configuration file.
+## Next steps
 
-Configuration files are TOML and define both global Hassette settings and app-specific settings. Hassette looks for `hassette.toml` in:
-
-1. `/config/hassette.toml`
-2. `./hassette.toml`
-3. `./config/hassette.toml`
-
-`.env` files are searched in the same locations. Override either path with `--config-file / -c` or `--env-file / -e`.
-
-```bash
-uv run hassette -c ./config/hassette.toml -e ./config/.env
-```
-
-### Home Assistant token
-
-Generate a long-lived access token from your Home Assistant user profile. Provide it through one of:
-
-- Environment variables: `HASSETTE__TOKEN`, `HOME_ASSISTANT_TOKEN`, or `HA_TOKEN`.
-- CLI arguments: `--token` / `-t`.
-
-### `hassette.toml`
-
-Use the config file to set Hassette defaults and register apps:
-
-```toml
---8<-- "pages/getting-started/snippets/hassette.toml"
-```
-
-Run Hassette with no CLI flags and it will pick up this configuration (or provide `-c` if the file lives elsewhere):
-
-```bash
-uv run hassette
-# or
-uv run hassette -c ./path/to/hassette.toml
-```
-
-You should now see the greeting defined in TOML.
-
-![Hassette logs showing greeting from config file](../../_static/getting-started-config-logs.png)
-
-## What’s next?
-
-Now that Hassette is running with your first app, here are logical next steps.
-
-### 🏗️ Build real automations
-
-- [Event handling patterns](../core-concepts/bus/index.md) – react to state changes, service calls, and custom events.
-- [Scheduling tasks](../core-concepts/scheduler/index.md) – run code on intervals, cron schedules, or delays.
-- [API usage](../core-concepts/api/index.md) – call services, query states, and interact with Home Assistant.
-
-### ⚙️ Configure your setup
-
-- [Configuration options](../core-concepts/configuration/index.md) – environment variables, secrets, and TOML settings.
-- [App patterns](../core-concepts/apps/index.md) – multi-instance apps, typed configs, lifecycle hooks.
-
-### 📚 Learn more
-
-- [Why Hassette?](../why-hassette.md) – the story and philosophy behind the framework.
-- [vs AppDaemon](../appdaemon-comparison.md) – migration notes if you’re switching from AppDaemon.
-
-### 🔧 Development workflow
-
-- File watching and hot reloading already work out of the box.
-- Testing and debugging guides are coming soon.
-
-### Need help?
-
-- [GitHub Issues](https://github.com/NodeJSmith/hassette/issues) for bugs and feature requests.
-- [GitHub Discussions](https://github.com/NodeJSmith/hassette/discussions) for questions and community support.
+Now, let's make things a bit simpler for your next steps by [setting up your configuration](configuration.md).
