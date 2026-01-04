@@ -59,7 +59,6 @@ nav:
       - Custom States: pages/advanced/custom-states.md
       - State Registry: pages/advanced/state-registry.md
       - TypeRegistry: pages/advanced/type-registry.md
-  - Why Hassette?: pages/why-hassette.md
   - AppDaemon Comparison: pages/appdaemon-comparison.md
   - API Reference: reference/
 
