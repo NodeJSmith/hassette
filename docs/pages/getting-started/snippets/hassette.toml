@@ -1,6 +1,6 @@
 [hassette]
 base_url = "http://localhost:8123"
-app_dir = "src/hassette_apps"
+app_dir = "hassette_apps"
 
 [apps.hello_world]
 filename = "hello_world.py"

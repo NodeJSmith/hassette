@@ -1,0 +1,22 @@
+services:
+  hassette:
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
+    container_name: hassette
+    restart: unless-stopped
+    volumes:
+      - ./config:/config
+      - ./apps:/apps
+      - data:/data
+      - uv_cache:/uv_cache
+    environment:
+      - LOG_LEVEL=info
+      - TZ=America/New_York # Set your timezone
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  uv_cache:
+  data:

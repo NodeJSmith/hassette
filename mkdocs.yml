@@ -15,12 +15,15 @@ theme:
     - navigation.instant
     - navigation.tracking
     - navigation.indexes
-    - toc.integrate
+    - navigation.footer
+    - content.code.copy
+    - content.code.select
 
 nav:
   - Home: index.md
   - Getting Started:
-      - Local Development: pages/getting-started/index.md
+      - Basics: pages/getting-started/index.md
+      - Configuration: pages/getting-started/configuration.md
       - Docker Deployment:
           - Overview: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
@@ -89,11 +92,10 @@ markdown_extensions:
   - def_list
   - footnotes
   - md_in_html
+  - toc:
+      toc_depth: 2
   - pymdownx.details
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
+  - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.snippets:
       base_path: docs
@@ -102,4 +104,5 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed
