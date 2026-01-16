@@ -231,14 +231,7 @@ class TypeRegistry:
             if get_format_fields(err_msg):
                 err_msg = err_msg.format(value=value, from_type=from_type, to_type=to_type)
 
-            LOGGER.debug(
-                "Error converting %r (%s) to %r (%s): %s",
-                value,
-                type(value).__name__,
-                new_value,
-                to_type.__name__,
-                err_msg,
-            )
+            LOGGER.debug("Error converting %r (%s) to %s: %s", value, type(value).__name__, to_type.__name__, err_msg)
 
             raise UnableToConvertValueError(err_msg) from e
         except Exception as e:
