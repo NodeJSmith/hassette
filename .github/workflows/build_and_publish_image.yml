@@ -44,7 +44,8 @@ jobs:
                   enable-cache: true
 
             - name: Classify release tag
-              run: uv run ./tools/check_tag_version.py --ref-name $(uv version --short)
+              if: github.event_name == 'push'
+              run: uv run ./tools/check_tag_version.py --ref-name ${{ github.ref_name }} --project-version $(uv version --short)
 
             - name: Docker metadata
               id: meta
@@ -53,8 +54,8 @@ jobs:
                   images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}
                   tags: |
                       type=sha,prefix=sha-,format=short,suffix=-py${{ env.PYTHON_VERSION }}
-                      type=pep440,pattern={{version}},suffix=-py${{ env.PYTHON_VERSION }}
-                      type=raw,value=latest-py${{ env.PYTHON_VERSION }},enable=${{ env.IS_STABLE_RELEASE == 'true' }}
+                      type=pep440,pattern={{version}},suffix=-py${{ env.PYTHON_VERSION }},enable=${{ github.event_name == 'push' }}
+                      type=raw,value=latest-py${{ env.PYTHON_VERSION }},enable=${{ github.event_name == 'push' && env.IS_STABLE_RELEASE == 'true' }}
 
             - name: Build & Push
               uses: docker/build-push-action@v6

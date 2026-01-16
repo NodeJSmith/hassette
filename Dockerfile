@@ -36,6 +36,8 @@ RUN apt-get update \
     tini \
     tzdata \
     fd-find \
+    git \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
