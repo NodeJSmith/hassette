@@ -7,6 +7,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError, RegistryNotReadyError
 from hassette.models.states import BaseState, StateT
 from hassette.resources.base import Resource
+from hassette.utils.hass_utils import make_entity_id
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -14,30 +15,6 @@ if typing.TYPE_CHECKING:
 
 
 LOGGER = getLogger(__name__)
-
-
-def make_entity_id(entity_id: str, domain: str) -> str:
-    """Ensure the entity_id has the correct domain prefix.
-
-    If the entity_id already contains a domain prefix, validate that it matches the expected domain.
-
-    Args:
-        entity_id: The entity ID, with or without domain prefix.
-        domain: The expected domain prefix (e.g., "light").
-
-    Returns:
-        The entity ID with the correct domain prefix.
-
-    Raises:
-        ValueError: If the entity_id has a domain prefix that does not match the expected domain.
-    """
-    if "." in entity_id:
-        prefix, _ = entity_id.split(".", 1)
-        if prefix != domain:
-            raise ValueError(f"Entity ID '{entity_id}' has domain '{prefix}', expected '{domain}'.")
-        return entity_id
-
-    return f"{domain}.{entity_id}"
 
 
 class _TypedStateGetter(Generic[StateT]):
@@ -102,21 +79,6 @@ class DomainStates(Generic[StateT]):
         self._model = model
         self._domain = model.get_domain()
 
-    def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
-        """Iterate over all states in this domain."""
-        for entity_id, state in self._states.items():
-            try:
-                yield entity_id, self._model.model_validate(state)
-            except Exception as e:
-                LOGGER.error(
-                    "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, e
-                )
-                continue
-
-    def __len__(self) -> int:
-        """Return the number of entities in this domain."""
-        return len(self._states)
-
     def get(self, entity_id: str) -> StateT | None:
         """Get a specific entity state by ID.
 
@@ -134,6 +96,47 @@ class DomainStates(Generic[StateT]):
 
         return self._model.model_validate(state)
 
+    def keys(self) -> list[str]:
+        """Return a list of entity IDs for this domain."""
+        return list(self._states.keys())
+
+    def values(self) -> list[StateT]:
+        """Return a list of typed states for this domain.
+
+        This returns an eagerly evaluated list of all typed states in this domain.
+        """
+        result = []
+        for _, value in self:
+            result.append(value)
+        return result
+
+    def items(self) -> dict[str, StateT]:
+        """Return a dictionary of entity_id to typed state for this domain.
+
+        This returns an eagerly evaluated dictionary of all typed states in this domain.
+        """
+        return dict(self)
+
+    def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
+        """Iterate over all states in this domain."""
+        for entity_id, state in self._states.items():
+            try:
+                yield entity_id, self._model.model_validate(state)
+            except Exception as e:
+                LOGGER.error(
+                    "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, e
+                )
+                continue
+
+    def __len__(self) -> int:
+        """Return the number of entities in this domain."""
+        return len(self._states)
+
+    def __contains__(self, entity_id: str) -> bool:
+        """Check if a specific entity ID exists in this domain."""
+        entity_id = make_entity_id(entity_id, self._domain)
+        return entity_id in self._states
+
     def __getitem__(self, entity_id: str) -> StateT:
         """Get a specific entity state by ID, raising if not found.
 
@@ -150,6 +153,14 @@ class DomainStates(Generic[StateT]):
         if value is None:
             raise KeyError(f"State for entity_id '{entity_id}' not found in domain '{self._domain}'")
         return value
+
+    def __repr__(self) -> str:
+        """Return a string representation of the DomainStates container."""
+        return f"DomainStates(domain='{self._domain}', count={len(self)})"
+
+    def __bool__(self) -> bool:
+        """Return True if there are any entities in this domain."""
+        return len(self._states) > 0
 
 
 class StateManager(Resource):

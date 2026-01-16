@@ -16,6 +16,7 @@ from hassette.test_utils.helpers import (
     make_full_state_change_event,
     make_light_state_dict,
     make_sensor_state_dict,
+    make_state_dict,
     make_switch_state_dict,
 )
 from hassette.types import Topic
@@ -67,6 +68,26 @@ class TestStatesDomainAccessors:
         assert "light.bedroom" in light_ids
         assert "light.kitchen" in light_ids
         assert "sensor.temp" not in light_ids
+
+    async def test_value_with_decimals_does_not_lose_precision(self, hassette_with_state_proxy: "Hassette") -> None:
+        """Test that state values with decimals do not lose precision when converted."""
+        hassette = hassette_with_state_proxy
+
+        # Add a sensor state with a decimal value
+        sensor_dict = make_state_dict("input_number.test_value", "22.5")
+        event = make_full_state_change_event("input_number.test_value", None, sensor_dict)
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+
+        await asyncio.sleep(0.1)
+
+        states_instance = StateManager.create(hassette, hassette)
+        sensor_state = states_instance.input_number.get("input_number.test_value")
+        assert sensor_state is not None
+        assert isinstance(sensor_state.value, float)
+        assert sensor_state.value == 22.5
+
+        # initial issue had second access of value causing loss of precision due to double conversion
+        assert states_instance.input_number.get("input_number.test_value").value == 22.5
 
     async def test_sensors_returns_sensor_states(self, hassette_with_state_proxy: "Hassette") -> None:
         """sensors property returns DomainStates[SensorState] containing only sensors."""
