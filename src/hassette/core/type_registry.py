@@ -172,13 +172,8 @@ class TypeRegistry:
                 return value
 
             for tt in to_type:
-                if tt is type(None) and value is not None:
-                    LOGGER.debug("Not attempting to convert %r to NoneType", value)
-                    continue
-                try:
+                with suppress(UnableToConvertValueError):
                     return self.convert(value, tt)
-                except UnableToConvertValueError:
-                    continue
             raise UnableToConvertValueError(f"Unable to convert {value!r} to any of the types {to_type}")
 
         # handle single type
