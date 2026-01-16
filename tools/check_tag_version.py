@@ -79,10 +79,24 @@ def main(argv: list[str]) -> int:
         "--ref-name",
         help="Tag/ref name (e.g. v0.18.0, v0.18.0.dev1). If omitted, uses GITHUB_REF_NAME or git describe.",
     )
+    p.add_argument(
+        "--project-version",
+        help="Project version from pyproject.toml (e.g. 0.18.0). If provided, validates that ref name matches.",
+    )
     args = p.parse_args(argv)
 
     ref_name = resolve_ref_name(args.ref_name)
     c = classify(ref_name)
+
+    # Validate that ref name matches project version if provided
+    if args.project_version:
+        ref_version_str = ref_name[1:] if ref_name.startswith("v") else ref_name
+        if ref_version_str != args.project_version:
+            print(
+                f"ERROR: Tag {ref_name!r} does not match project version {args.project_version!r} in pyproject.toml",
+                file=sys.stderr,
+            )
+            return 1
 
     wrote = write_github_env(c)
 
