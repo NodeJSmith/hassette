@@ -200,19 +200,45 @@ class TypeRegistry:
         # if we don't have this in our map, attempt to just convert using it as a constructor
         if key not in self.conversion_map and to_type is not type(None):
             try:
-                return to_type(value)
+                new_value = to_type(value)
+                LOGGER.debug(
+                    "Converted %r (%s) to %r (%s) using constructor",
+                    value,
+                    type(value).__name__,
+                    new_value,
+                    to_type.__name__,
+                )
+                return new_value
             except Exception as e:
                 raise UnableToConvertValueError(f"Unable to convert {value!r} to {to_type}") from e
 
         fn = self.conversion_map[key]
 
         try:
-            return fn.func(value)
+            new_value = fn.func(value)
+            LOGGER.debug(
+                "Converted %r (%s) to %r (%s) using registered converter %s",
+                value,
+                type(value).__name__,
+                new_value,
+                to_type.__name__,
+                fn.func.__name__,
+            )
+            return new_value
         except fn.error_types as e:
             default_err_msg = f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}"
             err_msg = fn.error_message or default_err_msg
             if get_format_fields(err_msg):
                 err_msg = err_msg.format(value=value, from_type=from_type, to_type=to_type)
+
+            LOGGER.debug(
+                "Error converting %r (%s) to %r (%s): %s",
+                value,
+                type(value).__name__,
+                new_value,
+                to_type.__name__,
+                err_msg,
+            )
 
             raise UnableToConvertValueError(err_msg) from e
         except Exception as e:
