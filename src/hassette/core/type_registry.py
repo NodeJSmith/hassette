@@ -167,6 +167,10 @@ class TypeRegistry:
 
         # handle tuple
         if isinstance(to_type, tuple):
+            if type(value) in to_type:
+                LOGGER.debug("Value %r is already of type %s, no conversion needed", value, type(value).__name__)
+                return value
+
             for tt in to_type:
                 if tt is type(None) and value is not None:
                     LOGGER.debug("Not attempting to convert %r to NoneType", value)
