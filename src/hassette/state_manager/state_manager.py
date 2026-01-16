@@ -7,6 +7,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError, RegistryNotReadyError
 from hassette.models.states import BaseState, StateT
 from hassette.resources.base import Resource
+from hassette.utils.hass_utils import make_entity_id
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -14,30 +15,6 @@ if typing.TYPE_CHECKING:
 
 
 LOGGER = getLogger(__name__)
-
-
-def make_entity_id(entity_id: str, domain: str) -> str:
-    """Ensure the entity_id has the correct domain prefix.
-
-    If the entity_id already contains a domain prefix, validate that it matches the expected domain.
-
-    Args:
-        entity_id: The entity ID, with or without domain prefix.
-        domain: The expected domain prefix (e.g., "light").
-
-    Returns:
-        The entity ID with the correct domain prefix.
-
-    Raises:
-        ValueError: If the entity_id has a domain prefix that does not match the expected domain.
-    """
-    if "." in entity_id:
-        prefix, _ = entity_id.split(".", 1)
-        if prefix != domain:
-            raise ValueError(f"Entity ID '{entity_id}' has domain '{prefix}', expected '{domain}'.")
-        return entity_id
-
-    return f"{domain}.{entity_id}"
 
 
 class _TypedStateGetter(Generic[StateT]):
