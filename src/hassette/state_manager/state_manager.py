@@ -96,6 +96,27 @@ class DomainStates(Generic[StateT]):
 
         return self._model.model_validate(state)
 
+    def keys(self) -> list[str]:
+        """Return a list of entity IDs for this domain."""
+        return list(self._states.keys())
+
+    def values(self) -> list[StateT]:
+        """Return a list of typed states for this domain.
+
+        This returns an eagerly evaluated list of all typed states in this domain.
+        """
+        result = []
+        for _, value in self:
+            result.append(value)
+        return result
+
+    def items(self) -> dict[str, StateT]:
+        """Return a dictionary of entity_id to typed state for this domain.
+
+        This returns an eagerly evaluated dictionary of all typed states in this domain.
+        """
+        return dict(self)
+
     def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
         """Iterate over all states in this domain."""
         for entity_id, state in self._states.items():
