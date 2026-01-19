@@ -36,6 +36,13 @@ def valid_entity_id(entity_id: str) -> bool:
     return VALID_ENTITY_ID.match(entity_id) is not None
 
 
+@functools.lru_cache(512)
+def extract_domain(entity_id: str) -> str:
+    """Extract the domain from an entity ID."""
+    domain, _ = split_entity_id(entity_id)
+    return domain
+
+
 def make_entity_id(entity_id: str, domain: str) -> str:
     """Ensure the entity_id has the correct domain prefix.
 
