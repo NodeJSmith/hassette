@@ -1,6 +1,7 @@
-import typing
+from collections.abc import Generator
 from copy import copy
 from logging import getLogger
+from typing import TYPE_CHECKING, Any
 
 from fair_async_rlock import FairAsyncRLock
 
@@ -8,20 +9,24 @@ from hassette.bus import Bus
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
+from hassette.scheduler import Scheduler
 from hassette.types import Topic
+from hassette.utils.hass_utils import extract_domain
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
     from hassette.events import HassStateDict
 
 LOGGER = getLogger(__name__)
+RETRY_SECONDS = 5
 
 
 class StateProxy(Resource):
     states: dict[str, "HassStateDict"]
     lock: FairAsyncRLock
     bus: Bus
+    scheduler: Scheduler
     state_change_sub: "Subscription | None"
 
     @classmethod
@@ -39,6 +44,7 @@ class StateProxy(Resource):
         inst.states = {}
         inst.lock = FairAsyncRLock()
         inst.bus = inst.add_child(Bus, priority=100)
+        inst.scheduler = inst.add_child(Scheduler)
         inst.state_change_sub = None
         return inst
 
@@ -56,7 +62,12 @@ class StateProxy(Resource):
         # Wait for dependencies
         self.logger.debug("Waiting for dependencies to be ready")
         await self.hassette.wait_for_ready(
-            [self.hassette._websocket_service, self.hassette._api_service, self.hassette._bus_service]
+            [
+                self.hassette._websocket_service,
+                self.hassette._api_service,
+                self.hassette._bus_service,
+                self.hassette._scheduler_service,
+            ]
         )
 
         self.logger.debug("Dependencies ready, performing initial state sync")
@@ -65,6 +76,7 @@ class StateProxy(Resource):
 
         self.bus.on_websocket_connected(handler=self.on_reconnect)
         self.bus.on_websocket_disconnected(handler=self.on_disconnect)
+
         # Perform initial state sync
         try:
             await self._load_cache()
@@ -99,14 +111,13 @@ class StateProxy(Resource):
             ResourceNotReadyError: If the proxy hasn't completed initial sync.
         """
         if not self.is_ready():
-            raise ResourceNotReadyError(
-                f"StateProxy is not ready (reason: {self._ready_reason}). "
-                "Call await state_proxy.wait_until_ready() before accessing states."
-            )
+            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
-        return self.states.get(entity_id)
+
+        # we also return a copy of the state to prevent external mutation
+        return copy(self.states.get(entity_id))
 
     def get_domain_states(self, domain: str) -> dict[str, "HassStateDict"]:
         """Get all states for a specific domain.
@@ -120,16 +131,35 @@ class StateProxy(Resource):
         Raises:
             ResourceNotReadyError: If the proxy hasn't completed initial sync.
         """
+
+        return {eid: state for eid, state in self.yield_domain_states(domain)}
+
+    def yield_domain_states(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
+        """Yield all states for a specific domain.
+
+        Args:
+            domain: The domain to filter by (e.g., "light").
+
+        Yields:
+            Tuples of (entity_id, state) for the specified domain.
+
+        Raises:
+            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+        """
+
         if not self.is_ready():
-            raise ResourceNotReadyError(
-                f"StateProxy is not ready (reason: {self._ready_reason}). "
-                "Call await state_proxy.wait_until_ready() before accessing states."
-            )
+            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
         # we also return a copy of the state to prevent external mutation
-        return {eid: copy(state) for eid, state in self.states.items() if state["entity_id"].split(".")[0] == domain}
+
+        for eid, state in self.states.items():
+            try:
+                if extract_domain(state["entity_id"]) == domain:
+                    yield eid, copy(state)
+            except KeyError:
+                self.logger.warning("State for entity %s is missing 'entity_id' key", eid)
 
     async def _on_state_change(self, event: RawStateChangeEvent) -> None:
         """Handle state_changed events to update the cache.
@@ -187,11 +217,17 @@ class StateProxy(Resource):
         we detect a reconnection.
         """
         self.logger.info("WebSocket disconnected, clearing state cache")
+
+        # clear the state cache
         async with self.lock:
             self.states.clear()
+
+        # cancel the state change subscription
         if self.state_change_sub is not None:
             self.state_change_sub.cancel()
             self.state_change_sub = None
+
+        # mark the proxy as not ready
         self.mark_not_ready(reason="Disconnected")
 
     async def on_reconnect(self) -> None:
@@ -208,7 +244,10 @@ class StateProxy(Resource):
             self.mark_ready(reason="Connected")
 
         except Exception as e:
-            self.logger.exception("Failed to resync states after HA restart: %s", e)
+            self.logger.exception(
+                "Failed to resync states after HA restart (will retry in %d seconds): %s", RETRY_SECONDS, e
+            )
+            self.scheduler.run_in(self.on_disconnect, RETRY_SECONDS)
 
     async def _load_cache(self) -> None:
         """Load the state cache from Home Assistant.
