@@ -9,7 +9,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import RegistryNotReadyError
 from hassette.models.states import BaseState, StateT
 from hassette.resources.base import Resource
-from hassette.utils.hass_utils import extract_domain, make_entity_id
+from hassette.utils.hass_utils import make_entity_id
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
