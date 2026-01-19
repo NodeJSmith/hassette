@@ -110,13 +110,20 @@ class DomainStates(Generic[StateT]):
             result.append(value)
         return result
 
-    def items(self) -> dict[str, StateT]:
+    def to_dict(self) -> dict[str, StateT]:
         """Return a dictionary of entity_id to typed state for this domain.
 
         This returns an eagerly evaluated dictionary of all typed states in this domain.
         """
         return dict(self)
 
+    def items(self) -> typing.ItemsView[str, StateT]:
+        """Return a view of (entity_id, typed state) items for this domain.
+
+        The returned object behaves like dict_items and reflects all current
+        states in this domain.
+        """
+        return self.to_dict().items()
     def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
         """Iterate over all states in this domain."""
         for entity_id, state in self._states.items():
