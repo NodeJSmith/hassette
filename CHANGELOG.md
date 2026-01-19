@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Allows us to use `in` checks
 - Add `to_dict`, `keys`, `values`, and `items` methods to DomainStates
   - Provides convenient access to entity IDs and typed states
+- Add `yield_states` to StateProxy
+  - Allows iterating over all states in the proxy
+  - Handles KeyError when extracting domain
 
 ## [0.18.1] - 2025-12-13
 
