@@ -289,7 +289,7 @@ class TestDomainStates:
 
         # Try to get sensor from lights domain
         lights = states_instance.light
-        with pytest.raises(ValueError, match=r"Entity ID 'sensor\.test' does not belong to domain 'light'"):
+        with pytest.raises(ValueError, match=r"Entity ID 'sensor\.test' has domain 'sensor', expected 'light'"):
             lights.get("sensor.test")
 
     async def test_iteration_over_empty_domain(self, hassette_with_state_proxy: "Hassette") -> None:
