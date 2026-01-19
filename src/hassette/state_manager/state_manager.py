@@ -17,60 +17,6 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 
-class _TypedStateGetter(Generic[StateT]):
-    """Callable class to get a state typed as a specific model.
-
-    Example:
-    ```python
-    my_light = self.states.get[states.LightState]("light.bedroom")
-    ```
-    """
-
-    def __init__(self, proxy: "StateProxy", model: type[StateT]):
-        self._proxy = proxy
-        self._model = model
-        self._domain = model.get_domain()
-
-    def __call__(self, entity_id: str) -> StateT:
-        """Get a specific entity state by ID.
-
-        Args:
-            entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
-
-        Raises:
-            EntityNotFoundError
-
-        """
-        value = self.get(entity_id)
-        if value is None:
-            raise EntityNotFoundError(f"State for entity_id '{entity_id}' not found")
-        return value
-
-    def get(self, entity_id: str) -> StateT | None:
-        """Get a specific entity state by ID, returning None if not found.
-
-        Args:
-            entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
-
-        Returns:
-            The typed state if found, None otherwise.
-        """
-        entity_id = make_entity_id(entity_id, self._domain)
-
-        value = self._proxy.get_state(entity_id)
-        if value is None:
-            return None
-        return self._model.model_validate(value)
-
-
-class _StateGetter:
-    def __init__(self, proxy: "StateProxy"):
-        self._proxy = proxy
-
-    def __getitem__(self, model: type[StateT]) -> _TypedStateGetter[StateT]:
-        return _TypedStateGetter(self._proxy, model)
-
-
 class DomainStates(Generic[StateT]):
     """Generic container for domain-specific state iteration."""
 
@@ -283,20 +229,4 @@ class StateManager(Resource):
         Returns:
             DomainStates container for the specified domain.
         """
-        return DomainStates[StateT](self._state_proxy.get_domain_states(model.get_domain()), model)
-
-    @property
-    def get(self) -> _StateGetter:
-        """Get a state recognized as a specific type.
-
-        Example:
-        ```python
-
-        my_light = self.states.get[states.LightState]("light.bedroom")
-        ```
-
-        Returns:
-            A callable that takes a state model and returns a typed state getter.
-
-        """
-        return _StateGetter(self._state_proxy)
+        return DomainStates[StateT](self._state_proxy, model)
