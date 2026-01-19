@@ -1,6 +1,6 @@
 import typing
 from logging import getLogger
-from typing import Any, Generic
+from typing import Any, Generic, NamedTuple
 from warnings import warn
 
 from frozendict import deepfreeze, frozendict
@@ -19,22 +19,36 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 
-class DomainStates(Generic[StateT]):
-    """Generic container for domain-specific state iteration."""
+class CacheValue(Generic[StateT], NamedTuple):
+    context_id: str | None
+    frozen_state: frozendict
+    model: StateT
 
+
+class DomainStates(Generic[StateT]):
     def __init__(self, state_proxy: "StateProxy", model: type[StateT]) -> None:
         self._state_proxy = state_proxy
         self._model = model
         self._domain = model.get_domain()
-        self._cache: dict[frozendict, StateT] = {}
+        self._cache: dict[str, CacheValue[StateT]] = {}
 
-    def _validate_or_return_from_cache(self, state: "HassStateDict") -> StateT:
+    def _validate_or_return_from_cache(self, entity_id: str, state: "HassStateDict") -> StateT:
+        context_id: str | None = state.get("context", {}).get("id")
+
+        cached = self._cache.get(entity_id)
+
+        # first check if the context ID matches
+        if cached is not None and context_id is not None and cached.context_id == context_id:
+            return cached.model
+
+        # if not then use deepfreeze and see if frozen states match
         frozen_state = deepfreeze(state)
-        if frozen_state in self._cache:
-            return self._cache[frozen_state]
-        validated_state = self._model.model_validate(state)
-        self._cache[frozen_state] = validated_state
-        return validated_state
+        if cached is not None and cached.frozen_state == frozen_state:
+            return cached.model
+
+        validated = self._model.model_validate(state)
+        self._cache[entity_id] = CacheValue(context_id, frozen_state, validated)
+        return validated
 
     def get(self, entity_id: str) -> StateT | None:
         """Get a specific entity state by ID.
@@ -54,7 +68,7 @@ class DomainStates(Generic[StateT]):
         if state is None:
             return None
 
-        return self._validate_or_return_from_cache(state)
+        return self._validate_or_return_from_cache(entity_id, state)
 
     def keys(self) -> list[str]:
         """Return a list of entity IDs for this domain."""
@@ -105,7 +119,7 @@ class DomainStates(Generic[StateT]):
         """Iterate over all states in this domain."""
         for entity_id, state in self._state_proxy.yield_domain_states(self._domain):
             try:
-                yield entity_id, self._validate_or_return_from_cache(state)
+                yield entity_id, self._validate_or_return_from_cache(entity_id, state)
             except Exception as e:
                 LOGGER.error(
                     "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, e
