@@ -132,8 +132,11 @@ class DomainStates(Generic[StateT]):
 
     def __contains__(self, entity_id: str) -> bool:
         """Check if a specific entity ID exists in this domain."""
-        entity_id = make_entity_id(entity_id, self._domain)
-        return entity_id in self._state_proxy
+        try:
+            entity_id = make_entity_id(entity_id, self._domain)
+            return entity_id in self._state_proxy
+        except ValueError:
+            return False
 
     def __getitem__(self, entity_id: str) -> StateT:
         """Get a specific entity state by ID, raising if not found.
