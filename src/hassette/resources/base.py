@@ -154,7 +154,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         else:
             self.logger = getLogger("hassette").getChild(logger_name)
         self.logger.debug("Creating instance")
-        self.logger.setLevel(self.config_log_level)
+        try:
+            self.logger.setLevel(self.config_log_level)
+        except Exception as e:
+            self.logger.error("Failed to set log level: %s", e)
+            self.logger.setLevel("INFO")
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
