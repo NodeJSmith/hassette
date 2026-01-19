@@ -105,10 +105,7 @@ class DomainStates(Generic[StateT]):
 
         This returns an eagerly evaluated list of all typed states in this domain.
         """
-        result = []
-        for _, value in self:
-            result.append(value)
-        return result
+        return [value for _, value in self]
 
     def to_dict(self) -> dict[str, StateT]:
         """Return a dictionary of entity_id to typed state for this domain.
