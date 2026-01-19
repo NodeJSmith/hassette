@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
+from uuid import uuid4
 
 from whenever import ZonedDateTime
 
@@ -69,7 +70,7 @@ def make_state_dict(
         "attributes": attributes or {},
         "last_changed": last_changed or now,
         "last_updated": last_updated or now,
-        "context": context or {"id": "test_context_id", "parent_id": None, "user_id": None},
+        "context": context or {"id": str(uuid4()), "parent_id": None, "user_id": None},
     }
 
 
