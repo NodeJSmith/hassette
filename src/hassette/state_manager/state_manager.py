@@ -48,9 +48,6 @@ class DomainStates(Generic[StateT]):
         Raises:
             ValueError: If the entity ID does not belong to this domain.
         """
-        if not extract_domain(entity_id) == self._domain:
-            raise ValueError(f"Entity ID '{entity_id}' does not belong to domain '{self._domain}'")
-
         entity_id = make_entity_id(entity_id, self._domain)
 
         state = self._state_proxy.get_state(entity_id)
