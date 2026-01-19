@@ -209,14 +209,6 @@ class StateManager(Resource):
         # Domain is registered, use its specific class
         return DomainStates[state_class](self._state_proxy.get_domain_states(domain), state_class)
 
-    @property
-    def all(self) -> dict[str, "HassStateDict"]:
-        """Access all entity states as a dictionary.
-
-        Returns:
-            Dictionary mapping entity_id to BaseState (or subclass).
-        """
-        return self._state_proxy.states.copy()
 
     def get_states(self, model: type[StateT]) -> DomainStates[StateT]:
         """Get all states for a specific domain model.
