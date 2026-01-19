@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Exit Type Conversion early if already a valid type
-  - This avoids precision loss if we already converted to an float and we attempt to convert to int
+  - This avoids precision loss if we already converted to a float and we attempt to convert to int
   - This also improves performance by avoiding unnecessary conversions
 
 ### Added
