@@ -439,3 +439,35 @@ class TestStatesIntegration:
         # Cross-domain check
         assert "sensor.test_1" not in light_ids
         assert "light.test_1" not in sensor_ids
+
+    async def test_yield_items(self, hassette_with_state_proxy: "Hassette") -> None:
+        """Test that yield_items returns the correct items lazily."""
+        hassette = hassette_with_state_proxy
+
+        # Add multiple entity types
+        entities = [
+            ("light.test_1", make_light_state_dict("light.test_1", "on")),
+            ("light.test_2", make_light_state_dict("light.test_2", "off")),
+        ]
+
+        for entity_id, state_dict in entities:
+            event = make_full_state_change_event(entity_id, None, state_dict)
+            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+
+        await asyncio.sleep(0.1)
+
+        states_instance = StateManager.create(hassette, hassette)
+
+        light_manager = states_instance.light
+
+        assert len(light_manager._cache) == 0
+
+        for i, (entity_id, light_state) in enumerate(light_manager.iteritems()):
+            assert isinstance(light_state, states.LightState)
+            assert entity_id.startswith("light.")
+            assert len(light_manager._cache) == i + 1
+
+        for _, light_state in light_manager:
+            assert isinstance(light_state, states.LightState)
+            # The cache should already be populated from the previous iteritems call
+            assert len(light_manager._cache) == i + 1
