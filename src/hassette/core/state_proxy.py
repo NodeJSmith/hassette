@@ -291,7 +291,7 @@ class StateProxy(Resource):
             self.logger.exception(
                 "Failed to resync states after HA restart (will retry in %d seconds): %s", RETRY_SECONDS, e
             )
-            self.scheduler.run_in(self.on_disconnect, RETRY_SECONDS)
+            self.scheduler.run_in(self.on_reconnect, RETRY_SECONDS)
 
     async def _load_cache(self) -> None:
         """Load the state cache from Home Assistant.
