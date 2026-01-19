@@ -131,7 +131,10 @@ class StateProxy(Resource):
         # and we replace whole objects rather than mutating them
 
         # we also return a copy of the state to prevent external mutation
-        return copy(self.states.get(entity_id))
+        state = self.states.get(entity_id)
+        if state is None:
+            return None
+        return copy(state)
 
     def get_domain_states(self, domain: str) -> dict[str, "HassStateDict"]:
         """Get all states for a specific domain.
