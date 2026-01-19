@@ -10,14 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.18.2] - 2026-01-16
 
 ### Fixed
-- Exit Type Conversion early if already a valid type
-  - This avoids precision loss if we already converted to a float and we attempt to convert to int
-  - This also improves performance by avoiding unnecessary conversions
+- Exit `TypeRegistry.convert` early if already a valid type
+- Return a copy of the state in `StateProxy` to prevent external mutation
 
 ### Added
 - Add `__contains__` method to DomainStates
   - Allows us to use `in` checks
-- Add `keys`, `values`, and `items` methods to DomainStates
+- Add `to_dict`, `keys`, `values`, and `items` methods to DomainStates
   - Provides convenient access to entity IDs and typed states
 
 ## [0.18.1] - 2025-12-13
