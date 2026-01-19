@@ -74,17 +74,16 @@ class TestStatesDomainAccessors:
         hassette = hassette_with_state_proxy
 
         # Add a sensor state with a decimal value
-        sensor_dict = make_state_dict("input_number.test_value", "22.5")
-        event = make_full_state_change_event("input_number.test_value", None, sensor_dict)
+        old_sensor_dict = make_state_dict("input_number.test_value", "22.1")
+        new_sensor_dict = make_state_dict("input_number.test_value", "22.5")
+        event = make_full_state_change_event("input_number.test_value", old_sensor_dict, new_sensor_dict)
         await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
 
         await asyncio.sleep(0.1)
 
         states_instance = StateManager.create(hassette, hassette)
-        sensor_state = states_instance.input_number.get("input_number.test_value")
-        assert sensor_state is not None
-        assert isinstance(sensor_state.value, float)
-        assert sensor_state.value == 22.5
+
+        assert states_instance.input_number.get("input_number.test_value").value == 22.5
 
         # initial issue had second access of value causing loss of precision due to double conversion
         assert states_instance.input_number.get("input_number.test_value").value == 22.5
