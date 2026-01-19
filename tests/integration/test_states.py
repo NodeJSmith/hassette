@@ -5,11 +5,11 @@ typed getters, and DomainStates helper class.
 """
 
 import asyncio
+from copy import copy
 from typing import TYPE_CHECKING
 
 import pytest
 
-from hassette.exceptions import EntityNotFoundError
 from hassette.models import states
 from hassette.state_manager import DomainStates, StateManager
 from hassette.test_utils.helpers import (
@@ -69,25 +69,6 @@ class TestStatesDomainAccessors:
         assert "light.kitchen" in light_ids
         assert "sensor.temp" not in light_ids
 
-    async def test_value_with_decimals_does_not_lose_precision(self, hassette_with_state_proxy: "Hassette") -> None:
-        """Test that state values with decimals do not lose precision when converted."""
-        hassette = hassette_with_state_proxy
-
-        # Add a sensor state with a decimal value
-        old_sensor_dict = make_state_dict("input_number.test_value", "22.1")
-        new_sensor_dict = make_state_dict("input_number.test_value", "22.5")
-        event = make_full_state_change_event("input_number.test_value", old_sensor_dict, new_sensor_dict)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
-
-        states_instance = StateManager.create(hassette, hassette)
-
-        assert states_instance.input_number.get("input_number.test_value").value == 22.5
-
-        # initial issue had second access of value causing loss of precision due to double conversion
-        assert states_instance.input_number.get("input_number.test_value").value == 22.5
-
     async def test_sensors_returns_sensor_states(self, hassette_with_state_proxy: "Hassette") -> None:
         """sensors property returns DomainStates[SensorState] containing only sensors."""
         hassette = hassette_with_state_proxy
@@ -144,83 +125,9 @@ class TestStatesDomainAccessors:
         assert "switch.outlet1" in switch_ids
         assert "switch.outlet2" in switch_ids
 
-    async def test_iteration_filters_by_domain(self, hassette_with_state_proxy: "Hassette") -> None:
-        """DomainStates iteration filters entities by domain."""
-        hassette = hassette_with_state_proxy
-
-        # Add various entities
-        light = make_light_state_dict("light.test", "on")
-        sensor = make_sensor_state_dict("sensor.test", "25")
-        switch = make_switch_state_dict("switch.test", "off")
-
-        for entity_id, state_dict in [("light.test", light), ("sensor.test", sensor), ("switch.test", switch)]:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
-
-        states_instance = StateManager.create(hassette, hassette)
-
-        # Each domain accessor should only return its own domain with proper types
-        light_ids = []
-        for eid, light_state in states_instance.light:
-            light_ids.append(eid)
-            assert isinstance(light_state, states.LightState), f"Light domain returned {type(light_state).__name__}"
-
-        sensor_ids = []
-        for eid, sensor_state in states_instance.sensor:
-            sensor_ids.append(eid)
-            assert isinstance(sensor_state, states.SensorState), f"Sensor domain returned {type(sensor_state).__name__}"
-
-        switch_ids = []
-        for eid, switch_state in states_instance.switch:
-            switch_ids.append(eid)
-            assert isinstance(switch_state, states.SwitchState), f"Switch domain returned {type(switch_state).__name__}"
-
-        assert "light.test" in light_ids, f"Expected 'light.test' in light_ids: {light_ids}"
-        assert "sensor.test" in sensor_ids, f"Expected 'sensor.test' in sensor_ids: {sensor_ids}"
-        assert "switch.test" in switch_ids, f"Expected 'switch.test' in switch_ids: {switch_ids}"
-
-    async def test_len_counts_domain_entities(self, hassette_with_state_proxy: "Hassette") -> None:
-        """len() on DomainStates returns count of entities in that domain."""
-        hassette = hassette_with_state_proxy
-
-        # Add multiple lights
-        for i in range(3):
-            light = make_light_state_dict(f"light.test_{i}", "on")
-            event = make_full_state_change_event(f"light.test_{i}", None, light)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
-
-        states_instance = StateManager.create(hassette, hassette)
-        lights = states_instance.light
-
-        assert len(lights) >= 3
-
 
 class TestStatesGenericAccess:
     """Tests for generic state access methods."""
-
-    async def test_all_returns_copy_of_states(self, hassette_with_state_proxy: "Hassette") -> None:
-        """all property returns a copy of the entire states dictionary."""
-        hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
-
-        # Add states
-        light = make_light_state_dict("light.test", "on")
-        event = make_full_state_change_event("light.test", None, light)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
-
-        states_instance = StateManager.create(hassette, hassette)
-        all_states = states_instance.all
-
-        assert isinstance(all_states, dict)
-        assert "light.test" in all_states
-
-        # Verify it's a copy (not a reference)
-        assert all_states is not proxy.states
 
     async def test_get_states_with_model(self, hassette_with_state_proxy: "Hassette") -> None:
         """get_states() returns DomainStates for the specified model."""
@@ -247,71 +154,62 @@ class TestStatesGenericAccess:
         assert "light.test" in light_ids
 
 
-class TestStatesTypedGetter:
-    """Tests for typed state getter."""
-
-    async def test_get_with_type_returns_typed_state(self, hassette_with_state_proxy: "Hassette") -> None:
-        """states.get[Model](entity_id) returns typed state."""
-        hassette = hassette_with_state_proxy
-
-        # Add light
-        light = make_light_state_dict("light.bedroom", "on", brightness=180)
-        event = make_full_state_change_event("light.bedroom", None, light)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
-
-        states_instance = StateManager.create(hassette, hassette)
-
-        # Use typed getter
-        bedroom_light = states_instance.get[states.LightState]("light.bedroom")
-
-        assert isinstance(bedroom_light, states.LightState)
-        assert bedroom_light.entity_id == "light.bedroom"
-        assert bedroom_light.attributes.brightness == 180
-
-    async def test_get_with_type_raises_on_missing(self, hassette_with_state_proxy: "Hassette") -> None:
-        """states.get[Model](entity_id) raises EntityNotFoundError for missing entity."""
-        hassette = hassette_with_state_proxy
-
-        states_instance = StateManager.create(hassette, hassette)
-
-        with pytest.raises(EntityNotFoundError, match=r"State for entity_id 'light\.nonexistent' not found"):
-            states_instance.get[states.LightState]("light.nonexistent")
-
-    async def test_get_method_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
-        """states.get[Model].get(entity_id) returns None for missing entity."""
-        hassette = hassette_with_state_proxy
-
-        states_instance = StateManager.create(hassette, hassette)
-
-        result = states_instance.get[states.LightState].get("light.nonexistent")
-
-        assert result is None
-
-    async def test_validates_with_model(self, hassette_with_state_proxy: "Hassette") -> None:
-        """Typed getter validates state data with the model."""
-        hassette = hassette_with_state_proxy
-
-        # Add sensor
-        sensor = make_sensor_state_dict(
-            "sensor.temperature", "22.5", unit_of_measurement="°C", device_class="temperature"
-        )
-        event = make_full_state_change_event("sensor.temperature", None, sensor)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
-
-        states_instance = StateManager.create(hassette, hassette)
-
-        # Get with correct type
-        temp_sensor = states_instance.get[states.SensorState]("sensor.temperature")
-
-        assert isinstance(temp_sensor, states.SensorState)
-        assert temp_sensor.attributes.device_class == "temperature"
-        assert temp_sensor.attributes.unit_of_measurement == "°C"
-
-
 class TestDomainStates:
     """Tests for DomainStates helper class."""
+
+    async def test_value_with_decimals_does_not_lose_precision(self, hassette_with_state_proxy: "Hassette") -> None:
+        """Test that state values with decimals do not lose precision when converted."""
+        hassette = hassette_with_state_proxy
+
+        # Add a sensor state with a decimal value
+        old_sensor_dict = make_state_dict("input_number.test_value", "22.1")
+        new_sensor_dict = make_state_dict("input_number.test_value", "22.5")
+        event = make_full_state_change_event("input_number.test_value", old_sensor_dict, new_sensor_dict)
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+
+        await asyncio.sleep(0.1)
+
+        states_instance = StateManager.create(hassette, hassette)
+
+        assert states_instance.input_number.get("input_number.test_value").value == 22.5
+
+        # initial issue had second access of value causing loss of precision due to double conversion
+        assert states_instance.input_number.get("input_number.test_value").value == 22.5
+
+    async def test_states_are_cached_until_changed(self, hassette_with_state_proxy: "Hassette") -> None:
+        """Test that state objects are cached until the state changes."""
+        hassette = hassette_with_state_proxy
+
+        # Add a sensor state with a decimal value
+        old_state_dict = make_state_dict("input_number.test_value", "22.1")
+        new_state_dict = make_state_dict("input_number.test_value", "22.5")
+        event = make_full_state_change_event("input_number.test_value", old_state_dict, new_state_dict)
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+
+        await asyncio.sleep(0.1)
+
+        states_instance = StateManager.create(hassette, hassette)
+        input_number_manager = states_instance.input_number
+
+        orig_obj = input_number_manager.get("input_number.test_value")
+        obj_id = id(orig_obj)
+        assert input_number_manager.get("input_number.test_value") is orig_obj, (
+            "State object should be the same before state change"
+        )
+        assert id(input_number_manager.get("input_number.test_value")) == obj_id, (
+            "State object ID should remain the same before state change"
+        )
+
+        old_state_dict = copy(new_state_dict)
+        new_state_dict = make_state_dict("input_number.test_value", "23.0")
+        event = make_full_state_change_event("input_number.test_value", old_state_dict, new_state_dict)
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+
+        await asyncio.sleep(0.1)
+
+        assert input_number_manager.get("input_number.test_value") is not orig_obj, (
+            "State object should be replaced after state change"
+        )
 
     async def test_iteration_over_domain(self, hassette_with_state_proxy: "Hassette") -> None:
         """DomainStates can be iterated to get (entity_id, state) tuples."""
@@ -391,7 +289,7 @@ class TestDomainStates:
 
         # Try to get sensor from lights domain
         lights = states_instance.light
-        with pytest.raises(ValueError, match=r"Entity ID 'sensor\.test' has domain 'sensor', expected 'light'"):
+        with pytest.raises(ValueError, match=r"Entity ID 'sensor\.test' does not belong to domain 'light'"):
             lights.get("sensor.test")
 
     async def test_iteration_over_empty_domain(self, hassette_with_state_proxy: "Hassette") -> None:
@@ -464,8 +362,10 @@ class TestStatesIntegration:
 
         states_instance = StateManager.create(hassette, hassette)
 
+        light_manager = states_instance.light
+
         # Initially no lights
-        initial_light_count = len(states_instance.light)
+        initial_light_count = len(light_manager)
 
         # Add a light via state change event
         light = make_light_state_dict("light.dynamic", "on", brightness=150)
@@ -474,70 +374,17 @@ class TestStatesIntegration:
         await asyncio.sleep(0.1)
 
         # States should now show the new light
-        new_light_count = len(states_instance.light)
+        new_light_count = len(light_manager)
         assert new_light_count == initial_light_count + 1
 
         # Should be able to retrieve it
-        dynamic_light = states_instance.light.get("light.dynamic")
+        dynamic_light = light_manager.get("light.dynamic")
         assert dynamic_light is not None
         assert isinstance(dynamic_light, states.LightState), (
             f"Expected LightState but got {type(dynamic_light).__name__}"
         )
         assert type(dynamic_light) is not states.BaseState, "Should be LightState, not bare BaseState"
         assert dynamic_light.attributes.brightness == 150
-
-    async def test_typed_getter_with_live_updates(self, hassette_with_state_proxy: "Hassette") -> None:
-        """Typed getter sees updates from state change events."""
-        hassette = hassette_with_state_proxy
-
-        states_instance = StateManager.create(hassette, hassette)
-
-        # Add initial state
-        light = make_light_state_dict("light.test", "on", brightness=100)
-        event = make_full_state_change_event("light.test", None, light)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
-
-        # Get initial state
-        initial_state = states_instance.get[states.LightState]("light.test")
-        assert initial_state.attributes.brightness == 100
-
-        # Update state
-        new_light = make_light_state_dict("light.test", "on", brightness=200)
-        event = make_full_state_change_event("light.test", light, new_light)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
-
-        # Get updated state
-        updated_state = states_instance.get[states.LightState]("light.test")
-        assert updated_state.attributes.brightness == 200
-
-    async def test_all_accessor_returns_dicts(self, hassette_with_state_proxy: "Hassette") -> None:
-        """states.all returns HassStateDict objects from StateProxy."""
-        hassette = hassette_with_state_proxy
-        states_instance = StateManager.create(hassette, hassette)
-
-        # Add various entity types
-        light = make_light_state_dict("light.test", "on", brightness=180)
-        sensor = make_sensor_state_dict("sensor.test", "42")
-
-        for entity_id, state_dict in [("light.test", light), ("sensor.test", sensor)]:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
-
-        # Get all states - should return BaseState objects from proxy
-        all_states = states_instance.all
-
-        # Verify states.all returns BaseState (not converted)
-        light_state = all_states.get("light.test")
-        if light_state:
-            assert isinstance(light_state, dict)
-
-        sensor_state = all_states.get("sensor.test")
-        if sensor_state:
-            assert isinstance(sensor_state, dict)
 
     async def test_domain_filtering_across_updates(self, hassette_with_state_proxy: "Hassette") -> None:
         """Domain accessors correctly filter across multiple updates."""

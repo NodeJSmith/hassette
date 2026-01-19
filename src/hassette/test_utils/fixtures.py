@@ -132,7 +132,7 @@ async def hassette_with_state_proxy(
     Tests should use the cleanup_state_proxy_fixture to reset state between tests.
     """
     async with hassette_harness(
-        config=test_config, use_bus=True, use_state_proxy=True, use_state_registry=True
+        config=test_config, use_bus=True, use_state_proxy=True, use_state_registry=True, use_scheduler=True
     ) as harness:
         assert harness.hassette._state_proxy is not None
         assert harness.hassette.api is not None
