@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.18.2] - 2026-01-16
+## [0.18.2] - 2026-01-19
 
 ### Fixed
 - Exit `TypeRegistry.convert` early if already a valid type
