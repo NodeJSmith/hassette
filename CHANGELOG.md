@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.18.2] - 2026-01-19
-
 ### Fixed
 - Exit `TypeRegistry.convert` early if already a valid type
 - Return a copy of the state in `StateProxy` to prevent external mutation
@@ -21,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `yield_states` to StateProxy
   - Allows iterating over all states in the proxy
   - Handles KeyError when extracting domain
+- Update `DomainStates` class to accept a `StateProxy` instance instead of state dictionary to ensure it stays up to date
+- Add caching to `StateManager`, holding on to each `DomainStates` instance after creation
+- Add caching to `DomainStates`, using `frozendict.deepfreeze` to hash the state dict and avoid recreating the instance if it has not changed
 
 ## [0.18.1] - 2025-12-13
 
