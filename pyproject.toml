@@ -40,6 +40,7 @@ dependencies = [
     "deepdiff>=8.6.1",
     "diskcache>=5.6.3",
     "fair-async-rlock>=1.0.7",
+    "frozendict>=2.4.7",
     "glom>=24.11.0",
     "humanize>=4.13.0",
     "orjson>=3.10.18",

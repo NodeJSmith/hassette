@@ -3,11 +3,13 @@ from logging import getLogger
 from typing import Any, Generic
 from warnings import warn
 
+from frozendict import deepfreeze, frozendict
+
 from hassette.core.state_proxy import StateProxy
-from hassette.exceptions import EntityNotFoundError, RegistryNotReadyError
+from hassette.exceptions import RegistryNotReadyError
 from hassette.models.states import BaseState, StateT
 from hassette.resources.base import Resource
-from hassette.utils.hass_utils import make_entity_id
+from hassette.utils.hass_utils import extract_domain, make_entity_id
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -20,10 +22,19 @@ LOGGER = getLogger(__name__)
 class DomainStates(Generic[StateT]):
     """Generic container for domain-specific state iteration."""
 
-    def __init__(self, states_dict: dict[str, "HassStateDict"], model: type[StateT]) -> None:
-        self._states = states_dict
+    def __init__(self, state_proxy: "StateProxy", model: type[StateT]) -> None:
+        self._state_proxy = state_proxy
         self._model = model
         self._domain = model.get_domain()
+        self._cache: dict[frozendict, StateT] = {}
+
+    def _validate_or_return_from_cache(self, state: "HassStateDict") -> StateT:
+        frozen_state = deepfreeze(state)
+        if frozen_state in self._cache:
+            return self._cache[frozen_state]
+        validated_state = self._model.model_validate(state)
+        self._cache[frozen_state] = validated_state
+        return validated_state
 
     def get(self, entity_id: str) -> StateT | None:
         """Get a specific entity state by ID.
@@ -33,18 +44,24 @@ class DomainStates(Generic[StateT]):
 
         Returns:
             The typed state if found and matches domain, None otherwise.
+
+        Raises:
+            ValueError: If the entity ID does not belong to this domain.
         """
+        if not extract_domain(entity_id) == self._domain:
+            raise ValueError(f"Entity ID '{entity_id}' does not belong to domain '{self._domain}'")
+
         entity_id = make_entity_id(entity_id, self._domain)
 
-        state = self._states.get(entity_id)
+        state = self._state_proxy.get_state(entity_id)
         if state is None:
             return None
 
-        return self._model.model_validate(state)
+        return self._validate_or_return_from_cache(state)
 
     def keys(self) -> list[str]:
         """Return a list of entity IDs for this domain."""
-        return list(self._states.keys())
+        return [entity_id for entity_id, _ in self]
 
     def values(self) -> list[StateT]:
         """Return a list of typed states for this domain.
@@ -61,18 +78,14 @@ class DomainStates(Generic[StateT]):
         return dict(self)
 
     def items(self) -> typing.ItemsView[str, StateT]:
-        """Return a view of (entity_id, typed state) items for this domain.
-
-        The returned object behaves like dict_items and reflects all current
-        states in this domain.
-        """
+        """Return a snapshot of (entity_id, typed state) items for this domain."""
         return self.to_dict().items()
 
     def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
         """Iterate over all states in this domain."""
-        for entity_id, state in self._states.items():
+        for entity_id, state in self._state_proxy.yield_domain_states(self._domain):
             try:
-                yield entity_id, self._model.model_validate(state)
+                yield entity_id, self._validate_or_return_from_cache(state)
             except Exception as e:
                 LOGGER.error(
                     "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, e
@@ -81,12 +94,12 @@ class DomainStates(Generic[StateT]):
 
     def __len__(self) -> int:
         """Return the number of entities in this domain."""
-        return len(self._states)
+        return self._state_proxy.num_domain_states(self._domain)
 
     def __contains__(self, entity_id: str) -> bool:
         """Check if a specific entity ID exists in this domain."""
         entity_id = make_entity_id(entity_id, self._domain)
-        return entity_id in self._states
+        return entity_id in self._state_proxy
 
     def __getitem__(self, entity_id: str) -> StateT:
         """Get a specific entity state by ID, raising if not found.
@@ -111,7 +124,7 @@ class DomainStates(Generic[StateT]):
 
     def __bool__(self) -> bool:
         """Return True if there are any entities in this domain."""
-        return len(self._states) > 0
+        return len(self) > 0
 
 
 class StateManager(Resource):
@@ -133,6 +146,8 @@ class StateManager(Resource):
         >>> print(f"Total lights: {len(self.states.lights)}")
     """
 
+    _domain_states_cache: dict[type[BaseState], DomainStates[BaseState]]
+
     async def after_initialize(self) -> None:
         self.mark_ready()
 
@@ -153,6 +168,7 @@ class StateManager(Resource):
             A new States resource instance.
         """
         inst = cls(hassette=hassette, parent=parent)
+        inst._domain_states_cache = {}
 
         return inst
 
@@ -198,17 +214,21 @@ class StateManager(Resource):
                 "Ensure state modules are imported before accessing States properties."
             ) from None
 
+        if state_class in self._domain_states_cache:
+            return self._domain_states_cache[state_class]
+
         if state_class is None:
             warn(
                 f"Domain '{domain}' not registered, returning DomainStates[BaseState]. "
                 f"For better type support, create a custom state class that registers this domain.",
                 stacklevel=2,
             )
-            return DomainStates[BaseState](self._state_proxy.get_domain_states(domain), BaseState)
+            self._domain_states_cache[BaseState] = self.get_states(BaseState)
+            return self._domain_states_cache[BaseState]
 
         # Domain is registered, use its specific class
-        return DomainStates[state_class](self._state_proxy.get_domain_states(domain), state_class)
-
+        self._domain_states_cache[state_class] = self.get_states(state_class)
+        return self._domain_states_cache[state_class]
 
     def get_states(self, model: type[StateT]) -> DomainStates[StateT]:
         """Get all states for a specific domain model.

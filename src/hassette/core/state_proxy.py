@@ -98,6 +98,20 @@ class StateProxy(Resource):
         async with self.lock:
             self.states.clear()
 
+    def num_domain_states(self, domain: str) -> int:
+        """Return the number of states for a specific domain.
+
+        Args:
+            domain: The domain to filter by (e.g., "light").
+
+        Returns:
+            The number of states in the specified domain.
+
+        Raises:
+            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+        """
+        return sum(1 for _ in self._yield_domain_states_raw(domain))
+
     def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current state for an entity.
 
@@ -154,12 +168,39 @@ class StateProxy(Resource):
         # and we replace whole objects rather than mutating them
         # we also return a copy of the state to prevent external mutation
 
+        for eid, state in self._yield_domain_states_raw(domain):
+            yield eid, copy(state)
+
+    def _yield_domain_states_raw(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
+        if not self.is_ready():
+            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+
+        # Lock-free read is safe because dict assignment is atomic in CPython
+        # and we replace whole objects rather than mutating them
+        # we also return a copy of the state to prevent external mutation
+
         for eid, state in self.states.items():
             try:
                 if extract_domain(state["entity_id"]) == domain:
-                    yield eid, copy(state)
+                    yield eid, state
             except KeyError:
                 self.logger.warning("State for entity %s is missing 'entity_id' key", eid)
+
+    def __contains__(self, entity_id: str) -> bool:
+        """Check if a specific entity ID exists in the state proxy.
+
+        Args:
+            entity_id: The entity ID to check (e.g., "light.kitchen").
+
+        Returns:
+            True if the entity exists, False otherwise.
+
+        Raises:
+            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+        """
+        if not self.is_ready():
+            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+        return entity_id in self.states
 
     async def _on_state_change(self, event: RawStateChangeEvent) -> None:
         """Handle state_changed events to update the cache.
