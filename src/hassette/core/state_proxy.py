@@ -1,4 +1,5 @@
 import typing
+from copy import copy
 from logging import getLogger
 
 from fair_async_rlock import FairAsyncRLock
@@ -127,7 +128,8 @@ class StateProxy(Resource):
 
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
-        return {eid: state for eid, state in self.states.items() if state["entity_id"].split(".")[0] == domain}
+        # we also return a copy of the state to prevent external mutation
+        return {eid: copy(state) for eid, state in self.states.items() if state["entity_id"].split(".")[0] == domain}
 
     async def _on_state_change(self, event: RawStateChangeEvent) -> None:
         """Handle state_changed events to update the cache.
