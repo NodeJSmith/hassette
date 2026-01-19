@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from copy import copy
+from copy import deepcopy
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
@@ -134,7 +134,7 @@ class StateProxy(Resource):
         state = self.states.get(entity_id)
         if state is None:
             return None
-        return copy(state)
+        return deepcopy(state)
 
     def get_domain_states(self, domain: str) -> dict[str, "HassStateDict"]:
         """Get all states for a specific domain.
@@ -172,7 +172,7 @@ class StateProxy(Resource):
         # we also return a copy of the state to prevent external mutation
 
         for eid, state in self._yield_domain_states_raw(domain):
-            yield eid, copy(state)
+            yield eid, deepcopy(state)
 
     def _yield_domain_states_raw(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
         if not self.is_ready():
