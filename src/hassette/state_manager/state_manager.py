@@ -121,6 +121,7 @@ class DomainStates(Generic[StateT]):
         states in this domain.
         """
         return self.to_dict().items()
+
     def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
         """Iterate over all states in this domain."""
         for entity_id, state in self._states.items():
