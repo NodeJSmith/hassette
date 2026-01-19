@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import logging
 import typing
 import uuid
 from abc import abstractmethod
@@ -163,7 +164,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self.unique_name,
                 e,
             )
-            self.logger.setLevel("INFO")
+            self.logger.setLevel(logging.INFO)
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
