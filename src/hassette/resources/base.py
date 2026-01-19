@@ -156,8 +156,13 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.logger.debug("Creating instance")
         try:
             self.logger.setLevel(self.config_log_level)
-        except Exception as e:
-            self.logger.error("Failed to set log level: %s", e)
+        except (ValueError, TypeError) as e:
+            self.logger.error(
+                "Invalid log level %r for %s; falling back to INFO: %s",
+                self.config_log_level,
+                self.unique_name,
+                e,
+            )
             self.logger.setLevel("INFO")
 
     def __repr__(self) -> str:
