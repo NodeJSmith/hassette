@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.19.0] - 2026-01-19
-
 ### Fixed
 - Exit `TypeRegistry.convert` early if already a valid type
 - Return a copy of the state in `StateProxy` to prevent external mutation
