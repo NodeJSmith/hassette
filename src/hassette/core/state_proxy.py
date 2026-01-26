@@ -3,6 +3,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
 from fair_async_rlock import FairAsyncRLock
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 from hassette.bus import Bus
 from hassette.events import RawStateChangeEvent
@@ -111,6 +112,9 @@ class StateProxy(Resource):
         """
         return sum(1 for _ in self.yield_domain_states(domain))
 
+    @retry(
+        retry=retry_if_exception_type(ResourceNotReadyError), stop=stop_after_attempt(5), wait=wait_exponential_jitter()
+    )
     def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current state for an entity.
 
@@ -149,6 +153,9 @@ class StateProxy(Resource):
 
         return {eid: state for eid, state in self.yield_domain_states(domain)}
 
+    @retry(
+        retry=retry_if_exception_type(ResourceNotReadyError), stop=stop_after_attempt(5), wait=wait_exponential_jitter()
+    )
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
         """Yield all states for a specific domain.
 
@@ -174,6 +181,9 @@ class StateProxy(Resource):
             except ValueError:
                 self.logger.warning("State for entity %s has invalid 'entity_id' value", eid)
 
+    @retry(
+        retry=retry_if_exception_type(ResourceNotReadyError), stop=stop_after_attempt(5), wait=wait_exponential_jitter()
+    )
     def __contains__(self, entity_id: str) -> bool:
         """Check if a specific entity ID exists in the state proxy.
 
