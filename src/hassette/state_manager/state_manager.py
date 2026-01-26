@@ -1,4 +1,5 @@
 import typing
+from collections.abc import Iterator
 from logging import getLogger
 from typing import Any, Generic, NamedTuple
 from warnings import warn
@@ -70,9 +71,18 @@ class DomainStates(Generic[StateT]):
 
         return self._validate_or_return_from_cache(entity_id, state)
 
+    def items(self) -> Iterator[tuple[str, StateT]]:
+        """Iterate (entity_id, typed state) pairs lazily."""
+        return iter(self)
+
     def keys(self) -> list[str]:
         """Return a list of entity IDs for this domain."""
         return [entity_id for entity_id, _ in self]
+
+    def iterkeys(self) -> Iterator[str]:
+        """Returns an iterator over entity IDs for this domain."""
+        for entity_id, _ in self:
+            yield entity_id
 
     def values(self) -> list[StateT]:
         """Return a list of typed states for this domain.
@@ -86,6 +96,11 @@ class DomainStates(Generic[StateT]):
         """
         return [value for _, value in self]
 
+    def itervalues(self) -> Iterator[StateT]:
+        """Returns an iterator over typed states for this domain."""
+        for _, value in self:
+            yield value
+
     def to_dict(self) -> dict[str, StateT]:
         """Return a dictionary of entity_id to typed state for this domain.
 
@@ -96,24 +111,7 @@ class DomainStates(Generic[StateT]):
             which may be expensive for large domains. Consider using the iterator
             returned by `__iter__` for lazy evaluation if performance is a concern.
         """
-        return dict(self)
-
-    def items(self) -> typing.ItemsView[str, StateT]:
-        """Return a snapshot of (entity_id, typed state) items for this domain.
-
-        Note:
-            This method will iterate over all states in the domain and validate them,
-            which may be expensive for large domains. Consider using the iterator
-            returned by `__iter__` for lazy evaluation if performance is a concern.
-        """
-        return self.to_dict().items()
-
-    def iteritems(self) -> typing.Generator[tuple[str, StateT], Any, None]:
-        """Yield (entity_id, typed state) items for this domain lazily.
-
-        This method is an alias for __iter__.
-        """
-        yield from self.__iter__()
+        return {entity_id: value for entity_id, value in self}
 
     def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
         """Iterate over all states in this domain."""

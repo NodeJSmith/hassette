@@ -462,7 +462,7 @@ class TestStatesIntegration:
 
         assert len(light_manager._cache) == 0
 
-        for i, (entity_id, light_state) in enumerate(light_manager.iteritems()):
+        for i, (entity_id, light_state) in enumerate(light_manager):
             assert isinstance(light_state, states.LightState)
             assert entity_id.startswith("light.")
             assert len(light_manager._cache) == i + 1
