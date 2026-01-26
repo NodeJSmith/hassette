@@ -326,4 +326,4 @@ class StateProxy(Resource):
             state_dict = {s["entity_id"]: s for s in states if s["entity_id"]}
             self.states.update(state_dict)
 
-        self.logger.info("State cache loaded, tracking %d entities", len(self.states))
+        self.logger.debug("State cache loaded, tracking %d entities", len(self.states))
