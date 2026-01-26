@@ -1,5 +1,4 @@
 from collections.abc import Generator
-from copy import deepcopy
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
@@ -110,7 +109,7 @@ class StateProxy(Resource):
         Raises:
             ResourceNotReadyError: If the proxy hasn't completed initial sync.
         """
-        return sum(1 for _ in self._yield_domain_states_raw(domain))
+        return sum(1 for _ in self.yield_domain_states(domain))
 
     def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current state for an entity.
@@ -130,11 +129,10 @@ class StateProxy(Resource):
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
 
-        # we also return a copy of the state to prevent external mutation
         state = self.states.get(entity_id)
         if state is None:
             return None
-        return deepcopy(state)
+        return state
 
     def get_domain_states(self, domain: str) -> dict[str, "HassStateDict"]:
         """Get all states for a specific domain.
@@ -163,31 +161,18 @@ class StateProxy(Resource):
         Raises:
             ResourceNotReadyError: If the proxy hasn't completed initial sync.
         """
-
         if not self.is_ready():
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
-        # we also return a copy of the state to prevent external mutation
-
-        for eid, state in self._yield_domain_states_raw(domain):
-            yield eid, deepcopy(state)
-
-    def _yield_domain_states_raw(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
-        if not self.is_ready():
-            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
-
-        # Lock-free read is safe because dict assignment is atomic in CPython
-        # and we replace whole objects rather than mutating them
-        # we also return a copy of the state to prevent external mutation
 
         for eid, state in self.states.items():
             try:
-                if extract_domain(state["entity_id"]) == domain:
+                if extract_domain(eid) == domain:
                     yield eid, state
-            except KeyError:
-                self.logger.warning("State for entity %s is missing 'entity_id' key", eid)
+            except ValueError:
+                self.logger.warning("State for entity %s has invalid 'entity_id' value", eid)
 
     def __contains__(self, entity_id: str) -> bool:
         """Check if a specific entity ID exists in the state proxy.
