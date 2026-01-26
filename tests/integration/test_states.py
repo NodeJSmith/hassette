@@ -5,7 +5,7 @@ typed getters, and DomainStates helper class.
 """
 
 import asyncio
-from copy import copy
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 import pytest
@@ -200,7 +200,7 @@ class TestDomainStates:
             "State object ID should remain the same before state change"
         )
 
-        old_state_dict = copy(new_state_dict)
+        old_state_dict = deepcopy(new_state_dict)
         new_state_dict = make_state_dict("input_number.test_value", "23.0")
         event = make_full_state_change_event("input_number.test_value", old_state_dict, new_state_dict)
         await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)

@@ -264,14 +264,16 @@ class StateProxy(Resource):
 
         This runs after Home Assistant restart to rebuild the state cache.
         """
-        # NOTE: no try/except here - if it fails then the ServiceWatcher service should catch and retry it
-
         self.logger.info("WebSocket reconnected, performing state resync")
 
-        await self._load_cache()
+        try:
+            await self._load_cache()
 
-        self.subscribe_to_events()
-        self.mark_ready(reason="Connected")
+            self.subscribe_to_events()
+            self.mark_ready(reason="Connected")
+        except Exception as e:
+            self.logger.exception("Failed to resync states after HA restart: %s", e)
+            self.mark_not_ready(reason="Failed to resync states after HA restart")
 
     async def _load_cache(self) -> None:
         """Load the state cache from Home Assistant.
