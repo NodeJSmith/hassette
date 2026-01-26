@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.19.2] - 2026-01-25
+
+### Fixed
+- Change log level for state cache loading message from INFO to DEBUG
+
 ## [0.19.1] - 2026-01-25
 
 ### Fixed
