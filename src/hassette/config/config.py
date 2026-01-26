@@ -205,6 +205,12 @@ class HassetteConfig(BaseSettings):
     asyncio_debug_mode: bool = Field(default=False)
     """Whether to enable asyncio debug mode."""
 
+    state_proxy_poll_interval_seconds: int = Field(default=30)
+    """Interval in seconds to poll the state proxy for updates."""
+
+    disable_state_proxy_polling: bool = Field(default=False)
+    """Whether to disable polling for the state proxy. Defaults to False."""
+
     # Service log levels
 
     bus_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)

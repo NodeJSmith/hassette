@@ -6,7 +6,7 @@ from abc import abstractmethod
 from collections.abc import Coroutine
 from contextlib import suppress
 from functools import cached_property
-from logging import Logger, getLogger
+from logging import INFO, Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
 from diskcache import Cache
@@ -154,7 +154,16 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         else:
             self.logger = getLogger("hassette").getChild(logger_name)
         self.logger.debug("Creating instance")
-        self.logger.setLevel(self.config_log_level)
+        try:
+            self.logger.setLevel(self.config_log_level)
+        except (ValueError, TypeError) as e:
+            self.logger.error(
+                "Invalid log level %r for %s; falling back to INFO: %s",
+                self.config_log_level,
+                self.unique_name,
+                e,
+            )
+            self.logger.setLevel(INFO)
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"

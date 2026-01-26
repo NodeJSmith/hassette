@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.19.0] - 2026-01-25
+
+### Fixed
+- Exit `TypeRegistry.convert` early if already a valid type
+- Avoid mutating state dicts when accessing via `DomainStates`
+
+### Added
+- Add `__contains__` method to DomainStates
+  - Allows us to use `in` checks
+- Add `to_dict`, `keys`, `values`, and `items` methods to DomainStates
+  - Provides convenient access to entity IDs and typed states
+- Add `yield_domain_states` to StateProxy
+  - Allows iterating over all states in the proxy
+  - Handles KeyError when extracting domain
+- Update `DomainStates` class to accept a `StateProxy` instance instead of state dictionary to ensure it stays up to date
+- Add caching to `StateManager`, holding on to each `DomainStates` instance after creation
+- Add caching to `DomainStates`, using `frozendict.deepfreeze` to hash the state dict and avoid recreating the instance if it has not changed
+
+### Removed
+- BREAKING: Remove `_TypedStateGetter` class and corresponding `get` method on `StateManager` - this was never a good idea due to its confusing api
+- BREAKING: Remove `all` property on `StateManager` - this is to avoid calculating all states unnecessarily
+
 ## [0.18.1] - 2025-12-13
 
 ### Changed
