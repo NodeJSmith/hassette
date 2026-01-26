@@ -129,7 +129,10 @@ class StateProxy(Resource):
         return sum(1 for _ in self.yield_domain_states(domain))
 
     @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError), stop=stop_after_attempt(5), wait=wait_exponential_jitter()
+        retry=retry_if_exception_type(ResourceNotReadyError),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential_jitter(),
+        reraise=True,
     )
     def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current state for an entity.
@@ -143,16 +146,17 @@ class StateProxy(Resource):
         Raises:
             ResourceNotReadyError: If the proxy hasn't completed initial sync.
         """
-        if not self.is_ready():
-            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
 
-        state = self.states.get(entity_id)
-        if state is None:
-            return None
-        return state
+        return self._get_state_once(entity_id)
+
+    def _get_state_once(self, entity_id: str) -> "HassStateDict | None":
+        if not self.is_ready():
+            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+
+        return self.states.get(entity_id)
 
     def get_domain_states(self, domain: str) -> dict[str, "HassStateDict"]:
         """Get all states for a specific domain.
@@ -170,7 +174,10 @@ class StateProxy(Resource):
         return {eid: state for eid, state in self.yield_domain_states(domain)}
 
     @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError), stop=stop_after_attempt(5), wait=wait_exponential_jitter()
+        retry=retry_if_exception_type(ResourceNotReadyError),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential_jitter(),
+        reraise=True,
     )
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
         """Yield all states for a specific domain.
@@ -198,7 +205,10 @@ class StateProxy(Resource):
                 self.logger.warning("State for entity %s has invalid 'entity_id' value", eid)
 
     @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError), stop=stop_after_attempt(5), wait=wait_exponential_jitter()
+        retry=retry_if_exception_type(ResourceNotReadyError),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential_jitter(),
+        reraise=True,
     )
     def __contains__(self, entity_id: str) -> bool:
         """Check if a specific entity ID exists in the state proxy.

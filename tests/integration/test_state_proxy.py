@@ -150,7 +150,7 @@ class TestStateProxyGetState:
         proxy.mark_not_ready(reason="Test")
 
         with pytest.raises(ResourceNotReadyError, match="StateProxy is not ready"):
-            proxy.get_state("light.test")
+            proxy._get_state_once("light.test")
         proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
     async def test_lockfree_read_access(self, proxy: "StateProxy") -> None:
