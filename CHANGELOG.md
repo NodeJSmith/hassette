@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add caching to `DomainStates`, using `frozendict.deepfreeze` to hash the state dict and avoid recreating the instance if it has not changed
 
 ### Removed
-- BREAKING: Remove `_TypedStateGetter` class and corresponding `get` method on `StateManager` - this was never a good idea due to it's confusing api
+- BREAKING: Remove `_TypedStateGetter` class and corresponding `get` method on `StateManager` - this was never a good idea due to its confusing api
 - BREAKING: Remove `all` property on `StateManager` - this is to avoid calculating all states unnecessarily
 
 ## [0.18.1] - 2025-12-13
