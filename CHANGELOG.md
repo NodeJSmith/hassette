@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.19.0] - 2026-01-25
+
 ### Fixed
 - Exit `TypeRegistry.convert` early if already a valid type
+- Avoid mutating state dicts when accessing via `DomainStates`
 
 ### Added
 - Add `__contains__` method to DomainStates
