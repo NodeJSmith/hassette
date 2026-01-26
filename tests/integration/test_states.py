@@ -440,7 +440,7 @@ class TestStatesIntegration:
         assert "sensor.test_1" not in light_ids
         assert "light.test_1" not in sensor_ids
 
-    async def test_yield_items(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_lazy_iteration_with_caching(self, hassette_with_state_proxy: "Hassette") -> None:
         """Test that yield_items returns the correct items lazily."""
         hassette = hassette_with_state_proxy
 
