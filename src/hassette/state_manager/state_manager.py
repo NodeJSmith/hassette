@@ -260,8 +260,9 @@ class StateManager(Resource):
                 f"For better type support, create a custom state class that registers this domain.",
                 stacklevel=2,
             )
-            self._domain_states_cache[BaseState] = self.get_states(BaseState)
-            return self._domain_states_cache[BaseState]
+            # Do not cache unregistered domains under BaseState; this would cause
+            # all unknown domains to share the same DomainStates instance.
+            return self.get_states(BaseState)
 
         # Domain is registered, use its specific class
         self._domain_states_cache[state_class] = self.get_states(state_class)
