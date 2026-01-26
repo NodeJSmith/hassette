@@ -43,3 +43,5 @@ allow_reload_in_prod = false
 allow_only_app_in_prod = false
 default_cache_size = 104857600                # 100 MiB
 asyncio_debug_mode = false
+state_proxy_poll_interval_seconds = 30
+disable_state_proxy_polling = false

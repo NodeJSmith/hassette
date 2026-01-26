@@ -4,12 +4,13 @@ from typing import TYPE_CHECKING, Any
 
 from fair_async_rlock import FairAsyncRLock
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
+from whenever import TimeDelta
 
 from hassette.bus import Bus
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
-from hassette.scheduler import Scheduler
+from hassette.scheduler import ScheduledJob, Scheduler
 from hassette.types import Topic
 from hassette.utils.hass_utils import extract_domain
 
@@ -28,6 +29,7 @@ class StateProxy(Resource):
     bus: Bus
     scheduler: Scheduler
     state_change_sub: "Subscription | None"
+    poll_job: "ScheduledJob | None"
 
     @classmethod
     def create(cls, hassette: "Hassette", parent: "Resource"):
@@ -46,6 +48,8 @@ class StateProxy(Resource):
         inst.bus = inst.add_child(Bus, priority=100)
         inst.scheduler = inst.add_child(Scheduler)
         inst.state_change_sub = None
+        inst.poll_job = None
+
         return inst
 
     @property
@@ -89,12 +93,24 @@ class StateProxy(Resource):
 
     def subscribe_to_events(self) -> None:
         self.state_change_sub = self.bus.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
+        if not self.hassette.config.disable_state_proxy_polling:
+            self.poll_job = self.scheduler.run_every(
+                self._load_cache, interval=TimeDelta(seconds=self.hassette.config.state_proxy_poll_interval_seconds)
+            )
+        else:
+            self.poll_job = None
+            self.logger.warning("State proxy polling is disabled per configuration")
 
     async def on_shutdown(self) -> None:
         """Shutdown the state proxy and clean up resources."""
         self.logger.debug("Shutting down state proxy")
         self.mark_not_ready(reason="Shutting down")
         self.bus.remove_all_listeners()
+        self.scheduler.remove_all_jobs()
+
+        self.poll_job = None
+        self.state_change_sub = None
+
         async with self.lock:
             self.states.clear()
 
@@ -266,6 +282,10 @@ class StateProxy(Resource):
             self.state_change_sub.cancel()
             self.state_change_sub = None
 
+        if self.poll_job is not None:
+            self.poll_job.cancel()
+            self.poll_job = None
+
         # mark the proxy as not ready
         self.mark_not_ready(reason="Disconnected")
 
@@ -289,7 +309,7 @@ class StateProxy(Resource):
         """Load the state cache from Home Assistant.
 
         This is called during initialization and reconnection to populate
-        the state cache.
+        the state cache, as well as during periodic polling to keep the cache up to date.
         """
         states = await self.hassette.api.get_states_raw()
         async with self.lock:
