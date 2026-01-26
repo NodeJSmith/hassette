@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from hassette.events import HassStateDict
 
 LOGGER = getLogger(__name__)
-RETRY_SECONDS = 5
 
 
 class StateProxy(Resource):
