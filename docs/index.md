@@ -18,30 +18,33 @@ If you're familiar with the Python ecosystem, consider it like a marriage betwee
 - **Simple & focused** – just Home Assistant automations, no complexity creep.
 - **Developer experience** – clear errors, solid logging, hot reloading.
 
-Built by a fellow HA geek frustrated with the existing Python automation experience.
-
 ## Quickstart
 
-Get running with Hassette in just a few steps.
+Get up running with Hassette in just a few steps.
 
+### Install Hassette
+
+```bash
+pip install hassette
+```
+
+### Create your first app
 
 ```python
 --8<-- "pages/getting-started/snippets/first_app.py"
 ```
 
-1. **Run Hassette**
+### Run Hassette
 
 ```bash
-pip install hassette
-
 python -m hassette -t $HOME_ASSISTANT_TOKEN \
     --base-url 'http://127.0.0.1:8123' \
     --app-dir .
 ```
 
-1. **Watch it work**
+### Watch it work
 
-    ![Hassette logs showing automation running](./_static/app-logs.png)
+![Hassette logs showing automation running](./_static/app-logs.png)
 
 ## Next Steps
 
