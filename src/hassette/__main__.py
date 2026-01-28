@@ -1,5 +1,6 @@
 import asyncio
 from argparse import ArgumentParser
+from importlib.metadata import version
 from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
@@ -31,13 +32,14 @@ def get_parser() -> ArgumentParser:
         help="Path to the environment file (default: .env)",
         dest="env_file",
     )
+    parser.add_argument("--version", "-v", action="version", version=f"Hassette {version('hassette')}")
     return parser
 
 
 async def main() -> None:
-    LOGGER.info("Starting Hassette...")
-
     args = get_parser().parse_known_args()[0]
+
+    LOGGER.info("Starting Hassette...")
 
     if args.env_file:
         HassetteConfig.model_config["env_file"] = args.env_file
