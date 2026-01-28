@@ -234,7 +234,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             return
         self._initializing = True
 
-        self.logger.setLevel(self.config_log_level)
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await self.handle_starting()
 
