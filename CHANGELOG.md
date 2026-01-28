@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Add --version/-v argument to Hassette to allow displaying the current version
+
+### Fixed
+- Fix AppHandler reporting failed apps as successful by using status attribute
+  - This is due to some issues with how we're tracking apps, further fixes will need to happen in future releases
+- Fix StateManager using `BaseState` when we do not find a class in the `StateRegistry`
+  - This does not work because `BaseState` doesn't have a `domain`
+  - Error is now raised instead
+- Log level is now used by Apps if set directly in AppConfig in Python code (as opposed to config file)
+
+### Changed
+- BREAKING: Replaced `StateManager.get_states` with `__getitem__` that accepts a state class
+  - The error raised in StateManager when a state class is not found in the `StateRegistry` now advises to use this method
+
+### Docs
+- Remove `Why Hassette` page
+- Remove docker networking page
+
 ## [0.19.2] - 2026-01-25
 
 ### Fixed
