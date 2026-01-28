@@ -140,7 +140,7 @@ class TestStatesGenericAccess:
         await asyncio.sleep(0.1)
 
         states_instance = StateManager.create(hassette, hassette)
-        lights = states_instance.get_states(states.LightState)
+        lights = states_instance[states.LightState]
 
         assert isinstance(lights, DomainStates)
 

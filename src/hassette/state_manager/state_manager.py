@@ -2,7 +2,6 @@ import typing
 from collections.abc import Iterator
 from logging import getLogger
 from typing import Any, Generic, NamedTuple
-from warnings import warn
 
 from frozendict import deepfreeze, frozendict
 
@@ -27,7 +26,38 @@ class CacheValue(Generic[StateT], NamedTuple):
 
 
 class DomainStates(Generic[StateT]):
+    """DomainStates provides access to all states within a specific domain, with automatic type validation and caching.
+
+    This classes accesses the StateProxy under the hood to provide access to the current states from HomeAssistant,
+    without needing to make direct calls to the Home Assistant API.
+
+    Accessed states are automatically validated against the provided model and cached for efficient repeated access.
+
+    Examples:
+    ```python
+        # if you know the entity exists
+        light_state = self.states.light["bedroom"]
+
+        # to safely access an entity that may not exist
+        light_state = self.states.light.get("bedroom")
+        if light_state is not None:
+            print(light_state.value)
+
+        # or you can check existence ahead of time
+        if "bedroom" in self.states.light:
+            light_state = self.states.light["bedroom"]
+            print(light_state.value)
+
+        # if you are working with a state that isn't defined in Hassette
+        self.states
+    ```
+
+    """
+
     def __init__(self, state_proxy: "StateProxy", model: type[StateT]) -> None:
+        if not issubclass(model, BaseState):
+            raise TypeError(f"Expected a subclass of BaseState, got {model!r}")
+
         self._state_proxy = state_proxy
         self._model = model
         self._domain = model.get_domain()
@@ -168,17 +198,19 @@ class StateManager(Resource):
     Provides typed access to entity states by domain through dynamic properties.
 
     Examples:
-        >>> # Iterate over all lights
-        >>> for entity_id, light_state in self.states.lights:
-        ...     print(f"{entity_id}: {light_state.state}")
-        ...
-        >>> # Get specific entity
-        >>> bedroom_light = self.states.lights.get("light.bedroom")
-        >>> if bedroom_light and bedroom_light.attributes.brightness:
-        ...     print(f"Brightness: {bedroom_light.attributes.brightness}")
-        ...
-        >>> # Check count
-        >>> print(f"Total lights: {len(self.states.lights)}")
+    ```python
+        # Iterate over all lights
+        for entity_id, light_state in self.states.lights:
+            print(f"{entity_id}: {light_state.value}")
+
+        # Get specific entity
+        bedroom_light = self.states.lights.get("light.bedroom")
+        if bedroom_light and bedroom_light.attributes.brightness:
+            print(f"Brightness: {bedroom_light.attributes.brightness}")
+
+        # Check count
+        print(f"Total lights: {len(self.states.lights)}")
+    ```
     """
 
     _domain_states_cache: dict[type[BaseState], DomainStates[BaseState]]
@@ -253,28 +285,28 @@ class StateManager(Resource):
             return self._domain_states_cache[state_class]
 
         if state_class is None:
-            warn(
-                f"Domain '{domain}' not registered, returning DomainStates[BaseState]. "
-                f"For better type support, create a custom state class that registers this domain.",
-                stacklevel=2,
+            raise ValueError(
+                f"Domain '{domain}' is not registered in the state registry. Use `states[{{state_class}}]` "
+                "if you have a custom state class for this domain."
             )
-            # Do not cache unregistered domains under BaseState; this would cause
-            # all unknown domains to share the same DomainStates instance.
-            return self.get_states(BaseState)
 
         # Domain is registered, use its specific class
-        self._domain_states_cache[state_class] = self.get_states(state_class)
+        self._domain_states_cache[state_class] = self[state_class]
         return self._domain_states_cache[state_class]
 
-    def get_states(self, model: type[StateT]) -> DomainStates[StateT]:
-        """Get all states for a specific domain model.
-
-        Used for any domain not covered by a dedicated property.
+    def __getitem__(self, model: type[StateT]) -> DomainStates[StateT]:
+        """Access domain states using the indexing syntax. This is required if you need
+        to access domain states for a state model class that is not known by the StateRegistry.
 
         Args:
             model: The state model class representing the domain.
 
         Returns:
             DomainStates container for the specified domain.
+
+        Example:
+            ```python
+            my_state_instance = self.states[MyStateClass].get("custom_entity")
+            ```
         """
         return DomainStates[StateT](self._state_proxy, model)

@@ -85,7 +85,7 @@ from .my_states import RedditState
 class MyApp(App):
     async def on_initialize(self):
         # Get all reddit entities
-        reddit_states = self.states.get_states(RedditState)
+        reddit_states = self.states[RedditState]
 
         for entity_id, state in reddit_states:
             print(f"{entity_id}: {state.value}")
@@ -133,11 +133,11 @@ for entity_id, light in self.states.light:
     print(light.attributes.brightness)
 ```
 
-For custom domains, use `get_states()` for full type safety:
+For custom domains, use `states[<class>]` for full type checking:
 
 ```python
-# Custom domains (use get_states for typing)
-custom_states = self.states.get_states(MyCustomState)
+# Custom domains (use states[<class>] for typing)
+custom_states = self.states[MyCustomState]
 for entity_id, state in custom_states:
     print(state.value)
 ```
@@ -177,8 +177,7 @@ If your custom state class isn't being recognized:
 
 If IDE autocomplete isn't working:
 
-1. **Use get_states()** - For custom domains, use `self.states.get_states(CustomState)`
-2. **Add to stub file** - For permanent custom domains, you can add them to `hassette/state_manager/state_manager.pyi`
+1. **Use `states[<class>]`** - For custom domains, use `self.states[CustomState]`
 
 ### State conversion fails
 
