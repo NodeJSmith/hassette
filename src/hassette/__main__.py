@@ -14,7 +14,7 @@ LOGGER = getLogger(name)
 
 
 def get_parser() -> ArgumentParser:
-    parser = ArgumentParser(description="Hassette - A Home Assistant integration", add_help=False)
+    parser = ArgumentParser(description="Hassette", add_help=False)
     parser.add_argument(
         "--config-file",
         "-c",
@@ -39,8 +39,6 @@ def get_parser() -> ArgumentParser:
 async def main() -> None:
     args = get_parser().parse_known_args()[0]
 
-    LOGGER.info("Starting Hassette...")
-
     if args.env_file:
         HassetteConfig.model_config["env_file"] = args.env_file
 
@@ -48,6 +46,8 @@ async def main() -> None:
         HassetteConfig.model_config["toml_file"] = args.config_file
 
     config = HassetteConfig()
+
+    LOGGER.info("Starting Hassette...")
     core = Hassette(config=config)
 
     await core.run_forever()
