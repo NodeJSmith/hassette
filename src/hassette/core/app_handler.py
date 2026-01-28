@@ -184,7 +184,9 @@ class AppHandler(Resource):
             if not self.apps:
                 self.logger.warning("No apps were initialized successfully")
             else:
-                success_count = sum(len(v) for v in self.apps.values())
+                success_count = sum(
+                    len([a for a in v.values() if a.status == ResourceStatus.RUNNING]) for v in self.apps.values()
+                )
                 fail_count = sum(len(v) for v in self.failed_apps.values())
                 self.logger.info("Initialized %d apps successfully, %d failed to start", success_count, fail_count)
 
