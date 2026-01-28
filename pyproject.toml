@@ -70,7 +70,6 @@ dev = [
     "tomli-w>=1.2.0",
 ]
 test = [
-    "docker>=7.1.0",
     "nox>=2025.5.1",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
