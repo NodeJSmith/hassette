@@ -110,10 +110,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     @property
     def config_log_level(self):
         """Return the log level from the config for this resource."""
-        if "log_level" in self.app_config.model_fields_set:
-            self.logger.debug("Log level for app '%s' set in instance config", self.class_name)
+        try:
             return self.app_config.log_level
-        return self.hassette.config.apps_log_level
+        except AttributeError:
+            return self.hassette.config.apps_log_level
 
     @property
     def instance_name(self) -> str:
