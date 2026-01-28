@@ -153,7 +153,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             self.logger = getLogger("hassette")
         else:
             self.logger = getLogger("hassette").getChild(logger_name)
-        self.logger.debug("Creating instance")
+
         try:
             self.logger.setLevel(self.config_log_level)
         except (ValueError, TypeError) as e:
