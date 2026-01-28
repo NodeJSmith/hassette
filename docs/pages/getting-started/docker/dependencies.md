@@ -111,7 +111,7 @@ services:
     image: ghcr.io/nodejsmith/hassette:latest-py3.13
     volumes:
       - ./config:/config
-      - ./:/apps  # Mount entire project to /apps
+      - .:/apps  # Mount entire project to /apps
       - data:/data
       - uv_cache:/uv_cache
     environment:
@@ -325,7 +325,7 @@ services:
     image: ghcr.io/nodejsmith/hassette:latest-py3.13
     volumes:
       - ./config:/config
-      - ./:/apps
+      - .:/apps
       - data:/data
       - uv_cache:/uv_cache
     environment:

@@ -180,7 +180,6 @@ See [Managing Dependencies](dependencies.md) for details on `HASSETTE__APP_DIR` 
 ## Next Steps
 
 - [Managing Dependencies](dependencies.md) - Install Python packages for your apps
-- [Networking](networking.md) - Connect to Home Assistant
 - [Image Tags](image-tags.md) - Choose the right Docker image
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
 
