@@ -226,13 +226,6 @@ In apps, you typically don't need direct access - the DI system and API methods 
 
 If you do need to access it, it is accessible through `self.hassette.state_registry`.
 
-### Custom Converters
-
-For advanced use cases, you can use the lower-level conversion functions:
-
-```python
---8<-- "pages/advanced/snippets/state-registry/custom_converters_fn.py"
-```
 
 ## See Also
 
