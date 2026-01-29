@@ -1,4 +1,5 @@
-from hassette import App, dependencies as D, states
+from hassette import App, states
+from hassette import dependencies as D
 
 
 class ExampleApp(App):
@@ -15,4 +16,4 @@ class ExampleApp(App):
         self,
         new_state: D.StateNew[states.LightState],
     ):
-        self.logger.info("Light changed to %s", new_state.state)
+        self.logger.info("Light changed to %s", new_state.value)

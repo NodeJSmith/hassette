@@ -5,6 +5,7 @@ The TypeRegistry is a core component of Hassette that provides automatic type co
 ## Purpose
 
 Home Assistant's WebSocket API and state system primarily work with string representations of values. For example:
+
 - A temperature sensor might report `"23.5"` as a string
 - A boolean sensor reports `"on"` or `"off"` rather than `True`/`False`
 - Timestamps arrive as ISO 8601 strings
@@ -36,7 +37,7 @@ The TypeRegistry provides two ways to register converters:
 Use `@register_type_converter_fn` to register a conversion function:
 
 ```python
---8<-- "pages/advanced/snippets/type-registry/decorator_registration.py"
+--8<-- "pages/advanced/snippets/dependency-injection/custom_type_converter.py"
 ```
 
 #### Simple Type Registration
@@ -68,6 +69,7 @@ Each state model class can declare a `value_type` ClassVar to specify the expect
 ```
 
 The `value_type` defines what types are valid for the `state` field. It can be:
+
 - A single type: `value_type = int`
 - A tuple of types: `value_type = (str, int, float)`
 - Defaults to `str` if not specified
@@ -78,12 +80,7 @@ When a state is created or validated, the `BaseState._validate_domain_and_state`
 
 ```python
 # In BaseState._validate_domain_and_state
-if self.value_type is not None and not isinstance(data["state"], self.value_type):
-    try:
-        # TypeRegistry is accessed via the Hassette instance
-        data["state"] = self.hassette.type_registry.convert(data["state"], self.value_type)
-    except (TypeError, ValueError) as e:
-        # Error handling...
+values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
 ```
 
 This means when you work with typed state models, values are automatically converted:
@@ -142,10 +139,12 @@ Or to use your own converter function:
 The TypeRegistry and StateRegistry work together but serve different purposes:
 
 **StateRegistry**: Maps Home Assistant domains to Pydantic state model classes
+
 - Purpose: Determines which model class to use for a given entity
 - Example: `"sensor.temperature"` → `SensorState` class
 
 **TypeRegistry**: Converts raw values to proper Python types
+
 - Purpose: Ensures state values match expected types
 - Example: `"23.5"` (string) → `23.5` (float)
 
@@ -163,6 +162,7 @@ The TypeRegistry and StateRegistry work together but serve different purposes:
 Hassette includes comprehensive built-in conversion:
 
 ### Numeric Conversions
+
 - `str` ↔ `int`: Basic integer conversion
 - `str` ↔ `float`: Floating-point conversion
 - `str` ↔ `Decimal`: High-precision decimal conversion
@@ -170,6 +170,7 @@ Hassette includes comprehensive built-in conversion:
 - `float` → `int`: Float to integer (truncation)
 
 ### Boolean Conversions
+
 - `str` → `bool`: Handles Home Assistant boolean strings
   - True values: `"on"`, `"true"`, `"yes"`, `"1"`
   - False values: `"off"`, `"false"`, `"no"`, `"0"`
@@ -177,7 +178,9 @@ Hassette includes comprehensive built-in conversion:
 - `int` → `bool`: Standard truthiness conversion
 
 ### DateTime Conversions
+
 Uses the `whenever` library for robust datetime handling:
+
 - `str` → `Instant`: Parse ISO 8601 to timezone-aware instant
 - `str` → `ZonedDateTime`: Parse to zoned datetime
 - `str` → `OffsetDateTime`: Parse to offset-aware datetime
@@ -258,6 +261,7 @@ When converting to Union types, the TypeRegistry tries each type in order until 
 ```
 
 For better performance with Union types, order the types from most specific to least specific:
+
 - ✅ Good: `Union[int, float, str]` (tries int first, most specific)
 - ❌ Less optimal: `Union[str, int, float]` (str matches everything)
 

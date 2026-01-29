@@ -2,7 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from hassette import App, accessors as A
+from hassette import App
+from hassette import accessors as A
 
 
 class SensorApp(App):

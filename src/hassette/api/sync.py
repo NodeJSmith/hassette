@@ -291,6 +291,17 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.get_state(entity_id))
 
+    def get_state_or_none(self, entity_id: str) -> "BaseState | None":
+        """Get the state of a specific entity, or None if it does not exist.
+
+        Args:
+            entity_id: The ID of the entity to get the state for.
+
+        Returns:
+            The state of the entity converted to the specified model type, or None if it does not exist."""
+
+        return self.task_bucket.run_sync(self._api.get_state_or_none(entity_id))
+
     def get_state_value(self, entity_id: str) -> Any:
         """Get the state of a specific entity without converting it to a state object.
 

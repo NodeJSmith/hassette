@@ -8,4 +8,4 @@ async def handler(
     brightness_raw: Annotated[Any, A.get_attr_new("brightness")],
 ):
     # Handle conversion yourself
-    brightness = int(brightness_raw) if brightness_raw else None
+    int(brightness_raw) if brightness_raw else None

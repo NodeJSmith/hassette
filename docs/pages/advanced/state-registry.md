@@ -79,10 +79,12 @@ This means when you work with state models, numeric values, booleans, and dateti
 ### Why Two Registries?
 
 **Separation of Concerns:**
+
 - StateRegistry: **"What model class?"** (domain → model mapping)
 - TypeRegistry: **"What type?"** (value → type conversion)
 
 This separation allows:
+
 1. StateRegistry to focus on domain logic and model selection
 2. TypeRegistry to be reused throughout the framework (DI system, custom extractors, etc.)
 3. Easy extension of either system independently
@@ -200,14 +202,6 @@ The StateRegistry powers all state type conversions in [dependency injection](de
 
 ```python
 --8<-- "pages/advanced/snippets/state-registry/integration_di.py"
-```
-
-### With API Resource
-
-The API's `get_state()` method uses the StateRegistry:
-
-```python
---8<-- "pages/advanced/snippets/state-registry/integration_api.py"
 ```
 
 ### With States Resource

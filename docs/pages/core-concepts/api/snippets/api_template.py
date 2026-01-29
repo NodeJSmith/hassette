@@ -10,6 +10,6 @@ class TemplateApp(App):
         # Complex logic
         avg_temp = await self.api.render_template("""
             {{ states.sensor | selectattr('attributes.device_class', 'eq', 'temperature')
-            | map(attribute='state') | map('float') | average }}
+            | map(attribute='state') | map('float', default=0) | average }}
         """)
         self.logger.info("Average temp: %s", avg_temp)

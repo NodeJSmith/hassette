@@ -18,6 +18,7 @@ from typing import Generic, NamedTuple
 
 from frozendict import frozendict
 
+from hassette.core.state_registry import StateKey
 from hassette.models import states
 from hassette.models.states import StateT
 from hassette.resources.base import Resource
@@ -55,25 +56,6 @@ class DomainStates(typing.Generic[StateT]):
     def to_dict(self) -> dict[str, StateT]: ...
 
 class StateManager(Resource):
-    """Resource for managing Home Assistant states.
-
-    Provides typed access to entity states by domain through dynamic properties.
-
-    ```python
-        # Iterate over all lights
-        for entity_id, light_state in self.states.lights:
-            print(f"{entity_id}: {light_state.value}")
-
-        # Get specific entity
-        bedroom_light = self.states.lights.get("light.bedroom")
-        if bedroom_light and bedroom_light.attributes.brightness:
-            print(f"Brightness: {bedroom_light.attributes.brightness}")
-
-        # Check count
-        print(f"Total lights: {len(self.states.lights)}")
-    ```
-    """
-
     @property
     def _state_proxy(self) -> StateProxy: ...
     @classmethod
@@ -183,3 +165,8 @@ class StateManager(Resource):
     @property
     def zone(self) -> DomainStates[states.ZoneState]: ...
     def __getitem__(self, model: type[StateT]) -> DomainStates[StateT]: ...
+    def __contains__(self, model: type[StateT]) -> bool: ...
+    def __iter__(self) -> Iterator[tuple[StateKey, Iterator[DomainStates[states.BaseState]]]]: ...
+    def items(self) -> Iterator[tuple[StateKey, Iterator[DomainStates[states.BaseState]]]]: ...
+    def values(self) -> Iterator[DomainStates[states.BaseState]]: ...
+    def keys(self) -> Iterator[StateKey]: ...

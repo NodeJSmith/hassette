@@ -11,11 +11,12 @@ graph LR
     A[App] -->|uses| Api
     A -->|subscribes to| Bus
     A -->|schedules| Scheduler
+    A -->|accesses| States
 ```
 
 ## Defining an App
 
-Every app is a Python class that inherits from [`App`][hassette.app.app.App].
+Every app is a Python class that inherits from [`App`][hassette.app.app.App] or [`AppSync`][hassette.app.app.AppSync].
 
 ```python title="example_app.py"
 --8<-- "pages/core-concepts/apps/snippets/example_app.py"
@@ -31,6 +32,41 @@ Each app receives pre-configured helpers:
 - **[`self.states`](../states/index.md)** - Access entity states.
 - **`self.logger`** - Dedicated logger instance.
 - **[`self.app_config`](configuration.md)** - Typed configuration.
+
+## Common Use Cases
+
+### Reacting to Events
+
+Subscribe to events using [`self.bus`](../bus/index.md) to react to changes in Home Assistant.
+
+```python
+self.on_change_listener = self.bus.on_state_change(self.app_config.light, handler=self.on_change)
+```
+
+### Run Recurring Jobs
+
+Use [`self.scheduler`](../scheduler/index.md) to schedule recurring tasks.
+
+```python
+self.scheduler.run_hourly(self.log_status, minute=15)
+```
+
+### Check Entity States
+
+Use [`self.states`](../states/index.md) to check the current state of entities.
+
+```python
+current_state = self.states.light[self.app_config.light].value
+self.logger.info("Current state of %s: %s", self.app_config.light, current_state)
+```
+
+### Call Services
+
+Use [`self.api`](../api/index.md) to call Home Assistant services.
+
+```python
+await self.api.call_service("light", "turn_on", entity_id=self.app_config.light)
+```
 
 ## Next Steps
 

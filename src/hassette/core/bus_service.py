@@ -9,6 +9,8 @@ from typing import Any
 
 from fair_async_rlock import FairAsyncRLock
 
+from hassette.events import HassPayload
+from hassette.exceptions import HassetteError
 from hassette.resources.base import Service
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 
@@ -17,7 +19,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import Hassette
     from hassette.bus import Listener
-    from hassette.events import Event
+    from hassette.events import Event, EventPayload
 
 
 class BusService(Service):
@@ -135,6 +137,8 @@ class BusService(Service):
         except asyncio.CancelledError:
             self.logger.debug("Listener dispatch cancelled (topic=%s, handler=%r)", topic, listener.handler_name)
             raise
+        except HassetteError as e:
+            self.logger.error("Listener error (topic=%s): %s", topic, e)
         except Exception:
             self.logger.exception("Listener error (topic=%s, handler=%r)", topic, listener.handler_name)
         finally:
@@ -184,9 +188,13 @@ class BusService(Service):
                 self._excluded_entity_globs,
             )
 
-    def _should_skip_event(self, topic: str, event: "Event[Any]") -> bool:
+    def _should_skip_event(self, topic: str, event: "Event[EventPayload[Any]]") -> bool:
         """Determine if an event should be skipped based on exclusion filters."""
         if not event.payload:
+            return False
+
+        # if not an HA event, we should not skip it, we only filter HA events
+        if not isinstance(event.payload, HassPayload):
             return False
 
         payload = event.payload

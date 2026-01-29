@@ -1,4 +1,5 @@
-from hassette import App, dependencies as D, states
+from hassette import App, states
+from hassette import dependencies as D
 
 
 class LightMonitor(App):
@@ -8,10 +9,6 @@ class LightMonitor(App):
             handler=self.on_light_change,
         )
 
-    async def on_light_change(
-        self,
-        new_state: D.StateNew[states.LightState],
-        entity_id: D.EntityId,
-    ):
+    async def on_light_change(self, new_state: D.StateNew[states.LightState], entity_id: D.EntityId):
         brightness = new_state.attributes.brightness
         self.logger.info("%s brightness: %s", entity_id, brightness)

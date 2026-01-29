@@ -3,7 +3,7 @@
 This guide walks through setting up Hassette with a simple app in a local development environment.
 
 !!! tip "Running in Docker?"
-    For production deployments or if you prefer Docker, see the [Docker Deployment](docker/index.md) guide instead. This page covers local development with `uv`.
+    For production deployments or if you prefer Docker, see the [Docker Deployment](docker/index.md) guide instead.
 
 ## Prerequisites
 
@@ -97,7 +97,7 @@ python -m hassette --base-url 'http://localhost:8123' -t 'YOUR_LONG_LIVED_ACCESS
 
 You should see logs showing the app starting and the greeting being logged.
 
-![Hassette logs showing Hello World message](../../_static/getting-started-app-logs.png)
+![Hassette logs showing Hello World message](../../_static/app-logs.png)
 
 That is it! Your first Hassette app is running.
 

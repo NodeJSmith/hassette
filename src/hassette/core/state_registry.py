@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Hashable
+from collections.abc import Hashable, Iterator
 from dataclasses import dataclass
 from logging import getLogger
 from typing import ClassVar
@@ -178,6 +178,38 @@ class StateRegistry:
                 tb,
             )
             raise UnableToConvertStateError(entity_id, state_class) from e
+
+    def __contains__(self, model: type["BaseState"]) -> bool:
+        """Check if the registry contains a state class for the given model."""
+        return any(cls is model for cls in self._registry.values())
+
+    def __iter__(self) -> Iterator[tuple[StateKey, type["BaseState"]]]:
+        """Iterate over all registered state classes with their keys."""
+        return iter(self._registry.items())
+
+    def items(self) -> Iterator[tuple[StateKey, type["BaseState"]]]:
+        """Iterate over all registered state classes with their keys.
+
+        Returns:
+            An iterator over (StateKey, BaseState subclass) pairs.
+        """
+        return iter(self._registry.items())
+
+    def values(self) -> Iterator[type["BaseState"]]:
+        """Iterate over all registered state classes.
+
+        Returns:
+            An iterator over all registered BaseState subclasses.
+        """
+        return (state_class for state_class in self._registry.values())
+
+    def keys(self) -> Iterator[StateKey]:
+        """Iterate over all registered state keys.
+
+        Returns:
+            An iterator over all registered state keys.
+        """
+        return (key for key in self._registry)
 
 
 STATE_REGISTRY = StateRegistry()

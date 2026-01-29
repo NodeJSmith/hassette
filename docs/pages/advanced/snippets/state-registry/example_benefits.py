@@ -1,15 +1,10 @@
 from typing import Annotated
 
-from hassette import STATE_REGISTRY, accessors as A
-
-# StateRegistry determines this is a LightState
-# light_state = STATE_REGISTRY.try_convert_state(light_dict) # light_dict not defined in context
+from hassette import accessors as A
 
 
 # TypeRegistry also works in dependency injection
-async def handler(
-    # TypeRegistry converts attribute values too
-    brightness: Annotated[int, A.get_attr_new("brightness")],
-):
+# and converts attribute values too
+async def handler(brightness: Annotated[int, A.get_attr_new("brightness")]):
     # brightness is int, not string, thanks to TypeRegistry
     pass

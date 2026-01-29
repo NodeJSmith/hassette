@@ -9,6 +9,15 @@ Every event you receive from the bus is an [`Event`][hassette.events.base.Event]
 - `topic` - a string identifier describing what happened, such as `hass.event.state_changed`.
 - `payload` - an untyped object containing event-specific data.
 
+!!! question "Why is the payload untyped?"
+
+    You may be wondering why the event payload is untyped if Hassette is focused on strong typing. The reason for this is to avoid the overhead of converting every
+    event payload to a typed object when the majority of payloads will never be used.
+
+    Instead of converting *every* event payload, Hassette converts at the user boundary, such as when using Dependency Injection (DI) or
+    accessing states through [DomainStates][hassette.state_manager.state_manager.DomainStates] (e.g. `self.states.light`).
+
+
 ## Dependency Injection
 
 Hassette uses dependency injection (DI) to provide event data to your handlers. The type annotations on your handler parameters tell Hassette what data to extract from the event.

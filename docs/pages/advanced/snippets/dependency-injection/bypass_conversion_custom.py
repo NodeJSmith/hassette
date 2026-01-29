@@ -1,11 +1,12 @@
 from typing import Annotated, Any
 
 from hassette import accessors as A
-from hassette.dependencies.annotations import AnnotationDetails
+from hassette.event_handling.dependencies import AnnotationDetails
 
 
-def my_converter(value: Any, to_type: type) -> int:
-    # Your custom conversion logic
+def my_converter(value: Any, _: type) -> int | None:
+    if value is None:
+        return None
     return int(value) * 100
 
 

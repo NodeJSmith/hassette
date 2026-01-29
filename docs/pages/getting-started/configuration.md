@@ -37,9 +37,9 @@ Use the config file to set Hassette defaults and register apps:
 Run Hassette with no CLI flags and it will pick up this configuration (or provide `-c` if the file lives elsewhere):
 
 ```bash
-uv run hassette
+python -m hassette
 # or
-uv run hassette -c ./path/to/hassette.toml
+python -m hassette -c ./path/to/hassette.toml
 ```
 
 You should now see the greeting defined in TOML.

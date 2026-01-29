@@ -1,11 +1,10 @@
-from hassette import App, dependencies as D, states
+from hassette import App, states
+from hassette import dependencies as D
 
 
 class LightApp(App):
     async def on_light_change(
-        self,
-        new_state: D.StateNew[states.LightState],
-        old_state: D.MaybeStateOld[states.LightState],
+        self, new_state: D.StateNew[states.LightState], old_state: D.MaybeStateOld[states.LightState]
     ):
         if old_state:
             brightness_changed = new_state.attributes.brightness != old_state.attributes.brightness

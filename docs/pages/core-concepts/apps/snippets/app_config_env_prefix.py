@@ -1,5 +1,6 @@
-from hassette import AppConfig
 from pydantic_settings import SettingsConfigDict
+
+from hassette import AppConfig
 
 
 class MyAppConfig(AppConfig):

@@ -6,6 +6,7 @@ from typing import Any, Generic, NamedTuple
 from frozendict import deepfreeze, frozendict
 
 from hassette.core.state_proxy import StateProxy
+from hassette.core.state_registry import STATE_REGISTRY, StateKey
 from hassette.exceptions import RegistryNotReadyError
 from hassette.models.states import BaseState, StateT
 from hassette.resources.base import Resource
@@ -310,3 +311,54 @@ class StateManager(Resource):
             ```
         """
         return DomainStates[StateT](self._state_proxy, model)
+
+    def __contains__(self, model: type[StateT]) -> bool:
+        """Check if model is registered in the state registry.
+
+        Args:
+            model: The state model class to check.
+
+        Returns:
+            True if the model is registered in the state registry, False otherwise.
+
+        Example:
+            ```python
+            if MyStateClass in self.states:
+                print("States for MyStateClass are available")
+            ```
+        """
+        return model in STATE_REGISTRY
+
+    def __iter__(self) -> Iterator[tuple[StateKey, DomainStates[Any]]]:
+        """Iterate over all registered state classes with their keys.
+
+        Returns:
+            An iterator over tuples of (StateKey, DomainStates) for all registered state classes.
+        """
+        yield from self.items()
+
+    def items(self) -> Iterator[tuple[StateKey, DomainStates[Any]]]:
+        """Iterate over all registered state classes with their keys.
+
+        Returns:
+            An iterator over tuples of (StateKey, DomainStates) for all registered state classes.
+        """
+        for key, state_class in STATE_REGISTRY.items():
+            yield key, self[state_class]
+
+    def values(self) -> Iterator[DomainStates[Any]]:
+        """Iterate over all registered state classes.
+
+        Returns:
+            An iterator over all registered DomainStates instances.
+        """
+        for state_class in STATE_REGISTRY.values():
+            yield self[state_class]
+
+    def keys(self) -> Iterator[StateKey]:
+        """Iterate over all registered state keys.
+
+        Returns:
+            An iterator over all registered state keys.
+        """
+        return iter(STATE_REGISTRY.keys())

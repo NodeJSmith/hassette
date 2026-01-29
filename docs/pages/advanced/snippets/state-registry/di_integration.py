@@ -1,10 +1,8 @@
-from hassette import App, dependencies as D, states
+from hassette import App, states
+from hassette import dependencies as D
 
 
 class MyApp(App):
-    async def on_light_change(
-        self,
-        new_state: D.StateNew[states.LightState],  # Automatically converted
-    ):
+    async def on_light_change(self, new_state: D.StateNew[states.LightState]):
         # new_state is already a LightState instance
-        brightness = new_state.attributes.brightness
+        pass

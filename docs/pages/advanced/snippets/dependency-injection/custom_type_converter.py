@@ -1,30 +1,36 @@
-from enum import Enum
+from enum import StrEnum, auto
 from typing import Annotated
 
-from hassette import App, accessors as A
+from hassette import App
+from hassette import accessors as A
 from hassette.core.type_registry import register_type_converter_fn
 
 
-class FanSpeed(Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
+class Effect(StrEnum):
+    BLINK = auto()
+    BREATHE = auto()
+    CANDLE = auto()
+    CHANNEL_CHANGE = auto()
+    COLORLOOP = auto()
+    FINISH_EFFECT = auto()
+    FIREPLACE = auto()
+    OKAY = auto()
+    STOP_EFFECT = auto()
+    STOP_HUE_EFFECT = auto()
 
 
-@register_type_converter_fn(error_message="'{value}' is not a valid FanSpeed")
-def str_to_fan_speed(value: str) -> FanSpeed:
-    """Convert string to FanSpeed enum.
+@register_type_converter_fn(error_message="'{value}' is not a valid Effect")
+def str_to_effect(value: str) -> Effect:
+    """Convert string to Effect enum.
 
     Types are inferred from the function signature.
     """
-    return FanSpeed(value.lower())
+    return Effect(value.lower())
 
 
 # Now you can use it in handlers
-class FanApp(App):
-    async def on_fan_change(
-        self,
-        # String "high" → FanSpeed.HIGH (automatic)
-        speed: Annotated[FanSpeed, A.get_attr_new("speed")],
-    ):
-        self.logger.info("Fan speed: %s", speed.value)
+
+
+class LightEffectApp(App):
+    async def on_light_effect_change(self, effect: Annotated[Effect, A.get_attr_new("effect")]):
+        self.logger.info("Light effect: %r", effect)

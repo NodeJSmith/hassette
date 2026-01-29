@@ -12,9 +12,30 @@ In this example, `new_state` and `entity_id` are automatically extracted from th
 
 ## Three Event Handling Patterns
 
-Hassette supports three patterns for handling events, from lowest to highest level:
+Hassette supports three patterns for handling events, starting with the most common and recommended approach.
 
-### Pattern 1: Raw Event (Untyped)
+### DI Extraction
+
+Extract only the specific data you need:
+
+```python
+--8<-- "pages/advanced/snippets/dependency-injection/pattern3_di.py"
+```
+
+**Use when:** You want clean, focused handlers with minimal boilerplate.
+
+### Typed Event
+
+Receive the full event with state objects converted to typed Pydantic models:
+
+```python
+--8<-- "pages/advanced/snippets/dependency-injection/pattern2_typed.py"
+```
+
+**Use when:** You want type safety but need access to the full event structure (context, timestamps, metadata, etc.).
+
+
+### Raw Event (Untyped)
 
 Receive the full event object with state data as untyped dictionaries:
 
@@ -26,30 +47,8 @@ Receive the full event object with state data as untyped dictionaries:
 
 !!! warning
     While typed State models use `value` for the actual state value, raw state dictionaries are accessed via the `"state"` key, as
-    this is the key used by Home Assistant in its event payloads.
+    this is the key used by Home Assistant in its event payloads, and this data is not modified by Hassette.
 
-### Pattern 2: Typed Event
-
-Receive the full event with state objects converted to typed Pydantic models:
-
-```python
---8<-- "pages/advanced/snippets/dependency-injection/pattern2_typed.py"
-```
-
-**Use when:** You want type safety but need access to the full event structure (topic, context, etc.).
-
-!!! note
-    Notice that in this example we use `new_state.value` instead of `new_state.state` because typed State models use the `value` property for the actual state value.
-
-### Pattern 3: DI Extraction (Recommended)
-
-Extract only the specific data you need:
-
-```python
---8<-- "pages/advanced/snippets/dependency-injection/pattern3_di.py"
-```
-
-**Use when:** You want clean, focused handlers with minimal boilerplate (recommended for most cases).
 
 ## Available DI Annotations
 
@@ -59,27 +58,39 @@ All dependency injection annotations are available in the `hassette.dependencies
 
 Extract typed state objects from state change events:
 
-| Annotation         | Type        | Description                                  |
-| ------------------ | ----------- | -------------------------------------------- |
-| `StateNew[T]`      | `T`         | Extract new state, raises if missing         |
-| `StateOld[T]`      | `T`         | Extract old state, raises if missing         |
-| `MaybeStateNew[T]` | `T \| None` | Extract new state, returns `None` if missing |
-| `MaybeStateOld[T]` | `T \| None` | Extract old state, returns `None` if missing |
+| Annotation         | Type          | Description                                  |
+| ------------------ | ------------- | -------------------------------------------- |
+| `StateNew[T]`      | `T`           | Extract new state, raises if missing         |
+| `StateOld[T]`      | `T`           | Extract old state, raises if missing         |
+| `MaybeStateNew[T]` | `T` or `None` | Extract new state, returns `None` if missing |
+| `MaybeStateOld[T]` | `T` or `None` | Extract old state, returns `None` if missing |
 
 ```python
 --8<-- "pages/advanced/snippets/dependency-injection/state_object_extractors.py"
 ```
 
+!!! note
+    In actual usage you should pass a condition to the `changed` parameter of `on_state_changed`, which will handle this
+    condition for you.
+
+    ```python
+    self.bus.on_state_change(
+        entity_id="light.office",
+        handler=self.on_light_change_maybe_old,
+        changed=lambda old, new: old != new
+        )
+    ```
+
 ### Identity Extractors
 
 Extract entity IDs and domains from events:
 
-| Annotation      | Type                    | Description                                    |
-| --------------- | ----------------------- | ---------------------------------------------- |
-| `EntityId`      | `str`                   | Extract entity ID, raises if missing           |
-| `MaybeEntityId` | `str \| Sentinel` | Extract entity ID, returns sentinel if missing    |
-| `Domain`        | `str`                   | Extract domain, raises if missing              |
-| `MaybeDomain`   | `str \| Sentinel` | Extract domain, returns sentinel if missing    |
+| Annotation      | Type                | Description                                    |
+| --------------- | ------------------- | ---------------------------------------------- |
+| `EntityId`      | `str`               | Extract entity ID, raises if missing           |
+| `MaybeEntityId` | `str` or `Sentinel` | Extract entity ID, returns sentinel if missing |
+| `Domain`        | `str`               | Extract domain, raises if missing              |
+| `MaybeDomain`   | `str` or `Sentinel` | Extract domain, returns sentinel if missing    |
 
 ```python
 --8<-- "pages/advanced/snippets/dependency-injection/identity_extractors.py"

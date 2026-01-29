@@ -937,7 +937,7 @@ async def on_initialize(self):
     my_light = self.states.get[states.LightState]("light.kitchen")
 
     # ALTERNATIVE: Force fresh read from Home Assistant API
-    light = await self.api.get_state("light.kitchen", states.LightState)
+    light:states.LightState = await self.api.get_state("light.kitchen")
     brightness = light.attributes.brightness
 
     # Or get just the value

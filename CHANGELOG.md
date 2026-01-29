@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Add --version/-v argument to Hassette to allow displaying the current version
+- Add `__iter__`, `__contains__`, `keys`, `values`, and `items` methods to StateManager and StateRegistry
 
 ### Fixed
 - Fix AppHandler reporting failed apps as successful by using status attribute

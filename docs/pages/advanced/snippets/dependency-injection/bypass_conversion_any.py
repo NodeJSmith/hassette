@@ -1,6 +1,7 @@
 from typing import Annotated, Any
 
-from hassette import App, accessors as A
+from hassette import App
+from hassette import accessors as A
 
 
 class RawApp(App):

@@ -41,9 +41,9 @@ async def on_initialize(self):
         changed_to="on"
     )
 
-    # Subscriptions are cleaned up automatically on shutdown!
-    # But you can unsubscribe manually if needed:
-    # sub.unsubscribe()
+# Subscriptions are cleaned up automatically on shutdown!
+# But you can unsubscribe manually if needed:
+# sub.cancel()
 ```
 
 ## Matching Multiple Entities
