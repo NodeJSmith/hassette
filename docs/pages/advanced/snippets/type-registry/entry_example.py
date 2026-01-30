@@ -1,4 +1,4 @@
-from hassette.core.type_registry import TypeConverterEntry
+from hassette import TypeConverterEntry
 
 entry = TypeConverterEntry(
     func=int,

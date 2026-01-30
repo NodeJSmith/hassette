@@ -1,4 +1,4 @@
-from hassette.core.type_registry import register_simple_type_converter
+from hassette import register_simple_type_converter
 
 # Register a simple converter (uses int() as the converter function)
 register_simple_type_converter(

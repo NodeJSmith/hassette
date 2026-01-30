@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 
-from hassette.core.type_registry import register_type_converter_fn
+from hassette import register_type_converter_fn
 
 
 @dataclass

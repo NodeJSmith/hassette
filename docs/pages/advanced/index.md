@@ -26,13 +26,13 @@ Read more in the [Dependency Injection guide](dependency-injection.md).
 Hassette uses Pydantic models to represent Home Assistant [`states`](https://www.home-assistant.io/docs/configuration/state_object/). This allows safe access to state attributes with type checking and validation, reducing the risk of runtime errors and making your automations more robust.
 
 Custom states can be defined as simply as creating a new State class from [`BaseState`][hassette.models.states.base.BaseState] or one of its subclasses.
-`BaseState` uses `__init_subclass__` to automatically register the class with the [State Registry][hassette.core.state_registry.StateRegistry] based on its `domain` attribute. This means that once you have defined the class, it will be used automatically whenever a state with the matching domain is encountered in your automations.
+`BaseState` uses `__init_subclass__` to automatically register the class with the [State Registry][hassette.conversion.state_registry.StateRegistry] based on its `domain` attribute. This means that once you have defined the class, it will be used automatically whenever a state with the matching domain is encountered in your automations.
 
 There is a dedicated [Custom States guide](custom-states.md) that goes into more detail on how to define and use custom states in your Hassette apps.
 
 ## Registries
 
-There are two registries in Hassette, handling different concerns. The [`StateRegistry`][hassette.core.state_registry.StateRegistry] handles state classes, while the [`TypeRegistry`][hassette.core.type_registry.TypeRegistry] handles type conversions and custom types.
+There are two registries in Hassette, handling different concerns. The [`StateRegistry`][hassette.conversion.state_registry.StateRegistry] handles state classes, while the [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] handles type conversions and custom types.
 
 ### State Registry
 

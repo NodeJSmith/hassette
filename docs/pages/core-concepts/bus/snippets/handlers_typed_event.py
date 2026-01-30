@@ -1,4 +1,5 @@
-from hassette import App, dependencies as D, states
+from hassette import App, states
+from hassette import dependencies as D
 
 
 class MotionApp(App):
@@ -7,5 +8,6 @@ class MotionApp(App):
         event: D.TypedStateChangeEvent[states.BinarySensorState],
     ):
         entity_id = event.payload.data.entity_id
-        new_value = event.payload.data.new_state.value
-        self.logger.info("Motion: %s -> %s", entity_id, new_value)
+        if event.payload.data.new_state:
+            new_value = event.payload.data.new_state.value
+            self.logger.info("Motion: %s -> %s", entity_id, new_value)

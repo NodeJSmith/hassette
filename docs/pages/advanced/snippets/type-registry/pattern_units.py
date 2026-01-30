@@ -1,6 +1,6 @@
 import re
 
-from hassette.core.type_registry import register_type_converter_fn
+from hassette import register_type_converter_fn
 
 
 @register_type_converter_fn
