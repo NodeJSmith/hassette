@@ -1,32 +1,45 @@
-# Configuration
+# Configuration Files
 
-## Using configuration files
+If you haven't run Hassette yet, follow the [First Run](first-run.md) first.
 
-So far we’ve taken the long path to show the mechanics. In reality, you’ll want a configuration file.
+This page is a short reference for config discovery, overrides, and where to put secrets.
 
-Configuration files are TOML and define both global Hassette settings and app-specific settings. Hassette looks for `hassette.toml` in:
+## File discovery
 
-1. `/config`
-2. `./` (current working directory)
-3. `./config`
+Configuration files are TOML and can define both global Hassette settings and app-specific settings.
 
-`.env` files are searched in the same locations. Override either path with `--config-file / -c` or `--env-file / -e`.
+Hassette searches for `hassette.toml` in:
+
+1. `/config/hassette.toml`
+2. `./hassette.toml` (current working directory)
+3. `./config/hassette.toml`
+
+`.env` files are searched in:
+
+1. `/config/.env`
+2. `./.env` (current working directory)
+3. `./config/.env`
+
+Override either with `--config-file / -c` or `--env-file / -e`.
 
 ```bash
-python -m hassette -c ./config/hassette.toml -e ./config/.env
+hassette -c ./config/hassette.toml -e ./config/.env
 ```
 
-### Home Assistant token
+## Secrets (token)
 
 If you haven't already generated a token, you can follow the steps in the [Creating a Home Assistant token](ha_token.md) guide. Provide the token through one of:
 
-- Environment variables: `HASSETTE__TOKEN`, `HOME_ASSISTANT_TOKEN`, or `HA_TOKEN`.
+- Environment variables: `HASSETTE__TOKEN` (recommended).
 - CLI arguments: `--token` / `-t`.
+
+!!! note "Compat env vars"
+    Hassette also accepts `HOME_ASSISTANT_TOKEN` and `HA_TOKEN` for compatibility.
 
 !!! warning
     Never store your token directly in `hassette.toml`, as it may be committed to version control. Use environment variables or `.env` files instead.
 
-### `hassette.toml`
+## Minimal example
 
 Use the config file to set Hassette defaults and register apps:
 
@@ -37,40 +50,20 @@ Use the config file to set Hassette defaults and register apps:
 Run Hassette with no CLI flags and it will pick up this configuration (or provide `-c` if the file lives elsewhere):
 
 ```bash
-python -m hassette
+hassette
 # or
-python -m hassette -c ./path/to/hassette.toml
+hassette -c ./path/to/hassette.toml
 ```
+
+!!! tip
+    If your environment doesn't expose the `hassette` command, you can run `python -m hassette` instead.
 
 You should now see the greeting defined in TOML.
 
 ![Hassette logs showing greeting from config file](../../_static/getting-started-config-logs.png)
 
-## What’s next?
+## Next steps
 
-Now that Hassette is running with your first app, here are logical next steps.
-
-### 🏗️ Build real automations
-
-- [Writing Apps](../core-concepts/apps/index.md) – multi-instance apps, typed configs, lifecycle hooks.
-- [Event handling patterns](../core-concepts/bus/index.md) – react to state changes, service calls, and custom events.
-- [Scheduling tasks](../core-concepts/scheduler/index.md) – run code on intervals, cron schedules, or delays.
-- [API usage](../core-concepts/api/index.md) – call services, query states, and interact with Home Assistant.
-
-### ⚙️ Configure your setup
-
-- [Configuration options](../core-concepts/configuration/index.md) – environment variables, secrets, and TOML settings.
-
-### 📚 Learn more
-
-- [vs AppDaemon](../appdaemon-comparison.md) – migration notes if you’re switching from AppDaemon.
-
-### 🔧 Development workflow
-
-- File watching and hot reloading already work out of the box.
-- Testing and debugging guides are coming soon.
-
-### Need help?
-
-- [GitHub Issues](https://github.com/NodeJSmith/hassette/issues) for bugs and feature requests.
-- [GitHub Discussions](https://github.com/NodeJSmith/hassette/discussions) for questions and community support.
+- Full configuration reference: [Configuration Overview](../core-concepts/configuration/index.md)
+- App registration/config: [Application Configuration](../core-concepts/configuration/applications.md)
+- Typed app config models: [App Configuration](../core-concepts/apps/configuration.md)

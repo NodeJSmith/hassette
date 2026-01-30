@@ -22,8 +22,10 @@ theme:
 nav:
   - Home: index.md
   - Getting Started:
-      - Basics: pages/getting-started/index.md
-      - Configuration: pages/getting-started/configuration.md
+      - Overview: pages/getting-started/index.md
+      - First Run: pages/getting-started/first-run.md
+      - Home Assistant Token: pages/getting-started/ha_token.md
+      - Configuration Files: pages/getting-started/configuration.md
       - Docker Deployment:
           - Overview: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
@@ -48,10 +50,12 @@ nav:
           - Entities & States: pages/core-concepts/api/entities.md
           - Services: pages/core-concepts/api/services.md
           - Utilities: pages/core-concepts/api/utilities.md
-      - States:
-          - Overview: pages/core-concepts/states/index.md
-          - Usage Guide: pages/core-concepts/states/usage.md
-      - Configuration: pages/core-concepts/configuration/index.md
+      - States: pages/core-concepts/states/index.md
+      - Configuration:
+          - Overview: pages/core-concepts/configuration/index.md
+          - Authentication: pages/core-concepts/configuration/auth.md
+          - Global Settings: pages/core-concepts/configuration/global.md
+          - Applications: pages/core-concepts/configuration/applications.md
   - Advanced:
       - Overview: pages/advanced/index.md
       - Dependency Injection: pages/advanced/dependency-injection.md

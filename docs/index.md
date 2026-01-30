@@ -4,54 +4,49 @@
 
 A simple, modern, async-first Python framework for building Home Assistant automations.
 
+[Get Started (Local)](pages/getting-started/first-run.md){ .md-button .md-button--primary }
+[Deploy with Docker](pages/getting-started/docker/index.md){ .md-button }
+[AppDaemon Comparison](pages/appdaemon-comparison.md){ .md-button }
+
 ## What is Hassette?
 
 Hassette is a framework that helps you write Home Assistant automations in Python. Instead of using the HA user interface or writing YAML, you create "apps" as Python classes that respond to Home Assistant events, call services, and manage state.
 
 If you're familiar with the Python ecosystem, consider it like a marriage between AppDaemon and FastAPI — HA automations built on modern async Python, Pydantic models, and type safety.
 
-**Key features**
+## Why Hassette?
 
-- **Type safe** – full type annotations and IDE support.
-- **Dependency Injection** – clean handler signatures with FastAPI style dependency injection.
-- **Async-first** – built for modern Python with async/await throughout.
-- **Simple & focused** – just Home Assistant automations, no complexity creep.
-- **Developer experience** – clear errors, solid logging, hot reloading.
+- **Write automations as code**: Build “apps” as Python classes that subscribe to events, call services, and manage state.
+- **Async-first, but pragmatic**: Use async where it matters; sync apps are supported too.
+- **Type-safe configuration**: Pydantic models give validation, defaults, and IDE help.
+- **Dependency injection**: Clean handler signatures that focus on the data you need.
+- **Great DX**: Clear logs, fast iteration, and hot reloading during development.
 
-## Quickstart
+## See it in action
 
-Get up running with Hassette in just a few steps.
+This short clip shows live reloading and the overall “tight feedback loop” you get while building automations.
 
-### Install Hassette
+<video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
+    <source src="./_static/live_reloading.webm" type="video/webm">
+    <source src="./_static/live_reloading.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+</video>
 
-```bash
-pip install hassette
-```
+!!! tip
 
-### Create your first app
+    Looking for setup instructions? Start here: [First Run](pages/getting-started/first-run.md)
 
-```python
---8<-- "pages/getting-started/snippets/first_app.py"
-```
+## What you can build
 
-### Run Hassette
+- Event-driven automations (state changes, events, scheduled jobs)
+- Multi-instance apps with separate configs (e.g., “upstairs” and “downstairs”)
+- Typed, validated configuration for safer refactors
+- Cleaner integrations with Home Assistant services and entities
 
-```bash
-python -m hassette -t $HOME_ASSISTANT_TOKEN \
-    --base-url 'http://127.0.0.1:8123' \
-    --app-dir .
-```
+## Next steps
 
-### Watch it work
-
-![Hassette logs showing automation running](./_static/app-logs.png)
-
-## Next Steps
-
-Ready to build something more complex? Explore the rest of the docs:
-
-- Follow the [getting started guide](pages/getting-started/index.md) for local development.
-- Deploy with [Docker Compose](pages/getting-started/docker/index.md) for production.
-- Dive into [core app patterns](pages/core-concepts/apps/index.md).
-- See how Hassette stacks up in the [AppDaemon comparison](pages/appdaemon-comparison.md).
-- Dive into the [advanced concepts](pages/advanced/index.md).
+- Local setup: [First Run](pages/getting-started/first-run.md)
+- Production: [Docker Deployment](pages/getting-started/docker/index.md)
+- Core patterns: [Apps Overview](pages/core-concepts/apps/index.md)
+- Full configuration: [Configuration Overview](pages/core-concepts/configuration/index.md)
+- Migration: [AppDaemon Comparison](pages/appdaemon-comparison.md)

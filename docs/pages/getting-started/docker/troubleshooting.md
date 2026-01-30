@@ -135,11 +135,6 @@ docker compose exec hassette cat /apps/pyproject.toml
 
 **Solution:** Either create a lock file or enable unlocked projects:
 
-```bash
-# Create lock file (recommended)
-uv lock
-```
-
 Or enable unlocked projects:
 
 ```yaml

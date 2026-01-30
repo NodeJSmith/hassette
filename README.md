@@ -76,7 +76,7 @@ class_name = "HelloWorld"
 Run it:
 
 ```bash
-uv run hassette
+hassette
 ```
 
 See the [Getting Started guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/) for detailed instructions.

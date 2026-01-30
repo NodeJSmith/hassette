@@ -146,13 +146,12 @@ dependencies = [
 
 ### With a Lock File (Recommended)
 
-Generate a lock file for reproducible builds:
+Generate a lock file for reproducible builds.
 
-```bash
-uv lock
-```
+If a `uv.lock` file exists alongside your `pyproject.toml`, the startup script will automatically use it to pin exact versions.
 
-This creates `uv.lock` which pins exact versions. The startup script automatically uses locked dependencies when `uv.lock` exists.
+!!! tip "No lock file tooling?"
+  If you don't want to generate a lock file, you can use the simpler `requirements.txt` approach below.
 
 ### Without a Lock File
 
