@@ -1,14 +1,20 @@
-from hassette import App, conditions as C
+from typing import Annotated
+
+from hassette import A, App, C
 
 
 class MediaPlayerApp(App):
     async def on_initialize(self):
-        # Trigger if state is EITHER "playing" or "paused"
-        self.bus.on_state_change(
-            "media_player.living_room",
-            handler=self.on_media_active,
-            changed_to=C.IsIn(["playing", "paused"]),
+        self.bus.on_attribute_change(
+            "media_player.living_room_tv",
+            "app_name",
+            handler=self.on_app_name_change,
+            changed_to=C.IsIn(["Home Assistant Lovelace", "Netflix"]),
         )
 
-    async def on_media_active(self, event):
-        pass
+    async def on_app_name_change(
+        self,
+        old_app_name: Annotated[str, A.get_attr_old("app_name")],
+        app_name: Annotated[str, A.get_attr_new("app_name")],
+    ):
+        self.logger.info("App name changed from %s to %s", old_app_name, app_name)

@@ -33,7 +33,7 @@ V_contra = TypeVar("V_contra", contravariant=True)
 class Predicate(Protocol[EventT]):
     """Protocol for defining predicates that evaluate events."""
 
-    def __call__(self, event: EventT) -> bool: ...
+    def __call__(self, value: EventT, /) -> bool: ...
 
 
 class Condition(Protocol[V_contra]):

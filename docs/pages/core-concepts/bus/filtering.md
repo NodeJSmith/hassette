@@ -35,8 +35,13 @@ If `changed_to/from` aren't enough, or if you are filtering other event types (l
 Multiple predicates in a list are treated as logical **AND**.
 Use `P.AnyOf` for logical **OR**.
 
+Logical AND:
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_combined_and.py"
+```
+
+Logical OR (Using `P.AnyOf`):
+```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_combined_or.py"
 ```
 

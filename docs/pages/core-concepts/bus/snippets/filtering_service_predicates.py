@@ -1,4 +1,4 @@
-from hassette import App, predicates as P
+from hassette import App, C, P
 
 
 class NotifyApp(App):
@@ -6,8 +6,8 @@ class NotifyApp(App):
         self.bus.on_call_service(
             domain="notify",
             where=P.ServiceDataWhere.from_kwargs(
-                message=lambda msg: "urgent" in msg.lower(),
-                title=P.Not(P.StartsWith("DEBUG")),
+                message=lambda msg: "urgent" in str(msg).lower(),
+                title=P.Not(C.StartsWith("DEBUG")),
             ),
             handler=self.on_urgent_notification,
         )
