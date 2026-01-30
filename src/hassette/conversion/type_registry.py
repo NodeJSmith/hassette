@@ -248,7 +248,7 @@ class TypeRegistry:
 
         Example:
             ```python
-            from hassette.core.type_registry import TYPE_REGISTRY
+            from hassette import TYPE_REGISTRY
 
             # List all conversions
             conversions = TYPE_REGISTRY.list_conversions()
@@ -264,9 +264,6 @@ class TypeRegistry:
         items.sort(key=lambda x: (x[0].__name__, x[1].__name__))
         return items
 
-
-TYPE_REGISTRY = TypeRegistry()
-"""Global type registry for managing type conversions."""
 
 ## Value Converters ##
 

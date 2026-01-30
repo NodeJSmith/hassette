@@ -5,8 +5,7 @@ from typing import Any, Generic, Literal, TypeAlias
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import Event, HassPayload
-from hassette.models.states import StateT
-from hassette.types import Topic
+from hassette.types import StateT, Topic
 
 from .raw import HassEventEnvelopeDict, HassStateDict
 
@@ -296,7 +295,7 @@ class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]])
 
     @classmethod
     def create_typed_state_change_event(cls, event: "RawStateChangeEvent", to_type: type):
-        from hassette.core.state_registry import convert_state_dict_to_model
+        from hassette.conversion import convert_state_dict_to_model
 
         entity_id = event.payload.data.entity_id
         old_state = event.payload.data.old_state

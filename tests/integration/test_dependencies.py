@@ -11,7 +11,7 @@ from typing import Annotated
 
 import pytest
 
-from hassette import MISSING_VALUE
+from hassette import MISSING_VALUE, STATE_REGISTRY
 from hassette import accessors as A
 from hassette import dependencies as D
 from hassette.bus.extraction import (
@@ -24,12 +24,12 @@ from hassette.bus.extraction import (
     validate_di_signature,
 )
 from hassette.bus.injection import ParameterInjector
-from hassette.core.state_registry import STATE_REGISTRY
+from hassette.conversion import ANNOTATION_CONVERTER
 from hassette.events import CallServiceEvent, Event, HassContext, RawStateChangeEvent
 from hassette.exceptions import DependencyInjectionError, DependencyResolutionError
 from hassette.models import states
 from hassette.test_utils.helpers import make_full_state_change_event, make_light_state_dict
-from hassette.utils.type_utils import ANNOTATION_CONVERTER, get_typed_signature
+from hassette.utils.type_utils import get_typed_signature
 
 
 def get_random_model(exclude_models: list[type[states.BaseState]]) -> type[states.BaseState]:

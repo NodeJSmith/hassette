@@ -51,10 +51,9 @@ from glom import PathAccessError, glom
 
 from hassette.const import MISSING_VALUE
 from hassette.const.misc import FalseySentinel
-from hassette.events import HassStateDict
 
 if typing.TYPE_CHECKING:
-    from hassette.events import CallServiceEvent, HassContext, HassEvent, RawStateChangeEvent
+    from hassette.events import CallServiceEvent, HassContext, HassEvent, HassStateDict, RawStateChangeEvent
 
 LOGGER = logging.getLogger(__name__)
 
@@ -95,17 +94,17 @@ def get_state_value_old_new(event: "RawStateChangeEvent") -> tuple[Any, Any]:
     return get_state_value_old(event), get_state_value_new(event)
 
 
-def get_state_object_old(event: "RawStateChangeEvent") -> HassStateDict | None:
+def get_state_object_old(event: "RawStateChangeEvent") -> "HassStateDict | None":
     """Get the old state object from a RawStateChangeEvent, or None if `old_state` does not exist."""
     return event.payload.data.old_state
 
 
-def get_state_object_new(event: "RawStateChangeEvent") -> HassStateDict | None:
+def get_state_object_new(event: "RawStateChangeEvent") -> "HassStateDict | None":
     """Get the new state object from a RawStateChangeEvent, or None if `new_state` does not exist."""
     return event.payload.data.new_state
 
 
-def get_state_object_old_new(event: "RawStateChangeEvent") -> tuple[HassStateDict | None, HassStateDict | None]:
+def get_state_object_old_new(event: "RawStateChangeEvent") -> tuple["HassStateDict | None", "HassStateDict | None"]:
     """Get a tuple of (old_state_object, new_state_object) from a RawStateChangeEvent."""
     return get_state_object_old(event), get_state_object_new(event)
 

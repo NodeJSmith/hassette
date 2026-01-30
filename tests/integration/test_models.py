@@ -8,7 +8,7 @@ from typing import cast
 
 import pytest
 
-from hassette.core.state_registry import STATE_REGISTRY
+from hassette import STATE_REGISTRY
 from hassette.models import states
 from hassette.models.states import base
 

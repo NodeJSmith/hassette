@@ -29,7 +29,7 @@ class StateKey:
 
 def register_state_converter(state_class: type["BaseState"], domain: Hashable, device_class: Hashable | None = None):
     """Register a state converter class for a specific domain and optional device class."""
-    STATE_REGISTRY.register(state_class, domain=domain, device_class=device_class)
+    StateRegistry.register(state_class, domain=domain, device_class=device_class)
 
 
 class StateRegistry:
@@ -210,10 +210,6 @@ class StateRegistry:
             An iterator over all registered state keys.
         """
         return (key for key in self._registry)
-
-
-STATE_REGISTRY = StateRegistry()
-"""Global state registry for mapping domains and device classes to state converter classes."""
 
 
 def convert_state_dict_to_model(value: typing.Any, model: type["BaseState"]) -> "BaseState":

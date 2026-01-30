@@ -12,6 +12,7 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
+from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
@@ -31,8 +32,6 @@ from .health_service import HealthService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .state_proxy import StateProxy
-from .state_registry import STATE_REGISTRY, StateRegistry
-from .type_registry import TYPE_REGISTRY, TypeRegistry
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:

@@ -6,8 +6,9 @@ import typing
 from collections.abc import Callable
 from typing import Any
 
+from hassette.conversion import ANNOTATION_CONVERTER, TYPE_MATCHER
 from hassette.exceptions import DependencyError, DependencyInjectionError, DependencyResolutionError
-from hassette.utils.type_utils import ANNOTATION_CONVERTER, TYPE_MATCHER, is_optional, normalize_annotation
+from hassette.utils.type_utils import is_optional, normalize_annotation
 
 from .extraction import extract_from_signature, validate_di_signature
 

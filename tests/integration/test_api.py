@@ -1,7 +1,7 @@
 from typing import Any
 
+from hassette import STATE_REGISTRY
 from hassette.api import Api
-from hassette.core.state_registry import STATE_REGISTRY
 from hassette.test_utils import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
 

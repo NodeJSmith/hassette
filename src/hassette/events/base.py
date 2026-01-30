@@ -113,7 +113,3 @@ class Event(Generic[PayloadT]):
 
     payload: PayloadT
     """The event payload."""
-
-
-EventT = TypeVar("EventT", bound=Event[Any], contravariant=True)
-"""Represents an event type."""

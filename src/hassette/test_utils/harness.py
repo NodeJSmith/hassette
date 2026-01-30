@@ -15,14 +15,13 @@ from yarl import URL
 from hassette import HassetteConfig, context
 from hassette.api import Api
 from hassette.bus import Bus
+from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
-from hassette.core.state_registry import STATE_REGISTRY, StateRegistry
-from hassette.core.type_registry import TYPE_REGISTRY, TypeRegistry
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource

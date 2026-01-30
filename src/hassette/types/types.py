@@ -1,17 +1,30 @@
 from collections.abc import Awaitable, Callable
 from datetime import time
 from pathlib import Path
-from typing import Any, Literal, Protocol, Required, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Required, TypeAlias, TypeVar
 
 from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
 
-from hassette.const.misc import FalseySentinel
-from hassette.events.base import EventT
+if TYPE_CHECKING:
+    from hassette.const.misc import FalseySentinel
+    from hassette.events.base import Event
+    from hassette.models.states.base import BaseState
+
 
 LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 """Log levels for configuring logging."""
 
+
+EventT = TypeVar("EventT", bound="Event[Any]", contravariant=True)
+"""Represents an event type."""
+
+
+StateT = TypeVar("StateT", bound="BaseState", covariant=True)
+"""Represents a specific state type, e.g., LightState, CoverState, etc."""
+
+StateValueT = TypeVar("StateValueT", covariant=True)
+"""Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
 
 V = TypeVar("V")  # value type from the accessor
 V_contra = TypeVar("V_contra", contravariant=True)
@@ -61,7 +74,7 @@ HandlerType = SyncHandler | AsyncHandlerType
 
 ChangeType = TypeAliasType(
     "ChangeType",
-    None | FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel],
+    "None | FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel]",
     type_params=(V,),
 )
 """Type representing a value that can be used to specify changes in predicates."""

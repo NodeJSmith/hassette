@@ -18,10 +18,10 @@ from typing import Generic, NamedTuple
 
 from frozendict import frozendict
 
-from hassette.core.state_registry import StateKey
+from hassette.conversion import StateKey
 from hassette.models import states
-from hassette.models.states import StateT
 from hassette.resources.base import Resource
+from hassette.types import StateT
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette

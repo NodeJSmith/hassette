@@ -71,7 +71,7 @@ from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.events import Event, HassContext
 from hassette.events.hass.hass import TypedStateChangeEvent as ActualTypedStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
-from hassette.models.states import StateT
+from hassette.types import StateT
 
 from . import accessors as A
 

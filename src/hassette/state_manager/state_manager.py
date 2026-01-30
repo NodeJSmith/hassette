@@ -5,11 +5,12 @@ from typing import Any, Generic, NamedTuple
 
 from frozendict import deepfreeze, frozendict
 
+from hassette.conversion import STATE_REGISTRY, StateKey
 from hassette.core.state_proxy import StateProxy
-from hassette.core.state_registry import STATE_REGISTRY, StateKey
 from hassette.exceptions import RegistryNotReadyError
-from hassette.models.states import BaseState, StateT
+from hassette.models.states import BaseState
 from hassette.resources.base import Resource
+from hassette.types import StateT
 from hassette.utils.hass_utils import make_entity_id
 
 if typing.TYPE_CHECKING:

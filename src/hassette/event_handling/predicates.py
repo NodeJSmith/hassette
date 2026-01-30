@@ -52,8 +52,7 @@ from typing import Any, Generic, TypeGuard, TypeVar
 from boltons.iterutils import is_collection
 
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
-from hassette.events.base import EventT
-from hassette.types import ChangeType, ComparisonCondition
+from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils.glob_utils import is_glob
 
 from .accessors import (
