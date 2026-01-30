@@ -28,7 +28,8 @@ from hassette.core.state_registry import STATE_REGISTRY
 from hassette.events import CallServiceEvent, Event, HassContext, RawStateChangeEvent
 from hassette.exceptions import DependencyInjectionError, DependencyResolutionError
 from hassette.models import states
-from hassette.utils.type_utils import get_typed_signature
+from hassette.test_utils.helpers import make_full_state_change_event, make_light_state_dict
+from hassette.utils.type_utils import ANNOTATION_CONVERTER, get_typed_signature
 
 
 def get_random_model(exclude_models: list[type[states.BaseState]]) -> type[states.BaseState]:
@@ -553,7 +554,7 @@ class TestDependencyInjectionHandlesTypeConversion:
 
             _, annotation_details = extract_from_annotated(D.StateNew[model])
             result = annotation_details.extractor(state_change_event)
-            state = annotation_details.converter(result, model)
+            state = ANNOTATION_CONVERTER.convert(result, model)
 
             assert isinstance(state, model), f"State should be converted to {model.__name__}"
             assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
@@ -568,7 +569,7 @@ class TestDependencyInjectionHandlesTypeConversion:
 
             _, annotation_details = extract_from_annotated(D.StateNew[states.BaseState])
             result = annotation_details.extractor(state_change_event)
-            state = annotation_details.converter(result, states.BaseState)
+            state = ANNOTATION_CONVERTER.convert(result, states.BaseState)
 
             assert isinstance(state, states.BaseState), f"State should be BaseState, got {type(state)}"
             assert state.entity_id.startswith(f"{domain}."), f"Entity ID should have {domain} domain"
@@ -771,5 +772,24 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
                 signature = get_typed_signature(handler)
                 injector = ParameterInjector(handler.__name__, signature)
 
-                with pytest.raises(DependencyResolutionError, match=r".* to any type in Union.*"):
+                with pytest.raises(DependencyResolutionError, match=r".* to hassette.models.states.*"):
                     injector.inject_parameters(state_change_event)
+
+
+class TestDependencyInjectionTypeConversionHandlesComplexTypes:
+    async def test_typed_annotation_handles_list_of_int(self):
+        light_state_old = make_light_state_dict(rgb_color=[255, 0, 0])
+        light_state_new = make_light_state_dict(rgb_color=["0", "255", "0"])
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[list[int], A.get_attr_new("rgb_color")]):
+            print(rgb_color)
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"rgb_color": [0, 255, 0]}

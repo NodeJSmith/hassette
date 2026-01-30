@@ -49,13 +49,17 @@ Examples:
 
 """
 
+import operator
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from hassette.const import MISSING_VALUE
 from hassette.utils.glob_utils import matches_globs
+
+COMPARATOR = Literal[">", "<", ">=", "<=", "==", "!=", "gte", "lte", "ge", "le", "eq", "ne"]
+COMPARATOR_LIST = list(COMPARATOR.__args__)
 
 
 @dataclass(frozen=True)
@@ -344,6 +348,47 @@ class IsNotNone:
 
     def __call__(self, value: Any) -> bool:
         return value is not None
+
+
+@dataclass(frozen=True, init=False)
+class Comparison:
+    """Condition that compares an extracted value to a specified value using a specified comparison operator."""
+
+    compare_to: Any
+    """Value to compare against"""
+
+    comparator: COMPARATOR
+    """Comparison operator to use"""
+
+    op: Callable[[Any, Any], bool]
+    """Comparison operator function"""
+
+    def __init__(self, comparator: COMPARATOR, value: Any):
+        # self.threshold = threshold
+        object.__setattr__(self, "compare_to", value)
+        object.__setattr__(self, "comparator", comparator)
+        match comparator:
+            case ">" | "gt":
+                op = operator.gt
+            case "<" | "lt":
+                op = operator.lt
+            case ">=" | "ge":
+                op = operator.ge
+            case "<=" | "le":
+                op = operator.le
+            case "==|" | "eq":
+                op = operator.eq
+            case "!=" | "ne":
+                op = operator.ne
+            case _:
+                raise ValueError(f"Invalid comparison operator {comparator}. Allowed operators are {COMPARATOR_LIST}")
+        object.__setattr__(self, "op", op)
+
+    def __call__(self, value: Any) -> bool:
+        try:
+            return self.op(value, self.compare_to)
+        except (TypeError, ValueError):
+            return False
 
 
 @dataclass(frozen=True)

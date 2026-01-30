@@ -68,7 +68,6 @@ from dataclasses import dataclass
 from typing import Annotated, Any, Generic, TypeAlias, TypeVar
 
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
-from hassette.core.state_registry import convert_state_dict_to_model
 from hassette.events import Event, HassContext
 from hassette.events.hass.hass import TypedStateChangeEvent as ActualTypedStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
@@ -92,7 +91,7 @@ class AnnotationDetails(Generic[T]):
     extractor: Callable[[T], Any]
     """Function to extract the dependency from the event."""
 
-    converter: Callable[[Any, type], Any] | None = None
+    converter: Callable[[Any, Any], Any] | None = None
     """Optional converter function to convert the extracted value to the desired type."""
 
     def __post_init__(self):
@@ -143,8 +142,7 @@ def identity(x: Any) -> Any:
 # Converter: create_typed_state_change_event() -> _TypedStateChangeEvent[StateT]
 # Returns: TypedStateChangeEvent with typed state
 TypedStateChangeEvent: TypeAlias = Annotated[
-    ActualTypedStateChangeEvent[StateT],
-    AnnotationDetails["RawStateChangeEvent"](identity, ActualTypedStateChangeEvent.create_typed_state_change_event),
+    ActualTypedStateChangeEvent[StateT], AnnotationDetails["RawStateChangeEvent"](identity)
 ]
 """Convert a RawStateChangeEvent into a TypedStateChangeEvent with typed state objects.
 
@@ -167,7 +165,7 @@ async def handler(event: D.TypedStateChangeEvent[states.LightState]):
 # Returns: Typed state model, raises if None/MISSING_VALUE
 StateNew: TypeAlias = Annotated[
     StateT,
-    AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_new), convert_state_dict_to_model),
+    AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_new)),
 ]
 """Extract the new state object from a StateChangeEvent.
 
@@ -183,7 +181,7 @@ async def handler(new_state: D.StateNew[states.LightState]):
 # Returns: Typed state model or None
 MaybeStateNew: TypeAlias = Annotated[
     StateT | None,
-    AnnotationDetails["RawStateChangeEvent"](A.get_state_object_new, convert_state_dict_to_model),
+    AnnotationDetails["RawStateChangeEvent"](A.get_state_object_new),
 ]
 """Extract the new state object from a StateChangeEvent, allowing for None.
 
@@ -200,7 +198,7 @@ async def handler(new_state: D.MaybeStateNew[states.LightState]):
 # Returns: Typed state model, raises if None/MISSING_VALUE
 StateOld: TypeAlias = Annotated[
     StateT,
-    AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_old), convert_state_dict_to_model),
+    AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_old)),
 ]
 """Extract the old state object from a StateChangeEvent.
 
@@ -217,7 +215,7 @@ async def handler(old_state: D.StateOld[states.LightState]):
 # Returns: Typed state model or None
 MaybeStateOld: TypeAlias = Annotated[
     StateT | None,
-    AnnotationDetails["RawStateChangeEvent"](A.get_state_object_old, convert_state_dict_to_model),
+    AnnotationDetails["RawStateChangeEvent"](A.get_state_object_old),
 ]
 """Extract the old state object from a StateChangeEvent, allowing for None.
 
