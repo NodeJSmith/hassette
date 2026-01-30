@@ -20,6 +20,11 @@ from .models.services import ServiceResponse
 from .scheduler import Scheduler
 from .task_bucket import TaskBucket
 
+A = accessors
+C = conditions
+D = dependencies
+P = predicates
+
 logging.getLogger("hassette").addHandler(logging.NullHandler())
 
 __all__ = [
@@ -28,13 +33,17 @@ __all__ = [
     "NOT_PROVIDED",
     "STATE_REGISTRY",
     "TYPE_REGISTRY",
+    "A",
     "Api",
     "App",
     "AppConfig",
     "AppSync",
     "Bus",
+    "C",
+    "D",
     "Hassette",
     "HassetteConfig",
+    "P",
     "RawStateChangeEvent",
     "Scheduler",
     "ServiceResponse",
