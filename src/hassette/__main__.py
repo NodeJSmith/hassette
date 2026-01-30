@@ -4,6 +4,7 @@ from importlib.metadata import version
 from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
+from hassette.app.app_config import AppConfig
 from hassette.config.helpers import get_log_level
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_logging
@@ -41,6 +42,7 @@ async def main() -> None:
 
     if args.env_file:
         HassetteConfig.model_config["env_file"] = args.env_file
+        AppConfig.model_config["env_file"] = args.env_file
 
     if args.config_file:
         HassetteConfig.model_config["toml_file"] = args.config_file

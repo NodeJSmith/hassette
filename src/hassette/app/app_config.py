@@ -1,9 +1,9 @@
 import logging
-from typing import TypeVar
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hassette.config.defaults import ENV_FILE_LOCATIONS
 from hassette.types.types import LOG_LEVELS
 
 
@@ -16,7 +16,9 @@ class AppConfig(BaseSettings):
 
     Fields can be set on subclasses and extra can be overriden by assigning a new value to `model_config`."""
 
-    model_config = SettingsConfigDict(extra="allow", arbitrary_types_allowed=True, env_file=["/config/.env", ".env"])
+    model_config = SettingsConfigDict(
+        extra="allow", arbitrary_types_allowed=True, env_file=ENV_FILE_LOCATIONS, env_ignore_empty=True
+    )
 
     instance_name: str = ""
     """Name for the instance of the app."""
@@ -35,7 +37,3 @@ class AppConfig(BaseSettings):
         if not hasattr(logging, v):
             raise ValueError(f"Invalid log level: {v}")
         return v
-
-
-AppConfigT = TypeVar("AppConfigT", bound=AppConfig)
-"""Type variable for app configuration classes."""
