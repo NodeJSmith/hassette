@@ -8,7 +8,12 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 
 from hassette import context as ctx
 from hassette.config.classes import AppManifest, HassetteTomlConfigSettingsSource
-from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT, get_default_dict
+from hassette.config.defaults import (
+    AUTODETECT_EXCLUDE_DIRS_DEFAULT,
+    ENV_FILE_LOCATIONS,
+    TOML_FILE_LOCATIONS,
+    get_default_dict,
+)
 from hassette.config.helpers import (
     coerce_log_level,
     default_app_dir,
@@ -32,8 +37,8 @@ class HassetteConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="hassette__",
-        env_file=["/config/.env", ".env", "./config/.env"],
-        toml_file=["/config/hassette.toml", "hassette.toml", "./config/hassette.toml"],
+        env_file=ENV_FILE_LOCATIONS,
+        toml_file=TOML_FILE_LOCATIONS,
         env_ignore_empty=True,
         extra="allow",
         env_nested_delimiter="__",
@@ -45,7 +50,12 @@ class HassetteConfig(BaseSettings):
         cli_ignore_unknown_args=True,
         cli_parse_args=True,
         cli_kebab_case=True,
-        cli_shortcuts={"token": ["t"], "base-url": ["u", "url"], "config-file": ["c"], "env-file": ["e", "env"]},
+        cli_shortcuts={
+            "token": ["t"],
+            "base-url": ["u", "url"],
+            "config-file": ["config-file", "c"],
+            "env-file": ["env-file", "env", "e"],
+        },
     )
 
     @classmethod
