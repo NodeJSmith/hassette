@@ -1,5 +1,6 @@
 from .enums import ResourceRole, ResourceStatus, Topic
 from .types import (
+    AppConfigT,
     AsyncHandlerType,
     ChangeType,
     ComparisonCondition,
@@ -15,6 +16,7 @@ from .types import (
 )
 
 __all__ = [
+    "AppConfigT",
     "AsyncHandlerType",
     "ChangeType",
     "ComparisonCondition",

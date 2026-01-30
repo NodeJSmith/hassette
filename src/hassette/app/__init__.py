@@ -5,12 +5,11 @@ applications with typed configuration.
 """
 
 from .app import App, AppSync, only_app
-from .app_config import AppConfig, AppConfigT
+from .app_config import AppConfig
 
 __all__ = [
     "App",
     "AppConfig",
-    "AppConfigT",
     "AppSync",
     "only_app",
 ]

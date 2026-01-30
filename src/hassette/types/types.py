@@ -7,6 +7,7 @@ from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
 
 if TYPE_CHECKING:
+    from hassette.app.app_config import AppConfig
     from hassette.const.misc import FalseySentinel
     from hassette.events.base import Event
     from hassette.models.states.base import BaseState
@@ -25,6 +26,10 @@ StateT = TypeVar("StateT", bound="BaseState", covariant=True)
 
 StateValueT = TypeVar("StateValueT", covariant=True)
 """Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
+
+AppConfigT = TypeVar("AppConfigT", bound="AppConfig")
+"""Type variable for app configuration classes."""
+
 
 V = TypeVar("V")  # value type from the accessor
 V_contra = TypeVar("V_contra", contravariant=True)

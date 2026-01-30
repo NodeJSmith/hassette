@@ -13,10 +13,11 @@ from hassette.events.base import Event
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
+from hassette.types import AppConfigT
 from hassette.types.enums import ResourceRole
 from hassette.utils.date_utils import now
 
-from .app_config import AppConfig, AppConfigT
+from .app_config import AppConfig
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
