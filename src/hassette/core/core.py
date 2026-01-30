@@ -71,7 +71,9 @@ class Hassette(Resource):
 
         self.unique_id = ""
         enable_logging(self.config.log_level)
+
         super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
+        self.logger.info("Starting Hassette...", stacklevel=2)
 
         # set context variables
         context.set_global_hassette(self)
@@ -107,7 +109,7 @@ class Hassette(Resource):
         self.state_registry = STATE_REGISTRY
         self.type_registry = TYPE_REGISTRY
 
-        self.logger.info("All components registered...")
+        self.logger.info("All components registered...", stacklevel=2)
 
     def _startup_tasks(self):
         """Perform one-time startup tasks.
@@ -125,14 +127,10 @@ class Hassette(Resource):
         self.config.set_validated_app_manifests()
 
         active_apps = [app for app in self.config.app_manifests.values() if app.enabled]
-        if active_apps:
-            self.logger.info("Active apps: %s", active_apps)
-        else:
-            self.logger.info("No active apps found.")
+        self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
 
         inactive_apps = [app for app in self.config.app_manifests.values() if not app.enabled]
-        if inactive_apps:
-            self.logger.info("Inactive apps: %s", inactive_apps)
+        self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
 
         if self.config.run_app_precheck:
             try:

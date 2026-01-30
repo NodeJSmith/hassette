@@ -49,7 +49,6 @@ async def main() -> None:
 
     config = HassetteConfig()
 
-    LOGGER.info("Starting Hassette...")
     core = Hassette(config=config)
 
     await core.run_forever()
