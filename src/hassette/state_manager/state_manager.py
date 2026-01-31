@@ -256,8 +256,8 @@ class StateManager(Resource):
             DomainStates container for the requested domain.
 
         Raises:
-            AttributeError: If the attribute name matches a reserved name or
-                if the domain is not registered in the state registry.
+            AttributeError: If the attribute name matches a reserved name or if the domain is not registered in the
+            state registry.
 
         Example:
             ```python
@@ -287,7 +287,7 @@ class StateManager(Resource):
             return self._domain_states_cache[state_class]
 
         if state_class is None:
-            raise ValueError(
+            raise AttributeError(
                 f"Domain '{domain}' is not registered in the state registry. Use `states[{{state_class}}]` "
                 "if you have a custom state class for this domain."
             )
