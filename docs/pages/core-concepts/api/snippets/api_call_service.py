@@ -6,6 +6,6 @@ class NotifyApp(App):
         await self.api.call_service(
             domain="notify",
             service="mobile_app_phone",
-            message="Hello form Hassette!",
+            message="Hello from Hassette!",
             data={"priority": "high"},
         )

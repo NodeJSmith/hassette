@@ -30,7 +30,7 @@ class CacheValue(Generic[StateT], NamedTuple):
 class DomainStates(Generic[StateT]):
     """DomainStates provides access to all states within a specific domain, with automatic type validation and caching.
 
-    This classes accesses the StateProxy under the hood to provide access to the current states from HomeAssistant,
+    This class accesses the StateProxy under the hood to provide access to the current states from HomeAssistant,
     without needing to make direct calls to the Home Assistant API.
 
     Accessed states are automatically validated against the provided model and cached for efficient repeated access.
@@ -51,7 +51,9 @@ class DomainStates(Generic[StateT]):
             print(light_state.value)
 
         # if you are working with a state that isn't defined in Hassette
-        self.states
+        custom_states = self.states[CustomStateClass]
+        for entity_id, state in custom_states:
+            print(f"{entity_id}: {state.value}")
     ```
 
     """

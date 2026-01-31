@@ -116,24 +116,6 @@ When you use `Annotated` with custom extractors from `hassette.event_handling.ac
 
 When a custom extractor returns a value, if the value type doesn't match the annotated type, the TypeRegistry is called to perform the conversion automatically.
 
-### Bypassing Automatic Conversion
-
-If you want to bypass automatic conversion, you can:
-
-1. Use `Any` as the type hint to accept any type without conversion
-2. Provide a custom converter function in your extractor
-
-```python
---8<-- "pages/advanced/snippets/type-registry/bypass_any.py"
-```
-
-Or to use your own converter function:
-
-```python
---8<-- "pages/advanced/snippets/type-registry/bypass_custom.py"
-```
-
-
 ## Relationship with StateRegistry
 
 The TypeRegistry and StateRegistry work together but serve different purposes:

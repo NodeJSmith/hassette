@@ -1,6 +1,6 @@
 # App Configuration
 
-Each app can define a Pydantic configuration model to validation its settings. This allows you to benefit from type safety and automatic parsing of configuration files.
+Each app can define a Pydantic configuration model to validate its settings. This allows you to benefit from type safety and automatic parsing of configuration files.
 
 ## Defining Config Models
 

@@ -2,10 +2,10 @@
 base_url = "http://localhost:8123"
 app_dir = "hassette_apps"
 
-[apps.hello_world]
+[apps.my_app]
 filename = "main.py"
 class_name = "MyApp"
 enabled = true
 
-[[apps.hello_world.config]]
+[[apps.my_app.config]]
 greeting = "This is from the config file!"

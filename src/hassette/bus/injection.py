@@ -132,7 +132,7 @@ class ParameterInjector:
         except Exception as e:
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
-                f"of type '{normalized}' to '{param_type}'"
+                f"of type '{normalized}' to '{param_type}' "
                 f"using converter {conv} "
                 f": {type(e).__name__}: {e}"
             ) from e

@@ -46,11 +46,11 @@ class AnnotationConverter:
 
         # Union / Optional: try arms
         if is_union(tp):
-            last_err: BaseException | None = None
+            last_err: Exception | None = None
             for arm in get_args(tp):
                 try:
                     return self.convert(value, arm)
-                except BaseException as e:
+                except Exception as e:
                     last_err = e
             raise UnableToConvertValueError(f"Unable to convert {value!r} to {tp!r}") from last_err
 

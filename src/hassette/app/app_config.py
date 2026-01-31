@@ -26,7 +26,7 @@ class AppConfig(BaseSettings):
     log_level: LOG_LEVELS = "INFO"
     """Log level for the app instance. Defaults to 'INFO'."""
 
-    @field_validator("log_level")
+    @field_validator("log_level", mode="before")
     @classmethod
     def validate_log_level(cls, v):
         if not isinstance(v, str):

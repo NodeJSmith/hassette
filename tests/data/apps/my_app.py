@@ -1,9 +1,8 @@
 import os
 import typing
-from typing import cast
+from typing import Annotated, cast
 
-from hassette import App, AppConfig
-from hassette import dependencies as D
+from hassette import A, App, AppConfig, D
 from hassette.events import RawStateChangeEvent
 from hassette.models import states
 from hassette.models.entities import LightEntity
@@ -23,6 +22,11 @@ class MyApp(App[MyAppUserConfig]):
             return
 
         self.logger.info("MyApp is initializing")
+        self.bus.on_attribute_change(
+            "light.office",
+            A.get_attr_new("rgb_color"),
+            handler=self.handle_color_change,
+        )
         self.bus.on_state_change("input_button.test", handler=self.handle_event_sync)
         self.scheduler.run_in(self.api.get_states, 1)
         self.scheduler.run_every(
@@ -65,6 +69,9 @@ class MyApp(App[MyAppUserConfig]):
         self.logger.info("new_state: %s, kwargs: %s", new_state, kwargs)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)
+
+    def handle_color_change(self, rgb_color: Annotated[list[int], A.get_attr_new("rgb_color")]) -> None:
+        self.logger.info("Color changed to: %s", rgb_color)
 
     async def handle_event(self, event: RawStateChangeEvent, **kwargs) -> None:
         self.logger.info("Async event: %s, kwargs: %s", event, kwargs)
