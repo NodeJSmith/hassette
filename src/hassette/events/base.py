@@ -37,7 +37,7 @@ class HassContext:
     user_id: str | None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, repr=False)
 class HassPayload(EventPayload[DataT]):
     """Home Assistant event payload with additional metadata."""
 
@@ -82,8 +82,14 @@ class HassPayload(EventPayload[DataT]):
         """The unique identifier for the event."""
         return self.context.id
 
+    def __repr__(self) -> str:
+        if self.entity_id:
+            return f"HassPayload(event_type={self.event_type}, entity_id={self.entity_id}, event_id={self.event_id})"
 
-@dataclass(frozen=True, slots=True)
+        return f"HassPayload(event_type={self.event_type}, event_id={self.event_id})"
+
+
+@dataclass(frozen=True, slots=True, repr=False)
 class HassettePayload(EventPayload[DataT]):
     """Hassette event payload with additional metadata."""
 
@@ -96,9 +102,11 @@ class HassettePayload(EventPayload[DataT]):
     event_id: int = field(default_factory=lambda: next(HASSETTE_EVENT_ID_SEQ))
     """The unique identifier for the event."""
 
+    def __repr__(self) -> str:
+        return f"HassettePayload(event_type={self.event_type}, event_id={self.event_id})"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, repr=False)
 class Event(Generic[PayloadT]):
     """Base event with strongly typed payload."""
 
@@ -107,3 +115,6 @@ class Event(Generic[PayloadT]):
 
     payload: PayloadT
     """The event payload."""
+
+    def __repr__(self) -> str:
+        return f"Event({self.payload})"
