@@ -264,7 +264,9 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))  # allow extra guards
 
-        return self.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
+
+        return self.on(topic=topic, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_attribute_change(
         self,
@@ -337,7 +339,8 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
+        return self.on(topic=topic, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_call_service(
         self,

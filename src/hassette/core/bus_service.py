@@ -9,7 +9,7 @@ from typing import Any
 
 from fair_async_rlock import FairAsyncRLock
 
-from hassette.events import HassPayload
+from hassette.events import Event, HassPayload
 from hassette.exceptions import HassetteError
 from hassette.resources.base import Service
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import Hassette
     from hassette.bus import Listener
-    from hassette.events import Event, EventPayload
+    from hassette.events import EventPayload
 
 
 class BusService(Service):
@@ -104,23 +104,70 @@ class BusService(Service):
 
         return False
 
-    async def dispatch(self, topic: str, event: "Event[Any]") -> None:
+    async def dispatch(self, base_topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
 
-        if self._should_skip_event(topic, event):
+        if self._should_skip_event(base_topic, event):
             return
 
-        targets = await self._get_matching_listeners(topic, event)
+        routes = self._expand_topics(base_topic, event)  # ordered: most specific -> least
+        chosen: dict[int, tuple[str, Listener]] = {}  # listener_id -> (matched_route, listener)
 
-        if self._should_log_event(event):
-            self.logger.debug("Event: %r", event)
+        # Route first, then dedupe by "first match wins" because routes are ordered by specificity
+        for route in routes:
+            listeners = await self.router.get_topic_listeners(route)
+            for listener in listeners:
+                if listener.listener_id in chosen:
+                    continue
+                if await listener.matches(event):
+                    chosen[listener.listener_id] = (route, listener)
 
-        if not targets:
+        if not chosen:
             return
 
-        self.logger.debug("Dispatching %s to %d listeners", topic, len(targets))
+        # group by route for logging
+        listeners_by_route = defaultdict(list)
+        for route, listener in chosen.values():
+            listeners_by_route[route].append(listener)
+
+        # loop over routes so we always log in order of specificity
+        for route in routes:
+            listeners = listeners_by_route.get(route)
+            if not listeners:
+                continue
+
+            self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
+            for listener in listeners:
+                self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+
+    def _expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
+        payload = event.payload
+        if not isinstance(payload, HassPayload):
+            return [topic]
+
+        # only specialize HA events you care about
+        if payload.event_type == "state_changed":
+            entity_id = payload.entity_id
+            if isinstance(entity_id, str) and "." in entity_id:
+                domain = entity_id.split(".", 1)[0]
+                return [
+                    f"{topic}.{entity_id}",  # hass.event.state_changed.light.office
+                    f"{topic}.{domain}.*",  # hass.event.state_changed.light.*
+                    topic,  # hass.event.state_changed
+                ]
+
+        return [topic]
+
+    def _dedupe_targets(self, targets: list["Listener"]) -> list["Listener"]:
+        seen: set[int] = set()
+        unique_targets: list[Listener] = []
         for listener in targets:
-            self.task_bucket.spawn(self._dispatch(topic, event, listener), name="bus:dispatch_listener")
+            if listener.listener_id in seen:
+                continue
+            seen.add(listener.listener_id)
+            unique_targets.append(listener)
+
+        return unique_targets
 
     async def _get_matching_listeners(self, topic: str, event: "Event[Any]") -> list["Listener"]:
         """Get all listeners that match the given event."""
