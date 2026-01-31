@@ -58,7 +58,7 @@ from typing import Any, Literal
 from hassette.const import MISSING_VALUE
 from hassette.utils.glob_utils import matches_globs
 
-COMPARATOR = Literal[">", "<", ">=", "<=", "==", "!=", "gte", "lte", "ge", "le", "eq", "ne"]
+COMPARATOR = Literal[">", "<", ">=", "<=", "==", "!=", "gt", "lt", "ge", "le", "eq", "ne"]
 COMPARATOR_LIST = list(COMPARATOR.__args__)
 
 
@@ -376,7 +376,7 @@ class Comparison:
                 op = operator.ge
             case "<=" | "le":
                 op = operator.le
-            case "==|" | "eq":
+            case "==" | "eq":
                 op = operator.eq
             case "!=" | "ne":
                 op = operator.ne
