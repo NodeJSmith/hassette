@@ -1,9 +1,11 @@
 import itertools
 import typing
 from dataclasses import dataclass, field
-from typing import Any, Generic, Literal, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from whenever import ZonedDateTime
+
+from hassette.types import PayloadT
 
 if typing.TYPE_CHECKING:
     from hassette.types import Topic
@@ -94,9 +96,6 @@ class HassettePayload(EventPayload[DataT]):
     event_id: int = field(default_factory=lambda: next(HASSETTE_EVENT_ID_SEQ))
     """The unique identifier for the event."""
 
-
-PayloadT = TypeVar("PayloadT", bound=EventPayload[Any], covariant=True)
-"""Represents the payload type of an event."""
 
 
 @dataclass(frozen=True, slots=True)

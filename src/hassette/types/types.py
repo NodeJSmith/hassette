@@ -9,7 +9,7 @@ from whenever import Time, TimeDelta, ZonedDateTime
 if TYPE_CHECKING:
     from hassette.app.app_config import AppConfig
     from hassette.const.misc import FalseySentinel
-    from hassette.events.base import Event
+    from hassette.events.base import Event, EventPayload
     from hassette.models.states.base import BaseState
 
 
@@ -20,6 +20,8 @@ LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 EventT = TypeVar("EventT", bound="Event[Any]", contravariant=True)
 """Represents an event type."""
 
+PayloadT = TypeVar("PayloadT", bound="EventPayload[Any]", covariant=True)
+"""Represents the payload type of an event."""
 
 StateT = TypeVar("StateT", bound="BaseState", covariant=True)
 """Represents a specific state type, e.g., LightState, CoverState, etc."""
