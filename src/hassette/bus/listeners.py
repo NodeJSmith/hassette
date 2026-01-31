@@ -4,7 +4,7 @@ import itertools
 import typing
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from logging import getLogger
+from logging import Logger, getLogger
 from typing import Any, cast
 
 from hassette.bus.injection import ParameterInjector
@@ -33,10 +33,13 @@ def next_id() -> int:
 class Listener:
     """A listener for events with a specific topic and handler."""
 
+    logger: Logger
+    """Logger for the listener."""
+
     listener_id: int = field(default_factory=next_id, init=False)
     """Unique identifier for the listener instance."""
 
-    owner: str = field(compare=False)
+    owner: str
     """Unique string identifier for the owner of the listener, e.g., a component or integration name."""
 
     topic: str
@@ -72,7 +75,11 @@ class Listener:
         """Check if the event matches the listener's predicate."""
         if self.predicate is None:
             return True
-        return self.predicate(ev)
+        matched = self.predicate(ev)
+
+        match_str = "matched" if matched else "did not match"
+        self.logger.debug("Listener %s %s predicate for event: %s", self, match_str, ev)
+        return matched
 
     async def invoke(self, event: "Event[Any]") -> None:
         """Invoke the handler through the adapter."""
@@ -95,6 +102,7 @@ class Listener:
         debounce: float | None = None,
         throttle: float | None = None,
         priority: int = 0,
+        logger: Logger = LOGGER,
     ) -> "Listener":
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
@@ -113,6 +121,7 @@ class Listener:
         )
 
         return cls(
+            logger=logger,
             owner=owner,
             topic=topic,
             orig_handler=handler,

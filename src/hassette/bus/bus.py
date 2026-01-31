@@ -197,6 +197,7 @@ class Bus(Resource):
             debounce=debounce,
             throttle=throttle,
             priority=self.priority,
+            logger=self.logger,
         )
 
         def unsubscribe() -> None:
