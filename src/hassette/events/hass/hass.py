@@ -1,6 +1,6 @@
 import logging
 import typing
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, TypeAlias
 
 from hassette.const import MISSING_VALUE
@@ -293,28 +293,6 @@ class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]])
 
     This is not used directly; use the TypedStateChangeEvent annotation in dependencies instead.
     """
-
-    @classmethod
-    def create_typed_state_change_event(cls, event: "RawStateChangeEvent", to_type: type):
-        from hassette.conversion import convert_state_dict_to_model
-
-        entity_id = event.payload.data.entity_id
-        old_state = event.payload.data.old_state
-        new_state = event.payload.data.new_state
-
-        if entity_id is None:
-            raise ValueError("State change event data must contain 'entity_id' key")
-
-        new_state_obj = convert_state_dict_to_model(new_state, to_type) if new_state is not None else None
-        old_state_obj = convert_state_dict_to_model(old_state, to_type) if old_state is not None else None
-        curr_payload = {k: v for k, v in asdict(event.payload).items() if k != "data"}
-        payload = TypedStateChangePayload[StateT](
-            entity_id=entity_id,
-            old_state=old_state_obj,  # type: ignore
-            new_state=new_state_obj,  # type: ignore
-        )
-
-        return TypedStateChangeEvent(topic=event.topic, payload=HassPayload(**curr_payload, data=payload))
 
 
 HassEvent: TypeAlias = Event[HassPayload[Any]]

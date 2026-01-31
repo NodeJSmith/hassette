@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, get_args, get_origin
 
 from hassette.conversion.state_registry import convert_state_dict_to_model
@@ -170,12 +170,14 @@ def convert_typed_state_change_event(c: "AnnotationConverter", value: Any, tp: A
     old_state_obj = None if data.old_state is None else c.convert(data.old_state, state_tp)
     new_state_obj = None if data.new_state is None else c.convert(data.new_state, state_tp)
 
-    # Build typed payload/event without type:ignore by using the concrete StateT at runtime.
-
-    curr_payload = {k: v for k, v in asdict(value.payload).items() if k != "data"}
-    payload = TypedStateChangePayload(
-        entity_id=entity_id,
-        old_state=old_state_obj,
-        new_state=new_state_obj,
+    data = TypedStateChangePayload(entity_id=entity_id, old_state=old_state_obj, new_state=new_state_obj)
+    return TypedStateChangeEvent(
+        topic=value.topic,
+        payload=HassPayload(
+            event_type=value.payload.event_type,
+            data=data,
+            origin=value.payload.origin,
+            time_fired=value.payload.time_fired,
+            context=value.payload.context,
+        ),
     )
-    return TypedStateChangeEvent(topic=value.topic, payload=HassPayload(**curr_payload, data=payload))
