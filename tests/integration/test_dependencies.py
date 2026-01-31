@@ -775,7 +775,7 @@ class TestDependencyInjectionTypeConversionHandlesComplexTypes:
         )
 
         def new_state_handler(rgb_color: Annotated[list[int], A.get_attr_new("rgb_color")]):
-            print(rgb_color)
+            pass
 
         signature = get_typed_signature(new_state_handler)
         injector = ParameterInjector(new_state_handler.__name__, signature)
