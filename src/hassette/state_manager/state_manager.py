@@ -204,16 +204,16 @@ class StateManager(Resource):
     Examples:
     ```python
         # Iterate over all lights
-        for entity_id, light_state in self.states.lights:
+        for entity_id, light_state in self.states.light:
             print(f"{entity_id}: {light_state.value}")
 
         # Get specific entity
-        bedroom_light = self.states.lights.get("light.bedroom")
+        bedroom_light = self.states.light.get("light.bedroom")
         if bedroom_light and bedroom_light.attributes.brightness:
             print(f"Brightness: {bedroom_light.attributes.brightness}")
 
         # Check count
-        print(f"Total lights: {len(self.states.lights)}")
+        print(f"Total lights: {len(self.states.light)}")
     ```
     """
 
