@@ -5,8 +5,6 @@ from typing import Any, Generic, Literal, TypeVar
 
 from whenever import ZonedDateTime
 
-from hassette.utils.date_utils import convert_datetime_str_to_system_tz
-
 if typing.TYPE_CHECKING:
     from hassette.types import Topic
 
@@ -55,9 +53,6 @@ class HassPayload(EventPayload[DataT]):
 
     context: HassContext
     """The context of the event."""
-
-    def __post_init__(self):
-        object.__setattr__(self, "time_fired", convert_datetime_str_to_system_tz(self.time_fired))
 
     @property
     def entity_id(self) -> str | None:

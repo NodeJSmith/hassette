@@ -4,8 +4,9 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Generic, Literal, TypeAlias
 
 from hassette.const import MISSING_VALUE
-from hassette.events.base import Event, HassPayload
+from hassette.events.base import Event, HassContext, HassPayload
 from hassette.types import StateT, Topic
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
 from .raw import HassEventEnvelopeDict, HassStateDict
 
@@ -224,8 +225,8 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
     event_payload = {
         "event_type": event_type,
         "origin": event["origin"],
-        "context": event["context"],
-        "time_fired": event["time_fired"],
+        "context": HassContext(**event["context"]),
+        "time_fired": convert_datetime_str_to_system_tz(event["time_fired"]),
     }
 
     match event_type:

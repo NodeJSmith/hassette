@@ -25,7 +25,7 @@ from hassette.bus.extraction import (
 )
 from hassette.bus.injection import ParameterInjector
 from hassette.conversion import ANNOTATION_CONVERTER
-from hassette.events import CallServiceEvent, Event, HassContext, RawStateChangeEvent
+from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
 from hassette.exceptions import DependencyInjectionError, DependencyResolutionError
 from hassette.models import states
 from hassette.test_utils.helpers import make_full_state_change_event, make_light_state_dict
@@ -136,16 +136,6 @@ class TestTypeAliasExtractors:
                 # check only for "not MISSING_VALUE", as we get domain from a few different places
                 # and the test shouldn't need to be aware of that
                 assert result is not MISSING_VALUE, f"Domain extractor returned MISSING_VALUE for event: {event}"
-
-    def test_event_context_extractor(self, state_change_events: list[RawStateChangeEvent]):
-        """Test EventContext type alias extracts context."""
-        for event in state_change_events:
-            _, annotation_details = extract_from_annotated(D.EventContext)
-            raw_result = annotation_details.extractor(event)
-            converted_result = annotation_details.converter(raw_result, None)
-
-            assert isinstance(raw_result, dict)
-            assert isinstance(converted_result, HassContext)
 
 
 class TestExtractFromAnnotated:
