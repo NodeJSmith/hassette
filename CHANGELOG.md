@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add --version/-v argument to Hassette to allow displaying the current version
 - Add `__iter__`, `__contains__`, `keys`, `values`, and `items` methods to StateManager and StateRegistry
+- Add functionality to route `state_change` events to more specific handlers based on domain and/or entity_id
+  - This is done automatically by the `Bus` by adding the entity_id to the topic when creating the listener
+  - Matched listeners are deduplicated to ensure delivery only happens one time
+  - Events are dispatched to the most specific route if there are multiple matches
+- Add `AnnotationConverter` class and `TypeMatcher` class for more robust validation/conversion during DI
+- Add A, P, C, and D aliases to `hassette.__init__` for simpler imports
+  - `A` = `hassette.event_handling.accessors`
+  - `P` = `hassette.event_handling.predicates`
+  - `C` = `hassette.event_handling.conditions`
+  - `D` = `hassette.event_handling.dependencies`
+- Add new `Comparison` condition for basic operators (e.g. `==`, `!=`, `<`, `>`, etc.) to compare values in state/attribute change listeners
 
 ### Fixed
 - Fix AppHandler reporting failed apps as successful by using status attribute
@@ -18,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - This does not work because `BaseState` doesn't have a `domain`
   - Error is now raised instead
 - Log level is now used by Apps if set directly in AppConfig in Python code (as opposed to config file)
+- Fix HassPayload's context attribute not being a HassContext instance
 
 ### Changed
 - BREAKING: Replaced `StateManager.get_states` with `__getitem__` that accepts a state class
@@ -26,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Docs
 - Remove `Why Hassette` page
 - Remove docker networking page
+- Very large cleanup/reorg/addition of docs
 
 ## [0.19.2] - 2026-01-25
 
