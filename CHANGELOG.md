@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - BREAKING: Replaced `StateManager.get_states` with `__getitem__` that accepts a state class
   - The error raised in StateManager when a state class is not found in the `StateRegistry` now advises to use this method
+- Renamed `LOG_LEVELS` to `LOG_LEVEL_TYPE`
+- Renamed `get_default_dict` to `get_defaults_dict` to be more clear this is not referring to `defaultdict` class
+- Use same validation for `AppConfig` log level as we do for `Hassette` config log level
 
 ### Docs
 - Remove `Why Hassette` page

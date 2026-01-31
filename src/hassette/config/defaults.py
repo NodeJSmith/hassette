@@ -29,7 +29,7 @@ def get_defaults_from_toml(dev: bool = False) -> dict[str, Any]:
     return data["hassette"]
 
 
-def get_default_dict(dev: bool = False) -> dict[str, Any]:
+def get_defaults_dict(dev: bool = False) -> dict[str, Any]:
     """Get the default configuration dictionary.
 
     Args:

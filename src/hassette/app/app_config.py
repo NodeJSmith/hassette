@@ -1,10 +1,9 @@
-import logging
-
-from pydantic import field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
-from hassette.types.types import LOG_LEVELS
+from hassette.config.helpers import log_level_default_factory
+from hassette.types.types import LOG_LEVEL_TYPE
 
 
 class AppConfig(BaseSettings):
@@ -23,17 +22,5 @@ class AppConfig(BaseSettings):
     instance_name: str = ""
     """Name for the instance of the app."""
 
-    log_level: LOG_LEVELS = "INFO"
-    """Log level for the app instance. Defaults to 'INFO'."""
-
-    @field_validator("log_level", mode="before")
-    @classmethod
-    def validate_log_level(cls, v):
-        if not isinstance(v, str):
-            raise ValueError(f"Log level must be a string, got {type(v)}")
-
-        v = v.upper()
-
-        if not hasattr(logging, v):
-            raise ValueError(f"Invalid log level: {v}")
-        return v
+    log_level: LOG_LEVEL_TYPE = Field(default_factory=log_level_default_factory)
+    """Log level for the app instance. Defaults to Hassette default if not provided."""

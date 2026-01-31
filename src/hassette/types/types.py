@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from hassette.models.states.base import BaseState
 
 
-LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 """Log levels for configuring logging."""
 
 

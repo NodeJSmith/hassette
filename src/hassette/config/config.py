@@ -12,7 +12,7 @@ from hassette.config.defaults import (
     AUTODETECT_EXCLUDE_DIRS_DEFAULT,
     ENV_FILE_LOCATIONS,
     TOML_FILE_LOCATIONS,
-    get_default_dict,
+    get_defaults_dict,
 )
 from hassette.config.helpers import (
     coerce_log_level,
@@ -23,13 +23,13 @@ from hassette.config.helpers import (
     get_dev_mode,
     log_level_default_factory,
 )
-from hassette.types.types import LOG_LEVELS, AppDict, RawAppDict
+from hassette.types.types import LOG_LEVEL_TYPE, AppDict, RawAppDict
 from hassette.utils.app_utils import autodetect_apps, clean_app
 
 LOGGER_NAME = "hassette.config.config" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
 
-LOG_ANNOTATION = Annotated[LOG_LEVELS, BeforeValidator(coerce_log_level)]
+LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(coerce_log_level)]
 
 
 class HassetteConfig(BaseSettings):
@@ -361,7 +361,7 @@ class HassetteConfig(BaseSettings):
     def model_post_init(self, *args):
         """Set default values for any unset fields after initialization."""
         default_str = "default (dev)" if self.dev_mode else "default (prod)"
-        defaults = get_default_dict(dev=self.dev_mode)
+        defaults = get_defaults_dict(dev=self.dev_mode)
 
         for fname in type(self).model_fields:
             if fname in self.model_fields_set or fname not in defaults:

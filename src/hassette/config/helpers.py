@@ -13,25 +13,12 @@ from packaging.version import Version
 
 from hassette import context
 from hassette.exceptions import HassetteNotInitializedError
-from hassette.types.types import LOG_LEVELS
+from hassette.types.types import LOG_LEVEL_TYPE
 
-LOG_LEVEL_VALUES = get_args(LOG_LEVELS)
+LOG_LEVEL_VALUES = get_args(LOG_LEVEL_TYPE)
 
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
-
-
-def get_log_level() -> LOG_LEVELS:
-    log_level = (
-        os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
-    ).upper()
-    if log_level not in LOG_LEVEL_VALUES:
-        warn(
-            f"Log level {log_level!r} is not valid, defaulting to INFO",
-            skip_file_prefixes=("hassette.config.helpers", "pydantic"),
-        )
-        log_level = "INFO"
-    return cast("LOG_LEVELS", log_level)
 
 
 def get_dev_mode() -> bool:
@@ -62,6 +49,7 @@ def get_dev_mode() -> bool:
         reason = "python -X dev"
 
     if enabled:
+        logger.setLevel(get_log_level())
         logger.info("Developer mode enabled (%s)", reason)
 
     return enabled
@@ -144,14 +132,28 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     return paths
 
 
-def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS:
-    """Coerce a log level value to a LOG_LEVELS string.
+def warn_log_level_not_valid(log_level: str, fallback_value: LOG_LEVEL_TYPE) -> None:
+    warn(
+        f"Log level {log_level!r} is not valid, defaulting to {fallback_value!r}. ",
+        skip_file_prefixes=("hassette.config.helpers", "pydantic"),
+    )
+
+
+def get_log_level() -> LOG_LEVEL_TYPE:
+    log_level = (
+        os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
+    ).upper()
+    return coerce_log_level(log_level)
+
+
+def coerce_log_level(value: str | LOG_LEVEL_TYPE | None) -> LOG_LEVEL_TYPE:
+    """Coerce a log level value to a LOG_LEVEL_TYPE string.
 
     Args:
         value: The log level value to coerce.
 
     Returns:
-        The coerced log level as a LOG_LEVELS string. If the input is invalid,
+        The coerced log level as a LOG_LEVEL_TYPE string. If the input is invalid,
         returns the default log level from get_log_level().
     """
     default_log_level = get_log_level()
@@ -160,17 +162,19 @@ def coerce_log_level(value: str | LOG_LEVELS | None) -> LOG_LEVELS:
         return default_log_level
 
     if not isinstance(value, str):
+        warn_log_level_not_valid(str(value), default_log_level)
         return default_log_level
 
     value = value.upper()
 
     if value not in LOG_LEVEL_VALUES:
+        warn_log_level_not_valid(value, default_log_level)
         return default_log_level
 
-    return cast("LOG_LEVELS", value)
+    return cast("LOG_LEVEL_TYPE", value)
 
 
-def log_level_default_factory(data: dict[str, LOG_LEVELS | None]) -> LOG_LEVELS:
+def log_level_default_factory(data: dict[str, LOG_LEVEL_TYPE | None]) -> LOG_LEVEL_TYPE:
     """Default factory for log level fields.
 
     Returns the log_level from the data dictionary if present, otherwise
@@ -182,4 +186,4 @@ def log_level_default_factory(data: dict[str, LOG_LEVELS | None]) -> LOG_LEVELS:
     Returns:
         The determined log level.
     """
-    return data.get("log_level") or get_log_level()
+    return coerce_log_level(data.get("log_level"))
