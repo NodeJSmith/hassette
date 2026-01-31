@@ -290,7 +290,7 @@ class StateManager(Resource):
 
         if state_class is None:
             raise AttributeError(
-                f"Domain '{domain}' is not registered in the state registry. Use `states[{{state_class}}]` "
+                f"Domain '{domain}' is not registered in the state registry. Use `states[<state_class>]` "
                 "if you have a custom state class for this domain."
             )
 
