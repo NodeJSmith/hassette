@@ -52,6 +52,8 @@ jobs:
               uses: docker/metadata-action@v5
               with:
                   images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}
+                  flavor: |
+                      latest=false
                   tags: |
                       type=sha,prefix=sha-,format=short,suffix=-py${{ env.PYTHON_VERSION }}
                       type=pep440,pattern={{version}},suffix=-py${{ env.PYTHON_VERSION }},enable=${{ github.event_name == 'push' }}
