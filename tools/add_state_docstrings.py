@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 """
 One-off script to add docstrings to Home Assistant state classes in Hassette.
 
