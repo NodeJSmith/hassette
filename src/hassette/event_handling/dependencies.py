@@ -13,8 +13,7 @@ async def handle_state_change(event: RawStateChangeEvent):
 
 You can use the `NewState` dependency:
 ```python
-from hassette import dependencies as D
-from hassette import states
+from hassette import D, states
 
 async def handle_state_change(new_state: D.StateNew[states.ButtonState]):
     # do something with new_state
@@ -30,8 +29,7 @@ your parameter(s) with `Annotated` and either using an existing accessor from
 Examples:
     Extracting the new state object from a RawStateChangeEvent
     ```python
-    from hassette import dependencies as D
-    from hassette import states
+    from hassette import D, states
 
     async def handle_state_change(new_state: D.StateNew[states.ButtonState]):
         # new_state is automatically extracted and typed as states.ButtonState
@@ -40,7 +38,7 @@ Examples:
 
     Extracting the entity_id from any HassEvent
     ```python
-    from hassette import dependencies as D
+    from hassette import D
 
     async def handle_event(entity_id: D.EntityId):
         # entity_id is automatically extracted
@@ -52,7 +50,7 @@ Examples:
     from pathlib import Path
 
     from typing import Annotated
-    from hassette import accessors as A
+    from hassette import A
 
     async def handle_event(
         file_path: Annotated[Path, A.get_path("payload.data.changed_file_path")],
@@ -139,7 +137,6 @@ def identity(x: Any) -> Any:
 # with typed state objects using the StateRegistry.
 
 # Extractor: identity (full event)
-# Converter: create_typed_state_change_event() -> _TypedStateChangeEvent[StateT]
 # Returns: TypedStateChangeEvent with typed state
 TypedStateChangeEvent: TypeAlias = Annotated[
     ActualTypedStateChangeEvent[StateT], AnnotationDetails["RawStateChangeEvent"](identity)
@@ -161,7 +158,6 @@ async def handler(event: D.TypedStateChangeEvent[states.LightState]):
 # to typed Pydantic models using the StateRegistry.
 
 # Extractor: get_state_object_new() -> HassStateDict
-# Converter: convert_state_dict_to_model() -> StateT (e.g., LightState)
 # Returns: Typed state model, raises if None/MISSING_VALUE
 StateNew: TypeAlias = Annotated[
     StateT,
@@ -177,7 +173,6 @@ async def handler(new_state: D.StateNew[states.LightState]):
 """
 
 # Extractor: get_state_object_new() -> HassStateDict | None
-# Converter: convert_state_dict_to_model() -> StateT (e.g., LightState)
 # Returns: Typed state model or None
 MaybeStateNew: TypeAlias = Annotated[
     StateT | None,
@@ -194,7 +189,6 @@ async def handler(new_state: D.MaybeStateNew[states.LightState]):
 """
 
 # Extractor: get_state_object_old() -> HassStateDict
-# Converter: convert_state_dict_to_model() -> StateT (e.g., LightState)
 # Returns: Typed state model, raises if None/MISSING_VALUE
 StateOld: TypeAlias = Annotated[
     StateT,
@@ -211,7 +205,6 @@ async def handler(old_state: D.StateOld[states.LightState]):
 """
 
 # Extractor: get_state_object_old() -> HassStateDict | None
-# Converter: convert_state_dict_to_model() -> StateT (e.g., LightState)
 # Returns: Typed state model or None
 MaybeStateOld: TypeAlias = Annotated[
     StateT | None,
@@ -232,10 +225,8 @@ async def handler(old_state: D.MaybeStateOld[states.LightState]):
 # Identity & Metadata Extractors
 # ======================================================================================
 # These annotations extract simple identity and metadata fields from events.
-# No converters needed - values are used as-is.
 
 # Extractor: get_entity_id() -> str
-# Converter: None
 # Returns: Entity ID string, raises if None/MISSING_VALUE
 EntityId: TypeAlias = Annotated[str, AnnotationDetails(ensure_present(A.get_entity_id))]
 """Extract the entity_id from a HassEvent.
@@ -250,13 +241,11 @@ async def handler(entity_id: D.EntityId):
 """
 
 # Extractor: get_entity_id() -> str | FalseySentinel
-# Converter: None
 # Returns: Entity ID string or MISSING_VALUE
 MaybeEntityId: TypeAlias = Annotated[str | FalseySentinel, AnnotationDetails(A.get_entity_id)]
 """Extract the entity_id from a HassEvent, returning MISSING_VALUE sentinel if not present."""
 
 # Extractor: get_domain() -> str
-# Converter: None
 # Returns: Domain string, raises if None/MISSING_VALUE
 Domain: TypeAlias = Annotated[str, AnnotationDetails(ensure_present(A.get_domain))]
 """Extract the domain from a HassEvent.
@@ -272,13 +261,11 @@ async def handler(domain: D.Domain):
 ```
 """
 # Extractor: get_domain() -> str | FalseySentinel
-# Converter: None
 # Returns: Domain string or MISSING_VALUE
 MaybeDomain: TypeAlias = Annotated[str | FalseySentinel, AnnotationDetails(A.get_domain)]
 """Extract the domain from a HassEvent, returning MISSING_VALUE sentinel if not present."""
 
 # Extractor: get_context() -> HassContext
-# Converter: lambda to create HassContext
 # Returns: HassContext object
 EventContext: TypeAlias = Annotated[HassContext, AnnotationDetails[Event](A.get_context)]
 """Extract the context object from a HassEvent.
