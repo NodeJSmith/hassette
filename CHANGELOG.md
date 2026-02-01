@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Error is now raised instead
 - Log level is now used by Apps if set directly in AppConfig in Python code (as opposed to config file)
 - Fix HassPayload's context attribute not being a HassContext instance
+- `MediaPlayerState` now has `attributes` using the correct type
 
 ### Changed
 - BREAKING: Replaced `StateManager.get_states` with `__getitem__` that accepts a state class
@@ -40,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `LOG_LEVELS` to `LOG_LEVEL_TYPE`
 - Renamed `get_default_dict` to `get_defaults_dict` to be more clear this is not referring to `defaultdict` class
 - Use same validation for `AppConfig` log level as we do for `Hassette` config log level
+- Extracted nested Attributes classes for each state out of class definition to make them first class citizens
+  - e.g. `MediaPlayerState.Attributes` is now `MediaPlayerAttributes`
 
 ### Docs
 - Remove `Why Hassette` page

@@ -8,22 +8,23 @@ from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 from .base import AttributesBase, StringBaseState
 
 
+class ScriptAttributes(AttributesBase):
+    last_triggered: ZonedDateTime | None = Field(default=None)
+    mode: str | None = Field(default=None)
+    current: int | float | None = Field(default=None)
+
+    @field_validator("last_triggered", mode="before")
+    @classmethod
+    def parse_last_triggered(cls, value: ZonedDateTime | str | None) -> ZonedDateTime | None:
+        return convert_datetime_str_to_system_tz(value)
+
+
 class ScriptState(StringBaseState):
     """Representation of a Home Assistant script state.
 
     See: https://www.home-assistant.io/integrations/script/
     """
 
-    class Attributes(AttributesBase):
-        last_triggered: ZonedDateTime | None = Field(default=None)
-        mode: str | None = Field(default=None)
-        current: int | float | None = Field(default=None)
-
-        @field_validator("last_triggered", mode="before")
-        @classmethod
-        def parse_last_triggered(cls, value: ZonedDateTime | str | None) -> ZonedDateTime | None:
-            return convert_datetime_str_to_system_tz(value)
-
     domain: Literal["script"]
 
-    attributes: Attributes
+    attributes: ScriptAttributes
