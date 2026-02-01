@@ -101,20 +101,20 @@ def convert_homogeneous_iterable(c: "AnnotationConverter", value: Any, tp: Any) 
 
     elem_tp = args[0] if args else Any
 
+    if origin not in (list, set, frozenset):
+        raise UnableToConvertValueError(f"Unsupported iterable origin{origin!r}")
+
+    if not isinstance(value, origin):
+        raise UnableToConvertValueError(f"Expected {origin.__name__}, got {type(value).__name__}")
+
     # Strict: only accept the matching concrete container at runtime
     if origin is list:
-        if not isinstance(value, list):
-            raise UnableToConvertValueError(f"Expected list, got {type(value).__name__}")
         return [c.convert(v, elem_tp) for v in value]
 
     if origin is set:
-        if not isinstance(value, set):
-            raise UnableToConvertValueError(f"Expected set, got {type(value).__name__}")
         return {c.convert(v, elem_tp) for v in value}
 
     if origin is frozenset:
-        if not isinstance(value, frozenset):
-            raise UnableToConvertValueError(f"Expected frozenset, got {type(value).__name__}")
         return frozenset(c.convert(v, elem_tp) for v in value)
 
     raise UnableToConvertValueError(f"Unsupported iterable origin: {origin!r}")
