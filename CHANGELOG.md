@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add new accessors for getting multiple/all attributes at once from state change events
   - `get_attrs_<old|new|old_new>` - specify a list of attrs
   - `get_all_attrs_<old|new|old_new>` - get all attributes as a dict
+- Add `get_all_changes` accessor that returns a dictionary of all changes, including state and all attributes
 
 ### Fixed
 - Fix AppHandler reporting failed apps as successful by using status attribute

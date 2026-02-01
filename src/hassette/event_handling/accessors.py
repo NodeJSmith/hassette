@@ -44,7 +44,7 @@ Examples:
 
 import logging
 import typing
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 from glom import PathAccessError, glom
@@ -56,6 +56,7 @@ if typing.TYPE_CHECKING:
     from hassette.events import CallServiceEvent, HassContext, HassEvent, HassStateDict, RawStateChangeEvent
 
 LOGGER = logging.getLogger(__name__)
+DEFAULT_EXCLUDE = ("last_reported", "last_updated", "last_changed", "context")
 
 
 def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
@@ -250,6 +251,67 @@ def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
 def get_context(event: "HassEvent") -> "HassContext":
     """Get the context dict from the event payload."""
     return cast("HassContext", get_path("payload.context")(event))
+
+
+def get_all_changes(
+    exclude: Sequence[str] = DEFAULT_EXCLUDE,
+) -> Callable[["RawStateChangeEvent"], dict[str, dict[str, Any]]]:
+    """Get a dict of changed state and attribute values between old and new states.
+
+    Args:
+        exclude (Sequence[str], optional): List of attribute names to exclude from the changes. Defaults to fields
+        that change every state update (e.g., `last_updated`, `last_changed`, `context`).
+
+    Returns:
+        dict[str, dict[str, Any]]: A nested dict mapping names to tuples of (old_value, new_value).
+
+    Example return value:
+        ```
+        {
+            "state": ("on", "off"),
+            "attributes": {
+                "rgb_color": ([255, 255, 0], [255, 255, 255]),
+                "brightness": (200, 255)
+            },
+        }
+        ```
+    """
+
+    def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
+        old = cast("dict", event.payload.data.old_state or {})
+        new = cast("dict", event.payload.data.new_state or {})
+
+        changed_dict = _recursive_get_differences(old, new, exclude=exclude)
+
+        return changed_dict
+
+    return _inner
+
+
+def _recursive_get_differences(
+    old_dict: dict[str, Any], new_dict: dict[str, Any], exclude: Sequence[str] = DEFAULT_EXCLUDE
+) -> dict[str, Any]:
+    """Simple recursive diff between two dicts, returning a dict of changed keys to (old_value, new_value)."""
+
+    changed_dict = {}
+    for key in set(old_dict.keys()).union(new_dict.keys()):
+        if key in exclude:
+            LOGGER.debug("Excluding key %r from change detection", key)
+            continue
+
+        old_value = old_dict.get(key, MISSING_VALUE)
+        new_value = new_dict.get(key, MISSING_VALUE)
+
+        if isinstance(old_value, dict) and isinstance(new_value, dict):
+            LOGGER.debug("Recursing into nested dict for key %r", key)
+            changed_dict[key] = _recursive_get_differences(old_value, new_value, exclude=exclude)
+        else:
+            if old_value != new_value:
+                LOGGER.debug("Detected change for key %r: %r -> %r", key, old_value, new_value)
+                changed_dict[key] = (old_value, new_value)
+
+    LOGGER.debug("Returning changed dict: %r", changed_dict)
+    return changed_dict
 
 
 # ---------------------------------------------------------------------------
