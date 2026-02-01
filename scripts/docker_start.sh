@@ -2,6 +2,9 @@
 
 set -eu # no pipefail in busybox ash
 
+# shellcheck disable=SC1091
+. /app/.venv/bin/activate
+
 HASSETTE_VERSION=$(uv version --short --directory /app)
 
 echo "Running Hassette version $HASSETTE_VERSION"

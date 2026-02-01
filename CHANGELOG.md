@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.21.0] - 2026-02-01
+
+### Fixed
+- add back activation of virtualenv in docker startup script
+
 ## [0.20.0] - 2026-02-01
 
 ### Added
