@@ -21,6 +21,7 @@ jobs:
             REGISTRY: ghcr.io
             OWNER: ${{ github.repository_owner }}
             PYTHON_VERSION: ${{ matrix.python-version }}
+            IS_STABLE_RELEASE: "false"
         steps:
             - uses: actions/checkout@v4
 
@@ -54,10 +55,11 @@ jobs:
                   images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}
                   flavor: |
                       latest=false
+                      suffix=-py${{ env.PYTHON_VERSION }}
                   tags: |
-                      type=sha,prefix=sha-,format=short,suffix=-py${{ env.PYTHON_VERSION }}
-                      type=pep440,pattern={{version}},suffix=-py${{ env.PYTHON_VERSION }},enable=${{ github.event_name == 'push' }}
-                      type=raw,value=latest-py${{ env.PYTHON_VERSION }},enable=${{ github.event_name == 'push' && env.IS_STABLE_RELEASE == 'true' }}
+                      type=sha,prefix=sha-,format=short
+                      type=pep440,pattern={{version}},enable=${{ github.event_name == 'push' }}
+                      type=raw,value=latest,enable=${{ github.event_name == 'push' && env.IS_STABLE_RELEASE == 'true' }}
 
             - name: Build & Push
               uses: docker/build-push-action@v6
