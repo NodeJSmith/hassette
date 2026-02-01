@@ -110,6 +110,9 @@ class BusService(Service):
         if self._should_skip_event(base_topic, event):
             return
 
+        if self._should_log_event(event):
+            self.logger.debug("Event: %r", event)
+
         routes = self._expand_topics(base_topic, event)  # ordered: most specific -> least
         chosen: dict[int, tuple[str, Listener]] = {}  # listener_id -> (matched_route, listener)
 
