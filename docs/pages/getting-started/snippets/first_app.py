@@ -1,5 +1,4 @@
-from hassette import App, AppConfig, states
-from hassette import dependencies as D
+from hassette import App, AppConfig, D, states
 
 
 class MyApp(App[AppConfig]):

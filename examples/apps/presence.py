@@ -2,8 +2,7 @@
 
 import typing
 
-from hassette import App, AppConfig, states
-from hassette import dependencies as D
+from hassette import App, AppConfig, D, states
 from hassette.const.misc import FalseySentinel
 
 if typing.TYPE_CHECKING:

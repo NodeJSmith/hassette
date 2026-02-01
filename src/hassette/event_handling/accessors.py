@@ -11,8 +11,8 @@ Examples:
     Extracting a specific key from service_data
 
     ```python
-    from hassette import accessors as A
-    from hassette import predicates as P
+    from hassette import A
+    from hassette import P
 
     value_is = P.ValueIs(source=A.get_service_data_key("entity_id"), condition="light.living_room")
 
@@ -26,8 +26,8 @@ Examples:
     Extracting a nested value using a glom path
 
     ```python
-    from hassette import accessors as A
-    from hassette import predicates as P
+    from hassette import A
+    from hassette import P
 
     value_is = P.ValueIs(
         source=A.get_path("payload.data.new_state.attributes.geolocation.locality"),

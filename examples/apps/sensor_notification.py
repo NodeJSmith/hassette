@@ -1,7 +1,6 @@
 # compare to: https://github.com/AppDaemon/appdaemon/blob/dev/conf/example_apps/sensor_notification.py
 
-from hassette import App, AppConfig, states
-from hassette import dependencies as D
+from hassette import App, AppConfig, D, states
 
 
 class SensorNotificationAppConfig(AppConfig):

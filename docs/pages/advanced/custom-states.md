@@ -96,22 +96,7 @@ class MyApp(App):
 ### With Dependency Injection
 
 ```python
-from hassette import App, dependencies as D
-from .my_states import RedditState
-
-class MyApp(App):
-    async def on_initialize(self):
-        self.bus.on_state_change(
-            "reddit.my_account",
-            handler=self.on_reddit_change
-        )
-
-    async def on_reddit_change(
-        self,
-        new_state: D.StateNew[RedditState],
-        karma: Annotated[int | None, A.get_attr_new("karma")],
-    ):
-        print(f"New karma: {karma}")
+--8<-- "pages/advanced/snippets/state-registry/basic_custom_state_usage.py"
 ```
 
 ### Direct API Access
@@ -143,6 +128,7 @@ for entity_id, state in custom_states:
 ```
 
 # Works at runtime but static analysis sees BaseState
+```
 for entity_id, state in self.states.my_custom_domain:
     print(state.value)  # state is typed as BaseState
 ```

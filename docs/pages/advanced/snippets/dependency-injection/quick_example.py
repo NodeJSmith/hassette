@@ -1,5 +1,4 @@
-from hassette import App, states
-from hassette import dependencies as D
+from hassette import App, D, states
 
 
 class LightMonitor(App):

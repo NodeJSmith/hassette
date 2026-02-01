@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from hassette import dependencies as D
+from hassette import D
 from hassette.bus.listeners import HandlerAdapter, Listener
 from hassette.events import Event
 from hassette.exceptions import DependencyResolutionError

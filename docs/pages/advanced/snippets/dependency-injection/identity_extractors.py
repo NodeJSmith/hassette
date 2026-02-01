@@ -1,5 +1,4 @@
-from hassette import App
-from hassette import dependencies as D
+from hassette import App, D
 
 
 class LightApp(App):

@@ -11,9 +11,7 @@ from typing import Annotated
 
 import pytest
 
-from hassette import MISSING_VALUE, STATE_REGISTRY
-from hassette import accessors as A
-from hassette import dependencies as D
+from hassette import MISSING_VALUE, STATE_REGISTRY, A, D
 from hassette.bus.extraction import (
     extract_from_annotated,
     extract_from_event_type,
@@ -465,7 +463,7 @@ class TestCustomDI:
         """Test that custom extractor for attribute new value works."""
 
         def handler(brightness: Annotated[float, A.get_attr_new("brightness")]):
-            print("Brightness changed to %s", brightness)
+            pass
 
         # Find event where new_state has brightness attribute
         event = next(
@@ -491,7 +489,7 @@ class TestCustomDI:
         """Test that custom extractor for attribute new value works."""
 
         def handler(brightness: Annotated[float, A.get_attr_new("brightness")]):
-            print("Brightness changed to %s", brightness)
+            pass
 
         # Find event where new_state has brightness attribute
         event = next(

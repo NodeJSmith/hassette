@@ -1,8 +1,7 @@
 from enum import StrEnum, auto
 from typing import Annotated
 
-from hassette import App, register_type_converter_fn
-from hassette import accessors as A
+from hassette import A, App, register_type_converter_fn
 
 
 class Effect(StrEnum):

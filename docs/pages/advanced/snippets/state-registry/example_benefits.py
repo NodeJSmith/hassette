@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from hassette import accessors as A
+from hassette import A
 
 
 # TypeRegistry also works in dependency injection

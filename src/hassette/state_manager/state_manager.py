@@ -44,17 +44,17 @@ class DomainStates(Generic[StateT]):
         # to safely access an entity that may not exist
         light_state = self.states.light.get("bedroom")
         if light_state is not None:
-            print(light_state.value)
+            self.logger.info("Light state: %s", light_state.value)
 
         # or you can check existence ahead of time
         if "bedroom" in self.states.light:
             light_state = self.states.light["bedroom"]
-            print(light_state.value)
+            self.logger.info("Light state: %s", light_state.value)
 
         # if you are working with a state that isn't defined in Hassette
         custom_states = self.states[CustomStateClass]
         for entity_id, state in custom_states:
-            print(f"{entity_id}: {state.value}")
+            self.logger.info("%s: %s", entity_id, state.value)
     ```
 
     """
@@ -206,16 +206,15 @@ class StateManager(Resource):
     ```python
         # Iterate over all lights
         for entity_id, light_state in self.states.light:
-            print(f"{entity_id}: {light_state.value}")
+            self.logger.info("%s: %s", entity_id, light_state.value)
 
         # Get specific entity
         bedroom_light = self.states.light.get("light.bedroom")
         if bedroom_light and bedroom_light.attributes.brightness:
-            print(f"Brightness: {bedroom_light.attributes.brightness}")
+            self.logger.info("Brightness: %s", bedroom_light.attributes.brightness)
 
         # Check count
-        print(f"Total lights: {len(self.states.light)}")
-    ```
+        self.logger.info("Total lights: %d", len(self.states.light))
     """
 
     _domain_states_cache: dict[type[BaseState], DomainStates[BaseState]]

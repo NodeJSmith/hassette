@@ -14,7 +14,7 @@ Examples:
     Regex matching
 
     ```python
-    from hassette import conditions as C
+    from hassette import C
 
     self.bus.on_state_change(
         "sensor.my_phone_location",
@@ -26,7 +26,7 @@ Examples:
     Value is in a collection
 
     ```python
-    from hassette import conditions as C
+    from hassette import C
 
     self.bus.on_state_change(
         "sensor.my_phone_activity",
@@ -38,7 +38,7 @@ Examples:
     Using comparison conditions
 
     ```python
-    from hassette import conditions as C
+    from hassette import C
 
     self.bus.on_state_change(
         "zone.home",
