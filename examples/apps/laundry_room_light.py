@@ -1,7 +1,6 @@
 # another actual app that I use, not meant to be comparable to any AD example app
 
-from hassette import App, AppConfig, entities, states
-from hassette import dependencies as D
+from hassette import App, AppConfig, D, entities, states
 
 
 class LaundryRoomLightAppConfig(AppConfig):

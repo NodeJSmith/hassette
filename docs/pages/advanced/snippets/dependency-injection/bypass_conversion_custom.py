@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from hassette import accessors as A
+from hassette import A
 from hassette.event_handling.dependencies import AnnotationDetails
 
 

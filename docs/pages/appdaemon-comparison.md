@@ -33,8 +33,7 @@ Hassette apps are also written in an IDE, offering the same debugging benefits, 
 
 - Hassette apps run in the main event loop, so you write async code. A
   synchronous bridge class is available for simpler use cases.
-- The scheduler offers similar helpers but uses a consistent API and
-  returns rich job objects.
+- The scheduler offers similar helpers but returns rich job objects.
 - The event bus uses typed events and composable predicates for
   filtering.
 - The Home Assistant API is async and uses Pydantic models for
@@ -235,11 +234,13 @@ similar helpers: `run_in()`, `run_at()`, `run_minutely()`,
 cancel or inspect the job.
 
 ```python
-from hassette import App
+from hassette import App, AppConfig
 
+class MyConfig(AppConfig):
+    color_name: str = "red"
 
 # Declare Class
-class NightLight(App):
+class NightLight(App[MyConfig]):
     # function which will be called at startup and reload
     async def on_initialize(self):
         # Schedule a daily callback that will call run_daily_callback() at 7pm every night
@@ -251,7 +252,7 @@ class NightLight(App):
     # Our callback function will be called by the scheduler every day at 7pm
     async def run_daily_callback(self, **kwargs):
         # Call to Home Assistant to turn the porch light on
-        await self.api.turn_on("light.office_light_1", color_name="red")
+        await self.api.turn_on("light.office_light_1", color_name=self.app_config.color_name)
 ```
 
 ### Event Handlers/Callbacks
@@ -345,34 +346,39 @@ dependency markers from [dependencies][hassette.dependencies] or you can create 
 using the [Annotated][typing.Annotated] type hint.
 
 ```python
-from typing import Annotated
-from hassette import App, states
-from hassette import dependencies as D
-from hassette.events import CallServiceEvent
+from typing import Annotated, Any
+
+from hassette import A, App, AppConfig, D
 
 
-class ButtonHandler(App):
+class MyConfig(AppConfig):
+    button_entity: str = "input_button.test_button"
+
+
+class MyApp(App[MyConfig]):
     async def on_initialize(self):
         # Handler with dependency injection
         sub = self.bus.on_call_service(
             service="press",
             handler=self.minimal_callback,
-            where={"entity_id": "input_button.test_button"},
+            where={"entity_id": self.app_config.button_entity},
         )
-        self.logger.info(f"Subscribed: {sub}")
+        self.logger.info("Subscribed: %s", sub)
 
     # Extract only what you need from the event
     async def minimal_callback(
         self,
         domain: D.Domain,
-        service: D.Service,
-        service_data: D.ServiceData,
+        service: Annotated[str, A.get_service],
+        service_data: Annotated[Any, A.get_service_data],
     ) -> None:
         entity_id = service_data.get("entity_id", "unknown")
-        self.logger.info(f"Button {entity_id} pressed (domain={domain}, service={service})")
+        self.logger.info("Button %s pressed (domain=%s, service=%s)", entity_id, domain, service)
+        self.logger.info("Service data: %s", service_data)
 ```
 
 Available dependency markers include:
+
 - `StateNew`, `StateOld`, `MaybeStateNew`, `MaybeStateOld` - Extract state objects from state change events
 - `EntityId`, `MaybeEntityId` - Extract entity IDs
 - `Domain`, `MaybeDomain` - Extract domain names
@@ -385,51 +391,32 @@ You can also receive the full event object if you prefer:
 
 ```python
 async def minimal_callback(self, event: CallServiceEvent) -> None:
-    self.logger.info(f"Button pressed: {event.payload.data.service_data}")
+    self.logger.info("Button pressed: %s", event.payload.data.service_data)
 ```
 
 
 ```python
-from hassette import App
+from hassette import App, AppConfig
 from hassette.events import CallServiceEvent
 
 
-class ButtonHandler(App):
+class MyConfig(AppConfig):
+    button_entity: str = "input_button.test_button"
+
+
+class MyApp(App[MyConfig]):
     async def on_initialize(self):
-        self.logger.setLevel("DEBUG")
-        # Listen for a button press event with a specific entity_id
         sub = self.bus.on_call_service(
-            service="press", handler=self.minimal_callback, where={"entity_id": "input_button.test_button"}
+            service="press", handler=self.minimal_callback, where={"entity_id": self.app_config.button_entity}
         )
-        self.logger.info(f"Subscribed: {sub}")
+        self.logger.info("Subscribed: %s", sub)
 
     def minimal_callback(self, event: CallServiceEvent) -> None:
-        self.logger.info(f"Button pressed: {event.payload.data.service_data}")
+        self.logger.info("Button pressed: %s", event.payload.data.service_data)
 ```
 
 ```text
-2025-10-13 20:07:26.735 INFO hassette.ButtonHandler.0.minimal_callback:38 ─ Button pressed:
-    Event(
-        topic='hass.event.call_service',
-        payload=HassPayload(
-            event_type='call_service',
-            data=CallServicePayload(
-                domain='input_button',
-                service='press',
-                service_data={
-                    'entity_id': 'input_button.test_button'
-                },
-                service_call_id=None
-            ),
-            origin='LOCAL',
-            time_fired=ZonedDateTime(2025-10-13 20:07:26.723688-05:00[America/Chicago]),
-            context={
-                'id': '01K7G440W3J39SFDHJM0Y50P17',
-                'parent_id': None,
-                'user_id': 'caa14e06472b499cb00545bb65e56e5a'
-            }
-        )
-    )
+2025-10-13 20:07:26.735 INFO hassette.MyApp.0.minimal_callback:21 ─ Button pressed: Event(HassPayload(event_type=call_service, event_id=01KGDE3WR4F4NSDK3R2210HH6Z))
 ```
 
 ### State Change Handlers/Callbacks
@@ -486,76 +473,52 @@ can be used to enforce type safety and extract only the data you need.
 **With dependency injection** (recommended):
 
 ```python
-from typing import Annotated
-from hassette import App, states
-from hassette import dependencies as D
+from hassette import App, AppConfig, D, states
 
-class ButtonPressed(App):
+
+class MyConfig(AppConfig):
+    button_entity: str = "input_button.test_button"
+
+
+class MyApp(App[MyConfig]):
     async def on_initialize(self):
         sub = self.bus.on_state_change(
-            entity="input_button.test_button",
+            entity_id=self.app_config.button_entity,
             handler=self.button_pressed,
         )
-        self.logger.info(f"Subscribed: {sub}")
+        self.logger.info("Subscribed: %s", sub)
 
-    async def button_pressed(
-        self,
-        new_state: D.StateNew[states.ButtonState],
-        entity_id: D.EntityId,
-    ) -> None:
+    async def button_pressed(self, new_state: D.StateNew[states.InputButtonState], entity_id: D.EntityId) -> None:
         friendly_name = new_state.attributes.friendly_name or entity_id
-        self.logger.info(f"Button {friendly_name} pressed at {new_state.last_changed}")
+        self.logger.info("Button %s pressed at %s", friendly_name, new_state.last_changed)
+
 ```
 
 **With event object**:
 
 ```python
-from hassette import App, dependencies as D, states
+from hassette import App, AppConfig, D, states
 
 
-class ButtonPressed(App):
+class MyConfig(AppConfig):
+    button_entity: str = "input_button.test_button"
+
+
+class MyApp(App[MyConfig]):
     async def on_initialize(self):
         sub = self.bus.on_state_change(
-            entity="input_button.test_button",
+            entity_id=self.app_config.button_entity,
             handler=self.button_pressed,
         )
-        self.logger.info(f"Subscribed: {sub}")
+        self.logger.info("Subscribed: %s", sub)
 
-    def button_pressed(self, event: D.TypedStateChangeEvent[states.ButtonState]) -> None:
-        self.logger.info(f"Button pressed: {event}")
+    async def button_pressed(self, event: D.TypedStateChangeEvent[states.InputButtonState]) -> None:
+        self.logger.info("Button pressed: %s", event)
+
 ```
 
-Note, some output has been truncated for brevity.
-
 ```text
-2025-10-13 22:52:35.281 INFO hassette.ButtonPressed.0.button_pressed:11 ─ Button pressed:
-    Event(
-        topic='hass.event.state_changed',
-        payload=HassPayload(
-            event_type='state_changed',
-            data=RawStateChangePayload(
-                entity_id='input_button.test_button',
-                old_state=InputButtonState(
-                    domain='input_button',
-                    entity_id='input_button.test_button',
-                    last_changed=ZonedDateTime(2025-10-13 20:07:26.723887-05:00[America/Chicago]),
-                    ...
-                ),
-                new_state=InputButtonState(
-                    domain='input_button',
-                    entity_id='input_button.test_button',
-                    last_changed=ZonedDateTime(2025-10-13 22:52:35.268639-05:00[America/Chicago]),
-                    ...
-                ),
-            ),
-            origin='LOCAL',
-            time_fired=ZonedDateTime(2025-10-13 22:52:35.268639-05:00[America/Chicago]),
-            context={
-                'id': '01K7GDJD644YJWJGTRHXBVPQ4P',
-                'user_id': 'caa14e06472b499cb00545bb65e56e5a'
-            }
-        )
-    )
+2025-10-13 22:52:35.281 INFO hassette.MyApp.0.button_pressed:17 ─ Button pressed: Event(HassPayload(event_type=state_changed, entity_id=input_button.test_button, event_id=01KGDE90PQ8AX8WKK5SSXE848S))
 ```
 
 ### API Access
@@ -634,8 +597,7 @@ Hassette provides two ways to access entity states:
 The `self.states` attribute provides immediate access to all entity states without making API calls. It listens to state change events and maintains an up-to-date local cache, similar to AppDaemon's behavior.
 
 ```python
-from hassette import App
-from hassette.models import states
+from hassette import App, states
 
 
 class StateGetter(App):
@@ -652,7 +614,7 @@ class StateGetter(App):
             self.logger.info(f"{entity_id}: {light.value}")
 
         # Typed access for any domain
-        my_light = self.states.get[states.LightState]("light.office_light_1")
+        my_light = self.states[states.LightState].get("light.office_light_1")
 ```
 
 **Using the API Client (`self.api`)**
@@ -820,7 +782,7 @@ def on_motion(self, entity, attribute, old, new, **kwargs):
 
 **Hassette**:
 ```python
-from hassette import dependencies as D, states
+from hassette import D, states
 
 async def on_initialize(self):
     self.bus.on_state_change(
@@ -934,7 +896,7 @@ async def on_initialize(self):
         self.logger.info(f"{entity_id}: {light.value}")
 
     # Typed access for any domain
-    my_light = self.states.get[states.LightState]("light.kitchen")
+    my_light = self.states[states.LightState].get("light.kitchen")
 
     # ALTERNATIVE: Force fresh read from Home Assistant API
     light:states.LightState = await self.api.get_state("light.kitchen")
@@ -982,7 +944,7 @@ self.set_state("sensor.custom", state="42", attributes={"unit": "widgets"})
 
 **Hassette**:
 ```python
-await self.api.set_state("sensor.custom", state="42", attributes={"unit": "widgets"})
+await self.api.set_state("sensor.custom", state=42, attributes={"unit": "widgets"})
 ```
 
 ### 7. Logging
@@ -1060,7 +1022,6 @@ class MyApp(App):
 !!! warning "Async Gotchas"
     - Don't forget `await` on API calls - they'll return coroutines instead of results
     - Don't use `self.api.sync` inside `App` lifecycle methods - use async methods instead
-    - Use `AppSync` if you have significant blocking/IO operations
 
 !!! tip "Configuration Access"
     - In AppDaemon: `self.args["args"]["key"]`

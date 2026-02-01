@@ -1,8 +1,15 @@
-from hassette import dependencies as D
+from typing import Annotated
 
-# Assuming RedditState is imported or defined
-# from .my_states import RedditState
+from hassette import A, App, D
+
+from .my_states import RedditState  # pyright: ignore[reportMissingImports]
 
 
-async def on_reddit_change(self, new_state: D.StateNew["RedditState"]):
-    print(f"Reddit karma: {new_state.attributes.karma}")
+class MyApp(App):
+    async def on_initialize(self):
+        self.bus.on_state_change("reddit.my_account", handler=self.on_reddit_change)
+
+    async def on_reddit_change(
+        self, new_state: D.StateNew[RedditState], karma: Annotated[int | None, A.get_attr_new("karma")]
+    ):
+        self.logger.info("New karma: %d", karma or 0)

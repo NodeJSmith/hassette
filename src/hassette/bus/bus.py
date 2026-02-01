@@ -52,7 +52,7 @@ Examples:
     Using glob patterns and complex predicates
 
     ```python
-    from hassette import conditions as C
+    from hassette import C
 
     # All lights in kitchen
     self.bus.on_state_change("light.*kitchen*", handler=self.on_kitchen_light)

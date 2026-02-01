@@ -1,8 +1,6 @@
 from typing import Annotated
 
-from hassette import App
-from hassette import accessors as A
-from hassette import dependencies as D
+from hassette import A, App, D
 
 
 class MyExtApp(App):

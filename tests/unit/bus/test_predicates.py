@@ -10,8 +10,7 @@ This module tests the core predicate system including:
 
 from types import SimpleNamespace
 
-from hassette import accessors as A
-from hassette import predicates as P
+from hassette import A, P
 from hassette.const import MISSING_VALUE, NOT_PROVIDED
 from hassette.test_utils.helpers import create_call_service_event, create_state_change_event
 

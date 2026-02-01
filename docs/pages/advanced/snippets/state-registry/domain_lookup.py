@@ -1,7 +1,5 @@
-from hassette.context import get_state_registry
-
-registry = get_state_registry()
+from hassette import STATE_REGISTRY
 
 # Get class for a domain
-state_class = registry.resolve(domain="light")
+state_class = STATE_REGISTRY.resolve(domain="light")
 # Returns: LightState

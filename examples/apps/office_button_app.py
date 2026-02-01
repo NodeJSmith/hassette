@@ -4,10 +4,7 @@ from typing import ClassVar, cast
 
 from deepdiff import DeepDiff
 
-from hassette import AppConfig, AppSync, entities, states
-from hassette import conditions as C
-from hassette import dependencies as D
-from hassette import predicates as P
+from hassette import AppConfig, AppSync, C, D, P, entities, states
 from hassette.events import CallServiceEvent
 
 

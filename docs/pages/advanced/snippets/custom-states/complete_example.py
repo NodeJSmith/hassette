@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from hassette import App, D
 from hassette.models.states.base import AttributesBase, StringBaseState
 
 
@@ -20,11 +21,6 @@ class ImageState(StringBaseState):
 
     domain: Literal["image"]
     attributes: ImageAttributes
-
-
-# my_app.py
-from hassette import App
-from hassette import dependencies as D
 
 
 class ImageMonitorApp(App):
