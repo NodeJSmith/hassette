@@ -140,36 +140,32 @@ def warn_log_level_not_valid(log_level: str, fallback_value: LOG_LEVEL_TYPE) -> 
 
 
 def get_log_level() -> LOG_LEVEL_TYPE:
-    log_level = (
-        os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO"
-    ).upper()
-    return coerce_log_level(log_level)
+    log_level = os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL")
+    return coerce_log_level(log_level, "INFO")
 
 
-def coerce_log_level(value: str | LOG_LEVEL_TYPE | None) -> LOG_LEVEL_TYPE:
+def coerce_log_level(value: str | LOG_LEVEL_TYPE | None, fallback: LOG_LEVEL_TYPE) -> LOG_LEVEL_TYPE:
     """Coerce a log level value to a LOG_LEVEL_TYPE string.
 
     Args:
         value: The log level value to coerce.
+        fallback: The fallback log level to use if the input is invalid.
 
     Returns:
-        The coerced log level as a LOG_LEVEL_TYPE string. If the input is invalid,
-        returns the default log level from get_log_level().
+        The coerced log level as a LOG_LEVEL_TYPE string or the fallback value.
     """
-    default_log_level = get_log_level()
-
     if value is None:
-        return default_log_level
+        return fallback
 
     if not isinstance(value, str):
-        warn_log_level_not_valid(str(value), default_log_level)
-        return default_log_level
+        warn_log_level_not_valid(str(value), fallback)
+        return fallback
 
     value = value.upper()
 
     if value not in LOG_LEVEL_VALUES:
-        warn_log_level_not_valid(value, default_log_level)
-        return default_log_level
+        warn_log_level_not_valid(value, fallback)
+        return fallback
 
     return cast("LOG_LEVEL_TYPE", value)
 
@@ -186,4 +182,4 @@ def log_level_default_factory(data: dict[str, LOG_LEVEL_TYPE | None]) -> LOG_LEV
     Returns:
         The determined log level.
     """
-    return coerce_log_level(data.get("log_level"))
+    return coerce_log_level(data.get("log_level"), "INFO")
