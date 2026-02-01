@@ -324,10 +324,13 @@ class Bus(Resource):
                 preds.append(P.AttrComparison(attr, condition=changed))
         else:
             self.logger.warning(
-                "Attribute change subscription for entity '%s' on attribute '%s' with changed=False will fire on"
-                " every state change event for the entity",
+                (
+                    "Handler '%s' - attribute change subscription "
+                    "will fire on every change event for '%s' due to 'changed=False'. "
+                    "Consider using `on_state_change` with 'changed=False' instead for clarity."
+                ),
+                callable_short_name(handler),
                 entity_id,
-                attr,
             )
 
         if changed_from is not NOT_PROVIDED:
