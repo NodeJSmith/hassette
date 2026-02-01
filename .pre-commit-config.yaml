@@ -52,8 +52,10 @@ repos:
           - pre-push
 
   - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.406
+    rev: v1.1.408
     hooks:
       - id: pyright
         stages: [pre-push]
         exclude: ^(docs|scripts)/.*\.(py|rst)$ # Exclude docs/ and scripts/ directories for type checking.
+        args: [--verbose]
+        verbose: true
