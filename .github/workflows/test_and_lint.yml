@@ -27,13 +27,14 @@ jobs:
 
             - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
+            - run: uv sync
+
             - uses: jakebailey/pyright-action@v2
 
             - name: Run lint checks
               run: |
                   uv tool install ruff==0.14.9
                   uvx pre-commit run --all-files --hook-stage pre-push
-            - run: uv sync
             - name: Run tests with coverage
               run: uv run nox -t coverage -p ${{ matrix.python-version }}
 
