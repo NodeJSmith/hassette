@@ -105,7 +105,10 @@ def convert_homogeneous_iterable(c: "AnnotationConverter", value: Any, tp: Any) 
         raise UnableToConvertValueError(f"Unsupported iterable origin{origin!r}")
 
     if not isinstance(value, origin):
-        raise UnableToConvertValueError(f"Expected {origin.__name__}, got {type(value).__name__}")
+        try:
+            value = origin(value)
+        except Exception:
+            raise UnableToConvertValueError(f"Expected {origin.__name__}, got {type(value).__name__}") from None
 
     # Strict: only accept the matching concrete container at runtime
     if origin is list:
@@ -123,7 +126,10 @@ def convert_homogeneous_iterable(c: "AnnotationConverter", value: Any, tp: Any) 
 @register_container_converter(dict)
 def convert_dict(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
     if not isinstance(value, dict):
-        raise UnableToConvertValueError(f"Expected dict, got {type(value).__name__}")
+        try:
+            value = dict(value)
+        except Exception:
+            raise UnableToConvertValueError(f"Expected dict, got {type(value).__name__}") from None
 
     args = get_args(tp)
     key_tp, val_tp = args if len(args) == 2 else (Any, Any)
@@ -133,7 +139,10 @@ def convert_dict(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
 @register_container_converter(tuple)
 def convert_tuple(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
     if not isinstance(value, tuple):
-        raise UnableToConvertValueError(f"Expected tuple, got {type(value).__name__}")
+        try:
+            value = tuple(value)
+        except Exception:
+            raise UnableToConvertValueError(f"Expected tuple, got {type(value).__name__}") from None
 
     args = get_args(tp)
     if not args:
@@ -144,6 +153,10 @@ def convert_tuple(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
         return tuple(c.convert(v, elem_tp) for v in value)
 
     if len(args) != len(value):
+        if len(args) == 1 and len(set(type(v) for v in value)) == 1:
+            # Special case: single-type tuple passed as tuple[T] instead of tuple[T, ...]
+            elem_tp = args[0]
+            return tuple(c.convert(v, elem_tp) for v in value)
         raise UnableToConvertValueError(f"Tuple length mismatch: {len(value)} vs {len(args)}")
 
     return tuple(c.convert(v, elem_tp) for v, elem_tp in zip(value, args, strict=True))

@@ -896,3 +896,77 @@ class TestDependencyInjectionTypeConversionHandlesComplexTypes:
         # succeeds if there is no exception
         kwargs = injector.inject_parameters(light_event)
         assert kwargs == {"rgb_color": ["12345", "test", "13579"]}
+
+    async def test_rgb_color_from_list_int_to_tuple_int_single_t_conversion(self):
+        """Asserts that when we annotated with tuple[int] and receive multiple int elements,
+        we still handle it correctly by converting to a tuple.
+        """
+        light_state_old = make_light_state_dict(rgb_color=None)
+        light_state_new = make_light_state_dict(rgb_color=[0, 255, 0])
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[tuple[int], A.get_attr_new("rgb_color")]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"rgb_color": (0, 255, 0)}
+
+    async def test_rgb_color_from_list_int_to_tuple_int_ellipses_conversion(self):
+        """Asserts that when we have a nested type of tuple[int, ...], the elements are converted to int."""
+        light_state_old = make_light_state_dict(rgb_color=None)
+        light_state_new = make_light_state_dict(rgb_color=[0, 255, 0])
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[tuple[int, ...], A.get_attr_new("rgb_color")]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"rgb_color": (0, 255, 0)}
+
+    async def test_rgb_color_from_list_int_to_tuple_int_repeated_conversion(self):
+        """Asserts that when we have a nested type of tuple[int, int, int], the elements are converted to int."""
+        light_state_old = make_light_state_dict(rgb_color=None)
+        light_state_new = make_light_state_dict(rgb_color=[0, 255, 0])
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[tuple[int, int, int], A.get_attr_new("rgb_color")]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"rgb_color": (0, 255, 0)}
+
+    async def test_rgb_color_from_tuple_int_to_list_int_conversion(self):
+        """Asserts that when we have a nested type of tuple[int, int, int], the elements are converted to int."""
+        light_state_old = make_light_state_dict(rgb_color=None)
+        light_state_new = make_light_state_dict(rgb_color=(0, 255, 0))
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[list[int], A.get_attr_new("rgb_color")]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"rgb_color": [0, 255, 0]}
