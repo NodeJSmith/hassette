@@ -57,5 +57,3 @@ repos:
       - id: pyright
         stages: [pre-push]
         exclude: ^(docs|scripts)/.*\.(py|rst)$ # Exclude docs/ and scripts/ directories for type checking.
-        args: [--verbose]
-        verbose: true
