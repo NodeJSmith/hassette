@@ -13,6 +13,7 @@ from hassette.events import Event, HassPayload
 from hassette.exceptions import HassetteError
 from hassette.resources.base import Service
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
+from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream
@@ -148,29 +149,21 @@ class BusService(Service):
         if not isinstance(payload, HassPayload):
             return [topic]
 
+        if payload.event_type != "state_changed":
+            return [topic]
+
         # only specialize HA events you care about
-        if payload.event_type == "state_changed":
-            entity_id = payload.entity_id
-            if isinstance(entity_id, str) and "." in entity_id:
-                domain = entity_id.split(".", 1)[0]
-                return [
-                    f"{topic}.{entity_id}",  # hass.event.state_changed.light.office
-                    f"{topic}.{domain}.*",  # hass.event.state_changed.light.*
-                    topic,  # hass.event.state_changed
-                ]
+        entity_id = payload.entity_id
+        if not valid_entity_id(entity_id):
+            self.logger.debug("Cannot expand topics for invalid entity_id: %r", entity_id)
+            return [topic]
 
-        return [topic]
-
-    def _dedupe_targets(self, targets: list["Listener"]) -> list["Listener"]:
-        seen: set[int] = set()
-        unique_targets: list[Listener] = []
-        for listener in targets:
-            if listener.listener_id in seen:
-                continue
-            seen.add(listener.listener_id)
-            unique_targets.append(listener)
-
-        return unique_targets
+        domain, _ = split_entity_id(entity_id)
+        return [
+            f"{topic}.{entity_id}",  # hass.event.state_changed.light.office
+            f"{topic}.{domain}.*",  # hass.event.state_changed.light.*
+            topic,  # hass.event.state_changed
+        ]
 
     async def _get_matching_listeners(self, topic: str, event: "Event[Any]") -> list["Listener"]:
         """Get all listeners that match the given event."""
