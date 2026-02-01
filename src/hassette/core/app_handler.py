@@ -113,7 +113,7 @@ class AppHandler(Resource):
                 self.logger.warning("Allowing app reloads in production mode due to config")
             self.bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
         else:
-            self.logger.warning("Not watching for app changes, dev_mode is disabled")
+            self.logger.debug("Not watching for app changes, dev_mode is disabled")
 
         await self.hassette.wait_for_ready(self.hassette._websocket_service)
         self.mark_ready("initialized")
