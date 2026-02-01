@@ -56,7 +56,7 @@ echo "Completed installation of found requirements.txt files"
 if [ -n "${HASSETTE_VERSION:-}" ]; then
     # ensure correct version of hassette is still installed
     echo "Ensuring hassette version ${HASSETTE_VERSION} is installed"
-    uv pip install "hassette==${HASSETTE_VERSION}"
+    uv pip install /app
 else
     echo "No specific hassette version specified"
 fi
