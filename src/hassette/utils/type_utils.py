@@ -307,7 +307,7 @@ def _make_union(types: set[Any]) -> Any:
 
     # Build A | B | C
     out = None
-    for t in sorted(really_flat, key=lambda x: _type_sort_key(x)):
+    for t in sorted(really_flat, key=_type_sort_key):
         out = t if out is None else (out | t)
     return out
 
