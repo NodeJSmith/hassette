@@ -5,7 +5,7 @@ The event bus connect your apps to Home Assistant and to Hassette itself. It del
 Apps register event handlers through `self.bus`, which is created automatically at app instantiation.
 
 ```mermaid
-graph LR
+graph TB
     HA[Home Assistant<br/>Events] --> WS[WebSocket]
     WS --> BUS[BusService]
     BUS --> |state_changed| APP1[App Handler 1]

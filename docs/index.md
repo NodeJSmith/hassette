@@ -50,7 +50,7 @@ Fluent APIs let you easily subscribe to only the events you care about.
 
 ## Next steps
 
-- Local setup: [First Run](pages/getting-started/first-run.md)
+- Local setup: [Local Setup](pages/getting-started/index.md)
 - Production: [Docker Deployment](pages/getting-started/docker/index.md)
 - Architecture overview: [Core Concepts](pages/core-concepts/index.md)
 - Full configuration: [Configuration Overview](pages/core-concepts/configuration/index.md)

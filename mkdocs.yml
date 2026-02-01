@@ -22,15 +22,14 @@ theme:
 nav:
   - Home: index.md
   - Getting Started:
-      - Overview: pages/getting-started/index.md
-      - First Run: pages/getting-started/first-run.md
-      - Home Assistant Token: pages/getting-started/ha_token.md
-      - Configuration Files: pages/getting-started/configuration.md
+      - Local Setup: pages/getting-started/index.md
       - Docker Deployment:
-          - Overview: pages/getting-started/docker/index.md
+          - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
           - Image Tags: pages/getting-started/docker/image-tags.md
           - Troubleshooting: pages/getting-started/docker/troubleshooting.md
+      - Configuration Files: pages/getting-started/configuration.md
+      - Home Assistant Token: pages/getting-started/ha_token.md
   - Core Concepts:
       - Overview: pages/core-concepts/index.md
       - Apps:

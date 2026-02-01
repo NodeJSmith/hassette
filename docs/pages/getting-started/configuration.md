@@ -1,6 +1,6 @@
 # Configuration Files
 
-If you haven't run Hassette yet, follow the [First Run](first-run.md) first.
+If you haven't run Hassette yet, follow the [Local Setup](index.md) first.
 
 This page is a short reference for config discovery, overrides, and where to put secrets.
 

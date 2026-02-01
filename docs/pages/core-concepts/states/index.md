@@ -1,20 +1,27 @@
 # States
 
-Hassette maintains a local, real-time cache of all Home Assistant states. This is available as `self.states` in your apps.
+Hassette maintains a local, real-time cache of all Home Assistant states. This is available as an instance of [StateManager][hassette.state_manager.state_manager.StateManager], accessible via `self.states` in your apps
 
-## Why use `self.states`?
 
-| Feature       | `self.states`            | `self.api.get_state()` |
-| ------------- | ------------------------ | ---------------------- |
-| **Speed**     | Instant (Local Memory)   | Slow (Network Request) |
-| **IO**        | Synchronous              | Asynchronous (await)   |
-| **Freshness** | Real-time (Event driven) | Real-time (On demand)  |
+## Diagram
 
-**Recommendation**: Use `self.states` for reading data (conditions, logic). Use `self.api` only when you need to write data (services) or explicitly confirm state with the server.
+```mermaid
+graph TB
+  HA["Home Assistant"] -->|"State change events (WebSocket)"| WS["WebsocketService"]
+  WS --> SP["StateProxy"]
+  SP --> SM["StateManager (self.states)"]
+  APP["Your App"] -->|"Read (sync)"| SM
+```
 
-## Using the Cache
+## Using the StateManager
 
-The state cache (`self.states`) provides synchronous access to all entity states.
+Whenever possible you should use `self.states` over making API calls to read entity states. This provides:
+
+- **Speed**: Instant access from local memory.
+- **Simplicity**: Synchronous access without `await`.
+- **Efficiency**: No network overhead or rate limiting concerns.
+- **Consistency**: Event-driven updates ensure your app sees the latest state changes.
+    - The StateManager event handler is prioritized over app event handlers to ensure you always have a consistent view of the latest states.
 
 ### Domain Access
 
@@ -23,6 +30,8 @@ The easiest way to access states is via domain properties.
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_domain_access.py"
 ```
+
+Notice how you do not need to use the domain in the entity ID - since you're already accessing the domain via `self.states.sensor`, you only need to provide the entity name.
 
 ### Generic Access
 
@@ -38,12 +47,4 @@ You can iterate over domains to find entities.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_iteration.py"
-```
-
-### All States
-
-Access the entire cache as a dictionary.
-
-```python
---8<-- "pages/core-concepts/states/snippets/states_all.py"
 ```

@@ -7,7 +7,7 @@ Apps can be **asynchronous** (preferred) or **synchronous**. Sync apps are autom
 ## Structure
 
 ```mermaid
-graph LR
+graph TB
     A[App] -->|uses| Api
     A -->|subscribes to| Bus
     A -->|schedules| Scheduler
