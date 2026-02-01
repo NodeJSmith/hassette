@@ -783,3 +783,37 @@ class TestDependencyInjectionTypeConversionHandlesComplexTypes:
         # succeeds if there is no exception
         kwargs = injector.inject_parameters(light_event)
         assert kwargs == {"rgb_color": [0, 255, 0]}
+
+    async def test_typed_annotation_handles_dict_str_int(self):
+        light_state_old = make_light_state_dict(color_temp=250)
+        light_state_new = make_light_state_dict(color_temp="400")
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(attrs: Annotated[dict[str, int], A.get_attrs_new(["color_temp"])]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"attrs": {"color_temp": 400}}
+
+    async def test_typed_annotation_handles_dict_mixed_type(self):
+        light_state_old = make_light_state_dict(color_temp=250, effect=None)
+        light_state_new = make_light_state_dict(color_temp="400", effect="blink")
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(attrs: Annotated[dict[str, int | str], A.get_attrs_new(["color_temp", "effect"])]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"attrs": {"color_temp": 400, "effect": "blink"}}

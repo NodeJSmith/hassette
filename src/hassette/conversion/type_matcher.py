@@ -59,9 +59,14 @@ class TypeMatcher:
         if tp is Any:
             return True
 
-        # Unions (typing.Union[...] and PEP604 A | B share your is_union helper)
+        # Unions (typing.Union[...] and PEP604 A | B)
         if is_union(tp):
-            return any(self.matches(value, arg) for arg in get_args(tp))
+            # if we only check `any` here then we may return True when a value still needs converted
+            # e.g. str matches anything, so something that is a string that should get converted to an int
+            # would return True and never get converted
+            # this means this path will almost always return False and fall through to deeper checks
+            # but this is better than the alternative
+            return all(self.matches(value, arg) for arg in get_args(tp))
 
         # Optional is covered by union logic above; this is just an early fast-path
         if is_optional(tp):
