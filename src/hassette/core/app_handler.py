@@ -113,7 +113,7 @@ class AppHandler(Resource):
                 self.logger.warning("Allowing app reloads in production mode due to config")
             self.bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
         else:
-            self.logger.warning("Not watching for app changes, dev_mode is disabled")
+            self.logger.debug("Not watching for app changes, dev_mode is disabled")
 
         await self.hassette.wait_for_ready(self.hassette._websocket_service)
         self.mark_ready("initialized")
@@ -184,9 +184,11 @@ class AppHandler(Resource):
             if not self.apps:
                 self.logger.warning("No apps were initialized successfully")
             else:
-                success_count = sum(len(v) for v in self.apps.values())
+                success_count = sum(
+                    len([a for a in v.values() if a.status == ResourceStatus.RUNNING]) for v in self.apps.values()
+                )
                 fail_count = sum(len(v) for v in self.failed_apps.values())
-                self.logger.info("Initialized %d apps successfully, %d failed to start", success_count, fail_count)
+                self.logger.debug("Initialized %d apps successfully, %d failed to start", success_count, fail_count)
 
             await self.hassette.send_event(
                 Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
@@ -391,7 +393,7 @@ class AppHandler(Resource):
         orphans, new_apps, reimport_apps, reload_apps = self._calculate_app_changes(
             original_apps_config, curr_apps_config, changed_file_path
         )
-        self.logger.info(
+        self.logger.debug(
             "App changes detected - orphans: %s, new: %s, reimport: %s, reload: %s",
             orphans,
             new_apps,

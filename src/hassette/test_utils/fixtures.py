@@ -1,8 +1,10 @@
 import contextlib
 import json
+import logging
 import random
 import typing
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -20,7 +22,7 @@ if TYPE_CHECKING:
 
 
 @contextlib.asynccontextmanager
-async def _build_harness(**kwargs) -> "AsyncIterator[HassetteHarness]":
+async def build_harness(**kwargs) -> "AsyncIterator[HassetteHarness]":
     harness = HassetteHarness(**kwargs)
     try:
         await harness.start()
@@ -35,7 +37,7 @@ def hassette_harness(
     unused_tcp_port_factory,
 ) -> "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]":
     def _factory(**kwargs) -> contextlib.AbstractAsyncContextManager[HassetteHarness]:
-        return _build_harness(**kwargs, unused_tcp_port=unused_tcp_port_factory())
+        return build_harness(**kwargs, unused_tcp_port=unused_tcp_port_factory())
 
     return _factory
 
@@ -257,3 +259,15 @@ async def cleanup_state_proxy_fixture(request: pytest.FixtureRequest):
             pass
 
     return
+
+
+def run_hassette_startup_tasks(config: "HassetteConfig") -> None:
+    """Run Hassette's one-time startup tasks without constructing the full Hassette instance.
+
+    This avoids resource warnings from unclosed AnyIO streams during unit/integration tests.
+    """
+
+    from hassette.core.core import Hassette as HassetteCore
+
+    dummy = SimpleNamespace(config=config, logger=logging.getLogger("hassette.test.startup"))
+    HassetteCore._startup_tasks(dummy)  # type: ignore[arg-type]

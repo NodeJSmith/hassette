@@ -9,15 +9,18 @@ from typing import Any
 
 from fair_async_rlock import FairAsyncRLock
 
+from hassette.events import Event, HassPayload
+from hassette.exceptions import HassetteError
 from hassette.resources.base import Service
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
+from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream
 
     from hassette import Hassette
     from hassette.bus import Listener
-    from hassette.events import Event
+    from hassette.events import EventPayload
 
 
 class BusService(Service):
@@ -102,23 +105,65 @@ class BusService(Service):
 
         return False
 
-    async def dispatch(self, topic: str, event: "Event[Any]") -> None:
+    async def dispatch(self, base_topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
 
-        if self._should_skip_event(topic, event):
+        if self._should_skip_event(base_topic, event):
             return
-
-        targets = await self._get_matching_listeners(topic, event)
 
         if self._should_log_event(event):
             self.logger.debug("Event: %r", event)
 
-        if not targets:
+        routes = self._expand_topics(base_topic, event)  # ordered: most specific -> least
+        chosen: dict[int, tuple[str, Listener]] = {}  # listener_id -> (matched_route, listener)
+
+        # Route first, then dedupe by "first match wins" because routes are ordered by specificity
+        for route in routes:
+            listeners = await self.router.get_topic_listeners(route)
+            for listener in listeners:
+                if listener.listener_id in chosen:
+                    continue
+                if await listener.matches(event):
+                    chosen[listener.listener_id] = (route, listener)
+
+        if not chosen:
             return
 
-        self.logger.debug("Dispatching %s to %d listeners", topic, len(targets))
-        for listener in targets:
-            self.task_bucket.spawn(self._dispatch(topic, event, listener), name="bus:dispatch_listener")
+        # group by route for logging
+        listeners_by_route = defaultdict(list)
+        for route, listener in chosen.values():
+            listeners_by_route[route].append(listener)
+
+        # loop over routes so we always log in order of specificity
+        for route in routes:
+            listeners = listeners_by_route.get(route)
+            if not listeners:
+                continue
+
+            self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
+            for listener in listeners:
+                self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+
+    def _expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
+        payload = event.payload
+        if not isinstance(payload, HassPayload):
+            return [topic]
+
+        if payload.event_type != "state_changed":
+            return [topic]
+
+        # only specialize HA events you care about
+        entity_id = payload.entity_id
+        if not valid_entity_id(entity_id):
+            self.logger.debug("Cannot expand topics for invalid entity_id: %r", entity_id)
+            return [topic]
+
+        domain, _ = split_entity_id(entity_id)
+        return [
+            f"{topic}.{entity_id}",  # hass.event.state_changed.light.office
+            f"{topic}.{domain}.*",  # hass.event.state_changed.light.*
+            topic,  # hass.event.state_changed
+        ]
 
     async def _get_matching_listeners(self, topic: str, event: "Event[Any]") -> list["Listener"]:
         """Get all listeners that match the given event."""
@@ -135,6 +180,8 @@ class BusService(Service):
         except asyncio.CancelledError:
             self.logger.debug("Listener dispatch cancelled (topic=%s, handler=%r)", topic, listener.handler_name)
             raise
+        except HassetteError as e:
+            self.logger.error("Listener error (topic=%s): %s", topic, e)
         except Exception:
             self.logger.exception("Listener error (topic=%s, handler=%r)", topic, listener.handler_name)
         finally:
@@ -184,9 +231,13 @@ class BusService(Service):
                 self._excluded_entity_globs,
             )
 
-    def _should_skip_event(self, topic: str, event: "Event[Any]") -> bool:
+    def _should_skip_event(self, topic: str, event: "Event[EventPayload[Any]]") -> bool:
         """Determine if an event should be skipped based on exclusion filters."""
         if not event.payload:
+            return False
+
+        # if not an HA event, we should not skip it, we only filter HA events
+        if not isinstance(event.payload, HassPayload):
             return False
 
         payload = event.payload

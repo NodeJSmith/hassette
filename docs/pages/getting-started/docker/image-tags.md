@@ -14,7 +14,7 @@ ghcr.io/nodejsmith/hassette:<version>-py<python>
 
 **Examples:**
 
-- `ghcr.io/nodejsmith/hassette:1.2.0-py3.13`
+- `ghcr.io/nodejsmith/hassette:0.19.0-py3.13`
 - `ghcr.io/nodejsmith/hassette:0.18.0-py3.12`
 - `ghcr.io/nodejsmith/hassette:0.18.0.dev1-py3.11`
 
@@ -89,7 +89,7 @@ Use a pinned version with your preferred Python:
 ```yaml
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:1.2.0-py3.13
+    image: ghcr.io/nodejsmith/hassette:0.19.0-py3.13
 ```
 
 ### For Development
@@ -109,7 +109,7 @@ Use a specific pre-release version:
 ```yaml
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:1.3.0.dev1-py3.13
+    image: ghcr.io/nodejsmith/hassette:0.19.0.dev1-py3.13
 ```
 
 ## Updating Images
@@ -126,8 +126,3 @@ docker compose up -d
 ```bash
 docker compose exec hassette hassette --version
 ```
-
-## See Also
-
-- [Docker Overview](index.md) - Quick start guide
-- [Building Your Own Image](index.md#building-your-own-image) - Custom image builds

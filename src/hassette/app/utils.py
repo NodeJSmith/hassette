@@ -1,11 +1,12 @@
 import typing
 from logging import getLogger
 
-from hassette.app.app_config import AppConfig, AppConfigT
+from hassette.app.app_config import AppConfig
 from hassette.exceptions import InvalidInheritanceError
 
 if typing.TYPE_CHECKING:
     from hassette.app import App
+    from hassette.types import AppConfigT
 
 LOGGER = getLogger(__name__)
 

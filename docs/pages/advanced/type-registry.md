@@ -5,6 +5,7 @@ The TypeRegistry is a core component of Hassette that provides automatic type co
 ## Purpose
 
 Home Assistant's WebSocket API and state system primarily work with string representations of values. For example:
+
 - A temperature sensor might report `"23.5"` as a string
 - A boolean sensor reports `"on"` or `"off"` rather than `True`/`False`
 - Timestamps arrive as ISO 8601 strings
@@ -24,14 +25,7 @@ Each registered converter is stored as a `TypeConverterEntry` dataclass containi
 - **error_message**: Optional custom error message template (uses `{value}`, `{from_type}`, `{to_type}` placeholders)
 
 ```python
-from hassette.core.type_registry import TypeConverterEntry
-
-entry = TypeConverterEntry(
-    func=int,
-    from_type=str,
-    to_type=int,
-    error_message="Cannot convert '{value}' to integer"
-)
+--8<-- "pages/advanced/snippets/type-registry/entry_example.py"
 ```
 
 ### Registration System
@@ -43,20 +37,7 @@ The TypeRegistry provides two ways to register converters:
 Use `@register_type_converter_fn` to register a conversion function:
 
 ```python
-from hassette.core.type_registry import register_type_converter_fn
-
-@register_type_converter_fn(error_message="String must be a boolean-like value, got {from_type}")
-def str_to_bool(value: str) -> bool:
-    """Convert HA boolean strings like 'on'/'off' to Python bool.
-
-    The decorator infers from_type and to_type from the function signature.
-    """
-    value_lower = value.lower()
-    if value_lower in ("on", "true", "yes", "1"):
-        return True
-    elif value_lower in ("off", "false", "no", "0"):
-        return False
-    raise ValueError(f"Invalid boolean value: {value}")
+--8<-- "pages/advanced/snippets/dependency-injection/custom_type_converter.py"
 ```
 
 #### Simple Type Registration
@@ -64,15 +45,7 @@ def str_to_bool(value: str) -> bool:
 Use `register_simple_type_converter` for simple conversions:
 
 ```python
-from hassette.core.type_registry import register_simple_type_converter
-
-# Register a simple converter (uses int() as the converter function)
-register_simple_type_converter(
-    from_type=str,
-    to_type=int,
-    fn=int,  # Optional - defaults to to_type constructor if not provided
-    error_message="Cannot convert '{value}' to integer"  # Optional
-)
+--8<-- "pages/advanced/snippets/type-registry/simple_registration.py"
 ```
 
 ### Conversion Lookup
@@ -80,10 +53,7 @@ register_simple_type_converter(
 The TypeRegistry uses a dictionary with `(from_type, to_type)` tuples as keys for O(1) lookup performance:
 
 ```python
-from hassette import TYPE_REGISTRY
-
-# Convert a value
-result = TYPE_REGISTRY.convert("42", int)  # Returns 42 as int
+--8<-- "pages/advanced/snippets/type-registry/lookup_example.py"
 ```
 
 ## Integration with State Models
@@ -95,15 +65,11 @@ The TypeRegistry integrates seamlessly with Hassette's state model system throug
 Each state model class can declare a `value_type` ClassVar to specify the expected type(s) of the state value:
 
 ```python
-from hassette.models.states.base import BaseState
-from typing import ClassVar
-
-class SensorState(BaseState):
-    """State model for sensor entities."""
-    value_type: ClassVar[type | tuple[type, ...]] = (str, int, float)
+--8<-- "pages/advanced/snippets/type-registry/state_model_value_type.py"
 ```
 
 The `value_type` defines what types are valid for the `state` field. It can be:
+
 - A single type: `value_type = int`
 - A tuple of types: `value_type = (str, int, float)`
 - Defaults to `str` if not specified
@@ -114,29 +80,13 @@ When a state is created or validated, the `BaseState._validate_domain_and_state`
 
 ```python
 # In BaseState._validate_domain_and_state
-if self.value_type is not None and not isinstance(data["state"], self.value_type):
-    try:
-        # TypeRegistry is accessed via the Hassette instance
-        data["state"] = self.hassette.type_registry.convert(data["state"], self.value_type)
-    except (TypeError, ValueError) as e:
-        # Error handling...
+values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
 ```
 
 This means when you work with typed state models, values are automatically converted:
 
 ```python
-from hassette import states
-
-# Raw state data from Home Assistant
-raw_data = {
-    "entity_id": "sensor.temperature",
-    "state": "23.5",  # String from HA
-    "attributes": {"unit_of_measurement": "°C"}
-}
-
-# Creating a typed state model automatically converts the value
-sensor_state = states.SensorState(**raw_data)
-print(type(sensor_state.state))  # <class 'float'> - automatically converted!
+--8<-- "pages/advanced/snippets/type-registry/typed_model_usage.py"
 ```
 
 ### Union Type Handling
@@ -161,66 +111,22 @@ The TypeRegistry powers automatic type conversion in the dependency injection sy
 When you use `Annotated` with custom extractors from `hassette.event_handling.accessors`, the TypeRegistry automatically converts extracted values:
 
 ```python
-from typing import Annotated
-from hassette import dependencies as D
-from hassette import accessors as A
-
-async def handler(
-    # Brightness is returned as a string from HA, but TypeRegistry
-    # automatically converts it to int based on the type hint
-    brightness: Annotated[int | None, A.get_attr_new("brightness")],
-    entity_id: D.EntityId,
-):
-    if brightness and brightness > 200:
-        self.logger.info("%s is very bright: %d", entity_id, brightness)
+--8<-- "pages/advanced/snippets/type-registry/di_custom_extractor.py"
 ```
 
 When a custom extractor returns a value, if the value type doesn't match the annotated type, the TypeRegistry is called to perform the conversion automatically.
-
-### Bypassing Automatic Conversion
-
-If you want to bypass automatic conversion, you can:
-
-1. Use `Any` as the type hint to accept any type without conversion
-2. Provide a custom converter function in your extractor
-
-```python
-from typing import Annotated, Any
-
-async def handler(
-    # No automatic conversion - accepts whatever type is returned
-    brightness_raw: Annotated[Any, A.get_attr_new("brightness")],
-):
-    # Handle conversion yourself
-    brightness = int(brightness_raw) if brightness_raw else None
-```
-
-Or to use your own converter function:
-
-```python
-from typing import Annotated, Any
-
-# define your own conversion method
-def converter(value: Any) -> int:
-    return int(value) if value else 0
-
-async def handler(
-    # Pass `converter` after extractor function
-    brightness: Annotated[int, A.get_attr_new("brightness"), converter],
-):
-    assert isinstance(brightness, int)
-```
-
 
 ## Relationship with StateRegistry
 
 The TypeRegistry and StateRegistry work together but serve different purposes:
 
 **StateRegistry**: Maps Home Assistant domains to Pydantic state model classes
+
 - Purpose: Determines which model class to use for a given entity
 - Example: `"sensor.temperature"` → `SensorState` class
 
 **TypeRegistry**: Converts raw values to proper Python types
+
 - Purpose: Ensures state values match expected types
 - Example: `"23.5"` (string) → `23.5` (float)
 
@@ -238,6 +144,7 @@ The TypeRegistry and StateRegistry work together but serve different purposes:
 Hassette includes comprehensive built-in conversion:
 
 ### Numeric Conversions
+
 - `str` ↔ `int`: Basic integer conversion
 - `str` ↔ `float`: Floating-point conversion
 - `str` ↔ `Decimal`: High-precision decimal conversion
@@ -245,6 +152,7 @@ Hassette includes comprehensive built-in conversion:
 - `float` → `int`: Float to integer (truncation)
 
 ### Boolean Conversions
+
 - `str` → `bool`: Handles Home Assistant boolean strings
   - True values: `"on"`, `"true"`, `"yes"`, `"1"`
   - False values: `"off"`, `"false"`, `"no"`, `"0"`
@@ -252,7 +160,9 @@ Hassette includes comprehensive built-in conversion:
 - `int` → `bool`: Standard truthiness conversion
 
 ### DateTime Conversions
+
 Uses the `whenever` library for robust datetime handling:
+
 - `str` → `Instant`: Parse ISO 8601 to timezone-aware instant
 - `str` → `ZonedDateTime`: Parse to zoned datetime
 - `str` → `OffsetDateTime`: Parse to offset-aware datetime
@@ -279,15 +189,7 @@ except ValueError as e:
 If no converter is registered for a type pair, a `TypeError` is raised:
 
 ```python
-from hassette import TYPE_REGISTRY
-
-class CustomType:
-    pass
-
-try:
-    result = TYPE_REGISTRY.convert("value", CustomType)
-except TypeError as e:
-    print(e)  # "No converter registered for str -> CustomType"
+--8<-- "pages/advanced/snippets/type-registry/missing_converter.py"
 ```
 
 ### Custom Error Messages
@@ -295,19 +197,7 @@ except TypeError as e:
 Provide helpful error messages in your custom converters:
 
 ```python
-@register_type_converter_fn(error_message="'{value}' is not a valid port number")
-def str_to_port(value: str) -> int:
-    """Convert string to port number (1-65535).
-
-    Types inferred from signature: str → int
-    """
-    try:
-        port = int(value)
-        if not 1 <= port <= 65535:
-            raise ValueError(f"Port must be between 1 and 65535, got {port}")
-        return port
-    except ValueError as e:
-        raise ValueError(str(e))
+--8<-- "pages/advanced/snippets/type-registry/custom_error_msg.py"
 ```
 
 ## Inspection and Debugging
@@ -317,49 +207,28 @@ The TypeRegistry provides methods to inspect registered converters:
 ### List All Conversions
 
 ```python
-from hassette import TYPE_REGISTRY
-
-# Get all registered conversions
-conversions = TYPE_REGISTRY.list_conversions()
-
-for from_type, to_type, entry in conversions:
-    print(f"{from_type.__name__} → {to_type.__name__}: {entry.description}")
+--8<-- "pages/advanced/snippets/type-registry/inspect_list.py"
 ```
 
 Output example:
 ```
-str → int: Convert string to integer
-str → float: Convert string to float
-str → bool: Convert Home Assistant boolean strings
-int → float: Convert integer to float
+str → int
+str → float
+str → bool
+int → float
 ...
 ```
 
 ### Check for Specific Converter
 
 ```python
-from hassette import TYPE_REGISTRY
-
-# Check if a converter exists
-key = (str, int)
-if key in TYPE_REGISTRY.conversion_map:
-    entry = TYPE_REGISTRY.conversion_map[key]
-    print(f"Converter found: {entry.description}")
-else:
-    print("No converter registered")
+--8<-- "pages/advanced/snippets/type-registry/inspect_check.py"
 ```
 
 ### Get Converter Details
 
 ```python
-from hassette import TYPE_REGISTRY
-
-# Get details about a specific converter
-entry = TYPE_REGISTRY.conversion_map.get((str, bool))
-if entry:
-    print(f"Description: {entry.description}")
-    print(f"Error format: {entry.error_message_format}")
-    print(f"Converter: {entry.converter}")
+--8<-- "pages/advanced/snippets/type-registry/inspect_details.py"
 ```
 
 ### Union Type Performance
@@ -374,6 +243,7 @@ When converting to Union types, the TypeRegistry tries each type in order until 
 ```
 
 For better performance with Union types, order the types from most specific to least specific:
+
 - ✅ Good: `Union[int, float, str]` (tries int first, most specific)
 - ❌ Less optimal: `Union[str, int, float]` (str matches everything)
 
@@ -463,21 +333,7 @@ def test_custom_converter():
 Convert Home Assistant string values to Python enums:
 
 ```python
-from enum import Enum
-from hassette.core.type_registry import register_type_converter_fn
-
-class FanSpeed(Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-
-@register_type_converter_fn
-def str_to_fan_speed(value: str) -> FanSpeed:
-    """Convert string to FanSpeed enum.
-
-    Types inferred from signature: str → FanSpeed
-    """
-    return FanSpeed(value.lower())
+--8<-- "pages/advanced/snippets/type-registry/pattern_enum.py"
 ```
 
 ### Pattern 2: Structured Data
@@ -485,23 +341,7 @@ def str_to_fan_speed(value: str) -> FanSpeed:
 Convert JSON strings to dataclasses:
 
 ```python
-from dataclasses import dataclass
-import json
-
-@dataclass
-class DeviceInfo:
-    name: str
-    version: str
-    manufacturer: str
-
-@register_type_converter_fn
-def str_to_device_info(value: str) -> DeviceInfo:
-    """Parse device info JSON.
-
-    Types inferred from signature: str → DeviceInfo
-    """
-    data = json.loads(value)
-    return DeviceInfo(**data)
+--8<-- "pages/advanced/snippets/type-registry/pattern_structured.py"
 ```
 
 ### Pattern 3: Units of Measurement
@@ -509,19 +349,7 @@ def str_to_device_info(value: str) -> DeviceInfo:
 Convert strings with units to numeric values:
 
 ```python
-import re
-
-@register_type_converter_fn
-def str_with_units_to_float(value: str) -> float:
-    """Extract numeric value from string with units.
-
-    Example: '23.5 °C' → 23.5
-    Types inferred from signature: str → float
-    """
-    match = re.match(r"^([-+]?[0-9]*\.?[0-9]+)", value.strip())
-    if match:
-        return float(match.group(1))
-    raise ValueError(f"Cannot extract number from '{value}'")
+--8<-- "pages/advanced/snippets/type-registry/pattern_units.py"
 ```
 
 ## See Also

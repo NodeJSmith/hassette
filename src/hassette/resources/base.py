@@ -145,15 +145,19 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         else:
             self.task_bucket = task_bucket or TaskBucket.create(self.hassette, parent=self)
 
-    def _setup_logger(self) -> None:
+    def _get_logger_name(self) -> str:
+        if self.class_name == "Hassette":
+            return "hassette"
+
         logger_name = (
             self.unique_name[len("Hassette.") :] if self.unique_name.startswith("Hassette.") else self.unique_name
         )
-        if self.class_name == "Hassette":
-            self.logger = getLogger("hassette")
-        else:
-            self.logger = getLogger("hassette").getChild(logger_name)
-        self.logger.debug("Creating instance")
+
+        return f"hassette.{logger_name}"
+
+    def _setup_logger(self) -> None:
+        self.logger = getLogger(self._get_logger_name())
+
         try:
             self.logger.setLevel(self.config_log_level)
         except (ValueError, TypeError) as e:
@@ -234,7 +238,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             return
         self._initializing = True
 
-        self.logger.setLevel(self.config_log_level)
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await self.handle_starting()
 

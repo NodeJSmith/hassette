@@ -1,16 +1,36 @@
 from collections.abc import Awaitable, Callable
 from datetime import time
 from pathlib import Path
-from typing import Any, Literal, Protocol, Required, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Required, TypeAlias, TypeVar
 
 from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
 
-from hassette.const.misc import FalseySentinel
-from hassette.events.base import EventT
+if TYPE_CHECKING:
+    from hassette.app.app_config import AppConfig
+    from hassette.const.misc import FalseySentinel
+    from hassette.events.base import Event, EventPayload
+    from hassette.models.states.base import BaseState
 
-LOG_LEVELS = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 """Log levels for configuring logging."""
+
+
+EventT = TypeVar("EventT", bound="Event[Any]", contravariant=True)
+"""Represents an event type."""
+
+PayloadT = TypeVar("PayloadT", bound="EventPayload[Any]", covariant=True)
+"""Represents the payload type of an event."""
+
+StateT = TypeVar("StateT", bound="BaseState", covariant=True)
+"""Represents a specific state type, e.g., LightState, CoverState, etc."""
+
+StateValueT = TypeVar("StateValueT", covariant=True)
+"""Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
+
+AppConfigT = TypeVar("AppConfigT", bound="AppConfig")
+"""Type variable for app configuration classes."""
 
 
 V = TypeVar("V")  # value type from the accessor
@@ -20,7 +40,7 @@ V_contra = TypeVar("V_contra", contravariant=True)
 class Predicate(Protocol[EventT]):
     """Protocol for defining predicates that evaluate events."""
 
-    def __call__(self, event: EventT) -> bool: ...
+    def __call__(self, value: EventT, /) -> bool: ...
 
 
 class Condition(Protocol[V_contra]):
@@ -61,7 +81,7 @@ HandlerType = SyncHandler | AsyncHandlerType
 
 ChangeType = TypeAliasType(
     "ChangeType",
-    None | FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel],
+    "None | FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel]",
     type_params=(V,),
 )
 """Type representing a value that can be used to specify changes in predicates."""

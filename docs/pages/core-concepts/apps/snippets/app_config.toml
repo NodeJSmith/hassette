@@ -1,0 +1,9 @@
+[apps.my_monitor]
+filename = "my_monitor.py"
+class_name = "MyApp"
+enabled = true
+
+# Configuration matches your AppConfig model
+[[apps.my_monitor.config]]
+location_name = "Kitchen"
+threshold = 30.0

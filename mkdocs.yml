@@ -15,33 +15,52 @@ theme:
     - navigation.instant
     - navigation.tracking
     - navigation.indexes
-    - toc.integrate
+    - navigation.footer
+    - content.code.copy
+    - content.code.select
 
 nav:
   - Home: index.md
   - Getting Started:
-      - Overview: pages/getting-started/index.md
+      - Local Setup: pages/getting-started/index.md
       - Docker Deployment:
-          - Overview: pages/getting-started/docker/index.md
+          - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
-          - Networking: pages/getting-started/docker/networking.md
           - Image Tags: pages/getting-started/docker/image-tags.md
           - Troubleshooting: pages/getting-started/docker/troubleshooting.md
+      - Configuration Files: pages/getting-started/configuration.md
+      - Home Assistant Token: pages/getting-started/ha_token.md
   - Core Concepts:
       - Overview: pages/core-concepts/index.md
-      - Apps: pages/core-concepts/apps/index.md
-      - Bus: pages/core-concepts/bus/index.md
-      - Scheduler: pages/core-concepts/scheduler/index.md
-      - API: pages/core-concepts/api/index.md
+      - Apps:
+          - Overview: pages/core-concepts/apps/index.md
+          - Lifecycle: pages/core-concepts/apps/lifecycle.md
+          - Configuration: pages/core-concepts/apps/configuration.md
+      - Bus:
+          - Overview: pages/core-concepts/bus/index.md
+          - Writing Handlers: pages/core-concepts/bus/handlers.md
+          - Filtering & Predicates: pages/core-concepts/bus/filtering.md
+      - Scheduler:
+          - Overview: pages/core-concepts/scheduler/index.md
+          - Scheduling Methods: pages/core-concepts/scheduler/methods.md
+          - Job Management: pages/core-concepts/scheduler/management.md
+      - API:
+          - Overview: pages/core-concepts/api/index.md
+          - Entities & States: pages/core-concepts/api/entities.md
+          - Services: pages/core-concepts/api/services.md
+          - Utilities: pages/core-concepts/api/utilities.md
       - States: pages/core-concepts/states/index.md
-      - Configuration: pages/core-concepts/configuration/index.md
+      - Configuration:
+          - Overview: pages/core-concepts/configuration/index.md
+          - Authentication: pages/core-concepts/configuration/auth.md
+          - Global Settings: pages/core-concepts/configuration/global.md
+          - Applications: pages/core-concepts/configuration/applications.md
   - Advanced:
       - Overview: pages/advanced/index.md
       - Dependency Injection: pages/advanced/dependency-injection.md
       - Custom States: pages/advanced/custom-states.md
       - State Registry: pages/advanced/state-registry.md
       - TypeRegistry: pages/advanced/type-registry.md
-  - Why Hassette?: pages/why-hassette.md
   - AppDaemon Comparison: pages/appdaemon-comparison.md
   - API Reference: reference/
 
@@ -74,11 +93,10 @@ markdown_extensions:
   - def_list
   - footnotes
   - md_in_html
+  - toc:
+      toc_depth: 2
   - pymdownx.details
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
+  - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.snippets:
       base_path: docs
@@ -87,4 +105,5 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed

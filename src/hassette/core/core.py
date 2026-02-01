@@ -12,6 +12,7 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
+from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
@@ -31,8 +32,6 @@ from .health_service import HealthService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .state_proxy import StateProxy
-from .state_registry import STATE_REGISTRY, StateRegistry
-from .type_registry import TYPE_REGISTRY, TypeRegistry
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
@@ -72,7 +71,9 @@ class Hassette(Resource):
 
         self.unique_id = ""
         enable_logging(self.config.log_level)
+
         super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
+        self.logger.info("Starting Hassette...", stacklevel=2)
 
         # set context variables
         context.set_global_hassette(self)
@@ -108,7 +109,7 @@ class Hassette(Resource):
         self.state_registry = STATE_REGISTRY
         self.type_registry = TYPE_REGISTRY
 
-        self.logger.info("All components registered...")
+        self.logger.info("All components registered...", stacklevel=2)
 
     def _startup_tasks(self):
         """Perform one-time startup tasks.
@@ -126,14 +127,10 @@ class Hassette(Resource):
         self.config.set_validated_app_manifests()
 
         active_apps = [app for app in self.config.app_manifests.values() if app.enabled]
-        if active_apps:
-            self.logger.info("Active apps: %s", active_apps)
-        else:
-            self.logger.info("No active apps found.")
+        self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
 
         inactive_apps = [app for app in self.config.app_manifests.values() if not app.enabled]
-        if inactive_apps:
-            self.logger.info("Inactive apps: %s", inactive_apps)
+        self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
 
         if self.config.run_app_precheck:
             try:
@@ -216,7 +213,8 @@ class Hassette(Resource):
         self._loop_thread_id = threading.get_ident()
         self.loop.set_debug(self.config.asyncio_debug_mode)
 
-        self.loop.set_task_factory(make_task_factory(self.task_bucket))
+        # pyright ignore is to handle what seems like another 3.11 bug/type issue
+        self.loop.set_task_factory(make_task_factory(self.task_bucket))  # pyright: ignore[reportArgumentType]
 
         self._start_resources()
 

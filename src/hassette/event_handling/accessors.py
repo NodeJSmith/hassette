@@ -44,19 +44,19 @@ Examples:
 
 import logging
 import typing
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 from glom import PathAccessError, glom
 
 from hassette.const import MISSING_VALUE
 from hassette.const.misc import FalseySentinel
-from hassette.events import HassStateDict
 
 if typing.TYPE_CHECKING:
-    from hassette.events import CallServiceEvent, HassContext, HassEvent, RawStateChangeEvent
+    from hassette.events import CallServiceEvent, HassContext, HassEvent, HassStateDict, RawStateChangeEvent
 
 LOGGER = logging.getLogger(__name__)
+DEFAULT_EXCLUDE = ("last_reported", "last_updated", "last_changed", "context")
 
 
 def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
@@ -95,17 +95,17 @@ def get_state_value_old_new(event: "RawStateChangeEvent") -> tuple[Any, Any]:
     return get_state_value_old(event), get_state_value_new(event)
 
 
-def get_state_object_old(event: "RawStateChangeEvent") -> HassStateDict | None:
+def get_state_object_old(event: "RawStateChangeEvent") -> "HassStateDict | None":
     """Get the old state object from a RawStateChangeEvent, or None if `old_state` does not exist."""
     return event.payload.data.old_state
 
 
-def get_state_object_new(event: "RawStateChangeEvent") -> HassStateDict | None:
+def get_state_object_new(event: "RawStateChangeEvent") -> "HassStateDict | None":
     """Get the new state object from a RawStateChangeEvent, or None if `new_state` does not exist."""
     return event.payload.data.new_state
 
 
-def get_state_object_old_new(event: "RawStateChangeEvent") -> tuple[HassStateDict | None, HassStateDict | None]:
+def get_state_object_old_new(event: "RawStateChangeEvent") -> tuple["HassStateDict | None", "HassStateDict | None"]:
     """Get a tuple of (old_state_object, new_state_object) from a RawStateChangeEvent."""
     return get_state_object_old(event), get_state_object_new(event)
 
@@ -135,12 +135,80 @@ def get_attr_new(name: str) -> Callable[["RawStateChangeEvent"], Any]:
 def get_attr_old_new(name: str) -> Callable[["RawStateChangeEvent"], tuple[Any, Any]]:
     """Get a specific attribute from the old and new state in a RawStateChangeEvent."""
 
+    old_getter = get_attr_old(name)
+    new_getter = get_attr_new(name)
+
     def _inner(event: "RawStateChangeEvent") -> tuple[Any, Any]:
-        old = get_attr_old(name)(event)
-        new = get_attr_new(name)(event)
+        old = old_getter(event)
+        new = new_getter(event)
         return (old, new)
 
     return _inner
+
+
+def get_attrs_new(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
+    """Get specific attributes from the new state in a RawStateChangeEvent."""
+
+    def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
+        data = event.payload.data
+        new_attrs: dict[str, Any] = data.new_state.get("attributes", {}) if data.new_state else {}
+        return {name: new_attrs.get(name, MISSING_VALUE) for name in names}
+
+    return _inner
+
+
+def get_attrs_old(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
+    """Get specific attributes from the old state in a RawStateChangeEvent."""
+
+    def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
+        data = event.payload.data
+        old_attrs: dict[str, Any] = data.old_state.get("attributes", {}) if data.old_state else {}
+        return {name: old_attrs.get(name, MISSING_VALUE) for name in names}
+
+    return _inner
+
+
+def get_attrs_old_new(
+    names: list[str],
+) -> Callable[["RawStateChangeEvent"], tuple[dict[str, Any], dict[str, Any]]]:
+    """Get specific attributes from the old and new state in a RawStateChangeEvent."""
+
+    old_getter = get_attrs_old(names)
+    new_getter = get_attrs_new(names)
+
+    def _inner(event: "RawStateChangeEvent") -> tuple[dict[str, Any], dict[str, Any]]:
+        old = old_getter(event)
+        new = new_getter(event)
+        return (old, new)
+
+    return _inner
+
+
+def get_all_attrs_old(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
+    """Get all attributes from the old state in a RawStateChangeEvent."""
+    data = event.payload.data
+    if data.old_state is None:
+        return MISSING_VALUE
+
+    return data.old_state.get("attributes", {})
+
+
+def get_all_attrs_new(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
+    """Get all attributes from the new state in a RawStateChangeEvent."""
+    data = event.payload.data
+    if data.new_state is None:
+        return MISSING_VALUE
+
+    return data.new_state.get("attributes", {})
+
+
+def get_all_attrs_old_new(
+    event: "RawStateChangeEvent",
+) -> tuple[dict[str, Any] | FalseySentinel, dict[str, Any] | FalseySentinel]:
+    """Get all attributes from the old and new state in a RawStateChangeEvent."""
+    old = get_all_attrs_old(event)
+    new = get_all_attrs_new(event)
+    return (old, new)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +251,67 @@ def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
 def get_context(event: "HassEvent") -> "HassContext":
     """Get the context dict from the event payload."""
     return cast("HassContext", get_path("payload.context")(event))
+
+
+def get_all_changes(
+    exclude: Sequence[str] = DEFAULT_EXCLUDE,
+) -> Callable[["RawStateChangeEvent"], dict[str, dict[str, Any]]]:
+    """Get a dict of changed state and attribute values between old and new states.
+
+    Args:
+        exclude (Sequence[str], optional): List of attribute names to exclude from the changes. Defaults to fields
+        that change every state update (e.g., `last_updated`, `last_changed`, `context`).
+
+    Returns:
+        dict[str, dict[str, Any]]: A nested dict mapping names to tuples of (old_value, new_value).
+
+    Example return value:
+        ```
+        {
+            "state": ("on", "off"),
+            "attributes": {
+                "rgb_color": ([255, 255, 0], [255, 255, 255]),
+                "brightness": (200, 255)
+            },
+        }
+        ```
+    """
+
+    def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
+        old = cast("dict", event.payload.data.old_state or {})
+        new = cast("dict", event.payload.data.new_state or {})
+
+        changed_dict = _recursive_get_differences(old, new, exclude=exclude)
+
+        return changed_dict
+
+    return _inner
+
+
+def _recursive_get_differences(
+    old_dict: dict[str, Any], new_dict: dict[str, Any], exclude: Sequence[str] = DEFAULT_EXCLUDE
+) -> dict[str, Any]:
+    """Simple recursive diff between two dicts, returning a dict of changed keys to (old_value, new_value)."""
+
+    changed_dict = {}
+    for key in set(old_dict.keys()).union(new_dict.keys()):
+        if key in exclude:
+            LOGGER.debug("Excluding key %r from change detection", key)
+            continue
+
+        old_value = old_dict.get(key, MISSING_VALUE)
+        new_value = new_dict.get(key, MISSING_VALUE)
+
+        if isinstance(old_value, dict) and isinstance(new_value, dict):
+            LOGGER.debug("Recursing into nested dict for key %r", key)
+            changed_dict[key] = _recursive_get_differences(old_value, new_value, exclude=exclude)
+        else:
+            if old_value != new_value:
+                LOGGER.debug("Detected change for key %r: %r -> %r", key, old_value, new_value)
+                changed_dict[key] = (old_value, new_value)
+
+    LOGGER.debug("Returning changed dict: %r", changed_dict)
+    return changed_dict
 
 
 # ---------------------------------------------------------------------------

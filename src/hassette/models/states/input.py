@@ -36,38 +36,47 @@ class InputButtonState(DateTimeBaseState):
     attributes: InputAttributesBase
 
 
+class InputDatetimeAttributes(InputAttributesBase):
+    has_date: bool | None = Field(default=None)
+    has_time: bool | None = Field(default=None)
+    year: int | None = Field(default=None)
+    month: int | None = Field(default=None)
+    day: int | None = Field(default=None)
+    hour: int | None = Field(default=None)
+    minute: int | None = Field(default=None)
+    second: int | None = Field(default=None)
+    timestamp: float | None = Field(default=None)
+
+    @property
+    def timestamp_as_instant(self) -> Instant | None:
+        if self.timestamp is None:
+            return None
+        return Instant.from_timestamp(self.timestamp)
+
+    @property
+    def timestamp_as_system_datetime(self) -> ZonedDateTime | None:
+        if self.timestamp is None:
+            return None
+        return convert_utc_timestamp_to_system_tz(self.timestamp)
+
+
 class InputDatetimeState(DateTimeBaseState):
     """Representation of a Home Assistant input_datetime state.
 
     See: https://www.home-assistant.io/integrations/input_datetime/
     """
 
-    class Attributes(InputAttributesBase):
-        has_date: bool | None = Field(default=None)
-        has_time: bool | None = Field(default=None)
-        year: int | None = Field(default=None)
-        month: int | None = Field(default=None)
-        day: int | None = Field(default=None)
-        hour: int | None = Field(default=None)
-        minute: int | None = Field(default=None)
-        second: int | None = Field(default=None)
-        timestamp: float | None = Field(default=None)
-
-        @property
-        def timestamp_as_instant(self) -> Instant | None:
-            if self.timestamp is None:
-                return None
-            return Instant.from_timestamp(self.timestamp)
-
-        @property
-        def timestamp_as_system_datetime(self) -> ZonedDateTime | None:
-            if self.timestamp is None:
-                return None
-            return convert_utc_timestamp_to_system_tz(self.timestamp)
-
     domain: Literal["input_datetime"]
 
-    attributes: Attributes
+    attributes: InputDatetimeAttributes
+
+
+class InputNumberAttributes(InputAttributesBase):
+    max: float | None = Field(default=None)
+    initial: float | None = Field(default=None)
+    step: int | float | None = Field(default=None)
+    mode: str | None = Field(default=None)
+    min: int | float | None = Field(default=None)
 
 
 class InputNumberState(NumericBaseState):
@@ -76,16 +85,13 @@ class InputNumberState(NumericBaseState):
     See: https://www.home-assistant.io/integrations/input_number/
     """
 
-    class Attributes(InputAttributesBase):
-        max: float | None = Field(default=None)
-        initial: float | None = Field(default=None)
-        step: int | float | None = Field(default=None)
-        mode: str | None = Field(default=None)
-        min: int | float | None = Field(default=None)
-
     domain: Literal["input_number"]
 
-    attributes: Attributes
+    attributes: InputNumberAttributes
+
+
+class InputSelectAttributes(InputAttributesBase):
+    options: list[str] = Field(default_factory=list)
 
 
 class InputSelectState(StringBaseState):
@@ -94,12 +100,16 @@ class InputSelectState(StringBaseState):
     See: https://www.home-assistant.io/integrations/input_select/
     """
 
-    class Attributes(InputAttributesBase):
-        options: list[str] = Field(default_factory=list)
-
     domain: Literal["input_select"]
 
-    attributes: Attributes
+    attributes: InputSelectAttributes
+
+
+class InputTextAttributes(InputAttributesBase):
+    min: int | float | None = Field(default=None)
+    max: int | float | None = Field(default=None)
+    pattern: Any | None = Field(default=None)
+    mode: str | None = Field(default=None)
 
 
 class InputTextState(StringBaseState):
@@ -108,12 +118,6 @@ class InputTextState(StringBaseState):
     See: https://www.home-assistant.io/integrations/input_text/
     """
 
-    class Attributes(InputAttributesBase):
-        min: int | float | None = Field(default=None)
-        max: int | float | None = Field(default=None)
-        pattern: Any | None = Field(default=None)
-        mode: str | None = Field(default=None)
-
     domain: Literal["input_text"]
 
-    attributes: Attributes
+    attributes: InputTextAttributes

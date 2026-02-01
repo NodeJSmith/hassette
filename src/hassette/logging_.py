@@ -63,5 +63,5 @@ def enable_logging(
     sys.excepthook = lambda *args: logging.getLogger().exception("Uncaught exception", exc_info=args)
     threading.excepthook = lambda args: logging.getLogger().exception(
         "Uncaught thread exception",
-        exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+        exc_info=(args.exc_type, args.exc_value, args.exc_traceback),  # pyright: ignore[reportArgumentType]
     )

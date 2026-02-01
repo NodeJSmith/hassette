@@ -564,6 +564,22 @@ class Api(Resource):
         raw = await self.get_state_raw(entity_id)
         return self.hassette.state_registry.try_convert_state(raw, entity_id)
 
+    async def get_state_or_none(self, entity_id: str) -> "BaseState | None":
+        """Get the state of a specific entity, or None if it does not exist.
+
+        Args:
+            entity_id: The ID of the entity to get the state for.
+
+        Returns:
+            The state of the entity converted to the specified model type, or None if it does not exist.
+        """
+        try:
+            return await self.get_state(entity_id)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                return None
+            raise
+
     async def get_state_value(self, entity_id: str) -> Any:
         """Get the state of a specific entity without converting it to a state object.
 

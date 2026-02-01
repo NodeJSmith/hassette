@@ -15,14 +15,13 @@ from yarl import URL
 from hassette import HassetteConfig, context
 from hassette.api import Api
 from hassette.bus import Bus
+from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
-from hassette.core.state_registry import STATE_REGISTRY, StateRegistry
-from hassette.core.type_registry import TYPE_REGISTRY, TypeRegistry
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource
@@ -191,7 +190,7 @@ class HassetteHarness:
         self.hassette._loop = asyncio.get_running_loop()
         self.hassette._loop_thread_id = threading.get_ident()
         self.hassette.task_bucket = TaskBucket.create(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
-        self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))
+        self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
 
         if self.use_bus:
             await self._start_bus()

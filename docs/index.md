@@ -8,46 +8,50 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 
 Hassette is a framework that helps you write Home Assistant automations in Python. Instead of using the HA user interface or writing YAML, you create "apps" as Python classes that respond to Home Assistant events, call services, and manage state.
 
-If you're familiar with the Python ecosystem, consider it like a marriage between AppDaemon and FastAPI - HA automations built on modern async Python, Pydantic models, and type safety.
+If you're familiar with the Python ecosystem, consider it like a marriage between AppDaemon and FastAPI — HA automations built on modern async Python, Pydantic models, and type safety.
 
-**Key features**
+## Why Hassette?
 
-- **Type safe** – full type annotations and IDE support.
-- **Dependency Injection** – clean handler signatures with FastAPI style dependency injection.
-- **Async-first** – built for modern Python with async/await throughout.
-- **Simple & focused** – just Home Assistant automations, no complexity creep.
-- **Developer experience** – clear errors, solid logging, hot reloading.
+- **Write automations as code**: Build “apps” as Python classes that subscribe to events, call services, and manage state.
+- **Async-first**: Use async where it matters; sync apps are supported too.
+- **Type-safe configuration**: Pydantic models give validation, defaults, and IDE help.
+- **Dependency injection**: Clean handler signatures that focus on the data you need.
+- **Great DX**: Clear logs, fast iteration, and hot reloading during development.
 
-Built by a fellow HA geek frustrated with the existing Python automation experience. Read more about [why Hassette exists](pages/why-hassette.md).
+## See it in action
 
-## Quickstart
+#### Autocomplete + type annotations
 
-Get running with Hassette in just a few steps.
+Type annotations and Pydantic models give you IDE autocomplete and inline docs for Home Assistant entities, services, and more.
 
-1. **Create your first app**
+<video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
+    <source src="./_static/autocomplete.webm" type="video/webm">
+    <source src="./_static/autocomplete.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+</video>
 
-    ```python
-    --8<-- "pages/getting-started/first_app.py"
-    ```
+#### Filtered event handling
 
-2. **Run Hassette**
+Fluent APIs let you easily subscribe to only the events you care about.
 
-    ```bash
-    uv run hassette -t $HOME_ASSISTANT_TOKEN \
-      --base-url 'http://127.0.0.1:8123' \
-      --app-dir .
-    ```
+<video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
+    <source src="./_static/filtered_events.webm" type="video/webm">
+    <source src="./_static/filtered_events.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+</video>
 
-3. **Watch it work**
 
-    ![Hassette logs showing automation running](./_static/app-logs.png)
+## What you can build
 
-## Next Steps
+- Event-driven automations (state changes, events, scheduled jobs)
+- Multi-instance apps with separate configs (e.g., "upstairs" and "downstairs")
+- Typed, validated configuration for safer refactors
+- Cleaner integrations with Home Assistant services and entities
 
-Ready to build something more complex? Explore the rest of the docs:
+## Next steps
 
-- Follow the [getting started guide](pages/getting-started/index.md) for local development.
-- Deploy with [Docker Compose](pages/getting-started/docker/index.md) for production.
-- Dive into [core app patterns](pages/core-concepts/apps/index.md).
-- See how Hassette stacks up in the [AppDaemon comparison](pages/appdaemon-comparison.md).
-- Dive into the [advanced concepts](pages/advanced/index.md).
+- Local setup: [Local Setup](pages/getting-started/index.md)
+- Production: [Docker Deployment](pages/getting-started/docker/index.md)
+- Architecture overview: [Core Concepts](pages/core-concepts/index.md)
+- Full configuration: [Configuration Overview](pages/core-concepts/configuration/index.md)
+- Migration: [AppDaemon Comparison](pages/appdaemon-comparison.md)

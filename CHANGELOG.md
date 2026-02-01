@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.20.0] - 2026-02-01
+
+### Added
+- Add --version/-v argument to Hassette to allow displaying the current version
+- Add `__iter__`, `__contains__`, `keys`, `values`, and `items` methods to StateManager and StateRegistry
+- Add functionality to route `state_change` events to more specific handlers based on domain and/or entity_id
+  - This is done automatically by the `Bus` by adding the entity_id to the topic when creating the listener
+  - Matched listeners are deduplicated to ensure delivery only happens one time
+  - Events are dispatched to the most specific route if there are multiple matches
+- Add `AnnotationConverter` class and `TypeMatcher` class for more robust validation/conversion during DI
+- Add A, P, C, and D aliases to `hassette.__init__` for simpler imports
+  - `A` = `hassette.event_handling.accessors`
+  - `P` = `hassette.event_handling.predicates`
+  - `C` = `hassette.event_handling.conditions`
+  - `D` = `hassette.event_handling.dependencies`
+- Add new `Comparison` condition for basic operators (e.g. `==`, `!=`, `<`, `>`, etc.) to compare values in state/attribute change listeners
+- Add new accessors for getting multiple/all attributes at once from state change events
+  - `get_attrs_<old|new|old_new>` - specify a list of attrs
+  - `get_all_attrs_<old|new|old_new>` - get all attributes as a dict
+- Add `get_all_changes` accessor that returns a dictionary of all changes, including state and all attributes
+
+### Fixed
+- Fix AppHandler reporting failed apps as successful by using status attribute
+  - This is due to some issues with how we're tracking apps, further fixes will need to happen in future releases
+- Fix StateManager using `BaseState` when we do not find a class in the `StateRegistry`
+  - This does not work because `BaseState` doesn't have a `domain`
+  - Error is now raised instead
+- Log level is now used by Apps if set directly in AppConfig in Python code (as opposed to config file)
+- Fix HassPayload's context attribute not being a HassContext instance
+- `MediaPlayerState` now has `attributes` using the correct type
+
+### Changed
+- BREAKING: Replaced `StateManager.get_states` with `__getitem__` that accepts a state class
+  - The error raised in StateManager when a state class is not found in the `StateRegistry` now advises to use this method
+- Renamed `LOG_LEVELS` to `LOG_LEVEL_TYPE`
+- Renamed `get_default_dict` to `get_defaults_dict` to be more clear this is not referring to `defaultdict` class
+- Use same validation for `AppConfig` log level as we do for `Hassette` config log level
+- Extracted nested Attributes classes for each state out of class definition to make them first class citizens
+  - e.g. `MediaPlayerState.Attributes` is now `MediaPlayerAttributes`
+
+### Docs
+- Remove `Why Hassette` page
+- Remove docker networking page
+- Very large cleanup/reorg/addition of docs
+
 ## [0.19.2] - 2026-01-25
 
 ### Fixed

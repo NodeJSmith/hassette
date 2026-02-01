@@ -88,7 +88,7 @@ def callable_name(fn: Any) -> str:
     return repr(fn)
 
 
-def callable_short_name(fn: Any) -> str:
+def callable_short_name(fn: Any, num_parts: int = 1) -> str:
     """Get a short name for a callable object.
 
     This function returns the last part of the callable's full name, which is typically the
@@ -96,10 +96,19 @@ def callable_short_name(fn: Any) -> str:
 
     Args:
         fn: The callable object to inspect.
+        num_parts: The number of parts from the end of the full name to include.
+                   For example, if num_parts=2 and the full name is 'module.Class.method',
+                   the result will be 'Class.method'.
 
     Returns:
         The short name of the callable.
     """
 
     full_name = callable_name(fn)
-    return full_name.split(".")[-1]
+    index = -1 * abs(num_parts)
+
+    parts = full_name.split(".")
+    if len(parts) >= abs(index):
+        return ".".join(parts[index:])
+
+    return full_name

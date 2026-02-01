@@ -1,4 +1,4 @@
-from hassette.core.type_registry import TYPE_REGISTRY
+from hassette import TYPE_REGISTRY
 
 
 def test_type_already_in_desired_state_not_converted_again() -> None:

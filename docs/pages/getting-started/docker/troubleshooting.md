@@ -38,7 +38,7 @@ HASSETTE__TOKEN=your_long_lived_access_token_here
 **Solutions:**
 
 1. Verify `base_url` in `hassette.toml` is correct
-2. Check network configuration - see [Networking](networking.md)
+2. Check network configuration
 3. Test connectivity from the container:
 
    ```bash
@@ -134,11 +134,6 @@ docker compose exec hassette cat /apps/pyproject.toml
 **Symptom:** Has `pyproject.toml` but no `uv.lock`, dependencies not installing
 
 **Solution:** Either create a lock file or enable unlocked projects:
-
-```bash
-# Create lock file (recommended)
-uv lock
-```
 
 Or enable unlocked projects:
 
@@ -329,8 +324,8 @@ If you can't resolve an issue:
    # Environment
    docker compose exec hassette env | grep HASSETTE
 
-   # File structure
-   docker compose exec hassette find /apps /config -type f
+   # File structure - example uses fdfind to automatically exclude pycache/pyc/etc.
+   docker compose exec hassette fdfind . /apps /config -t f
    ```
 
 3. **Open a new issue** with the diagnostic information
@@ -339,4 +334,3 @@ If you can't resolve an issue:
 
 - [Docker Overview](index.md) - Quick start guide
 - [Managing Dependencies](dependencies.md) - Dependency installation details
-- [Networking](networking.md) - Network configuration

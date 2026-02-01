@@ -1,93 +1,34 @@
 import inspect
-from inspect import Signature, isclass
-from types import GenericAlias
-from typing import Annotated, Any, get_args, get_origin
+from inspect import Signature
+from typing import Any
 from warnings import warn
 
 from hassette.event_handling.dependencies import AnnotationDetails, identity
 from hassette.exceptions import DependencyInjectionError
-from hassette.utils.type_utils import get_base_type
+from hassette.utils.type_utils import get_type_and_details, is_annotated_type, is_event_type, normalize_annotation
 
 
-def is_annotated_type(annotation: Any) -> bool:
-    """Check if annotation is an Annotated type."""
-    return get_origin(annotation) is Annotated or isinstance(annotation, GenericAlias)
-
-
-def is_event_type(annotation: Any) -> bool:
-    """Check if annotation is an Event class or subclass.
-
-    Does NOT handle Union or Optional types. Use explicit Event types instead:
-    - ✅ event: Event
-    - ✅ event: RawStateChangeEvent
-    - ❌ event: Optional[Event]
-    - ❌ event: Event | None
-    - ❌ event: Union[Event, RawStateChangeEvent]
-
-    Args:
-        annotation: The type annotation to check.
-
-    Returns:
-        True if annotation is Event or an Event subclass.
-    """
-    from hassette.events import Event
-
-    if annotation is inspect.Parameter.empty:
-        return False
-
-    # Get the base class for generic types (Event[T] -> Event)
-    # For non-generic types, this returns None, so we check annotation directly
-    base_type = get_origin(annotation) or annotation
-
-    return isclass(base_type) and issubclass(base_type, Event)
-
-
-def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetails]:
-    """Extract type and extractor from Annotated[Type, extractor].
-
-    Returns:
-        Tuple of (type, AnnotationDetails) if valid Annotated type with callable metadata.
-        None otherwise.
-    """
+def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetails[Any]]:
     if not is_annotated_type(annotation):
         return None
 
-    result = _get_base_type_and_details(annotation)
+    result = get_type_and_details(annotation)
     if result is None:
         return None
 
-    base_type, details = result
+    inner_type, details = result
 
-    if not isinstance(details, AnnotationDetails):
-        if callable(details):
-            return (base_type, AnnotationDetails(extractor=details))
+    # Normalize the inner annotation so DI always sees a canonical form
+    target_annotation = normalize_annotation(inner_type)
 
-        warn(f"Invalid Annotated metadata: {details} is not AnnotationDetails or callable extractor", stacklevel=2)
+    if isinstance(details, AnnotationDetails):
+        return (target_annotation, details)
 
-        return None
+    if callable(details):
+        return (target_annotation, AnnotationDetails(extractor=details))
 
-    return (base_type, details)
-
-
-def _get_base_type_and_details(annotation: Any) -> tuple[Any, AnnotationDetails] | None:
-    # handle things like `type TypedStateChangeEvent[T] = Annotated[...]`
-    if isinstance(annotation, GenericAlias):
-        base_type = get_base_type(annotation)
-
-        args = get_args(getattr(annotation, "__value__", None))
-        details = args[1]
-
-        return (base_type, details)
-
-    args = get_args(annotation)
-    if len(args) < 2:
-        return None
-
-    base_type = get_base_type(annotation)
-
-    details = args[1]
-
-    return (base_type, details)
+    warn(f"Invalid Annotated metadata: {details} is not AnnotationDetails or callable extractor", stacklevel=2)
+    return None
 
 
 def extract_from_event_type(annotation: Any) -> None | tuple[Any, AnnotationDetails]:

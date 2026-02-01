@@ -5,7 +5,11 @@ class, enabling IDE autocomplete and type checking. At runtime, these properties
 handled by __getattr__ in states.py, which queries the state registry dynamically.
 
 For custom domains not listed here, users should use:
-    app.states.get_states(CustomStateClass)
+```python
+    app.states[CustomStateClass]
+```
+
+As this will ensure proper type annotations of the return type.
 """
 
 import typing
@@ -14,9 +18,10 @@ from typing import Generic, NamedTuple
 
 from frozendict import frozendict
 
+from hassette.conversion import StateKey
 from hassette.models import states
-from hassette.models.states import StateT
 from hassette.resources.base import Resource
+from hassette.types import StateT
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -51,24 +56,6 @@ class DomainStates(typing.Generic[StateT]):
     def to_dict(self) -> dict[str, StateT]: ...
 
 class StateManager(Resource):
-    """Resource for managing Home Assistant states.
-
-    Provides typed access to entity states by domain through dynamic properties.
-
-    Examples:
-        >>> # Iterate over all lights
-        >>> for entity_id, light_state in self.states.light:
-        ...     print(f"{entity_id}: {light_state.state}")
-        ...
-        >>> # Get specific entity
-        >>> bedroom_light = self.states.light.get("light.bedroom")
-        >>> if bedroom_light and bedroom_light.attributes.brightness:
-        ...     print(f"Brightness: {bedroom_light.attributes.brightness}")
-        ...
-        >>> # Check count
-        >>> print(f"Total lights: {len(self.states.light)}")
-    """
-
     @property
     def _state_proxy(self) -> StateProxy: ...
     @classmethod
@@ -177,6 +164,9 @@ class StateManager(Resource):
     def weather(self) -> DomainStates[states.WeatherState]: ...
     @property
     def zone(self) -> DomainStates[states.ZoneState]: ...
-
-    # Generic access methods
-    def get_states(self, model: type[StateT]) -> DomainStates[StateT]: ...
+    def __getitem__(self, model: type[StateT]) -> DomainStates[StateT]: ...
+    def __contains__(self, model: type[StateT]) -> bool: ...
+    def __iter__(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]: ...
+    def items(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]: ...
+    def values(self) -> Iterator[DomainStates[states.BaseState]]: ...
+    def keys(self) -> Iterator[StateKey]: ...

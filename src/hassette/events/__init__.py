@@ -1,4 +1,4 @@
-from .base import Event, EventT, HassContext, HassettePayload, HassPayload
+from .base import Event, EventPayload, HassContext, HassettePayload, HassPayload
 from .hass.hass import (
     AutomationTriggeredEvent,
     CallServiceEvent,
@@ -29,7 +29,7 @@ __all__ = [
     "CallServiceEvent",
     "ComponentLoadedEvent",
     "Event",
-    "EventT",
+    "EventPayload",
     "FileWatcherEventPayload",
     "HassContext",
     "HassContextDict",

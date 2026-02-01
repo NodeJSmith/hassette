@@ -1,63 +1,98 @@
 import inspect
-import itertools
-import typing
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from functools import lru_cache
-from types import GenericAlias, UnionType
-from typing import Any, ForwardRef, Union, get_args, get_origin
+from inspect import isclass
+from types import UnionType
+from typing import Annotated, Any, ForwardRef, TypeVar, Union, get_args, get_origin
 
 from pydantic._internal._typing_extra import try_eval_type
-from typing_extensions import TypeAliasType
+
+NoneType = type(None)
 
 
-@lru_cache(maxsize=128)
-def normalize_for_isinstance(tp: type | UnionType | TypeAliasType) -> tuple[type, ...] | type:
-    """Normalize a type annotation for use with isinstance().
+def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
+    """Flatten an iterable of types and/or tuples of types into a single tuple of types."""
+    out: list[type] = []
+    for it in items:
+        if isinstance(it, tuple):
+            out.extend(it)
+        else:
+            out.append(it)
+    # optional: dedupe while preserving order
+    seen: set[type] = set()
+    uniq: list[type] = []
+    for tp in out:
+        if tp not in seen:
+            seen.add(tp)
+            uniq.append(tp)
+    return tuple(uniq)
 
-    Args:
-        tp: The type annotation to normalize.
 
-    Returns:
-        A normalized type or tuple of types suitable for isinstance() checks.
+@lru_cache(maxsize=256)
+def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
+    """
+    Normalize a type annotation to something usable in isinstance(x, ...).
+
+    Returns either:
+      - a single runtime class (type)
+      - or a tuple[type, ...] suitable for isinstance(x, tuple_of_types)
     """
 
-    # exit early if we already have a type that works with isinstance()
-    with suppress(TypeError):
-        isinstance(str, tp)  # type: ignore
-        return tp  # pyright: ignore[reportReturnType]
-
-    # Handle PEP 604 unions: A | B | C
-    if isinstance(tp, UnionType):
-        # returns a tuple of the component types
-        value = tuple(normalize_for_isinstance(arg) for arg in tp.__args__)
-        value = itertools.chain.from_iterable(arg if isinstance(arg, tuple) else (arg,) for arg in value)
-        return tuple(value)
-
-    origin = get_origin(tp)
-
-    # Handle typing.Union[A, B, C]
-    if origin is Union:
-        args = get_args(tp)
-        value = tuple(normalize_for_isinstance(arg) for arg in args)
-        value = itertools.chain.from_iterable(arg if isinstance(arg, tuple) else (arg,) for arg in value)
-        return tuple(value)
-
-    # if we've hit this point we are no longer dealing with a Union
-    if typing.TYPE_CHECKING:
-        assert not isinstance(tp, UnionType)
-
-    # Handle type aliases like `TypeAliasType` (3.13's `type` statement)
-    # They usually have a `.__value__` that holds the real type.
+    # ---- Unwrap type aliases (`type Foo = ...`) ----
     value = getattr(tp, "__value__", None)
     if value is not None:
         return normalize_for_isinstance(value)
 
-    # at this point we should no longer be dealing with a TypeAliasType
-    if typing.TYPE_CHECKING:
-        assert not isinstance(tp, TypeAliasType)
+    # ---- Unwrap Annotated[T, ...] ----
+    if get_origin(tp) is Annotated:
+        return normalize_for_isinstance(get_args(tp)[0])
 
-    # Base case: assume it's already a real type or tuple of types
+    # ---- typing.Any ----
+    if tp is Any or tp is Any:
+        return object
+
+    # ---- TypeVar ----
+    if isinstance(tp, TypeVar):
+        if tp.__constraints__:
+            return flatten_types(normalize_for_isinstance(c) for c in tp.__constraints__)
+        if tp.__bound__ is not None:
+            return normalize_for_isinstance(tp.__bound__)
+        return object
+
+    # ---- PEP 604 union: A | B ----
+    if isinstance(tp, UnionType):
+        return flatten_types(normalize_for_isinstance(arg) for arg in get_args(tp))
+
+    origin = get_origin(tp)
+
+    # ---- typing.Union[A, B] ----
+    if origin is Union:
+        return flatten_types(normalize_for_isinstance(arg) for arg in get_args(tp))
+
+    # ---- Parameterized generic: list[int], Sequence[str], Mapping[K,V], etc. ----
+    if origin is not None:
+        # For isinstance, we can only check against the origin
+        # (we cannot check args at runtime with isinstance).
+        # Some origins aren't actual classes (rare), so fall back.
+        if isinstance(origin, type):
+            return origin
+        # e.g. typing.NewType returns a function; Protocol may be special; etc.
+        # Last resort: try returning origin anyway, or object.
+        with suppress(TypeError):
+            isinstance("", origin)
+            return origin
+        return object
+
+    # ---- Base case: should already be a runtime class or tuple of them ----
+    if isinstance(tp, tuple):
+        # If someone passed a tuple of types already
+        return flatten_types(normalize_for_isinstance(x) for x in tp)
+
+    if isinstance(tp, type):
+        return tp
+
+    # ---- Things like Literal[...] / Never / etc. ----
     return tp
 
 
@@ -86,22 +121,6 @@ def get_optional_type_arg(tp: type) -> type:
     return non_none_args[0]
 
 
-def get_concrete_type_from_generic_annotation(tp: type) -> type | None:
-    """If the type is a generic type (e.g., Generic[T]), return the concrete type argument T."""
-
-    if not hasattr(tp, "__orig_bases__"):
-        return None
-
-    orig_bases = tp.__orig_bases__
-
-    for base in orig_bases:
-        args = get_args(base)
-        if args:
-            return args[0]
-
-    return None
-
-
 def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
     signature = inspect.signature(call)
     globalns = getattr(call, "__globals__", {})
@@ -116,17 +135,6 @@ def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
     ]
     typed_signature = inspect.Signature(typed_params)
     return typed_signature
-
-
-def get_typed_return_annotation(call: Callable[..., Any]) -> Any:
-    signature = inspect.signature(call)
-    annotation = signature.return_annotation
-
-    if annotation is inspect.Signature.empty:
-        return None
-
-    globalns = getattr(call, "__globals__", {})
-    return get_typed_annotation(annotation, globalns)
 
 
 def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
@@ -144,14 +152,264 @@ def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     return annotation
 
 
-def get_base_type(annotation: Any) -> Any:
-    """Get the base type from a potentially generic annotation, stopping at Optional or Union types."""
-    base_type = get_args(annotation)[0] if isinstance(annotation, GenericAlias) else annotation
+def is_union(tp: Any) -> bool:
+    origin = get_origin(tp)
+    return origin is Union or origin is UnionType
 
-    while get_args(base_type):
-        # if we're now at the point where base_type is Optional[T], stop unwrapping
-        if is_optional_type(base_type) or get_origin(base_type) is UnionType:
-            break
-        base_type = get_args(base_type)[0]
 
-    return base_type
+def is_optional(tp: Any) -> bool:
+    if not is_union(tp):
+        return False
+    return any(a is NoneType for a in get_args(tp))
+
+
+def normalize_constructible(tp: Any) -> Any:
+    """
+    If tp is typing.List[int] / typing.Dict[str,int] / etc, normalize to
+    list[int] / dict[str,int] when possible. Otherwise return tp unchanged.
+    """
+    origin = get_origin(tp)
+    if origin is None:
+        return tp
+
+    if not isinstance(origin, type):
+        return tp
+
+    args = get_args(tp)
+    try:
+        # origin is usually a real class like list/dict/tuple
+        return origin[args] if args else origin  # pyright: ignore
+    except TypeError:
+        return tp
+
+
+def unwrap_annotated(tp: Any) -> Any:
+    while get_origin(tp) is Annotated:
+        tp = get_args(tp)[0]
+    return tp
+
+
+def normalize_annotation(tp: Any, *, constructible: bool = True) -> Any:
+    """Peel Annotated + registered wrapper origins until stable.
+
+    If constructible=True, also normalize typing.* generics to builtin equivalents
+    where possible (e.g., typing.List[int] -> list[int]).
+    """
+    tp = unwrap_annotated(tp)
+
+    while True:
+        alias_value = getattr(tp, "__value__", None)
+        if alias_value is not None:
+            tp = unwrap_annotated(alias_value)
+            continue
+
+        origin = get_origin(tp)
+        if origin is None:
+            return tp
+
+        return normalize_constructible(tp) if constructible else tp
+
+
+def safe_isinstance(value: Any, tp: Any) -> bool:
+    try:
+        return isinstance(value, tp)
+    except TypeError:
+        return False
+
+
+def get_type_and_details(annotation: Any) -> tuple[Any, Any] | None:
+    # Unwrap type alias: `type Foo = ...`
+    alias_value = getattr(annotation, "__value__", None)
+    if alias_value is not None:
+        return get_type_and_details(alias_value)
+
+    if not is_annotated_type(annotation):
+        return None
+
+    args = get_args(annotation)
+    if len(args) < 2:
+        return None
+
+    return (args[0], args[1])
+
+
+def is_annotated_type(annotation: Any) -> bool:
+    """True if this annotation is Annotated[...] or an alias whose value is Annotated[...]."""
+    value = getattr(annotation, "__value__", None)
+    if value is not None:
+        return is_annotated_type(value)
+
+    return get_origin(annotation) is Annotated
+
+
+def is_event_type(annotation: Any) -> bool:
+    """Check if annotation is an Event class or subclass.
+
+    Does NOT handle Union or Optional types. Use explicit Event types instead:
+    - ✅ event: Event
+    - ✅ event: RawStateChangeEvent
+    - ❌ event: Optional[Event]
+    - ❌ event: Event | None
+    - ❌ event: Union[Event, RawStateChangeEvent]
+
+    Args:
+        annotation: The type annotation to check.
+
+    Returns:
+        True if annotation is Event or an Event subclass.
+    """
+    from hassette.events import Event
+
+    if annotation is inspect.Parameter.empty:
+        return False
+
+    # Get the base class for generic types (Event[T] -> Event)
+    # For non-generic types, this returns None, so we check annotation directly
+    base_type = get_origin(annotation) or annotation
+
+    return isclass(base_type) and issubclass(base_type, Event)
+
+
+def _make_union(types: set[Any]) -> Any:
+    """Create a PEP604 union from a set of type annotations."""
+    # Flatten nested unions
+    flat: set[Any] = set()
+    for t in types:
+        if isinstance(t, UnionType) or (get_origin(t) is None and isinstance(t, UnionType)):
+            flat.update(get_args(t))
+        else:
+            # Handle both A|B and typing.Union[...] via get_origin
+            o = get_origin(t)
+            if o is UnionType:
+                flat.update(get_args(t))
+            else:
+                flat.add(t)
+
+    # Also flatten typing.Union if any slipped in
+    really_flat: set[Any] = set()
+    for t in flat:
+        o = get_origin(t)
+        if o is None:
+            really_flat.add(t)
+        else:
+            # PEP604 unions report origin types.UnionType in 3.10+ via get_origin?
+            # But typing.Union reports origin typing.Union.
+            if str(o).endswith("typing.Union"):
+                really_flat.update(get_args(t))
+            else:
+                really_flat.add(t)
+
+    # Dedupe / stable
+    if not really_flat:
+        return object
+    if len(really_flat) == 1:
+        return next(iter(really_flat))
+
+    # Build A | B | C
+    out = None
+    for t in sorted(really_flat, key=_type_sort_key):
+        out = t if out is None else (out | t)
+    return out
+
+
+def _type_sort_key(tp: Any) -> tuple[int, str]:
+    """Stable-ish ordering: None first, then builtins, then by name."""
+    if tp is NoneType:
+        return (0, "None")
+    if isinstance(tp, type):
+        return (1, tp.__module__ + "." + tp.__qualname__)
+    return (2, str(tp))
+
+
+def get_normalized_actual_type_from_value(value: Any) -> Any:
+    """Return a normalized annotation describing the runtime structure of value."""
+    # None
+    if value is None:
+        return NoneType
+
+    if value is Any:
+        return Any
+
+    # dict
+    if isinstance(value, dict):
+        if not value:
+            return dict[Any, Any]
+        key_ann = _make_union({get_normalized_actual_type_from_value(k) for k in value})
+        val_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value.values()})
+        return dict[key_ann, val_ann]
+
+    # list / set / frozenset
+    if isinstance(value, list):
+        if not value:
+            return list[Any]
+        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        return list[elem_ann]
+
+    if isinstance(value, set):
+        if not value:
+            return set[Any]
+        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        return set[elem_ann]
+
+    if isinstance(value, frozenset):
+        if not value:
+            return frozenset[Any]
+        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        return frozenset[elem_ann]
+
+    # tuple (optional but often handy)
+    if isinstance(value, tuple):
+        if not value:
+            return tuple[()]
+        elem_anns = tuple(get_normalized_actual_type_from_value(v) for v in value)
+        return tuple[elem_anns]
+
+    # leaf type
+    return type(value)
+
+
+def format_annotation(tp: Any) -> str:
+    """Format a normalized annotation into a clean string."""
+    # NoneType
+    if tp is NoneType:
+        return "None"
+
+    if tp is Any:
+        return "Any"
+
+    # PEP604 union
+    if isinstance(tp, UnionType):
+        parts = [format_annotation(a) for a in get_args(tp)]
+        # Keep None first for readability: None | str
+        parts.sort(key=lambda s: (0 if s == "None" else 1, s))
+        return " | ".join(parts)
+
+    origin = get_origin(tp)
+    if origin is not None:
+        args = get_args(tp)
+
+        # tuple[()]
+        if origin is tuple and args == ((),):
+            return "tuple[()]"
+
+        name = origin.__name__ if hasattr(origin, "__name__") else str(origin)
+        if args:
+            inner = ", ".join(format_annotation(a) for a in args)
+            return f"{name}[{inner}]"
+        return name
+
+    # plain class/type
+    if isinstance(tp, type):
+        # builtins: str, int, dict, etc.
+        if tp.__module__ == "builtins":
+            return tp.__name__
+        return f"{tp.__module__}.{tp.__qualname__}"
+
+    # fallback
+    return str(tp)
+
+
+def get_pretty_actual_type_from_value(value: Any) -> str:
+    """Return a pretty string describing the runtime structure of value."""
+    ann = get_normalized_actual_type_from_value(value)
+    return format_annotation(ann)

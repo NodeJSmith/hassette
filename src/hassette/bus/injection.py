@@ -4,12 +4,12 @@ import inspect
 import logging
 import typing
 from collections.abc import Callable
-from types import UnionType
-from typing import Any, get_args, get_origin
+from typing import Any
 
-from hassette.core.type_registry import TYPE_REGISTRY
+from hassette.conversion import ANNOTATION_CONVERTER, TYPE_MATCHER
 from hassette.exceptions import DependencyError, DependencyInjectionError, DependencyResolutionError
-from hassette.utils.type_utils import get_optional_type_arg, is_optional_type, normalize_for_isinstance
+from hassette.utils.func_utils import callable_short_name
+from hassette.utils.type_utils import get_pretty_actual_type_from_value, is_optional, normalize_annotation
 
 from .extraction import extract_from_signature, validate_di_signature
 
@@ -98,84 +98,48 @@ class ParameterInjector:
         self,
         event: "Event[Any]",
         param_name: str,
-        param_type: type,
+        param_type: Any,
         extractor: Callable[[Any], Any],
-        converter: Callable[[Any, type], Any] | None = None,
+        converter: Callable[[Any, Any], Any] | None = None,
     ) -> Any:
-        """Extract and convert a single parameter value.
-
-        Args:
-            event: The event to extract from.
-            param_name: Name of the parameter.
-            param_type: Expected type of the parameter.
-            extractor: Callable to extract the value from the event.
-            converter: Optional callable to convert the extracted value to the target type.
-
-        Returns:
-            The extracted and converted parameter value.
-
-        Raises:
-            DependencyResolutionError: If extraction or conversion fails.
-        """
-        # Extract the value
         try:
             extracted_value = extractor(event)
-            extracted_type = type(extracted_value)
         except Exception as e:
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to extract parameter '{param_name}' "
                 f"of type '{param_type}': {e}"
             ) from e
 
-        # Handle None for optional parameters
-        param_is_optional = is_optional_type(param_type)
-        if param_is_optional and extracted_value is None:
+        actual_type = get_pretty_actual_type_from_value(extracted_value)
+
+        normalized = normalize_annotation(param_type, constructible=True)
+        if extracted_value is None and is_optional(normalized):
             return None
 
-        # Get target type (unwrap Optional if needed)
-        target_type = get_optional_type_arg(param_type) if param_is_optional else param_type
+        # If caller didn't provide a custom converter, use the annotation-aware one
+        conv = converter or ANNOTATION_CONVERTER.convert
+        conv_name = callable_short_name(conv, 2)
 
-        if not converter:
-            if not self._needs_conversion(extracted_value, target_type):
-                LOGGER.debug(
-                    "Handler '%s' - skipping conversion for parameter '%s' of type '%s'",
-                    self.handler_name,
-                    param_name,
-                    target_type,
-                )
-                return extracted_value
+        # Fast path: if it already matches (deep), skip conversion
+        if TYPE_MATCHER.matches(extracted_value, normalized):
+            LOGGER.debug(
+                "Handler '%s' - skipping conversion for parameter '%s' (already matches '%s')",
+                self.handler_name,
+                param_name,
+                normalized,
+            )
+            return extracted_value
 
-            # use TypeRegistry if no converter provided
-            converter = TYPE_REGISTRY.convert
-
-        # Convert if converter exists
-        if type(target_type) is UnionType:
-            exception_strings = []
-            last_idx = len(get_args(target_type)) - 1
-            for idx, t in enumerate(get_args(target_type)):
-                try:
-                    return self._convert_value(converter, extracted_value, param_name, t, extracted_type)
-                except Exception as e:
-                    exception_strings.append(str(e))
-                    if idx == last_idx:
-                        formatted_exceptions = "\n" + "; ".join(exception_strings)
-                        raise DependencyResolutionError(
-                            f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
-                            f"of type '{extracted_type}' "
-                            f"to any type in Union '{target_type}': {formatted_exceptions}"
-                        ) from None
-
-        # not a union type
-        return self._convert_value(converter, extracted_value, param_name, target_type, extracted_type)
-
-    def _needs_conversion(self, extracted_value: Any, target_type: type) -> bool:
-        """Check if a value needs conversion to the target type."""
+        # Convert (converter handles union/nested/etc. if using ANNOTATION_CONVERTER)
         try:
-            norm_tt = normalize_for_isinstance(target_type)
-            return not isinstance(extracted_value, norm_tt)
-        except TypeError:
-            origin = get_origin(target_type)
-            return isinstance(origin, type) and not isinstance(extracted_value, origin)
+            return conv(extracted_value, param_type)
+        except Exception as e:
+            raise DependencyResolutionError(
+                f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
+                f"of type '{actual_type}' to '{param_type}' "
+                f"using converter {conv_name} "
+                f": {type(e).__name__}: {e}"
+            ) from e
 
     def _convert_value(
         self,

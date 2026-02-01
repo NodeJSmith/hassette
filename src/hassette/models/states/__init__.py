@@ -2,7 +2,7 @@ from .air_quality import AirQualityState
 from .alarm_control_panel import AlarmControlPanelState
 from .assist_satellite import AssistSatelliteState
 from .automation import AutomationState
-from .base import BaseState, StateT, StateValueT
+from .base import BaseState
 from .calendar import CalendarState
 from .camera import CameraState
 from .climate import ClimateState
@@ -95,8 +95,6 @@ __all__ = [
     "SensorAttributes",
     "SensorState",
     "SirenState",
-    "StateT",
-    "StateValueT",
     "SttState",
     "SunState",
     "SwitchState",

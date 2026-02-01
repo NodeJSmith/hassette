@@ -197,6 +197,7 @@ class Bus(Resource):
             debounce=debounce,
             throttle=throttle,
             priority=self.priority,
+            logger=self.logger,
         )
 
         def unsubscribe() -> None:
@@ -263,7 +264,9 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))  # allow extra guards
 
-        return self.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
+
+        return self.on(topic=topic, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_attribute_change(
         self,
@@ -321,10 +324,13 @@ class Bus(Resource):
                 preds.append(P.AttrComparison(attr, condition=changed))
         else:
             self.logger.warning(
-                "Attribute change subscription for entity '%s' on attribute '%s' with changed=False will fire on"
-                " every state change event for the entity",
+                (
+                    "Handler '%s' - attribute change subscription "
+                    "will fire on every change event for '%s' due to 'changed=False'. "
+                    "Consider using `on_state_change` with 'changed=False' instead for clarity."
+                ),
+                callable_short_name(handler),
                 entity_id,
-                attr,
             )
 
         if changed_from is not NOT_PROVIDED:
@@ -336,7 +342,8 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
+        return self.on(topic=topic, handler=handler, where=preds, kwargs=kwargs, **opts)
 
     def on_call_service(
         self,

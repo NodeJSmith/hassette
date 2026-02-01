@@ -1,14 +1,11 @@
-# Bus
+# Bus Overview
 
-The event bus connects your apps to Home Assistant and to Hassette
-itself. It delivers events such as state changes, service calls, or
-framework updates to any app that subscribes.
+The event bus connect your apps to Home Assistant and to Hassette itself. It delivers events such as state changes, service calls, or framework updates to any app that subscribes.
 
-Apps register event handlers through `self.bus`, which is created
-automatically at app instantiation.
+Apps register event handlers through `self.bus`, which is created automatically at app instantiation.
 
 ```mermaid
-graph LR
+graph TB
     HA[Home Assistant<br/>Events] --> WS[WebSocket]
     WS --> BUS[BusService]
     BUS --> |state_changed| APP1[App Handler 1]
@@ -22,422 +19,83 @@ graph LR
     style APP3 fill:#4ecdc4
 ```
 
-## Overview
+## Subscribing to Events
 
-You can register handlers for any [Home Assistant
-event](https://www.home-assistant.io/docs/configuration/events/) or
-internal Hassette framework event using the event bus.
+The `Bus` provides helper methods for common subscriptions. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle.
 
-Handlers receive parameters through **dependency injection** (DI), which allows you to
-specify exactly what data you need extracted from events. Along with dependency-injected parameters,
-handlers can also accept arbitrary kwargs.
+### Common Methods
 
-## Dependency Injection for Handlers
+- `on_state_change` - Listen for entity state changes.
+- `on_attribute_change` - Listen for changes to a specific attribute.
+- `on_call_service` - Listen for service calls.
+- `on` - Generic subscription to any topic.
 
-Hassette uses dependency injection (DI) to provide event data to your handlers. The type
-annotations on your handler parameters tell Hassette what data to extract from the event.
-
-Common annotations are provided in the [`hassette.dependencies`][hassette.dependencies] module,
-but you can also create your own custom extractors as needed.
-
-### Basic Patterns
-
-**Option 1: Receive the full event in raw form** (simplest):
-This gives you the raw event object, with the state data in untyped dicts.
-
-```python
-from hassette.events import RawStateChangeEvent
-
-async def on_motion(self, event: RawStateChangeEvent):
-    entity_id = event.payload.data.entity_id
-    new_value = event.payload.data.get("new_state",{}).get("state")
-    self.logger.info("Motion: %s -> %s", entity_id, new_value)
-```
-
-**Option 2: Receive full event with typed state objects** (better):
-This gives you typed state objects for easier access to attributes.
-
-```python
-from hassette import dependencies as D
-from hassette import states
-
-async def on_motion(
-    self,
-    event: D.TypedStateChangeEvent[states.BinarySensorState],
-):
-    entity_id = event.payload.data.entity_id
-    new_value = event.payload.data.new_state.value
-    self.logger.info("Motion: %s -> %s", entity_id, new_value)
-```
-
-**Option 3: Extract specific data** (recommended):
-
-```python
-from hassette import dependencies as D
-from hassette import states
-
-async def on_motion(
-    self,
-    new_state: D.StateNew[states.BinarySensorState],
-    entity_id: D.EntityId,
-):
-    friendly_name = new_state.attributes.friendly_name or entity_id
-    self.logger.info("Motion detected: %s", friendly_name)
-```
-
-**Option 4: No event data needed**:
-
-```python
-async def on_heartbeat(self) -> None:
-    self.logger.info("Heartbeat received")
-```
-
-### Available Dependencies
-
-!!! info "Complete DI Documentation"
-    For a comprehensive guide to dependency injection including all available annotations, Union type support, custom extractors, and advanced patterns, see the [Dependency Injection](../../advanced/dependency-injection.md) documentation.
-
-Import these from `hassette.dependencies` (commonly aliased as `D`):
-
-#### State Extractors
-
-- `StateNew[T]` - Extract the new state object, raises if missing
-- `StateOld[T]` - Extract the old state object, raises if missing
-- `MaybeStateNew[T]` - Extract new state, allows None
-- `MaybeStateOld[T]` - Extract old state, allows None
-
-```python
-from hassette import dependencies as D, states
-
-async def on_light_change(
-    self,
-    new_state: D.StateNew[states.LightState],
-    old_state: D.MaybeStateOld[states.LightState],
-):
-    if old_state and old_state.state != new_state.state:
-        self.logger.info("Light %s: %s -> %s",
-                        new_state.entity_id,
-                        old_state.state,
-                        new_state.state)
-```
-
-#### Identity Extractors
-
-- `EntityId` - Extract the entity ID, raises if missing
-- `Domain` - Extract the domain, raises if missing
-- `EventContext` - Extract the Home Assistant event context
-
-```python
-from hassette import dependencies as D
-
-async def on_any_change(
-    self,
-    entity_id: D.EntityId,
-    domain: D.Domain,
-):
-    self.logger.info("Entity %s (domain: %s) changed", entity_id, domain)
-```
-### Combining Multiple Dependencies
-
-You can extract multiple pieces of data in a single handler:
-
-```python
-async def on_climate_change(
-    self,
-    new_state: D.StateNew[states.ClimateState],
-    old_state: D.MaybeStateOld[states.ClimateState],
-    entity_id: D.EntityId,
-):
-    old_temp = old_state.attributes.current_temperature if old_state else "N/A"
-    new_temp = new_state.attributes.current_temperature
-    self.logger.info(
-        "Climate %s temperature changed: %s -> %s",
-        entity_id,
-        old_temp,
-        new_temp,
-    )
-```
-
-### Mixing DI with kwargs
-
-You can combine dependency injection with custom kwargs:
+### Example
 
 ```python
 async def on_initialize(self):
-    self.bus.on_state_change(
-        "sensor.temperature",
-        handler=self.on_temp_change,
-        kwargs={"threshold": 75.0},
+    # Subscribe to state changes
+    sub = self.bus.on_state_change(
+        "binary_sensor.motion",
+        handler=self.on_motion,
+        changed_to="on"
     )
 
-async def on_temp_change(
-    self,
-    new_state: D.StateNew[states.SensorState],
-    threshold: float,  # From kwargs
-):
-    if new_state.attributes.temperature > threshold:
-        self.logger.warning("Temperature %.1f exceeds threshold %.1f",
-                          new_state.attributes.temperature, threshold)
+# Subscriptions are cleaned up automatically on shutdown!
+# But you can unsubscribe manually if needed:
+# sub.cancel()
 ```
-
-### Restrictions
-
-!!! warning "Handler Signature Rules"
-    Handlers **cannot** use:
-
-    - Positional-only parameters (parameters before `/`)
-    - Variadic positional arguments (`*args`)
-
-    These restrictions ensure unambiguous parameter injection.
-
-!!! info "Type Annotations Required"
-    All parameters using dependency injection must have type annotations.
-    Hassette uses these annotations to determine what to extract from events.
-
-### Custom Extractors
-
-Extractors only need to be a callable that accepts an `Event` and returns the desired value. This means that you can create your own extractors as needed, use accessors from `hassette.event_handling.accessors`, or any other callable.
-
-```python
-from typing import Annotated, TypeAlias
-
-from hassette.events import Event
-from hassette import accessors as A
-
-def handler(brightness: Annotated[float, A.get_attr_new("brightness")]):
-    self.logger.info("Brightness changed to %s", brightness)
-
-```
-
-## Event Model
-
-Every event you receive from the bus is an [`Event`][hassette.events.base.Event]
-dataclass with two main fields:
-
-- `topic` - a string identifier describing what happened, such as `hass.event.state_changed` or `hassette.event.service_status`.
-- `payload` - an untyped object containing event-specific data.
-
-Home Assistant events use the format `hass.event.<event_type>` (e.g.,
-`hass.event.state_changed` or `hass.event.call_service`). Hassette
-framework events use `hassette.event.<event_type>` for internal events
-like service status changes or file-watching updates.
-
-Example:
-
-```python
---8<-- "pages/core-concepts/bus/working_with_event_data_example.py"
-```
-
-## Basic Subscriptions
-
-These helper methods cover the majority of use cases:
-
-- `on_state_change` - listen for entity state changes
-- `on_attribute_change` - listen for changes to a specific attribute
-- `on_call_service` - listen for service calls
-- `on` - subscribe directly to any event topic
-
-Each method returns a [`Subscription`][hassette.bus.listeners.Subscription] handle,
-which you can keep to unsubscribe later.
-
-```python
---8<-- "pages/core-concepts/bus/basic_subscriptions_example.py"
-```
-
-Unsubscribing:
-
-```python
-sub = self.bus.on_state_change("binary_sensor.motion", handler=self.on_motion)
-sub.unsubscribe()
-```
-
-Hassette automatically cleans up all subscriptions during app shutdown,
-so manual unsubscription is only needed for temporary listeners.
-
 
 ## Matching Multiple Entities
 
-Most subscription methods accept glob patterns for entity IDs, domains, services, etc.
-
-!!! warning "Limitation"
-    Glob patterns work for entity IDs, domains, and services, but **not** for attribute names.
+Most methods accept glob patterns for `entity_id`, `domain`, and `service`.
 
 ```python
-# any light
+# Any light
 self.bus.on_state_change("light.*", handler=self.on_any_light)
 
-# sensors starting with "bedroom_"
+# Sensors in bedroom
 self.bus.on_state_change("sensor.bedroom_*", handler=self.on_bedroom_sensor)
 
-# temperature attribute changes on any climate entity
-self.bus.on_attribute_change("climate.*", "temperature", handler=self.on_temp_change)
-
-# living room lights being turned on
-self.bus.on_call_service(domain="light", service="turn_on",
-                         where={"entity_id": "light.living_room_*"},
-                         handler=self.on_living_room_lights)
-
-# living room lights being turned on or off
-self.bus.on_call_service(domain="light", service="turn_*",
-                         where={"entity_id": "light.living_room_*"},
-                         handler=self.on_living_room_lights)
-```
-
-For more complex patterns, use `self.bus.on(...)` with predicate-based
-filters.
-
-## Advanced Subscriptions
-
-For more complex scenarios, subscribe directly to any topic:
-
-```python
---8<-- "pages/core-concepts/bus/advanced_subscriptions_example.py"
-```
-
-### Passing Arguments
-
-You can pass additional arguments to your handler `kwargs`:
-
-```python
---8<-- "pages/core-concepts/bus/passing_arguments_example.py"
-```
-
-### Filtering with Predicates
-
-Predicates provide fine-grained control over which events trigger your
-handlers. You can provide one or more predicates to the `where` parameter
-of any subscription method - these are applied as logical AND conditions.
-
-If you need to apply OR logic, combine multiple predicates using
-`P.AnyOf(...)`.
-
-```python
-from datetime import datetime
-
-from hassette import predicates as P
-from hassette import conditions as C
-
-self.bus.on_state_change(
-    "binary_sensor.front_door",
-    handler=self.on_door_open,
-    changed_to="on",
-    where=[
-        P.Not(P.StateFrom("unknown")),
-        P.AttrTo("battery_level", lambda x: x and x > 20)
-    ]
-)
-
-# Logical operators
-self.bus.on_state_change(
-    "media_player.living_room",
-    handler=self.on_media_change,
-    where=P.StateTo(C.IsIn(["playing", "paused"]))
-)
-
-# AnyOf example
+# Specific service calls
 self.bus.on_call_service(
     domain="light",
-    service="turn_on",
-    where=P.AnyOf(
-        P.ServiceDataWhere.from_kwargs(brightness=lambda b: b and b > 200),
-        P.ServiceDataWhere.from_kwargs(color_name="red"),
-    ),
-    handler=self.on_bright_or_red_light,
+    service="turn_*",
+    handler=self.on_light_service
 )
 ```
 
-See [`predicates`][hassette.event_handling.predicates] for the full list of built-ins.
-
-!!! note "Coming Soon"
-    Predicates, conditions, and accessors can do a lot, and this documentation
-    doesn't yet cover enough details. An advanced guide is coming soon!
+!!! warning "Limitation"
+    Glob patterns work for identifiers but **not** for attribute names or complex data values. For that, use [Predicates](filtering.md).
 
 ## Rate Control
 
-To handle noisy sensors or rate-limit handlers, use `debounce` or
-`throttle`:
+You can rate-limit your handlers directly in the subscription call to handle noisy events.
 
 ```python
-# Debounce: trigger after 2 seconds of silence
-self.bus.on_state_change("binary_sensor.motion", handler=self.on_settled, debounce=2.0)
-
-# Throttle: call at most once every 5 seconds
-self.bus.on_state_change("sensor.temperature", handler=self.on_temp_log, throttle=5.0)
-
-# One-time subscription
-self.bus.on_component_loaded("hue", handler=self.on_hue_ready, once=True)
-```
-
-## Filtering Service Calls
-
-`on_call_service` supports both dictionary and predicate-based
-filtering.
-
-### Dictionary filtering
-
-```python
-from hassette.const import ANY_VALUE
-
-# Literal match
-self.bus.on_call_service(
-    domain="light",
-    service="turn_on",
-    where={"entity_id": "light.living_room", "brightness": 255},
-    handler=self.on_bright_living_room,
+# Debounce: Wait for 2s of silence before calling
+self.bus.on_state_change(
+    "binary_sensor.motion",
+    handler=self.on_settled,
+    debounce=2.0
 )
 
-# Require key presence (any value)
-self.bus.on_call_service(
-    domain="light",
-    service="turn_on",
-    where={"brightness": ANY_VALUE},
-    handler=self.on_brightness_set,
+# Throttle: Call at most once every 5s
+self.bus.on_state_change(
+    "sensor.temperature",
+    handler=self.on_temp_log,
+    throttle=5.0
 )
 
-# Glob patterns (auto-detected)
-self.bus.on_call_service(
-    domain="light",
-    where={"entity_id": "light.bedroom_*"},
-    handler=self.on_bedroom_lights,
-)
-
-# Callable conditions
-self.bus.on_call_service(
-    domain="light",
-    service="turn_on",
-    where={"brightness": lambda v: v and v > 200},
-    handler=self.on_bright_lights,
+# Once: Unsubscribe automatically after first trigger
+self.bus.on_component_loaded(
+    "hue",
+    handler=self.on_hue_ready,
+    once=True
 )
 ```
 
-### Predicate filtering
+## Next Steps
 
-You can also use `P.ServiceDataWhere` and other predicates for more complex
-filtering:
-
-```python
-from hassette import predicates as P
-
-self.bus.on_call_service(
-    domain="notify",
-    where=P.ServiceDataWhere.from_kwargs(
-        message=lambda msg: "urgent" in msg.lower(),
-        title=P.Not(P.StartsWith("DEBUG")),
-    ),
-    handler=self.on_urgent_notification,
-)
-```
-
-!!! tip "Pattern Matching Tips"
-    - Use `*` for wildcard matching: `light.*`, `sensor.bedroom_*`
-    - Works in `entity_id`, `domain`, and `service` parameters
-    - Combine with `where` for complex filtering
-    - Does **not** work for attribute names
-
-## See Also
-
-- [Core concepts](../index.md) - back to the core concepts overview.
-- [Apps](../apps/index.md) - more on app anatomy, lifecycle, and capabilities.
-- [Scheduler](../scheduler/index.md) - more on scheduling jobs and intervals.
-- [API](../api/index.md) - more on interacting with Home Assistant's APIs.
-- [Configuration](../configuration/index.md) - Hassette and app configuration.
+- **[Writing Handlers](handlers.md)**: Learn how to write handlers using Dependency Injection to extract clean data.
+- **[Filtering & Predicates](filtering.md)**: Learn how to filter events efficiently using predicates.

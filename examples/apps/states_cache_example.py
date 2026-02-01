@@ -37,15 +37,19 @@ class StatesCacheExample(App[StatesCacheConfig]):
     async def log_state_summary(self):
         """Log a summary of entities using the state cache."""
         # Access all states without API call
-        all_states = self.states.all
-
-        # Count entities by availability
-        available = sum(1 for s in all_states.values() if not s.is_unavailable)
-        unavailable = sum(1 for s in all_states.values() if s.is_unavailable)
-        unknown = sum(1 for s in all_states.values() if s.is_unknown)
+        available = unknown = unavailable = all_states = 0
+        for ds in self.states.values():
+            for state in ds.values():
+                all_states += 1
+                if state.is_unavailable:
+                    unavailable += 1
+                elif state.is_unknown:
+                    unknown += 1
+                else:
+                    available += 1
 
         self.logger.info("=== State Cache Summary ===")
-        self.logger.info("Total entities: %s", len(all_states))
+        self.logger.info("Total entities: %s", all_states)
         self.logger.info("Available: %s, Unavailable: %s, Unknown: %s", available, unavailable, unknown)
 
         # Count by domain using domain accessors
@@ -96,8 +100,9 @@ class StatesCacheExample(App[StatesCacheConfig]):
                 self.logger.info("Brightness: %s", bedroom_light.attributes.brightness)
 
         # Typed generic accessor
-        living_climate = self.states.get[states.ClimateState]("climate.living_room")
-        self.logger.info("Climate: %s°F", living_climate.attributes.current_temperature)
+        living_climate = self.states[states.ClimateState].get("climate.living_room")
+        if living_climate:
+            self.logger.info("Climate: %s°F", living_climate.attributes.current_temperature)
 
         # Check for existence with None-safe access
         optional_light = self.states.light.get("light.maybe_exists")

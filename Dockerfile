@@ -13,7 +13,14 @@ COPY --from=uv /uv /bin/uv
 WORKDIR /app
 
 # Copy lock + manifest for dependency resolution
-ADD . /app
+ADD ./src /app/src
+ADD ./scripts /app/scripts
+ADD ./pyproject.toml /app/pyproject.toml
+ADD ./uv.lock /app/uv.lock
+ADD ./README.md /app/README.md
+
+# add .ignore file, fdfind will use this - helpful when troubleshooting
+ADD ./scripts/.ignore /app/.ignore
 
 ENV UV_LINK_MODE=copy
 

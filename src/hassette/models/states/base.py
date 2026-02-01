@@ -2,22 +2,15 @@ from contextlib import suppress
 from decimal import Decimal
 from inspect import get_annotations
 from logging import getLogger
-from typing import Any, ClassVar, Generic, TypeVar, get_args
+from typing import Any, ClassVar, Generic, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
-from hassette.core.state_registry import register_state_converter
-from hassette.core.type_registry import TYPE_REGISTRY
+from hassette.conversion import TYPE_REGISTRY, register_state_converter
 from hassette.exceptions import NoDomainAnnotationError, UnableToConvertValueError
+from hassette.types import StateValueT
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
-
-StateT = TypeVar("StateT", bound="BaseState", covariant=True)
-"""Represents a specific state type, e.g., LightState, CoverState, etc."""
-
-
-StateValueT = TypeVar("StateValueT", covariant=True)
-"""Represents the type of the state attribute in a State model, e.g. bool for BinarySensorState."""
 
 LOGGER = getLogger(__name__)
 

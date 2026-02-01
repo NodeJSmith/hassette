@@ -1,12 +1,12 @@
 import logging
 import typing
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, TypeAlias
 
 from hassette.const import MISSING_VALUE
-from hassette.events.base import Event, HassPayload
-from hassette.models.states import StateT
-from hassette.types import Topic
+from hassette.events.base import Event, HassContext, HassPayload
+from hassette.types import StateT, Topic
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
 from .raw import HassEventEnvelopeDict, HassStateDict
 
@@ -225,8 +225,8 @@ def create_event_from_hass(data: HassEventEnvelopeDict):
     event_payload = {
         "event_type": event_type,
         "origin": event["origin"],
-        "context": event["context"],
-        "time_fired": event["time_fired"],
+        "context": HassContext(**event["context"]),
+        "time_fired": convert_datetime_str_to_system_tz(event["time_fired"]),
     }
 
     match event_type:
@@ -293,28 +293,6 @@ class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]])
 
     This is not used directly; use the TypedStateChangeEvent annotation in dependencies instead.
     """
-
-    @classmethod
-    def create_typed_state_change_event(cls, event: "RawStateChangeEvent", to_type: type):
-        from hassette.core.state_registry import convert_state_dict_to_model
-
-        entity_id = event.payload.data.entity_id
-        old_state = event.payload.data.old_state
-        new_state = event.payload.data.new_state
-
-        if entity_id is None:
-            raise ValueError("State change event data must contain 'entity_id' key")
-
-        new_state_obj = convert_state_dict_to_model(new_state, to_type) if new_state is not None else None
-        old_state_obj = convert_state_dict_to_model(old_state, to_type) if old_state is not None else None
-        curr_payload = {k: v for k, v in asdict(event.payload).items() if k != "data"}
-        payload = TypedStateChangePayload[StateT](
-            entity_id=entity_id,
-            old_state=old_state_obj,  # type: ignore
-            new_state=new_state_obj,  # type: ignore
-        )
-
-        return TypedStateChangeEvent(topic=event.topic, payload=HassPayload(**curr_payload, data=payload))
 
 
 HassEvent: TypeAlias = Event[HassPayload[Any]]

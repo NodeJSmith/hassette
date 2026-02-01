@@ -11,16 +11,10 @@ Hassette's dynamic state registry allows you to define custom state classes for 
 To create a custom state class, inherit from one of the base state classes and define a `domain` field with a `Literal` type:
 
 ```python
-from typing import Literal
-from hassette.models.states.base import StringBaseState
-
-class MyCustomState(StringBaseState):
-    """State class for my_custom_domain entities."""
-
-    domain: Literal["my_custom_domain"]
+--8<-- "pages/advanced/snippets/custom-states/basic_custom_state.py"
 ```
 
-That's it! The state class will automatically register itself when the class is created, and you can use it throughout your app.
+That's it! The state class notifies the registry upon creation and is immediately available for use.
 
 ## Choosing a Base Class
 
@@ -30,70 +24,42 @@ Hassette provides several base classes to inherit from, depending on your entity
 For entities with string state values (most common):
 
 ```python
-from hassette.models.states.base import StringBaseState
-
-class LauncherState(StringBaseState):
-    domain: Literal["launcher"]
+--8<-- "pages/advanced/snippets/custom-states/string_base_state.py"
 ```
 
 ### NumericBaseState
 For entities with numeric state values - stored as `Decimal` internally (supports int, float, Decimal):
 
 ```python
-from hassette.models.states.base import NumericBaseState
-
-class CustomSensorState(NumericBaseState):
-    domain: Literal["custom_sensor"]
+--8<-- "pages/advanced/snippets/custom-states/numeric_base_state.py"
 ```
 
 ### BoolBaseState
 For entities with boolean state values (`True`/`False`, automatically converts `"on"`/`"off"`):
 
 ```python
-from hassette.models.states.base import BoolBaseState
-
-class CustomBinaryState(BoolBaseState):
-    domain: Literal["custom_binary"]
+--8<-- "pages/advanced/snippets/custom-states/bool_base_state.py"
 ```
 
 ### DateTimeBaseState
 For entities with datetime state values (supports `ZonedDateTime`, `PlainDateTime`, `Date`):
 
 ```python
-from hassette.models.states.base import DateTimeBaseState
-
-class TimestampState(DateTimeBaseState):
-    domain: Literal["timestamp"]
+--8<-- "pages/advanced/snippets/custom-states/datetime_base_state.py"
 ```
 
 ### TimeBaseState
 For entities with time-only state values:
 
 ```python
-from hassette.models.states.base import TimeBaseState
-
-class TimeOnlyState(TimeBaseState):
-    domain: Literal["time_only"]
+--8<-- "pages/advanced/snippets/custom-states/time_base_state.py"
 ```
 
 ### Define your own
 For entities with state values that don't fit the predefined base classes, you can inherit directly from BaseState and provide the type parameter for the state value and `value_type` class variable:
 
 ```python
-from typing import Literal, ClassVar, Any
-from enum import StrEnum
-
-from hassette.models.states.base import BaseState
-
-class MyValueType(StrEnum):
-    OPTION_A = "option_a"
-    OPTION_B = "option_b"
-    OPTION_C = "option_c"
-
-class MyCustomState(BaseState[MyValueType]):
-    domain: Literal["my_custom_domain"]
-
-    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (MyValueType, type(None))
+--8<-- "pages/advanced/snippets/custom-states/define_your_own.py"
 ```
 
 The `value_type` class variable is used by Hassette to validate state values at runtime. It should include all acceptable types for the state value, including `None` if the state can be unset.
@@ -103,22 +69,7 @@ The `value_type` class variable is used by Hassette to validate state values at 
 You can define custom attributes specific to your domain by creating an attributes class:
 
 ```python
-from typing import Literal
-from pydantic import Field
-from hassette.models.states.base import StringBaseState, AttributesBase
-
-class RedditAttributes(AttributesBase):
-    """Attributes for Reddit entities."""
-
-    subreddit: str | None = Field(default=None)
-    post_count: int | None = Field(default=None)
-    karma: int | None = Field(default=None)
-
-class RedditState(StringBaseState):
-    """State class for reddit domain entities."""
-
-    domain: Literal["reddit"]
-    attributes: RedditAttributes  # Override attributes type
+--8<-- "pages/advanced/snippets/custom-states/adding_custom_attributes.py"
 ```
 
 ## Using Custom States in Apps
@@ -134,7 +85,7 @@ from .my_states import RedditState
 class MyApp(App):
     async def on_initialize(self):
         # Get all reddit entities
-        reddit_states = self.states.get_states(RedditState)
+        reddit_states = self.states[RedditState]
 
         for entity_id, state in reddit_states:
             print(f"{entity_id}: {state.value}")
@@ -182,19 +133,16 @@ for entity_id, light in self.states.light:
     print(light.attributes.brightness)
 ```
 
-For custom domains, use `get_states()` for full type safety:
+For custom domains, use `states[<class>]` for full type checking:
 
 ```python
-# Custom domains (use get_states for typing)
-custom_states = self.states.get_states(MyCustomState)
+# Custom domains (use states[<class>] for typing)
+custom_states = self.states[MyCustomState]
 for entity_id, state in custom_states:
     print(state.value)
 ```
 
-You can also access custom domains dynamically via property access, but you'll get `BaseState` typing at runtime:
-
-```python
-# Works at runtime but loses specific typing
+# Works at runtime but static analysis sees BaseState
 for entity_id, state in self.states.my_custom_domain:
     print(state.value)  # state is typed as BaseState
 ```
@@ -204,51 +152,7 @@ for entity_id, state in self.states.my_custom_domain:
 Here's a complete example with a custom integration:
 
 ```python
-# my_states.py
-from typing import Literal
-from pydantic import Field
-from hassette.models.states.base import StringBaseState, AttributesBase
-
-class ImageAttributes(AttributesBase):
-    """Attributes for image entities."""
-
-    url: str | None = Field(default=None)
-    width: int | None = Field(default=None)
-    height: int | None = Field(default=None)
-    content_type: str | None = Field(default=None)
-
-class ImageState(StringBaseState):
-    """State class for image domain."""
-
-    domain: Literal["image"]
-    attributes: ImageAttributes
-
-
-# my_app.py
-from hassette import App, dependencies as D
-from .my_states import ImageState
-
-class ImageMonitorApp(App):
-    async def on_initialize(self):
-        # Monitor all image entities
-        self.bus.on_state_change(
-            entity_id="image.*",  # Glob pattern
-            handler=self.on_image_change
-        )
-
-    async def on_image_change(
-        self,
-        new_state: D.StateNew[ImageState],
-        entity_id: D.EntityId,
-    ):
-        attrs = new_state.attributes
-        self.logger.info(
-            "Image %s updated: %dx%d, %s",
-            entity_id,
-            attrs.width or 0,
-            attrs.height or 0,
-            attrs.content_type or "unknown"
-        )
+--8<-- "pages/advanced/snippets/custom-states/complete_example.py"
 ```
 
 ## Best Practices
@@ -273,8 +177,7 @@ If your custom state class isn't being recognized:
 
 If IDE autocomplete isn't working:
 
-1. **Use get_states()** - For custom domains, use `self.states.get_states(CustomState)`
-2. **Add to stub file** - For permanent custom domains, you can add them to `hassette/state_manager/state_manager.pyi`
+1. **Use `states[<class>]`** - For custom domains, use `self.states[CustomState]`
 
 ### State conversion fails
 

@@ -4,7 +4,7 @@ from typing import Generic, cast
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from hassette import context
-from hassette.models.states import StateT, StateValueT
+from hassette.types import StateT, StateValueT
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette

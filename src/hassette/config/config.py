@@ -1,5 +1,6 @@
 import logging
 from contextlib import suppress
+from functools import partial
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -8,7 +9,12 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 
 from hassette import context as ctx
 from hassette.config.classes import AppManifest, HassetteTomlConfigSettingsSource
-from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT, get_default_dict
+from hassette.config.defaults import (
+    AUTODETECT_EXCLUDE_DIRS_DEFAULT,
+    ENV_FILE_LOCATIONS,
+    TOML_FILE_LOCATIONS,
+    get_defaults_dict,
+)
 from hassette.config.helpers import (
     coerce_log_level,
     default_app_dir,
@@ -18,13 +24,13 @@ from hassette.config.helpers import (
     get_dev_mode,
     log_level_default_factory,
 )
-from hassette.types.types import LOG_LEVELS, AppDict, RawAppDict
+from hassette.types.types import LOG_LEVEL_TYPE, AppDict, RawAppDict
 from hassette.utils.app_utils import autodetect_apps, clean_app
 
 LOGGER_NAME = "hassette.config.config" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
 
-LOG_ANNOTATION = Annotated[LOG_LEVELS, BeforeValidator(coerce_log_level)]
+LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 
 
 class HassetteConfig(BaseSettings):
@@ -32,8 +38,8 @@ class HassetteConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="hassette__",
-        env_file=["/config/.env", ".env", "./config/.env"],
-        toml_file=["/config/hassette.toml", "hassette.toml", "./config/hassette.toml"],
+        env_file=ENV_FILE_LOCATIONS,
+        toml_file=TOML_FILE_LOCATIONS,
         env_ignore_empty=True,
         extra="allow",
         env_nested_delimiter="__",
@@ -45,7 +51,12 @@ class HassetteConfig(BaseSettings):
         cli_ignore_unknown_args=True,
         cli_parse_args=True,
         cli_kebab_case=True,
-        cli_shortcuts={"token": ["t"], "base-url": ["u", "url"], "config-file": ["c"], "env-file": ["e", "env"]},
+        cli_shortcuts={
+            "token": ["t"],
+            "base-url": ["u", "url"],
+            "config-file": ["config-file", "c"],
+            "env-file": ["env-file", "env", "e"],
+        },
     )
 
     @classmethod
@@ -351,7 +362,7 @@ class HassetteConfig(BaseSettings):
     def model_post_init(self, *args):
         """Set default values for any unset fields after initialization."""
         default_str = "default (dev)" if self.dev_mode else "default (prod)"
-        defaults = get_default_dict(dev=self.dev_mode)
+        defaults = get_defaults_dict(dev=self.dev_mode)
 
         for fname in type(self).model_fields:
             if fname in self.model_fields_set or fname not in defaults:

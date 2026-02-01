@@ -52,8 +52,7 @@ from typing import Any, Generic, TypeGuard, TypeVar
 from boltons.iterutils import is_collection
 
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
-from hassette.events.base import EventT
-from hassette.types import ChangeType, ComparisonCondition
+from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils.glob_utils import is_glob
 
 from .accessors import (
@@ -95,8 +94,8 @@ class Guard(typing.Generic[EventT]):
 
     fn: "Predicate[EventT]"
 
-    def __call__(self, event: "EventT") -> bool:
-        return self.fn(event)
+    def __call__(self, value: "EventT") -> bool:
+        return self.fn(value)
 
 
 @dataclass(frozen=True)
@@ -106,8 +105,8 @@ class AllOf:
     predicates: tuple["Predicate", ...]
     """The predicates to evaluate."""
 
-    def __call__(self, event: "Event") -> bool:
-        return all(p(event) for p in self.predicates)
+    def __call__(self, value: "Event") -> bool:
+        return all(p(value) for p in self.predicates)
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate] | list[Predicate]") -> "AllOf":
@@ -135,8 +134,8 @@ class Not:
 
     predicate: "Predicate"
 
-    def __call__(self, event: "Event") -> bool:
-        return not self.predicate(event)
+    def __call__(self, value: "Event", /) -> bool:
+        return not self.predicate(value)
 
 
 @dataclass(frozen=True)
@@ -151,11 +150,11 @@ class ValueIs(Generic[EventT, V]):
     source: Callable[[EventT], V]
     condition: "ChangeType" = ANY_VALUE
 
-    def __call__(self, event: EventT) -> bool:
+    def __call__(self, value: EventT, /) -> bool:
         if self.condition is ANY_VALUE:
             return True
-        value = self.source(event)
-        return compare_value(value, self.condition)
+        extracted = self.source(value)
+        return compare_value(extracted, self.condition)
 
 
 @dataclass(frozen=True)
@@ -167,8 +166,8 @@ class DidChange(Generic[EventT]):
 
     source: Callable[[EventT], tuple[Any, Any]]
 
-    def __call__(self, event: EventT) -> bool:
-        old_v, new_v = self.source(event)
+    def __call__(self, value: EventT, /) -> bool:
+        old_v, new_v = self.source(value)
         return old_v != new_v
 
 
@@ -182,8 +181,8 @@ class IsPresent:
 
     source: Callable[[Any], Any]
 
-    def __call__(self, event) -> bool:
-        return self.source(event) is not MISSING_VALUE
+    def __call__(self, value: Any, /) -> bool:
+        return self.source(value) is not MISSING_VALUE
 
 
 @dataclass(frozen=True)
@@ -196,8 +195,8 @@ class IsMissing:
 
     source: Callable[[Any], Any]
 
-    def __call__(self, event) -> bool:
-        return self.source(event) is MISSING_VALUE
+    def __call__(self, value: Any, /) -> bool:
+        return self.source(value) is MISSING_VALUE
 
 
 @dataclass(frozen=True)
@@ -206,8 +205,8 @@ class StateFrom:
 
     condition: "ChangeType"
 
-    def __call__(self, event: "RawStateChangeEvent") -> bool:
-        return ValueIs(source=get_state_value_old, condition=self.condition)(event)
+    def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        return ValueIs(source=get_state_value_old, condition=self.condition)(value)
 
 
 @dataclass(frozen=True)
@@ -216,8 +215,8 @@ class StateTo:
 
     condition: "ChangeType"
 
-    def __call__(self, event: "RawStateChangeEvent") -> bool:
-        return ValueIs(source=get_state_value_new, condition=self.condition)(event)
+    def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        return ValueIs(source=get_state_value_new, condition=self.condition)(value)
 
 
 @dataclass(frozen=True)
@@ -231,8 +230,8 @@ class StateComparison:
             LOGGER.warning("StateComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "RawStateChangeEvent") -> bool:
-        return self.condition(get_state_value_old(event), get_state_value_new(event))
+    def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        return self.condition(get_state_value_old(value), get_state_value_new(value))
 
 
 @dataclass(frozen=True)
@@ -242,8 +241,8 @@ class AttrFrom:
     attr_name: str
     condition: "ChangeType"
 
-    def __call__(self, event: "RawStateChangeEvent") -> bool:
-        return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(event)
+    def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(value)
 
 
 @dataclass(frozen=True)
@@ -253,8 +252,8 @@ class AttrTo:
     attr_name: str
     condition: "ChangeType"
 
-    def __call__(self, event: "RawStateChangeEvent") -> bool:
-        return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(event)
+    def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(value)
 
 
 @dataclass(frozen=True)
@@ -269,9 +268,9 @@ class AttrComparison:
             LOGGER.warning("AttrComparison was passed a class instead of an instance.", stacklevel=2)
             object.__setattr__(self, "condition", self.condition())
 
-    def __call__(self, event: "RawStateChangeEvent") -> bool:
-        old_attr = get_attr_old(self.attr_name)(event)
-        new_attr = get_attr_new(self.attr_name)(event)
+    def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        old_attr = get_attr_old(self.attr_name)(value)
+        new_attr = get_attr_new(self.attr_name)(value)
         return self.condition(old_attr, new_attr)
 
 
@@ -279,8 +278,8 @@ class AttrComparison:
 class StateDidChange:
     """Checks if the state changed in a RawStateChangeEvent."""
 
-    def __call__(self, event: "RawStateChangeEvent") -> bool:
-        return DidChange(get_state_value_old_new)(event)
+    def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        return DidChange(get_state_value_old_new)(value)
 
 
 @dataclass(frozen=True)
@@ -289,8 +288,8 @@ class AttrDidChange:
 
     attr_name: str
 
-    def __call__(self, event: "RawStateChangeEvent") -> bool:
-        return DidChange(get_attr_old_new(self.attr_name))(event)
+    def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        return DidChange(get_attr_old_new(self.attr_name))(value)
 
 
 @dataclass(frozen=True)
@@ -299,9 +298,9 @@ class DomainMatches:
 
     domain: str
 
-    def __call__(self, event: "HassEvent") -> bool:
+    def __call__(self, value: "HassEvent", /) -> bool:
         cond = Glob(self.domain) if is_glob(self.domain) else self.domain
-        return ValueIs(source=get_domain, condition=cond)(event)
+        return ValueIs(source=get_domain, condition=cond)(value)
 
     def __repr__(self) -> str:
         return f"DomainMatches(domain={self.domain!r})"
@@ -313,9 +312,9 @@ class EntityMatches:
 
     entity_id: str
 
-    def __call__(self, event: "HassEvent") -> bool:
+    def __call__(self, value: "HassEvent", /) -> bool:
         cond = Glob(self.entity_id) if is_glob(self.entity_id) else self.entity_id
-        return ValueIs(source=get_entity_id, condition=cond)(event)
+        return ValueIs(source=get_entity_id, condition=cond)(value)
 
     def __repr__(self) -> str:
         return f"EntityMatches(entity_id={self.entity_id!r})"
@@ -327,9 +326,9 @@ class ServiceMatches:
 
     service: str
 
-    def __call__(self, event: "HassEvent") -> bool:
+    def __call__(self, value: "HassEvent", /) -> bool:
         cond = Glob(self.service) if is_glob(self.service) else self.service
-        return ValueIs(source=get_path("payload.data.service"), condition=cond)(event)
+        return ValueIs(source=get_path("payload.data.service"), condition=cond)(value)
 
     def __repr__(self) -> str:
         return f"ServiceMatches(service={self.service!r})"
@@ -385,8 +384,8 @@ class ServiceDataWhere:
 
         object.__setattr__(self, "_predicates", tuple(preds))
 
-    def __call__(self, event: "CallServiceEvent") -> bool:
-        return all(p(event) for p in self._predicates)
+    def __call__(self, value: "CallServiceEvent", /) -> bool:
+        return all(p(value) for p in self._predicates)
 
     @classmethod
     def from_kwargs(cls, *, auto_glob: bool = True, **spec: "ChangeType") -> "ServiceDataWhere":
