@@ -17,9 +17,9 @@ The API is pre-configured and available as `self.api`.
 async def on_initialize(self):
     try:
         state = await self.api.get_state("sun.sun")
-        self.logger.info(f"Sun is {state.value}")
+        self.logger.info("Sun is %s", state.value)
     except HassetteError as e:
-        self.logger.error(f"HA API error: {e}")
+        self.logger.error("HA API error: %s", e)
         return None # Handling
 ```
 

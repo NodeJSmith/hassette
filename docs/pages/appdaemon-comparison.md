@@ -171,8 +171,8 @@ class MyAppConfig(AppConfig):
 
 class MyApp(App[MyAppConfig]):
     async def on_initialize(self):
-        self.logger.info(f"{self.app_manifest=}")
-        self.logger.info(f"{self.app_config=}")
+        self.logger.info("app_manifest=%r", self.app_manifest)
+        self.logger.info("app_config=%r", self.app_config)
         entity = self.app_config.entity
         self.logger.info("My configured entity is %r (type %s)", entity, type(entity))
         brightness = self.app_config.brightness
@@ -245,7 +245,7 @@ class NightLight(App[MyConfig]):
     async def on_initialize(self):
         # Schedule a daily callback that will call run_daily_callback() at 7pm every night
         job = self.scheduler.run_daily(self.run_daily_callback, start=(19, 0))
-        self.logger.info(f"Scheduled job: {job}")
+        self.logger.info("Scheduled job: %r", job)
 
         # 2025-10-13 19:57:02.670 INFO hassette.NightLight.0.on_initialize:11 ─ Scheduled job: ScheduledJob(name='run_daily_callback', owner=NightLight.0)
 
@@ -606,13 +606,12 @@ class StateGetter(App):
         office_light = self.states.light.get("light.office_light_1")
 
         if office_light:
-            self.logger.info(f"Light state: {office_light.value}")
-            self.logger.info(f"Brightness: {office_light.attributes.brightness}")
+            self.logger.info("Light state: %s", office_light.value)
+            self.logger.info("Brightness: %s", office_light.attributes.brightness)
 
         # Iterate over all lights
         for entity_id, light in self.states.light:
-            self.logger.info(f"{entity_id}: {light.value}")
-
+            self.logger.info("%s: %s", entity_id, light.value)
         # Typed access for any domain
         my_light = self.states[states.LightState].get("light.office_light_1")
 ```
@@ -626,7 +625,7 @@ class StateGetter(App):
     async def on_initialize(self):
         # Force fresh read from HA (requires await)
         office_light_state = await self.api.get_state("light.office_light_1")
-        self.logger.info(f"{office_light_state=}")
+        self.logger.info("office_light_state=%r", office_light_state)
 ```
 
 !!! note
@@ -792,7 +791,7 @@ async def on_initialize(self):
     )
 
 async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]):
-    self.logger.info(f"Motion detected on {new_state.entity_id}")
+    self.logger.info("Motion detected on %s", new_state.entity_id)
 ```
 
 #### Service Calls
@@ -893,7 +892,7 @@ async def on_initialize(self):
 
     # Iterate over all lights in cache
     for entity_id, light in self.states.light:
-        self.logger.info(f"{entity_id}: {light.value}")
+        self.logger.info("%s: %s", entity_id, light.value)
 
     # Typed access for any domain
     my_light = self.states[states.LightState].get("light.kitchen")
@@ -962,8 +961,6 @@ self.error("Something went wrong")
 ```python
 self.logger.info("This is a log message")
 
-self.logger.info(f"Value: {value}")
-# or
 self.logger.info("Value: %s", value)
 
 self.logger.error("Something went wrong")
