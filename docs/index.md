@@ -4,10 +4,6 @@
 
 A simple, modern, async-first Python framework for building Home Assistant automations.
 
-[Get Started (Local)](pages/getting-started/first-run.md){ .md-button .md-button--primary }
-[Deploy with Docker](pages/getting-started/docker/index.md){ .md-button }
-[AppDaemon Comparison](pages/appdaemon-comparison.md){ .md-button }
-
 ## What is Hassette?
 
 Hassette is a framework that helps you write Home Assistant automations in Python. Instead of using the HA user interface or writing YAML, you create "apps" as Python classes that respond to Home Assistant events, call services, and manage state.
