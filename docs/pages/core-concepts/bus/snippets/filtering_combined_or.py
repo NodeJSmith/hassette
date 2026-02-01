@@ -12,8 +12,8 @@ class LightApp(App):
             handler=self.on_light_change,
             where=P.AnyOf(
                 (
-                    P.AttrTo("rgb_color", C.Comparison(comparator="eq", value=[255, 255, 255])),
-                    P.AttrTo("brightness", C.Comparison(comparator=">=", value=200)),
+                    P.AttrTo("rgb_color", C.Comparison(op="eq", value=[255, 255, 255])),
+                    P.AttrTo("brightness", C.Comparison(op=">=", value=200)),
                 )
             ),
             changed=False,

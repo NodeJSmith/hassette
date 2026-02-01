@@ -13,8 +13,8 @@ class DoorApp(App):
             "light.office",
             handler=self.on_light_change,
             where=[
-                P.AttrTo("brightness", C.Comparison(comparator=">", value=254)),
-                P.AttrTo("rgb_color", C.Comparison(comparator="!=", value=[0, 0, 0])),
+                P.AttrTo("brightness", C.Comparison(op=">", value=254)),
+                P.AttrTo("rgb_color", C.Comparison(op="!=", value=[0, 0, 0])),
             ],
             # NOTE: changed=False is required if we want this to fire even when only attributes change
             changed=False,
