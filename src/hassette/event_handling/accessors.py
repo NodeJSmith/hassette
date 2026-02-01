@@ -177,7 +177,7 @@ def get_attrs_old_new(
     return _inner
 
 
-def get_all_attr_old(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
+def get_all_attrs_old(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
     """Get all attributes from the old state in a RawStateChangeEvent."""
     data = event.payload.data
     if data.old_state is None:
@@ -186,7 +186,7 @@ def get_all_attr_old(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySen
     return data.old_state.get("attributes", {})
 
 
-def get_all_attr_new(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
+def get_all_attrs_new(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
     """Get all attributes from the new state in a RawStateChangeEvent."""
     data = event.payload.data
     if data.new_state is None:
@@ -195,12 +195,12 @@ def get_all_attr_new(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySen
     return data.new_state.get("attributes", {})
 
 
-def get_all_attr_old_new(
+def get_all_attrs_old_new(
     event: "RawStateChangeEvent",
 ) -> tuple[dict[str, Any] | FalseySentinel, dict[str, Any] | FalseySentinel]:
     """Get all attributes from the old and new state in a RawStateChangeEvent."""
-    old = get_all_attr_old(event)
-    new = get_all_attr_new(event)
+    old = get_all_attrs_old(event)
+    new = get_all_attrs_new(event)
     return (old, new)
 
 
