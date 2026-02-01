@@ -25,8 +25,6 @@ jobs:
               with:
                   python-version: ${{ matrix.python-version }}
 
-            - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
-
             - run: uv sync
 
             - name: Run lint checks
