@@ -59,18 +59,17 @@ class TypeMatcher:
         if tp is Any:
             return True
 
-        # Unions (typing.Union[...] and PEP604 A | B)
-        if is_union(tp):
-            # if we only check `any` here then we may return True when a value still needs converted
-            # e.g. str matches anything, so something that is a string that should get converted to an int
-            # would return True and never get converted
-            # this means this path will almost always return False and fall through to deeper checks
-            # but this is better than the alternative
-            return all(self.matches(value, arg) for arg in get_args(tp))
-
-        # Optional is covered by union logic above; this is just an early fast-path
+        # Check optional prior to union to short-circuit
         if is_optional(tp):
             return value is None or any(self.matches(value, arg) for arg in get_args(tp) if arg is not NoneType)
+
+        # Union: only return "True" if it matches the first type
+        # otherwise we risk saying "sure, '6' matches [int | str]" when the caller really wanted an int
+        if is_union(tp):
+            args = get_args(tp)
+            if not args:
+                return False
+            return self.matches(value, args[0])
 
         # Literal[...] is *very* useful for DI-style validation
         origin = get_origin(tp)
