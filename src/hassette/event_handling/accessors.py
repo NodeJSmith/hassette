@@ -134,9 +134,12 @@ def get_attr_new(name: str) -> Callable[["RawStateChangeEvent"], Any]:
 def get_attr_old_new(name: str) -> Callable[["RawStateChangeEvent"], tuple[Any, Any]]:
     """Get a specific attribute from the old and new state in a RawStateChangeEvent."""
 
+    old_getter = get_attr_old(name)
+    new_getter = get_attr_new(name)
+
     def _inner(event: "RawStateChangeEvent") -> tuple[Any, Any]:
-        old = get_attr_old(name)(event)
-        new = get_attr_new(name)(event)
+        old = old_getter(event)
+        new = new_getter(event)
         return (old, new)
 
     return _inner
@@ -169,9 +172,12 @@ def get_attrs_old_new(
 ) -> Callable[["RawStateChangeEvent"], tuple[dict[str, Any], dict[str, Any]]]:
     """Get specific attributes from the old and new state in a RawStateChangeEvent."""
 
+    old_getter = get_attrs_old(names)
+    new_getter = get_attrs_new(names)
+
     def _inner(event: "RawStateChangeEvent") -> tuple[dict[str, Any], dict[str, Any]]:
-        old = get_attrs_old(names)(event)
-        new = get_attrs_new(names)(event)
+        old = old_getter(event)
+        new = new_getter(event)
         return (old, new)
 
     return _inner
