@@ -5,7 +5,6 @@ from uuid import uuid4
 from whenever import ZonedDateTime
 
 from hassette.events import CallServiceEvent, RawStateChangeEvent, create_event_from_hass
-from hassette.events.hass.hass import RawStateChangePayload
 
 if TYPE_CHECKING:
     from hassette.events import HassEventEnvelopeDict
@@ -18,16 +17,23 @@ def create_state_change_event(
     new_value: Any,
     old_attrs: dict[str, Any] | None = None,
     new_attrs: dict[str, Any] | None = None,
-    topic: str = "hass.event.state_changed",
 ) -> Any:
-    data = RawStateChangePayload(
-        entity_id=entity_id,
-        old_state={"state": old_value, "attributes": old_attrs or {}},  # pyright: ignore[reportArgumentType]
-        new_state={"state": new_value, "attributes": new_attrs or {}},  # pyright: ignore[reportArgumentType]
-    )
-
-    payload = SimpleNamespace(data=data)
-    return cast("RawStateChangeEvent", SimpleNamespace(topic=topic, payload=payload))
+    data: HassEventEnvelopeDict = {
+        "id": 1,
+        "type": "event",
+        "event": {
+            "event_type": "state_changed",
+            "data": {
+                "entity_id": entity_id,
+                "old_state": {"state": old_value, "attributes": old_attrs or {}},
+                "new_state": {"state": new_value, "attributes": new_attrs or {}},
+            },
+            "origin": "LOCAL",
+            "time_fired": ZonedDateTime.now_in_system_tz().format_iso(),
+            "context": {"id": "test_context_id", "parent_id": None, "user_id": None},
+        },
+    }
+    return create_event_from_hass(data)
 
 
 def create_call_service_event(
