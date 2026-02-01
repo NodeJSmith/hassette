@@ -1,4 +1,10 @@
 #!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "ruff==0.14.9",
+# ]
+# ///
 import argparse
 import ast
 import itertools
