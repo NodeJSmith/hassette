@@ -23,62 +23,6 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading, and intuitive APIs
 
-## 🚀 Quick Start
-
-Install Hassette:
-
-```bash
-pip install hassette
-```
-
-Create a simple app (`apps/hello.py`):
-
-```python
-from typing import Annotated
-
-from hassette import App
-from hassette import accessors as A
-from hassette import dependencies as D
-
-
-class HelloWorld(App):
-    async def on_initialize(self):
-        self.bus.on_state_change("binary_sensor.front_door", handler=self.on_door_open, changed_to="on")
-
-        self.scheduler.run_minutely(self.check_front_door)
-
-    async def on_door_open(
-        self,
-        entity_id: D.EntityId,
-        friendly_name: Annotated[str | None, A.get_attr_new("friendly_name")],
-    ):
-        self.logger.info("%s opened!", entity_id)
-        name = friendly_name or entity_id
-        await self.api.call_service("notify", "mobile_app_phone", message=f"{name} opened!")
-
-    async def check_front_door(self):
-        state = self.states.binary_sensor["front_door"]
-        self.logger.info("Front door is currently %s", state.value)
-
-```
-
-Configure it (`config/hassette.toml`):
-
-```toml
-[hassette]
-base_url = "http://homeassistant.local:8123"
-
-[apps.hello]
-filename = "hello.py"
-class_name = "HelloWorld"
-```
-
-Run it:
-
-```bash
-hassette
-```
-
 See the [Getting Started guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/) for detailed instructions.
 
 ## 🔄 Coming from AppDaemon?
@@ -87,7 +31,7 @@ Check out our dedicated comparison guide:
 
 - [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/pages/appdaemon-comparison/)
 
-## 📖 More Examples
+## 📖 Examples
 
 Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) directory for complete working examples:
 
@@ -102,7 +46,7 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 
 **Configuration examples**:
 - [Docker Compose Guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/docker/) - Docker deployment setup
-- [HassetteConfig](https://hassette.readthedocs.io/en/latest/reference/hassette/config/core/#hassette.config.config.HassetteConfig) - Complete configuration reference
+- [HassetteConfig](https://hassette.readthedocs.io/en/latest/reference/hassette/config/config/) - Complete configuration reference
 
 ## 🛣️ Status & Roadmap
 
