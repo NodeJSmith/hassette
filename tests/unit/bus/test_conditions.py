@@ -6,6 +6,7 @@ Glob, Regex, etc. that are used within predicates to test extracted values.
 
 from hassette.const import MISSING_VALUE
 from hassette.event_handling.conditions import (
+    Comparison,
     Contains,
     EndsWith,
     Glob,
@@ -143,3 +144,20 @@ def test_contains_condition() -> None:
     assert condition("sensor.kitchen_temp") is True
     assert condition("light.living") is False
     assert condition(123) is False  # Non-string
+
+
+def test_comparison_condition() -> None:
+    """Test Comparison condition matcher."""
+
+    greater_than = Comparison("gt", 10)
+    less_than = Comparison("lt", 20)
+    equal_to = Comparison("eq", 15)
+
+    assert greater_than(15) is True
+    assert greater_than(5) is False
+
+    assert less_than(15) is True
+    assert less_than(25) is False
+
+    assert equal_to(15) is True
+    assert equal_to(10) is False

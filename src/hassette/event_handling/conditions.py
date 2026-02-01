@@ -58,8 +58,8 @@ from typing import Any, Literal
 from hassette.const import MISSING_VALUE
 from hassette.utils.glob_utils import matches_globs
 
-COMPARATOR = Literal[">", "<", ">=", "<=", "==", "!=", "gt", "lt", "ge", "le", "eq", "ne"]
-COMPARATOR_LIST = list(COMPARATOR.__args__)
+OPS = Literal[">", "<", ">=", "<=", "==", "!=", "gt", "lt", "ge", "le", "eq", "ne"]
+OP_LIST = list(OPS.__args__)
 
 
 @dataclass(frozen=True)
@@ -357,36 +357,36 @@ class Comparison:
     compare_to: Any
     """Value to compare against"""
 
-    comparator: COMPARATOR
+    op: OPS
     """Comparison operator to use"""
 
-    op: Callable[[Any, Any], bool]
-    """Comparison operator function"""
+    op_fn: Callable[[Any, Any], bool]
+    """Operator function"""
 
-    def __init__(self, comparator: COMPARATOR, value: Any):
+    def __init__(self, op: OPS, value: Any):
         # self.threshold = threshold
         object.__setattr__(self, "compare_to", value)
-        object.__setattr__(self, "comparator", comparator)
-        match comparator:
-            case ">" | "gt":
-                op = operator.gt
-            case "<" | "lt":
-                op = operator.lt
-            case ">=" | "ge":
-                op = operator.ge
-            case "<=" | "le":
-                op = operator.le
-            case "==" | "eq":
-                op = operator.eq
-            case "!=" | "ne":
-                op = operator.ne
-            case _:
-                raise ValueError(f"Invalid comparison operator {comparator}. Allowed operators are {COMPARATOR_LIST}")
         object.__setattr__(self, "op", op)
+        match op:
+            case ">" | "gt":
+                op_fn = operator.gt
+            case "<" | "lt":
+                op_fn = operator.lt
+            case ">=" | "ge":
+                op_fn = operator.ge
+            case "<=" | "le":
+                op_fn = operator.le
+            case "==" | "eq":
+                op_fn = operator.eq
+            case "!=" | "ne":
+                op_fn = operator.ne
+            case _:
+                raise ValueError(f"Invalid comparison operator {op}. Allowed operators are {OP_LIST}")
+        object.__setattr__(self, "op_fn", op_fn)
 
     def __call__(self, value: Any) -> bool:
         try:
-            return self.op(value, self.compare_to)
+            return self.op_fn(value, self.compare_to)
         except (TypeError, ValueError):
             return False
 

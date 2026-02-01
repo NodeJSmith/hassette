@@ -30,9 +30,11 @@ Type annotations and Pydantic models give you IDE autocomplete and inline docs f
     Your browser does not support the video tag.
 </video>
 
-#### Filtered event handling
+#### Improved event handling
 
-Fluent APIs let you easily subscribe to only the events you care about.
+Dependency injection means you only need to declare the event data you care about in your handler signatures.
+
+First class predicates, conditions, etc., let you cleanly and concisely specify which events to listen for.
 
 <video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
     <source src="./_static/filtered_events.webm" type="video/webm">
