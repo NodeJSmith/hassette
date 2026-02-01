@@ -2,6 +2,7 @@
 
 
 import asyncio
+import contextlib
 import typing
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -267,8 +268,10 @@ async def test_bus_uses_kwargs(hassette_with_bus: "Hassette") -> None:
         ("*", {"sensor.kitchen", "light.living_room", "switch.garage", "light.kitchen", "sensor.living_room"}),
     ],
 )
-async def test_bus_handles_globs(hassette_with_bus: "Hassette", entity_id: str, expected: str | set[str]) -> None:
-    """Bus matches topics with glob patterns correctly."""
+async def test_state_change_handles_globs(
+    hassette_with_bus: "Hassette", entity_id: str, expected: str | set[str]
+) -> None:
+    """Bus matches state change with glob patterns correctly."""
     hassette = hassette_with_bus
 
     expected = {expected} if isinstance(expected, str) else expected
@@ -304,15 +307,91 @@ async def test_bus_handles_globs(hassette_with_bus: "Hassette", entity_id: str, 
         create_state_change_event(entity_id="switch.garage", old_value="off", new_value="on"),
     )
 
-    await asyncio.wait_for(events_processed.wait(), timeout=1)
+    with contextlib.suppress(asyncio.TimeoutError):
+        await asyncio.wait_for(events_processed.wait(), timeout=0.2)
 
     actual = set(received_entity_ids)
 
     assert actual == expected, f"Expected handler to receive {expected}, got {actual}"
 
 
-async def test_can_subscribe_to_all_status_change_events(hassette_with_bus: "Hassette") -> None:
-    """Bus can subscribe to all status change events."""
+@pytest.mark.parametrize(
+    ("entity_id", "expected"),
+    [
+        ("sensor.kitchen", "sensor.kitchen"),
+        ("sensor.*", {"sensor.kitchen", "sensor.living_room"}),
+        ("*.kitchen", {"sensor.kitchen", "light.kitchen"}),
+        ("*kitchen*", {"sensor.kitchen", "light.kitchen"}),
+        ("sensor.kitch?n", "sensor.kitchen"),
+        ("senso?.kit*en", "sensor.kitchen"),
+        ("*", {"sensor.kitchen", "light.living_room", "switch.garage", "light.kitchen", "sensor.living_room"}),
+    ],
+)
+async def test_attribute_change_handles_globs(
+    hassette_with_bus: "Hassette", entity_id: str, expected: str | set[str]
+) -> None:
+    """Bus matches attribute change topics with glob patterns correctly."""
+    hassette = hassette_with_bus
+
+    expected = {expected} if isinstance(expected, str) else expected
+
+    received_entity_ids: list[str] = []
+    events_processed = asyncio.Event()
+
+    def handler(event: RawStateChangeEvent) -> None:
+        received_entity_ids.append(event.payload.entity_id)
+        if set(received_entity_ids) == expected:
+            hassette_with_bus.task_bucket.post_to_loop(events_processed.set)
+
+    hassette._bus.on_attribute_change(entity_id=entity_id, attr="friendly_name", handler=handler)
+
+    await hassette.send_event(
+        Topic.HASS_EVENT_STATE_CHANGED,
+        create_state_change_event(
+            entity_id="sensor.kitchen", old_value="off", new_value="on", new_attrs={"friendly_name": "Kitchen Sensor"}
+        ),
+    )
+    await hassette.send_event(
+        Topic.HASS_EVENT_STATE_CHANGED,
+        create_state_change_event(
+            entity_id="light.kitchen", old_value="off", new_value="on", new_attrs={"friendly_name": "Kitchen Light"}
+        ),
+    )
+    await hassette.send_event(
+        Topic.HASS_EVENT_STATE_CHANGED,
+        create_state_change_event(
+            entity_id="light.living_room",
+            old_value="off",
+            new_value="on",
+            new_attrs={"friendly_name": "Living Room Light"},
+        ),
+    )
+    await hassette.send_event(
+        Topic.HASS_EVENT_STATE_CHANGED,
+        create_state_change_event(
+            entity_id="sensor.living_room",
+            old_value="off",
+            new_value="on",
+            new_attrs={"friendly_name": "Living Room Sensor"},
+        ),
+    )
+    await hassette.send_event(
+        Topic.HASS_EVENT_STATE_CHANGED,
+        create_state_change_event(
+            entity_id="switch.garage", old_value="off", new_value="on", new_attrs={"friendly_name": "Garage Switch"}
+        ),
+    )
+
+    with contextlib.suppress(asyncio.TimeoutError):
+        await asyncio.wait_for(events_processed.wait(), timeout=0.2)
+
+    actual = set(received_entity_ids)
+
+    assert actual == expected, f"Expected handler to receive {expected}, got {actual}"
+
+
+async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hassette") -> None:
+    """Bus can subscribe to all state change events."""
     hassette = hassette_with_bus
 
     expected = {"sensor.kitchen", "light.living_room", "switch.garage"}
@@ -339,7 +418,8 @@ async def test_can_subscribe_to_all_status_change_events(hassette_with_bus: "Has
         create_state_change_event(entity_id="switch.garage", old_value="off", new_value="on"),
     )
 
-    await asyncio.wait_for(events_processed.wait(), timeout=1)
+    with contextlib.suppress(asyncio.TimeoutError):
+        await asyncio.wait_for(events_processed.wait(), timeout=0.2)
 
     actual = set(received_entity_ids)
 
