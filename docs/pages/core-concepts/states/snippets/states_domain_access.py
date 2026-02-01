@@ -8,7 +8,7 @@ class StateApp(App):
 
         # Access attributes safely
         if light:
-            print(light.attributes.brightness)
+            self.logger.info("Brightness: %s", light.attributes.brightness)
 
         # if you know the entity exists you can access it
         # directly using dictionary-style access

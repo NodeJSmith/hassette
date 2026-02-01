@@ -463,7 +463,7 @@ class TestCustomDI:
         """Test that custom extractor for attribute new value works."""
 
         def handler(brightness: Annotated[float, A.get_attr_new("brightness")]):
-            print("Brightness changed to %s", brightness)
+            pass
 
         # Find event where new_state has brightness attribute
         event = next(
