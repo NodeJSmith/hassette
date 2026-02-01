@@ -43,6 +43,14 @@ repos:
         files: ^\.github/codecov\.yml$
         pass_filenames: false
 
+      - id: check-missing-attribute
+        name: Check for missing 'attributes' in State classes
+        language: system
+        entry: ./tools/check_for_missing_attribute.py
+        pass_filenames: false
+        stages:
+          - pre-push
+
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.406
     hooks:
