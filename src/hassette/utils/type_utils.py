@@ -268,3 +268,148 @@ def is_event_type(annotation: Any) -> bool:
     base_type = get_origin(annotation) or annotation
 
     return isclass(base_type) and issubclass(base_type, Event)
+
+
+def _make_union(types: set[Any]) -> Any:
+    """Create a PEP604 union from a set of type annotations."""
+    # Flatten nested unions
+    flat: set[Any] = set()
+    for t in types:
+        if isinstance(t, UnionType) or (get_origin(t) is None and isinstance(t, UnionType)):
+            flat.update(get_args(t))
+        else:
+            # Handle both A|B and typing.Union[...] via get_origin
+            o = get_origin(t)
+            if o is UnionType:
+                flat.update(get_args(t))
+            else:
+                flat.add(t)
+
+    # Also flatten typing.Union if any slipped in
+    really_flat: set[Any] = set()
+    for t in flat:
+        o = get_origin(t)
+        if o is None:
+            really_flat.add(t)
+        else:
+            # PEP604 unions report origin types.UnionType in 3.10+ via get_origin?
+            # But typing.Union reports origin typing.Union.
+            if str(o).endswith("typing.Union"):
+                really_flat.update(get_args(t))
+            else:
+                really_flat.add(t)
+
+    # Dedupe / stable
+    if not really_flat:
+        return object
+    if len(really_flat) == 1:
+        return next(iter(really_flat))
+
+    # Build A | B | C
+    out = None
+    for t in sorted(really_flat, key=lambda x: _type_sort_key(x)):
+        out = t if out is None else (out | t)
+    return out
+
+
+def _type_sort_key(tp: Any) -> tuple[int, str]:
+    """Stable-ish ordering: None first, then builtins, then by name."""
+    if tp is NoneType:
+        return (0, "None")
+    if isinstance(tp, type):
+        return (1, tp.__module__ + "." + tp.__qualname__)
+    return (2, str(tp))
+
+
+def get_normalized_actual_type_from_value(value: Any) -> Any:
+    """Return a normalized annotation describing the runtime structure of value."""
+    # None
+    if value is None:
+        return NoneType
+
+    if value is Any:
+        return Any
+
+    # dict
+    if isinstance(value, dict):
+        if not value:
+            return dict[Any, Any]
+        key_ann = _make_union({get_normalized_actual_type_from_value(k) for k in value})
+        val_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value.values()})
+        return dict[key_ann, val_ann]
+
+    # list / set / frozenset
+    if isinstance(value, list):
+        if not value:
+            return list[Any]
+        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        return list[elem_ann]
+
+    if isinstance(value, set):
+        if not value:
+            return set[Any]
+        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        return set[elem_ann]
+
+    if isinstance(value, frozenset):
+        if not value:
+            return frozenset[Any]
+        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        return frozenset[elem_ann]
+
+    # tuple (optional but often handy)
+    if isinstance(value, tuple):
+        if not value:
+            return tuple[()]
+        elem_anns = tuple(get_normalized_actual_type_from_value(v) for v in value)
+        return tuple[elem_anns]
+
+    # leaf type
+    return type(value)
+
+
+def format_annotation(tp: Any) -> str:
+    """Format a normalized annotation into a clean string."""
+    # NoneType
+    if tp is NoneType:
+        return "None"
+
+    if tp is Any:
+        return "Any"
+
+    # PEP604 union
+    if isinstance(tp, UnionType):
+        parts = [format_annotation(a) for a in get_args(tp)]
+        # Keep None first for readability: None | str
+        parts.sort(key=lambda s: (0 if s == "None" else 1, s))
+        return " | ".join(parts)
+
+    origin = get_origin(tp)
+    if origin is not None:
+        args = get_args(tp)
+
+        # tuple[()]
+        if origin is tuple and args == ((),):
+            return "tuple[()]"
+
+        name = origin.__name__ if hasattr(origin, "__name__") else str(origin)
+        if args:
+            inner = ", ".join(format_annotation(a) for a in args)
+            return f"{name}[{inner}]"
+        return name
+
+    # plain class/type
+    if isinstance(tp, type):
+        # builtins: str, int, dict, etc.
+        if tp.__module__ == "builtins":
+            return tp.__name__
+        return f"{tp.__module__}.{tp.__qualname__}"
+
+    # fallback
+    return str(tp)
+
+
+def get_pretty_actual_type_from_value(value: Any) -> str:
+    """Return a pretty string describing the runtime structure of value."""
+    ann = get_normalized_actual_type_from_value(value)
+    return format_annotation(ann)

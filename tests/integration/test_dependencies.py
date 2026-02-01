@@ -768,6 +768,7 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
 
 class TestDependencyInjectionTypeConversionHandlesComplexTypes:
     async def test_typed_annotation_handles_list_of_int(self):
+        """Asserts that when we have a nested type of list[int], the elements are converted to int."""
         light_state_old = make_light_state_dict(rgb_color=[255, 0, 0])
         light_state_new = make_light_state_dict(rgb_color=["0", "255", "0"])
         light_event = make_full_state_change_event(
@@ -785,6 +786,7 @@ class TestDependencyInjectionTypeConversionHandlesComplexTypes:
         assert kwargs == {"rgb_color": [0, 255, 0]}
 
     async def test_typed_annotation_handles_dict_str_int(self):
+        """Asserts that when the dict has str keys and int values, the values are converted to int."""
         light_state_old = make_light_state_dict(color_temp=250)
         light_state_new = make_light_state_dict(color_temp="400")
         light_event = make_full_state_change_event(
@@ -802,6 +804,7 @@ class TestDependencyInjectionTypeConversionHandlesComplexTypes:
         assert kwargs == {"attrs": {"color_temp": 400}}
 
     async def test_typed_annotation_handles_dict_mixed_type(self):
+        """Asserts that when the dict has mixed types, each value is converted to the correct type."""
         light_state_old = make_light_state_dict(color_temp=250, effect=None)
         light_state_new = make_light_state_dict(color_temp="400", effect="blink")
         light_event = make_full_state_change_event(
@@ -817,3 +820,79 @@ class TestDependencyInjectionTypeConversionHandlesComplexTypes:
         # succeeds if there is no exception
         kwargs = injector.inject_parameters(light_event)
         assert kwargs == {"attrs": {"color_temp": 400, "effect": "blink"}}
+
+    async def test_typed_annotation_handles_incoming_elements_mixed_types(self):
+        """Asserts that when the element type is int and all elements can be converted to int, they are converted."""
+        light_state_old = make_light_state_dict(rgb_color=[255, 0, 0])
+        light_state_new = make_light_state_dict(rgb_color=[12345, "67890", "13579"])
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[list[int], A.get_attr_new("rgb_color")]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"rgb_color": [12345, 67890, 13579]}
+
+    async def test_typed_annotation_handles_incoming_elements_mixed_types_cannot_convert_raises(self):
+        """Asserts that when the element type is int and not all elements can be converted, raises."""
+        light_state_old = make_light_state_dict(rgb_color=[255, 0, 0])
+        light_state_new = make_light_state_dict(rgb_color=[12345, "test", "13579"])
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[list[int], A.get_attr_new("rgb_color")]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        with pytest.raises(DependencyResolutionError, match=r".*failed to convert parameter 'rgb_color'.*"):
+            injector.inject_parameters(light_event)
+
+    async def test_typed_annotation_handles_incoming_elements_mixed_types_can_convert_converts_successfully(self):
+        """Asserts that when the union starts with int, all elements that can be converted to int are converted."""
+        light_state_old = make_light_state_dict(rgb_color=[255, 0, 0])
+        light_state_new = make_light_state_dict(rgb_color=[12345, "test", "13579"])
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[list[int | str], A.get_attr_new("rgb_color")]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"rgb_color": [12345, "test", 13579]}
+
+    async def test_typed_annotation_handles_incoming_elements_with_str_annotation_converts_all_to_str(self):
+        """
+        Asserts that when the union starts with str, all elements are converted to str, regardless of other
+        types in the Union
+        """
+
+        light_state_old = make_light_state_dict(rgb_color=[255, 0, 0])
+        light_state_new = make_light_state_dict(rgb_color=[12345, "test", "13579"])
+        light_event = make_full_state_change_event(
+            entity_id="light.kitchen", old_state=light_state_old, new_state=light_state_new
+        )
+
+        def new_state_handler(rgb_color: Annotated[list[str | int], A.get_attr_new("rgb_color")]):
+            pass
+
+        signature = get_typed_signature(new_state_handler)
+        injector = ParameterInjector(new_state_handler.__name__, signature)
+
+        # succeeds if there is no exception
+        kwargs = injector.inject_parameters(light_event)
+        assert kwargs == {"rgb_color": ["12345", "test", "13579"]}

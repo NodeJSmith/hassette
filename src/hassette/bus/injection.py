@@ -8,7 +8,8 @@ from typing import Any
 
 from hassette.conversion import ANNOTATION_CONVERTER, TYPE_MATCHER
 from hassette.exceptions import DependencyError, DependencyInjectionError, DependencyResolutionError
-from hassette.utils.type_utils import is_optional, normalize_annotation
+from hassette.utils.func_utils import callable_short_name
+from hassette.utils.type_utils import get_pretty_actual_type_from_value, is_optional, normalize_annotation
 
 from .extraction import extract_from_signature, validate_di_signature
 
@@ -109,12 +110,15 @@ class ParameterInjector:
                 f"of type '{param_type}': {e}"
             ) from e
 
+        actual_type = get_pretty_actual_type_from_value(extracted_value)
+
         normalized = normalize_annotation(param_type, constructible=True)
         if extracted_value is None and is_optional(normalized):
             return None
 
         # If caller didn't provide a custom converter, use the annotation-aware one
         conv = converter or ANNOTATION_CONVERTER.convert
+        conv_name = callable_short_name(conv, 2)
 
         # Fast path: if it already matches (deep), skip conversion
         if TYPE_MATCHER.matches(extracted_value, normalized):
@@ -132,8 +136,8 @@ class ParameterInjector:
         except Exception as e:
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
-                f"of type '{normalized}' to '{param_type}' "
-                f"using converter {conv} "
+                f"of type '{actual_type}' to '{param_type}' "
+                f"using converter {conv_name} "
                 f": {type(e).__name__}: {e}"
             ) from e
 
