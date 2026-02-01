@@ -25,6 +25,10 @@ jobs:
               with:
                   python-version: ${{ matrix.python-version }}
 
+            - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+            - uses: jakebailey/pyright-action@v2
+
             - name: Run lint checks
               run: |
                   uv tool install ruff==0.14.9
