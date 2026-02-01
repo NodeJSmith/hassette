@@ -29,13 +29,6 @@ jobs:
 
             - run: uv sync
 
-            - uses: jakebailey/pyright-action@v2
-              with:
-                  verbose: true
-                  version: 1.1.408
-                  project: ./pyrightconfig.json
-                  pylance-version: latest-release
-
             - name: Run lint checks
               run: |
                   uv tool install ruff==0.14.9

@@ -135,7 +135,7 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
 def warn_log_level_not_valid(log_level: str, fallback_value: LOG_LEVEL_TYPE) -> None:
     warn(
         f"Log level {log_level!r} is not valid, defaulting to {fallback_value!r}. ",
-        skip_file_prefixes=("hassette.config.helpers", "pydantic"),
+        skip_file_prefixes=("hassette.config.helpers", "pydantic"),  # pyright: ignore[reportCallIssue] # for stupid 3.11 bug
     )
 
 

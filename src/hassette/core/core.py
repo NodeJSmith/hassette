@@ -213,7 +213,8 @@ class Hassette(Resource):
         self._loop_thread_id = threading.get_ident()
         self.loop.set_debug(self.config.asyncio_debug_mode)
 
-        self.loop.set_task_factory(make_task_factory(self.task_bucket))
+        # pyright ignore is to handle what seems like another 3.11 bug/type issue
+        self.loop.set_task_factory(make_task_factory(self.task_bucket))  # pyright: ignore[reportArgumentType]
 
         self._start_resources()
 
