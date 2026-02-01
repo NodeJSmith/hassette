@@ -142,6 +142,68 @@ def get_attr_old_new(name: str) -> Callable[["RawStateChangeEvent"], tuple[Any, 
     return _inner
 
 
+def get_attrs_new(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
+    """Get specific attributes from the new state in a RawStateChangeEvent."""
+
+    def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
+        data = event.payload.data
+        new_attrs: dict[str, Any] = data.new_state.get("attributes", {}) if data.new_state else {}
+        return {name: new_attrs.get(name, MISSING_VALUE) for name in names}
+
+    return _inner
+
+
+def get_attrs_old(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
+    """Get specific attributes from the old state in a RawStateChangeEvent."""
+
+    def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
+        data = event.payload.data
+        old_attrs: dict[str, Any] = data.old_state.get("attributes", {}) if data.old_state else {}
+        return {name: old_attrs.get(name, MISSING_VALUE) for name in names}
+
+    return _inner
+
+
+def get_attrs_old_new(
+    names: list[str],
+) -> Callable[["RawStateChangeEvent"], tuple[dict[str, Any], dict[str, Any]]]:
+    """Get specific attributes from the old and new state in a RawStateChangeEvent."""
+
+    def _inner(event: "RawStateChangeEvent") -> tuple[dict[str, Any], dict[str, Any]]:
+        old = get_attrs_old(names)(event)
+        new = get_attrs_new(names)(event)
+        return (old, new)
+
+    return _inner
+
+
+def get_all_attr_old(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
+    """Get all attributes from the old state in a RawStateChangeEvent."""
+    data = event.payload.data
+    if data.old_state is None:
+        return MISSING_VALUE
+
+    return data.old_state.get("attributes", {})
+
+
+def get_all_attr_new(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
+    """Get all attributes from the new state in a RawStateChangeEvent."""
+    data = event.payload.data
+    if data.new_state is None:
+        return MISSING_VALUE
+
+    return data.new_state.get("attributes", {})
+
+
+def get_all_attr_old_new(
+    event: "RawStateChangeEvent",
+) -> tuple[dict[str, Any] | FalseySentinel, dict[str, Any] | FalseySentinel]:
+    """Get all attributes from the old and new state in a RawStateChangeEvent."""
+    old = get_all_attr_old(event)
+    new = get_all_attr_new(event)
+    return (old, new)
+
+
 # ---------------------------------------------------------------------------
 # Extractors for generic events
 # ---------------------------------------------------------------------------

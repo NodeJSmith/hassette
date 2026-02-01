@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `C` = `hassette.event_handling.conditions`
   - `D` = `hassette.event_handling.dependencies`
 - Add new `Comparison` condition for basic operators (e.g. `==`, `!=`, `<`, `>`, etc.) to compare values in state/attribute change listeners
+- Add new accessors for getting multiple/all attributes at once from state change events
+  - `get_attrs_<old|new|old_new>` - specify a list of attrs
+  - `get_all_attrs_<old|new|old_new>` - get all attributes as a dict
 
 ### Fixed
 - Fix AppHandler reporting failed apps as successful by using status attribute
