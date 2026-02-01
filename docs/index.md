@@ -13,29 +13,38 @@ If you're familiar with the Python ecosystem, consider it like a marriage betwee
 ## Why Hassette?
 
 - **Write automations as code**: Build “apps” as Python classes that subscribe to events, call services, and manage state.
-- **Async-first, but pragmatic**: Use async where it matters; sync apps are supported too.
+- **Async-first**: Use async where it matters; sync apps are supported too.
 - **Type-safe configuration**: Pydantic models give validation, defaults, and IDE help.
 - **Dependency injection**: Clean handler signatures that focus on the data you need.
 - **Great DX**: Clear logs, fast iteration, and hot reloading during development.
 
 ## See it in action
 
-This short clip shows live reloading and the overall “tight feedback loop” you get while building automations.
+#### Autocomplete + type annotations
+
+Type annotations and Pydantic models give you IDE autocomplete and inline docs for Home Assistant entities, services, and more.
 
 <video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
-    <source src="./_static/live_reloading.webm" type="video/webm">
-    <source src="./_static/live_reloading.mp4" type="video/mp4">
+    <source src="./_static/autocomplete.webm" type="video/webm">
+    <source src="./_static/autocomplete.mp4" type="video/mp4">
     Your browser does not support the video tag.
 </video>
 
-!!! tip
+#### Filtered event handling
 
-    Looking for setup instructions? Start here: [First Run](pages/getting-started/first-run.md)
+Fluent APIs let you easily subscribe to only the events you care about.
+
+<video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
+    <source src="./_static/filtered_events.webm" type="video/webm">
+    <source src="./_static/filtered_events.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+</video>
+
 
 ## What you can build
 
 - Event-driven automations (state changes, events, scheduled jobs)
-- Multi-instance apps with separate configs (e.g., “upstairs” and “downstairs”)
+- Multi-instance apps with separate configs (e.g., "upstairs" and "downstairs")
 - Typed, validated configuration for safer refactors
 - Cleaner integrations with Home Assistant services and entities
 
@@ -43,6 +52,6 @@ This short clip shows live reloading and the overall “tight feedback loop” y
 
 - Local setup: [First Run](pages/getting-started/first-run.md)
 - Production: [Docker Deployment](pages/getting-started/docker/index.md)
-- Core patterns: [Apps Overview](pages/core-concepts/apps/index.md)
+- Architecture overview: [Core Concepts](pages/core-concepts/index.md)
 - Full configuration: [Configuration Overview](pages/core-concepts/configuration/index.md)
 - Migration: [AppDaemon Comparison](pages/appdaemon-comparison.md)
