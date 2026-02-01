@@ -2,6 +2,9 @@
 
 set -eu # no pipefail in busybox ash
 
+# shellcheck disable=SC1091
+. /app/.venv/bin/activate
+
 HASSETTE_VERSION=$(uv version --short --directory /app)
 
 echo "Running Hassette version $HASSETTE_VERSION"
@@ -53,7 +56,7 @@ echo "Completed installation of found requirements.txt files"
 if [ -n "${HASSETTE_VERSION:-}" ]; then
     # ensure correct version of hassette is still installed
     echo "Ensuring hassette version ${HASSETTE_VERSION} is installed"
-    uv pip install "hassette==${HASSETTE_VERSION}"
+    uv pip install /app
 else
     echo "No specific hassette version specified"
 fi
