@@ -8,6 +8,7 @@ from frozendict import deepfreeze, frozendict
 from hassette.conversion import STATE_REGISTRY, StateKey
 from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import RegistryNotReadyError
+from hassette.models import states
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
 from hassette.types import StateT
@@ -332,7 +333,7 @@ class StateManager(Resource):
         """
         return model in STATE_REGISTRY
 
-    def __iter__(self) -> Iterator[tuple[StateKey, DomainStates[Any]]]:
+    def __iter__(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
         """Iterate over all registered state classes with their keys.
 
         Returns:
@@ -340,7 +341,7 @@ class StateManager(Resource):
         """
         yield from self.items()
 
-    def items(self) -> Iterator[tuple[StateKey, DomainStates[Any]]]:
+    def items(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
         """Iterate over all registered state classes with their keys.
 
         Returns:
@@ -349,7 +350,7 @@ class StateManager(Resource):
         for key, state_class in STATE_REGISTRY.items():
             yield key, self[state_class]
 
-    def values(self) -> Iterator[DomainStates[Any]]:
+    def values(self) -> Iterator[DomainStates[states.BaseState]]:
         """Iterate over all registered state classes.
 
         Returns:

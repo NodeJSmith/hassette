@@ -1,5 +1,6 @@
 import logging
 from contextlib import suppress
+from functools import partial
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -29,7 +30,7 @@ from hassette.utils.app_utils import autodetect_apps, clean_app
 LOGGER_NAME = "hassette.config.config" if __name__ == "__main__" else __name__
 LOGGER = logging.getLogger(LOGGER_NAME)
 
-LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(coerce_log_level)]
+LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 
 
 class HassetteConfig(BaseSettings):
