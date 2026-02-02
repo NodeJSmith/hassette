@@ -80,7 +80,7 @@ class AutomationTriggeredPayload:
 
     name: str
     entity_id: str
-    source: str  # this one isn't on the docs page but is included apparently
+    source: str | None = None  # this one isn't on the docs page but is included apparently
     # https://www.home-assistant.io/docs/configuration/events/#automation_triggered
 
 
