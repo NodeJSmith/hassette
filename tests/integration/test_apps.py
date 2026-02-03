@@ -7,11 +7,14 @@ import pytest
 
 from hassette import Hassette
 from hassette.bus import Listener
-from hassette.core.app_handler import AppHandler, load_app_class_from_manifest
+from hassette.core.app_change_detector import ChangeSet
 from hassette.types import Topic
+from hassette.utils.app_utils import load_app_class_from_manifest
 
 if typing.TYPE_CHECKING:
     from data.my_app import MyApp
+
+    from hassette.core.app_handler import AppHandler
 
 
 class TestApps:
@@ -84,7 +87,9 @@ class TestApps:
         """Verify that editing hassette.toml to disable an app stops the running instance."""
 
         assert "my_app" in self.app_handler.apps, "Precondition: my_app starts enabled"
-        assert self.app_handler.apps_config["my_app"].enabled is True, "Precondition: my_app config shows enabled"
+        assert self.app_handler.registry.manifests["my_app"].enabled is True, (
+            "Precondition: my_app config shows enabled"
+        )
 
         event = asyncio.Event()
 
@@ -101,12 +106,12 @@ class TestApps:
             )
         )
 
-        with patch.object(self.app_handler, "_calculate_app_changes") as mock_calc_changes:
-            mock_calc_changes.return_value = (
-                {"my_app"},  # orphans
-                set(),  # new_apps
-                set(),  # reimport_apps
-                set(),  # reload_apps
+        with patch.object(self.app_handler.change_detector, "detect_changes") as mock_detect:
+            mock_detect.return_value = ChangeSet(
+                orphans=frozenset({"my_app"}),
+                new_apps=frozenset(),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
             )
 
             await self.app_handler.handle_change_event()
@@ -119,11 +124,11 @@ class TestApps:
         """Verify that editing hassette.toml to enable a disabled app starts the instance."""
 
         assert "disabled_app" not in self.app_handler.apps, "Precondition: disabled_app starts disabled"
-        assert self.app_handler.apps_config["disabled_app"].enabled is False, (
+        assert self.app_handler.registry.manifests["disabled_app"].enabled is False, (
             "Precondition: disabled_app config shows disabled"
         )
 
-        new_app_config = deepcopy(self.app_handler.apps_config)
+        new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["disabled_app"].enabled = True
 
         event = asyncio.Event()
@@ -142,16 +147,16 @@ class TestApps:
         )
 
         with (
-            patch.object(self.app_handler, "_calculate_app_changes") as mock_calc_changes,
+            patch.object(self.app_handler.change_detector, "detect_changes") as mock_detect,
             patch.object(self.app_handler, "refresh_config") as mock_refresh_config,
         ):
-            self.app_handler.apps_config = new_app_config
-            mock_refresh_config.return_value = (self.app_handler.apps_config, new_app_config)
-            mock_calc_changes.return_value = (
-                set(),  # orphans
-                {"disabled_app"},  # new_apps
-                set(),  # reimport_apps
-                set(),  # reload_apps
+            self.app_handler.registry.set_manifests(new_app_config)
+            mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
+            mock_detect.return_value = ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset({"disabled_app"}),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
             )
 
             await self.app_handler.handle_change_event()
@@ -172,9 +177,13 @@ class TestApps:
             "Precondition: my_app config has initial value"
         )
 
-        self.app_handler.apps_config["my_app"].app_config = {"test_entity": "light.office"}
+        self.app_handler.registry.manifests["my_app"].app_config = {"test_entity": "light.office"}
 
-        await self.app_handler._reload_apps_due_to_config({"my_app"})
+        change_set = ChangeSet(
+            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"my_app"})
+        )
+
+        await self.app_handler.apply_changes(change_set)
         # using manual sleep here, as the event doesn't get sent unless we call `handle_changes`
         await asyncio.sleep(0.3)
 
