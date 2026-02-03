@@ -100,7 +100,9 @@ class AppLifecycleManager:
 
             end_time = timer()
             friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")
-            self.logger.debug("Stopped app '%s' in %s", inst.app_config.instance_name, friendly_time)
+            self.logger.debug(
+                "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.__class__.__name__, friendly_time
+            )
         except Exception:
             self.logger.error(
                 "Failed to stop app '%s' after %s seconds:\n%s",
