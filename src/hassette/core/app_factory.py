@@ -73,7 +73,7 @@ class AppFactory:
                     app_config=validated,
                     index=idx,
                 )
-                self.registry.apps[app_key][idx] = app_instance
+                self.registry.register_app(app_key, idx, app_instance)
             except Exception as e:
                 self.logger.error(
                     "Failed to validate/init config for %s (%s):\n%s",
