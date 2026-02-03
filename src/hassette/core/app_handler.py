@@ -289,7 +289,7 @@ class AppHandler(Resource):
     async def stop_app(self, app_key: str) -> None:
         """Stop and remove all instances for a given app_name."""
         try:
-            instances = self.registry.apps.pop(app_key, None)
+            instances = self.registry.unregister_app(app_key)
             if not instances:
                 self.logger.warning("Cannot stop app %s, not found", app_key)
                 return
