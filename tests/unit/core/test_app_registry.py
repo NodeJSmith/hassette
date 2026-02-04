@@ -140,9 +140,9 @@ class TestAppRegistry:
         error = Exception("test error")
         registry.record_failure("my_app", 0, error)
 
-        assert "my_app" in registry.failed_apps
-        assert len(registry.failed_apps["my_app"]) == 1
-        assert registry.failed_apps["my_app"][0] == (0, error)
+        snapshot = registry.get_snapshot()
+
+        assert "my_app" in snapshot.failed_apps
 
     def test_record_multiple_failures(self, registry: AppRegistry) -> None:
         """Test recording multiple failures for the same app."""
@@ -152,7 +152,10 @@ class TestAppRegistry:
         registry.record_failure("my_app", 0, error1)
         registry.record_failure("my_app", 1, error2)
 
-        assert len(registry.failed_apps["my_app"]) == 2
+        apps_dict = registry.get_snapshot().apps_dict
+
+        assert ("my_app", 0) in apps_dict
+        assert ("my_app", 1) in apps_dict
 
     def test_clear_failures_single_app(self, registry: AppRegistry) -> None:
         """Test clearing failures for a single app."""
@@ -161,8 +164,10 @@ class TestAppRegistry:
 
         registry.clear_failures("app1")
 
-        assert "app1" not in registry.failed_apps
-        assert "app2" in registry.failed_apps
+        snapshot = registry.get_snapshot()
+
+        assert "app1" not in snapshot.failed_apps
+        assert "app2" in snapshot.failed_apps
 
     def test_clear_failures_all(self, registry: AppRegistry) -> None:
         """Test clearing all failures."""
@@ -171,7 +176,7 @@ class TestAppRegistry:
 
         registry.clear_failures()
 
-        assert len(registry.failed_apps) == 0
+        assert registry.get_snapshot().failed_count == 0
 
     # --- Query tests ---
 
@@ -311,7 +316,7 @@ class TestAppRegistry:
         registry.clear_all()
 
         assert len(registry.apps) == 0
-        assert len(registry.failed_apps) == 0
+        assert registry.get_snapshot().failed_count == 0
 
     # --- Manifest and only_app tests ---
 

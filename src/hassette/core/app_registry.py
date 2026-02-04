@@ -51,11 +51,31 @@ class AppStatusSnapshot:
 
     @property
     def running_count(self) -> int:
+        """Number of running app instances."""
         return len(self.running)
 
     @property
     def failed_count(self) -> int:
+        """Number of failed app instances."""
         return len(self.failed)
+
+    @property
+    def failed_apps(self) -> set[str]:
+        """Set of app keys with failed instances."""
+        return {info.app_key for info in self.failed}
+
+    @property
+    def running_apps(self) -> set[str]:
+        """Set of app keys with running instances."""
+        return {info.app_key for info in self.running}
+
+    @property
+    def apps_dict(self) -> dict[tuple[str, int], AppInstanceInfo]:
+        """Dictionary of app instances keyed by (app_key, index)."""
+        result: dict[tuple[str, int], AppInstanceInfo] = {}
+        for info in self.running + self.failed:
+            result[(info.app_key, info.index)] = info
+        return result
 
 
 class AppRegistry:
