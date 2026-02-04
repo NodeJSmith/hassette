@@ -1,5 +1,6 @@
 """Tests for AppChangeDetector."""
 
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -98,7 +99,7 @@ class TestAppChangeDetector:
         return AppChangeDetector()
 
     @pytest.fixture
-    def make_manifest(self) -> callable:
+    def make_manifest(self) -> Callable:
         """Factory for creating mock manifests."""
 
         def _make(app_key: str, full_path: Path | None = None, app_config: dict | None = None) -> MagicMock:
@@ -112,7 +113,7 @@ class TestAppChangeDetector:
 
     # --- Basic detection tests ---
 
-    def test_no_changes(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_no_changes(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting no changes."""
         config = {"app1": make_manifest("app1")}
 
@@ -120,7 +121,7 @@ class TestAppChangeDetector:
 
         assert not changes.has_changes
 
-    def test_detect_orphans(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_detect_orphans(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting removed apps (orphans)."""
         app1_manifest = make_manifest("app1")
         app2_manifest = make_manifest("app2")
@@ -135,7 +136,7 @@ class TestAppChangeDetector:
         assert not changes.reimport_apps
         assert not changes.reload_apps
 
-    def test_detect_new_apps(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_detect_new_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting new apps."""
         app1_manifest = make_manifest("app1")
         app2_manifest = make_manifest("app2")
@@ -150,7 +151,7 @@ class TestAppChangeDetector:
         assert not changes.reimport_apps
         assert not changes.reload_apps
 
-    def test_detect_reimport_apps(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_detect_reimport_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting apps needing reimport due to file change."""
         changed_path = Path("/apps/app1.py")
         original = {"app1": make_manifest("app1", full_path=changed_path)}
@@ -163,7 +164,7 @@ class TestAppChangeDetector:
         assert not changes.new_apps
         assert not changes.reload_apps
 
-    def test_detect_reload_apps(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_detect_reload_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting apps needing reload due to config change."""
         original = {"app1": make_manifest("app1", app_config={"instance_name": "app1.0", "setting": "old"})}
         current = {"app1": make_manifest("app1", app_config={"instance_name": "app1.0", "setting": "new"})}
@@ -177,7 +178,7 @@ class TestAppChangeDetector:
 
     # --- Priority tests ---
 
-    def test_new_app_not_in_reload(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_new_app_not_in_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test that new apps are not also in reload_apps."""
         original: dict = {}
         current = {"app1": make_manifest("app1")}
@@ -187,7 +188,7 @@ class TestAppChangeDetector:
         assert "app1" in changes.new_apps
         assert "app1" not in changes.reload_apps
 
-    def test_reimport_not_in_reload(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_reimport_not_in_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test that reimport apps are not also in reload_apps."""
         changed_path = Path("/apps/app1.py")
         # Config change + file change should only be reimport
@@ -201,7 +202,7 @@ class TestAppChangeDetector:
 
     # --- Only app filter tests ---
 
-    def test_only_app_filter_excludes_other_apps(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_only_app_filter_excludes_other_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test that only_app filter excludes other apps from current."""
         detector.set_only_app_filter("app1")
 
@@ -213,7 +214,7 @@ class TestAppChangeDetector:
         # app2 should be seen as orphan since it's filtered out of current
         assert "app2" in changes.orphans
 
-    def test_only_app_filter_allows_target_app(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_only_app_filter_allows_target_app(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test that only_app filter allows the target app."""
         detector.set_only_app_filter("app1")
 
@@ -242,7 +243,7 @@ class TestAppChangeDetector:
 
     # --- Complex scenarios ---
 
-    def test_multiple_changes(self, detector: AppChangeDetector, make_manifest: callable) -> None:
+    def test_multiple_changes(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting multiple types of changes at once."""
         changed_path = Path("/apps/app2.py")
 
