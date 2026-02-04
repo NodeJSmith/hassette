@@ -3,6 +3,7 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
+from logging import getLogger
 from typing import TYPE_CHECKING
 
 from hassette.types.enums import ResourceStatus
@@ -89,12 +90,19 @@ class AppRegistry:
         self._failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
         self._manifests: dict[str, AppManifest] = {}
         self._only_app: str | None = None
+        self.logger = getLogger(f"{__name__}.AppRegistry")
 
     # --- State mutation methods ---
 
     def register_app(self, app_key: str, index: int, app: "App[AppConfig]") -> None:
         """Register a running app instance."""
+        if app_key in self._failed_apps and index in [idx for idx, _ in self._failed_apps[app_key]]:
+            # Clear any previous failures for this app_key
+            self.logger.debug("Clearing previous failure records for app '%s' index %d", app_key, index)
+            self._failed_apps.pop(app_key)
+
         self._apps[app_key][index] = app
+        self.logger.debug("Registered app '%s' index %d", app_key, index)
 
     def unregister_app(self, app_key: str, index: int | None = None) -> dict[int, "App[AppConfig]"] | None:
         """Remove app instance(s). Returns removed instances."""
@@ -108,6 +116,12 @@ class AppRegistry:
 
     def record_failure(self, app_key: str, index: int, error: Exception) -> None:
         """Record a failed app startup/crash."""
+        if app_key in self._apps and index in self._apps[app_key]:
+            # Remove from running apps if present
+            self.logger.debug("Removing running app '%s' index %d due to failure", app_key, index)
+            self._apps[app_key].pop(index)
+        self.logger.debug("Recording failure for app '%s' index %d: %s", app_key, index, error)
+
         self._failed_apps[app_key].append((index, error))
 
     def clear_failures(self, app_key: str | None = None) -> None:

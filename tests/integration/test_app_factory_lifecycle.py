@@ -295,8 +295,11 @@ class TestAppLifecycleManagerIntegration:
         await app_lifecycle.initialize_instances("failing", instances, manifest)
 
         # App should be marked as stopped
-        app_instance = app_registry.apps["failing"][0]
-        assert app_instance.status == ResourceStatus.STOPPED
+        app_instance = app_registry.get("failing", 0)
+        assert app_instance is None, "Failed app instance should be removed from registry after init failure"
+        assert instances[0].status == ResourceStatus.STOPPED, (
+            "Failed app instance should be marked as STOPPED after init failure"
+        )
 
     async def test_lifecycle_records_exception_failure(
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
@@ -342,9 +345,13 @@ class TestAppLifecycleManagerIntegration:
         await lifecycle.initialize_instances("multi_instance", success_instances, success_manifest)
 
         # Failing app should be stopped
-        assert app_registry.apps["failing"][0].status == ResourceStatus.STOPPED
+        assert failing_instances[0].status == ResourceStatus.STOPPED
+        assert app_registry.get("failing", 0) is None, (
+            "Failed app instance should be removed from registry after init failure"
+        )
         # Success app should be running
-        assert app_registry.apps["multi_instance"][0].status == ResourceStatus.RUNNING
+        assert app_registry.get("multi_instance", 0) is not None
+        assert app_registry.get("multi_instance", 0).status == ResourceStatus.RUNNING
 
     async def test_lifecycle_shuts_down_real_app(
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
