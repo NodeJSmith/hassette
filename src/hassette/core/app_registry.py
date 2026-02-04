@@ -116,6 +116,10 @@ class AppRegistry:
         """Get a specific app instance."""
         return self._apps.get(app_key, {}).get(index)
 
+    def get_manifest(self, app_key: str) -> "AppManifest | None":
+        """Get the manifest for an app key."""
+        return self._manifests.get(app_key)
+
     def all_apps(self) -> list["App[AppConfig]"]:
         """Get all running app instances."""
         return [inst for group in self._apps.values() for inst in group.values()]
@@ -179,11 +183,6 @@ class AppRegistry:
     def apps(self) -> dict[str, dict[int, "App[AppConfig]"]]:
         """Direct access to apps dict (for backwards compatibility)."""
         return self._apps
-
-    @property
-    def failed_apps(self) -> dict[str, list[tuple[int, Exception]]]:
-        """Direct access to failed_apps dict (for backwards compatibility)."""
-        return self._failed_apps
 
     @property
     def only_app(self) -> str | None:

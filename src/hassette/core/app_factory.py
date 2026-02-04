@@ -50,7 +50,7 @@ class AppFactory:
         if app_class is None:
             # Class loading failed - record failure at index 0
             load_error = self._get_load_error(manifest)
-            self.registry.failed_apps[app_key].append((0, load_error))
+            self.registry.record_failure(app_key, 0, load_error)
             return
 
         # Set manifest on class
@@ -61,8 +61,8 @@ class AppFactory:
         for idx, config in enumerate(app_configs):
             instance_name = config.get("instance_name")
             if not instance_name:
-                self.registry.failed_apps[app_key].append(
-                    (idx, ValueError(f"App {app_key} instance {idx} is missing instance_name"))
+                self.registry.record_failure(
+                    app_key, idx, ValueError(f"App {app_key} instance {idx} is missing instance_name")
                 )
                 continue
 
@@ -81,7 +81,7 @@ class AppFactory:
                     app_class.__name__,
                     get_short_traceback(),
                 )
-                self.registry.failed_apps[app_key].append((idx, e))
+                self.registry.record_failure(app_key, idx, e)
 
     def _load_class(
         self,

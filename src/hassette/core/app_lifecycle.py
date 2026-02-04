@@ -73,7 +73,7 @@ class AppLifecycleManager:
                     get_short_traceback(5),
                 )
                 inst.status = ResourceStatus.STOPPED
-                self.registry.failed_apps[app_key].append((idx, e))
+                self.registry.record_failure(app_key, idx, e)
             except Exception as e:
                 self.logger.error(
                     "Failed to start app '%s' (%s):\n%s",
@@ -82,7 +82,7 @@ class AppLifecycleManager:
                     get_short_traceback(5),
                 )
                 inst.status = ResourceStatus.STOPPED
-                self.registry.failed_apps[app_key].append((idx, e))
+                self.registry.record_failure(app_key, idx, e)
 
     async def shutdown_instance(self, inst: "App[AppConfig]", with_cleanup: bool = True) -> None:
         """Shutdown a single app instance.
@@ -140,7 +140,7 @@ class AppLifecycleManager:
         """Shutdown all registered apps."""
         self.logger.debug("Shutting down all apps")
 
-        for app_key, instances in list(self.registry.apps.items()):
-            await self.shutdown_instances(dict(instances), app_key)
+        for app in self.registry.all_apps():
+            await self.shutdown_instance(app)
 
         self.registry.clear_all()

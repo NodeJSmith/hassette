@@ -15,7 +15,6 @@ from hassette.events.hassette import HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.resources.base import Resource
 from hassette.types import Topic
-from hassette.types.enums import ResourceStatus
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -76,16 +75,6 @@ class AppHandler(Resource):
         """Running apps - delegates to registry."""
         return self.registry.apps
 
-    @property
-    def failed_apps(self) -> dict[str, list[tuple[int, Exception]]]:
-        """Apps we could not start/failed to start - delegates to registry."""
-        return self.registry.failed_apps
-
-    @property
-    def active_apps_config(self) -> dict[str, "AppManifest"]:
-        """Apps that are enabled."""
-        return self.registry.active_apps_config
-
     def get_status_snapshot(self) -> AppStatusSnapshot:
         """Get immutable snapshot of all app states for web UI."""
         return self.registry.get_snapshot()
@@ -135,11 +124,11 @@ class AppHandler(Resource):
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
         """Get a specific app instance if running."""
-        return self.registry.apps.get(app_key, {}).get(index)
+        return self.registry.get(app_key, index)
 
     def all(self) -> list["App[AppConfig]"]:
         """All running app instances."""
-        return [inst for group in self.registry.apps.values() for inst in group.values()]
+        return self.registry.all_apps()
 
     async def bootstrap_apps(self) -> None:
         """Initialize all configured and enabled apps, called at AppHandler startup."""
@@ -163,15 +152,15 @@ class AppHandler(Resource):
         try:
             await self._resolve_only_app()
             await self.start_apps()
-            if not self.registry.apps:
-                self.logger.warning("No apps were initialized successfully")
+            snapshot = self.get_status_snapshot()
+            if not snapshot.running_count and not snapshot.failed_count:
+                self.logger.warning("No apps were initialized (all apps may be disabled)")
             else:
-                success_count = sum(
-                    len([a for a in v.values() if a.status == ResourceStatus.RUNNING])
-                    for v in self.registry.apps.values()
+                self.logger.debug(
+                    "Initialized %d apps successfully, %d failed to start",
+                    snapshot.running_count,
+                    snapshot.failed_count,
                 )
-                fail_count = sum(len(v) for v in self.registry.failed_apps.values())
-                self.logger.debug("Initialized %d apps successfully, %d failed to start", success_count, fail_count)
 
             await self.hassette.send_event(
                 Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
@@ -186,7 +175,7 @@ class AppHandler(Resource):
         """Determine if any app is marked as only and update only app filter accordingly."""
         only_apps: list[str] = []
 
-        for app_manifest in self.active_apps_config.values():
+        for app_manifest in self.registry.active_apps_config.values():
             try:
                 if self.factory.check_only_app_decorator(app_manifest):
                     only_apps.append(app_manifest.app_key)
@@ -221,7 +210,7 @@ class AppHandler(Resource):
 
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
         """Reload the configuration and return (original_apps_config, current_apps_config)."""
-        original_apps_config = deepcopy(self.active_apps_config)
+        original_apps_config = deepcopy(self.registry.active_apps_config)
 
         # Reinitialize config to pick up changes.
         # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
@@ -231,7 +220,7 @@ class AppHandler(Resource):
             self.logger.exception("Failed to reload configuration: %s", e)
 
         self.set_apps_configs(self.hassette.config.app_manifests)
-        curr_apps_config = deepcopy(self.active_apps_config)
+        curr_apps_config = deepcopy(self.registry.active_apps_config)
 
         return original_apps_config, curr_apps_config
 
@@ -241,8 +230,8 @@ class AppHandler(Resource):
     ) -> None:
         """Handle changes detected by the watcher."""
 
-        # note: refresh_config will also update the only_app filter
         original_apps_config, curr_apps_config = await self.refresh_config()
+        await self._resolve_only_app()
 
         changes = self.change_detector.detect_changes(original_apps_config, curr_apps_config, changed_file_path)
         self.logger.debug("App changes detected - %s", changes)
@@ -265,7 +254,7 @@ class AppHandler(Resource):
             self.logger.exception("Error during app initialization: %s", result)
 
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:
-        app_manifest = self.registry.active_apps_config.get(app_key)
+        app_manifest = self.registry.get_manifest(app_key)
         if not app_manifest:
             self.logger.debug("Skipping disabled or unknown app %s", app_key)
             return
@@ -282,7 +271,7 @@ class AppHandler(Resource):
             self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
             return
 
-        instances = self.registry.apps.get(app_key, {})
+        instances = self.registry.get_apps_by_key(app_key)
         if instances:
             await self.task_bucket.spawn(self.lifecycle.initialize_instances(app_key, instances, app_manifest))
 
