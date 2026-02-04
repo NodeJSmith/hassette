@@ -3,7 +3,8 @@
     "allow": [
       "Bash(uv run pyright:*)",
       "Bash(uv run pytest:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(grep:*)"
     ]
   }
 }
