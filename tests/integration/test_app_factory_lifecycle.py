@@ -8,9 +8,16 @@ from hassette import Hassette
 from hassette.config.classes import AppManifest
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_lifecycle import AppLifecycleManager
-from hassette.core.app_registry import AppRegistry
+from hassette.core.app_registry import AppInstanceInfo, AppRegistry
 from hassette.types.enums import ResourceStatus
 from hassette.utils import app_utils
+
+
+def get_failed_by_key(registry: AppRegistry, app_key: str) -> list[AppInstanceInfo]:
+    """Get failed app instances for a specific app_key."""
+    snapshot = registry.get_snapshot()
+    return [info for info in snapshot.failed if info.app_key == app_key]
+
 
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
@@ -149,9 +156,9 @@ class TestAppFactoryIntegration:
         app_factory.create_instances("invalid", manifest)
 
         assert "invalid" not in app_registry.apps
-        assert len(app_registry._failed_apps["invalid"]) == 1
-        idx, _ = app_registry._failed_apps["invalid"][0]
-        assert idx == 0
+        failed = get_failed_by_key(app_registry, "invalid")
+        assert len(failed) == 1
+        assert failed[0].index == 0
 
     def test_factory_records_failure_for_missing_class(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Records failure when class doesn't exist in module."""
@@ -160,7 +167,8 @@ class TestAppFactoryIntegration:
         app_factory.create_instances("invalid", manifest)
 
         assert "invalid" not in app_registry.apps
-        assert len(app_registry._failed_apps["invalid"]) == 1
+        failed = get_failed_by_key(app_registry, "invalid")
+        assert len(failed) == 1
 
     def test_factory_records_failure_for_invalid_config(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Pydantic validation failure with real config class."""
@@ -176,7 +184,8 @@ class TestAppFactoryIntegration:
 
         # Should fail validation
         assert "my_app" not in app_registry.apps or len(app_registry.apps.get("my_app", {})) == 0
-        assert len(app_registry._failed_apps["my_app"]) == 1
+        failed = get_failed_by_key(app_registry, "my_app")
+        assert len(failed) == 1
 
     def test_factory_caches_loaded_class(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Second call returns same class object."""
@@ -186,7 +195,7 @@ class TestAppFactoryIntegration:
         first_class = app_registry.apps["my_app"][0].__class__
 
         # Clear registry but keep class cache
-        app_registry._apps.clear()
+        app_registry.unregister_app("my_app")
 
         app_factory.create_instances("my_app", manifest)
         second_class = app_registry.apps["my_app"][0].__class__
@@ -201,7 +210,7 @@ class TestAppFactoryIntegration:
         first_class = app_registry.apps["my_app"][0].__class__
 
         # Clear registry
-        app_registry._apps.clear()
+        app_registry.unregister_app("my_app")
 
         app_factory.create_instances("my_app", manifest, force_reload=True)
         second_class = app_registry.apps["my_app"][0].__class__
@@ -302,10 +311,10 @@ class TestAppLifecycleManagerIntegration:
         await app_lifecycle.initialize_instances("failing", instances, manifest)
 
         # Failure should be recorded
-        assert len(app_registry._failed_apps["failing"]) == 1
-        idx, error = app_registry._failed_apps["failing"][0]
-        assert idx == 0
-        assert "Intentional init failure" in str(error)
+        failed = get_failed_by_key(app_registry, "failing")
+        assert len(failed) == 1
+        assert failed[0].index == 0
+        assert "Intentional init failure" in failed[0].error_message
 
     async def test_lifecycle_continues_after_failed_instance(
         self, hassette_with_app_handler: Hassette, app_registry: AppRegistry

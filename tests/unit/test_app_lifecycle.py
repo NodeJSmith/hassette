@@ -166,7 +166,7 @@ class TestAppLifecycleManagerInitializeInstances:
     async def test_initialize_instances_logs_success(self, lifecycle, mock_app_instance: App, mock_manifest, caplog):
         """Logs at DEBUG level on successful initialization."""
         instances = {0: mock_app_instance}
-
+        lifecycle.logger.setLevel("DEBUG")
         with caplog.at_level("DEBUG"):
             await lifecycle.initialize_instances("test_app", instances, mock_manifest)
 
@@ -222,6 +222,7 @@ class TestAppLifecycleManagerShutdownInstance:
         self, lifecycle: AppLifecycleManager, mock_app_instance: App, caplog
     ):
         """Logs shutdown duration at DEBUG level."""
+        lifecycle.logger.setLevel("DEBUG")
         with caplog.at_level("DEBUG"):
             await lifecycle.shutdown_instance(mock_app_instance)
 
@@ -249,7 +250,7 @@ class TestAppLifecycleManagerShutdownInstances:
     async def test_shutdown_instances_logs_count(self, lifecycle: AppLifecycleManager, mock_app_instance: App, caplog):
         """Logs instance count and optional app_key."""
         instances = {0: mock_app_instance}
-
+        lifecycle.logger.setLevel("DEBUG")
         with caplog.at_level("DEBUG"):
             await lifecycle.shutdown_instances(instances, app_key="test_app")
 
