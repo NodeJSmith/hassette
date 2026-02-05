@@ -262,6 +262,7 @@ Under the hood, Hassette's DI system:
 5. **Injects values** at call time, passing extracted and converted values as keyword arguments
 
 The core implementation lives in:
+
 - [`extraction`][hassette.bus.extraction] - Signature inspection and parameter extraction
 - [`dependencies`][hassette.event_handling.dependencies] - Pre-defined DI annotations
 - [`accessors`][hassette.event_handling.accessors] - Low-level event data accessors

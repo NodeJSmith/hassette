@@ -74,11 +74,11 @@ The cache is automatically cleaned up during app shutdown, ensuring data is prop
 
 You can configure the maximum cache size in your [global configuration](configuration/global.md):
 
-```yaml
-# config.yaml
-hassette:
-  default_cache_size: 104857600  # 100 MiB (default)
-  data_dir: /path/to/data
+```toml
+# hassette.toml
+[hassette]
+default_cache_size = 104857600  # 100 MiB (default)
+data_dir = "/path/to/data"
 ```
 
 The `default_cache_size` setting controls the maximum size in bytes for each cache. When the limit is reached, the least recently used items are automatically evicted.
@@ -300,6 +300,7 @@ class DataCacheApp(App[AppConfig]):
 ### What to Cache
 
 ✅ **Good uses:**
+
 - Notification timestamps for rate-limiting
 - API responses with rate limits
 - Computed values that are expensive to calculate
@@ -308,6 +309,7 @@ class DataCacheApp(App[AppConfig]):
 - Counters and statistics across restarts
 
 ❌ **Avoid caching:**
+
 - Real-time Home Assistant state (use [StateManager](states/index.md) instead)
 - Large binary files (consider external storage)
 - Temporary session data (use instance variables)
@@ -391,10 +393,10 @@ If you're hitting size limits:
 
 Enable debug logging to see cache operations:
 
-```yaml
-# config.yaml
-logging:
-  level: DEBUG
+```toml
+# hassette.toml
+[logging]
+level = "DEBUG"
 ```
 
 Check the cache directory to verify data is being written:

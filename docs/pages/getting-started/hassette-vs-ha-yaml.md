@@ -47,11 +47,13 @@ Hassette brings Python's power to Home Assistant automations. This unlocks capab
 ## Making the Decision
 
 **Stick with YAML if:**
+
 - Your automations are simple trigger-action patterns
 - You're new to programming and want the easiest path
 - The Home Assistant UI works well for your needs
 
 **Consider Hassette if:**
+
 - You're hitting YAML's limitations (complex conditions, state tracking, code reuse)
 - You want to test and debug automations like regular code
 - You're comfortable with basic Python or willing to learn

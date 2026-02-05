@@ -12,6 +12,7 @@ graph TB
     A -->|subscribes to| Bus
     A -->|schedules| Scheduler
     A -->|accesses| States
+    A -->|persists to| Cache
 ```
 
 ## Defining an App

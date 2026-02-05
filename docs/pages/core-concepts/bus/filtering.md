@@ -76,3 +76,9 @@ For scenarios not covered by helper methods, you can subscribe loosely to any ev
 ```
 
 See [`predicates`][hassette.event_handling.predicates] for the full list of built-in predicates.
+
+## See Also
+
+- [Writing Handlers](handlers.md) - Extract data with dependency injection
+- [States](../states/index.md) - Access current state in predicates
+- [Scheduler](../scheduler/index.md) - Combine event-driven and time-based automation

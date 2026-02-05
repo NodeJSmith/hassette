@@ -49,3 +49,9 @@ Entities wrap the state object. Currently `BaseEntity` and `LightEntity` are ava
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
 ```
+
+## See Also
+
+- [Calling Services](services.md) - Invoke Home Assistant services
+- [Utilities & History](utilities.md) - Templates, history, and advanced features
+- [States](../states/index.md) - State management and caching
