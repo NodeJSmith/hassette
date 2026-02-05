@@ -31,11 +31,11 @@ Type annotations and Pydantic models give you IDE autocomplete and inline docs f
     Your browser does not support the video tag.
 </video>
 
-#### Improved event handling
+#### Event handling made simple
 
-Dependency injection means you only need to declare the event data you care about in your handler signatures.
+Dependency injection extracts the data you need automatically - just declare it in your handler parameters.
 
-First class predicates, conditions, etc., let you cleanly and concisely specify which events to listen for.
+Filter events with built-in predicates and conditions for clean, readable code.
 
 <video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
     <source src="./_static/filtered_events.webm" type="video/webm">
