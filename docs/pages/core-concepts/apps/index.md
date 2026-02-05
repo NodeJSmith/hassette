@@ -12,6 +12,7 @@ graph TB
     A -->|subscribes to| Bus
     A -->|schedules| Scheduler
     A -->|accesses| States
+    A -->|persists to| Cache
 ```
 
 ## Defining an App
@@ -30,6 +31,7 @@ Each app receives pre-configured helpers:
 - **[`self.bus`](../bus/index.md)** - Subscribe to events.
 - **[`self.scheduler`](../scheduler/index.md)** - Schedule jobs.
 - **[`self.states`](../states/index.md)** - Access entity states.
+- **[`self.cache`](../persistent-storage.md)** - Persistent disk-based storage.
 - **`self.logger`** - Dedicated logger instance.
 - **[`self.app_config`](configuration.md)** - Typed configuration.
 
@@ -66,6 +68,19 @@ Use [`self.api`](../api/index.md) to call Home Assistant services.
 
 ```python
 await self.api.call_service("light", "turn_on", entity_id=self.app_config.light)
+```
+
+### Persist Data Between Restarts
+
+Use [`self.cache`](../persistent-storage.md) to store data that should survive app restarts.
+
+```python
+# Load counter from cache, defaulting to 0
+self.counter = self.cache.get("counter", 0)
+
+# Increment and save back
+self.counter += 1
+self.cache["counter"] = self.counter
 ```
 
 ## Next Steps

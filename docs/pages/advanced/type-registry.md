@@ -175,7 +175,7 @@ Uses the `whenever` library for robust datetime handling:
 When a conversion fails, the TypeRegistry wraps the error with context:
 
 ```python
-from hassette import TYPE_REGISTERY
+from hassette import TYPE_REGISTRY
 
 try:
     result = TYPE_REGISTRY.convert("not_a_number", int)

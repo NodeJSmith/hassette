@@ -44,3 +44,9 @@ Override either path with `--config-file / -c` and `--env-file / -e`:
 # override both config and env file locations
 hassette -c ./config/hassette.dev.toml -e ./config/.dev.env
 ```
+
+## See Also
+
+- [Global Settings](global.md) - Connection and runtime settings
+- [Applications](applications.md) - App registration and configuration
+- [Creating a Token](../../getting-started/ha_token.md) - Step-by-step token creation

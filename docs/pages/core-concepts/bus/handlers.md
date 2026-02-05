@@ -92,3 +92,9 @@ You can extract multiple pieces of data in a single handler:
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers_multiple_dependencies.py"
 ```
+
+## See Also
+
+- [Filtering & Predicates](filtering.md) - Filter which events trigger your handlers
+- [Dependency Injection](../../advanced/dependency-injection.md) - Advanced extraction patterns
+- [API](../api/index.md) - Call services in response to events

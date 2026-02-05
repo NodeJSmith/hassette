@@ -12,10 +12,11 @@ If you're familiar with the Python ecosystem, consider it like a marriage betwee
 
 ## Why Hassette?
 
-- **Write automations as code**: Build “apps” as Python classes that subscribe to events, call services, and manage state.
+- **Write automations as code**: Build "apps" as Python classes that subscribe to events, call services, and manage state.
 - **Async-first**: Use async where it matters; sync apps are supported too.
 - **Type-safe configuration**: Pydantic models give validation, defaults, and IDE help.
 - **Dependency injection**: Clean handler signatures that focus on the data you need.
+- **Persistent storage**: Built-in disk cache for storing data across restarts, intelligent rate-limiting, and more
 - **Great DX**: Clear logs, fast iteration, and hot reloading during development.
 
 ## See it in action
@@ -30,11 +31,11 @@ Type annotations and Pydantic models give you IDE autocomplete and inline docs f
     Your browser does not support the video tag.
 </video>
 
-#### Improved event handling
+#### Event handling made simple
 
-Dependency injection means you only need to declare the event data you care about in your handler signatures.
+Dependency injection extracts the data you need automatically - just declare it in your handler parameters.
 
-First class predicates, conditions, etc., let you cleanly and concisely specify which events to listen for.
+Filter events with built-in predicates and conditions for clean, readable code.
 
 <video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
     <source src="./_static/filtered_events.webm" type="video/webm">
@@ -47,13 +48,16 @@ First class predicates, conditions, etc., let you cleanly and concisely specify 
 
 - Event-driven automations (state changes, events, scheduled jobs)
 - Multi-instance apps with separate configs (e.g., "upstairs" and "downstairs")
+- Smart notification systems with rate-limiting to avoid spam
+- Apps that cache external API calls or remember state between restarts
 - Typed, validated configuration for safer refactors
 - Cleaner integrations with Home Assistant services and entities
 
 ## Next steps
 
-- Local setup: [Local Setup](pages/getting-started/index.md)
-- Production: [Docker Deployment](pages/getting-started/docker/index.md)
-- Architecture overview: [Core Concepts](pages/core-concepts/index.md)
-- Full configuration: [Configuration Overview](pages/core-concepts/configuration/index.md)
-- Migration: [AppDaemon Comparison](pages/appdaemon-comparison.md)
+- **Is Hassette right for you?** [Hassette vs. YAML Automations](pages/getting-started/hassette-vs-ha-yaml.md)
+- **Local setup:** [Local Setup](pages/getting-started/index.md)
+- **Production:** [Docker Deployment](pages/getting-started/docker/index.md)
+- **Architecture overview:** [Core Concepts](pages/core-concepts/index.md)
+- **Full configuration:** [Configuration Overview](pages/core-concepts/configuration/index.md)
+- **Migration:** [AppDaemon Comparison](pages/appdaemon-comparison.md)

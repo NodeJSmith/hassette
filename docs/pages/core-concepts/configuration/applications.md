@@ -74,3 +74,9 @@ Apps should define a configuration model by subclassing `AppConfig`. This provid
 ```toml
 --8<-- "pages/core-concepts/apps/snippets/app_config.toml"
 ```
+
+## See Also
+
+- [App Configuration](../apps/configuration.md) - Using config in your app code
+- [Global Settings](global.md) - Runtime and connection settings
+- [Authentication](auth.md) - Tokens and secrets

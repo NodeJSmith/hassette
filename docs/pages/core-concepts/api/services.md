@@ -27,3 +27,9 @@ Service calls return a response dictionary (if the service provides one).
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_response.py"
 ```
+
+## See Also
+
+- [Retrieving Entities & States](entities.md) - Get entity and state data
+- [Utilities & History](utilities.md) - Templates, history, and advanced features
+- [Bus](../bus/index.md) - Subscribe to service call events

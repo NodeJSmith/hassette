@@ -107,6 +107,7 @@ The primary use of the StateRegistry is converting raw state dictionaries to typ
 ```
 
 The `try_convert_state` method:
+
 - Extracts the domain from the entity_id
 - Looks up the corresponding state class
 - Converts the dictionary to a Pydantic model instance

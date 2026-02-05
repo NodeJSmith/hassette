@@ -20,16 +20,19 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 - **Type Safe**: Full type annotations with Pydantic models and comprehensive IDE support
 - **Async-First**: Built for modern Python with async/await throughout
 - **Dependency Injection**: Clean handler signatures with FastAPI style dependency injection
+- **Persistent Storage**: Built-in disk cache for storing data across restarts, intelligent rate-limiting, and more
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading, and intuitive APIs
 
 See the [Getting Started guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/) for detailed instructions.
 
-## 🔄 Coming from AppDaemon?
+## 🤔 Is Hassette Right for You?
 
-Check out our dedicated comparison guide:
+**New to automation frameworks?**
+- [Hassette vs. Home Assistant YAML](https://hassette.readthedocs.io/en/latest/pages/getting-started/hassette-vs-ha-yaml/) - Decide if Hassette is right for your needs
 
-- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/pages/appdaemon-comparison/)
+**Coming from AppDaemon?**
+- [AppDaemon Comparison](https://hassette.readthedocs.io/en/latest/pages/appdaemon-comparison/) - See what's different and how to migrate
 
 ## 📖 Examples
 

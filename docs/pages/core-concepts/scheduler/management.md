@@ -49,3 +49,9 @@ Hassette automatically cancels **all** jobs created by an app when that app stop
 
 - Check units: `run_every(interval=5)` is 5 seconds, not minutes.
 - Check cron: `run_cron(minute=5)` is "at minute 5 of every hour", not "every 5 minutes". Use `minute="*/5"` for intervals.
+
+## See Also
+
+- [Scheduling Methods](methods.md) - All available scheduling methods
+- [Apps Lifecycle](../apps/lifecycle.md) - Initialize and shutdown jobs properly
+- [Persistent Storage](../persistent-storage.md) - Remember job state across restarts

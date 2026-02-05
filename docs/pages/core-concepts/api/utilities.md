@@ -32,3 +32,9 @@ Retrieve logbook entries.
 - **`get_calendars`**: List available calendars.
 - **`get_calendar_events`**: Fetch events from a calendar.
 - **`set_state`**: Set a synthetic state (useful for testing or virtual sensors).
+
+## See Also
+
+- [Retrieving Entities & States](entities.md) - Get entity and state data
+- [Calling Services](services.md) - Invoke Home Assistant services
+- [Persistent Storage](../persistent-storage.md) - Cache historical data locally
