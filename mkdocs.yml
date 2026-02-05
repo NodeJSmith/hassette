@@ -22,6 +22,7 @@ theme:
 nav:
   - Home: index.md
   - Getting Started:
+      - Hassette vs. YAML: pages/getting-started/hassette-vs-ha-yaml.md
       - Local Setup: pages/getting-started/index.md
       - Docker Deployment:
           - Docker Setup: pages/getting-started/docker/index.md
@@ -50,6 +51,7 @@ nav:
           - Services: pages/core-concepts/api/services.md
           - Utilities: pages/core-concepts/api/utilities.md
       - States: pages/core-concepts/states/index.md
+      - Persistent Storage: pages/core-concepts/persistent-storage.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md
           - Authentication: pages/core-concepts/configuration/auth.md
