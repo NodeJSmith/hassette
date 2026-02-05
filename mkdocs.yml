@@ -68,12 +68,12 @@ nav:
 
 plugins:
   - search
-  # - gen-files:
-  #     scripts:
-  #       - tools/gen_ref_pages.py
-  # - literate-nav:
-  #     nav_file: SUMMARY.md
-  # - autorefs
+  - gen-files:
+      scripts:
+        - tools/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - autorefs
   - mkdocstrings:
       handlers:
         python:
