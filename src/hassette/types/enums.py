@@ -19,6 +19,9 @@ class Topic(StrEnum):
     HASSETTE_EVENT_APP_LOAD_COMPLETED = "hassette.event.app_load_completed"
     """Application load completion events"""
 
+    HASSETTE_EVENT_APP_STATE_CHANGED = "hassette.event.app_state_changed"
+    """App instance state change events"""
+
     # Home Assistant events
 
     HASS_EVENT_STATE_CHANGED = "hass.event.state_changed"
