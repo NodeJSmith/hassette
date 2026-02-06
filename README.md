@@ -75,6 +75,10 @@ Contributions are welcome! Whether you're:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on getting started.
 
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=NodeJSmith/hassette&type=Date)](https://star-history.com/#NodeJSmith/hassette&Date)
+
 ## 📄 License
 
 [MIT](LICENSE)
