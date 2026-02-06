@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.20.4] - 2026-02-05
+
+### Fixed
+- Fixed finding of requirements files in Docker image, thanks @mlsteele!
+
+### Added
+- Added tests to ensure requirements files are found correctly in Docker image
+
 ## [0.20.3] - 2026-02-01
 
 ### Fixed
