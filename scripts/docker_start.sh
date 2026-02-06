@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -eu # no pipefail in busybox ash
 
@@ -37,21 +37,20 @@ ROOTS=""
 [ -d "$CONFIG" ] && ROOTS="$ROOTS $CONFIG"
 [ -d "$APP_DIR" ] && ROOTS="$ROOTS $APP_DIR"
 
+found_files=0
+
 # Install requirements files (fd ignores .git/.venv/node_modules by default)
 if [ -n "$ROOTS" ]; then
-    # Find both filenames, deterministic order
     # shellcheck disable=SC2086
-    "$FD_BIN" -t f -a -0 'requirements' --extension txt $ROOTS |
-        sort -z | tr '\0' '\n' |
-        while IFS= read -r req; do
-            # Skip empty files (fd doesn't have a simple portable "non-empty" filter)
-            [ -s "$req" ] || continue
-            echo "Installing requirements from $req"
-            uv pip install -r "$req"
-        done
+    while IFS= read -r req; do
+        [ -s "$req" ] || continue
+        found_files=$((found_files + 1))
+        echo "Installing requirements from $req"
+        uv pip install -r "$req"
+    done < <("$FD_BIN" -t f -a -0 'requirements' --extension txt $ROOTS | sort -z | tr '\0' '\n')
 fi
 
-echo "Completed installation of found requirements.txt files"
+echo "Completed installation of $found_files found requirements.txt files"
 
 if [ -n "${HASSETTE_VERSION:-}" ]; then
     # ensure correct version of hassette is still installed
