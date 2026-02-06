@@ -122,9 +122,11 @@ class AppFactory:
     @staticmethod
     def _normalize_configs(app_config: dict | list[dict] | None) -> list[dict]:
         """Ensure app_config is a list of dicts."""
-        if not app_config:
+        if app_config is None:
             return []
-        return [app_config] if isinstance(app_config, dict) else list(app_config)
+        if isinstance(app_config, dict):
+            return [app_config]
+        return list(app_config)
 
     def check_only_app_decorator(self, manifest: "AppManifest") -> bool:
         """Check if an app class has the only_app decorator.
