@@ -157,7 +157,7 @@ class TestAppChangeDetector:
         original = {"app1": make_manifest("app1", full_path=changed_path)}
         current = {"app1": make_manifest("app1", full_path=changed_path)}
 
-        changes = detector.detect_changes(original, current, changed_file_path=changed_path)
+        changes = detector.detect_changes(original, current, changed_file_paths=frozenset({changed_path}))
 
         assert changes.reimport_apps == frozenset({"app1"})
         assert not changes.orphans
@@ -195,7 +195,7 @@ class TestAppChangeDetector:
         original = {"app1": make_manifest("app1", full_path=changed_path, app_config={"setting": "old"})}
         current = {"app1": make_manifest("app1", full_path=changed_path, app_config={"setting": "new"})}
 
-        changes = detector.detect_changes(original, current, changed_file_path=changed_path)
+        changes = detector.detect_changes(original, current, changed_file_paths=frozenset({changed_path}))
 
         assert "app1" in changes.reimport_apps
         assert "app1" not in changes.reload_apps
@@ -241,6 +241,47 @@ class TestAppChangeDetector:
         detector = AppChangeDetector(only_app_filter="my_app")
         assert detector.only_app_filter == "my_app"
 
+    # --- Batch path edge cases ---
+
+    def test_new_app_with_file_change_not_in_reimport(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A brand-new app whose file also changed should only be in new_apps, not reimport."""
+        new_path = Path("/apps/new_app.py")
+        original: dict = {}
+        current = {"new_app": make_manifest("new_app", full_path=new_path)}
+
+        changes = detector.detect_changes(original, current, changed_file_paths=frozenset({new_path}))
+
+        assert "new_app" in changes.new_apps
+        assert "new_app" not in changes.reimport_apps
+
+    def test_only_app_filter_excludes_reimport_for_non_target(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """Apps filtered out by only_app should not appear in reimport_apps."""
+        detector.set_only_app_filter("app1")
+
+        changed_path_1 = Path("/apps/app1.py")
+        changed_path_2 = Path("/apps/app2.py")
+
+        original = {
+            "app1": make_manifest("app1", full_path=changed_path_1),
+            "app2": make_manifest("app2", full_path=changed_path_2),
+        }
+        current = {
+            "app1": make_manifest("app1", full_path=changed_path_1),
+            "app2": make_manifest("app2", full_path=changed_path_2),
+        }
+
+        changes = detector.detect_changes(
+            original, current, changed_file_paths=frozenset({changed_path_1, changed_path_2})
+        )
+
+        assert "app1" in changes.reimport_apps
+        assert "app2" not in changes.reimport_apps
+        assert "app2" in changes.orphans
+
     # --- Complex scenarios ---
 
     def test_multiple_changes(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
@@ -259,7 +300,7 @@ class TestAppChangeDetector:
             "app4": make_manifest("app4"),  # new app
         }
 
-        changes = detector.detect_changes(original, current, changed_file_path=changed_path)
+        changes = detector.detect_changes(original, current, changed_file_paths=frozenset({changed_path}))
 
         assert changes.orphans == frozenset({"app1"})
         assert changes.new_apps == frozenset({"app4"})
