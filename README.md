@@ -77,7 +77,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on getting started.
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NodeJSmith/hassette&type=Date)](https://star-history.com/#NodeJSmith/hassette&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=NodeJSmith/hassette&type=date&legend=top-left)](https://www.star-history.com/#NodeJSmith/hassette&type=date&legend=top-left)
 
 ## 📄 License
 
