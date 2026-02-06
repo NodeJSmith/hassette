@@ -209,3 +209,6 @@ volumes/config/.storage/tmp*
 
 docs/apidocs
 docs/code-reference
+
+.claude/settings.local.json
+.claude/plan/
