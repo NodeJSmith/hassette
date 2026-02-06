@@ -192,22 +192,6 @@ class TestAppLifecycleManagerShutdownInstance:
 
         mock_app_instance.shutdown.assert_called_once()
 
-    async def test_shutdown_instance_calls_cleanup_by_default(
-        self, lifecycle: AppLifecycleManager, mock_app_instance: App
-    ):
-        """Calls inst.cleanup() when with_cleanup=True."""
-        await lifecycle.shutdown_instance(mock_app_instance, with_cleanup=True)
-
-        mock_app_instance.shutdown.assert_called_once()
-        mock_app_instance.cleanup.assert_called_once()
-
-    async def test_shutdown_instance_skips_cleanup(self, lifecycle: AppLifecycleManager, mock_app_instance: App):
-        """Skips cleanup() when with_cleanup=False."""
-        await lifecycle.shutdown_instance(mock_app_instance, with_cleanup=False)
-
-        mock_app_instance.shutdown.assert_called_once()
-        mock_app_instance.cleanup.assert_not_called()
-
     async def test_shutdown_instance_catches_exceptions(
         self, lifecycle: AppLifecycleManager, mock_app_instance: App, caplog
     ):
@@ -256,17 +240,6 @@ class TestAppLifecycleManagerShutdownInstances:
             await lifecycle.shutdown_instances(instances)
 
         assert "Stopping 1 app instances" in caplog.text
-
-    async def test_shutdown_instances_passes_with_cleanup(self, lifecycle: AppLifecycleManager):
-        """Passes with_cleanup param to each call."""
-        app = AsyncMock()
-
-        instances = {0: app}
-
-        await lifecycle.shutdown_instances(instances, with_cleanup=False)
-
-        app.shutdown.assert_called_once()
-        app.cleanup.assert_not_called()
 
 
 class TestAppLifecycleManagerShutdownAll:

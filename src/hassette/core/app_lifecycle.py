@@ -95,19 +95,16 @@ class AppLifecycleManager:
                 self.registry.record_failure(app_key, idx, e)
                 await self._emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
 
-    async def shutdown_instance(self, inst: "App[AppConfig]", with_cleanup: bool = True) -> None:
+    async def shutdown_instance(self, inst: "App[AppConfig]") -> None:
         """Shutdown a single app instance.
 
         Args:
             inst: The app instance to shutdown
-            with_cleanup: Whether to call cleanup() after shutdown
         """
         try:
             start_time = timer()
             with anyio.fail_after(self.shutdown_timeout):
                 await inst.shutdown()
-                if with_cleanup:
-                    await inst.cleanup()
 
             end_time = timer()
             friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")
@@ -126,14 +123,12 @@ class AppLifecycleManager:
     async def shutdown_instances(
         self,
         instances: dict[int, "App[AppConfig]"],
-        with_cleanup: bool = True,
     ) -> None:
         """Shutdown all provided app instances.
 
         Args:
             instances: Dict of index -> App to shutdown
             app_key: App key for logging
-            with_cleanup: Whether to call cleanup() after shutdown
         """
         if not instances:
             return
@@ -143,14 +138,14 @@ class AppLifecycleManager:
         for inst in instances.values():
             event = HassetteAppStateEvent.from_data(app=inst, status=STOPPING, previous_status=RUNNING)
             await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
-            await self.shutdown_instance(inst, with_cleanup=with_cleanup)
+            await self.shutdown_instance(inst)
 
     async def shutdown_all(self) -> None:
         """Shutdown all registered apps."""
         self.logger.debug("Shutting down all apps")
 
         for instances in self.registry.apps.values():
-            await self.shutdown_instances(instances, with_cleanup=True)
+            await self.shutdown_instances(instances)
 
         self.registry.clear_all()
 

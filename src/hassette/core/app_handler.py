@@ -300,7 +300,7 @@ class AppHandler(Resource):
                 self.logger.warning("Cannot stop app %s, not found", app_key)
                 return
 
-            await self.lifecycle.shutdown_instances(instances, with_cleanup=False)
+            await self.lifecycle.shutdown_instances(instances)
         except Exception:
             self.logger.error("Failed to stop app %s:\n%s", app_key, get_short_traceback())
 
