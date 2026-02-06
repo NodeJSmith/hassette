@@ -42,7 +42,7 @@ if [ -n "$ROOTS" ]; then
     # Find both filenames, deterministic order
     # shellcheck disable=SC2086
     "$FD_BIN" -t f -a -0 'requirements' --extension txt $ROOTS |
-        sort -z |
+        sort -z | tr '\0' '\n' |
         while IFS= read -r req; do
             # Skip empty files (fd doesn't have a simple portable "non-empty" filter)
             [ -s "$req" ] || continue
