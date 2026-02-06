@@ -11,10 +11,10 @@ from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_lifecycle import AppLifecycleManager
 from hassette.core.app_registry import AppRegistry, AppStatusSnapshot
-from hassette.events.hassette import HassetteSimpleEvent
+from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.resources.base import Resource
-from hassette.types import Topic
+from hassette.types import ResourceStatus, Topic
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -63,6 +63,11 @@ class AppHandler(Resource):
         inst.set_apps_configs(hassette.config.app_manifests)
         inst.lifecycle = AppLifecycleManager(hassette, inst.registry)
 
+        inst.registry.logger.setLevel(inst.config_log_level)
+        inst.factory.logger.setLevel(inst.config_log_level)
+        inst.lifecycle.logger.setLevel(inst.config_log_level)
+        inst.change_detector.logger.setLevel(inst.config_log_level)
+
         # Event bus for status events
         inst.bus = inst.add_child(Bus)
 
@@ -103,6 +108,7 @@ class AppHandler(Resource):
         if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
             if self.hassette.config.allow_reload_in_prod:
                 self.logger.warning("Allowing app reloads in production mode due to config")
+            self.logger.debug("Watching for app changes...")
             self.bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
         else:
             self.logger.debug("Not watching for app changes, dev_mode is disabled")
@@ -210,7 +216,8 @@ class AppHandler(Resource):
 
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
         """Reload the configuration and return (original_apps_config, current_apps_config)."""
-        original_apps_config = deepcopy(self.registry.active_apps_config)
+        # Filter only by enabled status, NOT by only_app filter, so both configs are comparable
+        original_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
 
         # Reinitialize config to pick up changes.
         # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
@@ -220,21 +227,28 @@ class AppHandler(Resource):
             self.logger.exception("Failed to reload configuration: %s", e)
 
         self.set_apps_configs(self.hassette.config.app_manifests)
-        curr_apps_config = deepcopy(self.registry.active_apps_config)
+        curr_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
 
         return original_apps_config, curr_apps_config
 
     async def handle_change_event(
         self,
-        changed_file_path: typing.Annotated[Path | None, A.get_path("payload.data.changed_file_path")] = None,
+        changed_file_paths: typing.Annotated[
+            frozenset[Path] | None, A.get_path("payload.data.changed_file_paths")
+        ] = None,
     ) -> None:
         """Handle changes detected by the watcher."""
+        self.logger.debug("Handling app change event for files: %s", changed_file_paths)
 
         original_apps_config, curr_apps_config = await self.refresh_config()
         await self._resolve_only_app()
 
-        changes = self.change_detector.detect_changes(original_apps_config, curr_apps_config, changed_file_path)
-        self.logger.debug("App changes detected - %s", changes)
+        changes = self.change_detector.detect_changes(original_apps_config, curr_apps_config, changed_file_paths)
+        if not changes.has_changes:
+            self.logger.debug("%s changed but no app changes detected", changed_file_paths)
+            return
+
+        self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)
 
         await self.apply_changes(changes)
 
@@ -273,6 +287,9 @@ class AppHandler(Resource):
 
         instances = self.registry.get_apps_by_key(app_key)
         if instances:
+            for inst in instances.values():
+                event = HassetteAppStateEvent.from_data(app=inst, status=ResourceStatus.NOT_STARTED)
+                await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
             await self.task_bucket.spawn(self.lifecycle.initialize_instances(app_key, instances, app_manifest))
 
     async def stop_app(self, app_key: str) -> None:
@@ -283,7 +300,7 @@ class AppHandler(Resource):
                 self.logger.warning("Cannot stop app %s, not found", app_key)
                 return
 
-            await self.lifecycle.shutdown_instances(instances, app_key, with_cleanup=False)
+            await self.lifecycle.shutdown_instances(instances, with_cleanup=False)
         except Exception:
             self.logger.error("Failed to stop app %s:\n%s", app_key, get_short_traceback())
 
@@ -298,6 +315,8 @@ class AppHandler(Resource):
 
     async def apply_changes(self, changes: ChangeSet) -> None:
         """Apply detected changes."""
+
+        self.logger.debug("Applying app changes: %s", changes)
 
         for app_key in changes.orphans:
             self.logger.debug("Stopping orphaned app %s", app_key)

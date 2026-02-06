@@ -38,10 +38,19 @@ class FileWatcherService(Service):
             if self.shutdown_event.is_set():
                 break
 
+            all_changed_paths: set[Path] = set()
             for _, changed_path in changes:
                 changed_path = Path(changed_path).resolve()
-                self.logger.debug("Detected change in %s", changed_path)
-                event = HassetteFileWatcherEvent.create_event(changed_file_path=changed_path)
+                if changed_path in all_changed_paths:
+                    continue
+                if changed_path.parent in all_changed_paths:
+                    continue
+
+                all_changed_paths.add(changed_path)
+
+            if all_changed_paths:
+                self.logger.debug("Detected changes in %s", all_changed_paths)
+                event = HassetteFileWatcherEvent.create_event(changed_file_paths=all_changed_paths)
                 await self.hassette.send_event(event.topic, event)
 
             # update paths in case new apps were added

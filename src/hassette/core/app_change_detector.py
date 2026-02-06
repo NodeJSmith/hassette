@@ -1,6 +1,7 @@
 """App change detector for calculating configuration differences."""
 
 from dataclasses import dataclass
+from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,19 +46,20 @@ class AppChangeDetector:
 
     def __init__(self, only_app_filter: str | None = None) -> None:
         self.only_app_filter = only_app_filter
+        self.logger = getLogger(f"{__name__}.AppChangeDetector")
 
     def detect_changes(
         self,
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
-        changed_file_path: Path | None = None,
+        changed_file_paths: frozenset[Path] | None = None,
     ) -> ChangeSet:
         """Calculate the difference between two configurations.
 
         Args:
             original_config: The previous app configuration
             current_config: The new app configuration
-            changed_file_path: Path of file that triggered the change (if any)
+            changed_file_paths: Paths of files that triggered the change (if any)
 
         Returns:
             ChangeSet with categorized changes
@@ -81,7 +83,13 @@ class AppChangeDetector:
         new_apps = current_keys - original_keys
 
         # Apps that need reimport due to file change
-        reimport_apps = {app.app_key for app in current_config.values() if app.full_path == changed_file_path}
+        # Exclude new apps (they haven't been imported yet) and apps not in current_keys (filtered by only_app)
+        changed = changed_file_paths or frozenset()
+        reimport_apps = {
+            app.app_key
+            for app in current_config.values()
+            if app.full_path in changed and app.app_key not in new_apps and app.app_key in current_keys
+        }
 
         # Apps with config changes (excluding those in other categories)
         reload_apps = {
