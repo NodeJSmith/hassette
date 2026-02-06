@@ -64,6 +64,9 @@ class ResourceStatus(StrEnum):
     RUNNING = auto()
     """The resource is currently running."""
 
+    STOPPING = auto()
+    """The resource is in the process of stopping."""
+
     STOPPED = auto()
     """The resource has been stopped without errors."""
 

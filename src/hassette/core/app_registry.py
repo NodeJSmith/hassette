@@ -2,7 +2,6 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from enum import StrEnum, auto
 from logging import getLogger
 from typing import TYPE_CHECKING
 
@@ -14,17 +13,6 @@ if TYPE_CHECKING:
     from hassette.config.classes import AppManifest
 
 
-class AppInstanceStatus(StrEnum):
-    """Fine-grained status for individual app instances."""
-
-    PENDING = auto()
-    INITIALIZING = auto()
-    RUNNING = auto()
-    FAILED = auto()
-    STOPPING = auto()
-    STOPPED = auto()
-
-
 @dataclass
 class AppInstanceInfo:
     """Snapshot of a single app instance for status queries."""
@@ -33,7 +21,7 @@ class AppInstanceInfo:
     index: int
     instance_name: str
     class_name: str
-    status: AppInstanceStatus
+    status: ResourceStatus
     error: Exception | None = None
     error_message: str | None = None
 
@@ -174,7 +162,7 @@ class AppRegistry:
                     index=index,
                     instance_name=app.app_config.instance_name,
                     class_name=app.class_name,
-                    status=self._map_resource_status(app.status),
+                    status=app.status,
                 )
                 running.append(info)
 
@@ -186,7 +174,7 @@ class AppRegistry:
                     index=index,
                     instance_name=f"{manifest.class_name}.{index}" if manifest else f"Unknown.{index}",
                     class_name=manifest.class_name if manifest else "Unknown",
-                    status=AppInstanceStatus.FAILED,
+                    status=ResourceStatus.FAILED,
                     error=error,
                     error_message=str(error),
                 )
@@ -197,19 +185,6 @@ class AppRegistry:
             failed=failed,
             only_app=self._only_app,
         )
-
-    @staticmethod
-    def _map_resource_status(status: ResourceStatus) -> AppInstanceStatus:
-        """Map ResourceStatus to AppInstanceStatus."""
-        mapping = {
-            ResourceStatus.NOT_STARTED: AppInstanceStatus.PENDING,
-            ResourceStatus.STARTING: AppInstanceStatus.INITIALIZING,
-            ResourceStatus.RUNNING: AppInstanceStatus.RUNNING,
-            ResourceStatus.STOPPED: AppInstanceStatus.STOPPED,
-            ResourceStatus.FAILED: AppInstanceStatus.FAILED,
-            ResourceStatus.CRASHED: AppInstanceStatus.FAILED,
-        }
-        return mapping.get(status, AppInstanceStatus.FAILED)
 
     # --- Properties for backwards compatibility ---
 

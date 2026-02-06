@@ -6,22 +6,10 @@ import pytest
 
 from hassette.core.app_registry import (
     AppInstanceInfo,
-    AppInstanceStatus,
     AppRegistry,
     AppStatusSnapshot,
 )
 from hassette.types.enums import ResourceStatus
-
-
-class TestAppInstanceStatus:
-    def test_status_values_exist(self) -> None:
-        """Verify all expected status values exist."""
-        assert AppInstanceStatus.PENDING
-        assert AppInstanceStatus.INITIALIZING
-        assert AppInstanceStatus.RUNNING
-        assert AppInstanceStatus.FAILED
-        assert AppInstanceStatus.STOPPING
-        assert AppInstanceStatus.STOPPED
 
 
 class TestAppStatusSnapshot:
@@ -38,11 +26,11 @@ class TestAppStatusSnapshot:
     def test_snapshot_counts(self) -> None:
         """Test snapshot count properties."""
         running = [
-            AppInstanceInfo("app1", 0, "app1.0", "App1", AppInstanceStatus.RUNNING),
-            AppInstanceInfo("app2", 0, "app2.0", "App2", AppInstanceStatus.RUNNING),
+            AppInstanceInfo("app1", 0, "app1.0", "App1", ResourceStatus.RUNNING),
+            AppInstanceInfo("app2", 0, "app2.0", "App2", ResourceStatus.RUNNING),
         ]
         failed = [
-            AppInstanceInfo("app3", 0, "app3.0", "App3", AppInstanceStatus.FAILED, error=Exception("test")),
+            AppInstanceInfo("app3", 0, "app3.0", "App3", ResourceStatus.FAILED, error=Exception("test")),
         ]
         snapshot = AppStatusSnapshot(running=running, failed=failed, only_app="app1")
 
@@ -255,7 +243,7 @@ class TestAppRegistry:
         assert info.index == 0
         assert info.instance_name == "test_instance"
         assert info.class_name == "TestApp"
-        assert info.status == AppInstanceStatus.RUNNING
+        assert info.status == ResourceStatus.RUNNING
 
     def test_get_snapshot_with_failed_apps(self, registry: AppRegistry, mock_manifest: MagicMock) -> None:
         """Test snapshot includes failed apps."""
@@ -269,7 +257,7 @@ class TestAppRegistry:
         info = snapshot.failed[0]
         assert info.app_key == "my_app"
         assert info.index == 0
-        assert info.status == AppInstanceStatus.FAILED
+        assert info.status == ResourceStatus.FAILED
         assert info.error is error
         assert info.error_message == "startup failed"
 
@@ -281,30 +269,17 @@ class TestAppRegistry:
 
         assert snapshot.only_app == "special_app"
 
-    def test_get_snapshot_maps_resource_status(self, registry: AppRegistry) -> None:
-        """Test that ResourceStatus values are correctly mapped."""
-        status_mapping = [
-            (ResourceStatus.NOT_STARTED, AppInstanceStatus.PENDING),
-            (ResourceStatus.STARTING, AppInstanceStatus.INITIALIZING),
-            (ResourceStatus.RUNNING, AppInstanceStatus.RUNNING),
-            (ResourceStatus.STOPPED, AppInstanceStatus.STOPPED),
-            (ResourceStatus.FAILED, AppInstanceStatus.FAILED),
-            (ResourceStatus.CRASHED, AppInstanceStatus.FAILED),
-        ]
+    def test_get_snapshot_preserves_resource_status(self, registry: AppRegistry) -> None:
+        """Test that snapshot uses ResourceStatus directly from app."""
+        app = MagicMock()
+        app.app_config.instance_name = "test"
+        app.class_name = "Test"
+        app.status = ResourceStatus.STARTING
+        registry.register_app("app", 0, app)
 
-        for resource_status, expected_app_status in status_mapping:
-            registry._apps.clear()
-            app = MagicMock()
-            app.app_config.instance_name = "test"
-            app.class_name = "Test"
-            app.status = resource_status
-            registry.register_app("app", 0, app)
+        snapshot = registry.get_snapshot()
 
-            snapshot = registry.get_snapshot()
-
-            assert snapshot.running[0].status == expected_app_status, (
-                f"Expected {resource_status} to map to {expected_app_status}"
-            )
+        assert snapshot.running[0].status == ResourceStatus.STARTING
 
     # --- Clear all tests ---
 
