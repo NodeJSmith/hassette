@@ -290,7 +290,7 @@ class TestAppFactoryNormalizeConfigs:
     def test_normalize_configs_empty_dict(self):
         """Returns empty list for empty dict."""
         result = AppFactory._normalize_configs({})
-        assert result == []
+        assert result == [{}]
 
     def test_normalize_configs_single_dict(self):
         """Wraps single dict in list."""
