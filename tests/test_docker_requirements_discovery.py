@@ -4,11 +4,17 @@ These tests verify that the fd command pattern used in docker_start.sh
 correctly finds user's requirements.txt files in mounted volumes.
 """
 
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
+import pytest
 
+fd_path = shutil.which("fd") or shutil.which("fdfind")
+
+
+@pytest.mark.skipif(fd_path is None, reason="fd command not found")
 def test_fd_finds_requirements_txt():
     """Test that fd command finds requirements.txt files as expected."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -26,7 +32,7 @@ def test_fd_finds_requirements_txt():
 
         # Run the fd command (matching docker_start.sh logic)
         result = subprocess.run(
-            ["fd", "-t", "f", "-a", "-0", "requirements", "--extension", "txt", str(tmp_path)],
+            [fd_path, "-t", "f", "-a", "-0", "requirements", "--extension", "txt", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
@@ -40,6 +46,7 @@ def test_fd_finds_requirements_txt():
         assert any("app2/subdir/requirements.txt" in f for f in found_files)
 
 
+@pytest.mark.skipif(fd_path is None, reason="fd command not found")
 def test_fd_finds_requirements_in_config_and_apps():
     """Test fd finds requirements in both CONFIG and APP_DIR."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -57,7 +64,7 @@ def test_fd_finds_requirements_in_config_and_apps():
         # Run fd on both roots (space-separated like in script)
         result = subprocess.run(
             [
-                "fd",
+                fd_path,
                 "-t",
                 "f",
                 "-a",
@@ -80,6 +87,7 @@ def test_fd_finds_requirements_in_config_and_apps():
         assert any("apps/requirements.txt" in f for f in found_files)
 
 
+@pytest.mark.skipif(fd_path is None, reason="fd command not found")
 def test_fd_ignores_hidden_files():
     """Test that fd ignores .git, .venv, etc by default."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -93,7 +101,7 @@ def test_fd_ignores_hidden_files():
         (tmp_path / "requirements.txt").write_text("found\n")
 
         result = subprocess.run(
-            ["fd", "-t", "f", "-a", "-0", "requirements", "--extension", "txt", str(tmp_path)],
+            [fd_path, "-t", "f", "-a", "-0", "requirements", "--extension", "txt", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
@@ -106,6 +114,7 @@ def test_fd_ignores_hidden_files():
         assert ".venv" not in found_files[0]
 
 
+@pytest.mark.skipif(fd_path is None, reason="fd command not found")
 def test_empty_requirements_files_skipped():
     """Test that empty requirements.txt files are skipped (script checks with -s)."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -118,7 +127,7 @@ def test_empty_requirements_files_skipped():
         (tmp_path / "requirements.txt").write_text("requests\n")
 
         result = subprocess.run(
-            ["fd", "-t", "f", "-a", "-0", "requirements", "--extension", "txt", str(tmp_path)],
+            [fd_path, "-t", "f", "-a", "-0", "requirements", "--extension", "txt", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
@@ -135,6 +144,7 @@ def test_empty_requirements_files_skipped():
         assert "empty_requirements.txt" not in non_empty[0]
 
 
+@pytest.mark.skipif(fd_path is None, reason="fd command not found")
 def test_fd_handles_multiple_requirements_patterns():
     """Test that files like requirements-dev.txt are also found."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -146,7 +156,7 @@ def test_fd_handles_multiple_requirements_patterns():
         (tmp_path / "requirements_test.txt").write_text("test\n")
 
         result = subprocess.run(
-            ["fd", "-t", "f", "-a", "-0", "requirements", "--extension", "txt", str(tmp_path)],
+            [fd_path, "-t", "f", "-a", "-0", "requirements", "--extension", "txt", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,

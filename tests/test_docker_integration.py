@@ -5,6 +5,7 @@ user's requirements.txt files from mounted volumes.
 """
 
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -18,6 +19,7 @@ DOCKER_IMAGE = os.getenv("HASSETTE_TEST_IMAGE", "hassette:test")
 
 @pytest.mark.integration
 @pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_installs_user_requirements():
     """Test that Docker container finds and installs user requirements.txt."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -71,6 +73,7 @@ class TestApp(App[AppConfig]):
 
 @pytest.mark.integration
 @pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_finds_nested_requirements():
     """Test that requirements.txt in subdirectories are found."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -109,6 +112,7 @@ def test_docker_finds_nested_requirements():
 
 @pytest.mark.integration
 @pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_installs_from_config_and_apps():
     """Test that requirements.txt in both /config and /apps are found."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -156,6 +160,7 @@ def test_docker_installs_from_config_and_apps():
 
 @pytest.mark.integration
 @pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_skips_empty_requirements():
     """Test that empty requirements.txt files are skipped."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -199,6 +204,7 @@ def test_docker_skips_empty_requirements():
 
 @pytest.mark.integration
 @pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_handles_missing_requirements():
     """Test that Docker starts successfully even without requirements.txt."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -245,6 +251,7 @@ class TestApp(App[AppConfig]):
 
 @pytest.mark.integration
 @pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_installs_requirements_dev_variants():
     """Test that requirements-dev.txt and similar variants are found."""
     with tempfile.TemporaryDirectory() as tmpdir:
