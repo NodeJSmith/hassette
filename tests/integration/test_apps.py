@@ -78,7 +78,10 @@ class TestApps:
         )
 
         await self.app_handler.handle_change_event()
-        await asyncio.wait_for(event.wait(), timeout=1)
+
+        # will timeout, because we dont fire since there are no changes
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(event.wait(), timeout=0.2)
 
         new_apps = set(self.app_handler.apps.keys())
         assert orig_apps == new_apps, "No apps should be lost during handle_changes"

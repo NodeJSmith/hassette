@@ -1,6 +1,6 @@
 """Unit tests for AppLifecycleManager."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 import pytest
 
@@ -17,6 +17,7 @@ def mock_hassette():
     hassette.config = Mock()
     hassette.config.app_startup_timeout_seconds = 30
     hassette.config.app_shutdown_timeout_seconds = 10
+    hassette.send_event = AsyncMock()
     return hassette
 
 
@@ -252,10 +253,9 @@ class TestAppLifecycleManagerShutdownInstances:
         instances = {0: mock_app_instance}
         lifecycle.logger.setLevel("DEBUG")
         with caplog.at_level("DEBUG"):
-            await lifecycle.shutdown_instances(instances, app_key="test_app")
+            await lifecycle.shutdown_instances(instances)
 
-        assert "Stopping 1 instances" in caplog.text
-        assert "test_app" in caplog.text
+        assert "Stopping 1 app instances" in caplog.text
 
     async def test_shutdown_instances_passes_with_cleanup(self, lifecycle: AppLifecycleManager):
         """Passes with_cleanup param to each call."""
@@ -275,26 +275,28 @@ class TestAppLifecycleManagerShutdownAll:
         app1 = AsyncMock()
         app2 = AsyncMock()
 
-        mock_registry.all_apps.return_value = [app1, app2]
+        prop_mock = PropertyMock()
+        prop_mock.items.return_value = {"app1": {0: app1}, "app2": {0: app2}}
+        prop_mock.values.return_value = [{0: app1}, {0: app2}]
 
-        await lifecycle.shutdown_all()
+        with patch.object(mock_registry, "apps", prop_mock):
+            await lifecycle.shutdown_all()
 
         app1.shutdown.assert_called_once()
         app2.shutdown.assert_called_once()
 
     async def test_shutdown_all_clears_registry(self, lifecycle: AppLifecycleManager, mock_registry: AppRegistry):
         """Calls registry.clear_all() after shutdown."""
-        mock_registry.all_apps.return_value = []
 
-        await lifecycle.shutdown_all()
+        with patch.object(mock_registry, "apps", PropertyMock()):
+            await lifecycle.shutdown_all()
 
-        mock_registry.clear_all.assert_called_once()
+            mock_registry.clear_all.assert_called_once()
 
     async def test_shutdown_all_empty_registry(self, lifecycle: AppLifecycleManager, mock_registry: AppRegistry):
         """Handles empty registry gracefully."""
-        mock_registry.all_apps.return_value = []
+        with patch.object(mock_registry, "apps", PropertyMock()):
+            # Should not raise
+            await lifecycle.shutdown_all()
 
-        # Should not raise
-        await lifecycle.shutdown_all()
-
-        mock_registry.clear_all.assert_called_once()
+            mock_registry.clear_all.assert_called_once()

@@ -128,6 +128,10 @@ class _HassetteMock(Resource):
             True if all resources are ready, False if shutdown is requested.
         """
         timeout = timeout or self.config.startup_timeout_seconds
+        resources = resources if isinstance(resources, list) else [resources]
+
+        if any(r is None for r in resources):
+            raise RuntimeError("Cannot wait for None resource")
 
         return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
 
@@ -165,7 +169,7 @@ class HassetteHarness:
         if self.use_api_mock and self.use_api_real:
             raise ValueError("Cannot use both API mock and real API in the same harness")
 
-        self.logger = logging.getLogger(f"hassette.test.harness.{type(self).__name__}")
+        self.logger = logging.getLogger("hassette")
         self.hassette = _HassetteMock(config=self.config)
         self._tasks: list[tuple[str, asyncio.Task[Any]]] = []
         self._exit_stack = contextlib.AsyncExitStack()
