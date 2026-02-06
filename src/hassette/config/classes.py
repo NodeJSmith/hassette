@@ -76,7 +76,7 @@ class AppManifest(BaseModel):
     """Path to the app directory, relative to current working directory or absolute"""
 
     app_config: dict[str, Any] | list[dict[str, Any]] = Field(
-        default_factory=dict, validation_alias="config", validate_default=True
+        default_factory=dict, validation_alias=AliasChoices("config", "app_config"), validate_default=True
     )
     """Instance configuration for the app"""
 
