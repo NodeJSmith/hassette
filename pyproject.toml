@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.20.3"
+version = "0.20.4"
 description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -104,6 +104,12 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 filterwarnings = ["error"]
+# Skip slow Docker tests by default (run with: pytest -m docker)
+addopts = "-m 'not docker'"
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "docker: marks tests that require Docker and are slow (run explicitly with '-m docker')",
+]
 
 [tool.coverage.run]
 branch = true         # measure branch coverage, not just lines
