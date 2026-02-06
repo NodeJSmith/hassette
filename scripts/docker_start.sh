@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eu # no pipefail in busybox ash
+set -eu
 
 # shellcheck disable=SC1091
 . /app/.venv/bin/activate
