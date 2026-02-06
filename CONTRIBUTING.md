@@ -30,6 +30,8 @@ Thank you for your interest in contributing to Hassette! We welcome contribution
 
 3. **Install pre-commit hooks**
 
+   We use [pre-commit](https://pre-commit.com/#install):
+
    ```bash
    uv run pre-commit install
    ```
