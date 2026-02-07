@@ -1,5 +1,6 @@
 """Unit tests for AppLifecycleManager."""
 
+import logging
 from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 import pytest
@@ -57,6 +58,9 @@ def mock_app_instance():
 @pytest.fixture
 def lifecycle(mock_hassette, mock_registry) -> AppLifecycleManager:
     """Create an AppLifecycleManager instance with mocked dependencies."""
+    # Ensure propagate=True so caplog can capture logs even if integration
+    # tests ran first and set propagate=False on the hassette logger.
+    logging.getLogger("hassette").propagate = True
     return AppLifecycleManager(mock_hassette, mock_registry)
 
 
