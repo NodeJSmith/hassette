@@ -65,6 +65,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 [dependency-groups]
 dev = [
     "coverage[toml]>=7.10.7",
+    "pyright>=1.1.408",
     "pytest>=8.4.0",
     "pytest-cov>=7.0.0",
     "tomli-w>=1.2.0",
