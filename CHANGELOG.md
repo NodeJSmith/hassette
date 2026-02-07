@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BlockReason` enum and blocked app tracking in `AppRegistry` to distinguish "enabled but excluded by `@only_app`" from "not configured"
 - `ResourceStatus.STOPPING` enum value
 - `enabled_manifests` property on `AppRegistry` for querying enabled apps regardless of `only_app` filter
+- `StateManager.get(entity_id)` for generic entity access with automatic domain-type resolution and `BaseState` fallback
 
 ### Fixed
 - Removing `@only_app` decorator now correctly starts previously-blocked apps during hot reload
