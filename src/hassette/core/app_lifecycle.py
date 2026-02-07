@@ -112,13 +112,14 @@ class AppLifecycleManager:
                 "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
             )
             await self._emit_app_state_change(inst, status=STOPPED, prev_status=STOPPING)
-        except Exception:
+        except Exception as e:
             self.logger.error(
                 "Failed to stop app '%s' after %s seconds:\n%s",
                 inst.app_config.instance_name,
                 self.shutdown_timeout,
                 get_short_traceback(),
             )
+            await self._emit_app_state_change(inst, status=FAILED, prev_status=STOPPING, exception=e)
 
     async def shutdown_instances(
         self,
