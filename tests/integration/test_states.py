@@ -471,3 +471,61 @@ class TestStatesIntegration:
             assert isinstance(light_state, states.LightState)
             # The cache should already be populated from the previous iteritems call
             assert len(light_manager._cache) == i + 1
+
+
+class TestStateManagerGenericAccess:
+    """Tests for StateManager.get() generic access method."""
+
+    async def test_get_registered_domain_returns_typed_state(self, hassette_with_state_proxy: "Hassette") -> None:
+        """get() returns domain-specific type for registered domains."""
+        hassette = hassette_with_state_proxy
+
+        light_dict = make_light_state_dict("light.bedroom", "on", brightness=150)
+        event = make_full_state_change_event("light.bedroom", None, light_dict)
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await asyncio.sleep(0.1)
+
+        states_instance = StateManager.create(hassette, hassette)
+        result = states_instance.get("light.bedroom")
+
+        assert result is not None
+        assert isinstance(result, states.LightState)
+        assert result.entity_id == "light.bedroom"
+        assert result.value == "on"
+        assert result.attributes.brightness == 150
+
+    async def test_get_unregistered_domain_returns_base_state(self, hassette_with_state_proxy: "Hassette") -> None:
+        """get() returns BaseState for unregistered domains."""
+        hassette = hassette_with_state_proxy
+
+        # Manually inject state for unregistered domain
+        test_dict = make_state_dict("test.test_entity", "test_value")
+        event = make_full_state_change_event("test.test_entity", None, test_dict)
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await asyncio.sleep(0.1)
+
+        states_instance = StateManager.create(hassette, hassette)
+        result = states_instance.get("test.test_entity")
+
+        assert result is not None
+        assert isinstance(result, states.BaseState)
+        assert type(result) is states.BaseState  # Exactly BaseState, not a subclass
+        assert result.entity_id == "test.test_entity"
+        assert result.domain == "test"
+        assert result.value == "test_value"
+
+    async def test_get_nonexistent_entity_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
+        """get() returns None for entities that don't exist."""
+        hassette = hassette_with_state_proxy
+        states_instance = StateManager.create(hassette, hassette)
+
+        result = states_instance.get("nonexistent.entity")
+        assert result is None
+
+    async def test_get_with_invalid_entity_id_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
+        """get() returns None for malformed entity IDs."""
+        hassette = hassette_with_state_proxy
+        states_instance = StateManager.create(hassette, hassette)
+
+        result = states_instance.get("invalid_no_dot")
+        assert result is None
