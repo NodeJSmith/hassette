@@ -94,6 +94,12 @@ web_api_cors_origins: tuple[str, ...] = Field(
 
 web_api_event_buffer_size: int = Field(default=500)
 """Maximum number of recent events to keep in the DataSyncService ring buffer."""
+
+web_api_log_buffer_size: int = Field(default=2000)
+"""Maximum number of log entries to keep in the LogCaptureHandler ring buffer."""
+
+web_api_job_history_size: int = Field(default=1000)
+"""Maximum number of job execution records to keep."""
 ```
 
 Note: `run_web_api` defaults to `True` (matching the old `run_health_service` default) and `web_api_port` defaults to `8126` (matching the old `health_service_port` default) so existing Docker healthcheck configurations continue to work without changes.
@@ -128,6 +134,8 @@ src/hassette/
       apps.py                  # GET/POST /api/apps, /api/apps/{key}, /api/apps/{key}/start|stop|reload
       services.py              # GET /api/services
       events.py                # GET /api/events/recent
+      logs.py                  # GET /api/logs
+      scheduler.py             # GET /api/scheduler/jobs, /api/scheduler/history
       config.py                # GET /api/config
       ws.py                    # WS /api/ws
 tests/
@@ -255,6 +263,8 @@ def create_fastapi_app(hassette: Hassette) -> FastAPI:
     app.include_router(apps_router, prefix="/api")
     app.include_router(services_router, prefix="/api")
     app.include_router(events_router, prefix="/api")
+    app.include_router(logs_router, prefix="/api")
+    app.include_router(scheduler_router, prefix="/api")
     app.include_router(config_router, prefix="/api")
     app.include_router(ws_router, prefix="/api")
     return app
@@ -323,6 +333,261 @@ class WsMessage(BaseModel):
     data: dict[str, Any]
 ```
 
+### 6.6 Log Capture (`src/hassette/logging_.py` + `src/hassette/core/data_sync_service.py`)
+
+App developers need to see their app's logs in the UI. Currently all logging goes to stdout via Python's `logging` module with no in-memory capture. We add a `logging.Handler` subclass that writes log records into a ring buffer on `DataSyncService`, and broadcasts them over the WebSocket.
+
+**LogCaptureHandler** (lives in `src/hassette/logging_.py` alongside `enable_logging()`):
+
+```python
+class LogCaptureHandler(logging.Handler):
+    """Captures log records into a bounded deque and broadcasts to WS clients."""
+
+    _buffer: deque[LogEntry]
+    _broadcast_fn: Callable[[dict], Awaitable[None]] | None
+    _loop: asyncio.AbstractEventLoop | None
+
+    def __init__(self, buffer_size: int = 2000):
+        super().__init__()
+        self._buffer = deque(maxlen=buffer_size)
+        self._broadcast_fn = None
+        self._loop = None
+
+    def set_broadcast(self, fn: Callable[[dict], Awaitable[None]], loop: asyncio.AbstractEventLoop) -> None:
+        """Called by DataSyncService after initialization to wire up WS broadcast."""
+        self._broadcast_fn = fn
+        self._loop = loop
+
+    def emit(self, record: logging.LogRecord) -> None:
+        entry = LogEntry(
+            timestamp=record.created,
+            level=record.levelname,
+            logger_name=record.name,
+            func_name=record.funcName,
+            lineno=record.lineno,
+            message=self.format(record),
+            exc_info=record.exc_text,
+        )
+        self._buffer.append(entry)
+        if self._broadcast_fn and self._loop and self._loop.is_running():
+            self._loop.call_soon_threadsafe(
+                asyncio.ensure_future,
+                self._broadcast_fn({"type": "log", "data": entry.to_dict()}),
+            )
+```
+
+The handler is installed in `enable_logging()` and attached to the `hassette` root logger, so it captures all hassette and app logs. `DataSyncService.on_initialize()` calls `set_broadcast()` to wire up real-time push to WebSocket clients.
+
+**LogEntry dataclass** (lives in `src/hassette/logging_.py`):
+
+```python
+@dataclass
+class LogEntry:
+    timestamp: float              # Unix timestamp (time.time())
+    level: str                    # "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+    logger_name: str              # e.g. "hassette.AppHandler.MyApp[0]"
+    func_name: str                # Function name
+    lineno: int                   # Line number
+    message: str                  # Formatted message
+    exc_info: str | None = None   # Exception traceback if present
+
+    @property
+    def app_key(self) -> str | None:
+        """Extract app key from logger name if this is an app log.
+        Logger names follow: hassette.AppHandler.<AppClass>[<index>]..."""
+        ...
+
+    def to_dict(self) -> dict: ...
+```
+
+The `logger_name` follows hassette's hierarchical naming convention, so the frontend can filter logs by:
+- **App**: Filter on `logger_name` starting with the app's `unique_name`
+- **Service**: Filter on service logger names (e.g. `hassette.BusService`)
+- **Level**: Filter on `level` field
+
+**DataSyncService integration:**
+
+```python
+# New attribute:
+log_handler: LogCaptureHandler  # set during on_initialize()
+
+# New method:
+def get_recent_logs(self, limit: int = 100, app_key: str | None = None,
+                    level: str | None = None) -> list[dict]:
+    """Return recent log entries, optionally filtered by app or level."""
+```
+
+**Response model:**
+
+```python
+class LogEntryResponse(BaseModel):
+    timestamp: float
+    level: str
+    logger_name: str
+    func_name: str
+    lineno: int
+    message: str
+    exc_info: str | None = None
+    app_key: str | None = None       # Extracted from logger_name if app log
+```
+
+### 6.7 Scheduler Global View (`src/hassette/core/scheduler_service.py`)
+
+Each `Scheduler` instance belongs to a single app. There is no way to get a cross-app view of all scheduled jobs. The `SchedulerService` has the priority queue internally but no method to enumerate it. We add a `get_all_jobs()` method.
+
+**Changes to `_ScheduledJobQueue`:**
+
+```python
+async def get_all(self) -> list[ScheduledJob]:
+    """Return a snapshot of all queued jobs (non-destructive)."""
+    async with self._lock:
+        return list(self._queue._queue)  # shallow copy of the heap
+```
+
+**Changes to `SchedulerService`:**
+
+```python
+async def get_all_jobs(self) -> list[ScheduledJob]:
+    """Return all currently scheduled jobs across all apps."""
+    return await self._job_queue.get_all()
+```
+
+**DataSyncService integration:**
+
+```python
+async def get_scheduled_jobs(self) -> list[dict]:
+    """Return all scheduled jobs across all apps, sorted by next_run."""
+    jobs = await self.hassette._scheduler_service.get_all_jobs()
+    return [
+        {
+            "job_id": job.job_id,
+            "name": job.name,
+            "owner": job.owner,
+            "next_run": str(job.next_run),
+            "repeat": job.repeat,
+            "cancelled": job.cancelled,
+            "trigger_type": type(job.trigger).__name__ if job.trigger else "once",
+            "timeout_seconds": job.timeout_seconds,
+        }
+        for job in sorted(jobs, key=lambda j: j.next_run)
+    ]
+```
+
+**Response model:**
+
+```python
+class ScheduledJobResponse(BaseModel):
+    job_id: int
+    name: str
+    owner: str                       # App unique_name that owns the job
+    next_run: str                    # ISO datetime
+    repeat: bool
+    cancelled: bool
+    trigger_type: str                # "IntervalTrigger", "CronTrigger", or "once"
+    timeout_seconds: int
+```
+
+### 6.8 Job Execution Metrics (`src/hassette/core/scheduler_service.py`)
+
+When the scheduler dispatches a job, there is no record of whether it succeeded, failed, or how long it took. We add a lightweight execution log as a `deque` on `SchedulerService`.
+
+**JobExecutionRecord dataclass** (lives in `src/hassette/scheduler/classes.py`):
+
+```python
+@dataclass
+class JobExecutionRecord:
+    job_id: int
+    job_name: str
+    owner: str
+    started_at: float                # Unix timestamp
+    duration_ms: float               # Execution duration in milliseconds
+    status: str                      # "success", "error", "cancelled"
+    error_message: str | None = None
+    error_type: str | None = None
+```
+
+**Changes to `SchedulerService`:**
+
+The existing `run_job()` method gets a `try/finally` wrapper to record execution metrics. The actual job execution logic is unchanged.
+
+```python
+class SchedulerService(Service):
+    _execution_log: deque[JobExecutionRecord]   # bounded ring buffer
+
+    @classmethod
+    def create(cls, hassette):
+        ...
+        inst._execution_log = deque(maxlen=hassette.config.web_api_job_history_size)
+        ...
+
+    async def run_job(self, job: ScheduledJob):
+        """Run a scheduled job, recording execution metrics."""
+        if job.cancelled:
+            ...
+            return
+
+        started_at = time.monotonic()
+        timestamp = time.time()
+        status = "success"
+        error_message = None
+        error_type = None
+
+        try:
+            async_func = self.task_bucket.make_async_adapter(job.job)
+            await async_func(*job.args, **job.kwargs)
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
+        except Exception as exc:
+            status = "error"
+            error_message = str(exc)
+            error_type = type(exc).__name__
+            self.logger.exception("Error running job %s", job)
+        finally:
+            duration_ms = (time.monotonic() - started_at) * 1000
+            record = JobExecutionRecord(
+                job_id=job.job_id,
+                job_name=job.name,
+                owner=job.owner,
+                started_at=timestamp,
+                duration_ms=duration_ms,
+                status=status,
+                error_message=error_message,
+                error_type=error_type,
+            )
+            self._execution_log.append(record)
+
+    def get_execution_history(self, limit: int = 50, owner: str | None = None) -> list[JobExecutionRecord]:
+        """Return recent job execution records, optionally filtered by owner."""
+        entries = list(self._execution_log)
+        if owner:
+            entries = [e for e in entries if e.owner == owner]
+        return entries[-limit:]
+```
+
+**DataSyncService integration:**
+
+```python
+def get_job_execution_history(self, limit: int = 50, owner: str | None = None) -> list[dict]:
+    """Return recent job execution records, optionally filtered by owner."""
+    records = self.hassette._scheduler_service.get_execution_history(limit, owner)
+    return [asdict(r) for r in records]
+```
+
+**Response model:**
+
+```python
+class JobExecutionResponse(BaseModel):
+    job_id: int
+    job_name: str
+    owner: str
+    started_at: float
+    duration_ms: float
+    status: str                      # "success" | "error" | "cancelled"
+    error_message: str | None = None
+    error_type: str | None = None
+```
+
 ---
 
 ## 7. REST API Endpoints
@@ -379,6 +644,27 @@ Returns recent events from DataSyncService event buffer.
 
 Returns sanitized hassette configuration (token redacted).
 
+### `GET /api/logs?limit=100&app_key=my_app&level=ERROR`
+
+Returns recent log entries from the `LogCaptureHandler` ring buffer. All query parameters are optional:
+- `limit` (default 100) -- max entries to return
+- `app_key` -- filter to logs from a specific app (matches against `logger_name`)
+- `level` -- minimum log level filter (e.g. `WARNING` returns WARNING, ERROR, CRITICAL)
+
+Returns `list[LogEntryResponse]`.
+
+### `GET /api/scheduler/jobs`
+
+Returns all currently scheduled jobs across all apps, sorted by `next_run`. Returns `list[ScheduledJobResponse]`.
+
+### `GET /api/scheduler/jobs?owner={app_unique_name}`
+
+Same as above but filtered to a single app's jobs.
+
+### `GET /api/scheduler/history?limit=50&owner={app_unique_name}`
+
+Returns recent job execution records from the `SchedulerService` execution log. Both query parameters are optional. Returns `list[JobExecutionResponse]`.
+
 ---
 
 ## 8. WebSocket Endpoint
@@ -394,8 +680,11 @@ Protocol:
    - `{"type": "app_status_changed", "data": {"app_key": "...", "status": "..."}}`
    - `{"type": "service_status", "data": {"resource_name": "...", "status": "..."}}`
    - `{"type": "connectivity", "data": {"connected": true/false}}`
+   - `{"type": "log", "data": {"timestamp": ..., "level": "...", "logger_name": "...", "message": "..."}}`
+   - `{"type": "job_executed", "data": {"job_id": ..., "job_name": "...", "owner": "...", "status": "...", "duration_ms": ...}}`
 4. Client can send `{"type": "ping"}` and server replies `{"type": "pong"}`.
-5. On disconnect, the server unregisters the client queue.
+5. Client can send `{"type": "subscribe", "data": {"logs": true, "min_log_level": "INFO"}}` to opt into log streaming (logs are not sent by default to avoid overwhelming the connection).
+6. On disconnect, the server unregisters the client queue.
 
 Implementation:
 
@@ -428,36 +717,43 @@ Each step's dependencies are already complete by the time it is reached.
 2. Remove HealthService:
    - Delete `src/hassette/core/health_service.py`.
    - Remove `_health_service` from `Hassette.__init__()` in `src/hassette/core/core.py`.
-   - Replace config fields: remove `run_health_service`, `health_service_port`, `health_service_log_level`; add `run_web_api`, `web_api_host`, `web_api_port`, `web_api_log_level`, `web_api_cors_origins`, `web_api_event_buffer_size`.
+   - Replace config fields: remove `run_health_service`, `health_service_port`, `health_service_log_level`; add all `web_api_*` fields.
    - Update tests that reference HealthService (`tests/integration/test_core.py`, `tests/conftest.py`).
 3. Create the `src/hassette/web/` package skeleton: `__init__.py`, `models.py`, `dependencies.py`, `app.py`, `routes/__init__.py`.
 4. Create response models in `src/hassette/web/models.py` (pure pydantic, no runtime deps).
 
-### Phase 2: DataSyncService
+### Phase 2: Core Infrastructure Changes
 
-5. Create `src/hassette/core/data_sync_service.py` with event buffer, WS client registry, bus subscriptions, query methods, and broadcast.
-6. Register DataSyncService in `Hassette.__init__()` in `src/hassette/core/core.py`.
-7. Write unit tests for DataSyncService.
+5. Add `LogCaptureHandler` and `LogEntry` to `src/hassette/logging_.py`. Install the handler in `enable_logging()`.
+6. Add `JobExecutionRecord` to `src/hassette/scheduler/classes.py`.
+7. Add `_execution_log` to `SchedulerService.create()`, wrap `run_job()` with metrics capture, add `get_execution_history()`.
+8. Add `get_all()` to `_ScheduledJobQueue`, add `get_all_jobs()` to `SchedulerService`.
 
-### Phase 3: REST API Routes
+### Phase 3: DataSyncService
 
-8. Implement route modules one at a time: health (including `/healthz` backwards compat), entities, apps, services, events, config.
-9. Implement `src/hassette/web/app.py` (the `create_fastapi_app()` factory).
-10. Implement `src/hassette/web/dependencies.py`.
+9. Create `src/hassette/core/data_sync_service.py` with event buffer, WS client registry, bus subscriptions, log handler wiring, and query methods (entity state, app status, events, logs, scheduled jobs, job history).
+10. Register DataSyncService in `Hassette.__init__()` in `src/hassette/core/core.py`.
+11. Write unit tests for DataSyncService.
 
-### Phase 4: WebApiService
+### Phase 4: REST API Routes
 
-11. Create `src/hassette/core/web_api_service.py` with `serve()` using uvicorn programmatic API.
-12. Register WebApiService in `Hassette.__init__()`, replacing where `_health_service` was.
+12. Implement route modules one at a time: health (including `/healthz` backwards compat), entities, apps, services, events, logs, scheduler, config.
+13. Implement `src/hassette/web/app.py` (the `create_fastapi_app()` factory).
+14. Implement `src/hassette/web/dependencies.py`.
 
-### Phase 5: WebSocket Endpoint
+### Phase 5: WebApiService
 
-13. Implement `routes/ws.py` with dual-task loop for reading client messages and writing from broadcast queue.
+15. Create `src/hassette/core/web_api_service.py` with `serve()` using uvicorn programmatic API.
+16. Register WebApiService in `Hassette.__init__()`, replacing where `_health_service` was.
 
-### Phase 6: Testing and Polish
+### Phase 6: WebSocket Endpoint
 
-14. Write integration tests using `httpx.AsyncClient` with `ASGITransport`.
-15. Update documentation.
+17. Implement `routes/ws.py` with dual-task loop for reading client messages and writing from broadcast queue. Include log subscription opt-in and job execution push.
+
+### Phase 7: Testing and Polish
+
+18. Write integration tests using `httpx.AsyncClient` with `ASGITransport`.
+19. Update documentation.
 
 ---
 
@@ -525,6 +821,8 @@ When `run_web_api` is `False`, both services immediately mark themselves ready a
 | `src/hassette/web/routes/apps.py` | App management endpoints |
 | `src/hassette/web/routes/services.py` | HA services endpoint |
 | `src/hassette/web/routes/events.py` | Event history endpoint |
+| `src/hassette/web/routes/logs.py` | Log query endpoint |
+| `src/hassette/web/routes/scheduler.py` | Scheduled jobs and execution history endpoints |
 | `src/hassette/web/routes/config.py` | Config endpoint |
 | `src/hassette/web/routes/ws.py` | WebSocket endpoint |
 | `tests/unit/core/test_data_sync_service.py` | DataSyncService unit tests |
@@ -541,10 +839,13 @@ When `run_web_api` is `False`, both services immediately mark themselves ready a
 | File | Change |
 |---|---|
 | `pyproject.toml` | Add `fastapi` and `uvicorn` dependencies |
-| `src/hassette/config/config.py` | Remove `run_health_service`, `health_service_port`, `health_service_log_level`; add `run_web_api`, `web_api_host`, `web_api_port`, `web_api_log_level`, `web_api_cors_origins`, `web_api_event_buffer_size` |
+| `src/hassette/config/config.py` | Remove `run_health_service`, `health_service_port`, `health_service_log_level`; add all `web_api_*` fields |
 | `src/hassette/core/core.py` | Remove `HealthService` import and `_health_service` child; add `DataSyncService` and `WebApiService` as children |
 | `src/hassette/core/__init__.py` | Export new service classes, remove `HealthService` export (if applicable) |
+| `src/hassette/logging_.py` | Add `LogCaptureHandler` and `LogEntry` classes; install handler in `enable_logging()` |
+| `src/hassette/scheduler/classes.py` | Add `JobExecutionRecord` dataclass |
+| `src/hassette/core/scheduler_service.py` | Add `_execution_log` deque, wrap `run_job()` with metrics, add `get_execution_history()`, add `get_all_jobs()` and `get_all()` on `_ScheduledJobQueue` |
 | `tests/integration/test_core.py` | Replace `HealthService` assertions with `WebApiService` assertions |
 | `tests/conftest.py` | Replace `run_health_service=False` / `health_service_port` with `run_web_api=False` / `web_api_port` in test configs |
-| `src/hassette/config/hassette.dev.toml` | Update health service references if present |
-| `src/hassette/config/hassette.prod.toml` | Update health service references if present |
+| `src/hassette/config/hassette.dev.toml` | Replace `run_health_service`, `health_service_port`, `health_service_log_level` with `web_api_*` equivalents |
+| `src/hassette/config/hassette.prod.toml` | Replace `run_health_service`, `health_service_port`, `health_service_log_level` with `web_api_*` equivalents |
