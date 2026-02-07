@@ -51,7 +51,7 @@ uv run mkdocs serve
 
 **Api** (`src/hassette/api/`) - Home Assistant REST/WebSocket interface. Async methods: `get_state()`, `get_states()`, `call_service()`, `set_state()`, `fire_event()`.
 
-**StateManager** (`src/hassette/state_manager/`) - State access and caching with type conversion.
+**StateManager** (`src/hassette/state_manager/`) - State access and caching with type conversion. Supports domain access (`self.states.light`), generic access (`self.states[CustomState]`), and direct entity lookup (`self.states.get("light.kitchen")`).
 
 ### Event Handling Modules
 

@@ -315,6 +315,48 @@ class StateManager(Resource):
         """
         return DomainStates[StateT](self._state_proxy, model)
 
+    def get(self, entity_id: str) -> BaseState | None:
+        """Get a state by entity ID, returning the most specific type available.
+
+        This method provides generic access to any entity state, regardless of whether
+        a domain-specific state class is registered. If a specific class is registered
+        (e.g., LightState for domain "light"), it will be used. Otherwise, the state
+        is returned as a BaseState instance.
+
+        Args:
+            entity_id: Full entity ID (e.g., "light.bedroom" or "test.test_entity")
+
+        Returns:
+            Typed state object (domain-specific or BaseState), or None if not found.
+
+        Examples:
+            ```python
+            # Get a registered domain (returns LightState)
+            light = self.states.get("light.bedroom")
+
+            # Get an unregistered domain (returns BaseState)
+            test_entity = self.states.get("test.test_entity")
+            if test_entity:
+                print(f"Domain: {test_entity.domain}, Value: {test_entity.value}")
+            ```
+        """
+        # Get raw state dict from proxy
+        state_dict = self._state_proxy.get_state(entity_id)
+        if state_dict is None:
+            return None
+
+        # Use StateRegistry's try_convert_state which handles fallback to BaseState
+        try:
+            return self.hassette.state_registry.try_convert_state(state_dict, entity_id)
+        except Exception as e:
+            LOGGER.error(
+                "Failed to convert state for entity '%s': %s",
+                entity_id,
+                e,
+                stacklevel=2,
+            )
+            return None
+
     def __contains__(self, model: type[StateT]) -> bool:
         """Check if model is registered in the state registry.
 
