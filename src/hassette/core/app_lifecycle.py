@@ -137,7 +137,7 @@ class AppLifecycleManager:
         self.logger.debug("Stopping %d app instances", len(instances))
 
         for inst in instances.values():
-            event = HassetteAppStateEvent.from_data(app=inst, status=STOPPING, previous_status=RUNNING)
+            event = HassetteAppStateEvent.from_data(app=inst, status=STOPPING, previous_status=inst.status)
             await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
             await self.shutdown_instance(inst)
 
