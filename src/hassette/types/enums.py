@@ -55,6 +55,13 @@ class Topic(StrEnum):
     """Script started events"""
 
 
+class BlockReason(StrEnum):
+    """Reasons an app may be intentionally blocked from starting."""
+
+    ONLY_APP = auto()
+    """Another app has the @only_app decorator, so this app is excluded."""
+
+
 class ResourceStatus(StrEnum):
     """Enumeration for resource status."""
 

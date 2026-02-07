@@ -9,7 +9,7 @@ from hassette.core.app_registry import (
     AppRegistry,
     AppStatusSnapshot,
 )
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import BlockReason, ResourceStatus
 
 
 class TestAppStatusSnapshot:
@@ -312,3 +312,62 @@ class TestAppRegistry:
 
         registry.set_only_app(None)
         assert registry.only_app is None
+
+    # --- Enabled manifests tests ---
+
+    def test_enabled_manifests(self, registry: AppRegistry) -> None:
+        """Test enabled_manifests returns only enabled apps."""
+        enabled = MagicMock()
+        enabled.enabled = True
+        disabled = MagicMock()
+        disabled.enabled = False
+
+        registry.set_manifests({"app1": enabled, "app2": disabled})
+
+        result = registry.enabled_manifests
+        assert "app1" in result
+        assert "app2" not in result
+
+
+class TestBlockedApps:
+    """Tests for blocked apps tracking."""
+
+    @pytest.fixture
+    def registry(self) -> AppRegistry:
+        return AppRegistry()
+
+    def test_block_app(self, registry: AppRegistry) -> None:
+        """Block an app and verify it is tracked."""
+        registry.block_app("my_app", BlockReason.ONLY_APP)
+
+        assert "my_app" in registry._blocked_apps
+        assert registry._blocked_apps["my_app"] == BlockReason.ONLY_APP
+
+    def test_unblock_apps(self, registry: AppRegistry) -> None:
+        """Block two apps with ONLY_APP, unblock, verify both returned and dict is empty."""
+        registry.block_app("app1", BlockReason.ONLY_APP)
+        registry.block_app("app2", BlockReason.ONLY_APP)
+
+        unblocked = registry.unblock_apps(BlockReason.ONLY_APP)
+
+        assert unblocked == {"app1", "app2"}
+        assert len(registry._blocked_apps) == 0
+
+    def test_unblock_apps_returns_empty_when_none_blocked(self, registry: AppRegistry) -> None:
+        """Unblocking with no blocked apps returns empty set."""
+        unblocked = registry.unblock_apps(BlockReason.ONLY_APP)
+
+        assert unblocked == set()
+
+    def test_clear_all_clears_blocked(self, registry: AppRegistry) -> None:
+        """Verify clear_all also clears _blocked_apps."""
+        mock_app = MagicMock()
+        registry.register_app("app1", 0, mock_app)
+        registry.record_failure("app2", 0, Exception("error"))
+        registry.block_app("app3", BlockReason.ONLY_APP)
+
+        registry.clear_all()
+
+        assert len(registry.apps) == 0
+        assert registry.get_snapshot().failed_count == 0
+        assert len(registry._blocked_apps) == 0

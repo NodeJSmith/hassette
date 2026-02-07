@@ -128,20 +128,23 @@ class AppFactory:
             return [app_config]
         return list(app_config)
 
-    def check_only_app_decorator(self, manifest: "AppManifest") -> bool:
+    def check_only_app_decorator(self, manifest: "AppManifest", *, force_reload: bool = False) -> bool:
         """Check if an app class has the only_app decorator.
 
         Args:
             manifest: The app manifest to check
+            force_reload: Whether to force reload the class from disk
 
         Returns:
             True if the app has the only_app decorator, False otherwise
         """
-        if class_failed_to_load(manifest.full_path, manifest.class_name):
+        if not force_reload and class_failed_to_load(manifest.full_path, manifest.class_name):
             return False
 
         try:
-            if class_already_loaded(manifest.full_path, manifest.class_name):
+            if force_reload:
+                app_class = load_app_class_from_manifest(manifest, force_reload=True)
+            elif class_already_loaded(manifest.full_path, manifest.class_name):
                 app_class = get_loaded_class(manifest.full_path, manifest.class_name)
             else:
                 app_class = load_app_class_from_manifest(manifest)

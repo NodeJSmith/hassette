@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import BlockReason, ResourceStatus
 
 if TYPE_CHECKING:
     from hassette import AppConfig
@@ -76,6 +76,7 @@ class AppRegistry:
     def __init__(self) -> None:
         self._apps: dict[str, dict[int, App[AppConfig]]] = defaultdict(dict)
         self._failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
+        self._blocked_apps: dict[str, BlockReason] = {}
         self._manifests: dict[str, AppManifest] = {}
         self._only_app: str | None = None
         self.logger = getLogger(f"{__name__}.AppRegistry")
@@ -119,10 +120,23 @@ class AppRegistry:
         else:
             self._failed_apps.clear()
 
+    def block_app(self, app_key: str, reason: BlockReason) -> None:
+        """Record that an app was intentionally not started."""
+        self._blocked_apps[app_key] = reason
+        self.logger.debug("Blocked app '%s' reason: %s", app_key, reason)
+
+    def unblock_apps(self, reason: BlockReason) -> set[str]:
+        """Remove and return all apps blocked for the given reason."""
+        matching = {k for k, r in self._blocked_apps.items() if r == reason}
+        for k in matching:
+            del self._blocked_apps[k]
+        return matching
+
     def clear_all(self) -> None:
-        """Clear all apps and failures."""
+        """Clear all apps, failures, and blocked apps."""
         self._apps.clear()
         self._failed_apps.clear()
+        self._blocked_apps.clear()
 
     def set_manifests(self, manifests: dict[str, "AppManifest"]) -> None:
         """Update the app manifests configuration."""
@@ -202,8 +216,13 @@ class AppRegistry:
         return self._manifests
 
     @property
-    def active_apps_config(self) -> dict[str, "AppManifest"]:
-        """Apps that are enabled."""
+    def enabled_manifests(self) -> dict[str, "AppManifest"]:
+        """All enabled app manifests, regardless of only_app filter."""
+        return {k: v for k, v in self.manifests.items() if v.enabled}
+
+    @property
+    def active_manifests(self) -> dict[str, "AppManifest"]:
+        """All active app manifests, considering only_app filter."""
         enabled_apps = {k: v for k, v in self.manifests.items() if v.enabled}
         if self.only_app:
             enabled_apps = {k: v for k, v in enabled_apps.items() if k == self.only_app}

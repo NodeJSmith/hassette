@@ -291,3 +291,46 @@ class TestOnlyAppDecorator:
         assert inst.app_config.test_value == "updated"
         assert self.app_handler.registry.get(normal.app_key, 0) is None
         assert self.app_handler.registry.only_app == only.app_key
+
+    async def test_removing_only_app_starts_previously_blocked_apps(self):
+        """Remove @only_app decorator and verify previously-blocked apps start."""
+        app_dir = self.hassette.config.app_dir
+        toml_file = list(self.hassette.config.toml_files)[0]
+
+        # Start two apps, one with @only_app — the other should be blocked
+        only = create_app_manifest(suffix="onlyremove", app_dir=app_dir)
+        blocked = create_app_manifest(suffix="wasblocked", app_dir=app_dir)
+        write_test_app_with_decorator(app_file=only.full_path, class_name=only.class_name, has_only_app=True)
+        write_test_app_with_decorator(app_file=blocked.full_path, class_name=blocked.class_name)
+
+        only_running = asyncio.Event()
+        wire_up_app_running_listener(self.hassette._bus, only_running, only.app_key)
+
+        write_app_toml(toml_file, app_dir=app_dir, apps=[only, blocked])
+        await emit_file_change_event(self.hassette, {toml_file, only.full_path, blocked.full_path})
+
+        with anyio.fail_after(3):
+            await only_running.wait()
+
+        assert self.app_handler.registry.get(only.app_key, 0) is not None
+        assert self.app_handler.registry.get(blocked.app_key, 0) is None
+        assert self.app_handler.registry.only_app == only.app_key
+
+        # Rewrite the only_app's file WITHOUT @only_app decorator
+        write_test_app_with_decorator(app_file=only.full_path, class_name=only.class_name, has_only_app=False)
+
+        only_running2 = asyncio.Event()
+        blocked_running = asyncio.Event()
+        wire_up_app_running_listener(self.hassette._bus, only_running2, only.app_key)
+        wire_up_app_running_listener(self.hassette._bus, blocked_running, blocked.app_key)
+
+        await emit_file_change_event(self.hassette, {only.full_path})
+
+        with anyio.fail_after(3):
+            await only_running2.wait()
+            await blocked_running.wait()
+
+        # Both apps should now be running
+        assert self.app_handler.registry.get(only.app_key, 0) is not None
+        assert self.app_handler.registry.get(blocked.app_key, 0) is not None
+        assert self.app_handler.registry.only_app is None

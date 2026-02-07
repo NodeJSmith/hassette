@@ -15,6 +15,7 @@ from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.resources.base import Resource
 from hassette.types import ResourceStatus, Topic
+from hassette.types.enums import BlockReason
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -157,6 +158,7 @@ class AppHandler(Resource):
 
         try:
             await self._resolve_only_app()
+            self._reconcile_blocked_apps()
             await self.start_apps()
             snapshot = self.get_status_snapshot()
             if not snapshot.running_count and not snapshot.failed_count:
@@ -177,13 +179,15 @@ class AppHandler(Resource):
             await self.handle_crash(e)
             raise
 
-    async def _resolve_only_app(self) -> None:
+    async def _resolve_only_app(self, changed_file_paths: frozenset[Path] | None = None) -> None:
         """Determine if any app is marked as only and update only app filter accordingly."""
         only_apps: list[str] = []
+        changed = changed_file_paths or frozenset()
 
-        for app_manifest in self.registry.active_apps_config.values():
+        for app_manifest in self.registry.active_manifests.values():
             try:
-                if self.factory.check_only_app_decorator(app_manifest):
+                force_reload = app_manifest.full_path in changed
+                if self.factory.check_only_app_decorator(app_manifest, force_reload=force_reload):
                     only_apps.append(app_manifest.app_key)
             except (UndefinedUserConfigError, InvalidInheritanceError):
                 self.logger.error(
@@ -214,6 +218,22 @@ class AppHandler(Resource):
         self.registry.set_only_app(app_key)
         self.change_detector.set_only_app_filter(app_key)
 
+    def _reconcile_blocked_apps(self) -> set[str]:
+        """Synchronize blocked state with current only_app value.
+
+        Returns app_keys that were unblocked (previously blocked but no longer).
+        """
+        previously_blocked = self.registry.unblock_apps(BlockReason.ONLY_APP)
+
+        currently_blocked: set[str] = set()
+        if self.registry.only_app:
+            for app_key in self.registry.enabled_manifests:
+                if app_key != self.registry.only_app:
+                    self.registry.block_app(app_key, BlockReason.ONLY_APP)
+                    currently_blocked.add(app_key)
+
+        return previously_blocked - currently_blocked
+
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
         """Reload the configuration and return (original_apps_config, current_apps_config)."""
         # Filter only by enabled status, NOT by only_app filter, so both configs are comparable
@@ -241,9 +261,22 @@ class AppHandler(Resource):
         self.logger.debug("Handling app change event for files: %s", changed_file_paths)
 
         original_apps_config, curr_apps_config = await self.refresh_config()
-        await self._resolve_only_app()
+        await self._resolve_only_app(changed_file_paths)
 
         changes = self.change_detector.detect_changes(original_apps_config, curr_apps_config, changed_file_paths)
+
+        # Reconcile blocked apps — start any that were unblocked
+        unblocked = self._reconcile_blocked_apps()
+        to_start = unblocked - set(self.registry.apps.keys()) - changes.new_apps - changes.reimport_apps
+        if to_start:
+            self.logger.debug("Starting previously-blocked apps: %s", to_start)
+            changes = ChangeSet(
+                orphans=changes.orphans,
+                new_apps=changes.new_apps | frozenset(to_start),
+                reimport_apps=changes.reimport_apps,
+                reload_apps=changes.reload_apps - to_start,
+            )
+
         if not changes.has_changes:
             self.logger.debug("%s changed but no app changes detected", changed_file_paths)
             return
@@ -260,7 +293,7 @@ class AppHandler(Resource):
     async def start_apps(self, apps: set[str] | None = None) -> None:
         """Create initialization tasks for apps. If apps is None, initialize all enabled apps."""
 
-        apps = apps if apps is not None else set(self.registry.active_apps_config.keys())
+        apps = apps if apps is not None else set(self.registry.active_manifests.keys())
 
         results = await asyncio.gather(*[self.start_app(app_key) for app_key in apps], return_exceptions=True)
         exception_results = [r for r in results if isinstance(r, Exception)]
