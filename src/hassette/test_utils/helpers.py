@@ -1,9 +1,15 @@
+import json
+import textwrap
+from logging import getLogger
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
+import tomli_w
 from whenever import ZonedDateTime
 
+from hassette.config.classes import AppManifest
 from hassette.events import CallServiceEvent, RawStateChangeEvent, create_event_from_hass
 
 if TYPE_CHECKING:
@@ -194,3 +200,96 @@ def make_full_state_change_event(
     event = create_event_from_hass(envelope)
     assert isinstance(event, RawStateChangeEvent)
     return event
+
+
+def create_app_manifest(
+    suffix: str,
+    app_dir: Path,
+    enabled: bool = True,
+    app_config: dict | None = None,
+) -> AppManifest:
+    """Helper to create an AppManifest instance."""
+    app_config = app_config or {}
+
+    key = f"my_app_{suffix}"
+    filename = f"my_app_{suffix}.py"
+    class_name = f"MyApp{suffix.capitalize()}"
+    full_path = app_dir / filename
+
+    return AppManifest(
+        app_key=key,
+        filename=filename,
+        class_name=class_name,
+        enabled=enabled,
+        app_config=app_config,
+        app_dir=app_dir,
+        full_path=full_path,
+    )
+
+
+def get_app_manifest_for_toml(app: AppManifest) -> dict:
+    """Convert AppManifest to TOML string."""
+    data = app.model_dump(exclude_unset=True)
+    config_key = "app_config" if "app_config" in data else "config"
+
+    config = data.pop(config_key, {})
+
+    return {**data, "config": config}
+
+
+def write_app_toml(
+    toml_file: Path,
+    *,
+    app_dir: Path,
+    dev_mode: bool = True,
+    apps: list[AppManifest] | None = None,
+) -> None:
+    """Write a hassette.toml with specified apps."""
+    apps = apps or []
+
+    hassette_dict = {
+        "app_dir": app_dir.as_posix(),
+        "autodetect_apps": False,
+        "dev_mode": dev_mode,
+    }
+
+    app_dicts = {"apps": {app.app_key: get_app_manifest_for_toml(app) for app in apps}}
+
+    toml_dict = {"hassette": hassette_dict, **app_dicts}
+
+    # Convert any non-serializable types to strings for TOML compatibility
+    toml_dict = json.loads(json.dumps(toml_dict, indent=2, default=str))
+
+    with toml_file.open("wb") as f:
+        tomli_w.dump(toml_dict, f)
+
+
+def write_test_app_with_decorator(
+    app_file: Path,
+    class_name: str,
+    has_only_app: bool = False,
+    config_fields: dict | None = None,
+) -> None:
+    """Write a test app Python file with optional @only_app decorator."""
+    getLogger(__name__).debug("Writing test app to %s", app_file)
+    decorator = "@only_app\n" if has_only_app else ""
+    config_fields_str = ""
+
+    if config_fields:
+        for field_name, field_type in config_fields.items():
+            config_fields_str += f"\n    {field_name}: {field_type} = None"
+
+    content = f'''
+from hassette import App, AppConfig, only_app
+
+class {class_name}Config(AppConfig):
+    """Config for {class_name}."""{config_fields_str}
+
+{decorator}class {class_name}(App[{class_name}Config]):
+    """Test app."""
+
+    async def on_initialize(self) -> None:
+        self.logger.info("{class_name} initialized")
+'''
+
+    app_file.write_text(textwrap.dedent(content).lstrip())

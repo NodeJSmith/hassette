@@ -279,14 +279,23 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
 
     async with build_harness(config=config, use_bus=True, use_app_handler=True, use_scheduler=True) as harness:
         await wait_for(
-            lambda: (harness.hassette.get_app("env_reader") is not None)
-            or ("env_reader" in (harness.hassette._app_handler.failed_apps if harness.hassette._app_handler else {})),
+            lambda: (
+                (harness.hassette.get_app("env_reader") is not None)
+                or (
+                    "env_reader"
+                    in (
+                        harness.hassette._app_handler.registry.get_snapshot().failed_apps
+                        if harness.hassette._app_handler
+                        else {}
+                    )
+                )
+            ),
             timeout=2,
             desc="SettingsApp started or failed",
         )
         assert harness.hassette.get_app("env_reader") is None
         assert harness.hassette._app_handler is not None
-        assert "env_reader" in harness.hassette._app_handler.failed_apps
+        assert "env_reader" in harness.hassette._app_handler.registry.get_snapshot().failed_apps
 
     _cleanup_env(ENV_SETTINGS_KEY)
 

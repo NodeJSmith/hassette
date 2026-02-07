@@ -15,7 +15,9 @@ from .hass.hass import (
 )
 from .hass.raw import HassContextDict, HassEventDict, HassEventEnvelopeDict, HassStateDict
 from .hassette import (
+    AppStateChangePayload,
     FileWatcherEventPayload,
+    HassetteAppStateEvent,
     HassetteFileWatcherEvent,
     HassetteServiceEvent,
     HassetteSimpleEvent,
@@ -25,6 +27,7 @@ from .hassette import (
 )
 
 __all__ = [
+    "AppStateChangePayload",
     "AutomationTriggeredEvent",
     "CallServiceEvent",
     "ComponentLoadedEvent",
@@ -38,6 +41,7 @@ __all__ = [
     "HassEventEnvelopeDict",
     "HassPayload",
     "HassStateDict",
+    "HassetteAppStateEvent",
     "HassetteFileWatcherEvent",
     "HassettePayload",
     "HassetteServiceEvent",

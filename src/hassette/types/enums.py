@@ -19,6 +19,9 @@ class Topic(StrEnum):
     HASSETTE_EVENT_APP_LOAD_COMPLETED = "hassette.event.app_load_completed"
     """Application load completion events"""
 
+    HASSETTE_EVENT_APP_STATE_CHANGED = "hassette.event.app_state_changed"
+    """App instance state change events"""
+
     # Home Assistant events
 
     HASS_EVENT_STATE_CHANGED = "hass.event.state_changed"
@@ -52,6 +55,13 @@ class Topic(StrEnum):
     """Script started events"""
 
 
+class BlockReason(StrEnum):
+    """Reasons an app may be intentionally blocked from starting."""
+
+    ONLY_APP = auto()
+    """Another app has the @only_app decorator, so this app is excluded."""
+
+
 class ResourceStatus(StrEnum):
     """Enumeration for resource status."""
 
@@ -63,6 +73,9 @@ class ResourceStatus(StrEnum):
 
     RUNNING = auto()
     """The resource is currently running."""
+
+    STOPPING = auto()
+    """The resource is in the process of stopping."""
 
     STOPPED = auto()
     """The resource has been stopped without errors."""

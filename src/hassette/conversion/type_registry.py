@@ -168,7 +168,6 @@ class TypeRegistry:
         # handle tuple
         if isinstance(to_type, tuple):
             if isinstance(value, to_type):
-                LOGGER.debug("Value %r is already of type %s, no conversion needed", value, type(value).__name__)
                 return value
 
             for tt in to_type:

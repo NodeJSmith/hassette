@@ -59,7 +59,7 @@ class AppManifest(BaseModel):
     """Reflects the key for this app in hassette.toml"""
 
     enabled: bool = Field(default=True)
-    """Whether the app is enabled or not, will default to True if not set"""
+    """Whether the app is enabled or not, will default to True if not set. Does not consider @only_app decorator."""
 
     filename: str = Field(default=..., examples=["my_app.py"], validation_alias=AliasChoices("filename", "file_name"))
     """Filename of the app, will be looked for in app_path"""
@@ -76,7 +76,7 @@ class AppManifest(BaseModel):
     """Path to the app directory, relative to current working directory or absolute"""
 
     app_config: dict[str, Any] | list[dict[str, Any]] = Field(
-        default_factory=dict, validation_alias="config", validate_default=True
+        default_factory=dict, validation_alias=AliasChoices("config", "app_config"), validate_default=True
     )
     """Instance configuration for the app"""
 

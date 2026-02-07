@@ -123,6 +123,17 @@ async def hassette_with_app_handler(
         yield cast("Hassette", harness.hassette)
 
 
+@pytest.fixture
+async def hassette_with_app_handler_custom_config(
+    hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",
+    test_config_with_temp_path: "HassetteConfig",
+) -> "AsyncIterator[Hassette]":
+    async with hassette_harness(
+        config=test_config_with_temp_path, use_bus=True, use_app_handler=True, use_scheduler=True
+    ) as harness:
+        yield cast("Hassette", harness.hassette)
+
+
 @pytest.fixture(scope="module")
 async def hassette_with_state_proxy(
     hassette_harness: "Callable[..., contextlib.AbstractAsyncContextManager[HassetteHarness]]",

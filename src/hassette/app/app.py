@@ -149,8 +149,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
             results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
             for result in results:
                 if isinstance(result, Exception):
-                    self.logger.error("Error during resource cleanup for app '%s': %s", self.class_name, result)
-        self.logger.debug("All resources cleaned up for app '%s'", self.class_name)
+                    self.logger.error("Error during resource cleanup for app '%s': %s", self.unique_name, result)
+        self.logger.debug("All resources cleaned up for app '%s'", self.unique_name)
 
 
 class AppSync(App[AppConfigT]):

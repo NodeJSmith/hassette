@@ -1,9 +1,13 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from hassette.events.base import Event, HassettePayload
 from hassette.types import ResourceRole, ResourceStatus, Topic
 from hassette.utils import get_traceback_string
+
+if TYPE_CHECKING:
+    from hassette import App
 
 
 @dataclass(slots=True, frozen=True)
@@ -42,7 +46,7 @@ class WebsocketDisconnectedEventPayload:
 class FileWatcherEventPayload:
     """Payload for file watcher events."""
 
-    changed_file_path: Path
+    changed_file_paths: frozenset[Path]
 
 
 class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
@@ -92,9 +96,56 @@ class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
     """Alias for file watcher events."""
 
     @classmethod
-    def create_event(cls, *, changed_file_path: Path) -> "HassetteFileWatcherEvent":
-        payload = FileWatcherEventPayload(changed_file_path=changed_file_path)
+    def create_event(cls, *, changed_file_paths: set[Path]) -> "HassetteFileWatcherEvent":
+        payload = FileWatcherEventPayload(changed_file_paths=frozenset(changed_file_paths))
         return cls(
             topic=Topic.HASSETTE_EVENT_FILE_WATCHER,
             payload=HassettePayload(event_type="file_changed", data=payload),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class AppStateChangePayload:
+    """Payload for app instance state change events."""
+
+    app_key: str
+    index: int
+    status: ResourceStatus
+    previous_status: ResourceStatus | None = None
+    instance_name: str | None = None
+    class_name: str | None = None
+    exception: str | None = None
+    exception_type: str | None = None
+    exception_traceback: str | None = None
+
+
+class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
+    """Event emitted when an app instance changes state."""
+
+    @classmethod
+    def from_data(
+        cls,
+        app: "App",
+        status: ResourceStatus,
+        previous_status: ResourceStatus | None = None,
+        exception: Exception | BaseException | None = None,
+    ) -> "HassetteAppStateEvent":
+        exc_str = str(exception) if exception else None
+        exc_type = type(exception).__name__ if exception else None
+        exc_tb = get_traceback_string(exception) if exception else None
+
+        payload = AppStateChangePayload(
+            app_key=app.app_manifest.app_key,
+            index=app.index,
+            status=status,
+            previous_status=previous_status,
+            instance_name=app.instance_name,
+            class_name=type(app).__name__,
+            exception=exc_str,
+            exception_type=exc_type,
+            exception_traceback=exc_tb,
+        )
+        return cls(
+            topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
+            payload=HassettePayload(event_type=str(payload.status), data=payload),
         )

@@ -4,6 +4,7 @@ import tracemalloc
 from pathlib import Path
 
 import pytest
+import tomli_w
 
 from hassette import Hassette, HassetteConfig
 
@@ -86,6 +87,30 @@ def test_config(unused_tcp_port_factory):
     tc = TestConfig(health_service_port=port)
 
     return tc
+
+
+@pytest.fixture(scope="session")
+def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory):
+    """
+    Provide a HassetteConfig instance for testing.
+    This is used to ensure the configuration is set up correctly for tests.
+    """
+
+    temp_dir = tmp_path_factory.mktemp("hassette_test_config")
+    temp_path = Path(temp_dir)
+    toml_path = temp_path / "hassette.toml"
+
+    app_dir = temp_dir / "apps"
+    app_dir.mkdir()
+
+    toml_dict = {"hassette": {"dev_mode": True, "app_dir": app_dir.as_posix()}}
+
+    toml_path.write_text(tomli_w.dumps(toml_dict), encoding="utf-8")
+
+    class MyTestConfig(TestConfig):
+        model_config = TestConfig.model_config.copy() | {"toml_file": [toml_path], "env_file": [ENV_FILE]}
+
+    return MyTestConfig(run_health_service=False)
 
 
 @pytest.fixture

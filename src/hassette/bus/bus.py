@@ -708,3 +708,102 @@ class Bus(Resource):
         return self.on(
             topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
         )
+
+    def on_app_state_changed(
+        self,
+        *,
+        handler: "HandlerType",
+        app_key: str | None = None,
+        status: ResourceStatus | None = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Subscribe to app instance state change events.
+
+        Args:
+            handler: The function to call when the event matches.
+            app_key: Filter events for a specific app key.
+            status: Filter events for a specific status.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
+        self.logger.debug(
+            "Subscribing to app_state_changed with app_key='%s', status='%s', where='%s' - being handled by '%s'",
+            app_key,
+            status,
+            where,
+            callable_short_name(handler),
+        )
+
+        preds: list[Predicate] = []
+
+        if app_key is not None:
+            preds.append(P.ValueIs(source=get_path("payload.data.app_key"), condition=app_key))
+
+        if status is not None:
+            preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
+
+        if where is not None:
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
+
+        return self.on(
+            topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts
+        )
+
+    def on_app_running(
+        self,
+        *,
+        handler: "HandlerType",
+        app_key: str | None = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Subscribe to app instances reaching RUNNING status.
+
+        Args:
+            handler: The function to call when the event matches.
+            app_key: Filter events for a specific app key.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
+        return self.on_app_state_changed(
+            handler=handler, app_key=app_key, status=ResourceStatus.RUNNING, where=where, kwargs=kwargs, **opts
+        )
+
+    def on_app_stopping(
+        self,
+        *,
+        handler: "HandlerType",
+        app_key: str | None = None,
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Subscribe to app instances entering STOPPING status.
+
+        Args:
+            handler: The function to call when the event matches.
+            app_key: Filter events for a specific app key.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
+        return self.on_app_state_changed(
+            handler=handler, app_key=app_key, status=ResourceStatus.STOPPING, where=where, kwargs=kwargs, **opts
+        )

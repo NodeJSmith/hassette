@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.20.4"
+version = "0.21.0"
 description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -65,6 +65,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 [dependency-groups]
 dev = [
     "coverage[toml]>=7.10.7",
+    "pyright>=1.1.408",
     "pytest>=8.4.0",
     "pytest-cov>=7.0.0",
     "tomli-w>=1.2.0",

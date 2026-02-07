@@ -53,9 +53,9 @@ Examples:
     from hassette import A
 
     async def handle_event(
-        file_path: Annotated[Path, A.get_path("payload.data.changed_file_path")],
+        file_paths: Annotated[frozenset[Path], A.get_path("payload.data.changed_file_paths")],
     ):
-        # do something with file_path
+        # do something with file_paths
     ```
 
 """

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.21.0] - 2026-02-06
+
+### Changed
+- Refactored `AppHandler` into four focused components: `AppRegistry` (state tracking), `AppFactory` (instance creation), `AppLifecycleManager` (init/shutdown orchestration), and `AppChangeDetector` (configuration diffing)
+- File watcher now batches multiple file change events to prevent race conditions (`changed_file_path` payload is now `changed_file_paths: frozenset[Path]`)
+- Renamed `active_apps_config` to `active_manifests` on `AppRegistry`
+- `AppManifest.app_config` now accepts both `"config"` and `"app_config"` keys
+
+### Added
+- `HassetteAppStateEvent` emitted when app instances change status (includes app_key, status, previous_status, exception details)
+- New `Bus` convenience methods: `on_app_state_changed()`, `on_app_running()`, `on_app_stopping()`
+- `BlockReason` enum and blocked app tracking in `AppRegistry` to distinguish "enabled but excluded by `@only_app`" from "not configured"
+- `ResourceStatus.STOPPING` enum value
+- `enabled_manifests` property on `AppRegistry` for querying enabled apps regardless of `only_app` filter
+
+### Fixed
+- Removing `@only_app` decorator now correctly starts previously-blocked apps during hot reload
+
 ## [0.20.4] - 2026-02-05
 
 ### Fixed
