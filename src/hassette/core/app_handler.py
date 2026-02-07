@@ -265,7 +265,7 @@ class AppHandler(Resource):
         results = await asyncio.gather(*[self.start_app(app_key) for app_key in apps], return_exceptions=True)
         exception_results = [r for r in results if isinstance(r, Exception)]
         for result in exception_results:
-            self.logger.exception("Error during app initialization: %s", result)
+            self.logger.error("Error during app initialization: %s", result, exc_info=result)
 
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:
         app_manifest = self.registry.get_manifest(app_key)
