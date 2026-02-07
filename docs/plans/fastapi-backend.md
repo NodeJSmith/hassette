@@ -8,34 +8,33 @@ Add a FastAPI-based HTTP/WebSocket backend and a DataSyncService to hassette. Th
 
 ## 2. Architectural Decisions
 
-### 2.1 FastAPI vs. Extending aiohttp
+### 2.1 Replace HealthService with FastAPI
 
-**Decision: Introduce FastAPI as a new service; keep the existing HealthService on aiohttp unchanged.**
+**Decision: Remove the existing aiohttp-based HealthService entirely and replace it with a FastAPI-based WebApiService that subsumes the `/healthz` endpoint alongside the new web UI endpoints.**
 
 Rationale:
 
-- The existing `HealthService` is deliberately minimal (a single `/healthz` endpoint) and runs on aiohttp, which is also a hard dependency for the WebSocket client (`WebsocketService`). Replacing it risks breaking the existing health-check contract for Docker deployments.
+- The existing `HealthService` (`src/hassette/core/health_service.py`) is a minimal aiohttp server with a single `/healthz` endpoint and a workaround for aiohttp's frame inspection bugs (`MyAppKey` subclass). It was never a robust solution.
 - FastAPI provides automatic OpenAPI docs, pydantic model serialization (matching hassette's pydantic-first philosophy), native WebSocket support, and dependency injection -- all superior for a rich API surface.
-- FastAPI's ASGI underpinning (uvicorn) runs cleanly in an asyncio event loop alongside the existing aiohttp client sessions. The two servers bind to different ports and do not conflict.
-- In the future, the `/healthz` endpoint could optionally be mounted as a FastAPI sub-route, but that is explicitly out of scope for this phase.
+- Replacing rather than running alongside avoids two HTTP servers on different ports, simplifies configuration (one set of host/port/log_level fields instead of two), and removes the aiohttp web server dependency (aiohttp remains as a client library for `WebsocketService`).
+- The `/healthz` endpoint is preserved as a FastAPI route so existing Docker healthcheck configurations continue to work with only a port change (or no change if the user configures `web_api_port` to match the old `health_service_port`).
 
 ### 2.2 Where New Services Live in the Resource Hierarchy
 
-The new services are children of `Hassette` (the root Resource), just like `BusService`, `WebsocketService`, `HealthService`, and `AppHandler`.
+The new services replace `HealthService` and are children of `Hassette` (the root Resource), just like `BusService`, `WebsocketService`, and `AppHandler`.
 
 ```
 Hassette (root Resource)
   +-- BusService
   +-- WebsocketService
-  +-- HealthService        (unchanged, aiohttp)
   +-- AppHandler
   +-- StateProxy
   +-- ...existing services...
-  +-- DataSyncService      (NEW -- Resource)
-  +-- WebApiService        (NEW -- Service, runs uvicorn)
+  +-- DataSyncService      (NEW -- Resource, replaces nothing)
+  +-- WebApiService        (NEW -- Service, replaces HealthService)
 ```
 
-`DataSyncService` is a plain `Resource` (not `Service`) because it does not have a long-running `serve()` loop; it passively subscribes to Bus events and exposes query methods. `WebApiService` is a `Service` because it runs uvicorn in `serve()` until cancelled.
+`DataSyncService` is a plain `Resource` (not `Service`) because it does not have a long-running `serve()` loop; it passively subscribes to Bus events and exposes query methods. `WebApiService` is a `Service` because it runs uvicorn in `serve()` until cancelled. It takes over the health-check responsibility from the removed `HealthService`.
 
 ### 2.3 Dependency Flow
 
@@ -62,19 +61,27 @@ Add to `pyproject.toml` `[project.dependencies]`:
 
 ---
 
-## 4. Configuration Additions
+## 4. Configuration Changes
 
-New fields in `HassetteConfig` (`src/hassette/config/config.py`):
+### Removed fields (from HealthService):
+
+```python
+run_health_service        # replaced by run_web_api
+health_service_port       # replaced by web_api_port
+health_service_log_level  # replaced by web_api_log_level
+```
+
+### New fields in `HassetteConfig` (`src/hassette/config/config.py`):
 
 ```python
 # Web API configuration
-run_web_api: bool = Field(default=False)
-"""Whether to run the web API service for the UI backend."""
+run_web_api: bool = Field(default=True)
+"""Whether to run the web API service (includes healthcheck and UI backend)."""
 
 web_api_host: str = Field(default="0.0.0.0")
 """Host to bind the web API server to."""
 
-web_api_port: int = Field(default=8127)
+web_api_port: int = Field(default=8126)
 """Port to run the web API server on."""
 
 web_api_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
@@ -89,12 +96,14 @@ web_api_event_buffer_size: int = Field(default=500)
 """Maximum number of recent events to keep in the DataSyncService ring buffer."""
 ```
 
+Note: `run_web_api` defaults to `True` (matching the old `run_health_service` default) and `web_api_port` defaults to `8126` (matching the old `health_service_port` default) so existing Docker healthcheck configurations continue to work without changes.
+
 TOML example (`hassette.toml`):
 
 ```toml
 [hassette]
 run_web_api = true
-web_api_port = 8127
+web_api_port = 8126
 web_api_cors_origins = ["http://localhost:3000"]
 ```
 
@@ -114,7 +123,7 @@ src/hassette/
     models.py                  # Pydantic response models
     routes/
       __init__.py
-      health.py                # GET /api/health
+      health.py                # GET /api/health, GET /healthz (backwards compat)
       entities.py              # GET /api/entities, /api/entities/{id}, /api/entities/domain/{domain}
       apps.py                  # GET/POST /api/apps, /api/apps/{key}, /api/apps/{key}/start|stop|reload
       services.py              # GET /api/services
@@ -322,6 +331,10 @@ class WsMessage(BaseModel):
 
 Returns `SystemStatusResponse`. Checks WebSocket connectivity, entity count from StateProxy, app count from AppHandler registry, and lists running core services.
 
+### `GET /healthz`
+
+Backwards-compatible health endpoint matching the old HealthService contract. Returns `{"status": "ok", "ws": "connected"}` (200) or `{"status": "degraded", "ws": "disconnected"}` (503). This ensures existing Docker `HEALTHCHECK` configurations continue to work without modification.
+
 ### `GET /api/entities`
 
 Returns `EntityListResponse` (all entities). Reads from DataSyncService which delegates to StateProxy (in-memory cache). No HA API calls -- fast and adds no load to HA.
@@ -409,10 +422,14 @@ async def websocket_endpoint(websocket: WebSocket):
 
 Each step's dependencies are already complete by the time it is reached.
 
-### Phase 1: Foundation (no behavioral changes)
+### Phase 1: Foundation
 
 1. Add `fastapi` and `uvicorn` to `pyproject.toml` dependencies. Run `uv sync`.
-2. Add configuration fields to `HassetteConfig` in `src/hassette/config/config.py`. All default to disabled (`run_web_api=False`).
+2. Remove HealthService:
+   - Delete `src/hassette/core/health_service.py`.
+   - Remove `_health_service` from `Hassette.__init__()` in `src/hassette/core/core.py`.
+   - Replace config fields: remove `run_health_service`, `health_service_port`, `health_service_log_level`; add `run_web_api`, `web_api_host`, `web_api_port`, `web_api_log_level`, `web_api_cors_origins`, `web_api_event_buffer_size`.
+   - Update tests that reference HealthService (`tests/integration/test_core.py`, `tests/conftest.py`).
 3. Create the `src/hassette/web/` package skeleton: `__init__.py`, `models.py`, `dependencies.py`, `app.py`, `routes/__init__.py`.
 4. Create response models in `src/hassette/web/models.py` (pure pydantic, no runtime deps).
 
@@ -424,14 +441,14 @@ Each step's dependencies are already complete by the time it is reached.
 
 ### Phase 3: REST API Routes
 
-8. Implement route modules one at a time: health, entities, apps, services, events, config.
+8. Implement route modules one at a time: health (including `/healthz` backwards compat), entities, apps, services, events, config.
 9. Implement `src/hassette/web/app.py` (the `create_fastapi_app()` factory).
 10. Implement `src/hassette/web/dependencies.py`.
 
 ### Phase 4: WebApiService
 
 11. Create `src/hassette/core/web_api_service.py` with `serve()` using uvicorn programmatic API.
-12. Register WebApiService in `Hassette.__init__()`.
+12. Register WebApiService in `Hassette.__init__()`, replacing where `_health_service` was.
 
 ### Phase 5: WebSocket Endpoint
 
@@ -464,7 +481,7 @@ This ordering ensures the web UI sees a clean disconnect before internal service
 
 ### Conditional Startup
 
-When `run_web_api` is `False` (the default), both services immediately mark themselves ready and return, adding zero overhead. This mirrors the pattern in `HealthService.serve()`.
+When `run_web_api` is `False`, both services immediately mark themselves ready and return, adding zero overhead. This mirrors the pattern the old `HealthService.serve()` used.
 
 ---
 
@@ -513,11 +530,21 @@ When `run_web_api` is `False` (the default), both services immediately mark them
 | `tests/unit/core/test_data_sync_service.py` | DataSyncService unit tests |
 | `tests/integration/test_web_api.py` | WebApiService integration tests |
 
+### Files to delete:
+
+| File | Reason |
+|---|---|
+| `src/hassette/core/health_service.py` | Replaced by WebApiService with FastAPI |
+
 ### Existing files to modify:
 
 | File | Change |
 |---|---|
 | `pyproject.toml` | Add `fastapi` and `uvicorn` dependencies |
-| `src/hassette/config/config.py` | Add web API config fields |
-| `src/hassette/core/core.py` | Register DataSyncService and WebApiService as children |
-| `src/hassette/core/__init__.py` | Export new service classes (if applicable) |
+| `src/hassette/config/config.py` | Remove `run_health_service`, `health_service_port`, `health_service_log_level`; add `run_web_api`, `web_api_host`, `web_api_port`, `web_api_log_level`, `web_api_cors_origins`, `web_api_event_buffer_size` |
+| `src/hassette/core/core.py` | Remove `HealthService` import and `_health_service` child; add `DataSyncService` and `WebApiService` as children |
+| `src/hassette/core/__init__.py` | Export new service classes, remove `HealthService` export (if applicable) |
+| `tests/integration/test_core.py` | Replace `HealthService` assertions with `WebApiService` assertions |
+| `tests/conftest.py` | Replace `run_health_service=False` / `health_service_port` with `run_web_api=False` / `web_api_port` in test configs |
+| `src/hassette/config/hassette.dev.toml` | Update health service references if present |
+| `src/hassette/config/hassette.prod.toml` | Update health service references if present |
