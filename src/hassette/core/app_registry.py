@@ -97,10 +97,18 @@ class AppRegistry:
         """Remove app instance(s). Returns removed instances."""
         if index is None:
             return self._apps.pop(app_key, None)
+
+        removed = None
+
         if app_key in self._apps:
             removed = self._apps[app_key].pop(index, None)
-            if removed is not None:
-                return {index: removed}
+
+        if not self._apps.get(app_key):
+            del self._apps[app_key]
+
+        if removed is not None:
+            return {index: removed}
+
         return None
 
     def record_failure(self, app_key: str, index: int, error: Exception) -> None:
@@ -109,6 +117,9 @@ class AppRegistry:
             # Remove from running apps if present
             self.logger.debug("Removing running app '%s' index %d due to failure", app_key, index)
             self._apps[app_key].pop(index)
+            if not self._apps.get(app_key):
+                del self._apps[app_key]
+
         self.logger.debug("Recording failure for app '%s' index %d: %s", app_key, index, error)
 
         self._failed_apps[app_key].append((index, error))
