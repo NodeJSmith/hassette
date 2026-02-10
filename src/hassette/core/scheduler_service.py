@@ -13,6 +13,7 @@ from whenever import TimeDelta, ZonedDateTime
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.utils.date_utils import now
+from hassette.utils.execution import track_execution
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -203,36 +204,28 @@ class SchedulerService(Service):
                 "Job %s is behind schedule by %s seconds, running now.", job, abs(run_at_delta.in_seconds())
             )
 
-        started_at = time.monotonic()
         timestamp = time.time()
-        status = "success"
-        error_message = None
-        error_type = None
 
         try:
-            self.logger.debug("Running job %s at %s", job, now())
-            async_func = self.task_bucket.make_async_adapter(func)
-            await async_func(*job.args, **job.kwargs)
+            async with track_execution() as result:
+                self.logger.debug("Running job %s at %s", job, now())
+                async_func = self.task_bucket.make_async_adapter(func)
+                await async_func(*job.args, **job.kwargs)
         except asyncio.CancelledError:
-            status = "cancelled"
             self.logger.debug("Execution cancelled for job %s", job)
             raise
-        except Exception as exc:
-            status = "error"
-            error_message = str(exc)
-            error_type = type(exc).__name__
+        except Exception:
             self.logger.exception("Error running job %s", job)
         finally:
-            duration_ms = (time.monotonic() - started_at) * 1000
             record = JobExecutionRecord(
                 job_id=job.job_id,
                 job_name=job.name,
                 owner=job.owner,
                 started_at=timestamp,
-                duration_ms=duration_ms,
-                status=status,
-                error_message=error_message,
-                error_type=error_type,
+                duration_ms=result.duration_ms,
+                status=result.status,
+                error_message=result.error_message,
+                error_type=result.error_type,
             )
             self._execution_log.append(record)
 

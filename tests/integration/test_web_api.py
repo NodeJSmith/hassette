@@ -87,6 +87,10 @@ def mock_hassette():
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
     hassette._scheduler_service.get_execution_history.return_value = []
 
+    # Mock bus service
+    hassette._bus_service.get_all_listener_metrics.return_value = []
+    hassette._bus_service.get_listener_metrics_by_owner.return_value = []
+
     # Mock config for /api/config endpoint
     hassette.config.model_dump.return_value = {"dev_mode": True, "web_api_port": 8126}
 
@@ -256,6 +260,85 @@ class TestConfigEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert "token" not in data  # token should be redacted
+
+
+class TestBusEndpoints:
+    async def test_get_bus_listeners_empty(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/bus/listeners")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    async def test_get_bus_listeners_with_data(self, client: "AsyncClient", mock_hassette) -> None:
+        from hassette.bus.metrics import ListenerMetrics
+
+        m = ListenerMetrics(listener_id=1, owner="my_app", topic="hass.event.state_changed", handler_name="on_light")
+        m.record_success(10.0)
+        mock_hassette._bus_service.get_all_listener_metrics.return_value = [m]
+
+        response = await client.get("/api/bus/listeners")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["listener_id"] == 1
+        assert data[0]["owner"] == "my_app"
+        assert data[0]["total_invocations"] == 1
+        assert data[0]["successful"] == 1
+
+        # Restore
+        mock_hassette._bus_service.get_all_listener_metrics.return_value = []
+
+    async def test_get_bus_listeners_filter_by_owner(self, client: "AsyncClient", mock_hassette) -> None:
+        from hassette.bus.metrics import ListenerMetrics
+
+        m = ListenerMetrics(listener_id=2, owner="other_app", topic="t", handler_name="h")
+        mock_hassette._bus_service.get_listener_metrics_by_owner.return_value = [m]
+
+        response = await client.get("/api/bus/listeners?owner=other_app")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["owner"] == "other_app"
+        mock_hassette._bus_service.get_listener_metrics_by_owner.assert_called_with("other_app")
+
+        # Restore
+        mock_hassette._bus_service.get_listener_metrics_by_owner.return_value = []
+
+    async def test_get_bus_metrics_summary_empty(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/bus/metrics")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_listeners"] == 0
+        assert data["total_invocations"] == 0
+        assert data["total_successful"] == 0
+        assert data["total_failed"] == 0
+        assert data["total_di_failures"] == 0
+        assert data["total_cancelled"] == 0
+
+    async def test_get_bus_metrics_summary_with_data(self, client: "AsyncClient", mock_hassette) -> None:
+        from hassette.bus.metrics import ListenerMetrics
+
+        m1 = ListenerMetrics(listener_id=1, owner="app1", topic="t1", handler_name="h1")
+        m1.record_success(10.0)
+        m1.record_error(5.0, "err", "ValueError")
+
+        m2 = ListenerMetrics(listener_id=2, owner="app2", topic="t2", handler_name="h2")
+        m2.record_success(20.0)
+        m2.record_di_failure(3.0, "bad", "DependencyInjectionError")
+
+        mock_hassette._bus_service.get_all_listener_metrics.return_value = [m1, m2]
+
+        response = await client.get("/api/bus/metrics")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_listeners"] == 2
+        assert data["total_invocations"] == 4
+        assert data["total_successful"] == 2
+        assert data["total_failed"] == 1
+        assert data["total_di_failures"] == 1
+        assert data["total_cancelled"] == 0
+
+        # Restore
+        mock_hassette._bus_service.get_all_listener_metrics.return_value = []
 
 
 class TestOpenApiDocs:

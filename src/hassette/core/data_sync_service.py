@@ -16,6 +16,7 @@ from hassette.types.enums import ResourceStatus
 from hassette.web.models import (
     AppInstanceResponse,
     AppStatusResponse,
+    BusMetricsSummaryResponse,
     SystemStatusResponse,
 )
 
@@ -283,6 +284,26 @@ class DataSyncService(Resource):
             entity_count=entity_count,
             app_count=app_count,
             services_running=services_running,
+        )
+
+    # --- Bus listener metrics ---
+
+    def get_listener_metrics(self, owner: str | None = None) -> list[dict]:
+        """Return per-listener metrics, optionally filtered by owner."""
+        bus_service = self.hassette._bus_service
+        metrics = bus_service.get_listener_metrics_by_owner(owner) if owner else bus_service.get_all_listener_metrics()
+        return [m.to_dict() for m in metrics]
+
+    def get_bus_metrics_summary(self) -> BusMetricsSummaryResponse:
+        """Compute aggregate totals across all listener metrics."""
+        all_metrics = self.hassette._bus_service.get_all_listener_metrics()
+        return BusMetricsSummaryResponse(
+            total_listeners=len(all_metrics),
+            total_invocations=sum(m.total_invocations for m in all_metrics),
+            total_successful=sum(m.successful for m in all_metrics),
+            total_failed=sum(m.failed for m in all_metrics),
+            total_di_failures=sum(m.di_failures for m in all_metrics),
+            total_cancelled=sum(m.cancelled for m in all_metrics),
         )
 
     # --- WebSocket client management ---

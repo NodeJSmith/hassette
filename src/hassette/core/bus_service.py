@@ -1,5 +1,6 @@
 import asyncio
 import itertools
+import time
 import typing
 from collections import defaultdict
 from collections.abc import Callable
@@ -9,8 +10,9 @@ from typing import Any
 
 from fair_async_rlock import FairAsyncRLock
 
+from hassette.bus.metrics import ListenerMetrics
 from hassette.events import Event, HassPayload
-from hassette.exceptions import HassetteError
+from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Service
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
@@ -41,12 +43,16 @@ class BusService(Service):
     _excluded_entity_globs: tuple[str, ...]
     _has_exclusions: bool
 
+    _listener_metrics: dict[int, ListenerMetrics]
+    """Per-listener aggregate metrics, keyed by listener_id."""
+
     @classmethod
     def create(cls, hassette: "Hassette", stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"):
         inst = cls(hassette, parent=hassette)
         inst.stream = stream
         inst.listener_seq = itertools.count(1)
         inst.router = Router()
+        inst._listener_metrics = {}
         inst._setup_exclusion_filters()
 
         return inst
@@ -170,24 +176,54 @@ class BusService(Service):
         all_listeners = await self.router.get_topic_listeners(topic)
         return [listener for listener in all_listeners if await listener.matches(event)]
 
+    def _get_or_create_metrics(self, listener: "Listener") -> ListenerMetrics:
+        """Lazily create a ListenerMetrics on first invocation."""
+        return self._listener_metrics.setdefault(
+            listener.listener_id,
+            ListenerMetrics(
+                listener_id=listener.listener_id,
+                owner=listener.owner,
+                topic=listener.topic,
+                handler_name=listener.handler_name,
+            ),
+        )
+
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener."""
 
         # we are assuming matches() has already been called
+        metrics = self._get_or_create_metrics(listener)
+        started = time.monotonic()
         try:
             self.logger.debug("Dispatching %s -> %r", topic, listener)
             await listener.invoke(event)
+            metrics.record_success((time.monotonic() - started) * 1000)
         except asyncio.CancelledError:
+            metrics.record_cancelled((time.monotonic() - started) * 1000)
             self.logger.debug("Listener dispatch cancelled (topic=%s, handler=%r)", topic, listener.handler_name)
             raise
+        except DependencyError as e:
+            # Catch before HassetteError (its parent) to classify DI failures separately
+            metrics.record_di_failure((time.monotonic() - started) * 1000, str(e), type(e).__name__)
+            self.logger.error("Listener DI error (topic=%s): %s", topic, e)
         except HassetteError as e:
+            metrics.record_error((time.monotonic() - started) * 1000, str(e), type(e).__name__)
             self.logger.error("Listener error (topic=%s): %s", topic, e)
-        except Exception:
+        except Exception as e:
+            metrics.record_error((time.monotonic() - started) * 1000, str(e), type(e).__name__)
             self.logger.exception("Listener error (topic=%s, handler=%r)", topic, listener.handler_name)
         finally:
             # if once, remove after running
             if listener.once:
                 self.remove_listener(listener)
+
+    def get_all_listener_metrics(self) -> list[ListenerMetrics]:
+        """Return all listener metrics."""
+        return list(self._listener_metrics.values())
+
+    def get_listener_metrics_by_owner(self, owner: str) -> list[ListenerMetrics]:
+        """Return listener metrics filtered by owner."""
+        return [m for m in self._listener_metrics.values() if m.owner == owner]
 
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")

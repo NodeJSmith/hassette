@@ -87,3 +87,31 @@ class JobExecutionResponse(BaseModel):
     status: str
     error_message: str | None = None
     error_type: str | None = None
+
+
+class ListenerMetricsResponse(BaseModel):
+    listener_id: int
+    owner: str
+    topic: str
+    handler_name: str
+    total_invocations: int
+    successful: int
+    failed: int
+    di_failures: int
+    cancelled: int
+    avg_duration_ms: float
+    min_duration_ms: float
+    max_duration_ms: float
+    total_duration_ms: float
+    last_invoked_at: float | None = None
+    last_error_message: str | None = None
+    last_error_type: str | None = None
+
+
+class BusMetricsSummaryResponse(BaseModel):
+    total_listeners: int
+    total_invocations: int
+    total_successful: int
+    total_failed: int
+    total_di_failures: int
+    total_cancelled: int
