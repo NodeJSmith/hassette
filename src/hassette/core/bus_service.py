@@ -44,7 +44,10 @@ class BusService(Service):
     _has_exclusions: bool
 
     _listener_metrics: dict[int, ListenerMetrics]
-    """Per-listener aggregate metrics, keyed by listener_id."""
+    """Per-listener aggregate metrics, keyed by listener_id.
+
+    Metrics persist after listener removal (~200 bytes each) to preserve
+    historical data for the web UI. This is intentional and not a leak."""
 
     @classmethod
     def create(cls, hassette: "Hassette", stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"):

@@ -1,6 +1,7 @@
 """DataSyncService: aggregates and caches system state for the web UI."""
 
 import asyncio
+import contextlib
 import logging
 import time
 import typing
@@ -109,7 +110,8 @@ class DataSyncService(Resource):
         # Close all WS client queues
         async with self._lock:
             for queue in self._ws_clients:
-                await queue.put(None)  # sentinel to close
+                with contextlib.suppress(asyncio.QueueFull):
+                    queue.put_nowait(None)  # sentinel to close
             self._ws_clients.clear()
 
         self._event_buffer.clear()
@@ -315,8 +317,9 @@ class DataSyncService(Resource):
         self.logger.debug("WebSocket client registered (total: %d)", len(self._ws_clients))
         return queue
 
-    def unregister_ws_client(self, queue: asyncio.Queue) -> None:
-        self._ws_clients.discard(queue)
+    async def unregister_ws_client(self, queue: asyncio.Queue) -> None:
+        async with self._lock:
+            self._ws_clients.discard(queue)
         self.logger.debug("WebSocket client unregistered (total: %d)", len(self._ws_clients))
 
     async def broadcast(self, message: dict) -> None:

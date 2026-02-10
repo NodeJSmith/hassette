@@ -69,8 +69,12 @@ class WebApiService(Service):
             self.logger.exception("Web API server encountered an error")
             raise
 
+    async def before_shutdown(self) -> None:
+        if self._server is not None:
+            self.logger.debug("Signalling Web API server to shut down")
+            self._server.should_exit = True
+
     async def on_shutdown(self) -> None:
         if self._server is not None:
-            self.logger.debug("Shutting down Web API server")
-            self._server.should_exit = True
+            self.logger.debug("Cleaning up Web API server reference")
             self._server = None

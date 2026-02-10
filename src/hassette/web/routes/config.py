@@ -1,18 +1,17 @@
 """Configuration endpoint."""
 
-import typing
-from typing import Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, Depends
 
 from hassette.web.dependencies import get_hassette
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette import Hassette
 
 router = APIRouter(tags=["config"])
 
-HassetteDep = typing.Annotated["Hassette", Depends(get_hassette)]
+HassetteDep = Annotated["Hassette", Depends(get_hassette)]
 
 
 @router.get("/config")

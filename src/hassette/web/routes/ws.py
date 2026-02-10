@@ -36,6 +36,8 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
     try:
         while True:
             message = await queue.get()
+            if message is None:
+                break  # shutdown sentinel
             # Filter log messages based on subscription
             if message.get("type") == "log":
                 if not ws_state.get("subscribe_logs", False):
@@ -74,8 +76,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             tg.start_soon(_read_client, websocket, ws_state)
             tg.start_soon(_send_from_queue, websocket, queue, ws_state)
     except (WebSocketDisconnect, anyio.ClosedResourceError):
-        pass
+        pass  # Expected during normal client disconnect
     except Exception:
         logger.debug("WebSocket connection error", exc_info=True)
     finally:
-        data_sync.unregister_ws_client(queue)
+        await data_sync.unregister_ws_client(queue)

@@ -1,18 +1,17 @@
 """HA services endpoint."""
 
-import typing
-from typing import Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from hassette.web.dependencies import get_api
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette.api import Api
 
 router = APIRouter(tags=["services"])
 
-ApiDep = typing.Annotated["Api", Depends(get_api)]
+ApiDep = Annotated["Api", Depends(get_api)]
 
 
 @router.get("/services")

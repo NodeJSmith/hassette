@@ -219,7 +219,7 @@ class TestWebSocketClientManagement:
         assert isinstance(queue, asyncio.Queue)
         assert len(data_sync._ws_clients) == 1
 
-        data_sync.unregister_ws_client(queue)
+        await data_sync.unregister_ws_client(queue)
         assert len(data_sync._ws_clients) == 0
 
     async def test_broadcast(self, data_sync: DataSyncService) -> None:
@@ -231,7 +231,7 @@ class TestWebSocketClientManagement:
         received = queue.get_nowait()
         assert received == message
 
-        data_sync.unregister_ws_client(queue)
+        await data_sync.unregister_ws_client(queue)
 
     async def test_broadcast_drops_for_full_queue(self, data_sync: DataSyncService) -> None:
         queue = await data_sync.register_ws_client()
@@ -244,4 +244,4 @@ class TestWebSocketClientManagement:
 
         assert queue.qsize() == 256  # still full, message was dropped
 
-        data_sync.unregister_ws_client(queue)
+        await data_sync.unregister_ws_client(queue)

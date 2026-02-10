@@ -1,19 +1,18 @@
 """Bus listener metrics endpoints."""
 
-import typing
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, Query
 
 from hassette.web.dependencies import get_data_sync
 from hassette.web.models import BusMetricsSummaryResponse, ListenerMetricsResponse
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette.core.data_sync_service import DataSyncService
 
 router = APIRouter(tags=["bus"])
 
-DataSyncDep = typing.Annotated["DataSyncService", Depends(get_data_sync)]
+DataSyncDep = Annotated["DataSyncService", Depends(get_data_sync)]
 
 
 @router.get("/bus/listeners", response_model=list[ListenerMetricsResponse])
