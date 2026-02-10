@@ -192,11 +192,27 @@ class HassetteConfig(BaseSettings):
     run_sync_timeout_seconds: int = Field(default=6)
     """Default timeout for synchronous function calls."""
 
-    run_health_service: bool = Field(default=True)
-    """Whether to run the health service for container healthchecks."""
+    # Web API configuration
+    run_web_api: bool = Field(default=True)
+    """Whether to run the web API service (includes healthcheck and UI backend)."""
 
-    health_service_port: int | None = Field(default=8126)
-    """Port to run the health service on, ignored if run_health_service is False."""
+    web_api_host: str = Field(default="0.0.0.0")
+    """Host to bind the web API server to."""
+
+    web_api_port: int = Field(default=8126)
+    """Port to run the web API server on."""
+
+    web_api_cors_origins: tuple[str, ...] = Field(default=("http://localhost:3000", "http://localhost:5173"))
+    """Allowed CORS origins for the web API, typically the UI dev server."""
+
+    web_api_event_buffer_size: int = Field(default=500)
+    """Maximum number of recent events to keep in the DataSyncService ring buffer."""
+
+    web_api_log_buffer_size: int = Field(default=2000)
+    """Maximum number of log entries to keep in the LogCaptureHandler ring buffer."""
+
+    web_api_job_history_size: int = Field(default=1000)
+    """Maximum number of job execution records to keep."""
 
     file_watcher_debounce_milliseconds: int = Field(default=3_000)
     """Debounce time for file watcher events in milliseconds."""
@@ -233,8 +249,8 @@ class HassetteConfig(BaseSettings):
     app_handler_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the app handler service. Defaults to INFO or the value of log_level."""
 
-    health_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the health service. Defaults to INFO or the value of log_level."""
+    web_api_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    """Logging level for the web API service. Defaults to INFO or the value of log_level."""
 
     websocket_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the WebSocket service. Defaults to INFO or the value of log_level."""

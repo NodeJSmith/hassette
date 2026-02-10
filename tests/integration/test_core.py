@@ -14,10 +14,11 @@ from hassette.config.config import HassetteConfig
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
+from hassette.core.data_sync_service import DataSyncService
 from hassette.core.file_watcher import FileWatcherService
-from hassette.core.health_service import HealthService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
+from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
 from hassette.scheduler import Scheduler
 
@@ -57,11 +58,12 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
     assert isinstance(hassette_instance._bus_service, BusService)
     assert isinstance(hassette_instance._service_watcher, ServiceWatcher)
     assert isinstance(hassette_instance._websocket_service, WebsocketService)
-    assert isinstance(hassette_instance._health_service, HealthService)
     assert isinstance(hassette_instance._file_watcher, FileWatcherService)
     assert isinstance(hassette_instance._app_handler, AppHandler)
     assert isinstance(hassette_instance._scheduler_service, SchedulerService)
     assert isinstance(hassette_instance._api_service, ApiResource)
+    assert isinstance(hassette_instance._data_sync_service, DataSyncService)
+    assert isinstance(hassette_instance._web_api_service, WebApiService)
     assert isinstance(hassette_instance._bus, Bus)
     assert isinstance(hassette_instance._scheduler, Scheduler)
     assert hassette_instance.api is not None
@@ -70,11 +72,12 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
         hassette_instance._bus_service,
         hassette_instance._service_watcher,
         hassette_instance._websocket_service,
-        hassette_instance._health_service,
         hassette_instance._file_watcher,
         hassette_instance._app_handler,
         hassette_instance._scheduler_service,
         hassette_instance._api_service,
+        hassette_instance._data_sync_service,
+        hassette_instance._web_api_service,
         hassette_instance._bus,
         hassette_instance._scheduler,
         hassette_instance.api,

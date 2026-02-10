@@ -1,6 +1,8 @@
 import asyncio
 import heapq
+import time
 import typing
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
@@ -9,6 +11,7 @@ from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
 
 from hassette.resources.base import Resource, Service
+from hassette.scheduler.classes import JobExecutionRecord
 from hassette.utils.date_utils import now
 
 if typing.TYPE_CHECKING:
@@ -31,12 +34,16 @@ class SchedulerService(Service):
     _exit_event: asyncio.Event
     """Event to signal the scheduler to exit."""
 
+    _execution_log: "deque[JobExecutionRecord]"
+    """Ring buffer of recent job execution records."""
+
     @classmethod
     def create(cls, hassette: "Hassette"):
         inst = cls(hassette, parent=hassette)
         inst._job_queue = inst.add_child(_ScheduledJobQueue)
         inst._wakeup_event = asyncio.Event()
         inst._exit_event = asyncio.Event()
+        inst._execution_log = deque(maxlen=hassette.config.web_api_job_history_size)
 
         return inst
 
@@ -178,12 +185,11 @@ class SchedulerService(Service):
             self.logger.exception("Error rescheduling job %s", job)
 
     async def run_job(self, job: "ScheduledJob"):
-        """Run a scheduled job.
+        """Run a scheduled job, recording execution metrics.
 
         Args:
             job: The job to run.
         """
-
         if job.cancelled:
             self.logger.debug("Job %s is cancelled, skipping", job)
             await self._remove_job(job)
@@ -197,15 +203,38 @@ class SchedulerService(Service):
                 "Job %s is behind schedule by %s seconds, running now.", job, abs(run_at_delta.in_seconds())
             )
 
+        started_at = time.monotonic()
+        timestamp = time.time()
+        status = "success"
+        error_message = None
+        error_type = None
+
         try:
             self.logger.debug("Running job %s at %s", job, now())
             async_func = self.task_bucket.make_async_adapter(func)
             await async_func(*job.args, **job.kwargs)
         except asyncio.CancelledError:
+            status = "cancelled"
             self.logger.debug("Execution cancelled for job %s", job)
             raise
-        except Exception:
+        except Exception as exc:
+            status = "error"
+            error_message = str(exc)
+            error_type = type(exc).__name__
             self.logger.exception("Error running job %s", job)
+        finally:
+            duration_ms = (time.monotonic() - started_at) * 1000
+            record = JobExecutionRecord(
+                job_id=job.job_id,
+                job_name=job.name,
+                owner=job.owner,
+                started_at=timestamp,
+                duration_ms=duration_ms,
+                status=status,
+                error_message=error_message,
+                error_type=error_type,
+            )
+            self._execution_log.append(record)
 
     async def reschedule_job(self, job: "ScheduledJob"):
         """Reschedule a job if it is repeating.
@@ -239,6 +268,17 @@ class SchedulerService(Service):
 
         # One-time job, remove it
         await self._remove_job(job)
+
+    def get_execution_history(self, limit: int = 50, owner: str | None = None) -> list["JobExecutionRecord"]:
+        """Return recent job execution records, optionally filtered by owner."""
+        entries = list(self._execution_log)
+        if owner:
+            entries = [e for e in entries if e.owner == owner]
+        return entries[-limit:]
+
+    async def get_all_jobs(self) -> list["ScheduledJob"]:
+        """Return all currently scheduled jobs across all apps."""
+        return await self._job_queue.get_all()
 
     def remove_jobs_by_owner(self, owner: str) -> asyncio.Task:
         """Remove all jobs for a given owner.
@@ -348,6 +388,11 @@ class _ScheduledJobQueue(Resource):
 
         self.logger.debug("Job not found in queue, cannot remove: %s", job)
         return removed
+
+    async def get_all(self) -> list["ScheduledJob"]:
+        """Return a snapshot of all queued jobs (non-destructive)."""
+        async with self._lock:
+            return list(self._queue._queue)
 
     async def clear(self, predicate: Callable[["ScheduledJob"], bool] | None = None) -> int:
         """Clear the queue, optionally filtering by predicate."""

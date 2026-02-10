@@ -27,11 +27,12 @@ from hassette.utils.url_utils import build_rest_url, build_ws_url
 from .api_resource import ApiResource
 from .app_handler import AppHandler
 from .bus_service import BusService
+from .data_sync_service import DataSyncService
 from .file_watcher import FileWatcherService
-from .health_service import HealthService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .state_proxy import StateProxy
+from .web_api_service import WebApiService
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
@@ -70,7 +71,7 @@ class Hassette(Resource):
         self.config = config
 
         self.unique_id = ""
-        enable_logging(self.config.log_level)
+        enable_logging(self.config.log_level, log_buffer_size=self.config.web_api_log_buffer_size)
 
         super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
         self.logger.info("Starting Hassette...", stacklevel=2)
@@ -91,13 +92,15 @@ class Hassette(Resource):
 
         self._service_watcher = self.add_child(ServiceWatcher)
         self._websocket_service = self.add_child(WebsocketService)
-        self._health_service = self.add_child(HealthService)
         self._file_watcher = self.add_child(FileWatcherService)
         self._app_handler = self.add_child(AppHandler)
         self._scheduler_service = self.add_child(SchedulerService)
 
         self._api_service = self.add_child(ApiResource)
         self._state_proxy = self.add_child(StateProxy)
+
+        self._data_sync_service = self.add_child(DataSyncService)
+        self._web_api_service = self.add_child(WebApiService)
 
         # internal instances
         self._bus = self.add_child(Bus)

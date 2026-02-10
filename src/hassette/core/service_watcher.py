@@ -1,3 +1,5 @@
+import asyncio
+import time
 import typing
 
 from hassette.bus import Bus
@@ -14,10 +16,18 @@ class ServiceWatcher(Resource):
     bus: Bus
     """Event bus for inter-service communication."""
 
+    _restart_attempts: dict[str, int]
+    """Tracks restart attempt counts per service, keyed by 'name:role'."""
+
+    _last_failure_time: dict[str, float]
+    """Tracks the last failure timestamp per service, keyed by 'name:role'."""
+
     @classmethod
     def create(cls, hassette: "Hassette"):
         inst = cls(hassette, parent=hassette)
         inst.bus = inst.add_child(Bus)
+        inst._restart_attempts = {}
+        inst._last_failure_time = {}
         return inst
 
     @property
@@ -26,14 +36,20 @@ class ServiceWatcher(Resource):
         return self.hassette.config.service_watcher_log_level
 
     async def on_initialize(self) -> None:
+        self._restart_attempts = {}
+        self._last_failure_time = {}
         self._register_internal_event_listeners()
         self.mark_ready(reason="Service watcher initialized")
 
     async def on_shutdown(self) -> None:
         self.bus.remove_all_listeners()
 
+    @staticmethod
+    def _service_key(name: str, role: object) -> str:
+        return f"{name}:{role}"
+
     async def restart_service(self, event: HassetteServiceEvent) -> None:
-        """Start a service from a service event."""
+        """Restart a failed service with exponential backoff and a retry limit."""
         data = event.payload.data
         name = data.resource_name
         role = data.role
@@ -42,6 +58,43 @@ class ServiceWatcher(Resource):
             if name is None:
                 self.logger.warning("No %s specified to start, skipping", role)
                 return
+
+            key = self._service_key(name, role)
+            config = self.hassette.config
+            max_attempts = config.service_restart_max_attempts
+            attempts = self._restart_attempts.get(key, 0)
+
+            if attempts >= max_attempts:
+                self.logger.error(
+                    "%s '%s' has failed %d times (max %d), not restarting",
+                    role,
+                    name,
+                    attempts,
+                    max_attempts,
+                )
+                return
+
+            # Calculate exponential backoff
+            backoff = min(
+                config.service_restart_backoff_seconds * (config.service_restart_backoff_multiplier**attempts),
+                config.service_restart_max_backoff_seconds,
+            )
+
+            # Increment attempt counter BEFORE restarting. The serve task runs
+            # asynchronously, so restart() returns before serve() has a chance
+            # to fail. The counter persists for the process lifetime.
+            self._restart_attempts[key] = attempts + 1
+
+            if backoff > 0:
+                self.logger.info(
+                    "%s '%s' restart attempt %d/%d, waiting %.1fs",
+                    role,
+                    name,
+                    attempts + 1,
+                    max_attempts,
+                    backoff,
+                )
+                await asyncio.sleep(backoff)
 
             self.logger.debug("%s '%s' is being restarted after '%s'", role, name, event.payload.event_type)
 
@@ -57,6 +110,8 @@ class ServiceWatcher(Resource):
                 await service.restart()
 
         except Exception as e:
+            key = self._service_key(name, role) if name else "unknown"
+            self._last_failure_time[key] = time.monotonic()
             self.logger.error("Failed to restart %s '%s': %s", role, name, e)
             raise
 

@@ -180,3 +180,17 @@ class ScheduledJob:
         rounded_next_run = next_run.round(unit="second")
         self.next_run = rounded_next_run
         self.sort_index = (next_run.timestamp_nanos(), self.job_id)
+
+
+@dataclass
+class JobExecutionRecord:
+    """Record of a single job execution for metrics tracking."""
+
+    job_id: int
+    job_name: str
+    owner: str
+    started_at: float
+    duration_ms: float
+    status: str  # "success", "error", "cancelled"
+    error_message: str | None = None
+    error_type: str | None = None
