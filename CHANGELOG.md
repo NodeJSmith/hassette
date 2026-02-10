@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- **FastAPI web backend** replacing the standalone `HealthService` with a full REST API and WebSocket server
+  - `GET /api/health`, `GET /api/healthz` — system health and container healthchecks
+  - `GET /api/entities`, `GET /api/entities/{entity_id}`, `GET /api/entities/domain/{domain}` — entity state access
+  - `GET /api/apps`, `GET /api/apps/{app_key}`, `POST /api/apps/{app_key}/start|stop|reload` — app management
+  - `GET /api/scheduler/jobs`, `GET /api/scheduler/history` — scheduled job and execution history
+  - `GET /api/bus/listeners`, `GET /api/bus/metrics` — per-listener execution metrics and aggregate summary
+  - `GET /api/events/recent`, `GET /api/logs/recent`, `GET /api/services`, `GET /api/config` — events, logs, HA services, config
+  - `GET /api/ws` — WebSocket endpoint for real-time state/event/log streaming
+  - `GET /api/docs` — interactive OpenAPI documentation
+- `DataSyncService` — aggregates system state from StateProxy, AppHandler, SchedulerService, and BusService for the web UI
+- `WebApiService` — runs the Uvicorn ASGI server as a managed background service
+- `LogCaptureHandler` — captures log entries into a bounded ring buffer and broadcasts to WebSocket clients
+- **Event handler execution metrics** — per-listener aggregate counters for bus event handlers
+  - `ListenerMetrics` dataclass tracking invocations, successes, failures, DI failures, cancellations, and timing (avg/min/max)
+  - `DependencyError` catch in `BusService._dispatch()` for separate classification of DI failures vs general errors
+  - Query methods: `get_all_listener_metrics()`, `get_listener_metrics_by_owner(owner)`
+- `track_execution()` async context manager for common timing and error capture, used by `SchedulerService.run_job()`
+- `JobExecutionRecord` dataclass for per-job execution metrics in the scheduler
+- Configurable service restart with exponential backoff in `ServiceWatcher`
+  - `service_restart_max_attempts`, `service_restart_backoff_seconds`, `service_restart_max_backoff_seconds`, `service_restart_backoff_multiplier` config options
+
+### Changed
+- Replaced `HealthService` with `WebApiService` backed by FastAPI
+- `Service` base class now properly sequences `serve()` task lifecycle: spawns after `on_initialize()`, cancels before `on_shutdown()`
+- `Service` overrides `initialize()` and `shutdown()` from `Resource` to control serve task placement in the lifecycle
+- `Resource` lifecycle hooks extracted into `_run_hooks()` helper with `continue_on_error` flag
+- `SchedulerService.run_job()` refactored to use `track_execution()` context manager
+- Config: `run_health_service` → `run_web_api`, `health_service_port` → `web_api_port`, `health_service_log_level` → `web_api_log_level`
+- Config: added `web_api_host`, `web_api_cors_origins`, `web_api_event_buffer_size`, `web_api_log_buffer_size`, `web_api_job_history_size`
+
+### Removed
+- `HealthService` (`src/hassette/core/health_service.py`) — replaced by FastAPI web backend
+
 ## [0.21.0] - 2026-02-06
 
 ### Changed
