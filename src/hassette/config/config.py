@@ -226,6 +226,18 @@ class HassetteConfig(BaseSettings):
     task_cancellation_timeout_seconds: int = Field(default=5)
     """Length of time to wait for tasks to cancel before forcing."""
 
+    service_restart_max_attempts: int = Field(default=5)
+    """Maximum number of restart attempts before giving up on a failed service."""
+
+    service_restart_backoff_seconds: float = Field(default=2.0)
+    """Initial backoff delay in seconds between service restart attempts."""
+
+    service_restart_max_backoff_seconds: float = Field(default=60.0)
+    """Maximum backoff delay in seconds between service restart attempts."""
+
+    service_restart_backoff_multiplier: float = Field(default=2.0)
+    """Multiplier applied to the backoff delay after each failed restart attempt."""
+
     default_cache_size: int = Field(default=100 * 1024 * 1024)
     """Default size limit for caches in bytes. Defaults to 100 MiB."""
 

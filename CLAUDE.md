@@ -92,3 +92,4 @@ class MyApp(App[MyConfig]):
 - Type hints everywhere
 - Google-style docstrings
 - Ruff for linting/formatting, Pyright for type checking
+- Do NOT use `from __future__ import annotations` — this project uses runtime type evaluation
