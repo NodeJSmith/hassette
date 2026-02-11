@@ -1,0 +1,32 @@
+{% if jobs %}
+<table class="table is-fullwidth is-hoverable is-compact is-size-7">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Trigger</th>
+      <th>Next Run</th>
+      <th>Repeat</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for job in jobs %}
+    <tr>
+      <td><code>{{ job.name }}</code></td>
+      <td><span class="tag is-info is-light is-small">{{ job.trigger_type }}</span></td>
+      <td>{{ job.next_run }}</td>
+      <td>{{ "Yes" if job.repeat else "No" }}</td>
+      <td>
+        {% if job.cancelled %}
+        <span class="tag is-warning is-light is-small">cancelled</span>
+        {% else %}
+        <span class="tag is-success is-light is-small">active</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="has-text-grey is-size-7">No scheduled jobs.</p>
+{% endif %}

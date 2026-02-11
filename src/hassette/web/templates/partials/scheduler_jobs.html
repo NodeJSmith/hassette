@@ -1,0 +1,26 @@
+{% for job in jobs %}
+<tr>
+  <td><code>{{ job.name }}</code></td>
+  <td><code>{{ job.owner }}</code></td>
+  <td>
+    <span class="tag is-info is-light is-small">{{ job.trigger_type }}</span>
+  </td>
+  <td>{{ job.next_run }}</td>
+  <td>
+    {% if job.repeat %}
+    <span class="tag is-link is-light is-small">repeating</span>
+    {% else %}
+    <span class="tag is-light is-small">once</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if job.cancelled %}
+    <span class="tag is-warning is-light is-small">cancelled</span>
+    {% else %}
+    <span class="tag is-success is-light is-small">active</span>
+    {% endif %}
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="6" class="has-text-centered has-text-grey">No scheduled jobs.</td></tr>
+{% endfor %}

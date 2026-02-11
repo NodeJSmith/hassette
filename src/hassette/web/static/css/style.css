@@ -97,3 +97,45 @@
 .ht-log-warning { color: #ffe08a; background: #946b00; }
 .ht-log-error { color: #fff; background: #f14668; }
 .ht-log-critical { color: #fff; background: #cc0f35; font-weight: 700; }
+
+/* App status badges — stopped, disabled, blocked */
+.ht-status-stopped {
+  color: #946b00;
+  background: #ffe08a;
+}
+
+.ht-status-disabled {
+  color: #666;
+  background: #e0e0e0;
+}
+
+.ht-status-blocked {
+  color: #6b3fa0;
+  background: #e8d5f5;
+}
+
+/* Entity state badges */
+.ht-entity-on {
+  color: #fff;
+  background: #48c78e;
+}
+
+.ht-entity-off {
+  color: #363636;
+  background: #dbdbdb;
+}
+
+.ht-entity-unavailable {
+  color: #fff;
+  background: #f14668;
+}
+
+/* Live update pulse animation */
+@keyframes ht-pulse {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.ht-live-pulse {
+  animation: ht-pulse 0.6s ease-in-out;
+}

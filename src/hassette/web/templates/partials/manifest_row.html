@@ -1,0 +1,57 @@
+{% if manifest %}
+<tr id="manifest-row-{{ manifest.app_key }}">
+  <td><a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a></td>
+  <td>{{ manifest.display_name }}</td>
+  <td>{{ manifest.class_name }}</td>
+  <td>
+    {% if manifest.status == "running" %}
+    <span class="tag is-success is-light">running</span>
+    {% elif manifest.status == "failed" %}
+    <span class="tag is-danger is-light">failed</span>
+    {% elif manifest.status == "stopped" %}
+    <span class="tag ht-status-stopped">stopped</span>
+    {% elif manifest.status == "disabled" %}
+    <span class="tag ht-status-disabled">disabled</span>
+    {% elif manifest.status == "blocked" %}
+    <span class="tag ht-status-blocked" title="{{ manifest.block_reason or '' }}">blocked</span>
+    {% else %}
+    <span class="tag is-light">{{ manifest.status }}</span>
+    {% endif %}
+    {% if manifest.instance_count > 1 %}
+    <span class="tag is-info is-light is-small">{{ manifest.instance_count }} instances</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if manifest.error_message %}
+    <span class="has-text-danger is-size-7">{{ manifest.error_message }}</span>
+    {% else %}
+    —
+    {% endif %}
+  </td>
+  <td>
+    <div class="buttons are-small">
+      {% if manifest.status == "running" %}
+      <button class="button is-warning is-outlined"
+              hx-post="/api/apps/{{ manifest.app_key }}/stop"
+              hx-swap="none"
+              hx-on::after-request="htmx.ajax('GET', '/ui/partials/manifest-list', {target: '#manifest-list', swap: 'innerHTML'})">
+        <span class="icon is-small"><i class="fas fa-stop"></i></span>
+      </button>
+      <button class="button is-info is-outlined"
+              hx-post="/api/apps/{{ manifest.app_key }}/reload"
+              hx-swap="none"
+              hx-on::after-request="htmx.ajax('GET', '/ui/partials/manifest-list', {target: '#manifest-list', swap: 'innerHTML'})">
+        <span class="icon is-small"><i class="fas fa-rotate"></i></span>
+      </button>
+      {% elif manifest.status in ["failed", "stopped"] %}
+      <button class="button is-success is-outlined"
+              hx-post="/api/apps/{{ manifest.app_key }}/start"
+              hx-swap="none"
+              hx-on::after-request="htmx.ajax('GET', '/ui/partials/manifest-list', {target: '#manifest-list', swap: 'innerHTML'})">
+        <span class="icon is-small"><i class="fas fa-play"></i></span>
+      </button>
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% endif %}

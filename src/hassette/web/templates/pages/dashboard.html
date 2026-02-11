@@ -11,8 +11,9 @@
         <span>System Health</span>
       </h2>
       <div id="health-badge"
+           data-live-refresh="/ui/partials/health-badge"
            hx-get="/ui/partials/health-badge"
-           hx-trigger="every 10s"
+           hx-trigger="every 30s"
            hx-swap="innerHTML">
         {% include "partials/health_badge.html" %}
       </div>
@@ -26,31 +27,13 @@
         <span class="icon"><i class="fas fa-cubes"></i></span>
         <span>Apps</span>
       </h2>
-      {% if app_status.total == 0 %}
-      <p class="has-text-grey">No apps configured.</p>
-      {% else %}
-      <div class="level">
-        <div class="level-item has-text-centered">
-          <div>
-            <p class="heading">Total</p>
-            <p class="title is-4">{{ app_status.total }}</p>
-          </div>
-        </div>
-        <div class="level-item has-text-centered">
-          <div>
-            <p class="heading">Running</p>
-            <p class="title is-4 has-text-success">{{ app_status.running }}</p>
-          </div>
-        </div>
-        <div class="level-item has-text-centered">
-          <div>
-            <p class="heading">Failed</p>
-            <p class="title is-4 {% if app_status.failed > 0 %}has-text-danger{% endif %}">{{ app_status.failed }}</p>
-          </div>
-        </div>
+      <div id="apps-summary"
+           data-live-on-app="/ui/partials/apps-summary"
+           hx-get="/ui/partials/apps-summary"
+           hx-trigger="every 30s"
+           hx-swap="innerHTML">
+        {% include "partials/apps_summary.html" %}
       </div>
-      <a href="/ui/apps" class="button is-small is-link is-outlined">Manage Apps</a>
-      {% endif %}
     </div>
   </div>
 
@@ -61,31 +44,12 @@
         <span class="icon"><i class="fas fa-diagram-project"></i></span>
         <span>Event Bus</span>
       </h2>
-      <div class="level">
-        <div class="level-item has-text-centered">
-          <div>
-            <p class="heading">Listeners</p>
-            <p class="title is-4">{{ bus_metrics.total_listeners }}</p>
-          </div>
-        </div>
-        <div class="level-item has-text-centered">
-          <div>
-            <p class="heading">Invocations</p>
-            <p class="title is-4">{{ bus_metrics.total_invocations }}</p>
-          </div>
-        </div>
-        <div class="level-item has-text-centered">
-          <div>
-            <p class="heading">Successful</p>
-            <p class="title is-4 has-text-success">{{ bus_metrics.total_successful }}</p>
-          </div>
-        </div>
-        <div class="level-item has-text-centered">
-          <div>
-            <p class="heading">Failed</p>
-            <p class="title is-4 {% if bus_metrics.total_failed > 0 %}has-text-danger{% endif %}">{{ bus_metrics.total_failed }}</p>
-          </div>
-        </div>
+      <div id="bus-metrics"
+           data-live-refresh="/ui/partials/bus-metrics"
+           hx-get="/ui/partials/bus-metrics"
+           hx-trigger="every 30s"
+           hx-swap="innerHTML">
+        {% include "partials/bus_metrics.html" %}
       </div>
     </div>
   </div>
@@ -98,8 +62,9 @@
         <span>Recent Events</span>
       </h2>
       <div id="event-feed"
+           data-live-refresh="/ui/partials/event-feed"
            hx-get="/ui/partials/event-feed"
-           hx-trigger="every 5s"
+           hx-trigger="every 30s"
            hx-swap="innerHTML">
         {% include "partials/event_feed.html" %}
       </div>

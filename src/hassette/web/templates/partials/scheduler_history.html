@@ -1,0 +1,34 @@
+{% for record in history %}
+<tr>
+  <td><code>{{ record.job_name }}</code></td>
+  <td><code>{{ record.owner }}</code></td>
+  <td>
+    {% if record.started_at %}
+    <script>document.currentScript.parentElement.textContent = new Date({{ record.started_at }} * 1000).toLocaleString();</script>
+    {% else %}
+    —
+    {% endif %}
+  </td>
+  <td>{{ "%.1f" | format(record.duration_ms) }}ms</td>
+  <td>
+    {% if record.status == "success" %}
+    <span class="tag is-success is-light is-small">success</span>
+    {% elif record.status == "error" %}
+    <span class="tag is-danger is-light is-small">error</span>
+    {% elif record.status == "timeout" %}
+    <span class="tag is-warning is-light is-small">timeout</span>
+    {% else %}
+    <span class="tag is-light is-small">{{ record.status }}</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if record.error_message %}
+    <span class="has-text-danger is-size-7">{{ record.error_message }}</span>
+    {% else %}
+    —
+    {% endif %}
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="6" class="has-text-centered has-text-grey">No execution history.</td></tr>
+{% endfor %}

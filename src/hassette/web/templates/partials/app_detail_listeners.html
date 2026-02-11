@@ -1,0 +1,28 @@
+{% if listeners %}
+<table class="table is-fullwidth is-hoverable is-compact is-size-7">
+  <thead>
+    <tr>
+      <th>Handler</th>
+      <th>Topic</th>
+      <th>Invocations</th>
+      <th>Success</th>
+      <th>Failed</th>
+      <th>Avg Duration</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for l in listeners %}
+    <tr>
+      <td><code>{{ l.handler_name }}</code></td>
+      <td><code>{{ l.topic }}</code></td>
+      <td>{{ l.total_invocations }}</td>
+      <td class="has-text-success">{{ l.successful }}</td>
+      <td class="{% if l.failed > 0 %}has-text-danger{% endif %}">{{ l.failed }}</td>
+      <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="has-text-grey is-size-7">No bus listeners registered.</p>
+{% endif %}

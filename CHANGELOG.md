@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Alpine.js WebSocket store for live connection status and event dispatching
   - `run_web_ui` config option to enable/disable the UI independently from the API
   - Root `/` redirects to `/ui/` when UI is enabled
+- **Web UI Phase 2** — full app manifests, live updates, and new pages
+  - **App manifests** — apps page now shows ALL configured app manifests regardless of runtime state; stopped/disabled/blocked apps remain visible with appropriate status badges and start/stop/reload action buttons
+  - `AppRegistry.get_full_snapshot()` with `AppManifestInfo` and `AppFullSnapshot` dataclasses for manifest-based status derivation (disabled > blocked > running > failed > stopped)
+  - `GET /api/apps/manifests` endpoint returning full manifest list with status counts
+  - Status filter tabs on apps page (All / Running / Stopped / Failed / Disabled)
+  - **WebSocket-driven live updates** — `live-updates.js` replaces HTMX polling with WS-triggered partial refreshes using `data-live-refresh`, `data-live-on-app`, and `data-live-on-state` attributes; 500ms debounce prevents DOM thrashing; 30s polling fallback for WS disconnection resilience
+  - **Scheduler page** (`/ui/scheduler`) — view scheduled jobs and execution history, filterable by app owner
+  - **Entity browser page** (`/ui/entities`) — browse Home Assistant entities by domain with text search; paginated at 50 entities per page
+  - **App detail page** (`/ui/apps/{app_key}`) — per-app drill-down showing manifest config, bus listener metrics, scheduled jobs, and filtered logs
+  - Extracted `bus_metrics.html` and `apps_summary.html` dashboard partials for live update support
+  - New CSS styles for stopped/disabled/blocked status badges, entity state badges (on/off/unavailable), and live update pulse animation
+  - Navigation sidebar updated with Scheduler and Entities links
 - **FastAPI web backend** replacing the standalone `HealthService` with a full REST API and WebSocket server
   - `GET /api/health`, `GET /api/healthz` — system health and container healthchecks
   - `GET /api/entities`, `GET /api/entities/{entity_id}`, `GET /api/entities/domain/{domain}` — entity state access
@@ -45,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SchedulerService.run_job()` refactored to use `track_execution()` context manager
 - Config: `run_health_service` → `run_web_api`, `health_service_port` → `web_api_port`, `health_service_log_level` → `web_api_log_level`
 - Config: added `web_api_host`, `web_api_cors_origins`, `web_api_event_buffer_size`, `web_api_log_buffer_size`, `web_api_job_history_size`
+
+### Fixed
+- WebSocket endpoint now uses `except*` (PEP 654) to properly handle `WebSocketDisconnect` inside `ExceptionGroup` from anyio task groups, eliminating spurious ERROR logs during normal page navigation
 
 ### Removed
 - `HealthService` (`src/hassette/core/health_service.py`) — replaced by FastAPI web backend

@@ -44,6 +44,31 @@ class AppStatusResponse(BaseModel):
     only_app: str | None = None
 
 
+class AppManifestResponse(BaseModel):
+    app_key: str
+    class_name: str
+    display_name: str
+    filename: str
+    enabled: bool
+    auto_loaded: bool
+    status: str
+    block_reason: str | None = None
+    instance_count: int = 0
+    instances: list[AppInstanceResponse] = []
+    error_message: str | None = None
+
+
+class AppManifestListResponse(BaseModel):
+    total: int
+    running: int
+    failed: int
+    stopped: int
+    disabled: int
+    blocked: int
+    manifests: list[AppManifestResponse]
+    only_app: str | None = None
+
+
 class EventEntry(BaseModel):
     type: str
     entity_id: str | None = None

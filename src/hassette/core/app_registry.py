@@ -67,6 +67,37 @@ class AppStatusSnapshot:
         return result
 
 
+@dataclass
+class AppManifestInfo:
+    """Snapshot of a single app manifest with derived runtime status."""
+
+    app_key: str
+    class_name: str
+    display_name: str
+    filename: str
+    enabled: bool
+    auto_loaded: bool
+    status: str  # "running", "failed", "stopped", "disabled", "blocked"
+    block_reason: str | None = None
+    instance_count: int = 0
+    instances: list[AppInstanceInfo] = field(default_factory=list)
+    error_message: str | None = None
+
+
+@dataclass
+class AppFullSnapshot:
+    """Full manifest-based snapshot including all configured apps."""
+
+    manifests: list[AppManifestInfo] = field(default_factory=list)
+    only_app: str | None = None
+    total: int = 0
+    running: int = 0
+    failed: int = 0
+    stopped: int = 0
+    disabled: int = 0
+    blocked: int = 0
+
+
 class AppRegistry:
     """Manages app instance state and provides queryable status interface.
 
@@ -209,6 +240,83 @@ class AppRegistry:
             running=running,
             failed=failed,
             only_app=self._only_app,
+        )
+
+    def get_full_snapshot(self) -> AppFullSnapshot:
+        """Generate manifest-based snapshot including all configured apps."""
+        manifests: list[AppManifestInfo] = []
+        counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
+
+        for app_key, manifest in self._manifests.items():
+            # Derive status
+            if not manifest.enabled:
+                status = "disabled"
+            elif app_key in self._blocked_apps:
+                status = "blocked"
+            elif self._apps.get(app_key):
+                status = "running"
+            elif self._failed_apps.get(app_key):
+                status = "failed"
+            else:
+                status = "stopped"
+
+            counts[status] += 1
+
+            # Collect instances
+            instances: list[AppInstanceInfo] = []
+            error_message: str | None = None
+
+            if app_key in self._apps:
+                for index, app in self._apps[app_key].items():
+                    instances.append(
+                        AppInstanceInfo(
+                            app_key=app_key,
+                            index=index,
+                            instance_name=app.app_config.instance_name,
+                            class_name=app.class_name,
+                            status=app.status,
+                        )
+                    )
+
+            if app_key in self._failed_apps:
+                for index, error in self._failed_apps[app_key]:
+                    instances.append(
+                        AppInstanceInfo(
+                            app_key=app_key,
+                            index=index,
+                            instance_name=f"{manifest.class_name}.{index}",
+                            class_name=manifest.class_name,
+                            status=ResourceStatus.FAILED,
+                            error=error,
+                            error_message=str(error),
+                        )
+                    )
+                    if error_message is None:
+                        error_message = str(error)
+
+            block_reason = self._blocked_apps.get(app_key)
+
+            manifests.append(
+                AppManifestInfo(
+                    app_key=app_key,
+                    class_name=manifest.class_name,
+                    display_name=manifest.display_name,
+                    filename=manifest.filename,
+                    enabled=manifest.enabled,
+                    auto_loaded=manifest.auto_loaded,
+                    status=status,
+                    block_reason=block_reason.value if block_reason else None,
+                    instance_count=len(instances),
+                    instances=instances,
+                    error_message=error_message,
+                )
+            )
+
+        return AppFullSnapshot(
+            manifests=manifests,
+            only_app=self._only_app,
+            total=len(manifests),
+            **counts,
         )
 
     # --- Properties for backwards compatibility ---

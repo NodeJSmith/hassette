@@ -15,6 +15,8 @@ from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 from hassette.web.models import (
     AppInstanceResponse,
+    AppManifestListResponse,
+    AppManifestResponse,
     AppStatusResponse,
     BusMetricsSummaryResponse,
     SystemStatusResponse,
@@ -193,6 +195,46 @@ class DataSyncService(Resource):
             running=snapshot.running_count,
             failed=snapshot.failed_count,
             apps=apps,
+            only_app=snapshot.only_app,
+        )
+
+    def get_all_manifests_snapshot(self) -> AppManifestListResponse:
+        """Return full manifest-based snapshot including stopped/disabled apps."""
+        snapshot = self.hassette._app_handler.registry.get_full_snapshot()
+        manifests = [
+            AppManifestResponse(
+                app_key=m.app_key,
+                class_name=m.class_name,
+                display_name=m.display_name,
+                filename=m.filename,
+                enabled=m.enabled,
+                auto_loaded=m.auto_loaded,
+                status=m.status,
+                block_reason=m.block_reason,
+                instance_count=m.instance_count,
+                instances=[
+                    AppInstanceResponse(
+                        app_key=inst.app_key,
+                        index=inst.index,
+                        instance_name=inst.instance_name,
+                        class_name=inst.class_name,
+                        status=inst.status.value if hasattr(inst.status, "value") else str(inst.status),
+                        error_message=inst.error_message,
+                    )
+                    for inst in m.instances
+                ],
+                error_message=m.error_message,
+            )
+            for m in snapshot.manifests
+        ]
+        return AppManifestListResponse(
+            total=snapshot.total,
+            running=snapshot.running,
+            failed=snapshot.failed,
+            stopped=snapshot.stopped,
+            disabled=snapshot.disabled,
+            blocked=snapshot.blocked,
+            manifests=manifests,
             only_app=snapshot.only_app,
         )
 

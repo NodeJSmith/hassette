@@ -78,9 +78,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         async with anyio.create_task_group() as tg:
             tg.start_soon(_read_client, websocket, ws_state)
             tg.start_soon(_send_from_queue, websocket, queue, ws_state)
-    except (WebSocketDisconnect, anyio.ClosedResourceError):
-        pass  # Expected during normal client disconnect
-    except Exception:
+    except* (WebSocketDisconnect, anyio.ClosedResourceError):
+        pass  # Expected during normal client disconnect (incl. page navigation)
+    except* Exception:
         logger.debug("WebSocket connection error", exc_info=True)
     finally:
         await data_sync.unregister_ws_client(queue)

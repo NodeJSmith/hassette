@@ -5,7 +5,7 @@ import typing
 from fastapi import APIRouter, Depends, HTTPException
 
 from hassette.web.dependencies import get_data_sync, get_hassette
-from hassette.web.models import AppInstanceResponse, AppStatusResponse
+from hassette.web.models import AppInstanceResponse, AppManifestListResponse, AppStatusResponse
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -20,6 +20,11 @@ DataSyncDep = typing.Annotated["DataSyncService", Depends(get_data_sync)]
 @router.get("/apps", response_model=AppStatusResponse)
 async def get_apps(data_sync: DataSyncDep) -> AppStatusResponse:
     return data_sync.get_app_status_snapshot()
+
+
+@router.get("/apps/manifests", response_model=AppManifestListResponse)
+async def get_app_manifests(data_sync: DataSyncDep) -> AppManifestListResponse:
+    return data_sync.get_all_manifests_snapshot()
 
 
 @router.get("/apps/{app_key}", response_model=AppInstanceResponse)
