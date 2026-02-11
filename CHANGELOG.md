@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- **Web UI dashboard** — server-rendered monitoring UI at `/ui/` using Jinja2, HTMX, Alpine.js, and Bulma CSS
+  - Dashboard page with system health, apps summary, bus metrics, and recent events (auto-refreshing)
+  - App management page with start/stop/reload controls via HTMX
+  - Log viewer page with level/app filtering and real-time WebSocket streaming
+  - HTMX partial endpoints for incremental page updates without full reload
+  - Alpine.js WebSocket store for live connection status and event dispatching
+  - `run_web_ui` config option to enable/disable the UI independently from the API
+  - Root `/` redirects to `/ui/` when UI is enabled
 - **FastAPI web backend** replacing the standalone `HealthService` with a full REST API and WebSocket server
   - `GET /api/health`, `GET /api/healthz` — system health and container healthchecks
   - `GET /api/entities`, `GET /api/entities/{entity_id}`, `GET /api/entities/domain/{domain}` — entity state access

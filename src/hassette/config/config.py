@@ -196,6 +196,9 @@ class HassetteConfig(BaseSettings):
     run_web_api: bool = Field(default=True)
     """Whether to run the web API service (includes healthcheck and UI backend)."""
 
+    run_web_ui: bool = Field(default=True)
+    """Whether to serve the web UI dashboard. Only used when run_web_api is True."""
+
     web_api_host: str = Field(default="0.0.0.0")
     """Host to bind the web API server to."""
 

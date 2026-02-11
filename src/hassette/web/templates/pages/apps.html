@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Apps — Hassette{% endblock %}
+
+{% block content %}
+<h1 class="title is-4">
+  <span class="icon"><i class="fas fa-cubes"></i></span>
+  <span>App Management</span>
+</h1>
+
+{% if app_status.total == 0 %}
+<div class="notification is-info is-light">
+  <p>No apps are configured. Add apps to your Hassette configuration to see them here.</p>
+</div>
+{% else %}
+<div class="box">
+  <div class="level mb-4">
+    <div class="level-left">
+      <div class="level-item">
+        <span class="tag is-success is-light is-medium">{{ app_status.running }} running</span>
+      </div>
+      {% if app_status.failed > 0 %}
+      <div class="level-item">
+        <span class="tag is-danger is-light is-medium">{{ app_status.failed }} failed</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <table class="table is-fullwidth is-hoverable is-compact">
+    <thead>
+      <tr>
+        <th>App Key</th>
+        <th>Class</th>
+        <th>Status</th>
+        <th>Error</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="app-list"
+           hx-get="/ui/partials/app-list"
+           hx-trigger="every 10s"
+           hx-swap="innerHTML">
+      {% include "partials/app_list.html" %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

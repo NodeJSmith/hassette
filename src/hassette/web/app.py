@@ -1,9 +1,12 @@
 """FastAPI application factory for the Hassette Web API."""
 
 import typing
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import RedirectResponse
 
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.bus import router as bus_router
@@ -15,9 +18,13 @@ from hassette.web.routes.logs import router as logs_router
 from hassette.web.routes.scheduler import router as scheduler_router
 from hassette.web.routes.services import router as services_router
 from hassette.web.routes.ws import router as ws_router
+from hassette.web.ui.partials import router as partials_router
+from hassette.web.ui.router import router as ui_router
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+
+_STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_fastapi_app(hassette: "Hassette") -> FastAPI:
@@ -36,6 +43,7 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
     )
 
+    # API routes
     app.include_router(health_router, prefix="/api")
     app.include_router(entities_router, prefix="/api")
     app.include_router(apps_router, prefix="/api")
@@ -47,4 +55,15 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
     app.include_router(config_router, prefix="/api")
     app.include_router(ws_router, prefix="/api")
 
+    # Web UI
+    if hassette.config.run_web_ui:
+        app.mount("/ui/static", StaticFiles(directory=str(_STATIC_DIR)), name="ui-static")
+        app.include_router(ui_router, prefix="/ui")
+        app.include_router(partials_router, prefix="/ui")
+        app.add_api_route("/", _root_redirect, methods=["GET"])
+
     return app
+
+
+async def _root_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/ui/", status_code=307)

@@ -1,0 +1,34 @@
+<aside class="ht-sidebar">
+  <div class="ht-sidebar-brand">
+    <span class="icon"><i class="fas fa-house-signal"></i></span>
+    <span class="ht-brand-text">Hassette</span>
+  </div>
+  <nav class="menu">
+    <ul class="menu-list">
+      <li>
+        <a href="/ui/"
+           class="{% if current_page == 'dashboard' %}is-active{% endif %}">
+          <span class="icon"><i class="fas fa-gauge-high"></i></span>
+          <span>Dashboard</span>
+        </a>
+      </li>
+      <li>
+        <a href="/ui/apps"
+           class="{% if current_page == 'apps' %}is-active{% endif %}">
+          <span class="icon"><i class="fas fa-cubes"></i></span>
+          <span>Apps</span>
+        </a>
+      </li>
+      <li>
+        <a href="/ui/logs"
+           class="{% if current_page == 'logs' %}is-active{% endif %}">
+          <span class="icon"><i class="fas fa-scroll"></i></span>
+          <span>Logs</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+  <div class="ht-sidebar-footer">
+    <span class="is-size-7 has-text-grey">v{{ hassette_version }}</span>
+  </div>
+</aside>

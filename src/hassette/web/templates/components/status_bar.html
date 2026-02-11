@@ -1,0 +1,7 @@
+<div class="ht-status-bar" x-data>
+  <span class="ht-ws-indicator"
+        :class="$store.ws.connected ? 'is-connected' : 'is-disconnected'">
+    <span class="ht-ws-dot"></span>
+    <span class="is-size-7" x-text="$store.ws.connected ? 'Connected' : 'Disconnected'"></span>
+  </span>
+</div>

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Logs — Hassette{% endblock %}
+
+{% block content %}
+<h1 class="title is-4">
+  <span class="icon"><i class="fas fa-scroll"></i></span>
+  <span>Log Viewer</span>
+</h1>
+
+<div class="box">
+  <!-- Filter controls -->
+  <div class="field is-grouped mb-4">
+    <div class="control">
+      <div class="select is-small">
+        <select id="log-level-filter"
+                hx-get="/ui/partials/log-entries"
+                hx-target="#log-entries"
+                hx-swap="innerHTML"
+                hx-include="#log-app-filter"
+                name="level">
+          <option value="">All Levels</option>
+          <option value="DEBUG">DEBUG</option>
+          <option value="INFO">INFO</option>
+          <option value="WARNING">WARNING</option>
+          <option value="ERROR">ERROR</option>
+          <option value="CRITICAL">CRITICAL</option>
+        </select>
+      </div>
+    </div>
+    <div class="control">
+      <div class="select is-small">
+        <select id="log-app-filter"
+                hx-get="/ui/partials/log-entries"
+                hx-target="#log-entries"
+                hx-swap="innerHTML"
+                hx-include="#log-level-filter"
+                name="app_key">
+          <option value="">All Apps</option>
+          {% for key in app_keys %}
+          <option value="{{ key }}">{{ key }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="control">
+      <button class="button is-small is-link is-outlined"
+              hx-get="/ui/partials/log-entries"
+              hx-target="#log-entries"
+              hx-swap="innerHTML"
+              hx-include="#log-level-filter, #log-app-filter">
+        <span class="icon is-small"><i class="fas fa-rotate"></i></span>
+        <span>Refresh</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Log entries -->
+  <div class="ht-log-container" style="max-height: 600px; overflow-y: auto;">
+    <table class="table is-fullwidth is-hoverable is-compact is-size-7">
+      <thead>
+        <tr>
+          <th style="width: 80px;">Level</th>
+          <th style="width: 160px;">Timestamp</th>
+          <th style="width: 120px;">App</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody id="log-entries">
+        {% include "partials/log_entries.html" %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Auto-append new log entries from WebSocket
+  document.addEventListener("ht:log-entry", (e) => {
+    const tbody = document.getElementById("log-entries");
+    if (!tbody) return;
+    const entry = e.detail;
+    const tr = document.createElement("tr");
+    const levelClass = "ht-log-" + (entry.level || "info").toLowerCase();
+    tr.innerHTML = `
+      <td><span class="tag is-small ${levelClass}">${entry.level || ""}</span></td>
+      <td>${new Date((entry.timestamp || 0) * 1000).toLocaleTimeString()}</td>
+      <td><code>${entry.app_key || "—"}</code></td>
+      <td>${entry.message || ""}</td>
+    `;
+    tbody.prepend(tr);
+    // Keep max 200 rows
+    while (tbody.children.length > 200) {
+      tbody.removeChild(tbody.lastChild);
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% for entry in logs | reverse %}
+<tr>
+  <td>
+    <span class="tag is-small
+      {% if entry.level == 'DEBUG' %}ht-log-debug
+      {% elif entry.level == 'INFO' %}ht-log-info
+      {% elif entry.level == 'WARNING' %}ht-log-warning
+      {% elif entry.level == 'ERROR' %}ht-log-error
+      {% elif entry.level == 'CRITICAL' %}ht-log-critical
+      {% endif %}">
+      {{ entry.level }}
+    </span>
+  </td>
+  <td>
+    {% if entry.timestamp %}
+      <script>document.currentScript.parentElement.textContent = new Date({{ entry.timestamp }} * 1000).toLocaleTimeString();</script>
+    {% else %}
+      —
+    {% endif %}
+  </td>
+  <td><code>{{ entry.app_key or "—" }}</code></td>
+  <td>{{ entry.message }}</td>
+</tr>
+{% else %}
+<tr><td colspan="4" class="has-text-centered has-text-grey">No log entries.</td></tr>
+{% endfor %}

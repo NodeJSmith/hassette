@@ -1,0 +1,51 @@
+{% if app %}
+<tr id="app-row-{{ app.app_key }}">
+  <td><code>{{ app.app_key }}</code></td>
+  <td>{{ app.class_name }}</td>
+  <td>
+    {% if app.status == "running" %}
+    <span class="tag is-success is-light">running</span>
+    {% elif app.status == "failed" %}
+    <span class="tag is-danger is-light">failed</span>
+    {% elif app.status == "stopped" %}
+    <span class="tag is-warning is-light">stopped</span>
+    {% else %}
+    <span class="tag is-light">{{ app.status }}</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if app.error_message %}
+    <span class="has-text-danger is-size-7">{{ app.error_message }}</span>
+    {% else %}
+    —
+    {% endif %}
+  </td>
+  <td>
+    <div class="buttons are-small">
+      {% if app.status == "running" %}
+      <button class="button is-warning is-outlined"
+              hx-post="/api/apps/{{ app.app_key }}/stop"
+              hx-swap="none"
+              hx-on::after-request="htmx.trigger('#app-list', 'htmx:load')">
+        <span class="icon is-small"><i class="fas fa-stop"></i></span>
+      </button>
+      <button class="button is-info is-outlined"
+              hx-post="/api/apps/{{ app.app_key }}/reload"
+              hx-swap="none"
+              hx-on::after-request="htmx.trigger('#app-list', 'htmx:load')">
+        <span class="icon is-small"><i class="fas fa-rotate"></i></span>
+      </button>
+      {% else %}
+      <button class="button is-success is-outlined"
+              hx-post="/api/apps/{{ app.app_key }}/start"
+              hx-swap="none"
+              hx-on::after-request="htmx.trigger('#app-list', 'htmx:load')">
+        <span class="icon is-small"><i class="fas fa-play"></i></span>
+      </button>
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="5" class="has-text-centered has-text-grey">App not found.</td></tr>
+{% endif %}

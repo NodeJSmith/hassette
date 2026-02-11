@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Hassette{% endblock %}
+
+{% block content %}
+<div class="columns is-multiline">
+  <!-- System Health -->
+  <div class="column is-half">
+    <div class="box">
+      <h2 class="title is-5">
+        <span class="icon"><i class="fas fa-heart-pulse"></i></span>
+        <span>System Health</span>
+      </h2>
+      <div id="health-badge"
+           hx-get="/ui/partials/health-badge"
+           hx-trigger="every 10s"
+           hx-swap="innerHTML">
+        {% include "partials/health_badge.html" %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Apps Summary -->
+  <div class="column is-half">
+    <div class="box">
+      <h2 class="title is-5">
+        <span class="icon"><i class="fas fa-cubes"></i></span>
+        <span>Apps</span>
+      </h2>
+      {% if app_status.total == 0 %}
+      <p class="has-text-grey">No apps configured.</p>
+      {% else %}
+      <div class="level">
+        <div class="level-item has-text-centered">
+          <div>
+            <p class="heading">Total</p>
+            <p class="title is-4">{{ app_status.total }}</p>
+          </div>
+        </div>
+        <div class="level-item has-text-centered">
+          <div>
+            <p class="heading">Running</p>
+            <p class="title is-4 has-text-success">{{ app_status.running }}</p>
+          </div>
+        </div>
+        <div class="level-item has-text-centered">
+          <div>
+            <p class="heading">Failed</p>
+            <p class="title is-4 {% if app_status.failed > 0 %}has-text-danger{% endif %}">{{ app_status.failed }}</p>
+          </div>
+        </div>
+      </div>
+      <a href="/ui/apps" class="button is-small is-link is-outlined">Manage Apps</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Bus Metrics -->
+  <div class="column is-half">
+    <div class="box">
+      <h2 class="title is-5">
+        <span class="icon"><i class="fas fa-diagram-project"></i></span>
+        <span>Event Bus</span>
+      </h2>
+      <div class="level">
+        <div class="level-item has-text-centered">
+          <div>
+            <p class="heading">Listeners</p>
+            <p class="title is-4">{{ bus_metrics.total_listeners }}</p>
+          </div>
+        </div>
+        <div class="level-item has-text-centered">
+          <div>
+            <p class="heading">Invocations</p>
+            <p class="title is-4">{{ bus_metrics.total_invocations }}</p>
+          </div>
+        </div>
+        <div class="level-item has-text-centered">
+          <div>
+            <p class="heading">Successful</p>
+            <p class="title is-4 has-text-success">{{ bus_metrics.total_successful }}</p>
+          </div>
+        </div>
+        <div class="level-item has-text-centered">
+          <div>
+            <p class="heading">Failed</p>
+            <p class="title is-4 {% if bus_metrics.total_failed > 0 %}has-text-danger{% endif %}">{{ bus_metrics.total_failed }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Events -->
+  <div class="column is-half">
+    <div class="box">
+      <h2 class="title is-5">
+        <span class="icon"><i class="fas fa-bolt"></i></span>
+        <span>Recent Events</span>
+      </h2>
+      <div id="event-feed"
+           hx-get="/ui/partials/event-feed"
+           hx-trigger="every 5s"
+           hx-swap="innerHTML">
+        {% include "partials/event_feed.html" %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,99 @@
+/* Hassette Web UI — custom overrides */
+
+/* Layout: sidebar + main */
+.ht-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.ht-sidebar {
+  width: 220px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0;
+  flex-shrink: 0;
+}
+
+.ht-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.ht-sidebar .menu-list a {
+  color: #b0b0c0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ht-sidebar .menu-list a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.ht-sidebar .menu-list a.is-active {
+  background: rgba(72, 199, 142, 0.15);
+  color: #48c78e;
+  font-weight: 600;
+}
+
+.ht-sidebar-footer {
+  margin-top: auto;
+  padding: 1rem 1.25rem;
+}
+
+/* Main content area */
+.ht-main {
+  flex: 1;
+  background: #f5f5f5;
+  overflow-y: auto;
+}
+
+/* Status bar */
+.ht-status-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.4rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.ht-ws-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ht-ws-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.is-connected .ht-ws-dot { background: #48c78e; }
+.is-disconnected .ht-ws-dot { background: #f14668; }
+
+/* Compact table rows */
+.table.is-compact td,
+.table.is-compact th {
+  padding: 0.4em 0.6em;
+}
+
+/* Log level badges */
+.ht-log-debug { color: #7a7a7a; }
+.ht-log-info { color: #3e8ed0; }
+.ht-log-warning { color: #ffe08a; background: #946b00; }
+.ht-log-error { color: #fff; background: #f14668; }
+.ht-log-critical { color: #fff; background: #cc0f35; font-weight: 700; }
