@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from starlette.responses import HTMLResponse
 
 from hassette.core.data_sync_service import DataSyncService
@@ -45,7 +45,7 @@ async def log_entries_partial(
     data_sync: DataSyncDep,
     level: str | None = None,
     app_key: str | None = None,
-    limit: int = 100,
+    limit: Annotated[int, Query(default=100, ge=1, le=2000)] = 100,
 ) -> HTMLResponse:
     logs = data_sync.get_recent_logs(limit=limit, app_key=app_key, level=level)
     return templates.TemplateResponse(request, "partials/log_entries.html", {"logs": logs})

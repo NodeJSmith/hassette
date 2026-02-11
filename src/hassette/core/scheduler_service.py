@@ -3,7 +3,7 @@ import heapq
 import time
 import typing
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
 
@@ -205,7 +205,7 @@ class SchedulerService(Service):
             )
 
         timestamp = time.time()
-        result = ExecutionResult()
+        result = ExecutionResult()  # safety default for finally block if track_execution() entry fails
 
         try:
             async with track_execution() as result:
@@ -386,7 +386,7 @@ class _ScheduledJobQueue(Resource):
     async def get_all(self) -> list["ScheduledJob"]:
         """Return a snapshot of all queued jobs (non-destructive)."""
         async with self._lock:
-            return list(self._queue._queue)
+            return list(self._queue)
 
     async def clear(self, predicate: Callable[["ScheduledJob"], bool] | None = None) -> int:
         """Clear the queue, optionally filtering by predicate."""
@@ -409,6 +409,13 @@ class _ScheduledJobQueue(Resource):
 @dataclass
 class HeapQueue(Generic[T]):
     _queue: list[T] = field(default_factory=list)
+
+    def __iter__(self) -> Iterator[T]:
+        """Iterate over all items in the queue (unordered)."""
+        return iter(self._queue)
+
+    def __len__(self) -> int:
+        return len(self._queue)
 
     def push(self, job: T):
         """Push a job onto the queue."""

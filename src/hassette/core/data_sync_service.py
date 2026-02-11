@@ -251,7 +251,7 @@ class DataSyncService(Resource):
         if handler is None:
             return []
 
-        entries: list[LogEntry] = list(handler.buffer)
+        entries: list[LogEntry] = handler.get_buffer_snapshot()
 
         if app_key:
             entries = [e for e in entries if e.app_key == app_key]

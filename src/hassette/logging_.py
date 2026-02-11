@@ -73,6 +73,19 @@ class LogCaptureHandler(logging.Handler):
     def buffer(self) -> deque[LogEntry]:
         return self._buffer
 
+    def get_buffer_snapshot(self) -> list[LogEntry]:
+        """Return a thread-safe snapshot of the buffer.
+
+        The underlying deque can be mutated by emit() from worker threads,
+        so iterating it directly risks RuntimeError. This retries on mutation.
+        """
+        while True:
+            try:
+                return list(self._buffer)
+            except RuntimeError:
+                # deque mutated during iteration; retry
+                continue
+
     def set_broadcast(self, fn: Callable[[dict], Awaitable[None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by DataSyncService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn

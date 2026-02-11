@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SystemStatusResponse(BaseModel):
@@ -72,8 +72,8 @@ class AppManifestListResponse(BaseModel):
 class EventEntry(BaseModel):
     type: str
     entity_id: str | None = None
-    timestamp: str
-    data: dict[str, Any] = {}
+    timestamp: float
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class WsMessage(BaseModel):
