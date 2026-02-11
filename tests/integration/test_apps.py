@@ -63,8 +63,10 @@ class TestApps:
         orig_apps = set(self.app_handler.apps.keys())
 
         event = asyncio.Event()
+        results = []
 
-        async def handler(**kwargs):  # noqa
+        async def handler(**kwargs):
+            results.append(kwargs)
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
@@ -80,8 +82,9 @@ class TestApps:
         await self.app_handler.handle_change_event()
 
         # will timeout, because we dont fire since there are no changes
-        with pytest.raises(asyncio.TimeoutError):
+        with pytest.raises(asyncio.TimeoutError):  # noqa: PT012
             await asyncio.wait_for(event.wait(), timeout=0.2)
+            assert not results, f"No events should have been fired, but got: {results}"
 
         new_apps = set(self.app_handler.apps.keys())
         assert orig_apps == new_apps, "No apps should be lost during handle_changes"
