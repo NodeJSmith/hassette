@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import typing
 from copy import deepcopy
 from unittest.mock import patch
@@ -78,6 +79,13 @@ class TestApps:
                 where=None,
             )
         )
+
+        # Drain any pending APP_LOAD_COMPLETED from bootstrap_apps().
+        # On Python 3.12, the BusService may not have dispatched this event yet.
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(event.wait(), timeout=0.5)
+        results.clear()
+        event.clear()
 
         await self.app_handler.handle_change_event()
 
