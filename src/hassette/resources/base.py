@@ -35,7 +35,12 @@ class FinalMeta(type):
         subclass_name = f"{cls.__module__}.{cls.__qualname__}"
         if subclass_name in FinalMeta.LOADED_CLASSES:
             return
+
         FinalMeta.LOADED_CLASSES.add(subclass_name)
+
+        if subclass_name == "hassette.resources.base.Service":
+            # allow Service to override Resource's final initialize/shutdown
+            return
 
         # Collect all methods marked as final from the MRO (excluding object and cls itself)
         finals: dict[str, type] = {}
@@ -46,20 +51,11 @@ class FinalMeta(type):
                 if getattr(obj, "__final__", False):
                     finals.setdefault(attr, ancestor)
 
-        # Classes may declare `_allowed_final_overrides: ClassVar[frozenset[str]]`
-        # in their class body to exempt specific methods from the @final check.
-        # Only the declaring class gets the exemption (ns lookup, not inherited).
-        # This is an internal escape hatch for framework classes like Service
-        # that re-implement lifecycle methods while keeping them @final for subclasses.
-        allowed = ns.get("_allowed_final_overrides", frozenset())
         for method_name, origin in finals.items():
             if method_name in ns:
                 new_obj = ns[method_name]
                 old_obj = origin.__dict__.get(method_name)
                 if new_obj is old_obj:
-                    continue
-
-                if method_name in allowed:
                     continue
 
                 origin_name = f"{origin.__qualname__}"
@@ -387,8 +383,6 @@ class Service(Resource):
 
     Subclasses MUST implement serve(). All six hooks are available.
     """
-
-    _allowed_final_overrides: ClassVar[frozenset[str]] = frozenset({"initialize", "shutdown"})
 
     role: ClassVar[ResourceRole] = ResourceRole.SERVICE
 

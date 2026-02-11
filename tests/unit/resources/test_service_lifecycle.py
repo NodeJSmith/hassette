@@ -166,16 +166,6 @@ async def test_serve_task_cancelled_before_on_shutdown():
     assert idx_cancel < idx_shutdown, f"serve_cancelled ({idx_cancel}) should precede on_shutdown ({idx_shutdown})"
 
 
-async def test_finalmeta_allows_service_to_override_initialize_shutdown():
-    """FinalMeta allowlist permits Service to override initialize/shutdown."""
-    # If this class can be defined without error, the allowlist works.
-    # Service already overrides initialize and shutdown — if FinalMeta raised,
-    # importing the module would fail. This test documents the intent.
-    assert hasattr(Service, "_allowed_final_overrides")
-    assert "initialize" in Service._allowed_final_overrides
-    assert "shutdown" in Service._allowed_final_overrides
-
-
 def test_finalmeta_blocks_service_subclass_from_overriding_initialize():
     """FinalMeta blocks Service subclasses from overriding initialize/shutdown."""
     # Clear the loaded classes cache so FinalMeta re-checks
