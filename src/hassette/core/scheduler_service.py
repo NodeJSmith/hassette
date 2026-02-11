@@ -13,7 +13,7 @@ from whenever import TimeDelta, ZonedDateTime
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.utils.date_utils import now
-from hassette.utils.execution import track_execution
+from hassette.utils.execution import ExecutionResult, track_execution
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -205,6 +205,7 @@ class SchedulerService(Service):
             )
 
         timestamp = time.time()
+        result = ExecutionResult()
 
         try:
             async with track_execution() as result:

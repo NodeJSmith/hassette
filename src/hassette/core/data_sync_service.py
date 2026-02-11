@@ -320,7 +320,8 @@ class DataSyncService(Resource):
     async def unregister_ws_client(self, queue: asyncio.Queue) -> None:
         async with self._lock:
             self._ws_clients.discard(queue)
-        self.logger.debug("WebSocket client unregistered (total: %d)", len(self._ws_clients))
+            count = len(self._ws_clients)
+        self.logger.debug("WebSocket client unregistered (total: %d)", count)
 
     async def broadcast(self, message: dict) -> None:
         """Broadcast a message to all connected WebSocket clients."""

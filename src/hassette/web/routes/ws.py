@@ -10,6 +10,8 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 router = APIRouter(tags=["websocket"])
 logger = logging.getLogger(__name__)
 
+_LOG_LEVELS: dict[str, int] = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
+
 
 async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
     """Read messages from the client and handle ping/pong and subscriptions."""
@@ -22,7 +24,9 @@ async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
             elif msg_type == "subscribe":
                 sub_data = data.get("data", {})
                 ws_state["subscribe_logs"] = sub_data.get("logs", False)
-                ws_state["min_log_level"] = sub_data.get("min_log_level", "INFO")
+                raw_level = sub_data.get("min_log_level", "INFO")
+                level = raw_level.upper() if isinstance(raw_level, str) else "INFO"
+                ws_state["min_log_level"] = level if level in _LOG_LEVELS else "INFO"
     except (WebSocketDisconnect, anyio.ClosedResourceError):
         raise
     except Exception:
@@ -32,7 +36,6 @@ async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
 
 async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state: dict) -> None:
     """Send messages from the broadcast queue to the client."""
-    log_levels = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
     try:
         while True:
             message = await queue.get()
@@ -42,8 +45,8 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
             if message.get("type") == "log":
                 if not ws_state.get("subscribe_logs", False):
                     continue
-                msg_level = log_levels.get(message.get("data", {}).get("level", ""), 0)
-                min_level = log_levels.get(ws_state.get("min_log_level", "INFO"), 20)
+                msg_level = _LOG_LEVELS.get(message.get("data", {}).get("level", ""), 0)
+                min_level = _LOG_LEVELS.get(ws_state.get("min_log_level", "INFO"), 20)
                 if msg_level < min_level:
                     continue
             await websocket.send_json(message)

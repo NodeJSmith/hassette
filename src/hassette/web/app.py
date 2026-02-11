@@ -32,8 +32,8 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
         CORSMiddleware,
         allow_origins=list(hassette.config.web_api_cors_origins),
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
     )
 
     app.include_router(health_router, prefix="/api")
