@@ -14,6 +14,7 @@ document.addEventListener("alpine:init", () => {
       socket.addEventListener("open", () => {
         this.connected = true;
         this._backoff = 1000;
+        document.dispatchEvent(new CustomEvent("ht:ws-connected"));
       });
 
       socket.addEventListener("message", (event) => {
@@ -25,7 +26,7 @@ document.addEventListener("alpine:init", () => {
           if (msg.type === "state_changed" || msg.type === "app_status_changed") {
             document.dispatchEvent(new CustomEvent("ht:refresh"));
           }
-          if (msg.type === "log_entry") {
+          if (msg.type === "log") {
             document.dispatchEvent(
               new CustomEvent("ht:log-entry", { detail: msg })
             );
@@ -41,6 +42,15 @@ document.addEventListener("alpine:init", () => {
       socket.addEventListener("error", () => {
         socket.close();
       });
+    },
+
+    subscribeLogs(minLevel = "INFO") {
+      if (this._socket && this._socket.readyState === WebSocket.OPEN) {
+        this._socket.send(JSON.stringify({
+          type: "subscribe",
+          data: { logs: true, min_log_level: minLevel },
+        }));
+      }
     },
 
     _reconnect() {

@@ -1,5 +1,4 @@
 import asyncio
-import time
 import typing
 
 from hassette.bus import Bus
@@ -19,15 +18,11 @@ class ServiceWatcher(Resource):
     _restart_attempts: dict[str, int]
     """Tracks restart attempt counts per service, keyed by 'name:role'."""
 
-    _last_failure_time: dict[str, float]
-    """Tracks the last failure timestamp per service, keyed by 'name:role'."""
-
     @classmethod
     def create(cls, hassette: "Hassette"):
         inst = cls(hassette, parent=hassette)
         inst.bus = inst.add_child(Bus)
         inst._restart_attempts = {}
-        inst._last_failure_time = {}
         return inst
 
     @property
@@ -37,7 +32,6 @@ class ServiceWatcher(Resource):
 
     async def on_initialize(self) -> None:
         self._restart_attempts = {}
-        self._last_failure_time = {}
         self._register_internal_event_listeners()
         self.mark_ready(reason="Service watcher initialized")
 
@@ -110,8 +104,6 @@ class ServiceWatcher(Resource):
                 await service.restart()
 
         except Exception as e:
-            key = self._service_key(name, role) if name else "unknown"
-            self._last_failure_time[key] = time.monotonic()
             self.logger.error("Failed to restart %s '%s': %s", role, name, e)
             raise
 

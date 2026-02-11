@@ -48,6 +48,7 @@ class WebApiService(Service):
 
     async def serve(self) -> None:
         if not self.hassette.config.run_web_api:
+            await self.shutdown_event.wait()  # stay alive so handle_stop() doesn't undo mark_ready
             return
 
         app = create_fastapi_app(self.hassette)

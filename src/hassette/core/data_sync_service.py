@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import logging
 import time
 import typing
 from collections import deque
@@ -25,8 +24,6 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
     from hassette.events import HassStateDict
-
-LOGGER = logging.getLogger(__name__)
 
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 

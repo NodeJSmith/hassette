@@ -75,19 +75,40 @@
 
 {% block scripts %}
 <script>
-  // Auto-append new log entries from WebSocket
+  // Subscribe to log streaming via WebSocket (on connect and reconnect)
+  function subscribeToLogs() {
+    const ws = Alpine.store("ws");
+    if (ws && ws.connected) ws.subscribeLogs("DEBUG");
+  }
+  subscribeToLogs();
+  document.addEventListener("ht:ws-connected", subscribeToLogs);
+
+  // Auto-append new log entries from WebSocket (using textContent to prevent XSS)
   document.addEventListener("ht:log-entry", (e) => {
     const tbody = document.getElementById("log-entries");
     if (!tbody) return;
-    const entry = e.detail;
+    const entry = e.detail.data || e.detail;
     const tr = document.createElement("tr");
     const levelClass = "ht-log-" + (entry.level || "info").toLowerCase();
-    tr.innerHTML = `
-      <td><span class="tag is-small ${levelClass}">${entry.level || ""}</span></td>
-      <td>${new Date((entry.timestamp || 0) * 1000).toLocaleTimeString()}</td>
-      <td><code>${entry.app_key || "—"}</code></td>
-      <td>${entry.message || ""}</td>
-    `;
+
+    const tdLevel = document.createElement("td");
+    const levelSpan = document.createElement("span");
+    levelSpan.className = "tag is-small " + levelClass;
+    levelSpan.textContent = entry.level || "";
+    tdLevel.appendChild(levelSpan);
+
+    const tdTime = document.createElement("td");
+    tdTime.textContent = new Date((entry.timestamp || 0) * 1000).toLocaleTimeString();
+
+    const tdApp = document.createElement("td");
+    const appCode = document.createElement("code");
+    appCode.textContent = entry.app_key || "\u2014";
+    tdApp.appendChild(appCode);
+
+    const tdMsg = document.createElement("td");
+    tdMsg.textContent = entry.message || "";
+
+    tr.append(tdLevel, tdTime, tdApp, tdMsg);
     tbody.prepend(tr);
     // Keep max 200 rows
     while (tbody.children.length > 200) {
