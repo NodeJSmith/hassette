@@ -95,6 +95,7 @@ docs = [
     "pymdown-extensions>=10.8.1",
     "watchdog>=6.0.0",
     "ruff>=0.14.9",
+    "mkdocs-glightbox>=0.5.2",
 ]
 
 [tool.uv]
