@@ -1,17 +1,19 @@
 """Fixtures for Playwright-based e2e tests of the Hassette Web UI."""
 
+import logging
 import socket
 import threading
 import time
 from collections import deque
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import uvicorn
 
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.core.data_sync_service import DataSyncService
+from hassette.logging_ import LogCaptureHandler
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -335,9 +337,39 @@ def data_sync_service(mock_hassette):
 
 
 @pytest.fixture(scope="session")
-def _fastapi_app(mock_hassette, data_sync_service):  # noqa: ARG001
+def _log_handler():
+    """Create a LogCaptureHandler with seed log entries for e2e tests."""
+    handler = LogCaptureHandler(buffer_size=100)
+    entries = [
+        ("hassette.core", logging.INFO, "Hassette started successfully"),
+        ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),
+        ("hassette.apps.my_app", logging.WARNING, "Light kitchen unresponsive"),
+        ("hassette.core", logging.DEBUG, "WebSocket heartbeat sent"),
+        ("hassette.apps.my_app", logging.ERROR, "Failed to call service"),
+    ]
+    for logger_name, level, msg in entries:
+        record = logging.LogRecord(
+            name=logger_name,
+            level=level,
+            pathname="test.py",
+            lineno=1,
+            msg=msg,
+            args=(),
+            exc_info=None,
+        )
+        handler.emit(record)
+    return handler
+
+
+@pytest.fixture(scope="session")
+def _fastapi_app(mock_hassette, data_sync_service, _log_handler):  # noqa: ARG001
     """Create the FastAPI app instance."""
-    return create_fastapi_app(mock_hassette)
+    with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=_log_handler):
+        app = create_fastapi_app(mock_hassette)
+    # Patch persistently so runtime calls also find the handler
+    patcher = patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=_log_handler)
+    patcher.start()
+    return app
 
 
 def _get_free_port() -> int:

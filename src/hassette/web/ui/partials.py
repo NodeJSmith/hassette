@@ -140,6 +140,20 @@ async def bus_listeners_partial(
     )
 
 
+@router.get("/partials/dashboard-scheduler", response_class=HTMLResponse)
+async def dashboard_scheduler_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
+    scheduler_summary = await data_sync.get_scheduler_summary()
+    return templates.TemplateResponse(
+        request, "partials/dashboard_scheduler.html", {"scheduler_summary": scheduler_summary}
+    )
+
+
+@router.get("/partials/dashboard-logs", response_class=HTMLResponse)
+async def dashboard_logs_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
+    logs = data_sync.get_recent_logs(limit=30)
+    return templates.TemplateResponse(request, "partials/dashboard_logs.html", {"logs": logs})
+
+
 @router.get("/partials/entity-list", response_class=HTMLResponse)
 async def entity_list_partial(
     request: Request,

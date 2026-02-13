@@ -92,7 +92,7 @@
            style="max-height: {{ max_height }};
                   overflow-y: auto">
         <table class="table is-fullwidth is-hoverable is-compact is-size-7">
-          <thead>
+          <thead style="position: sticky; top: 0; background: white; z-index: 1;">
             <tr>
               <th style="width: 80px; cursor: pointer;" @click="toggleSort('level')">
                 Level <i class="fas" :class="sortIcon('level')"></i>

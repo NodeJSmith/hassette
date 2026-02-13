@@ -20,6 +20,7 @@ from hassette.web.models import (
     AppManifestResponse,
     AppStatusResponse,
     BusMetricsSummaryResponse,
+    SchedulerSummaryResponse,
     SystemStatusResponse,
 )
 
@@ -356,6 +357,16 @@ class DataSyncService(Resource):
                 return [asdict(r) for r in records]
         records = self.hassette.scheduler_service.get_execution_history(limit, owner)
         return [asdict(r) for r in records]
+
+    async def get_scheduler_summary(self) -> SchedulerSummaryResponse:
+        """Compute aggregate counts across all scheduled jobs."""
+        jobs = await self.hassette.scheduler_service.get_all_jobs()
+        return SchedulerSummaryResponse(
+            total_jobs=len(jobs),
+            active=sum(1 for j in jobs if not j.cancelled),
+            cancelled=sum(1 for j in jobs if j.cancelled),
+            repeating=sum(1 for j in jobs if j.repeat and not j.cancelled),
+        )
 
     # --- System status ---
 

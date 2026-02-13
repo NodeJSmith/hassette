@@ -8,7 +8,7 @@
   <div class="columns is-multiline">
     <!-- System Health -->
     <div class="column is-half">
-      <div class="box">
+      <div class="box" style="height: 100%;">
         <h2 class="title is-5">
           <span class="icon"><i class="fas fa-heart-pulse"></i></span>
           <span>System Health</span>
@@ -22,20 +22,32 @@
     </div>
     <!-- Apps Summary -->
     <div class="column is-half">
-      <div class="box">
+      <div class="box is-flex is-flex-direction-column" style="height: 100%;">
         <h2 class="title is-5">
           <span class="icon"><i class="fas fa-cubes"></i></span>
           <span>Apps</span>
         </h2>
         <div id="apps-summary"
+             class="is-flex is-flex-direction-column is-flex-grow-1"
              data-live-on-app="/ui/partials/apps-summary"
              hx-get="/ui/partials/apps-summary"
              hx-trigger="every 30s"
              hx-swap="innerHTML">{% include "partials/apps_summary.html" %}</div>
       </div>
     </div>
-    <!-- Bus Metrics -->
+    <!-- Left: Stacked Scheduled Jobs + Event Bus -->
     <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-clock"></i></span>
+          <span>Scheduled Jobs</span>
+        </h2>
+        <div id="dashboard-scheduler"
+             data-live-refresh="/ui/partials/dashboard-scheduler"
+             hx-get="/ui/partials/dashboard-scheduler"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">{% include "partials/dashboard_scheduler.html" %}</div>
+      </div>
       <div class="box">
         <h2 class="title is-5">
           <span class="icon"><i class="fas fa-diagram-project"></i></span>
@@ -48,9 +60,9 @@
              hx-swap="innerHTML">{% include "partials/bus_metrics.html" %}</div>
       </div>
     </div>
-    <!-- Recent Events -->
+    <!-- Right: Recent Events (matches height of stacked panels) -->
     <div class="column is-half">
-      <div class="box">
+      <div class="box" style="height: 100%;">
         <h2 class="title is-5">
           <span class="icon"><i class="fas fa-bolt"></i></span>
           <span>Recent Events</span>
@@ -60,6 +72,20 @@
              hx-get="/ui/partials/event-feed"
              hx-trigger="every 30s"
              hx-swap="innerHTML">{% include "partials/event_feed.html" %}</div>
+      </div>
+    </div>
+    <!-- Recent Logs (full width) -->
+    <div class="column is-full">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-scroll"></i></span>
+          <span>Recent Logs</span>
+        </h2>
+        <div id="dashboard-logs"
+             data-live-refresh="/ui/partials/dashboard-logs"
+             hx-get="/ui/partials/dashboard-logs"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">{% include "partials/dashboard_logs.html" %}</div>
       </div>
     </div>
   </div>

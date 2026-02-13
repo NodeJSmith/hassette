@@ -21,12 +21,16 @@ async def dashboard_page(request: Request, data_sync: DataSyncDep) -> HTMLRespon
     }
     events = data_sync.get_recent_events(limit=10)
     bus_metrics = data_sync.get_bus_metrics_summary()
+    scheduler_summary = await data_sync.get_scheduler_summary()
+    logs = data_sync.get_recent_logs(limit=30)
     ctx = {
         **base_context("dashboard"),
         "status": status,
         "app_status": app_status,
         "events": events,
         "bus_metrics": bus_metrics,
+        "scheduler_summary": scheduler_summary,
+        "logs": logs,
     }
     return templates.TemplateResponse(request, "pages/dashboard.html", ctx)
 

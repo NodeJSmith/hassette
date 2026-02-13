@@ -319,6 +319,18 @@ class TestDashboardPage:
         response = await client.get("/ui/")
         assert "live-updates.js" in response.text
 
+    async def test_dashboard_shows_scheduled_jobs_panel(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        assert "Scheduled Jobs" in response.text
+
+    async def test_dashboard_shows_recent_logs_panel(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        assert "Recent Logs" in response.text
+
+    async def test_dashboard_shows_bus_view_all_link(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        assert '/ui/bus"' in response.text or "/ui/bus" in response.text
+
 
 class TestAppsPage:
     async def test_apps_page_returns_html(self, client: "AsyncClient") -> None:
@@ -588,6 +600,85 @@ class TestPartials:
         response = await client.get("/ui/partials/entity-list?search=nonexistent")
         assert response.status_code == 200
         assert "No entities found" in response.text
+
+    async def test_dashboard_scheduler_partial(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/partials/dashboard-scheduler")
+        assert response.status_code == 200
+        assert "<html" not in response.text
+        assert "Active" in response.text
+        assert "Total" in response.text
+        assert "/ui/scheduler" in response.text
+
+    async def test_dashboard_scheduler_partial_with_jobs(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    job_id="job-1",
+                    name="check_lights",
+                    owner="MyApp.MyApp[0]",
+                    next_run="2024-01-01T00:05:00",
+                    repeat=True,
+                    cancelled=False,
+                    trigger=type("interval", (), {})(),
+                    timeout_seconds=30,
+                ),
+            ]
+        )
+        response = await client.get("/ui/partials/dashboard-scheduler")
+        assert response.status_code == 200
+        # Should show count "1" for active/total/repeating
+        body = response.text
+        assert "Active" in body
+        assert "Repeating" in body
+        assert "/ui/scheduler" in body
+        # Restore empty jobs
+        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
+
+    async def test_dashboard_scheduler_partial_empty(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/partials/dashboard-scheduler")
+        assert response.status_code == 200
+        assert "Active" in response.text
+        assert "/ui/scheduler" in response.text
+
+    async def test_dashboard_logs_partial(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/partials/dashboard-logs")
+        assert response.status_code == 200
+        assert "<html" not in response.text
+
+    async def test_dashboard_logs_partial_empty(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/partials/dashboard-logs")
+        assert response.status_code == 200
+        assert "No recent logs" in response.text
+        assert "/ui/logs" in response.text
+
+    async def test_dashboard_logs_partial_with_entries(self, client: "AsyncClient") -> None:
+        from unittest.mock import patch
+
+        from hassette.logging_ import LogCaptureHandler
+
+        handler = LogCaptureHandler(buffer_size=100)
+        import logging
+
+        record = logging.LogRecord(
+            name="hassette.test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg="Test log message",
+            args=(),
+            exc_info=None,
+        )
+        handler.emit(record)
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            response = await client.get("/ui/partials/dashboard-logs")
+        assert response.status_code == 200
+        assert "Test log message" in response.text
+        assert "/ui/logs" in response.text
+
+    async def test_bus_metrics_partial_has_view_all(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/partials/bus-metrics")
+        assert response.status_code == 200
+        assert "/ui/bus" in response.text
 
     async def test_app_detail_listeners_partial(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/app-detail-listeners/my_app")

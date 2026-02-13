@@ -1,0 +1,49 @@
+{% if logs %}
+  <div style="max-height: 200px; overflow-y: auto;">
+    <table class="table is-fullwidth is-striped is-narrow is-size-7">
+      <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+        <tr>
+          <th>Level</th>
+          <th>Time</th>
+          <th>App</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in logs | reverse %}
+          <tr>
+            <td>
+              <span class="tag is-small {% if entry.level == 'DEBUG' %}ht-log-debug {% elif entry.level == 'INFO' %}ht-log-info {% elif entry.level == 'WARNING' %}ht-log-warning {% elif entry.level == 'ERROR' %}ht-log-error {% elif entry.level == 'CRITICAL' %}ht-log-critical {% endif %}">
+                {{ entry.level }}
+              </span>
+            </td>
+            <td class="is-whitespace-nowrap">
+              {% if entry.timestamp %}
+                <time x-data
+                      x-text="new Date({{ entry.timestamp }} * 1000).toLocaleTimeString()"></time>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              {% if entry.app_key %}
+                <a href="/ui/apps/{{ entry.app_key }}"><code>{{ entry.app_key }}</code></a>
+              {% else %}
+                <code>—</code>
+              {% endif %}
+            </td>
+            <td>{{ entry.message | truncate(100) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="mt-3">
+    <a href="/ui/logs" class="button is-small is-link is-outlined">View All</a>
+  </div>
+{% else %}
+  <p class="has-text-grey is-size-7">No recent logs.</p>
+  <div class="mt-3">
+    <a href="/ui/logs" class="button is-small is-link is-outlined">View All</a>
+  </div>
+{% endif %}

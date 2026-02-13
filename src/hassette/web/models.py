@@ -141,3 +141,10 @@ class BusMetricsSummaryResponse(BaseModel):
     total_failed: int
     total_di_failures: int
     total_cancelled: int
+
+
+class SchedulerSummaryResponse(BaseModel):
+    total_jobs: int
+    active: int
+    cancelled: int
+    repeating: int
