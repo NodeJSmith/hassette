@@ -181,7 +181,7 @@ class BusService(Service):
         return [listener for listener in all_listeners if await listener.matches(event)]
 
     def _get_or_create_metrics(self, listener: "Listener") -> ListenerMetrics:
-        """Lazily create a ListenerMetrics on first invocation."""
+        """Get or create a ListenerMetrics entry for a listener."""
         return self._listener_metrics.setdefault(
             listener.listener_id,
             ListenerMetrics(

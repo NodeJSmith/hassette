@@ -2,6 +2,7 @@ import asyncio
 import logging
 import sys
 import threading
+import traceback
 from collections import deque
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
@@ -103,7 +104,7 @@ class LogCaptureHandler(logging.Handler):
             func_name=record.funcName or "",
             lineno=record.lineno,
             message=record.getMessage(),
-            exc_info=record.exc_text,
+            exc_info="".join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
             app_key=self._resolve_app_key(record.name),
         )
         self._buffer.append(entry)
