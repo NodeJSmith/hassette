@@ -2,6 +2,7 @@
 
 import asyncio
 from collections import deque
+from datetime import UTC
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,6 +10,7 @@ import pytest
 
 from hassette.core.data_sync_service import DataSyncService
 from hassette.logging_ import LogCaptureHandler, LogEntry
+from hassette.scheduler.classes import JobExecutionRecord
 from hassette.web.models import AppStatusResponse, SystemStatusResponse
 
 
@@ -203,6 +205,159 @@ class TestSchedulerAccess:
     def test_get_job_execution_history_empty(self, data_sync: DataSyncService) -> None:
         history = data_sync.get_job_execution_history()
         assert history == []
+
+
+class TestOwnerResolution:
+    """Tests for app_key -> owner_id resolution in listeners and jobs."""
+
+    @pytest.fixture
+    def data_sync_with_apps(self, data_sync: DataSyncService) -> DataSyncService:
+        """Set up data_sync with mock app instances that have unique_name."""
+        app0 = MagicMock()
+        app0.unique_name = "Battery.0"
+        app1 = MagicMock()
+        app1.unique_name = "Battery.1"
+        data_sync.hassette._app_handler.registry.get_apps_by_key.side_effect = lambda key: (
+            {0: app0, 1: app1} if key == "battery" else {}
+        )
+        return data_sync
+
+    def test_resolve_owner_ids_known_app(self, data_sync_with_apps: DataSyncService) -> None:
+        ids = data_sync_with_apps._resolve_owner_ids("battery")
+        assert set(ids) == {"Battery.0", "Battery.1"}
+
+    def test_resolve_owner_ids_unknown_app(self, data_sync_with_apps: DataSyncService) -> None:
+        ids = data_sync_with_apps._resolve_owner_ids("nonexistent")
+        assert ids == []
+
+    def test_get_listener_metrics_resolves_app_key(self, data_sync_with_apps: DataSyncService) -> None:
+        metric0 = MagicMock()
+        metric0.to_dict.return_value = {"owner": "Battery.0", "topic": "state_changed"}
+        metric1 = MagicMock()
+        metric1.to_dict.return_value = {"owner": "Battery.1", "topic": "state_changed"}
+
+        bus_service = data_sync_with_apps.hassette._bus_service
+        bus_service.get_listener_metrics_by_owner.side_effect = lambda oid: (
+            [metric0] if oid == "Battery.0" else [metric1] if oid == "Battery.1" else []
+        )
+
+        result = data_sync_with_apps.get_listener_metrics(owner="battery")
+        assert len(result) == 2
+        owners = {m["owner"] for m in result}
+        assert owners == {"Battery.0", "Battery.1"}
+
+    def test_get_listener_metrics_falls_back_to_exact_match(self, data_sync_with_apps: DataSyncService) -> None:
+        """When owner is not an app_key, fall back to exact owner match."""
+        metric = MagicMock()
+        metric.to_dict.return_value = {"owner": "SomeService.0", "topic": "event"}
+
+        bus_service = data_sync_with_apps.hassette._bus_service
+        bus_service.get_listener_metrics_by_owner.return_value = [metric]
+
+        result = data_sync_with_apps.get_listener_metrics(owner="SomeService.0")
+        assert len(result) == 1
+        bus_service.get_listener_metrics_by_owner.assert_called_with("SomeService.0")
+
+    def test_get_listener_metrics_no_owner_returns_all(self, data_sync_with_apps: DataSyncService) -> None:
+        metric = MagicMock()
+        metric.to_dict.return_value = {"owner": "Battery.0"}
+
+        bus_service = data_sync_with_apps.hassette._bus_service
+        bus_service.get_all_listener_metrics.return_value = [metric]
+
+        result = data_sync_with_apps.get_listener_metrics()
+        assert len(result) == 1
+        bus_service.get_all_listener_metrics.assert_called_once()
+
+    async def test_get_scheduled_jobs_resolves_app_key(self, data_sync_with_apps: DataSyncService) -> None:
+        from datetime import datetime
+
+        job0 = SimpleNamespace(
+            job_id=1,
+            name="check_battery",
+            owner="Battery.0",
+            next_run=datetime(2024, 1, 1, tzinfo=UTC),
+            repeat=True,
+            cancelled=False,
+            trigger=None,
+            timeout_seconds=30,
+        )
+        job1 = SimpleNamespace(
+            job_id=2,
+            name="check_battery",
+            owner="Battery.1",
+            next_run=datetime(2024, 1, 1, 1, tzinfo=UTC),
+            repeat=True,
+            cancelled=False,
+            trigger=None,
+            timeout_seconds=30,
+        )
+        job_other = SimpleNamespace(
+            job_id=3,
+            name="other_job",
+            owner="Other.0",
+            next_run=datetime(2024, 1, 1, 2, tzinfo=UTC),
+            repeat=False,
+            cancelled=False,
+            trigger=None,
+            timeout_seconds=10,
+        )
+        data_sync_with_apps.hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[job0, job1, job_other])
+
+        result = await data_sync_with_apps.get_scheduled_jobs(owner="battery")
+        assert len(result) == 2
+        owners = {j["owner"] for j in result}
+        assert owners == {"Battery.0", "Battery.1"}
+
+    async def test_get_scheduled_jobs_exact_match_fallback(self, data_sync_with_apps: DataSyncService) -> None:
+        from datetime import datetime
+
+        job = SimpleNamespace(
+            job_id=1,
+            name="job",
+            owner="Battery.0",
+            next_run=datetime(2024, 1, 1, tzinfo=UTC),
+            repeat=False,
+            cancelled=False,
+            trigger=None,
+            timeout_seconds=10,
+        )
+        data_sync_with_apps.hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[job])
+
+        result = await data_sync_with_apps.get_scheduled_jobs(owner="Battery.0")
+        assert len(result) == 1
+        assert result[0]["owner"] == "Battery.0"
+
+    def test_get_job_execution_history_resolves_app_key(self, data_sync_with_apps: DataSyncService) -> None:
+        records = [
+            JobExecutionRecord(
+                job_id=1, job_name="check", owner="Battery.0", started_at=1.0, duration_ms=10, status="success"
+            ),
+            JobExecutionRecord(
+                job_id=2, job_name="check", owner="Battery.1", started_at=2.0, duration_ms=20, status="success"
+            ),
+            JobExecutionRecord(
+                job_id=3, job_name="other", owner="Other.0", started_at=3.0, duration_ms=5, status="success"
+            ),
+        ]
+        data_sync_with_apps.hassette._scheduler_service.get_execution_history.return_value = records
+
+        result = data_sync_with_apps.get_job_execution_history(owner="battery")
+        assert len(result) == 2
+        owners = {r["owner"] for r in result}
+        assert owners == {"Battery.0", "Battery.1"}
+
+    def test_get_job_execution_history_exact_match_fallback(self, data_sync_with_apps: DataSyncService) -> None:
+        records = [
+            JobExecutionRecord(
+                job_id=1, job_name="job", owner="SomeService.0", started_at=1.0, duration_ms=10, status="success"
+            ),
+        ]
+        data_sync_with_apps.hassette._scheduler_service.get_execution_history.return_value = records
+
+        result = data_sync_with_apps.get_job_execution_history(owner="SomeService.0")
+        assert len(result) == 1
+        data_sync_with_apps.hassette._scheduler_service.get_execution_history.assert_called_with(50, "SomeService.0")
 
 
 class TestSystemStatus:

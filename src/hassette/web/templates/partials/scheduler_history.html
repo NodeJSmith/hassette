@@ -1,7 +1,15 @@
 {% for record in history %}
 <tr>
   <td><code>{{ record.job_name }}</code></td>
-  <td><code>{{ record.owner }}</code></td>
+  <td>
+    {% if instance_owner_map and record.owner in instance_owner_map %}
+    <a href="/ui/apps/{{ instance_owner_map[record.owner][0] }}/{{ instance_owner_map[record.owner][1] }}"><code>{{ record.owner }}</code></a>
+    {% elif app_owner_map and record.owner in app_owner_map %}
+    <a href="/ui/apps/{{ app_owner_map[record.owner] }}"><code>{{ record.owner }}</code></a>
+    {% else %}
+    <code>{{ record.owner }}</code>
+    {% endif %}
+  </td>
   <td>
     {% if record.started_at %}
     <script>document.currentScript.parentElement.textContent = new Date({{ record.started_at }} * 1000).toLocaleString();</script>

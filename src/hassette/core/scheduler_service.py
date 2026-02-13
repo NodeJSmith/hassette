@@ -80,14 +80,13 @@ class SchedulerService(Service):
                 self.logger.debug("Scheduler exiting")
                 return
 
-            due_jobs = await self._job_queue.pop_due(now())
+            due_jobs, next_run_time = await self._job_queue.pop_due_and_peek_next(now())
 
             if due_jobs:
                 for job in due_jobs:
                     self.task_bucket.spawn(self._dispatch_and_log(job), name="scheduler:dispatch_scheduled_job")
-                continue
 
-            await self.sleep()
+            await self.sleep(next_run_time)
 
     def kick(self):
         """Wake up the scheduler to check for jobs."""
@@ -115,14 +114,18 @@ class SchedulerService(Service):
         if removed:
             self.kick()
 
-    async def sleep(self):
+    async def sleep(self, next_run_time: ZonedDateTime | None = None):
         """Sleep until the next job is due or a kick is received.
 
         This method will wait for the next job to be due or until a kick is received.
         If a kick is received, it will wake up immediately.
+
+        Args:
+            next_run_time: Pre-fetched next run time to avoid an extra lock acquisition.
+                If None, uses the default delay.
         """
         try:
-            timeout = (await self._get_sleep_time()).in_seconds()
+            timeout = self._calculate_sleep_time(next_run_time).in_seconds()
             await asyncio.wait_for(self._wakeup_event.wait(), timeout=timeout)
             self.logger.debug("Scheduler woke up due to kick")
         except asyncio.CancelledError:
@@ -133,21 +136,19 @@ class SchedulerService(Service):
         finally:
             self._wakeup_event.clear()
 
-    async def _get_sleep_time(self) -> TimeDelta:
-        """Get the time to sleep until the next job is due.
-        If there are no jobs, return a default sleep time.
-        """
-        next_run_time = await self._job_queue.next_run_time()
+    def _calculate_sleep_time(self, next_run_time: ZonedDateTime | None) -> TimeDelta:
+        """Calculate the time to sleep until the next job is due.
 
+        Args:
+            next_run_time: The next scheduled run time, or None if no jobs are queued.
+        """
         if next_run_time is not None:
             self.logger.debug("Next job scheduled at %s", next_run_time)
             delay = max((next_run_time - now()).in_seconds(), self.min_delay)
         else:
             delay = self.default_delay
 
-        # ensure delay isn't over N seconds
         delay = min(delay, self.max_delay)
-
         self.logger.debug("Scheduler sleeping for %s seconds", delay)
 
         return TimeDelta(seconds=delay)
@@ -166,19 +167,20 @@ class SchedulerService(Service):
             self.logger.debug("Job %s is cancelled, skipping dispatch", job)
             return
 
-        job_task_name = f"{job.name or job.job_id}"
-        run_task_name = f"scheduler:dispatch_job:{job_task_name}"
-        reschedule_task_name = f"scheduler:reschedule_job:{job_task_name}"
-
         self.logger.debug("Dispatching job: %s", job)
+
+        # Run inline — no extra spawn/yield before execution
         try:
-            self.task_bucket.spawn(self.run_job(job), name=run_task_name)
+            await self.run_job(job)
         except asyncio.CancelledError:
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
+        except Exception:
+            self.logger.exception("Error running job %s during dispatch", job)
 
+        # Always reschedule after completion, even if the job failed
         try:
-            self.task_bucket.spawn(self.reschedule_job(job), name=reschedule_task_name)
+            await self.reschedule_job(job)
         except asyncio.CancelledError:
             self.logger.debug("Reschedule cancelled for job %s", job)
             raise
@@ -199,7 +201,7 @@ class SchedulerService(Service):
         func = job.job
 
         run_at_delta = job.next_run - now()
-        if run_at_delta.in_seconds() < -1:
+        if run_at_delta.in_seconds() < -self.hassette.config.scheduler_behind_schedule_threshold_seconds:
             self.logger.warning(
                 "Job %s is behind schedule by %s seconds, running now.", job, abs(run_at_delta.in_seconds())
             )
@@ -343,6 +345,31 @@ class _ScheduledJobQueue(Resource):
             self.logger.debug("Dequeued %d due jobs", len(due_jobs))
 
         return due_jobs
+
+    async def pop_due_and_peek_next(
+        self, reference_time: ZonedDateTime
+    ) -> tuple[list["ScheduledJob"], ZonedDateTime | None]:
+        """Pop all due jobs and return the next run time in a single lock acquisition."""
+
+        due_jobs: list[ScheduledJob] = []
+
+        async with self._lock:
+            current_time = reference_time
+            while not self._queue.is_empty():
+                candidate = self._queue.peek()
+                if candidate is None or candidate.next_run > current_time:
+                    break
+
+                due_jobs.append(self._queue.pop())
+                current_time = now()
+
+            upcoming = self._queue.peek()
+            next_run = upcoming.next_run if upcoming else None
+
+        if due_jobs:
+            self.logger.debug("Dequeued %d due jobs", len(due_jobs))
+
+        return due_jobs, next_run
 
     async def next_run_time(self) -> ZonedDateTime | None:
         """Return the next scheduled run time if available."""

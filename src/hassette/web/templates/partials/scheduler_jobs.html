@@ -1,7 +1,15 @@
 {% for job in jobs %}
 <tr>
   <td><code>{{ job.name }}</code></td>
-  <td><code>{{ job.owner }}</code></td>
+  <td>
+    {% if instance_owner_map and job.owner in instance_owner_map %}
+    <a href="/ui/apps/{{ instance_owner_map[job.owner][0] }}/{{ instance_owner_map[job.owner][1] }}"><code>{{ job.owner }}</code></a>
+    {% elif app_owner_map and job.owner in app_owner_map %}
+    <a href="/ui/apps/{{ app_owner_map[job.owner] }}"><code>{{ job.owner }}</code></a>
+    {% else %}
+    <code>{{ job.owner }}</code>
+    {% endif %}
+  </td>
   <td>
     <span class="tag is-info is-light is-small">{{ job.trigger_type }}</span>
   </td>

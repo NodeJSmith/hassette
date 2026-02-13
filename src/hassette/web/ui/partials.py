@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
 from starlette.responses import HTMLResponse
 
 from hassette.core.data_sync_service import DataSyncService
@@ -45,10 +45,19 @@ async def log_entries_partial(
     data_sync: DataSyncDep,
     level: str | None = None,
     app_key: str | None = None,
-    limit: Annotated[int, Query(default=100, ge=1, le=2000)] = 100,
+    limit: int | None = 100,
 ) -> HTMLResponse:
+    limit = limit or 100
+    if limit > 2000:
+        limit = 2000
+    if limit < 1:
+        limit = 1
+
     logs = data_sync.get_recent_logs(limit=limit, app_key=app_key, level=level)
-    return templates.TemplateResponse(request, "partials/log_entries.html", {"logs": logs})
+    show_app_column = not app_key
+    return templates.TemplateResponse(
+        request, "partials/log_entries.html", {"logs": logs, "show_app_column": show_app_column}
+    )
 
 
 # --- New Phase 2 partials ---
@@ -85,8 +94,15 @@ async def scheduler_jobs_partial(
     data_sync: DataSyncDep,
     owner: str | None = None,
 ) -> HTMLResponse:
-    jobs = await data_sync.get_scheduled_jobs(owner=owner)
-    return templates.TemplateResponse(request, "partials/scheduler_jobs.html", {"jobs": jobs})
+    app_owner_map = data_sync.get_user_app_owner_map()
+    instance_owner_map = data_sync.get_instance_owner_map()
+    all_jobs = await data_sync.get_scheduled_jobs(owner=owner)
+    jobs = [j for j in all_jobs if j["owner"] in app_owner_map]
+    return templates.TemplateResponse(
+        request,
+        "partials/scheduler_jobs.html",
+        {"jobs": jobs, "app_owner_map": app_owner_map, "instance_owner_map": instance_owner_map},
+    )
 
 
 @router.get("/partials/scheduler-history", response_class=HTMLResponse)
@@ -96,8 +112,32 @@ async def scheduler_history_partial(
     owner: str | None = None,
     limit: int = 50,
 ) -> HTMLResponse:
-    history = data_sync.get_job_execution_history(limit=limit, owner=owner)
-    return templates.TemplateResponse(request, "partials/scheduler_history.html", {"history": history})
+    app_owner_map = data_sync.get_user_app_owner_map()
+    instance_owner_map = data_sync.get_instance_owner_map()
+    history_all = data_sync.get_job_execution_history(limit=limit, owner=owner)
+    history = [h for h in history_all if h["owner"] in app_owner_map]
+    return templates.TemplateResponse(
+        request,
+        "partials/scheduler_history.html",
+        {"history": history, "app_owner_map": app_owner_map, "instance_owner_map": instance_owner_map},
+    )
+
+
+@router.get("/partials/bus-listeners", response_class=HTMLResponse)
+async def bus_listeners_partial(
+    request: Request,
+    data_sync: DataSyncDep,
+    owner: str | None = None,
+) -> HTMLResponse:
+    app_owner_map = data_sync.get_user_app_owner_map()
+    instance_owner_map = data_sync.get_instance_owner_map()
+    all_listeners = data_sync.get_listener_metrics(owner=owner)
+    listeners = [x for x in all_listeners if x["owner"] in app_owner_map]
+    return templates.TemplateResponse(
+        request,
+        "partials/bus_listeners.html",
+        {"listeners": listeners, "app_owner_map": app_owner_map, "instance_owner_map": instance_owner_map},
+    )
 
 
 @router.get("/partials/entity-list", response_class=HTMLResponse)
@@ -123,17 +163,48 @@ async def entity_list_partial(
     return templates.TemplateResponse(
         request,
         "partials/entity_list.html",
-        {"entities": entities, "total": total, "limit": limit, "offset": offset},
+        {
+            "entities": entities,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "domain": domain or "",
+            "search": search or "",
+        },
     )
 
 
 @router.get("/partials/app-detail-listeners/{app_key}", response_class=HTMLResponse)
 async def app_detail_listeners_partial(app_key: str, request: Request, data_sync: DataSyncDep) -> HTMLResponse:
+    instance_owner_map = data_sync.get_instance_owner_map()
     listeners = data_sync.get_listener_metrics(owner=app_key)
-    return templates.TemplateResponse(request, "partials/app_detail_listeners.html", {"listeners": listeners})
+    return templates.TemplateResponse(
+        request,
+        "partials/app_detail_listeners.html",
+        {"listeners": listeners, "instance_owner_map": instance_owner_map},
+    )
 
 
 @router.get("/partials/app-detail-jobs/{app_key}", response_class=HTMLResponse)
 async def app_detail_jobs_partial(app_key: str, request: Request, data_sync: DataSyncDep) -> HTMLResponse:
+    instance_owner_map = data_sync.get_instance_owner_map()
     jobs = await data_sync.get_scheduled_jobs(owner=app_key)
+    return templates.TemplateResponse(
+        request,
+        "partials/app_detail_jobs.html",
+        {"jobs": jobs, "instance_owner_map": instance_owner_map},
+    )
+
+
+@router.get("/partials/instance-listeners/{app_key}/{index}", response_class=HTMLResponse)
+async def instance_listeners_partial(
+    app_key: str, index: int, request: Request, data_sync: DataSyncDep
+) -> HTMLResponse:
+    listeners = data_sync.get_listener_metrics_for_instance(app_key, index)
+    return templates.TemplateResponse(request, "partials/app_detail_listeners.html", {"listeners": listeners})
+
+
+@router.get("/partials/instance-jobs/{app_key}/{index}", response_class=HTMLResponse)
+async def instance_jobs_partial(app_key: str, index: int, request: Request, data_sync: DataSyncDep) -> HTMLResponse:
+    jobs = await data_sync.get_scheduled_jobs_for_instance(app_key, index)
     return templates.TemplateResponse(request, "partials/app_detail_jobs.html", {"jobs": jobs})

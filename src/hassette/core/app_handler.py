@@ -13,6 +13,7 @@ from hassette.core.app_lifecycle import AppLifecycleManager
 from hassette.core.app_registry import AppRegistry, AppStatusSnapshot
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
+from hassette.logging_ import get_log_capture_handler
 from hassette.resources.base import Resource
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import BlockReason
@@ -320,7 +321,10 @@ class AppHandler(Resource):
 
         instances = self.registry.get_apps_by_key(app_key)
         if instances:
+            handler = get_log_capture_handler()
             for inst in instances.values():
+                if handler:
+                    handler.register_app_logger(inst.logger.name, app_key)
                 event = HassetteAppStateEvent.from_data(app=inst, status=ResourceStatus.NOT_STARTED)
                 await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
             await self.task_bucket.spawn(self.lifecycle.initialize_instances(app_key, instances, app_manifest))

@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import json
 import time
 import typing
 from collections import deque
@@ -28,6 +29,13 @@ if typing.TYPE_CHECKING:
     from hassette.events import HassStateDict
 
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
+
+
+def _serialize_payload(data: object) -> object:
+    """Convert a dataclass (possibly containing enums) to a JSON-safe dict."""
+    if hasattr(data, "__dataclass_fields__"):
+        return json.loads(json.dumps(asdict(data), default=str))  # pyright: ignore[reportArgumentType]
+    return data
 
 
 class DataSyncService(Resource):
@@ -129,18 +137,20 @@ class DataSyncService(Resource):
         await self.broadcast(entry)
 
     async def _on_app_state_changed(self, event: Event) -> None:
+        raw = event.payload.data if hasattr(event, "payload") else {}
         entry = {
             "type": "app_status_changed",
-            "data": event.payload.data if hasattr(event, "payload") else {},
+            "data": _serialize_payload(raw),
             "timestamp": time.time(),
         }
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_service_status(self, event: Event) -> None:
+        raw = event.payload.data if hasattr(event, "payload") else {}
         entry = {
             "type": "service_status",
-            "data": event.payload.data if hasattr(event, "payload") else {},
+            "data": _serialize_payload(raw),
             "timestamp": time.time(),
         }
         self._event_buffer.append(entry)
@@ -163,6 +173,65 @@ class DataSyncService(Resource):
         }
         self._event_buffer.append(entry)
         await self.broadcast(entry)
+
+    # --- Owner resolution ---
+
+    def _resolve_owner_ids(self, app_key: str) -> list[str]:
+        """Resolve an app_key to the owner_id(s) used by listeners and jobs."""
+        instances = self.hassette._app_handler.registry.get_apps_by_key(app_key)
+        return [app.unique_name for app in instances.values()]
+
+    def get_user_app_owner_map(self) -> dict[str, str]:
+        """Return {owner_id: app_key} for all running user-app instances."""
+        result: dict[str, str] = {}
+        for app_key, instances in self.hassette._app_handler.registry._apps.items():
+            for app in instances.values():
+                result[app.unique_name] = app_key
+        return result
+
+    def get_instance_owner_map(self) -> dict[str, tuple[str, int]]:
+        """Return {owner_id: (app_key, index)} for all running user-app instances."""
+        result: dict[str, tuple[str, int]] = {}
+        for app_key, instances in self.hassette._app_handler.registry._apps.items():
+            for index, app in instances.items():
+                result[app.unique_name] = (app_key, index)
+        return result
+
+    def _resolve_instance_owner_id(self, app_key: str, index: int) -> str | None:
+        """Resolve a specific app instance to its owner_id (unique_name)."""
+        app = self.hassette._app_handler.registry.get(app_key, index)
+        if app is not None:
+            return app.unique_name
+        return None
+
+    def get_listener_metrics_for_instance(self, app_key: str, index: int) -> list[dict]:
+        """Return listener metrics filtered to a specific app instance."""
+        owner_id = self._resolve_instance_owner_id(app_key, index)
+        if not owner_id:
+            return []
+        bus_service = self.hassette._bus_service
+        return [m.to_dict() for m in bus_service.get_listener_metrics_by_owner(owner_id)]
+
+    async def get_scheduled_jobs_for_instance(self, app_key: str, index: int) -> list[dict]:
+        """Return scheduled jobs filtered to a specific app instance."""
+        owner_id = self._resolve_instance_owner_id(app_key, index)
+        if not owner_id:
+            return []
+        jobs = await self.hassette._scheduler_service.get_all_jobs()
+        return [
+            {
+                "job_id": job.job_id,
+                "name": job.name,
+                "owner": job.owner,
+                "next_run": str(job.next_run),
+                "repeat": job.repeat,
+                "cancelled": job.cancelled,
+                "trigger_type": type(job.trigger).__name__ if job.trigger else "once",
+                "timeout_seconds": job.timeout_seconds,
+            }
+            for job in sorted(jobs, key=lambda j: j.next_run)
+            if job.owner == owner_id
+        ]
 
     # --- Entity state access (delegates to StateProxy) ---
 
@@ -187,6 +256,7 @@ class DataSyncService(Resource):
                 class_name=info.class_name,
                 status=info.status.value,
                 error_message=info.error_message,
+                owner_id=getattr(info, "owner_id", None),
             )
             for info in (*snapshot.running, *snapshot.failed)
         ]
@@ -220,6 +290,7 @@ class DataSyncService(Resource):
                         class_name=inst.class_name,
                         status=inst.status.value if hasattr(inst.status, "value") else str(inst.status),
                         error_message=inst.error_message,
+                        owner_id=getattr(inst, "owner_id", None),
                     )
                     for inst in m.instances
                 ],
@@ -281,10 +352,22 @@ class DataSyncService(Resource):
             for job in sorted(jobs, key=lambda j: j.next_run)
         ]
         if owner:
-            result = [j for j in result if j["owner"] == owner]
+            owner_ids = self._resolve_owner_ids(owner)
+            if owner_ids:
+                owner_set = set(owner_ids)
+                result = [j for j in result if j["owner"] in owner_set]
+            else:
+                result = [j for j in result if j["owner"] == owner]
         return result
 
     def get_job_execution_history(self, limit: int = 50, owner: str | None = None) -> list[dict]:
+        if owner:
+            owner_ids = self._resolve_owner_ids(owner)
+            if owner_ids:
+                owner_set = set(owner_ids)
+                records = self.hassette._scheduler_service.get_execution_history(limit * 2)
+                records = [r for r in records if r.owner in owner_set][:limit]
+                return [asdict(r) for r in records]
         records = self.hassette._scheduler_service.get_execution_history(limit, owner)
         return [asdict(r) for r in records]
 
@@ -332,8 +415,15 @@ class DataSyncService(Resource):
     def get_listener_metrics(self, owner: str | None = None) -> list[dict]:
         """Return per-listener metrics, optionally filtered by owner."""
         bus_service = self.hassette._bus_service
-        metrics = bus_service.get_listener_metrics_by_owner(owner) if owner else bus_service.get_all_listener_metrics()
-        return [m.to_dict() for m in metrics]
+        if not owner:
+            return [m.to_dict() for m in bus_service.get_all_listener_metrics()]
+        owner_ids = self._resolve_owner_ids(owner)
+        if not owner_ids:
+            return [m.to_dict() for m in bus_service.get_listener_metrics_by_owner(owner)]
+        result: list[dict] = []
+        for oid in owner_ids:
+            result.extend(m.to_dict() for m in bus_service.get_listener_metrics_by_owner(oid))
+        return result
 
     def get_bus_metrics_summary(self) -> BusMetricsSummaryResponse:
         """Compute aggregate totals across all listener metrics."""

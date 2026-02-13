@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Bus — Hassette{% endblock %}
+
+{% block content %}
+<h1 class="title is-4">
+  <span class="icon"><i class="fas fa-tower-broadcast"></i></span>
+  <span>Bus Listeners</span>
+</h1>
+
+<!-- App filter -->
+<div class="field is-grouped mb-4">
+  <div class="control">
+    <div class="select is-small">
+      <select id="bus-owner-filter"
+              hx-get="/ui/partials/bus-listeners"
+              hx-target="#bus-listeners"
+              hx-swap="innerHTML"
+              hx-include="#bus-owner-filter"
+              name="owner">
+        <option value="">All Apps</option>
+        {% for owner in owners %}
+        <option value="{{ owner }}">{{ owner }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Listeners table -->
+<div class="box">
+  <table class="table is-fullwidth is-hoverable is-compact">
+    <thead>
+      <tr>
+        <th>Handler</th>
+        <th>App</th>
+        <th>Topic</th>
+        <th>Invocations</th>
+        <th>Success</th>
+        <th>Failed</th>
+        <th>Avg Duration</th>
+      </tr>
+    </thead>
+    <tbody id="bus-listeners"
+           data-live-refresh="/ui/partials/bus-listeners"
+           hx-get="/ui/partials/bus-listeners"
+           hx-trigger="every 30s"
+           hx-swap="innerHTML">
+      {% include "partials/bus_listeners.html" %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

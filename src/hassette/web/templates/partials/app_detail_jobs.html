@@ -3,6 +3,9 @@
   <thead>
     <tr>
       <th>Name</th>
+      {% if instance_owner_map %}
+      <th>Instance</th>
+      {% endif %}
       <th>Trigger</th>
       <th>Next Run</th>
       <th>Repeat</th>
@@ -13,6 +16,15 @@
     {% for job in jobs %}
     <tr>
       <td><code>{{ job.name }}</code></td>
+      {% if instance_owner_map %}
+      <td>
+        {% if job.owner in instance_owner_map %}
+        <a href="/ui/apps/{{ instance_owner_map[job.owner][0] }}/{{ instance_owner_map[job.owner][1] }}"><code>{{ job.owner.split('.')[-1] }}</code></a>
+        {% else %}
+        <code>{{ job.owner }}</code>
+        {% endif %}
+      </td>
+      {% endif %}
       <td><span class="tag is-info is-light is-small">{{ job.trigger_type }}</span></td>
       <td>{{ job.next_run }}</td>
       <td>{{ "Yes" if job.repeat else "No" }}</td>

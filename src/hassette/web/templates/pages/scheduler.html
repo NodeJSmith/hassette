@@ -7,7 +7,7 @@
   <span>Scheduler</span>
 </h1>
 
-<!-- Owner filter -->
+<!-- App filter -->
 <div class="field is-grouped mb-4">
   <div class="control">
     <div class="select is-small">
@@ -17,7 +17,7 @@
               hx-swap="innerHTML"
               hx-include="#scheduler-owner-filter"
               name="owner">
-        <option value="">All Owners</option>
+        <option value="">All Apps</option>
         {% for owner in owners %}
         <option value="{{ owner }}">{{ owner }}</option>
         {% endfor %}
@@ -36,7 +36,7 @@
     <thead>
       <tr>
         <th>Name</th>
-        <th>Owner</th>
+        <th>App</th>
         <th>Trigger</th>
         <th>Next Run</th>
         <th>Repeat</th>
@@ -63,7 +63,7 @@
     <thead>
       <tr>
         <th>Job Name</th>
-        <th>Owner</th>
+        <th>App</th>
         <th>Started</th>
         <th>Duration</th>
         <th>Status</th>

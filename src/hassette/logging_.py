@@ -30,18 +30,7 @@ class LogEntry:
     lineno: int
     message: str
     exc_info: str | None = None
-
-    @property
-    def app_key(self) -> str | None:
-        """Extract app key from logger name if this is an app log.
-
-        Logger names follow: hassette.AppHandler.<AppClass>[<index>]...
-        """
-        parts = self.logger_name.split(".")
-        if len(parts) >= 3 and parts[1] == "AppHandler":
-            # e.g. hassette.AppHandler.MyApp[0] -> MyApp[0]
-            return parts[2]
-        return None
+    app_key: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -62,12 +51,18 @@ class LogCaptureHandler(logging.Handler):
     _buffer: deque[LogEntry]
     _broadcast_fn: Callable[[dict], Awaitable[None]] | None
     _loop: asyncio.AbstractEventLoop | None
+    _logger_to_app_key: dict[str, str]
 
     def __init__(self, buffer_size: int = 2000) -> None:
         super().__init__()
         self._buffer = deque(maxlen=buffer_size)
         self._broadcast_fn = None
         self._loop = None
+        self._logger_to_app_key = {}
+
+    def register_app_logger(self, logger_prefix: str, app_key: str) -> None:
+        """Register a logger name prefix to an app_key for log attribution."""
+        self._logger_to_app_key[logger_prefix] = app_key
 
     @property
     def buffer(self) -> deque[LogEntry]:
@@ -91,6 +86,15 @@ class LogCaptureHandler(logging.Handler):
         self._broadcast_fn = fn
         self._loop = loop
 
+    def _resolve_app_key(self, logger_name: str) -> str | None:
+        """Find app_key by matching logger name against registered prefixes."""
+        # Snapshot to avoid RuntimeError if modified from another thread during iteration
+        items = list(self._logger_to_app_key.items())
+        for prefix, app_key in items:
+            if logger_name == prefix or logger_name.startswith(prefix + "."):
+                return app_key
+        return None
+
     def emit(self, record: logging.LogRecord) -> None:
         entry = LogEntry(
             timestamp=record.created,
@@ -100,6 +104,7 @@ class LogCaptureHandler(logging.Handler):
             lineno=record.lineno,
             message=self.format(record),
             exc_info=record.exc_text,
+            app_key=self._resolve_app_key(record.name),
         )
         self._buffer.append(entry)
         if self._broadcast_fn and self._loop and self._loop.is_running():

@@ -189,6 +189,9 @@ class HassetteConfig(BaseSettings):
     scheduler_default_delay_seconds: int = Field(default=15)
     """Default delay between scheduled jobs."""
 
+    scheduler_behind_schedule_threshold_seconds: int = Field(default=5)
+    """Threshold in seconds before a 'behind schedule' warning is logged for a job."""
+
     run_sync_timeout_seconds: int = Field(default=6)
     """Default timeout for synchronous function calls."""
 

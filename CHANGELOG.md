@@ -28,6 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Extracted `bus_metrics.html` and `apps_summary.html` dashboard partials for live update support
   - New CSS styles for stopped/disabled/blocked status badges, entity state badges (on/off/unavailable), and live update pulse animation
   - Navigation sidebar updated with Scheduler and Entities links
+- **Web UI Phase 3** — instance detail, bus page, log table, and owner resolution
+  - **Instance detail page** (`/ui/apps/{app_key}/{index}`) — per-instance drill-down with instance-scoped bus listeners, scheduled jobs, and filtered logs
+  - **Smart routing** — single-instance apps at `/ui/apps/{app_key}` render the instance detail template directly; multi-instance apps show the manifest overview with an expandable instances table
+  - **Bus page** (`/ui/bus`) — dedicated page for viewing all bus listener metrics, filterable by app; navigation sidebar updated with Bus link
+  - **Alpine.js log table component** (`log-table.js`) — client-side log viewing with level/app/text filtering, sortable columns, and real-time WebSocket streaming; replaces HTMX-based log partials on both the log viewer and app detail pages
+  - **Owner resolution** — `DataSyncService` now resolves `app_key` to `owner_id`(s) when filtering listeners, jobs, and execution history, so multi-instance apps correctly show all instance data
+  - **Log attribution** — `LogCaptureHandler.register_app_logger()` maps logger name prefixes to `app_key` at registration time, replacing the fragile logger-name-parsing heuristic; `LogEntry.app_key` is now a stored field
+  - **Instance column** — multi-instance app detail views show an "Instance" column in bus listener and scheduled job tables with links to each instance
+  - **Owner links** — scheduler jobs, execution history, and bus listener tables now link owners to their app/instance detail pages
+  - Collapsible instance rows on the apps listing page for multi-instance apps
+  - Entity browser pagination now preserves domain/search filters across "Load more" requests
+  - `owner_id` field added to `AppInstanceInfo` and `AppInstanceResponse` for instance identity tracking
+  - `BusService.add_listener()` now eagerly creates listener metrics at registration time
 - **FastAPI web backend** replacing the standalone `HealthService` with a full REST API and WebSocket server
   - `GET /api/health`, `GET /api/healthz` — system health and container healthchecks
   - `GET /api/entities`, `GET /api/entities/{entity_id}`, `GET /api/entities/domain/{domain}` — entity state access
@@ -48,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JobExecutionRecord` dataclass for per-job execution metrics in the scheduler
 - Configurable service restart with exponential backoff in `ServiceWatcher`
   - `service_restart_max_attempts`, `service_restart_backoff_seconds`, `service_restart_max_backoff_seconds`, `service_restart_backoff_multiplier` config options
+- `scheduler_behind_schedule_threshold_seconds` config option (default: 5) — configurable threshold before a "behind schedule" warning is logged for a job (previously hard-coded to 1 second)
 
 ### Changed
 - Replaced `HealthService` with `WebApiService` backed by FastAPI
@@ -57,9 +71,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SchedulerService.run_job()` refactored to use `track_execution()` context manager
 - Config: `run_health_service` → `run_web_api`, `health_service_port` → `web_api_port`, `health_service_log_level` → `web_api_log_level`
 - Config: added `web_api_host`, `web_api_cors_origins`, `web_api_event_buffer_size`, `web_api_log_buffer_size`, `web_api_job_history_size`
+- `SchedulerService` dispatch loop now uses `pop_due_and_peek_next()` to pop due jobs and peek the next run time in a single lock acquisition, avoiding a redundant lock round-trip each cycle
+- `SchedulerService._dispatch_and_log()` now runs jobs inline (`await self.run_job(job)`) instead of spawning a separate task, reducing scheduling latency
+- `SchedulerService.sleep()` accepts a pre-fetched `next_run_time` and `_calculate_sleep_time()` is now synchronous
+- Scheduler/bus "Owner" columns renamed to "App" in the web UI for clarity
+- Log viewer and app detail log sections replaced with Alpine.js `logTable` component for client-side filtering, sorting, and real-time streaming
+- Entity browser filters now use vanilla JS with `htmx.ajax()` instead of HTMX attributes, fixing filter state loss on pagination
 
 ### Fixed
 - WebSocket endpoint now uses `except*` (PEP 654) to properly handle `WebSocketDisconnect` inside `ExceptionGroup` from anyio task groups, eliminating spurious ERROR logs during normal page navigation
+- WebSocket disconnect handling consolidated into `_is_disconnect()` helper covering `WebSocketDisconnect`, `ClosedResourceError`, `ConnectionResetError`, `BrokenPipeError`, and Starlette/ASGI `RuntimeError` variants
+- WebSocket send path now serializes messages through `json.dumps(default=str)` to handle enums and dataclasses that previously caused `TypeError`
+- `DataSyncService._on_app_state_changed()` and `_on_service_status()` now serialize dataclass payloads via `_serialize_payload()` to prevent `TypeError` on enum values
+- Entity browser "Load more" button now preserves domain and search filters across paginated requests
+- Bulma's default red `<code>` color overridden with neutral styling; link-wrapped `<code>` elements use blue link color
 
 ### Removed
 - `HealthService` (`src/hassette/core/health_service.py`) — replaced by FastAPI web backend

@@ -80,6 +80,7 @@ class BusService(Service):
 
     def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Add a listener to the bus."""
+        self._get_or_create_metrics(listener)
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:

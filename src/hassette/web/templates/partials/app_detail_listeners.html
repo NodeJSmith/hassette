@@ -3,6 +3,9 @@
   <thead>
     <tr>
       <th>Handler</th>
+      {% if instance_owner_map %}
+      <th>Instance</th>
+      {% endif %}
       <th>Topic</th>
       <th>Invocations</th>
       <th>Success</th>
@@ -14,6 +17,15 @@
     {% for l in listeners %}
     <tr>
       <td><code>{{ l.handler_name }}</code></td>
+      {% if instance_owner_map %}
+      <td>
+        {% if l.owner in instance_owner_map %}
+        <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}"><code>{{ l.owner.split('.')[-1] }}</code></a>
+        {% else %}
+        <code>{{ l.owner }}</code>
+        {% endif %}
+      </td>
+      {% endif %}
       <td><code>{{ l.topic }}</code></td>
       <td>{{ l.total_invocations }}</td>
       <td class="has-text-success">{{ l.successful }}</td>

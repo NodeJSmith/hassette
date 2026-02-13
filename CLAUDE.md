@@ -12,7 +12,10 @@ Hassette is an async-first Python framework for building Home Assistant automati
 # Install dependencies
 uv sync
 
-# Run tests (uses nox across Python 3.11, 3.12, 3.13)
+# Run tests locally (preferred for development)
+uv run pytest
+
+# Run tests via nox (CI only — slower, tests across Python 3.11, 3.12, 3.13)
 uv run nox -s tests
 
 # Run tests with coverage

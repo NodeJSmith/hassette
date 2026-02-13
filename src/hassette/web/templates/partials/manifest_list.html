@@ -1,5 +1,14 @@
 {% for manifest in manifests %}
+{% if manifest.instance_count > 1 %}
+<tbody x-data="{ expanded: true }">
 {% include "partials/manifest_row.html" %}
+{% for inst in manifest.instances %}
+{% include "partials/instance_row.html" %}
+{% endfor %}
+</tbody>
+{% else %}
+{% include "partials/manifest_row.html" %}
+{% endif %}
 {% endfor %}
 {% if manifests | length == 0 %}
 <tr><td colspan="6" class="has-text-centered has-text-grey">No apps match this filter.</td></tr>

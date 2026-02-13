@@ -380,8 +380,9 @@ class TestLogsPage:
     async def test_logs_page_contains_filter_controls(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/logs")
         body = response.text
-        assert "log-level-filter" in body
-        assert "log-app-filter" in body
+        assert "filters.level" in body
+        assert "filters.app" in body
+        assert "filters.search" in body
 
     async def test_logs_page_contains_level_options(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/logs")
@@ -578,6 +579,390 @@ class TestPartials:
         assert "<html" not in response.text
 
 
+class TestInstanceDetail:
+    """Instance detail page and smart routing tests."""
+
+    async def test_single_instance_renders_instance_detail(self, client: "AsyncClient", mock_hassette) -> None:
+        """Single-instance app at /apps/{app_key} should render instance detail template."""
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="my_app",
+                    instance_count=1,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="my_app",
+                            index=0,
+                            instance_name="MyApp[0]",
+                            class_name="MyApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="MyApp.MyApp[0]",
+                        )
+                    ],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps/my_app")
+        assert response.status_code == 200
+        body = response.text
+        # Instance detail template should show instance-specific info
+        assert "Configuration" in body
+        assert "Bus Listeners" in body
+        assert "Scheduled Jobs" in body
+        assert "instance-listeners" in body  # instance-scoped partial URL
+
+    async def test_multi_instance_renders_manifest_overview(self, client: "AsyncClient", mock_hassette) -> None:
+        """Multi-instance app at /apps/{app_key} should render manifest overview with instances table."""
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="multi_app",
+                    display_name="Multi App",
+                    instance_count=2,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=0,
+                            instance_name="MultiApp[0]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="MultiApp.MultiApp[0]",
+                        ),
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=1,
+                            instance_name="MultiApp[1]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="MultiApp.MultiApp[1]",
+                        ),
+                    ],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps/multi_app")
+        assert response.status_code == 200
+        body = response.text
+        # Should show manifest overview with instances table
+        assert "Instances" in body
+        assert "MultiApp[0]" in body
+        assert "MultiApp[1]" in body
+        assert "/ui/apps/multi_app/0" in body
+        assert "/ui/apps/multi_app/1" in body
+
+    async def test_instance_detail_route(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /apps/{app_key}/{index} should render instance detail."""
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="multi_app",
+                    display_name="Multi App",
+                    instance_count=2,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=0,
+                            instance_name="MultiApp[0]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="MultiApp.MultiApp[0]",
+                        ),
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=1,
+                            instance_name="MultiApp[1]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="MultiApp.MultiApp[1]",
+                        ),
+                    ],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps/multi_app/1")
+        assert response.status_code == 200
+        body = response.text
+        assert "Multi App" in body
+        assert "MultiApp[1]" in body
+        assert "instance-listeners/multi_app/1" in body
+
+    async def test_instance_detail_404_bad_index(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /apps/{app_key}/{bad_index} should return 404."""
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="my_app",
+                    instance_count=1,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="my_app",
+                            index=0,
+                            instance_name="MyApp[0]",
+                            class_name="MyApp",
+                            status=ResourceStatus.RUNNING,
+                        )
+                    ],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps/my_app/99")
+        assert response.status_code == 404
+
+    async def test_instance_detail_404_bad_app(self, client: "AsyncClient") -> None:
+        """GET /apps/{nonexistent}/{index} should return 404."""
+        response = await client.get("/ui/apps/nonexistent/0")
+        assert response.status_code == 404
+
+    async def test_instance_listeners_partial(self, client: "AsyncClient") -> None:
+        """Instance-scoped listeners partial returns HTML."""
+        response = await client.get("/ui/partials/instance-listeners/my_app/0")
+        assert response.status_code == 200
+        assert "<html" not in response.text
+
+    async def test_instance_jobs_partial(self, client: "AsyncClient") -> None:
+        """Instance-scoped jobs partial returns HTML."""
+        response = await client.get("/ui/partials/instance-jobs/my_app/0")
+        assert response.status_code == 200
+        assert "<html" not in response.text
+
+    async def test_zero_instance_renders_manifest_overview(self, client: "AsyncClient", mock_hassette) -> None:
+        """Zero-instance app at /apps/{app_key} should render manifest overview."""
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="stopped_app",
+                    display_name="Stopped App",
+                    status="stopped",
+                    instance_count=0,
+                    instances=[],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps/stopped_app")
+        assert response.status_code == 200
+        body = response.text
+        # Should show manifest overview (not instance detail)
+        assert "Stopped App" in body
+        assert "Configuration" in body
+
+    async def test_multi_instance_detail_shows_instance_column_in_listeners(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        """Multi-instance manifest overview should show Instance column in bus listeners."""
+        owner0 = "MultiApp.MultiApp[0]"
+        owner1 = "MultiApp.MultiApp[1]"
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="multi_app",
+                    display_name="Multi App",
+                    instance_count=2,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=0,
+                            instance_name="MultiApp[0]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id=owner0,
+                        ),
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=1,
+                            instance_name="MultiApp[1]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id=owner1,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        # Set up registry._apps so get_instance_owner_map() and _resolve_owner_ids() work
+        app_instances = {
+            0: SimpleNamespace(unique_name=owner0),
+            1: SimpleNamespace(unique_name=owner1),
+        }
+        mock_hassette._app_handler.registry._apps = {"multi_app": app_instances}
+        mock_hassette._app_handler.registry.get_apps_by_key.return_value = app_instances
+
+        # Mock listener metrics with per-instance owner IDs
+        def _make_listener_metric(owner: str) -> MagicMock:
+            d = {
+                "listener_id": 1,
+                "owner": owner,
+                "topic": "state_changed.light.kitchen",
+                "handler_name": "on_light",
+                "total_invocations": 5,
+                "successful": 5,
+                "failed": 0,
+                "di_failures": 0,
+                "cancelled": 0,
+                "total_duration_ms": 10.0,
+                "min_duration_ms": 1.0,
+                "max_duration_ms": 3.0,
+                "avg_duration_ms": 2.0,
+                "last_invoked_at": None,
+                "last_error_message": None,
+                "last_error_type": None,
+            }
+            m = MagicMock()
+            m.to_dict.return_value = d
+            return m
+
+        mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = lambda owner: [
+            _make_listener_metric(owner)
+        ]
+        response = await client.get("/ui/apps/multi_app")
+        assert response.status_code == 200
+        body = response.text
+        assert "<th>Instance</th>" in body
+        assert "/ui/apps/multi_app/0" in body
+        assert "/ui/apps/multi_app/1" in body
+
+    async def test_multi_instance_detail_shows_instance_column_in_jobs(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        """Multi-instance manifest overview should show Instance column in scheduled jobs."""
+        owner0 = "MultiApp.MultiApp[0]"
+        owner1 = "MultiApp.MultiApp[1]"
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="multi_app",
+                    display_name="Multi App",
+                    instance_count=2,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=0,
+                            instance_name="MultiApp[0]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id=owner0,
+                        ),
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=1,
+                            instance_name="MultiApp[1]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id=owner1,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        app_instances = {
+            0: SimpleNamespace(unique_name=owner0),
+            1: SimpleNamespace(unique_name=owner1),
+        }
+        mock_hassette._app_handler.registry._apps = {"multi_app": app_instances}
+        mock_hassette._app_handler.registry.get_apps_by_key.return_value = app_instances
+        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    job_id="job-1",
+                    name="my_task",
+                    owner=owner0,
+                    next_run="2024-01-01T00:05:00",
+                    repeat=True,
+                    cancelled=False,
+                    trigger=type("interval", (), {})(),
+                    timeout_seconds=30,
+                ),
+            ]
+        )
+        response = await client.get("/ui/apps/multi_app")
+        assert response.status_code == 200
+        body = response.text
+        # Jobs section should also have Instance column
+        assert "my_task" in body
+        # The instance column header appears in both listeners and jobs sections
+        assert body.count("<th>Instance</th>") >= 1
+
+    async def test_single_instance_detail_no_instance_column(self, client: "AsyncClient", mock_hassette) -> None:
+        """Single-instance app at /apps/{app_key} should NOT show Instance column."""
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="my_app",
+                    instance_count=1,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="my_app",
+                            index=0,
+                            instance_name="MyApp[0]",
+                            class_name="MyApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="MyApp.MyApp[0]",
+                        )
+                    ],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps/my_app")
+        assert response.status_code == 200
+        body = response.text
+        # Single-instance uses app_instance_detail.html which does NOT have Instance column
+        assert "<th>Instance</th>" not in body
+
+    async def test_instance_scoped_listeners_partial_no_instance_column(self, client: "AsyncClient") -> None:
+        """Instance-scoped listeners partial should NOT show Instance column."""
+        response = await client.get("/ui/partials/instance-listeners/my_app/0")
+        assert response.status_code == 200
+        assert "<th>Instance</th>" not in response.text
+
+    async def test_instance_scoped_jobs_partial_no_instance_column(self, client: "AsyncClient") -> None:
+        """Instance-scoped jobs partial should NOT show Instance column."""
+        response = await client.get("/ui/partials/instance-jobs/my_app/0")
+        assert response.status_code == 200
+        assert "<th>Instance</th>" not in response.text
+
+    async def test_multi_instance_listing_shows_group(self, client: "AsyncClient", mock_hassette) -> None:
+        """Apps listing page should show grouped rows for multi-instance apps."""
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="multi_app",
+                    display_name="Multi App",
+                    instance_count=2,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=0,
+                            instance_name="MultiApp[0]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                        ),
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=1,
+                            instance_name="MultiApp[1]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps")
+        assert response.status_code == 200
+        body = response.text
+        assert "2 instances" in body
+        assert "MultiApp[0]" in body
+        assert "MultiApp[1]" in body
+
+
 class TestManifestAPI:
     """REST API endpoint for manifests."""
 
@@ -670,10 +1055,13 @@ class TestAppRegistryGetFullSnapshot:
 
     def _make_app_instance(self, app_key: str, index: int = 0):
         """Build a minimal App-like object for the registry."""
+        class_name = app_key.title().replace("_", "")
+        instance_name = f"{app_key}.{index}"
         return SimpleNamespace(
-            app_config=SimpleNamespace(instance_name=f"{app_key}.{index}"),
-            class_name=f"{app_key.title().replace('_', '')}",
+            app_config=SimpleNamespace(instance_name=instance_name),
+            class_name=class_name,
             status=ResourceStatus.RUNNING,
+            unique_name=f"{class_name}.{instance_name}",
         )
 
     def test_empty_manifests(self):

@@ -34,6 +34,7 @@ class AppInstanceResponse(BaseModel):
     class_name: str
     status: str
     error_message: str | None = None
+    owner_id: str | None = None
 
 
 class AppStatusResponse(BaseModel):

@@ -7,17 +7,12 @@
   <span>Log Viewer</span>
 </h1>
 
-<div class="box">
+<div class="box" x-data="logTable({ showAppColumn: true, appKey: null })">
   <!-- Filter controls -->
   <div class="field is-grouped mb-4">
     <div class="control">
       <div class="select is-small">
-        <select id="log-level-filter"
-                hx-get="/ui/partials/log-entries"
-                hx-target="#log-entries"
-                hx-swap="innerHTML"
-                hx-include="#log-app-filter"
-                name="level">
+        <select x-model="filters.level">
           <option value="">All Levels</option>
           <option value="DEBUG">DEBUG</option>
           <option value="INFO">INFO</option>
@@ -29,12 +24,7 @@
     </div>
     <div class="control">
       <div class="select is-small">
-        <select id="log-app-filter"
-                hx-get="/ui/partials/log-entries"
-                hx-target="#log-entries"
-                hx-swap="innerHTML"
-                hx-include="#log-level-filter"
-                name="app_key">
+        <select x-model="filters.app">
           <option value="">All Apps</option>
           {% for key in app_keys %}
           <option value="{{ key }}">{{ key }}</option>
@@ -43,14 +33,13 @@
       </div>
     </div>
     <div class="control">
-      <button class="button is-small is-link is-outlined"
-              hx-get="/ui/partials/log-entries"
-              hx-target="#log-entries"
-              hx-swap="innerHTML"
-              hx-include="#log-level-filter, #log-app-filter">
-        <span class="icon is-small"><i class="fas fa-rotate"></i></span>
-        <span>Refresh</span>
-      </button>
+      <input class="input is-small" type="text" placeholder="Search..."
+             x-model.debounce.200ms="filters.search">
+    </div>
+    <div class="control">
+      <span class="tag is-light is-small" x-show="!loading"
+            x-text="filteredEntries.length + ' entries'"></span>
+      <span class="tag is-light is-small" x-show="loading">Loading...</span>
     </div>
   </div>
 
@@ -59,61 +48,50 @@
     <table class="table is-fullwidth is-hoverable is-compact is-size-7">
       <thead>
         <tr>
-          <th style="width: 80px;">Level</th>
-          <th style="width: 160px;">Timestamp</th>
-          <th style="width: 120px;">App</th>
-          <th>Message</th>
+          <th style="width: 80px; cursor: pointer;" @click="toggleSort('level')">
+            Level <i class="fas" :class="sortIcon('level')"></i>
+          </th>
+          <th style="width: 160px; cursor: pointer;" @click="toggleSort('timestamp')">
+            Timestamp <i class="fas" :class="sortIcon('timestamp')"></i>
+          </th>
+          <th style="width: 120px; cursor: pointer;" @click="toggleSort('app_key')">
+            App <i class="fas" :class="sortIcon('app_key')"></i>
+          </th>
+          <th style="cursor: pointer;" @click="toggleSort('message')">
+            Message <i class="fas" :class="sortIcon('message')"></i>
+          </th>
         </tr>
       </thead>
-      <tbody id="log-entries">
-        {% include "partials/log_entries.html" %}
+      <tbody>
+        <template x-if="loading">
+          <tr><td colspan="4" class="has-text-centered has-text-grey">Loading...</td></tr>
+        </template>
+        <template x-if="error">
+          <tr><td colspan="4" class="has-text-centered has-text-danger" x-text="error"></td></tr>
+        </template>
+        <template x-if="!loading && !error && filteredEntries.length === 0">
+          <tr><td colspan="4" class="has-text-centered has-text-grey">No log entries.</td></tr>
+        </template>
+        <template x-for="(entry, index) in filteredEntries" :key="entry.timestamp + '-' + index">
+          <tr>
+            <td>
+              <span class="tag is-small" :class="levelClass(entry.level)"
+                    x-text="entry.level"></span>
+            </td>
+            <td x-text="formatTime(entry.timestamp)"></td>
+            <td>
+              <template x-if="entry.app_key">
+                <a :href="'/ui/apps/' + encodeURIComponent(entry.app_key)"><code x-text="entry.app_key"></code></a>
+              </template>
+              <template x-if="!entry.app_key">
+                <code>&mdash;</code>
+              </template>
+            </td>
+            <td x-text="entry.message"></td>
+          </tr>
+        </template>
       </tbody>
     </table>
   </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  // Subscribe to log streaming via WebSocket (on connect and reconnect)
-  function subscribeToLogs() {
-    const ws = Alpine.store("ws");
-    if (ws && ws.connected) ws.subscribeLogs("DEBUG");
-  }
-  subscribeToLogs();
-  document.addEventListener("ht:ws-connected", subscribeToLogs);
-
-  // Auto-append new log entries from WebSocket (using textContent to prevent XSS)
-  document.addEventListener("ht:log-entry", (e) => {
-    const tbody = document.getElementById("log-entries");
-    if (!tbody) return;
-    const entry = e.detail.data || e.detail;
-    const tr = document.createElement("tr");
-    const levelClass = "ht-log-" + (entry.level || "info").toLowerCase();
-
-    const tdLevel = document.createElement("td");
-    const levelSpan = document.createElement("span");
-    levelSpan.className = "tag is-small " + levelClass;
-    levelSpan.textContent = entry.level || "";
-    tdLevel.appendChild(levelSpan);
-
-    const tdTime = document.createElement("td");
-    tdTime.textContent = new Date((entry.timestamp || 0) * 1000).toLocaleTimeString();
-
-    const tdApp = document.createElement("td");
-    const appCode = document.createElement("code");
-    appCode.textContent = entry.app_key || "\u2014";
-    tdApp.appendChild(appCode);
-
-    const tdMsg = document.createElement("td");
-    tdMsg.textContent = entry.message || "";
-
-    tr.append(tdLevel, tdTime, tdApp, tdMsg);
-    tbody.prepend(tr);
-    // Keep max 200 rows
-    while (tbody.children.length > 200) {
-      tbody.removeChild(tbody.lastChild);
-    }
-  });
-</script>
 {% endblock %}

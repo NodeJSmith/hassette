@@ -390,6 +390,29 @@ async def test_attribute_change_handles_globs(
     assert actual == expected, f"Expected handler to receive {expected}, got {actual}"
 
 
+async def test_listener_metrics_created_eagerly_on_registration(hassette_with_bus: "Hassette") -> None:
+    """Metrics entry is created at registration time, not lazily on first dispatch."""
+    hassette = hassette_with_bus
+
+    def handler(event: Event) -> None:
+        pass
+
+    subscription = hassette._bus.on_state_change("sensor.eager_test", handler=handler)
+    listener = subscription.listener
+
+    # Allow the add_listener task to complete
+    await asyncio.sleep(0.05)
+
+    metrics = hassette._bus_service._listener_metrics.get(listener.listener_id)
+    assert metrics is not None, "Metrics should exist immediately after registration"
+    assert metrics.total_invocations == 0
+    assert metrics.successful == 0
+    assert metrics.failed == 0
+    assert metrics.owner == listener.owner
+    assert metrics.topic == listener.topic
+    assert metrics.handler_name == listener.handler_name
+
+
 async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hassette") -> None:
     """Bus can subscribe to all state change events."""
     hassette = hassette_with_bus

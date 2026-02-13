@@ -18,9 +18,17 @@
       —
     {% endif %}
   </td>
-  <td><code>{{ entry.app_key or "—" }}</code></td>
+  {% if show_app_column | default(true) %}
+  <td>
+    {% if entry.app_key %}
+    <a href="/ui/apps/{{ entry.app_key }}"><code>{{ entry.app_key }}</code></a>
+    {% else %}
+    <code>—</code>
+    {% endif %}
+  </td>
+  {% endif %}
   <td>{{ entry.message }}</td>
 </tr>
 {% else %}
-<tr><td colspan="4" class="has-text-centered has-text-grey">No log entries.</td></tr>
+<tr><td colspan="{{ 4 if show_app_column | default(true) else 3 }}" class="has-text-centered has-text-grey">No log entries.</td></tr>
 {% endfor %}

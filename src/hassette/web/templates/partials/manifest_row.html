@@ -1,6 +1,17 @@
 {% if manifest %}
-<tr id="manifest-row-{{ manifest.app_key }}">
-  <td><a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a></td>
+<tr id="manifest-row-{{ manifest.app_key }}"
+    {% if manifest.instance_count > 1 %}class="ht-group-header"{% endif %}>
+  <td>
+    {% if manifest.instance_count > 1 %}
+    <span class="icon is-small mr-1" style="cursor: pointer;" @click="expanded = !expanded"
+          x-bind:title="expanded ? 'Collapse' : 'Expand'">
+      <i class="fas" :class="expanded ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+    </span>
+    <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
+    {% else %}
+    <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
+    {% endif %}
+  </td>
   <td>{{ manifest.display_name }}</td>
   <td>{{ manifest.class_name }}</td>
   <td>

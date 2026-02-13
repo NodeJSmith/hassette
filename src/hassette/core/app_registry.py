@@ -24,6 +24,7 @@ class AppInstanceInfo:
     status: ResourceStatus
     error: Exception | None = None
     error_message: str | None = None
+    owner_id: str | None = None
 
 
 @dataclass
@@ -219,6 +220,7 @@ class AppRegistry:
                     instance_name=app.app_config.instance_name,
                     class_name=app.class_name,
                     status=app.status,
+                    owner_id=app.unique_name,
                 )
                 running.append(info)
 
@@ -275,6 +277,7 @@ class AppRegistry:
                             instance_name=app.app_config.instance_name,
                             class_name=app.class_name,
                             status=app.status,
+                            owner_id=app.unique_name,
                         )
                     )
 

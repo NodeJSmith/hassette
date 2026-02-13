@@ -34,10 +34,9 @@
 <tr>
   <td colspan="4" class="has-text-centered">
     <button class="button is-small is-link is-outlined"
-            hx-get="/ui/partials/entity-list?offset={{ offset + limit }}&limit={{ limit }}"
+            hx-get="/ui/partials/entity-list?offset={{ offset + limit }}&limit={{ limit }}&domain={{ domain | urlencode }}&search={{ search | urlencode }}"
             hx-target="#entity-list"
-            hx-swap="innerHTML"
-            hx-include="#entity-domain-filter, #entity-search">
+            hx-swap="innerHTML">
       Load more ({{ total - offset - limit }} remaining)
     </button>
   </td>

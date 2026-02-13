@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ manifest.display_name }} — Hassette{% endblock %}
+{% block title %}{{ instance.instance_name if instance else manifest.display_name }} — Hassette{% endblock %}
 
 {% block content %}
 <!-- Header -->
@@ -8,17 +8,21 @@
     <div class="level-item">
       <h1 class="title is-4">
         <a href="/ui/apps" class="has-text-grey-light mr-2"><i class="fas fa-arrow-left"></i></a>
+        {% if is_multi_instance %}
+        <a href="/ui/apps/{{ app_key }}" class="has-text-grey-light mr-2"><i class="fas fa-cubes"></i></a>
+        {% endif %}
         <span class="icon"><i class="fas fa-cube"></i></span>
         <span>{{ manifest.display_name }}</span>
-        {% if manifest.status == "running" %}
+        {% set inst_status = instance.status if instance else manifest.status %}
+        {% if inst_status == "running" %}
         <span class="tag is-success is-light ml-2">running</span>
-        {% elif manifest.status == "failed" %}
+        {% elif inst_status == "failed" %}
         <span class="tag is-danger is-light ml-2">failed</span>
-        {% elif manifest.status == "stopped" %}
+        {% elif inst_status == "stopped" %}
         <span class="tag ht-status-stopped ml-2">stopped</span>
-        {% elif manifest.status == "disabled" %}
+        {% elif inst_status == "disabled" %}
         <span class="tag ht-status-disabled ml-2">disabled</span>
-        {% elif manifest.status == "blocked" %}
+        {% elif inst_status == "blocked" %}
         <span class="tag ht-status-blocked ml-2">blocked</span>
         {% endif %}
       </h1>
@@ -56,6 +60,12 @@
   </div>
 </div>
 
+{% if is_multi_instance and instance %}
+<p class="subtitle is-6 has-text-grey mb-4">
+  Instance: <strong>{{ instance.instance_name }}</strong> (index {{ instance_index }})
+</p>
+{% endif %}
+
 <div class="columns is-multiline">
   <!-- Config panel -->
   <div class="column is-half">
@@ -65,71 +75,29 @@
         <tbody>
           <tr><th>App Key</th><td><code>{{ manifest.app_key }}</code></td></tr>
           <tr><th>Class Name</th><td><code>{{ manifest.class_name }}</code></td></tr>
+          {% if instance %}
+          <tr><th>Instance Name</th><td><code>{{ instance.instance_name }}</code></td></tr>
+          <tr><th>Index</th><td>{{ instance_index }}</td></tr>
+          {% if owner_id %}
+          <tr><th>Owner ID</th><td><code>{{ owner_id }}</code></td></tr>
+          {% endif %}
+          {% endif %}
+          {% if is_multi_instance %}
+          <tr><th>Manifest</th><td><a href="/ui/apps/{{ app_key }}"><code>{{ manifest.filename }}</code></a></td></tr>
+          {% else %}
           <tr><th>Filename</th><td><code>{{ manifest.filename }}</code></td></tr>
           <tr><th>Enabled</th><td>{{ "Yes" if manifest.enabled else "No" }}</td></tr>
           <tr><th>Auto-loaded</th><td>{{ "Yes" if manifest.auto_loaded else "No" }}</td></tr>
-          <tr><th>Instances</th><td>{{ manifest.instance_count }}</td></tr>
-          {% if manifest.error_message %}
+          {% endif %}
+          {% if instance and instance.error_message %}
+          <tr><th>Error</th><td class="has-text-danger">{{ instance.error_message }}</td></tr>
+          {% elif manifest.error_message %}
           <tr><th>Error</th><td class="has-text-danger">{{ manifest.error_message }}</td></tr>
           {% endif %}
-          {% if manifest.block_reason %}
-          <tr><th>Block Reason</th><td>{{ manifest.block_reason }}</td></tr>
-          {% endif %}
         </tbody>
       </table>
     </div>
   </div>
-
-  <!-- Instances -->
-  {% if manifest.instance_count != 1 %}
-  <div class="column is-half">
-    <div class="box">
-      <h2 class="title is-5">
-        <span class="icon"><i class="fas fa-cubes"></i></span>
-        <span>Instances</span>
-        <span class="tag is-info is-light is-small ml-2">{{ manifest.instance_count }}</span>
-      </h2>
-      {% if manifest.instances %}
-      <table class="table is-fullwidth is-hoverable is-compact is-size-7">
-        <thead>
-          <tr>
-            <th>Index</th>
-            <th>Instance Name</th>
-            <th>Status</th>
-            <th>Error</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for inst in manifest.instances %}
-          <tr>
-            <td><a href="/ui/apps/{{ manifest.app_key }}/{{ inst.index }}">{{ inst.index }}</a></td>
-            <td><a href="/ui/apps/{{ manifest.app_key }}/{{ inst.index }}"><code>{{ inst.instance_name }}</code></a></td>
-            <td>
-              {% if inst.status == "running" %}
-              <span class="tag is-success is-light is-small">running</span>
-              {% elif inst.status == "failed" %}
-              <span class="tag is-danger is-light is-small">failed</span>
-              {% else %}
-              <span class="tag is-light is-small">{{ inst.status }}</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if inst.error_message %}
-              <span class="has-text-danger">{{ inst.error_message }}</span>
-              {% else %}
-              —
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <p class="has-text-grey is-size-7">No instances running.</p>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
 
   <!-- Bus Listeners -->
   <div class="column is-half">
@@ -139,8 +107,8 @@
         <span>Bus Listeners</span>
       </h2>
       <div id="app-listeners"
-           data-live-on-app="/ui/partials/app-detail-listeners/{{ app_key }}"
-           hx-get="/ui/partials/app-detail-listeners/{{ app_key }}"
+           data-live-on-app="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}"
+           hx-get="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}"
            hx-trigger="every 30s"
            hx-swap="innerHTML">
         {% include "partials/app_detail_listeners.html" %}
@@ -156,8 +124,8 @@
         <span>Scheduled Jobs</span>
       </h2>
       <div id="app-jobs"
-           data-live-refresh="/ui/partials/app-detail-jobs/{{ app_key }}"
-           hx-get="/ui/partials/app-detail-jobs/{{ app_key }}"
+           data-live-refresh="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}"
+           hx-get="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}"
            hx-trigger="every 30s"
            hx-swap="innerHTML">
         {% include "partials/app_detail_jobs.html" %}

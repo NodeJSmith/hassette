@@ -130,6 +130,20 @@
   background: #f14668;
 }
 
+/* Override Bulma's red <code> color */
+code {
+  color: #4a4a4a;
+}
+
+/* Links wrapping code use blue link color */
+a code {
+  color: #3e8ed0;
+}
+
+a:hover code {
+  text-decoration: underline;
+}
+
 /* Live update pulse animation */
 @keyframes ht-pulse {
   0% { opacity: 0.5; }

@@ -13,12 +13,7 @@
   <div class="field is-grouped mb-4">
     <div class="control">
       <div class="select is-small">
-        <select id="entity-domain-filter"
-                hx-get="/ui/partials/entity-list"
-                hx-target="#entity-list"
-                hx-swap="innerHTML"
-                hx-include="#entity-search"
-                name="domain">
+        <select id="entity-domain-filter" onchange="refreshEntityList()">
           <option value="">All Domains</option>
           {% for domain in domains %}
           <option value="{{ domain }}">{{ domain }}</option>
@@ -27,13 +22,9 @@
       </div>
     </div>
     <div class="control">
-      <input class="input is-small" type="text" id="entity-search" name="search"
+      <input class="input is-small" type="text" id="entity-search"
              placeholder="Search entity ID..."
-             hx-get="/ui/partials/entity-list"
-             hx-target="#entity-list"
-             hx-swap="innerHTML"
-             hx-include="#entity-domain-filter"
-             hx-trigger="keyup changed delay:300ms">
+             oninput="debouncedRefresh()">
     </div>
   </div>
 
@@ -48,12 +39,30 @@
         <th>Attributes</th>
       </tr>
     </thead>
-    <tbody id="entity-list"
-           data-live-on-state="/ui/partials/entity-list"
-           hx-trigger="every 30s"
-           hx-swap="innerHTML">
+    <tbody id="entity-list">
       <tr><td colspan="4" class="has-text-centered has-text-grey">Select a domain or search to load entities.</td></tr>
     </tbody>
   </table>
 </div>
+
+<script>
+  function refreshEntityList(extra) {
+    var domain = document.getElementById('entity-domain-filter').value;
+    var search = document.getElementById('entity-search').value;
+    var params = [];
+    if (domain) params.push('domain=' + encodeURIComponent(domain));
+    if (search) params.push('search=' + encodeURIComponent(search));
+    if (extra) params.push(extra);
+    var url = '/ui/partials/entity-list' + (params.length ? '?' + params.join('&') : '');
+    htmx.ajax('GET', url, {target: '#entity-list', swap: 'innerHTML'});
+  }
+
+  var _refreshTimer;
+  function debouncedRefresh() {
+    clearTimeout(_refreshTimer);
+    _refreshTimer = setTimeout(refreshEntityList, 300);
+  }
+
+  refreshEntityList();
+</script>
 {% endblock %}

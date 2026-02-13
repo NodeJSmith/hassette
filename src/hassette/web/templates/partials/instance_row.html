@@ -1,0 +1,24 @@
+<tr class="ht-instance-row" x-show="expanded" x-transition>
+  <td class="pl-5">
+    <a href="/ui/apps/{{ manifest.app_key }}/{{ inst.index }}"><code>{{ inst.instance_name }}</code></a>
+  </td>
+  <td></td>
+  <td></td>
+  <td>
+    {% if inst.status == "running" %}
+    <span class="tag is-success is-light is-small">running</span>
+    {% elif inst.status == "failed" %}
+    <span class="tag is-danger is-light is-small">failed</span>
+    {% else %}
+    <span class="tag is-light is-small">{{ inst.status }}</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if inst.error_message %}
+    <span class="has-text-danger is-size-7">{{ inst.error_message }}</span>
+    {% else %}
+    —
+    {% endif %}
+  </td>
+  <td></td>
+</tr>
