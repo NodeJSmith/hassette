@@ -352,7 +352,7 @@ class DataSyncService(Resource):
             if owner_ids:
                 owner_set = set(owner_ids)
                 records = self.hassette.scheduler_service.get_execution_history(limit * 2)
-                records = [r for r in records if r.owner in owner_set][:limit]
+                records = [r for r in records if r.owner in owner_set][-limit:]
                 return [asdict(r) for r in records]
         records = self.hassette.scheduler_service.get_execution_history(limit, owner)
         return [asdict(r) for r in records]

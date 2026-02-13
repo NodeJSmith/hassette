@@ -8,100 +8,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- **Playwright e2e test suite** — browser-based end-to-end tests for the web UI using `pytest-playwright`
-  - 34 tests covering navigation, sidebar active state, apps page (HTMX filter tabs, detail navigation), log viewer (filters, sortable columns), entity browser (domain filter, debounced search), and WebSocket script loading
-  - Session-scoped live uvicorn server with rich mock data (4 app manifests, 5 entities, bus metrics, scheduler jobs)
-  - `@pytest.mark.e2e` marker; excluded from default `pytest` runs via `addopts`
-  - CI workflow (`.github/workflows/e2e-tests.yml`) with Playwright trace upload on failure
-- **Web UI dashboard** — server-rendered monitoring UI at `/ui/` using Jinja2, HTMX, Alpine.js, and Bulma CSS
-  - Dashboard page with system health, apps summary, bus metrics, and recent events (auto-refreshing)
-  - App management page with start/stop/reload controls via HTMX
-  - Log viewer page with level/app filtering and real-time WebSocket streaming
-  - HTMX partial endpoints for incremental page updates without full reload
-  - Alpine.js WebSocket store for live connection status and event dispatching
+- **Web UI** — server-rendered monitoring dashboard at `/ui/` using Jinja2, HTMX, Alpine.js, and Bulma CSS
+  - **Dashboard** — system health, apps summary, bus metrics, and recent events with WebSocket-driven live updates
+  - **Apps page** — shows all configured app manifests with status badges, start/stop/reload controls, and status filter tabs; single-instance apps link directly to instance detail
+  - **App detail** (`/ui/apps/{key}`) — manifest config, bus listener metrics, scheduled jobs, and filtered log viewer; multi-instance apps show expandable instance table
+  - **Instance detail** (`/ui/apps/{key}/{index}`) — per-instance bus listeners, jobs, and logs
+  - **Log viewer** (`/ui/logs`) — client-side filtering by level/app/text, sortable columns, and real-time WebSocket log streaming
+  - **Scheduler page** (`/ui/scheduler`) — scheduled jobs and execution history, filterable by app
+  - **Entity browser** (`/ui/entities`) — browse entities by domain with text search and pagination
+  - **Event Bus page** (`/ui/bus`) — bus listener metrics, filterable by app
   - `run_web_ui` config option to enable/disable the UI independently from the API
-  - Root `/` redirects to `/ui/` when UI is enabled
-- **Web UI Phase 2** — full app manifests, live updates, and new pages
-  - **App manifests** — apps page now shows ALL configured app manifests regardless of runtime state; stopped/disabled/blocked apps remain visible with appropriate status badges and start/stop/reload action buttons
-  - `AppRegistry.get_full_snapshot()` with `AppManifestInfo` and `AppFullSnapshot` dataclasses for manifest-based status derivation (disabled > blocked > running > failed > stopped)
-  - `GET /api/apps/manifests` endpoint returning full manifest list with status counts
-  - Status filter tabs on apps page (All / Running / Stopped / Failed / Disabled)
-  - **WebSocket-driven live updates** — `live-updates.js` replaces HTMX polling with WS-triggered partial refreshes using `data-live-refresh`, `data-live-on-app`, and `data-live-on-state` attributes; 500ms debounce prevents DOM thrashing; 30s polling fallback for WS disconnection resilience
-  - **Scheduler page** (`/ui/scheduler`) — view scheduled jobs and execution history, filterable by app owner
-  - **Entity browser page** (`/ui/entities`) — browse Home Assistant entities by domain with text search; paginated at 50 entities per page
-  - **App detail page** (`/ui/apps/{app_key}`) — per-app drill-down showing manifest config, bus listener metrics, scheduled jobs, and filtered logs
-  - Extracted `bus_metrics.html` and `apps_summary.html` dashboard partials for live update support
-  - New CSS styles for stopped/disabled/blocked status badges, entity state badges (on/off/unavailable), and live update pulse animation
-  - Navigation sidebar updated with Scheduler and Entities links
-- **Web UI Phase 3** — instance detail, bus page, log table, and owner resolution
-  - **Instance detail page** (`/ui/apps/{app_key}/{index}`) — per-instance drill-down with instance-scoped bus listeners, scheduled jobs, and filtered logs
-  - **Smart routing** — single-instance apps at `/ui/apps/{app_key}` render the instance detail template directly; multi-instance apps show the manifest overview with an expandable instances table
-  - **Bus page** (`/ui/bus`) — dedicated page for viewing all bus listener metrics, filterable by app; navigation sidebar updated with Bus link
-  - **Alpine.js log table component** (`log-table.js`) — client-side log viewing with level/app/text filtering, sortable columns, and real-time WebSocket streaming; replaces HTMX-based log partials on both the log viewer and app detail pages
-  - **Owner resolution** — `DataSyncService` now resolves `app_key` to `owner_id`(s) when filtering listeners, jobs, and execution history, so multi-instance apps correctly show all instance data
-  - **Log attribution** — `LogCaptureHandler.register_app_logger()` maps logger name prefixes to `app_key` at registration time, replacing the fragile logger-name-parsing heuristic; `LogEntry.app_key` is now a stored field
-  - **Instance column** — multi-instance app detail views show an "Instance" column in bus listener and scheduled job tables with links to each instance
-  - **Owner links** — scheduler jobs, execution history, and bus listener tables now link owners to their app/instance detail pages
-  - Collapsible instance rows on the apps listing page for multi-instance apps
-  - Entity browser pagination now preserves domain/search filters across "Load more" requests
-  - `owner_id` field added to `AppInstanceInfo` and `AppInstanceResponse` for instance identity tracking
-  - `BusService.add_listener()` now eagerly creates listener metrics at registration time
 - **FastAPI web backend** replacing the standalone `HealthService` with a full REST API and WebSocket server
   - `GET /api/health`, `GET /api/healthz` — system health and container healthchecks
   - `GET /api/entities`, `GET /api/entities/{entity_id}`, `GET /api/entities/domain/{domain}` — entity state access
-  - `GET /api/apps`, `GET /api/apps/{app_key}`, `POST /api/apps/{app_key}/start|stop|reload` — app management
-  - `GET /api/scheduler/jobs`, `GET /api/scheduler/history` — scheduled job and execution history
+  - `GET /api/apps`, `GET /api/apps/{app_key}`, `GET /api/apps/manifests` — app status and manifests
+  - `POST /api/apps/{app_key}/start|stop|reload` — app management
+  - `GET /api/scheduler/jobs`, `GET /api/scheduler/history` — scheduled jobs and execution history
   - `GET /api/bus/listeners`, `GET /api/bus/metrics` — per-listener execution metrics and aggregate summary
   - `GET /api/events/recent`, `GET /api/logs/recent`, `GET /api/services`, `GET /api/config` — events, logs, HA services, config
-  - `GET /api/ws` — WebSocket endpoint for real-time state/event/log streaming
+  - `GET /api/ws` — WebSocket endpoint for real-time state/event/log streaming with subscription controls
   - `GET /api/docs` — interactive OpenAPI documentation
-- `DataSyncService` — aggregates system state from StateProxy, AppHandler, SchedulerService, and BusService for the web UI
-- `WebApiService` — runs the Uvicorn ASGI server as a managed background service
-- `LogCaptureHandler` — captures log entries into a bounded ring buffer and broadcasts to WebSocket clients
-- **Event handler execution metrics** — per-listener aggregate counters for bus event handlers
-  - `ListenerMetrics` dataclass tracking invocations, successes, failures, DI failures, cancellations, and timing (avg/min/max)
-  - `DependencyError` catch in `BusService._dispatch()` for separate classification of DI failures vs general errors
-  - Query methods: `get_all_listener_metrics()`, `get_listener_metrics_by_owner(owner)`
-- `track_execution()` async context manager for common timing and error capture, used by `SchedulerService.run_job()`
-- `JobExecutionRecord` dataclass for per-job execution metrics in the scheduler
+- **Event handler execution metrics** — per-listener aggregate counters (invocations, successes, failures, DI failures, timing) exposed via REST API and web UI
+- **Scheduler job execution history** — per-job execution records with timing and error details
 - Configurable service restart with exponential backoff in `ServiceWatcher`
   - `service_restart_max_attempts`, `service_restart_backoff_seconds`, `service_restart_max_backoff_seconds`, `service_restart_backoff_multiplier` config options
 - `scheduler_behind_schedule_threshold_seconds` config option (default: 5) — configurable threshold before a "behind schedule" warning is logged for a job (previously hard-coded to 1 second)
+- Playwright e2e test suite for the web UI (34 tests; run with `pytest -m e2e`)
 
 ### Changed
-- **Web UI polish** — consistency, UX, and visual improvements across all pages
-  - Added hassette logo to sidebar brand and favicon to all pages
-  - Added page title (`<h1>`) to dashboard for consistency with all other pages
-  - Renamed "Bus" to "Event Bus" in sidebar navigation and page title
-  - Dashboard app count now uses manifest-based counting (matches apps page)
-  - Instance detail page for multi-instance apps now shows Enabled/Auto-loaded fields and links filename back to parent app
-  - Scheduler filter now refreshes both jobs and execution history tables simultaneously
-  - Scheduler "Next Run" column uses `toLocaleString()` for locale-aware date formatting
-  - Entity browser attributes column is now click-to-expand with formatted JSON
-  - Instance rows in apps table now have action buttons (start/stop/reload)
-  - Log capture handler stores raw message (`record.getMessage()`) instead of fully formatted line
-  - Fixed nested `<tbody>` in manifest list partial that caused duplicate rows after HTMX swaps; replaced with keyed Alpine.js expand/collapse state on parent `<tbody>`
-- Replaced `HealthService` with `WebApiService` backed by FastAPI
+- **Breaking:** Replaced `HealthService` with `WebApiService` backed by FastAPI
+- **Breaking:** Config renames: `run_health_service` → `run_web_api`, `health_service_port` → `web_api_port`, `health_service_log_level` → `web_api_log_level`
+- New config options: `web_api_host`, `web_api_cors_origins`, `web_api_event_buffer_size`, `web_api_log_buffer_size`, `web_api_job_history_size`
 - `Service` base class now properly sequences `serve()` task lifecycle: spawns after `on_initialize()`, cancels before `on_shutdown()`
-- `Service` overrides `initialize()` and `shutdown()` from `Resource` to control serve task placement in the lifecycle
-- `Resource` lifecycle hooks extracted into `_run_hooks()` helper with `continue_on_error` flag
-- `SchedulerService.run_job()` refactored to use `track_execution()` context manager
-- Config: `run_health_service` → `run_web_api`, `health_service_port` → `web_api_port`, `health_service_log_level` → `web_api_log_level`
-- Config: added `web_api_host`, `web_api_cors_origins`, `web_api_event_buffer_size`, `web_api_log_buffer_size`, `web_api_job_history_size`
-- `SchedulerService` dispatch loop now uses `pop_due_and_peek_next()` to pop due jobs and peek the next run time in a single lock acquisition, avoiding a redundant lock round-trip each cycle
-- `SchedulerService._dispatch_and_log()` now runs jobs inline (`await self.run_job(job)`) instead of spawning a separate task, reducing scheduling latency
-- `SchedulerService.sleep()` accepts a pre-fetched `next_run_time` and `_calculate_sleep_time()` is now synchronous
-- Scheduler/bus "Owner" columns renamed to "App" in the web UI for clarity
-- Log viewer and app detail log sections replaced with Alpine.js `logTable` component for client-side filtering, sorting, and real-time streaming
-- Entity browser filters now use vanilla JS with `htmx.ajax()` instead of HTMX attributes, fixing filter state loss on pagination
 
 ### Fixed
-- WebSocket endpoint now uses `except*` (PEP 654) to properly handle `WebSocketDisconnect` inside `ExceptionGroup` from anyio task groups, eliminating spurious ERROR logs during normal page navigation
-- WebSocket disconnect handling consolidated into `_is_disconnect()` helper covering `WebSocketDisconnect`, `ClosedResourceError`, `ConnectionResetError`, `BrokenPipeError`, and Starlette/ASGI `RuntimeError` variants
-- WebSocket send path now serializes messages through `json.dumps(default=str)` to handle enums and dataclasses that previously caused `TypeError`
-- `DataSyncService._on_app_state_changed()` and `_on_service_status()` now serialize dataclass payloads via `_serialize_payload()` to prevent `TypeError` on enum values
-- Entity browser "Load more" button now preserves domain and search filters across paginated requests
-- Bulma's default red `<code>` color overridden with neutral styling; link-wrapped `<code>` elements use blue link color
+- WebSocket disconnect handling no longer produces spurious ERROR logs during normal page navigation
+- Scheduler dispatch loop uses single lock acquisition per cycle, reducing scheduling latency
 
 ### Removed
 - `HealthService` (`src/hassette/core/health_service.py`) — replaced by FastAPI web backend

@@ -55,7 +55,7 @@ class AppManifestResponse(BaseModel):
     status: str
     block_reason: str | None = None
     instance_count: int = 0
-    instances: list[AppInstanceResponse] = []
+    instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
 
 

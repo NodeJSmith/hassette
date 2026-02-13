@@ -1,6 +1,5 @@
 /* Hassette Alpine.js log table component */
 function logTable(config) {
-  var showAppColumn = config.showAppColumn !== false;
   var appKey = config.appKey || null;
   var maxEntries = config.limit || 1000;
 

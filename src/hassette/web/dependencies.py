@@ -1,11 +1,10 @@
 """FastAPI dependency injection helpers for the Hassette Web API."""
 
-import typing
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Request
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.api import Api
     from hassette.core.data_sync_service import DataSyncService

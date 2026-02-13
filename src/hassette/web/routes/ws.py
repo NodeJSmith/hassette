@@ -102,7 +102,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             tg.start_soon(_send_from_queue, websocket, queue, ws_state)
     except BaseException as exc:
         if isinstance(exc, BaseExceptionGroup):
-            _, rest = exc.split(lambda e: _is_disconnect(e))
+            _, rest = exc.split(_is_disconnect)
             if rest is not None:
                 logger.debug("WebSocket connection error", exc_info=rest)
         elif not _is_disconnect(exc):
