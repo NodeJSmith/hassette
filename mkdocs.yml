@@ -57,6 +57,14 @@ nav:
           - Authentication: pages/core-concepts/configuration/auth.md
           - Global Settings: pages/core-concepts/configuration/global.md
           - Applications: pages/core-concepts/configuration/applications.md
+  - Web UI:
+      - Overview: pages/web-ui/index.md
+      - Dashboard: pages/web-ui/dashboard.md
+      - Apps: pages/web-ui/apps.md
+      - Scheduler: pages/web-ui/scheduler.md
+      - Event Bus: pages/web-ui/event-bus.md
+      - Entities: pages/web-ui/entities.md
+      - Logs: pages/web-ui/logs.md
   - Advanced:
       - Overview: pages/advanced/index.md
       - Dependency Injection: pages/advanced/dependency-injection.md

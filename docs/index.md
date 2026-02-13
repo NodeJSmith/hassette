@@ -44,6 +44,14 @@ Filter events with built-in predicates and conditions for clean, readable code.
 </video>
 
 
+#### Built-in Web UI
+
+Monitor and manage your automations from a browser dashboard — view app status, browse entities, inspect the event bus and scheduler, and stream logs in real time. Enabled by default, no extra setup needed.
+
+![Hassette Web UI Dashboard](./_static/web_ui_dashboard.png)
+
+See the [Web UI docs](pages/web-ui/index.md) for a full tour.
+
 ## What you can build
 
 - Event-driven automations (state changes, events, scheduled jobs)

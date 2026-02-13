@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Entity browser** (`/ui/entities`) — browse entities by domain with text search and pagination
   - **Event Bus page** (`/ui/bus`) — bus listener metrics, filterable by app
   - `run_web_ui` config option to enable/disable the UI independently from the API
+  - Added section to docs covering the web UI
 - **FastAPI web backend** replacing the standalone `HealthService` with a full REST API and WebSocket server
   - `GET /api/health`, `GET /api/healthz` — system health and container healthchecks
   - `GET /api/entities`, `GET /api/entities/{entity_id}`, `GET /api/entities/domain/{domain}` — entity state access
