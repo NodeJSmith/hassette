@@ -10,7 +10,7 @@ PAGES = [
     ("/ui/apps", "App Management"),
     ("/ui/logs", "Log Viewer"),
     ("/ui/scheduler", "Scheduled Jobs"),
-    ("/ui/bus", "Bus Listeners"),
+    ("/ui/bus", "Event Bus"),
     ("/ui/entities", "Entity Browser"),
 ]
 
@@ -32,7 +32,7 @@ SIDEBAR_LINKS = [
     ("Dashboard", "/ui/", "System Health"),
     ("Apps", "/ui/apps", "App Management"),
     ("Scheduler", "/ui/scheduler", "Scheduled Jobs"),
-    ("Bus", "/ui/bus", "Bus Listeners"),
+    ("Bus", "/ui/bus", "Event Bus"),
     ("Entities", "/ui/entities", "Entity Browser"),
     ("Logs", "/ui/logs", "Log Viewer"),
 ]
