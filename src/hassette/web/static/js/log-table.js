@@ -10,6 +10,7 @@ function logTable(config) {
     sort: { field: "timestamp", dir: "desc" },
     loading: true,
     error: null,
+    _listeners: [],
 
     get filteredEntries() {
       var self = this;
@@ -102,11 +103,8 @@ function logTable(config) {
         var ws = Alpine.store("ws");
         if (ws && ws.connected) ws.subscribeLogs("DEBUG");
       }
-      subscribeLogs();
-      document.addEventListener("ht:ws-connected", subscribeLogs);
 
-      // Listen for WebSocket log entries
-      document.addEventListener("ht:log-entry", function (e) {
+      function onLogEntry(e) {
         var entry = e.detail.data || e.detail;
         // If locked to an app, ignore entries from other apps
         if (appKey && entry.app_key !== appKey) return;
@@ -115,7 +113,25 @@ function logTable(config) {
         if (self.entries.length > maxEntries) {
           self.entries.splice(maxEntries);
         }
+      }
+
+      subscribeLogs();
+      document.addEventListener("ht:ws-connected", subscribeLogs);
+      document.addEventListener("ht:log-entry", onLogEntry);
+
+      // Store references for cleanup
+      self._listeners = [
+        { event: "ht:ws-connected", handler: subscribeLogs },
+        { event: "ht:log-entry", handler: onLogEntry },
+      ];
+    },
+
+    destroy() {
+      // Remove event listeners when component is removed from DOM
+      this._listeners.forEach(function (ref) {
+        document.removeEventListener(ref.event, ref.handler);
       });
+      this._listeners = [];
     },
   };
 }

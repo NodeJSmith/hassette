@@ -1,20 +1,19 @@
 """App management endpoints."""
 
+import logging
 import typing
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from hassette.web.dependencies import get_data_sync, get_hassette
-from hassette.web.models import AppInstanceResponse, AppManifestListResponse, AppStatusResponse
+from hassette.web.dependencies import DataSyncDep, HassetteDep
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.core.data_sync_service import DataSyncService
+from hassette.web.models import AppInstanceResponse, AppManifestListResponse, AppStatusResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["apps"])
-
-HassetteDep = typing.Annotated["Hassette", Depends(get_hassette)]
-DataSyncDep = typing.Annotated["DataSyncService", Depends(get_data_sync)]
 
 
 @router.get("/apps", response_model=AppStatusResponse)
@@ -45,9 +44,10 @@ def _check_reload_allowed(hassette: "Hassette") -> None:
 async def start_app(app_key: str, hassette: HassetteDep) -> dict[str, str]:
     _check_reload_allowed(hassette)
     try:
-        await hassette._app_handler.start_app(app_key)
+        await hassette.app_handler.start_app(app_key)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Failed to start app %s", app_key, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to start app") from exc
     return {"status": "accepted", "app_key": app_key, "action": "start"}
 
 
@@ -55,9 +55,10 @@ async def start_app(app_key: str, hassette: HassetteDep) -> dict[str, str]:
 async def stop_app(app_key: str, hassette: HassetteDep) -> dict[str, str]:
     _check_reload_allowed(hassette)
     try:
-        await hassette._app_handler.stop_app(app_key)
+        await hassette.app_handler.stop_app(app_key)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Failed to stop app %s", app_key, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to stop app") from exc
     return {"status": "accepted", "app_key": app_key, "action": "stop"}
 
 
@@ -65,7 +66,8 @@ async def stop_app(app_key: str, hassette: HassetteDep) -> dict[str, str]:
 async def reload_app(app_key: str, hassette: HassetteDep) -> dict[str, str]:
     _check_reload_allowed(hassette)
     try:
-        await hassette._app_handler.reload_app(app_key)
+        await hassette.app_handler.reload_app(app_key)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Failed to reload app %s", app_key, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to reload app") from exc
     return {"status": "accepted", "app_key": app_key, "action": "reload"}

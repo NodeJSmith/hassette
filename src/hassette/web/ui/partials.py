@@ -1,15 +1,10 @@
 """HTMX partial fragment routes for the Hassette Web UI."""
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from starlette.responses import HTMLResponse
 
-from hassette.core.data_sync_service import DataSyncService
-from hassette.web.dependencies import get_data_sync
+from hassette.web.dependencies import DataSyncDep
 from hassette.web.ui import templates
-
-DataSyncDep = Annotated[DataSyncService, Depends(get_data_sync)]
 
 router = APIRouter()
 

@@ -13,7 +13,7 @@
   </td>
   <td>
     {% if entry.timestamp %}
-      <script>document.currentScript.parentElement.textContent = new Date({{ entry.timestamp }} * 1000).toLocaleTimeString();</script>
+      <time x-data x-text="new Date({{ entry.timestamp }} * 1000).toLocaleTimeString()"></time>
     {% else %}
       —
     {% endif %}

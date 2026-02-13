@@ -26,6 +26,14 @@ def mock_hassette():
     hassette.ready_event = asyncio.Event()
     hassette.ready_event.set()
 
+    # Wire public properties to private mocks
+    hassette.state_proxy = hassette._state_proxy
+    hassette.websocket_service = hassette._websocket_service
+    hassette.app_handler = hassette._app_handler
+    hassette.bus_service = hassette._bus_service
+    hassette.scheduler_service = hassette._scheduler_service
+    hassette.data_sync_service = hassette._data_sync_service
+
     # Mock state proxy
     hassette._state_proxy.states = {
         "light.kitchen": {

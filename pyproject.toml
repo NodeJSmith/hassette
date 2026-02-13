@@ -68,6 +68,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 [dependency-groups]
 dev = [
     "coverage[toml]>=7.10.7",
+    "djlint>=1.36.4",
     "httpx>=0.28.0",
     "pyright>=1.1.408",
     "pytest>=8.4.0",
@@ -135,6 +136,12 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
+
+[tool.djlint]
+profile = "jinja"
+indent = 2
+max_line_length = 120
+ignore = "H006,H030,H031,T002"
 
 [tool.coverage.html]
 directory = "htmlcov"

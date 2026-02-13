@@ -1,18 +1,11 @@
 """Entity state endpoints."""
 
-import typing
+from fastapi import APIRouter, HTTPException
 
-from fastapi import APIRouter, Depends, HTTPException
-
-from hassette.web.dependencies import get_data_sync
+from hassette.web.dependencies import DataSyncDep
 from hassette.web.models import EntityListResponse, EntityStateResponse
 
-if typing.TYPE_CHECKING:
-    from hassette.core.data_sync_service import DataSyncService
-
 router = APIRouter(tags=["entities"])
-
-DataSyncDep = typing.Annotated["DataSyncService", Depends(get_data_sync)]
 
 
 @router.get("/entities", response_model=EntityListResponse)

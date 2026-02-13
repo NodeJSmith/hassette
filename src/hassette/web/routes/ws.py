@@ -1,7 +1,6 @@
 """WebSocket endpoint for real-time updates."""
 
 import asyncio
-import json
 import logging
 
 import anyio
@@ -72,8 +71,6 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
                 min_level = _LOG_LEVELS.get(ws_state.get("min_log_level", "INFO"), 20)
                 if msg_level < min_level:
                     continue
-            # Ensure all messages are JSON serializable (enums, dataclasses, etc.)
-            message = json.loads(json.dumps(message, default=str))
             await websocket.send_json(message)
     except Exception as exc:
         if _is_disconnect(exc):
@@ -85,7 +82,7 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
-    data_sync = websocket.app.state.hassette._data_sync_service
+    data_sync = websocket.app.state.hassette.data_sync_service
     queue = await data_sync.register_ws_client()
     ws_state: dict = {"subscribe_logs": False, "min_log_level": "INFO"}
     try:

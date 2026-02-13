@@ -8,12 +8,12 @@
   <span class="tag is-info is-light ml-2">{{ entity_count }} entities</span>
 </h1>
 
-<div class="box">
+<div class="box" x-data="entityBrowser()">
   <!-- Filters -->
   <div class="field is-grouped mb-4">
     <div class="control">
       <div class="select is-small">
-        <select id="entity-domain-filter" onchange="refreshEntityList()">
+        <select id="entity-domain-filter" x-model="domain" @change="refresh()">
           <option value="">All Domains</option>
           {% for domain in domains %}
           <option value="{{ domain }}">{{ domain }}</option>
@@ -24,7 +24,7 @@
     <div class="control">
       <input class="input is-small" type="text" id="entity-search"
              placeholder="Search entity ID..."
-             oninput="debouncedRefresh()">
+             x-model="search" @input.debounce.300ms="refresh()">
     </div>
   </div>
 
@@ -44,25 +44,25 @@
     </tbody>
   </table>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
-  function refreshEntityList(extra) {
-    var domain = document.getElementById('entity-domain-filter').value;
-    var search = document.getElementById('entity-search').value;
-    var params = [];
-    if (domain) params.push('domain=' + encodeURIComponent(domain));
-    if (search) params.push('search=' + encodeURIComponent(search));
-    if (extra) params.push(extra);
-    var url = '/ui/partials/entity-list' + (params.length ? '?' + params.join('&') : '');
-    htmx.ajax('GET', url, {target: '#entity-list', swap: 'innerHTML'});
+  function entityBrowser() {
+    return {
+      domain: '',
+      search: '',
+      init() {
+        this.refresh();
+      },
+      refresh() {
+        var params = [];
+        if (this.domain) params.push('domain=' + encodeURIComponent(this.domain));
+        if (this.search) params.push('search=' + encodeURIComponent(this.search));
+        var url = '/ui/partials/entity-list' + (params.length ? '?' + params.join('&') : '');
+        htmx.ajax('GET', url, {target: '#entity-list', swap: 'innerHTML'});
+      }
+    };
   }
-
-  var _refreshTimer;
-  function debouncedRefresh() {
-    clearTimeout(_refreshTimer);
-    _refreshTimer = setTimeout(refreshEntityList, 300);
-  }
-
-  refreshEntityList();
 </script>
 {% endblock %}

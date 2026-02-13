@@ -167,6 +167,36 @@ class Hassette(Resource):
         return self._loop
 
     @property
+    def data_sync_service(self) -> DataSyncService:
+        """DataSyncService instance for web UI state aggregation."""
+        return self._data_sync_service
+
+    @property
+    def app_handler(self) -> AppHandler:
+        """AppHandler instance for app lifecycle management."""
+        return self._app_handler
+
+    @property
+    def websocket_service(self) -> WebsocketService:
+        """WebsocketService instance for HA WebSocket connection."""
+        return self._websocket_service
+
+    @property
+    def bus_service(self) -> BusService:
+        """BusService instance for event bus management."""
+        return self._bus_service
+
+    @property
+    def state_proxy(self) -> StateProxy:
+        """StateProxy instance for entity state caching."""
+        return self._state_proxy
+
+    @property
+    def scheduler_service(self) -> SchedulerService:
+        """SchedulerService instance for job scheduling."""
+        return self._scheduler_service
+
+    @property
     def apps(self) -> dict[str, dict[int, App[AppConfig]]]:
         """Get the currently loaded apps."""
         # note: return type left deliberately empty to allow underlying call to define it

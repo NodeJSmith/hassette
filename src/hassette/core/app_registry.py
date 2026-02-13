@@ -207,6 +207,10 @@ class AppRegistry:
         """Get all instances for an app key."""
         return self._apps.get(app_key, {}).copy()
 
+    def iter_all_instances(self) -> list[tuple[str, int, "App[AppConfig]"]]:
+        """Yield (app_key, index, app) for every running instance."""
+        return [(app_key, index, app) for app_key, instances in self._apps.items() for index, app in instances.items()]
+
     def get_snapshot(self) -> AppStatusSnapshot:
         """Generate immutable status snapshot for web UI."""
         running: list[AppInstanceInfo] = []

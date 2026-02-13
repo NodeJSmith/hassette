@@ -1,17 +1,15 @@
 """HA services endpoint."""
 
-from typing import TYPE_CHECKING, Annotated, Any
+import logging
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from hassette.web.dependencies import get_api
+from hassette.web.dependencies import ApiDep
 
-if TYPE_CHECKING:
-    from hassette.api import Api
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["services"])
-
-ApiDep = Annotated["Api", Depends(get_api)]
 
 
 @router.get("/services")
@@ -19,4 +17,5 @@ async def get_services(api: ApiDep) -> dict[str, Any]:
     try:
         return await api.get_services()
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch services from HA: {exc}") from exc
+        logger.warning("Failed to fetch services from HA", exc_info=True)
+        raise HTTPException(status_code=502, detail="Failed to fetch services from Home Assistant") from exc

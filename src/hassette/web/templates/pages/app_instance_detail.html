@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/ui.html" import status_badge, action_buttons, log_table %}
 {% block title %}{{ instance.instance_name if instance else manifest.display_name }} — Hassette{% endblock %}
 
 {% block content %}
@@ -14,48 +15,13 @@
         <span class="icon"><i class="fas fa-cube"></i></span>
         <span>{{ manifest.display_name }}</span>
         {% set inst_status = instance.status if instance else manifest.status %}
-        {% if inst_status == "running" %}
-        <span class="tag is-success is-light ml-2">running</span>
-        {% elif inst_status == "failed" %}
-        <span class="tag is-danger is-light ml-2">failed</span>
-        {% elif inst_status == "stopped" %}
-        <span class="tag ht-status-stopped ml-2">stopped</span>
-        {% elif inst_status == "disabled" %}
-        <span class="tag ht-status-disabled ml-2">disabled</span>
-        {% elif inst_status == "blocked" %}
-        <span class="tag ht-status-blocked ml-2">blocked</span>
-        {% endif %}
+        {{ status_badge(inst_status) }}
       </h1>
     </div>
   </div>
   <div class="level-right">
     <div class="level-item">
-      <div class="buttons are-small">
-        {% if manifest.status == "running" %}
-        <button class="button is-warning is-outlined"
-                hx-post="/api/apps/{{ app_key }}/stop"
-                hx-swap="none"
-                hx-on::after-request="location.reload()">
-          <span class="icon"><i class="fas fa-stop"></i></span>
-          <span>Stop</span>
-        </button>
-        <button class="button is-info is-outlined"
-                hx-post="/api/apps/{{ app_key }}/reload"
-                hx-swap="none"
-                hx-on::after-request="location.reload()">
-          <span class="icon"><i class="fas fa-rotate"></i></span>
-          <span>Reload</span>
-        </button>
-        {% elif manifest.status in ["failed", "stopped"] %}
-        <button class="button is-success is-outlined"
-                hx-post="/api/apps/{{ app_key }}/start"
-                hx-swap="none"
-                hx-on::after-request="location.reload()">
-          <span class="icon"><i class="fas fa-play"></i></span>
-          <span>Start</span>
-        </button>
-        {% endif %}
-      </div>
+      {{ action_buttons(app_key, manifest.status) }}
     </div>
   </div>
 </div>
@@ -135,71 +101,12 @@
 
   <!-- Recent Logs -->
   <div class="column is-half">
-    <div class="box" x-data="logTable({ showAppColumn: false, appKey: '{{ app_key }}' })">
+    <div class="box">
       <h2 class="title is-5">
         <span class="icon"><i class="fas fa-scroll"></i></span>
         <span>Recent Logs</span>
       </h2>
-      <div class="field is-grouped mb-3">
-        <div class="control">
-          <div class="select is-small">
-            <select x-model="filters.level">
-              <option value="">All Levels</option>
-              <option value="DEBUG">DEBUG</option>
-              <option value="INFO">INFO</option>
-              <option value="WARNING">WARNING</option>
-              <option value="ERROR">ERROR</option>
-              <option value="CRITICAL">CRITICAL</option>
-            </select>
-          </div>
-        </div>
-        <div class="control">
-          <input class="input is-small" type="text" placeholder="Search..."
-                 x-model.debounce.200ms="filters.search">
-        </div>
-        <div class="control">
-          <span class="tag is-light is-small" x-show="!loading"
-                x-text="filteredEntries.length + ' entries'"></span>
-        </div>
-      </div>
-      <div class="ht-log-container" style="max-height: 400px; overflow-y: auto;">
-        <table class="table is-fullwidth is-hoverable is-compact is-size-7">
-          <thead>
-            <tr>
-              <th style="width: 80px; cursor: pointer;" @click="toggleSort('level')">
-                Level <i class="fas" :class="sortIcon('level')"></i>
-              </th>
-              <th style="width: 160px; cursor: pointer;" @click="toggleSort('timestamp')">
-                Timestamp <i class="fas" :class="sortIcon('timestamp')"></i>
-              </th>
-              <th style="cursor: pointer;" @click="toggleSort('message')">
-                Message <i class="fas" :class="sortIcon('message')"></i>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-if="loading">
-              <tr><td colspan="3" class="has-text-centered has-text-grey">Loading...</td></tr>
-            </template>
-            <template x-if="error">
-              <tr><td colspan="3" class="has-text-centered has-text-danger" x-text="error"></td></tr>
-            </template>
-            <template x-if="!loading && !error && filteredEntries.length === 0">
-              <tr><td colspan="3" class="has-text-centered has-text-grey">No log entries.</td></tr>
-            </template>
-            <template x-for="(entry, index) in filteredEntries" :key="entry.timestamp + '-' + index">
-              <tr>
-                <td>
-                  <span class="tag is-small" :class="levelClass(entry.level)"
-                        x-text="entry.level"></span>
-                </td>
-                <td x-text="formatTime(entry.timestamp)"></td>
-                <td x-text="entry.message"></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+      {{ log_table(show_app_column=false, app_key=app_key, max_height="400px") }}
     </div>
   </div>
 </div>

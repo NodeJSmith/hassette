@@ -86,7 +86,8 @@ def mock_hassette():
     hassette.config.dev_mode = True
     hassette.config.allow_reload_in_prod = False
 
-    # Mock state proxy
+    # Mock state proxy — wire public property to private mock
+    hassette.state_proxy = hassette._state_proxy
     hassette._state_proxy.states = {
         "light.kitchen": {
             "entity_id": "light.kitchen",
@@ -102,10 +103,14 @@ def mock_hassette():
     }
     hassette._state_proxy.is_ready.return_value = True
 
-    # Mock websocket service
+    # Mock websocket service — wire public property
+    hassette.websocket_service = hassette._websocket_service
     hassette._websocket_service.status = ResourceStatus.RUNNING
 
-    # Mock app handler — old snapshot (for get_app_status_snapshot)
+    # Mock app handler — wire public property
+    hassette.app_handler = hassette._app_handler
+
+    # Old snapshot (for get_app_status_snapshot)
     snapshot = SimpleNamespace(
         running=[
             SimpleNamespace(
@@ -128,13 +133,18 @@ def mock_hassette():
     # Mock registry — new manifest snapshot (for get_all_manifests_snapshot)
     _setup_registry(hassette, [_make_manifest()])
 
-    # Mock bus service
+    # Mock bus service — wire public property
+    hassette.bus_service = hassette._bus_service
     hassette._bus_service.get_all_listener_metrics.return_value = []
     hassette._bus_service.get_listener_metrics_by_owner.return_value = []
 
-    # Mock scheduler service
+    # Mock scheduler service — wire public property
+    hassette.scheduler_service = hassette._scheduler_service
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
     hassette._scheduler_service.get_execution_history.return_value = []
+
+    # Mock data_sync_service — wire public property (set later by data_sync_service fixture)
+    hassette.data_sync_service = hassette._data_sync_service
 
     # Mock children for system status
     hassette.children = []
@@ -153,6 +163,15 @@ def mock_hassette_no_ui():
     hassette.config.web_api_log_level = "INFO"
     hassette.config.dev_mode = True
     hassette.config.allow_reload_in_prod = False
+
+    # Wire public properties
+    hassette.state_proxy = hassette._state_proxy
+    hassette.websocket_service = hassette._websocket_service
+    hassette.app_handler = hassette._app_handler
+    hassette.bus_service = hassette._bus_service
+    hassette.scheduler_service = hassette._scheduler_service
+    hassette.data_sync_service = hassette._data_sync_service
+
     hassette._state_proxy.states = {}
     hassette._state_proxy.is_ready.return_value = True
 
@@ -180,6 +199,7 @@ def data_sync_service(mock_hassette):
     ds._subscriptions = []
     ds.logger = MagicMock()
     mock_hassette._data_sync_service = ds
+    mock_hassette.data_sync_service = ds
     return ds
 
 
@@ -195,6 +215,7 @@ def data_sync_service_no_ui(mock_hassette_no_ui):
     ds._subscriptions = []
     ds.logger = MagicMock()
     mock_hassette_no_ui._data_sync_service = ds
+    mock_hassette_no_ui.data_sync_service = ds
     return ds
 
 
@@ -789,7 +810,9 @@ class TestInstanceDetail:
             0: SimpleNamespace(unique_name=owner0),
             1: SimpleNamespace(unique_name=owner1),
         }
-        mock_hassette._app_handler.registry._apps = {"multi_app": app_instances}
+        mock_hassette._app_handler.registry.iter_all_instances.return_value = [
+            ("multi_app", idx, inst) for idx, inst in app_instances.items()
+        ]
         mock_hassette._app_handler.registry.get_apps_by_key.return_value = app_instances
 
         # Mock listener metrics with per-instance owner IDs
@@ -864,7 +887,9 @@ class TestInstanceDetail:
             0: SimpleNamespace(unique_name=owner0),
             1: SimpleNamespace(unique_name=owner1),
         }
-        mock_hassette._app_handler.registry._apps = {"multi_app": app_instances}
+        mock_hassette._app_handler.registry.iter_all_instances.return_value = [
+            ("multi_app", idx, inst) for idx, inst in app_instances.items()
+        ]
         mock_hassette._app_handler.registry.get_apps_by_key.return_value = app_instances
         mock_hassette._scheduler_service.get_all_jobs = AsyncMock(
             return_value=[

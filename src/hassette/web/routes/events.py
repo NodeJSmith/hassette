@@ -1,17 +1,12 @@
 """Event history endpoint."""
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 
-from hassette.web.dependencies import get_data_sync
-
-if TYPE_CHECKING:
-    from hassette.core.data_sync_service import DataSyncService
+from hassette.web.dependencies import DataSyncDep
 
 router = APIRouter(tags=["events"])
-
-DataSyncDep = Annotated["DataSyncService", Depends(get_data_sync)]
 
 
 @router.get("/events/recent")

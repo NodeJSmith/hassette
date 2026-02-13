@@ -32,6 +32,14 @@ def mock_hassette():
     hassette.config.dev_mode = True
     hassette.config.allow_reload_in_prod = False
 
+    # Wire public properties to private mocks
+    hassette.state_proxy = hassette._state_proxy
+    hassette.websocket_service = hassette._websocket_service
+    hassette.app_handler = hassette._app_handler
+    hassette.bus_service = hassette._bus_service
+    hassette.scheduler_service = hassette._scheduler_service
+    hassette.data_sync_service = hassette._data_sync_service
+
     # Mock state proxy
     hassette._state_proxy.states = {
         "light.kitchen": {
@@ -112,6 +120,7 @@ def data_sync_service(mock_hassette):
     ds._subscriptions = []
     ds.logger = MagicMock()
     mock_hassette._data_sync_service = ds
+    mock_hassette.data_sync_service = ds
     return ds
 
 

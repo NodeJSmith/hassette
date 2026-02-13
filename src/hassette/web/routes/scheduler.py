@@ -1,18 +1,13 @@
 """Scheduler jobs and execution history endpoints."""
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 
-from hassette.web.dependencies import get_data_sync
+from hassette.web.dependencies import DataSyncDep
 from hassette.web.models import JobExecutionResponse, ScheduledJobResponse
 
-if TYPE_CHECKING:
-    from hassette.core.data_sync_service import DataSyncService
-
 router = APIRouter(tags=["scheduler"])
-
-DataSyncDep = Annotated["DataSyncService", Depends(get_data_sync)]
 
 
 @router.get("/scheduler/jobs", response_model=list[ScheduledJobResponse])

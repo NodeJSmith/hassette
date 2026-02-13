@@ -2,17 +2,16 @@
 (function () {
   "use strict";
 
-  var pendingRefresh = new Set();
+  var pendingRefresh = new Map();
   var refreshTimer = null;
   var DEBOUNCE_MS = 500;
 
-  function scheduleRefresh(el) {
-    pendingRefresh.add(el);
+  function scheduleRefresh(el, url) {
+    pendingRefresh.set(el, url);
     if (!refreshTimer) {
       refreshTimer = setTimeout(function () {
-        pendingRefresh.forEach(function (target) {
-          var url = target.getAttribute("data-live-refresh");
-          if (url) htmx.ajax("GET", url, { target: target, swap: "innerHTML" });
+        pendingRefresh.forEach(function (refreshUrl, target) {
+          if (refreshUrl) htmx.ajax("GET", refreshUrl, { target: target, swap: "innerHTML" });
         });
         pendingRefresh.clear();
         refreshTimer = null;
@@ -22,7 +21,9 @@
 
   /* On any generic refresh event, refresh all [data-live-refresh] elements */
   document.addEventListener("ht:refresh", function () {
-    document.querySelectorAll("[data-live-refresh]").forEach(scheduleRefresh);
+    document.querySelectorAll("[data-live-refresh]").forEach(function (el) {
+      scheduleRefresh(el, el.getAttribute("data-live-refresh"));
+    });
   });
 
   /* Targeted: on app_status_changed, also refresh [data-live-on-app] elements */
@@ -31,20 +32,14 @@
     if (detail && detail.type === "app_status_changed") {
       document.querySelectorAll("[data-live-on-app]").forEach(function (el) {
         var url = el.getAttribute("data-live-on-app");
-        if (url) {
-          el.setAttribute("data-live-refresh", url);
-          scheduleRefresh(el);
-        }
+        if (url) scheduleRefresh(el, url);
       });
     }
     /* On state_changed, also refresh [data-live-on-state] elements */
     if (detail && detail.type === "state_changed") {
       document.querySelectorAll("[data-live-on-state]").forEach(function (el) {
         var url = el.getAttribute("data-live-on-state");
-        if (url) {
-          el.setAttribute("data-live-refresh", url);
-          scheduleRefresh(el);
-        }
+        if (url) scheduleRefresh(el, url);
       });
     }
   });
