@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- **Playwright e2e test suite** — browser-based end-to-end tests for the web UI using `pytest-playwright`
+  - 34 tests covering navigation, sidebar active state, apps page (HTMX filter tabs, detail navigation), log viewer (filters, sortable columns), entity browser (domain filter, debounced search), and WebSocket script loading
+  - Session-scoped live uvicorn server with rich mock data (4 app manifests, 5 entities, bus metrics, scheduler jobs)
+  - `@pytest.mark.e2e` marker; excluded from default `pytest` runs via `addopts`
+  - CI workflow (`.github/workflows/e2e-tests.yml`) with Playwright trace upload on failure
 - **Web UI dashboard** — server-rendered monitoring UI at `/ui/` using Jinja2, HTMX, Alpine.js, and Bulma CSS
   - Dashboard page with system health, apps summary, bus metrics, and recent events (auto-refreshing)
   - App management page with start/stop/reload controls via HTMX

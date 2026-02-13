@@ -89,6 +89,26 @@ class MyApp(App[MyConfig]):
         pass
 ```
 
+## E2E Tests (Playwright)
+
+Browser-based tests live in `tests/e2e/` and are excluded from default `pytest` runs via the `e2e` marker.
+
+```bash
+# Install browser (one-time setup — requires sudo for system deps)
+uv run playwright install --with-deps chromium
+
+# Run e2e tests
+uv run pytest -m e2e -v
+
+# Debug with headed browser
+uv run pytest -m e2e --headed
+
+# Single test with trace
+uv run pytest -m e2e --headed --tracing on -k test_sidebar_navigation
+```
+
+System dependencies for Chromium require `sudo`. If `playwright install --with-deps` fails, run `sudo uv run playwright install-deps chromium` manually.
+
 ## Code Style
 
 - Line length: 120 characters
