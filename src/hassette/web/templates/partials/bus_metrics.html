@@ -20,7 +20,9 @@
   <div class="level-item has-text-centered">
     <div>
       <p class="heading">Failed</p>
-      <p class="title is-4 {% if bus_metrics.total_failed > 0 %}has-text-danger{% endif %}">{{ bus_metrics.total_failed }}</p>
+      <p class="title is-4 {% if bus_metrics.total_failed > 0 %}has-text-danger{% endif %}">
+        {{ bus_metrics.total_failed }}
+      </p>
     </div>
   </div>
 </div>

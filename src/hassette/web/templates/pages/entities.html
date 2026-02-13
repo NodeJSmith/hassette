@@ -1,53 +1,51 @@
 {% extends "base.html" %}
 {% block title %}Entities — Hassette{% endblock %}
-
 {% block content %}
-<h1 class="title is-4">
-  <span class="icon"><i class="fas fa-list"></i></span>
-  <span>Entity Browser</span>
-  <span class="tag is-info is-light ml-2">{{ entity_count }} entities</span>
-</h1>
-
-<div class="box" x-data="entityBrowser()">
-  <!-- Filters -->
-  <div class="field is-grouped mb-4">
-    <div class="control">
-      <div class="select is-small">
-        <select id="entity-domain-filter" x-model="domain" @change="refresh()">
-          <option value="">All Domains</option>
-          {% for domain in domains %}
-          <option value="{{ domain }}">{{ domain }}</option>
-          {% endfor %}
-        </select>
+  <h1 class="title is-4">
+    <span class="icon"><i class="fas fa-list"></i></span>
+    <span>Entity Browser</span>
+    <span class="tag is-info is-light ml-2">{{ entity_count }} entities</span>
+  </h1>
+  <div class="box" x-data="entityBrowser()">
+    <!-- Filters -->
+    <div class="field is-grouped mb-4">
+      <div class="control">
+        <div class="select is-small">
+          <select id="entity-domain-filter" x-model="domain" @change="refresh()">
+            <option value="">All Domains</option>
+            {% for domain in domains %}<option value="{{ domain }}">{{ domain }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="control">
+        <input class="input is-small"
+               type="text"
+               id="entity-search"
+               placeholder="Search entity ID..."
+               x-model="search"
+               @input.debounce.300ms="refresh()">
       </div>
     </div>
-    <div class="control">
-      <input class="input is-small" type="text" id="entity-search"
-             placeholder="Search entity ID..."
-             x-model="search" @input.debounce.300ms="refresh()">
-    </div>
+    <p class="is-size-7 has-text-grey mb-3">Select a domain or enter a search term to browse entities.</p>
+    <table class="table is-fullwidth is-hoverable is-compact">
+      <thead>
+        <tr>
+          <th>Entity ID</th>
+          <th>State</th>
+          <th>Last Changed</th>
+          <th>Attributes</th>
+        </tr>
+      </thead>
+      <tbody id="entity-list">
+        <tr>
+          <td colspan="4" class="has-text-centered has-text-grey">Select a domain or search to load entities.</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-
-  <p class="is-size-7 has-text-grey mb-3">Select a domain or enter a search term to browse entities.</p>
-
-  <table class="table is-fullwidth is-hoverable is-compact">
-    <thead>
-      <tr>
-        <th>Entity ID</th>
-        <th>State</th>
-        <th>Last Changed</th>
-        <th>Attributes</th>
-      </tr>
-    </thead>
-    <tbody id="entity-list">
-      <tr><td colspan="4" class="has-text-centered has-text-grey">Select a domain or search to load entities.</td></tr>
-    </tbody>
-  </table>
-</div>
 {% endblock %}
-
 {% block scripts %}
-<script>
+  <script>
   function entityBrowser() {
     return {
       domain: '',
@@ -64,5 +62,5 @@
       }
     };
   }
-</script>
+  </script>
 {% endblock %}

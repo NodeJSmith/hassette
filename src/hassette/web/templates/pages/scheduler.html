@@ -1,82 +1,76 @@
 {% extends "base.html" %}
 {% block title %}Scheduler — Hassette{% endblock %}
-
 {% block content %}
-<h1 class="title is-4">
-  <span class="icon"><i class="fas fa-clock"></i></span>
-  <span>Scheduler</span>
-</h1>
-
-<!-- App filter -->
-<div class="field is-grouped mb-4">
-  <div class="control">
-    <div class="select is-small">
-      <select id="scheduler-owner-filter"
-              hx-get="/ui/partials/scheduler-jobs"
-              hx-target="#scheduler-jobs"
-              hx-swap="innerHTML"
-              hx-include="#scheduler-owner-filter"
-              name="owner">
-        <option value="">All Apps</option>
-        {% for owner in owners %}
-        <option value="{{ owner }}">{{ owner }}</option>
-        {% endfor %}
-      </select>
+  <h1 class="title is-4">
+    <span class="icon"><i class="fas fa-clock"></i></span>
+    <span>Scheduler</span>
+  </h1>
+  <!-- App filter -->
+  <div class="field is-grouped mb-4">
+    <div class="control">
+      <div class="select is-small">
+        <select id="scheduler-owner-filter"
+                hx-get="/ui/partials/scheduler-jobs"
+                hx-target="#scheduler-jobs"
+                hx-swap="innerHTML"
+                hx-include="#scheduler-owner-filter"
+                name="owner">
+          <option value="">All Apps</option>
+          {% for owner in owners %}<option value="{{ owner }}">{{ owner }}</option>{% endfor %}
+        </select>
+      </div>
     </div>
   </div>
-</div>
-
-<!-- Scheduled Jobs -->
-<div class="box mb-5">
-  <h2 class="title is-5">
-    <span class="icon"><i class="fas fa-list-check"></i></span>
-    <span>Scheduled Jobs</span>
-  </h2>
-  <table class="table is-fullwidth is-hoverable is-compact">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>App</th>
-        <th>Trigger</th>
-        <th>Next Run</th>
-        <th>Repeat</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody id="scheduler-jobs"
-           data-live-refresh="/ui/partials/scheduler-jobs"
-           hx-get="/ui/partials/scheduler-jobs"
-           hx-trigger="every 30s"
-           hx-swap="innerHTML">
-      {% include "partials/scheduler_jobs.html" %}
-    </tbody>
-  </table>
-</div>
-
-<!-- Execution History -->
-<div class="box">
-  <h2 class="title is-5">
-    <span class="icon"><i class="fas fa-history"></i></span>
-    <span>Execution History</span>
-  </h2>
-  <table class="table is-fullwidth is-hoverable is-compact">
-    <thead>
-      <tr>
-        <th>Job Name</th>
-        <th>App</th>
-        <th>Started</th>
-        <th>Duration</th>
-        <th>Status</th>
-        <th>Error</th>
-      </tr>
-    </thead>
-    <tbody id="scheduler-history"
-           data-live-refresh="/ui/partials/scheduler-history"
-           hx-get="/ui/partials/scheduler-history"
-           hx-trigger="every 30s"
-           hx-swap="innerHTML">
-      {% include "partials/scheduler_history.html" %}
-    </tbody>
-  </table>
-</div>
+  <!-- Scheduled Jobs -->
+  <div class="box mb-5">
+    <h2 class="title is-5">
+      <span class="icon"><i class="fas fa-list-check"></i></span>
+      <span>Scheduled Jobs</span>
+    </h2>
+    <table class="table is-fullwidth is-hoverable is-compact">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>App</th>
+          <th>Trigger</th>
+          <th>Next Run</th>
+          <th>Repeat</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="scheduler-jobs"
+             data-live-refresh="/ui/partials/scheduler-jobs"
+             hx-get="/ui/partials/scheduler-jobs"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">
+        {% include "partials/scheduler_jobs.html" %}
+      </tbody>
+    </table>
+  </div>
+  <!-- Execution History -->
+  <div class="box">
+    <h2 class="title is-5">
+      <span class="icon"><i class="fas fa-history"></i></span>
+      <span>Execution History</span>
+    </h2>
+    <table class="table is-fullwidth is-hoverable is-compact">
+      <thead>
+        <tr>
+          <th>Job Name</th>
+          <th>App</th>
+          <th>Started</th>
+          <th>Duration</th>
+          <th>Status</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody id="scheduler-history"
+             data-live-refresh="/ui/partials/scheduler-history"
+             hx-get="/ui/partials/scheduler-history"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">
+        {% include "partials/scheduler_history.html" %}
+      </tbody>
+    </table>
+  </div>
 {% endblock %}

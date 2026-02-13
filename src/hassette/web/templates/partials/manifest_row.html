@@ -1,35 +1,38 @@
 {% from "macros/ui.html" import status_badge, action_buttons %}
 {% if manifest %}
-<tr id="manifest-row-{{ manifest.app_key }}"
-    {% if manifest.instance_count > 1 %}class="ht-group-header"{% endif %}>
-  <td>
-    {% if manifest.instance_count > 1 %}
-    <span class="icon is-small mr-1" style="cursor: pointer;" @click="expanded = !expanded"
-          x-bind:title="expanded ? 'Collapse' : 'Expand'">
-      <i class="fas" :class="expanded ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
-    </span>
-    <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
-    {% else %}
-    <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
-    {% endif %}
-  </td>
-  <td>{{ manifest.display_name }}</td>
-  <td>{{ manifest.class_name }}</td>
-  <td>
-    {{ status_badge(manifest.status, block_reason=manifest.block_reason or '') }}
-    {% if manifest.instance_count > 1 %}
-    <span class="tag is-info is-light is-small">{{ manifest.instance_count }} instances</span>
-    {% endif %}
-  </td>
-  <td>
-    {% if manifest.error_message %}
-    <span class="has-text-danger is-size-7">{{ manifest.error_message }}</span>
-    {% else %}
-    —
-    {% endif %}
-  </td>
-  <td>
-    {{ action_buttons(manifest.app_key, manifest.status, after_action="htmx.ajax('GET', '/ui/partials/manifest-list', {target: '#manifest-list', swap: 'innerHTML'})", show_labels=false) }}
-  </td>
-</tr>
+  <tr id="manifest-row-{{ manifest.app_key }}"
+      {% if manifest.instance_count > 1 %}class="ht-group-header"{% endif %}>
+    <td>
+      {% if manifest.instance_count > 1 %}
+        <span class="icon is-small mr-1"
+              style="cursor: pointer"
+              @click="expanded = !expanded"
+              x-bind:title="expanded ? 'Collapse' : 'Expand'">
+          <i class="fas"
+             :class="expanded ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+        </span>
+        <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
+      {% else %}
+        <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
+      {% endif %}
+    </td>
+    <td>{{ manifest.display_name }}</td>
+    <td>{{ manifest.class_name }}</td>
+    <td>
+      {{ status_badge(manifest.status, block_reason=manifest.block_reason or '') }}
+      {% if manifest.instance_count > 1 %}
+        <span class="tag is-info is-light is-small">{{ manifest.instance_count }} instances</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if manifest.error_message %}
+        <span class="has-text-danger is-size-7">{{ manifest.error_message }}</span>
+      {% else %}
+        —
+      {% endif %}
+    </td>
+    <td>
+      {{ action_buttons(manifest.app_key, manifest.status, after_action="htmx.ajax('GET', '/ui/partials/manifest-list', {target: '#manifest-list', swap: 'innerHTML'})", show_labels=false) }}
+    </td>
+  </tr>
 {% endif %}

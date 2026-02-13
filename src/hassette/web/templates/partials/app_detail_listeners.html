@@ -1,40 +1,42 @@
 {% if listeners %}
-<table class="table is-fullwidth is-hoverable is-compact is-size-7">
-  <thead>
-    <tr>
-      <th>Handler</th>
-      {% if instance_owner_map %}
-      <th>Instance</th>
-      {% endif %}
-      <th>Topic</th>
-      <th>Invocations</th>
-      <th>Success</th>
-      <th>Failed</th>
-      <th>Avg Duration</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for l in listeners %}
-    <tr>
-      <td><code>{{ l.handler_name }}</code></td>
-      {% if instance_owner_map %}
-      <td>
-        {% if l.owner in instance_owner_map %}
-        <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}"><code>{{ l.owner.split('.')[-1] }}</code></a>
-        {% else %}
-        <code>{{ l.owner }}</code>
-        {% endif %}
-      </td>
-      {% endif %}
-      <td><code>{{ l.topic }}</code></td>
-      <td>{{ l.total_invocations }}</td>
-      <td class="has-text-success">{{ l.successful }}</td>
-      <td class="{% if l.failed > 0 %}has-text-danger{% endif %}">{{ l.failed }}</td>
-      <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+  <table class="table is-fullwidth is-hoverable is-compact is-size-7">
+    <thead>
+      <tr>
+        <th>Handler</th>
+        {% if instance_owner_map %}<th>Instance</th>{% endif %}
+        <th>Topic</th>
+        <th>Invocations</th>
+        <th>Success</th>
+        <th>Failed</th>
+        <th>Avg Duration</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in listeners %}
+        <tr>
+          <td>
+            <code>{{ l.handler_name }}</code>
+          </td>
+          {% if instance_owner_map %}
+            <td>
+              {% if l.owner in instance_owner_map %}
+                <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}"><code>{{ l.owner.split(".")[-1] }}</code></a>
+              {% else %}
+                <code>{{ l.owner }}</code>
+              {% endif %}
+            </td>
+          {% endif %}
+          <td>
+            <code>{{ l.topic }}</code>
+          </td>
+          <td>{{ l.total_invocations }}</td>
+          <td class="has-text-success">{{ l.successful }}</td>
+          <td class="{% if l.failed > 0 %}has-text-danger{% endif %}">{{ l.failed }}</td>
+          <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 {% else %}
-<p class="has-text-grey is-size-7">No bus listeners registered.</p>
+  <p class="has-text-grey is-size-7">No bus listeners registered.</p>
 {% endif %}

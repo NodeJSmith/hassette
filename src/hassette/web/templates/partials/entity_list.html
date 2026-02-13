@@ -1,47 +1,49 @@
 {% if entities %}
-{% for entity_id, state in entities %}
-<tr>
-  <td><code>{{ entity_id }}</code></td>
-  <td>
-    {% set s = state.get("state", "unknown") if state is mapping else state %}
-    {% if s == "on" %}
-    <span class="tag ht-entity-on is-small">{{ s }}</span>
-    {% elif s == "off" %}
-    <span class="tag ht-entity-off is-small">{{ s }}</span>
-    {% elif s == "unavailable" %}
-    <span class="tag ht-entity-unavailable is-small">{{ s }}</span>
-    {% else %}
-    <span class="tag is-light is-small">{{ s }}</span>
-    {% endif %}
-  </td>
-  <td class="is-size-7">
-    {% if state is mapping and state.get("last_changed") %}
-    {{ state.last_changed }}
-    {% else %}
-    —
-    {% endif %}
-  </td>
-  <td class="is-size-7">
-    {% if state is mapping and state.get("attributes") %}
-    <code>{{ state.attributes | tojson | truncate(80) }}</code>
-    {% else %}
-    —
-    {% endif %}
-  </td>
-</tr>
-{% endfor %}
-{% if total > limit + offset %}
-<tr>
-  <td colspan="4" class="has-text-centered">
-    <button class="button is-small is-link is-outlined"
-            hx-get="/ui/partials/entity-list?offset={{ offset + limit }}&limit={{ limit }}&domain={{ domain | urlencode }}&search={{ search | urlencode }}"
-            hx-target="#entity-list"
-            hx-swap="innerHTML">
-      Load more ({{ total - offset - limit }} remaining)
-    </button>
-  </td>
-</tr>
-{% endif %}
+  {% for entity_id, state in entities %}
+    <tr>
+      <td>
+        <code>{{ entity_id }}</code>
+      </td>
+      <td>
+        {% set s = state.get("state", "unknown") if state is mapping else state %}
+        {% if s == "on" %}
+          <span class="tag ht-entity-on is-small">{{ s }}</span>
+        {% elif s == "off" %}
+          <span class="tag ht-entity-off is-small">{{ s }}</span>
+        {% elif s == "unavailable" %}
+          <span class="tag ht-entity-unavailable is-small">{{ s }}</span>
+        {% else %}
+          <span class="tag is-light is-small">{{ s }}</span>
+        {% endif %}
+      </td>
+      <td class="is-size-7">
+        {% if state is mapping and state.get("last_changed") %}
+          {{ state.last_changed }}
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      <td class="is-size-7">
+        {% if state is mapping and state.get("attributes") %}
+          <code>{{ state.attributes | tojson | truncate(80) }}</code>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  {% if total > limit + offset %}
+    <tr>
+      <td colspan="4" class="has-text-centered">
+        <button class="button is-small is-link is-outlined"
+                hx-get="/ui/partials/entity-list?offset={{ offset + limit }}&limit={{ limit }}&domain={{ domain | urlencode }}&search={{ search | urlencode }}"
+                hx-target="#entity-list"
+                hx-swap="innerHTML">Load more ({{ total - offset - limit }} remaining)</button>
+      </td>
+    </tr>
+  {% endif %}
 {% else %}
-<tr><td colspan="4" class="has-text-centered has-text-grey">No entities found.</td></tr>
+  <tr>
+    <td colspan="4" class="has-text-centered has-text-grey">No entities found.</td>
+  </tr>
 {% endif %}

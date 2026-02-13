@@ -1,20 +1,24 @@
 {% from "macros/ui.html" import status_badge, action_buttons %}
 {% if app %}
-<tr id="app-row-{{ app.app_key }}">
-  <td><code>{{ app.app_key }}</code></td>
-  <td>{{ app.class_name }}</td>
-  <td>{{ status_badge(app.status) }}</td>
-  <td>
-    {% if app.error_message %}
-    <span class="has-text-danger is-size-7">{{ app.error_message }}</span>
-    {% else %}
-    —
-    {% endif %}
-  </td>
-  <td>
-    {{ action_buttons(app.app_key, app.status, after_action="htmx.trigger('#app-list', 'htmx:load')", show_labels=false) }}
-  </td>
-</tr>
+  <tr id="app-row-{{ app.app_key }}">
+    <td>
+      <code>{{ app.app_key }}</code>
+    </td>
+    <td>{{ app.class_name }}</td>
+    <td>{{ status_badge(app.status) }}</td>
+    <td>
+      {% if app.error_message %}
+        <span class="has-text-danger is-size-7">{{ app.error_message }}</span>
+      {% else %}
+        —
+      {% endif %}
+    </td>
+    <td>
+      {{ action_buttons(app.app_key, app.status, after_action="htmx.trigger('#app-list', 'htmx:load')", show_labels=false) }}
+    </td>
+  </tr>
 {% else %}
-<tr><td colspan="5" class="has-text-centered has-text-grey">App not found.</td></tr>
+  <tr>
+    <td colspan="5" class="has-text-centered has-text-grey">App not found.</td>
+  </tr>
 {% endif %}

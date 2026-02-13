@@ -1,74 +1,62 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Hassette{% endblock %}
-
 {% block content %}
-<div class="columns is-multiline">
-  <!-- System Health -->
-  <div class="column is-half">
-    <div class="box">
-      <h2 class="title is-5">
-        <span class="icon"><i class="fas fa-heart-pulse"></i></span>
-        <span>System Health</span>
-      </h2>
-      <div id="health-badge"
-           data-live-refresh="/ui/partials/health-badge"
-           hx-get="/ui/partials/health-badge"
-           hx-trigger="every 30s"
-           hx-swap="innerHTML">
-        {% include "partials/health_badge.html" %}
+  <div class="columns is-multiline">
+    <!-- System Health -->
+    <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-heart-pulse"></i></span>
+          <span>System Health</span>
+        </h2>
+        <div id="health-badge"
+             data-live-refresh="/ui/partials/health-badge"
+             hx-get="/ui/partials/health-badge"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">{% include "partials/health_badge.html" %}</div>
+      </div>
+    </div>
+    <!-- Apps Summary -->
+    <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-cubes"></i></span>
+          <span>Apps</span>
+        </h2>
+        <div id="apps-summary"
+             data-live-on-app="/ui/partials/apps-summary"
+             hx-get="/ui/partials/apps-summary"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">{% include "partials/apps_summary.html" %}</div>
+      </div>
+    </div>
+    <!-- Bus Metrics -->
+    <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-diagram-project"></i></span>
+          <span>Event Bus</span>
+        </h2>
+        <div id="bus-metrics"
+             data-live-refresh="/ui/partials/bus-metrics"
+             hx-get="/ui/partials/bus-metrics"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">{% include "partials/bus_metrics.html" %}</div>
+      </div>
+    </div>
+    <!-- Recent Events -->
+    <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-bolt"></i></span>
+          <span>Recent Events</span>
+        </h2>
+        <div id="event-feed"
+             data-live-refresh="/ui/partials/event-feed"
+             hx-get="/ui/partials/event-feed"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">{% include "partials/event_feed.html" %}</div>
       </div>
     </div>
   </div>
-
-  <!-- Apps Summary -->
-  <div class="column is-half">
-    <div class="box">
-      <h2 class="title is-5">
-        <span class="icon"><i class="fas fa-cubes"></i></span>
-        <span>Apps</span>
-      </h2>
-      <div id="apps-summary"
-           data-live-on-app="/ui/partials/apps-summary"
-           hx-get="/ui/partials/apps-summary"
-           hx-trigger="every 30s"
-           hx-swap="innerHTML">
-        {% include "partials/apps_summary.html" %}
-      </div>
-    </div>
-  </div>
-
-  <!-- Bus Metrics -->
-  <div class="column is-half">
-    <div class="box">
-      <h2 class="title is-5">
-        <span class="icon"><i class="fas fa-diagram-project"></i></span>
-        <span>Event Bus</span>
-      </h2>
-      <div id="bus-metrics"
-           data-live-refresh="/ui/partials/bus-metrics"
-           hx-get="/ui/partials/bus-metrics"
-           hx-trigger="every 30s"
-           hx-swap="innerHTML">
-        {% include "partials/bus_metrics.html" %}
-      </div>
-    </div>
-  </div>
-
-  <!-- Recent Events -->
-  <div class="column is-half">
-    <div class="box">
-      <h2 class="title is-5">
-        <span class="icon"><i class="fas fa-bolt"></i></span>
-        <span>Recent Events</span>
-      </h2>
-      <div id="event-feed"
-           data-live-refresh="/ui/partials/event-feed"
-           hx-get="/ui/partials/event-feed"
-           hx-trigger="every 30s"
-           hx-swap="innerHTML">
-        {% include "partials/event_feed.html" %}
-      </div>
-    </div>
-  </div>
-</div>
 {% endblock %}
