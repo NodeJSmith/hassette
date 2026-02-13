@@ -13,7 +13,12 @@ router = APIRouter()
 @router.get("/", response_class=HTMLResponse)
 async def dashboard_page(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
     status = data_sync.get_system_status()
-    app_status = data_sync.get_app_status_snapshot()
+    manifest_snapshot = data_sync.get_all_manifests_snapshot()
+    app_status = {
+        "total": manifest_snapshot.total,
+        "running": manifest_snapshot.running,
+        "failed": manifest_snapshot.failed,
+    }
     events = data_sync.get_recent_events(limit=10)
     bus_metrics = data_sync.get_bus_metrics_summary()
     ctx = {

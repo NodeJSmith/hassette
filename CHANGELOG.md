@@ -69,6 +69,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scheduler_behind_schedule_threshold_seconds` config option (default: 5) — configurable threshold before a "behind schedule" warning is logged for a job (previously hard-coded to 1 second)
 
 ### Changed
+- **Web UI polish** — consistency, UX, and visual improvements across all pages
+  - Added hassette logo to sidebar brand and favicon to all pages
+  - Added page title (`<h1>`) to dashboard for consistency with all other pages
+  - Renamed "Bus" to "Event Bus" in sidebar navigation and page title
+  - Dashboard app count now uses manifest-based counting (matches apps page)
+  - Instance detail page for multi-instance apps now shows Enabled/Auto-loaded fields and links filename back to parent app
+  - Scheduler filter now refreshes both jobs and execution history tables simultaneously
+  - Scheduler "Next Run" column uses `toLocaleString()` for locale-aware date formatting
+  - Entity browser attributes column is now click-to-expand with formatted JSON
+  - Instance rows in apps table now have action buttons (start/stop/reload)
+  - Log capture handler stores raw message (`record.getMessage()`) instead of fully formatted line
+  - Fixed nested `<tbody>` in manifest list partial that caused duplicate rows after HTMX swaps; replaced with keyed Alpine.js expand/collapse state on parent `<tbody>`
 - Replaced `HealthService` with `WebApiService` backed by FastAPI
 - `Service` base class now properly sequences `serve()` task lifecycle: spawns after `on_initialize()`, cancels before `on_shutdown()`
 - `Service` overrides `initialize()` and `shutdown()` from `Resource` to control serve task placement in the lifecycle

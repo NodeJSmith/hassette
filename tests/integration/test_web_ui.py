@@ -1030,9 +1030,7 @@ class TestEmptyStates:
     """Pages handle empty data gracefully."""
 
     async def test_dashboard_no_apps(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette._app_handler.get_status_snapshot.return_value = SimpleNamespace(
-            running=[], failed=[], total_count=0, running_count=0, failed_count=0, only_app=None
-        )
+        _setup_registry(mock_hassette, [])
         response = await client.get("/ui/")
         assert response.status_code == 200
         assert "No apps configured" in response.text

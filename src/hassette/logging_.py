@@ -102,7 +102,7 @@ class LogCaptureHandler(logging.Handler):
             logger_name=record.name,
             func_name=record.funcName or "",
             lineno=record.lineno,
-            message=self.format(record),
+            message=record.getMessage(),
             exc_info=record.exc_text,
             app_key=self._resolve_app_key(record.name),
         )

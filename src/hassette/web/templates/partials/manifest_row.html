@@ -6,10 +6,10 @@
       {% if manifest.instance_count > 1 %}
         <span class="icon is-small mr-1"
               style="cursor: pointer"
-              @click="expanded = !expanded"
-              x-bind:title="expanded ? 'Collapse' : 'Expand'">
+              @click="expanded['{{ manifest.app_key }}'] = !(expanded['{{ manifest.app_key }}'] ?? true)"
+              x-bind:title="(expanded['{{ manifest.app_key }}'] ?? true) ? 'Collapse' : 'Expand'">
           <i class="fas"
-             :class="expanded ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+             :class="(expanded['{{ manifest.app_key }}'] ?? true) ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
         </span>
         <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
       {% else %}

@@ -25,7 +25,20 @@
       </td>
       <td class="is-size-7">
         {% if state is mapping and state.get("attributes") %}
-          <code>{{ state.attributes | tojson | truncate(80) }}</code>
+          {% set attrs_json = state.attributes | tojson %}
+          <div x-data="{ open: false }">
+            <code style="cursor: pointer" @click="open = !open" x-show="!open">{{ attrs_json | truncate(80) }}</code>
+            <pre x-show="open"
+                 @click="open = false"
+                 style="cursor: pointer;
+                        white-space: pre-wrap;
+                        word-break: break-all;
+                        font-size: 0.75rem;
+                        max-height: 200px;
+                        overflow-y: auto;
+                        margin: 0"
+                 x-transition>{{ state.attributes | tojson(indent=2) }}</pre>
+          </div>
         {% else %}
           —
         {% endif %}

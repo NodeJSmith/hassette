@@ -96,6 +96,7 @@
           </tr>
         </thead>
         <tbody id="manifest-list"
+               x-data="{ expanded: {} }"
                data-live-on-app="/ui/partials/manifest-list"
                hx-get="/ui/partials/manifest-list"
                hx-trigger="every 30s"

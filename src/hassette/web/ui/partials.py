@@ -79,7 +79,12 @@ async def bus_metrics_partial(request: Request, data_sync: DataSyncDep) -> HTMLR
 
 @router.get("/partials/apps-summary", response_class=HTMLResponse)
 async def apps_summary_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
-    app_status = data_sync.get_app_status_snapshot()
+    snapshot = data_sync.get_all_manifests_snapshot()
+    app_status = {
+        "total": snapshot.total,
+        "running": snapshot.running,
+        "failed": snapshot.failed,
+    }
     return templates.TemplateResponse(request, "partials/apps_summary.html", {"app_status": app_status})
 
 

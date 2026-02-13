@@ -15,7 +15,14 @@
     <td>
       <span class="tag is-info is-light is-small">{{ job.trigger_type }}</span>
     </td>
-    <td>{{ job.next_run }}</td>
+    <td>
+      {% if job.next_run %}
+        <time x-data
+              x-text="new Date('{{ job.next_run }}'.replace(/\[.*\]$/, '')).toLocaleString()">{{ job.next_run }}</time>
+      {% else %}
+        —
+      {% endif %}
+    </td>
     <td>
       {% if job.repeat %}
         <span class="tag is-link is-light is-small">repeating</span>

@@ -1,5 +1,7 @@
-{% from "macros/ui.html" import status_badge %}
-<tr class="ht-instance-row" x-show="expanded" x-transition>
+{% from "macros/ui.html" import status_badge, action_buttons %}
+<tr class="ht-instance-row"
+    x-show="expanded['{{ manifest.app_key }}'] ?? true"
+    x-transition>
   <td class="pl-5">
     <a href="/ui/apps/{{ manifest.app_key }}/{{ inst.index }}"><code>{{ inst.instance_name }}</code></a>
   </td>
@@ -13,5 +15,7 @@
       —
     {% endif %}
   </td>
-  <td></td>
+  <td>
+    {{ action_buttons(manifest.app_key, inst.status, after_action="htmx.ajax('GET', '/ui/partials/manifest-list', {target: '#manifest-list', swap: 'innerHTML'})", show_labels=false) }}
+  </td>
 </tr>

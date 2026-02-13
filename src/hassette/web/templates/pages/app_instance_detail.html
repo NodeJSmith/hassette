@@ -66,29 +66,24 @@
                 </tr>
               {% endif %}
             {% endif %}
-            {% if is_multi_instance %}
-              <tr>
-                <th>Manifest</th>
-                <td>
+            <tr>
+              <th>Filename</th>
+              <td>
+                {% if is_multi_instance %}
                   <a href="/ui/apps/{{ app_key }}"><code>{{ manifest.filename }}</code></a>
-                </td>
-              </tr>
-            {% else %}
-              <tr>
-                <th>Filename</th>
-                <td>
+                {% else %}
                   <code>{{ manifest.filename }}</code>
-                </td>
-              </tr>
-              <tr>
-                <th>Enabled</th>
-                <td>{{ "Yes" if manifest.enabled else "No" }}</td>
-              </tr>
-              <tr>
-                <th>Auto-loaded</th>
-                <td>{{ "Yes" if manifest.auto_loaded else "No" }}</td>
-              </tr>
-            {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Enabled</th>
+              <td>{{ "Yes" if manifest.enabled else "No" }}</td>
+            </tr>
+            <tr>
+              <th>Auto-loaded</th>
+              <td>{{ "Yes" if manifest.auto_loaded else "No" }}</td>
+            </tr>
             {% if instance and instance.error_message %}
               <tr>
                 <th>Error</th>

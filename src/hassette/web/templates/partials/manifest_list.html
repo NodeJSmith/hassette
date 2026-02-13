@@ -1,13 +1,9 @@
 {% for manifest in manifests %}
+  {% include "partials/manifest_row.html" %}
   {% if manifest.instance_count > 1 %}
-    <tbody x-data="{ expanded: true }">
-      {% include "partials/manifest_row.html" %}
-      {% for inst in manifest.instances %}
-        {% include "partials/instance_row.html" %}
-      {% endfor %}
-    </tbody>
-  {% else %}
-    {% include "partials/manifest_row.html" %}
+    {% for inst in manifest.instances %}
+      {% include "partials/instance_row.html" %}
+    {% endfor %}
   {% endif %}
 {% endfor %}
 {% if manifests | length == 0 %}
