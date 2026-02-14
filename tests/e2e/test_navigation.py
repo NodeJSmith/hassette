@@ -53,10 +53,9 @@ def test_sidebar_navigation(
 ) -> None:
     # Start on dashboard
     page.goto(base_url + "/ui/")
-    # Click sidebar link
+    # Click sidebar link (hx-boost converts to AJAX + pushState)
     page.locator(f".menu-list a:has-text('{link_text}')").click()
-    page.wait_for_load_state("networkidle")
-    assert page.url.endswith(expected_path) or expected_path in page.url
+    expect(page).to_have_url(re.compile(re.escape(expected_path)))
     expect(page.locator("body")).to_contain_text(expected_content)
 
 
@@ -139,15 +138,14 @@ def test_brand_link_navigates_to_dashboard(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/ui/apps")
     page.locator(".ht-brand-link").click()
-    page.wait_for_load_state("networkidle")
-    assert page.url.rstrip("/").endswith("/ui") or page.url.endswith("/ui/")
+    expect(page).to_have_url(re.compile(r"/ui/?$"))
 
 
 def test_sidebar_stays_open_after_desktop_nav(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/ui/")
     page.locator(".menu-list a:has-text('Apps')").click()
-    page.wait_for_load_state("networkidle")
+    expect(page).to_have_url(re.compile(r"/ui/apps"))
     sidebar = page.locator(".ht-sidebar")
     expect(sidebar).to_have_class(re.compile(r"\bis-open\b"))
 
