@@ -646,7 +646,10 @@ class TestPartials:
         assert "<html" not in response.text
 
     async def test_dashboard_logs_partial_empty(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/dashboard-logs")
+        from unittest.mock import patch
+
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=None):
+            response = await client.get("/ui/partials/dashboard-logs")
         assert response.status_code == 200
         assert "No recent logs" in response.text
         assert "/ui/logs" in response.text
