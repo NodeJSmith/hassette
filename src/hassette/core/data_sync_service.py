@@ -229,7 +229,6 @@ class DataSyncService(Resource):
             "repeat": job.repeat,
             "cancelled": job.cancelled,
             "trigger_type": type(job.trigger).__name__ if job.trigger else "once",
-            "timeout_seconds": job.timeout_seconds,
         }
 
     # --- Entity state access (delegates to StateProxy) ---

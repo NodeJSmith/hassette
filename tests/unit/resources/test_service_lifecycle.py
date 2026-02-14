@@ -30,7 +30,7 @@ def _make_hassette_stub() -> AsyncMock:
     hassette.ready_event.set()
     # TaskBucket.spawn needs these to use the fast path (asyncio.create_task)
     hassette._loop_thread_id = threading.get_ident()
-    hassette.loop = asyncio.get_event_loop()
+    hassette.loop = asyncio.get_running_loop()
     return hassette
 
 

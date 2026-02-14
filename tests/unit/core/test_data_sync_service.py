@@ -288,7 +288,6 @@ class TestOwnerResolution:
             repeat=True,
             cancelled=False,
             trigger=None,
-            timeout_seconds=30,
         )
         job1 = SimpleNamespace(
             job_id=2,
@@ -298,7 +297,6 @@ class TestOwnerResolution:
             repeat=True,
             cancelled=False,
             trigger=None,
-            timeout_seconds=30,
         )
         job_other = SimpleNamespace(
             job_id=3,
@@ -308,7 +306,6 @@ class TestOwnerResolution:
             repeat=False,
             cancelled=False,
             trigger=None,
-            timeout_seconds=10,
         )
         data_sync_with_apps.hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[job0, job1, job_other])
 
@@ -328,7 +325,6 @@ class TestOwnerResolution:
             repeat=False,
             cancelled=False,
             trigger=None,
-            timeout_seconds=10,
         )
         data_sync_with_apps.hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[job])
 

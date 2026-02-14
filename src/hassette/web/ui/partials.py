@@ -1,6 +1,6 @@
 """HTMX partial fragment routes for the Hassette Web UI."""
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from starlette.responses import HTMLResponse
 
 from hassette.web.dependencies import DataSyncDep
@@ -40,14 +40,8 @@ async def log_entries_partial(
     data_sync: DataSyncDep,
     level: str | None = None,
     app_key: str | None = None,
-    limit: int | None = 100,
+    limit: int = Query(default=100, ge=1, le=2000),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> HTMLResponse:
-    limit = limit or 100
-    if limit > 2000:
-        limit = 2000
-    if limit < 1:
-        limit = 1
-
     logs = data_sync.get_recent_logs(limit=limit, app_key=app_key, level=level)
     show_app_column = not app_key
     return templates.TemplateResponse(

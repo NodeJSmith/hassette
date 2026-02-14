@@ -141,9 +141,6 @@ class ScheduledJob:
     repeat: bool = field(compare=False, default=False)
     """Whether the job should be rescheduled after running."""
 
-    timeout_seconds: int = field(compare=False, default=30)
-    """Maximum allowed execution time for the job in seconds."""
-
     name: str = field(default="", compare=False)
     """Optional name for the job for easier identification."""
 

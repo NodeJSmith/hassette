@@ -101,7 +101,6 @@ class ScheduledJobResponse(BaseModel):
     repeat: bool
     cancelled: bool
     trigger_type: str
-    timeout_seconds: int
 
 
 class JobExecutionResponse(BaseModel):

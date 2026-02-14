@@ -67,7 +67,7 @@ Full Alpine.js log viewer with filters, sortable columns, and WebSocket streamin
 - `app_keys` — list of app keys for the app filter dropdown (main logs page)
 
 ### `job_status_badge(status)`
-Renders a status tag for job execution results (success/error/timeout).
+Renders a status tag for job execution results (success/error/cancelled).
 
 ## CSS Naming Convention
 

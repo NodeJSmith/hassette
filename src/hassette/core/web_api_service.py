@@ -1,5 +1,6 @@
 """WebApiService: runs the FastAPI/uvicorn server."""
 
+import asyncio
 import typing
 
 import uvicorn
@@ -66,6 +67,8 @@ class WebApiService(Service):
 
         try:
             await self._server.serve()
+        except asyncio.CancelledError:
+            raise
         except Exception:
             self.logger.exception("Web API server encountered an error")
             raise

@@ -175,8 +175,6 @@ class SchedulerService(Service):
         except asyncio.CancelledError:
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
-        except Exception:
-            self.logger.exception("Error running job %s during dispatch", job)
 
         # Always reschedule after completion, even if the job failed
         try:

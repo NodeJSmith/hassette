@@ -620,7 +620,6 @@ class TestPartials:
                     repeat=True,
                     cancelled=False,
                     trigger=type("interval", (), {})(),
-                    timeout_seconds=30,
                 ),
             ]
         )
@@ -995,7 +994,6 @@ class TestInstanceDetail:
                     repeat=True,
                     cancelled=False,
                     trigger=type("interval", (), {})(),
-                    timeout_seconds=30,
                 ),
             ]
         )

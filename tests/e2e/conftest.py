@@ -292,7 +292,6 @@ def mock_hassette():
                 repeat=True,
                 cancelled=False,
                 trigger=type("interval", (), {})(),
-                timeout_seconds=30,
             ),
             SimpleNamespace(
                 job_id="job-2",
@@ -302,7 +301,6 @@ def mock_hassette():
                 repeat=True,
                 cancelled=False,
                 trigger=type("cron", (), {})(),
-                timeout_seconds=60,
             ),
         ]
     )
