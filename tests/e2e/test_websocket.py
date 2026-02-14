@@ -32,3 +32,10 @@ def test_live_updates_script_loaded(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/")
     live_script = page.locator("script[src='/ui/static/js/live-updates.js']")
     expect(live_script).to_have_count(1)
+
+
+def test_idiomorph_script_loaded(page: Page, base_url: str) -> None:
+    """Verify the idiomorph CDN script tag is present in the page."""
+    page.goto(base_url + "/ui/")
+    idiomorph_script = page.locator("script[src*='idiomorph']")
+    expect(idiomorph_script).to_have_count(1)
