@@ -47,7 +47,7 @@ def _wait_for_log_entries(page: Page) -> None:
     """Wait for Alpine.js logTable component to finish loading entries."""
     page.wait_for_function(
         """() => {
-            const el = document.querySelector('[x-data]');
+            const el = document.querySelector('[x-data*="logTable"]');
             if (!el || !el._x_dataStack) return false;
             const data = el._x_dataStack[0];
             return data && !data.loading && data.entries.length > 0;
