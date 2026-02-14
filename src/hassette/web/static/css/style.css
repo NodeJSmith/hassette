@@ -4,6 +4,7 @@
 .ht-layout {
   display: flex;
   min-height: 100vh;
+  position: relative;
 }
 
 /* Sidebar */
@@ -15,6 +16,8 @@
   flex-direction: column;
   padding: 1rem 0;
   flex-shrink: 0;
+  transition: transform 0.25s ease;
+  z-index: 30;
 }
 
 .ht-sidebar-brand {
@@ -53,20 +56,63 @@
   padding: 1rem 1.25rem;
 }
 
+/* Sidebar close button (visible on mobile only) */
+.ht-sidebar-close {
+  display: none;
+  background: none;
+  border: none;
+  color: #b0b0c0;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 0.25rem;
+  font-size: 1.1rem;
+}
+
+.ht-sidebar-close:hover {
+  color: #fff;
+}
+
+/* Sidebar backdrop overlay (mobile only) */
+.ht-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+/* Hamburger menu toggle */
+.ht-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: #4a4a4a;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1.1rem;
+}
+
+.ht-menu-toggle:hover {
+  color: #1a1a2e;
+}
+
 /* Main content area */
 .ht-main {
   flex: 1;
   background: #f5f5f5;
   overflow-y: auto;
+  min-width: 0;
 }
 
 /* Status bar */
 .ht-status-bar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   padding: 0.4rem 1.5rem;
   background: #fff;
   border-bottom: 1px solid #e8e8e8;
+  gap: 0.75rem;
 }
 
 .ht-ws-indicator {
@@ -152,4 +198,123 @@ a:hover code {
 
 .ht-live-pulse {
   animation: ht-pulse 0.6s ease-in-out;
+}
+
+/* =====================================================
+   Responsive: tablet & mobile (max-width: 768px)
+   ===================================================== */
+@media screen and (max-width: 768px) {
+  /* Sidebar: off-screen by default, slides in when open */
+  .ht-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    width: 260px;
+  }
+
+  .ht-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  /* Show sidebar close button */
+  .ht-sidebar-close {
+    display: inline-flex;
+  }
+
+  /* Show backdrop when sidebar is open */
+  .ht-sidebar-backdrop {
+    display: block;
+  }
+
+  /* Show hamburger menu toggle */
+  .ht-menu-toggle {
+    display: inline-flex;
+  }
+
+  /* Status bar: put hamburger on the left, push rest to the right */
+  .ht-status-bar {
+    justify-content: space-between;
+    padding: 0.4rem 1rem;
+  }
+
+  /* Main content: reduce section padding on mobile */
+  .ht-main .section {
+    padding: 1rem;
+  }
+
+  /* Tables: horizontal scroll on mobile */
+  .table-container,
+  .box > .table,
+  .box > div > .table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Dashboard columns: stack vertically on mobile */
+  .columns.is-multiline .column.is-half {
+    flex: none;
+    width: 100%;
+  }
+
+  /* Bulma .level: wrap on mobile */
+  .level {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .level-left,
+  .level-right {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Tabs: scroll horizontally if too many */
+  .tabs ul {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabs li {
+    flex-shrink: 0;
+  }
+
+  /* Field groups: stack vertically */
+  .field.is-grouped {
+    flex-wrap: wrap;
+  }
+
+  .field.is-grouped .control {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Page titles: smaller on mobile */
+  .title.is-4 {
+    font-size: 1.1rem;
+  }
+
+  .title.is-5 {
+    font-size: 1rem;
+  }
+}
+
+/* =====================================================
+   Responsive: small phones (max-width: 480px)
+   ===================================================== */
+@media screen and (max-width: 480px) {
+  .ht-main .section {
+    padding: 0.75rem;
+  }
+
+  .box {
+    padding: 0.75rem;
+  }
+
+  /* Narrower sidebar on very small screens */
+  .ht-sidebar {
+    width: 230px;
+  }
 }

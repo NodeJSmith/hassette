@@ -18,8 +18,9 @@
             src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   </head>
   <body x-data x-init="$store.ws.connect()">
-    <div class="ht-layout">
+    <div class="ht-layout" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
       {% include "components/nav.html" %}
+      <div class="ht-sidebar-backdrop" x-show="sidebarOpen" x-transition.opacity @click="sidebarOpen = false"></div>
       <main class="ht-main">
         {% include "components/status_bar.html" %}
         <section class="section">
