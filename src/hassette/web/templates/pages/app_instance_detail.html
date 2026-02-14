@@ -107,7 +107,9 @@
           <span>Bus Listeners</span>
         </h2>
         <div id="app-listeners"
-             data-live-on-app="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}">{% include "partials/app_detail_listeners.html" %}</div>
+             data-live-on-app="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}">
+          {% include "partials/app_detail_listeners.html" %}
+        </div>
       </div>
     </div>
     <!-- Scheduled Jobs -->
@@ -118,7 +120,9 @@
           <span>Scheduled Jobs</span>
         </h2>
         <div id="app-jobs"
-             data-live-on-app="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}">{% include "partials/app_detail_jobs.html" %}</div>
+             data-live-on-app="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}">
+          {% include "partials/app_detail_jobs.html" %}
+        </div>
       </div>
     </div>
     <!-- Recent Logs -->

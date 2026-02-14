@@ -13,8 +13,7 @@
           <span class="icon"><i class="fas fa-heart-pulse"></i></span>
           <span>System Health</span>
         </h2>
-        <div id="health-badge"
-             data-live-on-state="/ui/partials/health-badge">{% include "partials/health_badge.html" %}</div>
+        <div id="health-badge" data-live-on-state="/ui/partials/health-badge">{% include "partials/health_badge.html" %}</div>
       </div>
     </div>
     <!-- Apps Summary -->
@@ -37,15 +36,16 @@
           <span>Scheduled Jobs</span>
         </h2>
         <div id="dashboard-scheduler"
-             data-live-on-app="/ui/partials/dashboard-scheduler">{% include "partials/dashboard_scheduler.html" %}</div>
+             data-live-on-app="/ui/partials/dashboard-scheduler">
+          {% include "partials/dashboard_scheduler.html" %}
+        </div>
       </div>
       <div class="box">
         <h2 class="title is-5">
           <span class="icon"><i class="fas fa-diagram-project"></i></span>
           <span>Event Bus</span>
         </h2>
-        <div id="bus-metrics"
-             data-live-on-app="/ui/partials/bus-metrics">{% include "partials/bus_metrics.html" %}</div>
+        <div id="bus-metrics" data-live-on-app="/ui/partials/bus-metrics">{% include "partials/bus_metrics.html" %}</div>
       </div>
     </div>
     <!-- Right: Recent Events (matches height of stacked panels) -->
@@ -55,8 +55,7 @@
           <span class="icon"><i class="fas fa-bolt"></i></span>
           <span>Recent Events</span>
         </h2>
-        <div id="event-feed"
-             data-live-on-state="/ui/partials/event-feed">{% include "partials/event_feed.html" %}</div>
+        <div id="event-feed" data-live-on-state="/ui/partials/event-feed">{% include "partials/event_feed.html" %}</div>
       </div>
     </div>
     <!-- Recent Logs (full width) -->
@@ -66,8 +65,9 @@
           <span class="icon"><i class="fas fa-scroll"></i></span>
           <span>Recent Logs</span>
         </h2>
-        <div id="dashboard-logs"
-             data-live-on-app="/ui/partials/dashboard-logs">{% include "partials/dashboard_logs.html" %}</div>
+        <div id="dashboard-logs" data-live-on-app="/ui/partials/dashboard-logs">
+          {% include "partials/dashboard_logs.html" %}
+        </div>
       </div>
     </div>
   </div>

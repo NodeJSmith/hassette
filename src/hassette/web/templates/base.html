@@ -31,7 +31,10 @@
          @keydown.escape.window="sidebarOpen = false"
          @resize.window="if (window.innerWidth <= 768) sidebarOpen = false">
       {% include "components/nav.html" %}
-      <div class="ht-sidebar-backdrop" x-show="sidebarOpen" x-transition.opacity @click="sidebarOpen = false"></div>
+      <div class="ht-sidebar-backdrop"
+           x-show="sidebarOpen"
+           x-transition.opacity
+           @click="sidebarOpen = false"></div>
       <main class="ht-main">
         {% include "components/status_bar.html" %}
         <section id="page-content" class="section">
