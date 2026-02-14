@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.core.web_ui_watcher import WebUiWatcherService
+from hassette.core.web_ui_watcher import _WEB_DIR, WebUiWatcherService
 
 
 @pytest.fixture
@@ -43,44 +43,47 @@ def _fake_awatch(*changes_batches: set[tuple[int, str]]):
 
 
 async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
-    fake = _fake_awatch({(2, "/web/static/css/style.css")})
+    css_path = str(_WEB_DIR / "static/css/style.css")
+    fake = _fake_awatch({(2, css_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
     watcher.mark_ready.assert_called_once()
     watcher.hassette.data_sync_service.broadcast.assert_awaited_once_with(
-        {"type": "dev_reload", "data": {"path": "/web/static/css/style.css", "kind": "css"}}
+        {"type": "dev_reload", "data": {"path": "static/css/style.css", "kind": "css"}}
     )
 
 
 async def test_js_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
-    fake = _fake_awatch({(2, "/web/static/js/app.js")})
+    js_path = str(_WEB_DIR / "static/js/app.js")
+    fake = _fake_awatch({(2, js_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
     watcher.hassette.data_sync_service.broadcast.assert_awaited_once_with(
-        {"type": "dev_reload", "data": {"path": "/web/static/js/app.js", "kind": "js"}}
+        {"type": "dev_reload", "data": {"path": "static/js/app.js", "kind": "js"}}
     )
 
 
 async def test_template_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
-    fake = _fake_awatch({(2, "/web/templates/pages/dashboard.html")})
+    tmpl_path = str(_WEB_DIR / "templates/pages/dashboard.html")
+    fake = _fake_awatch({(2, tmpl_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
     watcher.hassette.data_sync_service.broadcast.assert_awaited_once_with(
-        {"type": "dev_reload", "data": {"path": "/web/templates/pages/dashboard.html", "kind": "template"}}
+        {"type": "dev_reload", "data": {"path": "templates/pages/dashboard.html", "kind": "template"}}
     )
 
 
 async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService) -> None:
     fake = _fake_awatch(
         {
-            (2, "/web/static/css/style.css"),
-            (2, "/web/static/js/app.js"),
+            (2, str(_WEB_DIR / "static/css/style.css")),
+            (2, str(_WEB_DIR / "static/js/app.js")),
         }
     )
 

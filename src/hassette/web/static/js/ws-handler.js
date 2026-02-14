@@ -6,7 +6,14 @@ document.addEventListener("alpine:init", () => {
     _backoff: 1000,
 
     connect() {
-      if (this._socket && this._socket.readyState === WebSocket.OPEN) return;
+      if (this._socket) {
+        var state = this._socket.readyState;
+        if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+        if (state === WebSocket.CLOSING) {
+          this._socket.addEventListener("close", () => this.connect(), { once: true });
+          return;
+        }
+      }
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const url = `${proto}//${location.host}/api/ws`;
       const socket = new WebSocket(url);
@@ -35,7 +42,7 @@ document.addEventListener("alpine:init", () => {
           if (msg.type === "dev_reload") {
             var kind = msg.data && msg.data.kind;
             if (kind === "css") {
-              document.querySelectorAll('link[rel="stylesheet"][href^="/ui/static/"]').forEach(function (link) {
+              document.querySelectorAll('link[rel="stylesheet"][href*="/ui/static/"]').forEach(function (link) {
                 var url = new URL(link.href);
                 url.searchParams.set("_r", Date.now());
                 link.href = url.toString();

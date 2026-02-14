@@ -46,6 +46,10 @@ class WebUiWatcherService(Service):
             for _, changed_path in changes:
                 kind = _change_kind(changed_path)
                 self.logger.debug("Web UI file changed (%s): %s", kind, changed_path)
+                try:
+                    relative_path = str(Path(changed_path).relative_to(_WEB_DIR))
+                except ValueError:
+                    relative_path = Path(changed_path).name
                 await self.hassette.data_sync_service.broadcast(
-                    {"type": "dev_reload", "data": {"path": changed_path, "kind": kind}}
+                    {"type": "dev_reload", "data": {"path": relative_path, "kind": kind}}
                 )
