@@ -141,6 +141,7 @@ class WebsocketService(Service):
 
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 self._recv_task = await self._make_connection(session)
+                self.logger.info("Websocket connected to %s", self.url)
 
                 # Keep running until recv loop ends (disconnect, error, etc.)
                 await self._recv_task

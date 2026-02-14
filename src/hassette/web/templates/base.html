@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>
+      {% block title %}Hassette{% endblock %}
+    </title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="icon" type="image/png" href="/ui/static/img/hassette-logo.png">
+    <link rel="stylesheet" href="/ui/static/css/style.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://unpkg.com/htmx-ext-ws@2.0.2/ws.js"></script>
+    <script defer
+            src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  </head>
+  <body x-data x-init="$store.ws.connect()">
+    <div class="ht-layout">
+      {% include "components/nav.html" %}
+      <main class="ht-main">
+        {% include "components/status_bar.html" %}
+        <section class="section">
+          {% block content %}{% endblock %}
+        </section>
+      </main>
+    </div>
+    <script src="/ui/static/js/ws-handler.js"></script>
+    <script src="/ui/static/js/live-updates.js"></script>
+    <script src="/ui/static/js/log-table.js"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

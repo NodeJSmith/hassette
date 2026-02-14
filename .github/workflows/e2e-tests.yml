@@ -1,0 +1,37 @@
+name: E2E Tests
+
+on:
+    push:
+    workflow_dispatch:
+
+jobs:
+    e2e:
+        runs-on: ubuntu-latest
+
+        env:
+            TZ: America/Chicago
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install uv and set the Python version
+              uses: astral-sh/setup-uv@v6
+              with:
+                  python-version: "3.13"
+
+            - run: uv sync
+
+            - name: Install Playwright browsers and system deps
+              run: uv run playwright install --with-deps chromium
+
+            - name: Run e2e tests
+              run: uv run pytest -m e2e -v --tracing retain-on-failure --output test-results
+
+            - name: Upload test results
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: e2e-test-results
+                  path: test-results/
+                  retention-days: 7

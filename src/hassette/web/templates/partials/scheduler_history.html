@@ -1,0 +1,38 @@
+{% from "macros/ui.html" import job_status_badge %}
+{% for record in history %}
+  <tr>
+    <td>
+      <code>{{ record.job_name }}</code>
+    </td>
+    <td>
+      {% if instance_owner_map and record.owner in instance_owner_map %}
+        <a href="/ui/apps/{{ instance_owner_map[record.owner][0] }}/{{ instance_owner_map[record.owner][1] }}"><code>{{ record.owner }}</code></a>
+      {% elif app_owner_map and record.owner in app_owner_map %}
+        <a href="/ui/apps/{{ app_owner_map[record.owner] }}"><code>{{ record.owner }}</code></a>
+      {% else %}
+        <code>{{ record.owner }}</code>
+      {% endif %}
+    </td>
+    <td>
+      {% if record.started_at %}
+        <time x-data
+              x-text="new Date({{ record.started_at }} * 1000).toLocaleString()"></time>
+      {% else %}
+        —
+      {% endif %}
+    </td>
+    <td>{{ "%.1f" | format(record.duration_ms) }}ms</td>
+    <td>{{ job_status_badge(record.status) }}</td>
+    <td>
+      {% if record.error_message %}
+        <span class="has-text-danger is-size-7">{{ record.error_message }}</span>
+      {% else %}
+        —
+      {% endif %}
+    </td>
+  </tr>
+{% else %}
+  <tr>
+    <td colspan="6" class="has-text-centered has-text-grey">No execution history.</td>
+  </tr>
+{% endfor %}

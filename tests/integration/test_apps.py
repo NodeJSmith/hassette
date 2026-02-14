@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import typing
 from copy import deepcopy
 from unittest.mock import patch
@@ -63,8 +64,10 @@ class TestApps:
         orig_apps = set(self.app_handler.apps.keys())
 
         event = asyncio.Event()
+        results = []
 
-        async def handler(**kwargs):  # noqa
+        async def handler(**kwargs):
+            results.append(kwargs)
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette._bus_service.add_listener(
@@ -77,11 +80,19 @@ class TestApps:
             )
         )
 
+        # Drain any pending APP_LOAD_COMPLETED from bootstrap_apps().
+        # On Python 3.12, the BusService may not have dispatched this event yet.
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(event.wait(), timeout=0.5)
+        results.clear()
+        event.clear()
+
         await self.app_handler.handle_change_event()
 
         # will timeout, because we dont fire since there are no changes
         with pytest.raises(asyncio.TimeoutError):
             await asyncio.wait_for(event.wait(), timeout=0.2)
+        assert not results, f"No events should have been fired, but got: {results}"
 
         new_apps = set(self.app_handler.apps.keys())
         assert orig_apps == new_apps, "No apps should be lost during handle_changes"

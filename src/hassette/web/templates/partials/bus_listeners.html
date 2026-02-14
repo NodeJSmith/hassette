@@ -1,0 +1,37 @@
+{% for l in listeners %}
+  <tr>
+    <td>
+      {% set owner_class = l.owner.split('.')[0] %}
+      {% if owner_class in l.handler_name %}
+        <code title="{{ l.handler_name }}">{{ l.handler_name.split(".")[-1] }}</code>
+      {% else %}
+        <code title="{{ l.handler_name }}">{{ l.handler_name }}</code>
+      {% endif %}
+    </td>
+    <td>
+      {% if instance_owner_map and l.owner in instance_owner_map %}
+        <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}"><code>{{ l.owner }}</code></a>
+      {% elif app_owner_map and l.owner in app_owner_map %}
+        <a href="/ui/apps/{{ app_owner_map[l.owner] }}"><code>{{ l.owner }}</code></a>
+      {% else %}
+        <code>{{ l.owner }}</code>
+      {% endif %}
+    </td>
+    <td>
+      {% set topic_parts = l.topic.split('.') %}
+      {% if topic_parts | length > 3 %}
+        <code title="{{ l.topic }}">{{ topic_parts[-3:] | join(".") }}</code>
+      {% else %}
+        <code>{{ l.topic }}</code>
+      {% endif %}
+    </td>
+    <td>{{ l.total_invocations }}</td>
+    <td class="has-text-success">{{ l.successful }}</td>
+    <td class="{% if l.failed > 0 %}has-text-danger{% endif %}">{{ l.failed }}</td>
+    <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
+  </tr>
+{% else %}
+  <tr>
+    <td colspan="7" class="has-text-centered has-text-grey">No bus listeners registered.</td>
+  </tr>
+{% endfor %}

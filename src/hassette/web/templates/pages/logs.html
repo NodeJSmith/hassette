@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% from "macros/ui.html" import log_table %}
+{% block title %}Logs — Hassette{% endblock %}
+{% block content %}
+  <h1 class="title is-4">
+    <span class="icon"><i class="fas fa-scroll"></i></span>
+    <span>Log Viewer</span>
+  </h1>
+  <div class="box">{{ log_table(show_app_column=true, app_keys=app_keys) }}</div>
+{% endblock %}

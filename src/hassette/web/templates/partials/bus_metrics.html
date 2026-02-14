@@ -1,0 +1,29 @@
+<div class="level">
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Listeners</p>
+      <p class="title is-4">{{ bus_metrics.total_listeners }}</p>
+    </div>
+  </div>
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Invocations</p>
+      <p class="title is-4">{{ bus_metrics.total_invocations }}</p>
+    </div>
+  </div>
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Successful</p>
+      <p class="title is-4 has-text-success">{{ bus_metrics.total_successful }}</p>
+    </div>
+  </div>
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Failed</p>
+      <p class="title is-4 {% if bus_metrics.total_failed > 0 %}has-text-danger{% endif %}">
+        {{ bus_metrics.total_failed }}
+      </p>
+    </div>
+  </div>
+</div>
+<a href="/ui/bus" class="button is-small is-link is-outlined">View All</a>

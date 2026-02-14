@@ -1,0 +1,171 @@
+{# Shared Jinja2 macros for the Hassette Web UI #}
+{# Status badge for apps/instances #}
+{% macro status_badge(status, size="", block_reason="") %}
+  {% if status == "running" %}
+    <span class="tag is-success is-light{{ ' is-small' if size == 'small' else '' }}{{ ' ml-2' if size != 'small' else '' }}">running</span>
+  {% elif status == "failed" %}
+    <span class="tag is-danger is-light{{ ' is-small' if size == 'small' else '' }}{{ ' ml-2' if size != 'small' else '' }}">failed</span>
+  {% elif status == "stopped" %}
+    <span class="tag ht-status-stopped{{ ' is-small' if size == 'small' else '' }}{{ ' ml-2' if size != 'small' else '' }}">stopped</span>
+  {% elif status == "disabled" %}
+    <span class="tag ht-status-disabled{{ ' is-small' if size == 'small' else '' }}{{ ' ml-2' if size != 'small' else '' }}">disabled</span>
+  {% elif status == "blocked" %}
+    <span class="tag ht-status-blocked{{ ' is-small' if size == 'small' else '' }}{{ ' ml-2' if size != 'small' else '' }}"
+          {% if block_reason %}title="{{ block_reason }}"{% endif %}>blocked</span>
+  {% else %}
+    <span class="tag is-light{{ ' is-small' if size == 'small' else '' }}{{ ' ml-2' if size != 'small' else '' }}">{{ status }}</span>
+  {% endif %}
+{% endmacro %}
+{# Action buttons for starting/stopping/reloading apps #}
+{% macro action_buttons(app_key, status, after_action="location.reload()", show_labels=true) %}
+  <div class="buttons are-small">
+    {% if status == "running" %}
+      <button class="button is-warning is-outlined"
+              hx-post="/api/apps/{{ app_key }}/stop"
+              hx-swap="none"
+              hx-on::after-request="{{ after_action }}">
+        <span class="icon{% if not show_labels %} is-small{% endif %}"><i class="fas fa-stop"></i></span>
+        {% if show_labels %}<span>Stop</span>{% endif %}
+      </button>
+      <button class="button is-info is-outlined"
+              hx-post="/api/apps/{{ app_key }}/reload"
+              hx-swap="none"
+              hx-on::after-request="{{ after_action }}">
+        <span class="icon{% if not show_labels %} is-small{% endif %}"><i class="fas fa-rotate"></i></span>
+        {% if show_labels %}<span>Reload</span>{% endif %}
+      </button>
+    {% elif status in ["failed", "stopped"] %}
+      <button class="button is-success is-outlined"
+              hx-post="/api/apps/{{ app_key }}/start"
+              hx-swap="none"
+              hx-on::after-request="{{ after_action }}">
+        <span class="icon{% if not show_labels %} is-small{% endif %}"><i class="fas fa-play"></i></span>
+        {% if show_labels %}<span>Start</span>{% endif %}
+      </button>
+    {% endif %}
+  </div>
+{% endmacro %}
+{# Log table Alpine.js component #}
+{% macro log_table(show_app_column, app_key="", max_height="600px", app_keys=None) %}
+  {% if app_key %}
+    <div x-data="logTable({ showAppColumn: {{ 'true' if show_app_column else 'false' }}, appKey: '{{ app_key }}' })">
+    {% else %}
+      <div x-data="logTable({ showAppColumn: {{ 'true' if show_app_column else 'false' }}, appKey: null })">
+      {% endif %}
+      <div class="field is-grouped mb-3">
+        <div class="control">
+          <div class="select is-small">
+            <select x-model="filters.level">
+              <option value="">All Levels</option>
+              <option value="DEBUG">DEBUG</option>
+              <option value="INFO">INFO</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+              <option value="CRITICAL">CRITICAL</option>
+            </select>
+          </div>
+        </div>
+        {% if show_app_column and app_keys is not none %}
+          <div class="control">
+            <div class="select is-small">
+              <select x-model="filters.app">
+                <option value="">All Apps</option>
+                {% for key in app_keys %}<option value="{{ key }}">{{ key }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+        {% endif %}
+        <div class="control">
+          <input class="input is-small"
+                 type="text"
+                 placeholder="Search..."
+                 x-model.debounce.200ms="filters.search">
+        </div>
+        <div class="control">
+          <span class="tag is-light is-small"
+                x-show="!loading"
+                x-text="filteredEntries.length + ' entries'"></span>
+          {% if show_app_column %}<span class="tag is-light is-small" x-show="loading">Loading...</span>{% endif %}
+        </div>
+      </div>
+      <div class="ht-log-container"
+           style="max-height: {{ max_height }};
+                  overflow-y: auto">
+        <table class="table is-fullwidth is-hoverable is-compact is-size-7">
+          <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+            <tr>
+              <th style="width: 80px; cursor: pointer;" @click="toggleSort('level')">
+                Level <i class="fas" :class="sortIcon('level')"></i>
+              </th>
+              <th style="width: 160px;
+                         cursor: pointer"
+                  @click="toggleSort('timestamp')">
+                Timestamp <i class="fas" :class="sortIcon('timestamp')"></i>
+              </th>
+              {% if show_app_column %}
+                <th style="width: 120px; cursor: pointer;" @click="toggleSort('app_key')">
+                  App <i class="fas" :class="sortIcon('app_key')"></i>
+                </th>
+              {% endif %}
+              <th style="cursor: pointer;" @click="toggleSort('message')">
+                Message <i class="fas" :class="sortIcon('message')"></i>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-if="loading">
+              <tr>
+                <td colspan="{{ 4 if show_app_column else 3 }}"
+                    class="has-text-centered has-text-grey">Loading...</td>
+              </tr>
+            </template>
+            <template x-if="error">
+              <tr>
+                <td colspan="{{ 4 if show_app_column else 3 }}"
+                    class="has-text-centered has-text-danger"
+                    x-text="error"></td>
+              </tr>
+            </template>
+            <template x-if="!loading && !error && filteredEntries.length === 0">
+              <tr>
+                <td colspan="{{ 4 if show_app_column else 3 }}"
+                    class="has-text-centered has-text-grey">No log entries.</td>
+              </tr>
+            </template>
+            <template x-for="(entry, index) in filteredEntries"
+                      :key="entry.timestamp + '-' + index">
+              <tr>
+                <td>
+                  <span class="tag is-small"
+                        :class="levelClass(entry.level)"
+                        x-text="entry.level"></span>
+                </td>
+                <td x-text="formatTime(entry.timestamp)"></td>
+                {% if show_app_column %}
+                  <td>
+                    <template x-if="entry.app_key">
+                      <a :href="'/ui/apps/' + encodeURIComponent(entry.app_key)"><code x-text="entry.app_key"></code></a>
+                    </template>
+                    <template x-if="!entry.app_key">
+                      <code>&mdash;</code>
+                    </template>
+                  </td>
+                {% endif %}
+                <td x-text="entry.message"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endmacro %}
+  {# Job execution status badge #}
+  {% macro job_status_badge(status) %}
+    {% if status == "success" %}
+      <span class="tag is-success is-light is-small">success</span>
+    {% elif status == "error" %}
+      <span class="tag is-danger is-light is-small">error</span>
+    {% else %}
+      <span class="tag is-light is-small">{{ status }}</span>
+    {% endif %}
+  {% endmacro %}

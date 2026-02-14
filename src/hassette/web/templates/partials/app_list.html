@@ -1,0 +1,8 @@
+{% for app in app_status.apps %}
+  {% include "partials/app_row.html" %}
+{% endfor %}
+{% if app_status.apps | length == 0 %}
+  <tr>
+    <td colspan="5" class="has-text-centered has-text-grey">No apps found.</td>
+  </tr>
+{% endif %}

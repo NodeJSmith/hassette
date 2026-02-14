@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Apps — Hassette{% endblock %}
+{% block content %}
+  <h1 class="title is-4">
+    <span class="icon"><i class="fas fa-cubes"></i></span>
+    <span>App Management</span>
+  </h1>
+  {% if manifest_snapshot.total == 0 %}
+    <div class="notification is-info is-light">
+      <p>No apps are configured. Add apps to your Hassette configuration to see them here.</p>
+    </div>
+  {% else %}
+    <div class="box">
+      <!-- Summary bar -->
+      <div class="level mb-4">
+        <div class="level-left">
+          <div class="level-item">
+            <span class="tag is-success is-light is-medium">{{ manifest_snapshot.running }} running</span>
+          </div>
+          {% if manifest_snapshot.failed > 0 %}
+            <div class="level-item">
+              <span class="tag is-danger is-light is-medium">{{ manifest_snapshot.failed }} failed</span>
+            </div>
+          {% endif %}
+          {% if manifest_snapshot.stopped > 0 %}
+            <div class="level-item">
+              <span class="tag ht-status-stopped is-medium">{{ manifest_snapshot.stopped }} stopped</span>
+            </div>
+          {% endif %}
+          {% if manifest_snapshot.disabled > 0 %}
+            <div class="level-item">
+              <span class="tag ht-status-disabled is-medium">{{ manifest_snapshot.disabled }} disabled</span>
+            </div>
+          {% endif %}
+          {% if manifest_snapshot.blocked > 0 %}
+            <div class="level-item">
+              <span class="tag ht-status-blocked is-medium">{{ manifest_snapshot.blocked }} blocked</span>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      <!-- Status filter tabs -->
+      <div class="tabs is-small mb-3">
+        <ul>
+          <li class="is-active" id="tab-all">
+            <a hx-get="/ui/partials/manifest-list"
+               hx-target="#manifest-list"
+               hx-swap="innerHTML"
+               hx-on::after-request="document.querySelectorAll('.tabs li').forEach(t=>t.classList.remove('is-active')); document.getElementById('tab-all').classList.add('is-active')">
+              All ({{ manifest_snapshot.total }})
+            </a>
+          </li>
+          <li id="tab-running">
+            <a hx-get="/ui/partials/manifest-list?status=running"
+               hx-target="#manifest-list"
+               hx-swap="innerHTML"
+               hx-on::after-request="document.querySelectorAll('.tabs li').forEach(t=>t.classList.remove('is-active')); document.getElementById('tab-running').classList.add('is-active')">
+              Running ({{ manifest_snapshot.running }})
+            </a>
+          </li>
+          <li id="tab-stopped">
+            <a hx-get="/ui/partials/manifest-list?status=stopped"
+               hx-target="#manifest-list"
+               hx-swap="innerHTML"
+               hx-on::after-request="document.querySelectorAll('.tabs li').forEach(t=>t.classList.remove('is-active')); document.getElementById('tab-stopped').classList.add('is-active')">
+              Stopped ({{ manifest_snapshot.stopped }})
+            </a>
+          </li>
+          <li id="tab-failed">
+            <a hx-get="/ui/partials/manifest-list?status=failed"
+               hx-target="#manifest-list"
+               hx-swap="innerHTML"
+               hx-on::after-request="document.querySelectorAll('.tabs li').forEach(t=>t.classList.remove('is-active')); document.getElementById('tab-failed').classList.add('is-active')">
+              Failed ({{ manifest_snapshot.failed }})
+            </a>
+          </li>
+          <li id="tab-disabled">
+            <a hx-get="/ui/partials/manifest-list?status=disabled"
+               hx-target="#manifest-list"
+               hx-swap="innerHTML"
+               hx-on::after-request="document.querySelectorAll('.tabs li').forEach(t=>t.classList.remove('is-active')); document.getElementById('tab-disabled').classList.add('is-active')">
+              Disabled ({{ manifest_snapshot.disabled }})
+            </a>
+          </li>
+        </ul>
+      </div>
+      <table class="table is-fullwidth is-hoverable is-compact">
+        <thead>
+          <tr>
+            <th>App Key</th>
+            <th>Name</th>
+            <th>Class</th>
+            <th>Status</th>
+            <th>Error</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="manifest-list"
+               x-data="{ expanded: {} }"
+               data-live-on-app="/ui/partials/manifest-list"
+               hx-get="/ui/partials/manifest-list"
+               hx-trigger="every 30s"
+               hx-swap="innerHTML">
+          {% set manifests = manifest_snapshot.manifests %}
+          {% include "partials/manifest_list.html" %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endblock %}

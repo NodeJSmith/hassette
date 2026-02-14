@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% from "macros/ui.html" import status_badge, action_buttons, log_table %}
+{% block title %}{{ instance.instance_name if instance else manifest.display_name }} — Hassette{% endblock %}
+{% block content %}
+  <!-- Header -->
+  <div class="level mb-4">
+    <div class="level-left">
+      <div class="level-item">
+        <h1 class="title is-4">
+          <a href="/ui/apps" class="has-text-grey-light mr-2"><i class="fas fa-arrow-left"></i></a>
+          {% if is_multi_instance %}
+            <a href="/ui/apps/{{ app_key }}" class="has-text-grey-light mr-2"><i class="fas fa-cubes"></i></a>
+          {% endif %}
+          <span class="icon"><i class="fas fa-cube"></i></span>
+          <span>{{ manifest.display_name }}</span>
+          {% set inst_status = instance.status if instance else manifest.status %}
+          {{ status_badge(inst_status) }}
+        </h1>
+      </div>
+    </div>
+    <div class="level-right">
+      <div class="level-item">{{ action_buttons(app_key, manifest.status) }}</div>
+    </div>
+  </div>
+  {% if is_multi_instance and instance %}
+    <p class="subtitle is-6 has-text-grey mb-4">
+      Instance: <strong>{{ instance.instance_name }}</strong> (index {{ instance_index }})
+    </p>
+  {% endif %}
+  <div class="columns is-multiline">
+    <!-- Config panel -->
+    <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">Configuration</h2>
+        <table class="table is-fullwidth is-compact">
+          <tbody>
+            <tr>
+              <th>App Key</th>
+              <td>
+                <code>{{ manifest.app_key }}</code>
+              </td>
+            </tr>
+            <tr>
+              <th>Class Name</th>
+              <td>
+                <code>{{ manifest.class_name }}</code>
+              </td>
+            </tr>
+            {% if instance %}
+              <tr>
+                <th>Instance Name</th>
+                <td>
+                  <code>{{ instance.instance_name }}</code>
+                </td>
+              </tr>
+              <tr>
+                <th>Index</th>
+                <td>{{ instance_index }}</td>
+              </tr>
+              {% if owner_id %}
+                <tr>
+                  <th>Owner ID</th>
+                  <td>
+                    <code>{{ owner_id }}</code>
+                  </td>
+                </tr>
+              {% endif %}
+            {% endif %}
+            <tr>
+              <th>Filename</th>
+              <td>
+                {% if is_multi_instance %}
+                  <a href="/ui/apps/{{ app_key }}"><code>{{ manifest.filename }}</code></a>
+                {% else %}
+                  <code>{{ manifest.filename }}</code>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Enabled</th>
+              <td>{{ "Yes" if manifest.enabled else "No" }}</td>
+            </tr>
+            <tr>
+              <th>Auto-loaded</th>
+              <td>{{ "Yes" if manifest.auto_loaded else "No" }}</td>
+            </tr>
+            {% if instance and instance.error_message %}
+              <tr>
+                <th>Error</th>
+                <td class="has-text-danger">{{ instance.error_message }}</td>
+              </tr>
+            {% elif manifest.error_message %}
+              <tr>
+                <th>Error</th>
+                <td class="has-text-danger">{{ manifest.error_message }}</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Bus Listeners -->
+    <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-ear-listen"></i></span>
+          <span>Bus Listeners</span>
+        </h2>
+        <div id="app-listeners"
+             data-live-on-app="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}"
+             hx-get="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">{% include "partials/app_detail_listeners.html" %}</div>
+      </div>
+    </div>
+    <!-- Scheduled Jobs -->
+    <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-clock"></i></span>
+          <span>Scheduled Jobs</span>
+        </h2>
+        <div id="app-jobs"
+             data-live-refresh="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}"
+             hx-get="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">{% include "partials/app_detail_jobs.html" %}</div>
+      </div>
+    </div>
+    <!-- Recent Logs -->
+    <div class="column is-half">
+      <div class="box">
+        <h2 class="title is-5">
+          <span class="icon"><i class="fas fa-scroll"></i></span>
+          <span>Recent Logs</span>
+        </h2>
+        {{ log_table(show_app_column=false, app_key=app_key, max_height="400px") }}
+      </div>
+    </div>
+  </div>
+{% endblock %}

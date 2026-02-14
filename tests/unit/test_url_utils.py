@@ -49,7 +49,7 @@ def test_https_with_custom_port():
 
 
 @pytest.mark.parametrize(
-    ("base_url", "expected_port"),
+    ("input_url", "expected_port"),
     [
         ("http://test.local", None),
         ("https://test.local", None),
@@ -58,9 +58,9 @@ def test_https_with_custom_port():
         ("http://127.0.0.1:8000", 8000),
     ],
 )
-def test_no_port_added_if_not_provided(base_url: str, expected_port: int | None):
+def test_no_port_added_if_not_provided(input_url: str, expected_port: int | None):
     """Test that no port is added if not provided in the URL."""
-    config = _make_config(base_url)
+    config = _make_config(input_url)
 
     _, _, port = _parse_and_normalize_url(config)
 
@@ -68,16 +68,16 @@ def test_no_port_added_if_not_provided(base_url: str, expected_port: int | None)
 
 
 @pytest.mark.parametrize(
-    ("base_url", "expected_ws_scheme", "expected_rest_scheme"),
+    ("input_url", "expected_ws_scheme", "expected_rest_scheme"),
     [
         ("http://test.local", "ws", "http"),
         ("https://test.local", "wss", "https"),
         ("ftp://test.local", "ws", "ftp"),  # Non-standard scheme
     ],
 )
-def test_scheme_conversion_parametrized(base_url: str, expected_ws_scheme: str, expected_rest_scheme: str):
+def test_scheme_conversion_parametrized(input_url: str, expected_ws_scheme: str, expected_rest_scheme: str):
     """Test scheme conversion with various input schemes."""
-    config = _make_config(base_url)
+    config = _make_config(input_url)
 
     ws_url = build_ws_url(config)
     rest_url = build_rest_url(config)

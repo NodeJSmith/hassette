@@ -1,7 +1,9 @@
 import asyncio
 import heapq
+import time
 import typing
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
 
@@ -9,7 +11,9 @@ from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
 
 from hassette.resources.base import Resource, Service
+from hassette.scheduler.classes import JobExecutionRecord
 from hassette.utils.date_utils import now
+from hassette.utils.execution import ExecutionResult, track_execution
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -31,12 +35,16 @@ class SchedulerService(Service):
     _exit_event: asyncio.Event
     """Event to signal the scheduler to exit."""
 
+    _execution_log: "deque[JobExecutionRecord]"
+    """Ring buffer of recent job execution records."""
+
     @classmethod
     def create(cls, hassette: "Hassette"):
         inst = cls(hassette, parent=hassette)
         inst._job_queue = inst.add_child(_ScheduledJobQueue)
         inst._wakeup_event = asyncio.Event()
         inst._exit_event = asyncio.Event()
+        inst._execution_log = deque(maxlen=hassette.config.web_api_job_history_size)
 
         return inst
 
@@ -72,14 +80,13 @@ class SchedulerService(Service):
                 self.logger.debug("Scheduler exiting")
                 return
 
-            due_jobs = await self._job_queue.pop_due(now())
+            due_jobs, next_run_time = await self._job_queue.pop_due_and_peek_next(now())
 
             if due_jobs:
                 for job in due_jobs:
                     self.task_bucket.spawn(self._dispatch_and_log(job), name="scheduler:dispatch_scheduled_job")
-                continue
 
-            await self.sleep()
+            await self.sleep(next_run_time)
 
     def kick(self):
         """Wake up the scheduler to check for jobs."""
@@ -107,14 +114,18 @@ class SchedulerService(Service):
         if removed:
             self.kick()
 
-    async def sleep(self):
+    async def sleep(self, next_run_time: ZonedDateTime | None = None):
         """Sleep until the next job is due or a kick is received.
 
         This method will wait for the next job to be due or until a kick is received.
         If a kick is received, it will wake up immediately.
+
+        Args:
+            next_run_time: Pre-fetched next run time to avoid an extra lock acquisition.
+                If None, uses the default delay.
         """
         try:
-            timeout = (await self._get_sleep_time()).in_seconds()
+            timeout = self._calculate_sleep_time(next_run_time).in_seconds()
             await asyncio.wait_for(self._wakeup_event.wait(), timeout=timeout)
             self.logger.debug("Scheduler woke up due to kick")
         except asyncio.CancelledError:
@@ -125,21 +136,19 @@ class SchedulerService(Service):
         finally:
             self._wakeup_event.clear()
 
-    async def _get_sleep_time(self) -> TimeDelta:
-        """Get the time to sleep until the next job is due.
-        If there are no jobs, return a default sleep time.
-        """
-        next_run_time = await self._job_queue.next_run_time()
+    def _calculate_sleep_time(self, next_run_time: ZonedDateTime | None) -> TimeDelta:
+        """Calculate the time to sleep until the next job is due.
 
+        Args:
+            next_run_time: The next scheduled run time, or None if no jobs are queued.
+        """
         if next_run_time is not None:
             self.logger.debug("Next job scheduled at %s", next_run_time)
             delay = max((next_run_time - now()).in_seconds(), self.min_delay)
         else:
             delay = self.default_delay
 
-        # ensure delay isn't over N seconds
         delay = min(delay, self.max_delay)
-
         self.logger.debug("Scheduler sleeping for %s seconds", delay)
 
         return TimeDelta(seconds=delay)
@@ -158,19 +167,18 @@ class SchedulerService(Service):
             self.logger.debug("Job %s is cancelled, skipping dispatch", job)
             return
 
-        job_task_name = f"{job.name or job.job_id}"
-        run_task_name = f"scheduler:dispatch_job:{job_task_name}"
-        reschedule_task_name = f"scheduler:reschedule_job:{job_task_name}"
-
         self.logger.debug("Dispatching job: %s", job)
+
+        # Run inline — no extra spawn/yield before execution
         try:
-            self.task_bucket.spawn(self.run_job(job), name=run_task_name)
+            await self.run_job(job)
         except asyncio.CancelledError:
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
 
+        # Always reschedule after completion, even if the job failed
         try:
-            self.task_bucket.spawn(self.reschedule_job(job), name=reschedule_task_name)
+            await self.reschedule_job(job)
         except asyncio.CancelledError:
             self.logger.debug("Reschedule cancelled for job %s", job)
             raise
@@ -178,12 +186,11 @@ class SchedulerService(Service):
             self.logger.exception("Error rescheduling job %s", job)
 
     async def run_job(self, job: "ScheduledJob"):
-        """Run a scheduled job.
+        """Run a scheduled job, recording execution metrics.
 
         Args:
             job: The job to run.
         """
-
         if job.cancelled:
             self.logger.debug("Job %s is cancelled, skipping", job)
             await self._remove_job(job)
@@ -192,20 +199,36 @@ class SchedulerService(Service):
         func = job.job
 
         run_at_delta = job.next_run - now()
-        if run_at_delta.in_seconds() < -1:
+        if run_at_delta.in_seconds() < -self.hassette.config.scheduler_behind_schedule_threshold_seconds:
             self.logger.warning(
                 "Job %s is behind schedule by %s seconds, running now.", job, abs(run_at_delta.in_seconds())
             )
 
+        timestamp = time.time()
+        result = ExecutionResult()  # safety default for finally block if track_execution() entry fails
+
         try:
-            self.logger.debug("Running job %s at %s", job, now())
-            async_func = self.task_bucket.make_async_adapter(func)
-            await async_func(*job.args, **job.kwargs)
+            async with track_execution() as result:
+                self.logger.debug("Running job %s at %s", job, now())
+                async_func = self.task_bucket.make_async_adapter(func)
+                await async_func(*job.args, **job.kwargs)
         except asyncio.CancelledError:
             self.logger.debug("Execution cancelled for job %s", job)
             raise
         except Exception:
             self.logger.exception("Error running job %s", job)
+        finally:
+            record = JobExecutionRecord(
+                job_id=job.job_id,
+                job_name=job.name,
+                owner=job.owner,
+                started_at=timestamp,
+                duration_ms=result.duration_ms,
+                status=result.status,
+                error_message=result.error_message,
+                error_type=result.error_type,
+            )
+            self._execution_log.append(record)
 
     async def reschedule_job(self, job: "ScheduledJob"):
         """Reschedule a job if it is repeating.
@@ -239,6 +262,17 @@ class SchedulerService(Service):
 
         # One-time job, remove it
         await self._remove_job(job)
+
+    def get_execution_history(self, limit: int = 50, owner: str | None = None) -> list["JobExecutionRecord"]:
+        """Return recent job execution records, optionally filtered by owner."""
+        entries = list(self._execution_log)
+        if owner:
+            entries = [e for e in entries if e.owner == owner]
+        return entries[-limit:]
+
+    async def get_all_jobs(self) -> list["ScheduledJob"]:
+        """Return all currently scheduled jobs across all apps."""
+        return await self._job_queue.get_all()
 
     def remove_jobs_by_owner(self, owner: str) -> asyncio.Task:
         """Remove all jobs for a given owner.
@@ -310,6 +344,31 @@ class _ScheduledJobQueue(Resource):
 
         return due_jobs
 
+    async def pop_due_and_peek_next(
+        self, reference_time: ZonedDateTime
+    ) -> tuple[list["ScheduledJob"], ZonedDateTime | None]:
+        """Pop all due jobs and return the next run time in a single lock acquisition."""
+
+        due_jobs: list[ScheduledJob] = []
+
+        async with self._lock:
+            current_time = reference_time
+            while not self._queue.is_empty():
+                candidate = self._queue.peek()
+                if candidate is None or candidate.next_run > current_time:
+                    break
+
+                due_jobs.append(self._queue.pop())
+                current_time = now()
+
+            upcoming = self._queue.peek()
+            next_run = upcoming.next_run if upcoming else None
+
+        if due_jobs:
+            self.logger.debug("Dequeued %d due jobs", len(due_jobs))
+
+        return due_jobs, next_run
+
     async def next_run_time(self) -> ZonedDateTime | None:
         """Return the next scheduled run time if available."""
 
@@ -349,6 +408,11 @@ class _ScheduledJobQueue(Resource):
         self.logger.debug("Job not found in queue, cannot remove: %s", job)
         return removed
 
+    async def get_all(self) -> list["ScheduledJob"]:
+        """Return a snapshot of all queued jobs (non-destructive)."""
+        async with self._lock:
+            return list(self._queue)
+
     async def clear(self, predicate: Callable[["ScheduledJob"], bool] | None = None) -> int:
         """Clear the queue, optionally filtering by predicate."""
 
@@ -370,6 +434,13 @@ class _ScheduledJobQueue(Resource):
 @dataclass
 class HeapQueue(Generic[T]):
     _queue: list[T] = field(default_factory=list)
+
+    def __iter__(self) -> Iterator[T]:
+        """Iterate over all items in the queue (unordered)."""
+        return iter(self._queue)
+
+    def __len__(self) -> int:
+        return len(self._queue)
 
     def push(self, job: T):
         """Push a job onto the queue."""

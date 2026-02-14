@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- **Web UI** — server-rendered monitoring dashboard at `/ui/` using Jinja2, HTMX, Alpine.js, and Bulma CSS
+  - **Dashboard** — system health, apps summary, bus metrics, and recent events with WebSocket-driven live updates
+  - **Apps page** — shows all configured app manifests with status badges, start/stop/reload controls, and status filter tabs; single-instance apps link directly to instance detail
+  - **App detail** (`/ui/apps/{key}`) — manifest config, bus listener metrics, scheduled jobs, and filtered log viewer; multi-instance apps show expandable instance table
+  - **Instance detail** (`/ui/apps/{key}/{index}`) — per-instance bus listeners, jobs, and logs
+  - **Log viewer** (`/ui/logs`) — client-side filtering by level/app/text, sortable columns, and real-time WebSocket log streaming
+  - **Scheduler page** (`/ui/scheduler`) — scheduled jobs and execution history, filterable by app
+  - **Entity browser** (`/ui/entities`) — browse entities by domain with text search and pagination
+  - **Event Bus page** (`/ui/bus`) — bus listener metrics, filterable by app
+  - `run_web_ui` config option to enable/disable the UI independently from the API
+  - Added section to docs covering the web UI
+- **FastAPI web backend** replacing the standalone `HealthService` with a full REST API and WebSocket server
+  - `GET /api/health`, `GET /api/healthz` — system health and container healthchecks
+  - `GET /api/entities`, `GET /api/entities/{entity_id}`, `GET /api/entities/domain/{domain}` — entity state access
+  - `GET /api/apps`, `GET /api/apps/{app_key}`, `GET /api/apps/manifests` — app status and manifests
+  - `POST /api/apps/{app_key}/start|stop|reload` — app management
+  - `GET /api/scheduler/jobs`, `GET /api/scheduler/history` — scheduled jobs and execution history
+  - `GET /api/bus/listeners`, `GET /api/bus/metrics` — per-listener execution metrics and aggregate summary
+  - `GET /api/events/recent`, `GET /api/logs/recent`, `GET /api/services`, `GET /api/config` — events, logs, HA services, config
+  - `GET /api/ws` — WebSocket endpoint for real-time state/event/log streaming with subscription controls
+  - `GET /api/docs` — interactive OpenAPI documentation
+- **Event handler execution metrics** — per-listener aggregate counters (invocations, successes, failures, DI failures, timing) exposed via REST API and web UI
+- **Scheduler job execution history** — per-job execution records with timing and error details
+- Configurable service restart with exponential backoff in `ServiceWatcher`
+  - `service_restart_max_attempts`, `service_restart_backoff_seconds`, `service_restart_max_backoff_seconds`, `service_restart_backoff_multiplier` config options
+- `scheduler_behind_schedule_threshold_seconds` config option (default: 5) — configurable threshold before a "behind schedule" warning is logged for a job (previously hard-coded to 1 second)
+- Playwright e2e test suite for the web UI (34 tests; run with `pytest -m e2e`)
+
+### Changed
+- **Breaking:** Replaced `HealthService` with `WebApiService` backed by FastAPI
+- **Breaking:** Config renames: `run_health_service` → `run_web_api`, `health_service_port` → `web_api_port`, `health_service_log_level` → `web_api_log_level`
+- New config options: `web_api_host`, `web_api_cors_origins`, `web_api_event_buffer_size`, `web_api_log_buffer_size`, `web_api_job_history_size`
+- `Service` base class now properly sequences `serve()` task lifecycle: spawns after `on_initialize()`, cancels before `on_shutdown()`
+
+### Fixed
+- WebSocket disconnect handling no longer produces spurious ERROR logs during normal page navigation
+- Scheduler dispatch loop uses single lock acquisition per cycle, reducing scheduling latency
+
+### Removed
+- `HealthService` (`src/hassette/core/health_service.py`) — replaced by FastAPI web backend
+
 ## [0.21.0] - 2026-02-06
 
 ### Changed

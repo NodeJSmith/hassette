@@ -52,6 +52,40 @@ data_dir = "/var/lib/hassette"
 default_cache_size = 209715200  # 200 MiB
 ```
 
+## Web UI Settings
+
+These settings control the built-in [web UI](../../web-ui/index.md) and the underlying web API service.
+
+- **`run_web_api`** (boolean): Whether to run the web API service (REST API, healthcheck, and UI backend).
+    - Default: `true`
+
+- **`run_web_ui`** (boolean): Whether to serve the browser dashboard. Only used when `run_web_api` is `true`.
+    - Default: `true`
+
+- **`web_api_host`** (string): Host to bind the web API server to.
+    - Default: `0.0.0.0`
+
+- **`web_api_port`** (integer): Port to run the web API server on.
+    - Default: `8126`
+    - The UI is accessible at `http://<host>:<port>/ui/`
+
+- **`web_api_cors_origins`** (tuple): Allowed CORS origins for the web API.
+    - Default: `("http://localhost:3000", "http://localhost:5173")`
+
+- **`web_api_event_buffer_size`** (integer): Maximum number of recent events to keep in the ring buffer.
+    - Default: `500`
+
+- **`web_api_log_buffer_size`** (integer): Maximum number of log entries to keep in the ring buffer.
+    - Default: `2000`
+
+**Example:**
+
+```toml
+[hassette]
+run_web_ui = true
+web_api_port = 8126
+```
+
 ## Basic Example
 
 ```toml

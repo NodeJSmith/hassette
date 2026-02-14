@@ -189,14 +189,36 @@ class HassetteConfig(BaseSettings):
     scheduler_default_delay_seconds: int = Field(default=15)
     """Default delay between scheduled jobs."""
 
+    scheduler_behind_schedule_threshold_seconds: int = Field(default=5)
+    """Threshold in seconds before a 'behind schedule' warning is logged for a job."""
+
     run_sync_timeout_seconds: int = Field(default=6)
     """Default timeout for synchronous function calls."""
 
-    run_health_service: bool = Field(default=True)
-    """Whether to run the health service for container healthchecks."""
+    # Web API configuration
+    run_web_api: bool = Field(default=True)
+    """Whether to run the web API service (includes healthcheck and UI backend)."""
 
-    health_service_port: int | None = Field(default=8126)
-    """Port to run the health service on, ignored if run_health_service is False."""
+    run_web_ui: bool = Field(default=True)
+    """Whether to serve the web UI dashboard. Only used when run_web_api is True."""
+
+    web_api_host: str = Field(default="0.0.0.0")
+    """Host to bind the web API server to."""
+
+    web_api_port: int = Field(default=8126)
+    """Port to run the web API server on."""
+
+    web_api_cors_origins: tuple[str, ...] = Field(default=("http://localhost:3000", "http://localhost:5173"))
+    """Allowed CORS origins for the web API, typically the UI dev server."""
+
+    web_api_event_buffer_size: int = Field(default=500)
+    """Maximum number of recent events to keep in the DataSyncService ring buffer."""
+
+    web_api_log_buffer_size: int = Field(default=2000)
+    """Maximum number of log entries to keep in the LogCaptureHandler ring buffer."""
+
+    web_api_job_history_size: int = Field(default=1000)
+    """Maximum number of job execution records to keep."""
 
     file_watcher_debounce_milliseconds: int = Field(default=3_000)
     """Debounce time for file watcher events in milliseconds."""
@@ -209,6 +231,18 @@ class HassetteConfig(BaseSettings):
 
     task_cancellation_timeout_seconds: int = Field(default=5)
     """Length of time to wait for tasks to cancel before forcing."""
+
+    service_restart_max_attempts: int = Field(default=5)
+    """Maximum number of restart attempts before giving up on a failed service."""
+
+    service_restart_backoff_seconds: float = Field(default=2.0)
+    """Initial backoff delay in seconds between service restart attempts."""
+
+    service_restart_max_backoff_seconds: float = Field(default=60.0)
+    """Maximum backoff delay in seconds between service restart attempts."""
+
+    service_restart_backoff_multiplier: float = Field(default=2.0)
+    """Multiplier applied to the backoff delay after each failed restart attempt."""
 
     default_cache_size: int = Field(default=100 * 1024 * 1024)
     """Default size limit for caches in bytes. Defaults to 100 MiB."""
@@ -233,8 +267,8 @@ class HassetteConfig(BaseSettings):
     app_handler_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the app handler service. Defaults to INFO or the value of log_level."""
 
-    health_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the health service. Defaults to INFO or the value of log_level."""
+    web_api_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    """Logging level for the web API service. Defaults to INFO or the value of log_level."""
 
     websocket_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the WebSocket service. Defaults to INFO or the value of log_level."""

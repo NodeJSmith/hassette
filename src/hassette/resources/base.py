@@ -35,7 +35,12 @@ class FinalMeta(type):
         subclass_name = f"{cls.__module__}.{cls.__qualname__}"
         if subclass_name in FinalMeta.LOADED_CLASSES:
             return
+
         FinalMeta.LOADED_CLASSES.add(subclass_name)
+
+        if subclass_name == "hassette.resources.base.Service":
+            # allow Service to override Resource's final initialize/shutdown
+            return
 
         # Collect all methods marked as final from the MRO (excluding object and cls itself)
         finals: dict[str, type] = {}
@@ -46,7 +51,6 @@ class FinalMeta(type):
                 if getattr(obj, "__final__", False):
                     finals.setdefault(attr, ancestor)
 
-        # Check for overrides in the subclass namespace
         for method_name, origin in finals.items():
             if method_name in ns:
                 new_obj = ns[method_name]
@@ -231,6 +235,50 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.children.append(inst)
         return inst
 
+    async def _run_hooks(
+        self, hooks: list[typing.Callable[[], typing.Awaitable[None]]], *, continue_on_error: bool = False
+    ) -> None:
+        """Execute lifecycle hooks with error handling.
+
+        Args:
+            hooks: List of async callables to execute in order.
+            continue_on_error: If False (initialize), re-raise on Exception.
+                If True (shutdown), log and continue to next hook.
+        """
+        for method in hooks:
+            try:
+                await method()
+            except asyncio.CancelledError:
+                if continue_on_error:
+                    self.logger.warning("Shutdown hook was cancelled, forcing cleanup")
+                with suppress(Exception):
+                    await self.handle_failed(asyncio.CancelledError())
+                raise
+            except Exception as e:
+                if continue_on_error:
+                    self.logger.exception("Error during shutdown: %s %s", type(e).__name__, e)
+                    with suppress(Exception):
+                        await self.handle_failed(e)
+                else:
+                    with suppress(Exception):
+                        await self.handle_failed(e)
+                    raise
+
+    async def _finalize_shutdown(self) -> None:
+        """Common shutdown cleanup: cancel tasks, emit stopped event."""
+        try:
+            await self.cleanup()
+        except Exception as e:
+            self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
+
+        if not self.hassette.event_streams_closed:
+            try:
+                await self.handle_stop()
+            except Exception as e:
+                self.logger.exception("Error during stopping %s %s", type(e).__name__, e)
+        else:
+            self.logger.debug("Skipping STOPPED event as event streams are closed")
+
     @final
     async def initialize(self) -> None:
         """Initialize the instance by calling the lifecycle hooks in order."""
@@ -242,22 +290,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         await self.handle_starting()
 
         try:
-            for method in [self.before_initialize, self.on_initialize, self.after_initialize]:
-                try:
-                    await method()
-
-                except asyncio.CancelledError:
-                    # Cooperative cancellation of hooks; still ensure cleanup + STOPPED
-                    with suppress(Exception):
-                        await self.handle_failed(asyncio.CancelledError())
-                    raise
-
-                except Exception as e:
-                    # Hooks blew up: record failure, but continue to clean up
-                    with suppress(Exception):
-                        await self.handle_failed(e)
-                    raise
-
+            await self._run_hooks([self.before_initialize, self.on_initialize, self.after_initialize])
             await self.handle_running()
         finally:
             self._initializing = False
@@ -284,38 +317,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
 
         try:
-            for method in [self.before_shutdown, self.on_shutdown, self.after_shutdown]:
-                try:
-                    await method()
-
-                except asyncio.CancelledError:
-                    self.logger.warning("Shutdown hook was cancelled, forcing cleanup")
-                    # Cooperative cancellation of hooks; still ensure cleanup + STOPPED
-                    with suppress(Exception):
-                        await self.handle_failed(asyncio.CancelledError())
-                    raise
-
-                except Exception as e:
-                    self.logger.exception("Error during shutdown: %s %s", type(e).__name__, e)
-                    # Hooks blew up: record failure, but continue to clean up
-                    with suppress(Exception):
-                        await self.handle_failed(e)
-
+            await self._run_hooks(
+                [self.before_shutdown, self.on_shutdown, self.after_shutdown],
+                continue_on_error=True,
+            )
         finally:
-            # Always free tasks; then mark STOPPED and emit event
-            try:
-                await self.cleanup()
-            except Exception as e:
-                self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
-
-            if not self.hassette.event_streams_closed:
-                try:
-                    await self.handle_stop()
-                except Exception as e:
-                    self.logger.exception("Error during stopping %s %s", type(e).__name__, e)
-            else:
-                self.logger.debug("Skipping STOPPED event as event streams are closed")
-
+            await self._finalize_shutdown()
             self._shutting_down = False
 
     async def before_shutdown(self) -> None:
@@ -359,10 +366,25 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
 
 class Service(Resource):
-    """Base class for services in the Hassette framework."""
+    """Base class for background services.
+
+    Lifecycle (in execution order):
+        initialize():
+            before_initialize()  — overridable: wait for deps, prepare
+            on_initialize()      — overridable: service-specific setup
+            → serve task spawned
+            after_initialize()   — overridable: finalize
+
+        shutdown():
+            before_shutdown()    — overridable: pre-stop signals
+            → serve task cancelled
+            on_shutdown()        — overridable: service-specific cleanup
+            after_shutdown()     — overridable: post-cleanup
+
+    Subclasses MUST implement serve(). All six hooks are available.
+    """
 
     role: ClassVar[ResourceRole] = ResourceRole.SERVICE
-    """Role of the service, e.g. 'App', 'Service', etc."""
 
     _serve_task: asyncio.Task | None = None
 
@@ -371,14 +393,42 @@ class Service(Resource):
         """Subclasses MUST override: run until cancelled or finished."""
         raise NotImplementedError
 
-    # Start: spin up the supervised serve() task
-    async def on_initialize(self) -> None:
-        # Do any service-specific setup, then launch serve()
-        self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
+    @final
+    async def initialize(self) -> None:
+        if self._initializing:
+            return
+        self._initializing = True
+        self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
+        await self.handle_starting()
+        try:
+            await self._run_hooks([self.before_initialize, self.on_initialize])
+            self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
+            await self._run_hooks([self.after_initialize])
+        finally:
+            self._initializing = False
+
+    @final
+    async def shutdown(self) -> None:
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        self.request_shutdown("shutdown")
+        self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
+        try:
+            await self._run_hooks([self.before_shutdown], continue_on_error=True)
+            if self.is_running() and self._serve_task:
+                self._serve_task.cancel()
+                self.logger.debug("Cancelled serve() task")
+                with suppress(asyncio.CancelledError):
+                    await self._serve_task
+            await self._run_hooks([self.on_shutdown, self.after_shutdown], continue_on_error=True)
+        finally:
+            await self._finalize_shutdown()
+            self._shutting_down = False
 
     async def _serve_wrapper(self) -> None:
         try:
-            # We're “RUNNING” as soon as on_initialize returns; readiness is up to the service
+            await self.handle_running()
             await self.serve()
             # Normal return → graceful stop path
             await self.handle_stop()
@@ -396,15 +446,6 @@ class Service(Resource):
             self.logger.exception("Serve() task failed: %s %s", type(e).__name__, e)
             # Crash/failure path
             await self.handle_failed(e)
-
-    # Shutdown: cancel the serve() task and wait for it
-    async def on_shutdown(self) -> None:
-        # Flip any internal flags if you have them; then cancel the loop
-        if self.is_running() and self._serve_task:
-            self._serve_task.cancel()
-            self.logger.debug("Cancelled serve() task")
-            with suppress(asyncio.CancelledError):
-                await self._serve_task
 
     def is_running(self) -> bool:
         return self._serve_task is not None and not self._serve_task.done()

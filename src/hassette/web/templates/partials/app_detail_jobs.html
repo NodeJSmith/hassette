@@ -1,0 +1,46 @@
+{% if jobs %}
+  <table class="table is-fullwidth is-hoverable is-compact is-size-7">
+    <thead>
+      <tr>
+        <th>Name</th>
+        {% if instance_owner_map %}<th>Instance</th>{% endif %}
+        <th>Trigger</th>
+        <th>Next Run</th>
+        <th>Repeat</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+        <tr>
+          <td>
+            <code>{{ job.name }}</code>
+          </td>
+          {% if instance_owner_map %}
+            <td>
+              {% if job.owner in instance_owner_map %}
+                <a href="/ui/apps/{{ instance_owner_map[job.owner][0] }}/{{ instance_owner_map[job.owner][1] }}"><code>{{ job.owner.split(".")[-1] }}</code></a>
+              {% else %}
+                <code>{{ job.owner }}</code>
+              {% endif %}
+            </td>
+          {% endif %}
+          <td>
+            <span class="tag is-info is-light is-small">{{ job.trigger_type }}</span>
+          </td>
+          <td>{{ job.next_run }}</td>
+          <td>{{ "Yes" if job.repeat else "No" }}</td>
+          <td>
+            {% if job.cancelled %}
+              <span class="tag is-warning is-light is-small">cancelled</span>
+            {% else %}
+              <span class="tag is-success is-light is-small">active</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="has-text-grey is-size-7">No scheduled jobs.</p>
+{% endif %}

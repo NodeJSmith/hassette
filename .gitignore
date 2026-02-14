@@ -212,3 +212,4 @@ docs/code-reference
 
 .claude/settings.local.json
 .claude/plan/
+.mcp.json

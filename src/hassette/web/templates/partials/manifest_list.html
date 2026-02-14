@@ -1,0 +1,13 @@
+{% for manifest in manifests %}
+  {% include "partials/manifest_row.html" %}
+  {% if manifest.instance_count > 1 %}
+    {% for inst in manifest.instances %}
+      {% include "partials/instance_row.html" %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+{% if manifests | length == 0 %}
+  <tr>
+    <td colspan="6" class="has-text-centered has-text-grey">No apps match this filter.</td>
+  </tr>
+{% endif %}

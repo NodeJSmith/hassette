@@ -12,7 +12,10 @@ Hassette is an async-first Python framework for building Home Assistant automati
 # Install dependencies
 uv sync
 
-# Run tests (uses nox across Python 3.11, 3.12, 3.13)
+# Run tests locally (preferred for development)
+uv run pytest
+
+# Run tests via nox (CI only — slower, tests across Python 3.11, 3.12, 3.13)
 uv run nox -s tests
 
 # Run tests with coverage
@@ -86,9 +89,30 @@ class MyApp(App[MyConfig]):
         pass
 ```
 
+## E2E Tests (Playwright)
+
+Browser-based tests live in `tests/e2e/` and are excluded from default `pytest` runs via the `e2e` marker.
+
+```bash
+# Install browser (one-time setup — requires sudo for system deps)
+uv run playwright install --with-deps chromium
+
+# Run e2e tests
+uv run pytest -m e2e -v
+
+# Debug with headed browser
+uv run pytest -m e2e --headed
+
+# Single test with trace
+uv run pytest -m e2e --headed --tracing on -k test_sidebar_navigation
+```
+
+System dependencies for Chromium require `sudo`. If `playwright install --with-deps` fails, run `sudo uv run playwright install-deps chromium` manually.
+
 ## Code Style
 
 - Line length: 120 characters
 - Type hints everywhere
 - Google-style docstrings
 - Ruff for linting/formatting, Pyright for type checking
+- Do NOT use `from __future__ import annotations` — this project uses runtime type evaluation

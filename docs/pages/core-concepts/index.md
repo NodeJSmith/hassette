@@ -11,11 +11,13 @@ Hassette has a lot of moving parts, but at its core it’s simple: everything re
 At runtime, the `Hassette` class is the entry point. It receives a `HassetteConfig` instance that defines where to find Home Assistant, your apps, and related configuration. From there it starts the core services:
 
 - `WebsocketService` – maintains the WebSocket connection and dispatches events.
-- `ApiResource` – typed interface to Home Assistant’s REST and WebSocket APIs.
+- `ApiResource` – typed interface to Home Assistant's REST and WebSocket APIs.
 - `BusService` – routes events from the socket to subscribed apps.
 - `SchedulerService` – runs scheduled jobs.
 - `AppHandler` – discovers, loads, and initializes your apps.
-- `StateProxy` - tracks state changes and provides a consistent view of Home Assistant states.
+- `StateProxy` – tracks state changes and provides a consistent view of Home Assistant states.
+- `WebApiService` – serves the REST API, healthcheck, and [web UI](../web-ui/index.md).
+- `DataSyncService` – aggregates runtime data (events, metrics, logs) for the web UI.
 
 Each app is loaded through `AppHandler` and receives its own lightweight handles:
 
@@ -48,6 +50,8 @@ graph TB
     H --> SCHED[SchedulerService]
     H --> APPS[AppHandler]
     H --> STATE[StateProxy]
+    H --> WEB[WebApiService]
+    H --> DSYNC[DataSyncService]
 ```
 
 #### 3) What each app gets (lightweight handles)
@@ -71,6 +75,7 @@ Learn more about writing apps in the [apps](apps/index.md) section.
 - [API](api/index.md) – interacting with Home Assistant.
 - [States](states/index.md) – working with state models.
 - [Configuration](configuration/index.md) – Hassette and app configuration.
+- [Web UI](../web-ui/index.md) – built-in browser dashboard for monitoring and management.
 
 ## Advanced Topics
 

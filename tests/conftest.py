@@ -84,7 +84,7 @@ def test_config(unused_tcp_port_factory):
 
     port = unused_tcp_port_factory()
 
-    tc = TestConfig(health_service_port=port)
+    tc = TestConfig(web_api_port=port)
 
     return tc
 
@@ -110,7 +110,7 @@ def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory):
     class MyTestConfig(TestConfig):
         model_config = TestConfig.model_config.copy() | {"toml_file": [toml_path], "env_file": [ENV_FILE]}
 
-    return MyTestConfig(run_health_service=False)
+    return MyTestConfig(run_web_api=False)
 
 
 @pytest.fixture
@@ -175,7 +175,7 @@ def test_config_with_apps(apps_config_file):
             "env_file": [ENV_FILE],
         }
 
-    config = AppsTestConfig(run_health_service=False, app_dir=TEST_APPS_PATH)
+    config = AppsTestConfig(run_web_api=False, app_dir=TEST_APPS_PATH)
 
     return config
 

@@ -1,0 +1,45 @@
+{% for job in jobs %}
+  <tr>
+    <td>
+      <code>{{ job.name }}</code>
+    </td>
+    <td>
+      {% if instance_owner_map and job.owner in instance_owner_map %}
+        <a href="/ui/apps/{{ instance_owner_map[job.owner][0] }}/{{ instance_owner_map[job.owner][1] }}"><code>{{ job.owner }}</code></a>
+      {% elif app_owner_map and job.owner in app_owner_map %}
+        <a href="/ui/apps/{{ app_owner_map[job.owner] }}"><code>{{ job.owner }}</code></a>
+      {% else %}
+        <code>{{ job.owner }}</code>
+      {% endif %}
+    </td>
+    <td>
+      <span class="tag is-info is-light is-small">{{ job.trigger_type }}</span>
+    </td>
+    <td>
+      {% if job.next_run %}
+        <time x-data
+              x-text="new Date('{{ job.next_run }}'.replace(/\[.*\]$/, '')).toLocaleString()">{{ job.next_run }}</time>
+      {% else %}
+        —
+      {% endif %}
+    </td>
+    <td>
+      {% if job.repeat %}
+        <span class="tag is-link is-light is-small">repeating</span>
+      {% else %}
+        <span class="tag is-light is-small">once</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if job.cancelled %}
+        <span class="tag is-warning is-light is-small">cancelled</span>
+      {% else %}
+        <span class="tag is-success is-light is-small">active</span>
+      {% endif %}
+    </td>
+  </tr>
+{% else %}
+  <tr>
+    <td colspan="6" class="has-text-centered has-text-grey">No scheduled jobs.</td>
+  </tr>
+{% endfor %}

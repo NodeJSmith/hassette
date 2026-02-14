@@ -51,6 +51,24 @@ repos:
         stages:
           - pre-push
 
+      - id: check-template-patterns
+        name: Check template patterns (no inline scripts/handlers in partials)
+        language: system
+        entry: python tools/check_template_patterns.py
+        pass_filenames: false
+        files: ^src/hassette/web/templates/
+        stages:
+          - pre-push
+
+      - id: djlint
+        name: Lint Jinja2 templates
+        language: system
+        entry: uv run djlint --check src/hassette/web/templates/
+        pass_filenames: false
+        files: ^src/hassette/web/templates/
+        stages:
+          - pre-push
+
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.408
     hooks:

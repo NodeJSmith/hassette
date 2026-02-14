@@ -22,9 +22,20 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 - **Dependency Injection**: Clean handler signatures with FastAPI style dependency injection
 - **Persistent Storage**: Built-in disk cache for storing data across restarts, intelligent rate-limiting, and more
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
+- **Built-in Web UI**: Monitor and manage your automations from a browser dashboard — no extra install needed
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading, and intuitive APIs
 
 See the [Getting Started guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/) for detailed instructions.
+
+## 🖥️ Web UI
+
+Hassette includes a built-in browser dashboard for monitoring apps, viewing logs, browsing entities, and inspecting the event bus and scheduler — all in real time.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/web_ui_dashboard.png" alt="Hassette Web UI Dashboard" />
+</p>
+
+The web UI is enabled by default at `http://<host>:8126/ui/`. See the [Web UI documentation](https://hassette.readthedocs.io/en/latest/pages/web-ui/) for details.
 
 ## 🤔 Is Hassette Right for You?
 

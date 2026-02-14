@@ -1,0 +1,21 @@
+{% from "macros/ui.html" import status_badge, action_buttons %}
+<tr class="ht-instance-row"
+    x-show="expanded['{{ manifest.app_key }}'] ?? true"
+    x-transition>
+  <td class="pl-5">
+    <a href="/ui/apps/{{ manifest.app_key }}/{{ inst.index }}"><code>{{ inst.instance_name }}</code></a>
+  </td>
+  <td></td>
+  <td></td>
+  <td>{{ status_badge(inst.status, size="small") }}</td>
+  <td>
+    {% if inst.error_message %}
+      <span class="has-text-danger is-size-7">{{ inst.error_message }}</span>
+    {% else %}
+      —
+    {% endif %}
+  </td>
+  <td>
+    {{ action_buttons(manifest.app_key, inst.status, after_action="htmx.ajax('GET', '/ui/partials/manifest-list', {target: '#manifest-list', swap: 'innerHTML'})", show_labels=false) }}
+  </td>
+</tr>
