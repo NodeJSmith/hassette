@@ -43,6 +43,8 @@ Below the Scheduled Jobs panel, the Event Bus panel displays aggregate event bus
 - **Successful** (green) — handlers that completed without error.
 - **Failed** — handlers that raised an exception.
 
+Click **View All** to navigate to the [Event Bus](event-bus.md) page.
+
 ## Recent Events
 
 The middle-right panel shows the last 10 events received from Home Assistant. Each entry displays the event type (e.g. `state_changed`) and the entity ID.
