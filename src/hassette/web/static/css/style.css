@@ -16,15 +16,34 @@
   flex-direction: column;
   padding: 1rem 0;
   flex-shrink: 0;
-  transition: margin-left 0.25s ease, transform 0.25s ease;
+  transition: width 0.25s ease, transform 0.25s ease;
+  overflow: hidden;
   z-index: 30;
 }
 
-/* Desktop: collapse via negative margin so main content reflows */
-@media screen and (min-width: 769px) {
-  .ht-sidebar:not(.is-open) {
-    margin-left: -220px;
-  }
+/* Icon rail: collapsed sidebar shows icons only */
+.ht-sidebar:not(.is-open) {
+  width: 56px;
+}
+
+.ht-sidebar:not(.is-open) .ht-sidebar-brand {
+  justify-content: center;
+  padding: 0.75rem 0 1.5rem;
+}
+
+.ht-sidebar:not(.is-open) .ht-brand-text,
+.ht-sidebar:not(.is-open) .ht-sidebar-footer,
+.ht-sidebar:not(.is-open) .ht-sidebar-toggle {
+  display: none;
+}
+
+.ht-sidebar:not(.is-open) .menu-list a {
+  justify-content: center;
+  padding: 0.6rem 0;
+}
+
+.ht-sidebar:not(.is-open) .menu-list a span:not(.icon) {
+  display: none;
 }
 
 .ht-sidebar-brand {
@@ -35,6 +54,18 @@
   font-size: 1.25rem;
   font-weight: 700;
   color: #fff;
+}
+
+.ht-brand-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ht-brand-link:hover {
+  opacity: 0.85;
 }
 
 .ht-sidebar .menu-list a {
@@ -63,9 +94,9 @@
   padding: 1rem 1.25rem;
 }
 
-/* Sidebar close button */
-.ht-sidebar-close {
-  display: inline-flex;
+/* Sidebar hamburger toggle — hidden by default, shown on mobile */
+.ht-sidebar-toggle {
+  display: none;
   background: none;
   border: none;
   color: #b0b0c0;
@@ -75,7 +106,7 @@
   font-size: 1.1rem;
 }
 
-.ht-sidebar-close:hover {
+.ht-sidebar-toggle:hover {
   color: #fff;
 }
 
@@ -211,24 +242,31 @@ a:hover code {
    Responsive: tablet & mobile (max-width: 768px)
    ===================================================== */
 @media screen and (max-width: 768px) {
-  /* Sidebar: fixed overlay on mobile, slides in from left */
+  /* Sidebar: fixed icon rail, expands to full overlay when open */
   .ht-sidebar {
     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
-    margin-left: 0;
-    transform: translateX(-100%);
-    width: 260px;
   }
 
   .ht-sidebar.is-open {
-    transform: translateX(0);
+    width: 260px;
   }
 
-  /* Show backdrop when sidebar is open */
+  /* Show hamburger toggle inside sidebar when expanded on mobile */
+  .ht-sidebar.is-open .ht-sidebar-toggle {
+    display: inline-flex;
+  }
+
+  /* Show backdrop when sidebar is fully open */
   .ht-sidebar-backdrop {
     display: block;
+  }
+
+  /* Offset main content for the icon rail */
+  .ht-main {
+    margin-left: 56px;
   }
 
   .ht-status-bar {
@@ -307,10 +345,5 @@ a:hover code {
 
   .box {
     padding: 0.75rem;
-  }
-
-  /* Narrower sidebar on very small screens */
-  .ht-sidebar {
-    width: 230px;
   }
 }
