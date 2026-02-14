@@ -13,24 +13,31 @@
     <link rel="icon" type="image/png" href="/ui/static/img/hassette-logo.png">
     <link rel="stylesheet" href="/ui/static/css/style.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src="https://unpkg.com/htmx-ext-ws@2.0.2/ws.js"></script>
+    <script src="https://unpkg.com/idiomorph@0.3.0/dist/idiomorph-ext.min.js"></script>
+    <script defer src="/ui/static/js/ws-handler.js"></script>
+    <script defer src="/ui/static/js/live-updates.js"></script>
+    <script defer src="/ui/static/js/log-table.js"></script>
+    <script defer src="/ui/static/js/entity-browser.js"></script>
     <script defer
             src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   </head>
   <body x-data x-init="$store.ws.connect()">
-    <div class="ht-layout" x-data="{ sidebarOpen: window.innerWidth > 768 }" @keydown.escape.window="sidebarOpen = false">
+    <div class="ht-layout"
+         hx-boost="true"
+         hx-target="#page-content"
+         hx-select="#page-content"
+         hx-swap="outerHTML show:window:top"
+         x-data="{ sidebarOpen: window.innerWidth > 768 }"
+         @keydown.escape.window="sidebarOpen = false"
+         @resize.window="if (window.innerWidth <= 768) sidebarOpen = false">
       {% include "components/nav.html" %}
       <div class="ht-sidebar-backdrop" x-show="sidebarOpen" x-transition.opacity @click="sidebarOpen = false"></div>
       <main class="ht-main">
         {% include "components/status_bar.html" %}
-        <section class="section">
+        <section id="page-content" class="section">
           {% block content %}{% endblock %}
         </section>
       </main>
     </div>
-    <script src="/ui/static/js/ws-handler.js"></script>
-    <script src="/ui/static/js/live-updates.js"></script>
-    <script src="/ui/static/js/log-table.js"></script>
-    {% block scripts %}{% endblock %}
   </body>
 </html>

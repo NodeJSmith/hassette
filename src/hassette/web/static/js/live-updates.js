@@ -11,7 +11,7 @@
     if (!refreshTimer) {
       refreshTimer = setTimeout(function () {
         pendingRefresh.forEach(function (refreshUrl, target) {
-          if (refreshUrl) htmx.ajax("GET", refreshUrl, { target: target, swap: "innerHTML" });
+          if (refreshUrl) htmx.ajax("GET", refreshUrl, { target: target, swap: "morph:innerHTML" });
         });
         pendingRefresh.clear();
         refreshTimer = null;
@@ -59,4 +59,15 @@
       }, 600);
     }
   });
+  /* Update nav active state after boosted navigation */
+  function updateNavActive() {
+    var path = window.location.pathname;
+    document.querySelectorAll(".menu-list a").forEach(function (link) {
+      var href = link.getAttribute("href");
+      var isActive = href === path || (href === "/ui/" && path === "/ui");
+      link.classList.toggle("is-active", isActive);
+    });
+  }
+  document.body.addEventListener("htmx:pushedIntoHistory", updateNavActive);
+  window.addEventListener("popstate", updateNavActive);
 })();

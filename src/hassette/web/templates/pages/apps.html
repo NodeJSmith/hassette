@@ -97,10 +97,7 @@
         </thead>
         <tbody id="manifest-list"
                x-data="{ expanded: {} }"
-               data-live-on-app="/ui/partials/manifest-list"
-               hx-get="/ui/partials/manifest-list"
-               hx-trigger="every 30s"
-               hx-swap="innerHTML">
+               data-live-on-app="/ui/partials/manifest-list">
           {% set manifests = manifest_snapshot.manifests %}
           {% include "partials/manifest_list.html" %}
         </tbody>

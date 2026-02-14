@@ -36,10 +36,7 @@
         </tr>
       </thead>
       <tbody id="bus-listeners"
-             data-live-refresh="/ui/partials/bus-listeners"
-             hx-get="/ui/partials/bus-listeners"
-             hx-trigger="every 30s"
-             hx-swap="innerHTML">
+             data-live-on-app="/ui/partials/bus-listeners">
         {% include "partials/bus_listeners.html" %}
       </tbody>
     </table>
