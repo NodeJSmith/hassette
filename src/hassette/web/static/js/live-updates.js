@@ -61,10 +61,12 @@
   });
   /* Update nav active state after boosted navigation */
   function updateNavActive() {
-    var path = window.location.pathname;
+    function norm(p) { return p && p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p; }
+    var path = norm(window.location.pathname);
     document.querySelectorAll(".menu-list a").forEach(function (link) {
-      var href = link.getAttribute("href");
-      var isActive = href === path || (href === "/ui/" && path === "/ui");
+      var href = norm(link.getAttribute("href") || "");
+      var isRoot = href === "/ui";
+      var isActive = href === path || (!isRoot && href && path.startsWith(href + "/"));
       link.classList.toggle("is-active", isActive);
     });
   }
