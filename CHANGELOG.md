@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.22.0] - 2026-02-13
+
 ### Added
 - **Web UI** — server-rendered monitoring dashboard at `/ui/` using Jinja2, HTMX, Alpine.js, and Bulma CSS
   - **Dashboard** — system health, apps summary, bus metrics, and recent events with WebSocket-driven live updates
