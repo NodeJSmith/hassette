@@ -1,6 +1,6 @@
 # Web UI
 
-Hassette ships with a built-in browser dashboard for monitoring and managing your automations. No extra packages or build steps are required — it works out of the box.
+Hassette ships with a dashboard for monitoring and managing your automations.
 
 ![Dashboard](../../_static/web_ui_dashboard.png)
 
@@ -13,7 +13,7 @@ Two settings control it:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `run_web_api` | `true` | Enables the web API service (REST API + UI backend) |
-| `run_web_ui` | `true` | Serves the browser dashboard (requires `run_web_api`) |
+| `run_web_ui` | `true` | Serves the dashboard (requires `run_web_api`) |
 
 To disable the UI while keeping the REST API:
 
@@ -48,7 +48,7 @@ The default bind address is `0.0.0.0:8126`. Change it with `web_api_host` and `w
 
 The sidebar provides access to every section:
 
-- **Dashboard** — system health, app summary, event bus metrics, recent events
+- **Dashboard** — system health, app summary, scheduled jobs, event bus metrics, recent events, recent logs
 - **Apps** — view, start, stop, and reload your automations
 - **Scheduler** — scheduled jobs and execution history
 - **Event Bus** — listener metrics and handler details
@@ -58,7 +58,3 @@ The sidebar provides access to every section:
 ## Real-Time Updates
 
 A green **Connected** indicator in the top-right corner shows the WebSocket connection status. While connected, the UI receives live updates — new log entries stream in, event counts increment, and app statuses refresh automatically. Data also refreshes on a 30-second polling interval as a fallback.
-
-## Tech Stack
-
-The UI is built with [Bulma](https://bulma.io/) CSS, [HTMX](https://htmx.org/) for server-driven interactions, and [Alpine.js](https://alpinejs.dev/) for client-side reactivity. Templates are rendered server-side with Jinja2 — there is no JavaScript build step.

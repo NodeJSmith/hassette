@@ -34,6 +34,8 @@ templates/
     ├── bus_listeners.html
     ├── bus_metrics.html
     ├── apps_summary.html
+    ├── dashboard_scheduler.html
+    ├── dashboard_logs.html
     ├── app_detail_listeners.html
     └── app_detail_jobs.html
 ```

@@ -25,7 +25,7 @@ The table displays one row per app with the following columns:
 | **App Key** | Unique identifier (links to the app detail view) |
 | **Name** | Display name of the app |
 | **Class** | Python class name |
-| **Status** | Current status badge (running, stopped, failed, disabled) |
+| **Status** | Current status badge (running, stopped, failed, disabled, blocked) |
 | **Error** | Error message if the app has failed, otherwise `—` |
 | **Actions** | Stop and Reload buttons |
 
@@ -33,9 +33,9 @@ The table displays one row per app with the following columns:
 
 Each app row has action buttons:
 
-- **Stop** (red) — stops the app.
+- **Stop** (yellow) — stops the app.
 - **Reload** (blue) — reloads the app, picking up code changes.
-- **Start** — appears when an app is stopped or failed.
+- **Start** (green) — appears when an app is stopped or failed.
 
 !!! note
     App actions require `dev_mode` to be enabled, or `allow_reload_in_prod` set to `true`. See [Global Settings](../core-concepts/configuration/global.md) for details.

@@ -31,7 +31,7 @@ The bottom table records past job runs:
 | **App** | Owning app (links to app detail) |
 | **Started** | When the execution began |
 | **Duration** | How long the execution took (e.g. `51.4ms`) |
-| **Status** | Result badge — `success`, `error`, or `timeout` |
+| **Status** | Result badge — `success`, `error`, or `cancelled` |
 | **Error** | Error message if the job failed, otherwise `—` |
 
 This makes it easy to spot slow or failing jobs and correlate them with specific apps.
