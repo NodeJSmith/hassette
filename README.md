@@ -22,7 +22,7 @@ A simple, modern, async-first Python framework for building Home Assistant autom
 - **Dependency Injection**: Clean handler signatures with FastAPI style dependency injection
 - **Persistent Storage**: Built-in disk cache for storing data across restarts, intelligent rate-limiting, and more
 - **Simple & Focused**: Just Home Assistant automations - no complexity creep
-- **Built-in Web UI**: Monitor and manage your automations from a browser dashboard — no extra install needed
+- **Built-in Web UI**: Monitor and manage your automations from anywhere with a clean and user-friendly dashboard
 - **Developer Experience**: Clear error messages, proper logging, hot-reloading, and intuitive APIs
 
 See the [Getting Started guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/) for detailed instructions.
