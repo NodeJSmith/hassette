@@ -16,8 +16,15 @@
   flex-direction: column;
   padding: 1rem 0;
   flex-shrink: 0;
-  transition: transform 0.25s ease;
+  transition: margin-left 0.25s ease, transform 0.25s ease;
   z-index: 30;
+}
+
+/* Desktop: collapse via negative margin so main content reflows */
+@media screen and (min-width: 769px) {
+  .ht-sidebar:not(.is-open) {
+    margin-left: -220px;
+  }
 }
 
 .ht-sidebar-brand {
@@ -56,9 +63,9 @@
   padding: 1rem 1.25rem;
 }
 
-/* Sidebar close button (visible on mobile only) */
+/* Sidebar close button */
 .ht-sidebar-close {
-  display: none;
+  display: inline-flex;
   background: none;
   border: none;
   color: #b0b0c0;
@@ -72,7 +79,7 @@
   color: #fff;
 }
 
-/* Sidebar backdrop overlay (mobile only) */
+/* Sidebar backdrop overlay (mobile only — hidden on desktop) */
 .ht-sidebar-backdrop {
   display: none;
   position: fixed;
@@ -81,9 +88,9 @@
   z-index: 20;
 }
 
-/* Hamburger menu toggle */
+/* Hamburger menu toggle — always visible */
 .ht-menu-toggle {
-  display: none;
+  display: inline-flex;
   background: none;
   border: none;
   color: #4a4a4a;
@@ -107,7 +114,7 @@
 /* Status bar */
 .ht-status-bar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   padding: 0.4rem 1.5rem;
   background: #fff;
@@ -204,12 +211,13 @@ a:hover code {
    Responsive: tablet & mobile (max-width: 768px)
    ===================================================== */
 @media screen and (max-width: 768px) {
-  /* Sidebar: off-screen by default, slides in when open */
+  /* Sidebar: fixed overlay on mobile, slides in from left */
   .ht-sidebar {
     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
+    margin-left: 0;
     transform: translateX(-100%);
     width: 260px;
   }
@@ -218,24 +226,12 @@ a:hover code {
     transform: translateX(0);
   }
 
-  /* Show sidebar close button */
-  .ht-sidebar-close {
-    display: inline-flex;
-  }
-
   /* Show backdrop when sidebar is open */
   .ht-sidebar-backdrop {
     display: block;
   }
 
-  /* Show hamburger menu toggle */
-  .ht-menu-toggle {
-    display: inline-flex;
-  }
-
-  /* Status bar: put hamburger on the left, push rest to the right */
   .ht-status-bar {
-    justify-content: space-between;
     padding: 0.4rem 1rem;
   }
 
