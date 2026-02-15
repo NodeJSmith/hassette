@@ -11,7 +11,12 @@ _WATCH_DIRS = [_WEB_DIR / "static", _WEB_DIR / "templates"]
 
 
 def _change_kind(path: str) -> str:
-    """Classify a changed file path as css, js, or template."""
+    """Classify a changed file path as css, js, or template.
+
+    Classification is by file extension only because the watcher is scoped
+    to ``_WATCH_DIRS`` (static/ and templates/), so non-asset files won't
+    be seen.
+    """
     if path.endswith(".css"):
         return "css"
     if path.endswith(".js"):

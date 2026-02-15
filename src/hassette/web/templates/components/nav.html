@@ -15,7 +15,7 @@
   </div>
   <nav class="menu">
     <ul class="menu-list"
-        @click="if ($event.target.closest('a') && window.innerWidth <= 768) sidebarOpen = false">
+        @click="if ($event.target.closest('a') && window.innerWidth < 769) sidebarOpen = false">
       <li>
         <a href="/ui/"
            class="{% if current_page == 'dashboard' %}is-active{% endif %}">

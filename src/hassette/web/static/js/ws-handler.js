@@ -10,6 +10,11 @@ document.addEventListener("alpine:init", () => {
         var state = this._socket.readyState;
         if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
         if (state === WebSocket.CLOSING) {
+          if (this._socket.readyState === WebSocket.CLOSED) {
+            this._socket = null;
+            this.connect();
+            return;
+          }
           this._socket.addEventListener("close", () => this.connect(), { once: true });
           return;
         }

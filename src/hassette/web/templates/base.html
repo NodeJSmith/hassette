@@ -27,9 +27,9 @@
          hx-target="#page-content"
          hx-select="#page-content"
          hx-swap="outerHTML show:window:top"
-         x-data="{ sidebarOpen: window.innerWidth > 768 }"
+         x-data="{ sidebarOpen: window.innerWidth >= 769 }"
          @keydown.escape.window="sidebarOpen = false"
-         @resize.window="if (window.innerWidth <= 768) sidebarOpen = false">
+         @resize.window="if (window.innerWidth < 769) sidebarOpen = false">
       {% include "components/nav.html" %}
       <div class="ht-sidebar-backdrop"
            x-show="sidebarOpen"

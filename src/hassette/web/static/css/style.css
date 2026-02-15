@@ -16,7 +16,7 @@
   flex-direction: column;
   padding: 1rem 0;
   flex-shrink: 0;
-  transition: width 0.25s ease, transform 0.25s ease;
+  transition: width 0.25s ease;
   overflow: hidden;
   z-index: 30;
 }
