@@ -31,6 +31,15 @@ body:
       label: Alternatives Considered
       description: Any other approaches you thought about?
 
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know this feature is done?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+
   - type: dropdown
     id: contribute
     attributes:

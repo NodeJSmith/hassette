@@ -4,7 +4,7 @@ description: Audit and clean up GitHub issues — enforce labels, milestones, ti
 
 # Triage Issues Command
 
-Audit open GitHub issues **created by @NodeJSmith** against the conventions in CLAUDE.md, fix anything that's off, and report what was changed.
+Audit open GitHub issues **created by you** against the conventions in CLAUDE.md, fix anything that's off, and report what was changed.
 
 ## When to Use
 
