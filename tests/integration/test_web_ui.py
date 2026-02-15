@@ -1250,6 +1250,30 @@ class TestSidebarStructure:
         assert "@resize.window" in html
 
 
+class TestErrorPages:
+    """Error responses render full HTML pages with #page-content for hx-boost."""
+
+    async def test_ui_404_returns_html_with_page_content(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/apps/nonexistent")
+        assert response.status_code == 404
+        body = response.text
+        assert 'id="page-content"' in body
+        assert "404" in body
+
+    async def test_ui_404_extends_base_layout(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/apps/nonexistent")
+        body = response.text
+        assert "ht-layout" in body
+        assert "ht-sidebar" in body
+        assert "Back to Dashboard" in body
+
+    async def test_api_404_still_returns_json(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/apps/nonexistent")
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+
+
 class TestUIDisabled:
     async def test_ui_routes_not_available(self, client_no_ui: "AsyncClient") -> None:
         response = await client_no_ui.get("/ui/")

@@ -20,11 +20,18 @@ _DISPATCH_DEV_RELOAD = """(kind) => {
     }));
 }"""
 
+_WAIT_FOR_WS_STORE = "() => typeof Alpine !== 'undefined' && Alpine.store('ws') && Alpine.store('ws')._socket"
+
+
+def _wait_for_alpine_ws(page: Page) -> None:
+    """Block until the Alpine WS store and its underlying socket are ready."""
+    page.wait_for_function(_WAIT_FOR_WS_STORE, timeout=5000)
+
 
 def test_css_dev_reload_swaps_stylesheet_without_page_reload(page: Page, base_url: str) -> None:
     """CSS dev_reload should update stylesheet href (cache bust) without a full page reload."""
     page.goto(base_url + "/ui/")
-    page.wait_for_load_state("networkidle")
+    _wait_for_alpine_ws(page)
 
     # Set a marker to detect full reload
     page.evaluate("window.__test_marker = true")
@@ -48,7 +55,7 @@ def test_css_dev_reload_swaps_stylesheet_without_page_reload(page: Page, base_ur
 def test_js_dev_reload_triggers_full_page_reload(page: Page, base_url: str) -> None:
     """JS dev_reload should trigger location.reload(), destroying transient page state."""
     page.goto(base_url + "/ui/")
-    page.wait_for_load_state("networkidle")
+    _wait_for_alpine_ws(page)
 
     page.evaluate("window.__test_marker = true")
 
@@ -62,7 +69,7 @@ def test_js_dev_reload_triggers_full_page_reload(page: Page, base_url: str) -> N
 def test_template_dev_reload_triggers_full_page_reload(page: Page, base_url: str) -> None:
     """Template dev_reload should trigger location.reload(), same as JS."""
     page.goto(base_url + "/ui/")
-    page.wait_for_load_state("networkidle")
+    _wait_for_alpine_ws(page)
 
     page.evaluate("window.__test_marker = true")
 

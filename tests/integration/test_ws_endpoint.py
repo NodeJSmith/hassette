@@ -220,6 +220,10 @@ class TestWebSocketConnection:
                 data_sync_service,
                 {"type": "log", "data": {"level": "ERROR", "message": "err"}},
             )
+            # receive_json() blocks until a message arrives.  Since the
+            # WARNING was enqueued *before* the ERROR, the fact that the next
+            # (and only) message we receive is ERROR proves the WARNING was
+            # filtered out by the min_log_level subscription.
             msg = ws.receive_json()
             assert msg["type"] == "log"
             assert msg["data"]["level"] == "ERROR"

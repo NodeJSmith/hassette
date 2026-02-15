@@ -3,10 +3,11 @@
 import typing
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import RedirectResponse
+from starlette.responses import HTMLResponse, RedirectResponse
 
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.bus import router as bus_router
@@ -18,6 +19,8 @@ from hassette.web.routes.logs import router as logs_router
 from hassette.web.routes.scheduler import router as scheduler_router
 from hassette.web.routes.services import router as services_router
 from hassette.web.routes.ws import router as ws_router
+from hassette.web.ui import templates
+from hassette.web.ui.context import base_context
 from hassette.web.ui.partials import router as partials_router
 from hassette.web.ui.router import router as ui_router
 
@@ -61,8 +64,29 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
         app.include_router(ui_router, prefix="/ui")
         app.include_router(partials_router, prefix="/ui")
         app.add_api_route("/", _root_redirect, methods=["GET"])
+        app.add_exception_handler(HTTPException, _ui_http_exception_handler)  # type: ignore[arg-type]
 
     return app
+
+
+async def _ui_http_exception_handler(request: Request, exc: HTTPException) -> HTMLResponse:
+    """Render HTML error pages for UI routes so hx-boost can select #page-content.
+
+    API routes (``/api/``) fall through to FastAPI's default JSON handler.
+    """
+    if request.url.path.startswith("/api/"):
+        from fastapi.exception_handlers import http_exception_handler
+
+        return await http_exception_handler(request, exc)  # type: ignore[return-value]
+
+    status_code = exc.status_code
+    detail = exc.detail or "An unexpected error occurred"
+    ctx = {
+        **base_context("error"),
+        "status_code": status_code,
+        "detail": detail,
+    }
+    return templates.TemplateResponse(request, "pages/error.html", ctx, status_code=status_code)
 
 
 async def _root_redirect() -> RedirectResponse:

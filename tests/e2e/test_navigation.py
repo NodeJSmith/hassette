@@ -99,6 +99,8 @@ def _wait_for_sidebar_width(page: Page, expected: int, tolerance: int = 4) -> No
         }}""",
         timeout=2000,
     )
+    # Small extra pause so the CSS transition is fully complete on slow CI runners.
+    page.wait_for_timeout(50)
 
 
 def test_sidebar_collapse_to_icon_rail(page: Page, base_url: str) -> None:
