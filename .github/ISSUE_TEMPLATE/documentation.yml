@@ -1,0 +1,47 @@
+name: Documentation
+description: Report missing, incorrect, or unclear documentation
+labels: ["documentation"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What documentation is missing, incorrect, or unclear?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type of Change
+      options:
+        - Missing documentation
+        - Incorrect or outdated content
+        - Unclear or confusing explanation
+        - New example or tutorial needed
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Where does this documentation live (or where should it)?
+      placeholder: "e.g., docs/guides/scheduling.md, README, API reference for Bus.on_state_change"
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: How should the documentation be changed or what should be added?
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you be willing to contribute this change?
+      options:
+        - "Yes, I can write it"
+        - "I can help review it"
+        - "Just reporting"
+    validations:
+      required: true
