@@ -41,3 +41,60 @@ def test_search_input_present(page: Page, base_url: str) -> None:
     # Type into the search field - should not error
     search_input.fill("test query")
     expect(search_input).to_have_value("test query")
+
+
+def _wait_for_log_entries(page: Page) -> None:
+    """Wait for Alpine.js logTable component to finish loading entries."""
+    page.wait_for_function(
+        """() => {
+            const el = document.querySelector('[x-data*="logTable"]');
+            if (!el || !el._x_dataStack) return false;
+            const data = el._x_dataStack[0];
+            return data && !data.loading && data.entries.length > 0;
+        }""",
+        timeout=5000,
+    )
+
+
+def test_log_entries_render_from_seed_data(page: Page, base_url: str) -> None:
+    """Verify that seeded log entries appear in the table body."""
+    page.goto(base_url + "/ui/logs")
+    _wait_for_log_entries(page)
+    body = page.locator("tbody")
+    expect(body).to_contain_text("Hassette started successfully")
+    expect(body).to_contain_text("MyApp initialized")
+
+
+def test_log_entries_show_error_level(page: Page, base_url: str) -> None:
+    """Verify ERROR level entries from seed data are visible."""
+    page.goto(base_url + "/ui/logs")
+    _wait_for_log_entries(page)
+    body = page.locator("tbody")
+    expect(body).to_contain_text("Failed to call service")
+
+
+def test_level_filter_to_error_hides_info(page: Page, base_url: str) -> None:
+    """Select ERROR filter, verify INFO entries are hidden."""
+    page.goto(base_url + "/ui/logs")
+    _wait_for_log_entries(page)
+    # Select ERROR level
+    page.locator("select[x-model='filters.level']").select_option("ERROR")
+    # Wait for Alpine reactivity to filter
+    page.wait_for_timeout(300)
+    tbody = page.locator("tbody")
+    expect(tbody).to_contain_text("Failed to call service")
+    expect(tbody).not_to_contain_text("Hassette started successfully")
+    expect(tbody).not_to_contain_text("MyApp initialized")
+
+
+def test_search_filter_narrows_entries(page: Page, base_url: str) -> None:
+    """Type a search term and verify only matching entries remain."""
+    page.goto(base_url + "/ui/logs")
+    _wait_for_log_entries(page)
+    search_input = page.locator("input[placeholder='Search...']")
+    search_input.fill("unresponsive")
+    # Wait for debounce (200ms) + reactivity
+    page.wait_for_timeout(500)
+    tbody = page.locator("tbody")
+    expect(tbody).to_contain_text("Light kitchen unresponsive")
+    expect(tbody).not_to_contain_text("Hassette started successfully")

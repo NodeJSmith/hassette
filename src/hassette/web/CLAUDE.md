@@ -91,10 +91,11 @@ All custom CSS classes use the `ht-` prefix:
 - Action buttons use `hx-post` with `hx-on::after-request` for post-action behavior.
 
 ### Live Updates (`static/js/live-updates.js`)
-- `data-live-refresh="/url"` — refreshed on `ht:refresh` events
 - `data-live-on-app="/url"` — refreshed on `app_status_changed` WebSocket messages
 - `data-live-on-state="/url"` — refreshed on `state_changed` WebSocket messages
-- Uses a `Map` for pending refreshes with 500ms debounce (no DOM mutation).
+- All swaps use idiomorph `morph:innerHTML` — identical content produces zero DOM mutation and zero pulse
+- `state_changed` events only refresh `data-live-on-state` panels (not all panels)
+- Uses a `Map` for pending refreshes with 500ms debounce
 
 ## Banned Patterns
 

@@ -32,6 +32,7 @@ _CONFIG_SAFE_FIELDS: set[str] = {
     "scheduler_default_delay_seconds",
     "asyncio_debug_mode",
     "allow_reload_in_prod",
+    "web_ui_hot_reload",
 }
 
 

@@ -202,6 +202,10 @@ class HassetteConfig(BaseSettings):
     run_web_ui: bool = Field(default=True)
     """Whether to serve the web UI dashboard. Only used when run_web_api is True."""
 
+    web_ui_hot_reload: bool = Field(default=False)
+    """Watch web UI static files and templates for changes and push live reloads to the browser via WebSocket.
+    CSS changes are hot-swapped without a page reload; template and JS changes trigger a full reload."""
+
     web_api_host: str = Field(default="0.0.0.0")
     """Host to bind the web API server to."""
 

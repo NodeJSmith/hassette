@@ -6,7 +6,7 @@
     <span>Scheduler</span>
   </h1>
   <!-- App filter -->
-  <div class="field is-grouped mb-4">
+  <div class="field is-grouped mb-4" hx-disinherit="hx-select">
     <div class="control">
       <div class="select is-small">
         <select id="scheduler-owner-filter"
@@ -39,11 +39,7 @@
           <th>Status</th>
         </tr>
       </thead>
-      <tbody id="scheduler-jobs"
-             data-live-refresh="/ui/partials/scheduler-jobs"
-             hx-get="/ui/partials/scheduler-jobs"
-             hx-trigger="every 30s"
-             hx-swap="innerHTML">
+      <tbody id="scheduler-jobs" data-live-on-app="/ui/partials/scheduler-jobs">
         {% include "partials/scheduler_jobs.html" %}
       </tbody>
     </table>
@@ -66,10 +62,7 @@
         </tr>
       </thead>
       <tbody id="scheduler-history"
-             data-live-refresh="/ui/partials/scheduler-history"
-             hx-get="/ui/partials/scheduler-history"
-             hx-trigger="every 30s"
-             hx-swap="innerHTML">
+             data-live-on-app="/ui/partials/scheduler-history">
         {% include "partials/scheduler_history.html" %}
       </tbody>
     </table>

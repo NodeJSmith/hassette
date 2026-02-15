@@ -33,6 +33,7 @@ from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .state_proxy import StateProxy
 from .web_api_service import WebApiService
+from .web_ui_watcher import WebUiWatcherService
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
@@ -93,6 +94,7 @@ class Hassette(Resource):
         self._service_watcher = self.add_child(ServiceWatcher)
         self._websocket_service = self.add_child(WebsocketService)
         self._file_watcher = self.add_child(FileWatcherService)
+        self._web_ui_watcher = self.add_child(WebUiWatcherService)
         self._app_handler = self.add_child(AppHandler)
         self._scheduler_service = self.add_child(SchedulerService)
 

@@ -6,6 +6,19 @@ document.addEventListener("alpine:init", () => {
     _backoff: 1000,
 
     connect() {
+      if (this._socket) {
+        var state = this._socket.readyState;
+        if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+        if (state === WebSocket.CLOSING) {
+          if (this._socket.readyState === WebSocket.CLOSED) {
+            this._socket = null;
+            this.connect();
+            return;
+          }
+          this._socket.addEventListener("close", () => this.connect(), { once: true });
+          return;
+        }
+      }
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const url = `${proto}//${location.host}/api/ws`;
       const socket = new WebSocket(url);
@@ -23,13 +36,25 @@ document.addEventListener("alpine:init", () => {
           document.dispatchEvent(
             new CustomEvent("ht:ws-message", { detail: msg })
           );
-          if (msg.type === "state_changed" || msg.type === "app_status_changed") {
+          if (msg.type === "app_status_changed") {
             document.dispatchEvent(new CustomEvent("ht:refresh"));
           }
           if (msg.type === "log") {
             document.dispatchEvent(
               new CustomEvent("ht:log-entry", { detail: msg })
             );
+          }
+          if (msg.type === "dev_reload") {
+            var kind = msg.data && msg.data.kind;
+            if (kind === "css") {
+              document.querySelectorAll('link[rel="stylesheet"][href*="/ui/static/"]').forEach(function (link) {
+                var url = new URL(link.href);
+                url.searchParams.set("_r", Date.now());
+                link.href = url.toString();
+              });
+            } else {
+              location.reload();
+            }
           }
         } catch { /* ignore non-JSON frames */ }
       });

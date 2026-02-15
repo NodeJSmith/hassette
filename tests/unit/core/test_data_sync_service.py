@@ -204,6 +204,114 @@ class TestLogAccess:
         levels = {log["level"] for log in logs}
         assert levels == {"WARNING", "ERROR"}
 
+    def test_get_recent_logs_filtered_by_app_key(self, data_sync: DataSyncService) -> None:
+        handler = LogCaptureHandler(buffer_size=100)
+        entries = [
+            LogEntry(timestamp=1.0, level="INFO", logger_name="t", func_name="f", lineno=1, message="core msg"),
+            LogEntry(
+                timestamp=2.0,
+                level="INFO",
+                logger_name="t",
+                func_name="f",
+                lineno=1,
+                message="app msg",
+                app_key="my_app",
+            ),
+            LogEntry(
+                timestamp=3.0,
+                level="WARNING",
+                logger_name="t",
+                func_name="f",
+                lineno=1,
+                message="other msg",
+                app_key="other_app",
+            ),
+        ]
+        handler._buffer.extend(entries)
+
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            logs = data_sync.get_recent_logs(app_key="my_app")
+
+        assert len(logs) == 1
+        assert logs[0]["app_key"] == "my_app"
+        assert logs[0]["message"] == "app msg"
+
+    def test_get_recent_logs_no_filters_returns_all(self, data_sync: DataSyncService) -> None:
+        handler = LogCaptureHandler(buffer_size=100)
+        for i in range(3):
+            handler._buffer.append(
+                LogEntry(timestamp=float(i), level="INFO", logger_name="t", func_name="f", lineno=1, message=f"m{i}")
+            )
+
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            logs = data_sync.get_recent_logs()
+
+        assert len(logs) == 3
+
+    def test_get_recent_logs_combined_filters(self, data_sync: DataSyncService) -> None:
+        handler = LogCaptureHandler(buffer_size=100)
+        entries = [
+            LogEntry(
+                timestamp=1.0,
+                level="INFO",
+                logger_name="t",
+                func_name="f",
+                lineno=1,
+                message="a",
+                app_key="my_app",
+            ),
+            LogEntry(
+                timestamp=2.0, level="WARNING", logger_name="t", func_name="f", lineno=1, message="b", app_key="my_app"
+            ),
+            LogEntry(
+                timestamp=3.0, level="ERROR", logger_name="t", func_name="f", lineno=1, message="c", app_key="my_app"
+            ),
+            LogEntry(
+                timestamp=4.0, level="ERROR", logger_name="t", func_name="f", lineno=1, message="d", app_key="other_app"
+            ),
+            LogEntry(timestamp=5.0, level="DEBUG", logger_name="t", func_name="f", lineno=1, message="e"),
+        ]
+        handler._buffer.extend(entries)
+
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            logs = data_sync.get_recent_logs(app_key="my_app", level="WARNING")
+
+        assert len(logs) == 2
+        assert all(log["app_key"] == "my_app" for log in logs)
+        levels = {log["level"] for log in logs}
+        assert levels == {"WARNING", "ERROR"}
+
+    def test_get_recent_logs_limit_applied_after_filters(self, data_sync: DataSyncService) -> None:
+        handler = LogCaptureHandler(buffer_size=100)
+        for i in range(10):
+            handler._buffer.append(
+                LogEntry(
+                    timestamp=float(i),
+                    level="ERROR",
+                    logger_name="t",
+                    func_name="f",
+                    lineno=1,
+                    message=f"err{i}",
+                    app_key="my_app",
+                )
+            )
+
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            logs = data_sync.get_recent_logs(app_key="my_app", level="ERROR", limit=3)
+
+        assert len(logs) == 3
+        # Should return the last 3 (most recent)
+        assert logs[0]["message"] == "err7"
+        assert logs[-1]["message"] == "err9"
+
+    def test_get_recent_logs_empty_buffer_returns_empty(self, data_sync: DataSyncService) -> None:
+        handler = LogCaptureHandler(buffer_size=100)
+
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            logs = data_sync.get_recent_logs()
+
+        assert logs == []
+
 
 class TestSchedulerAccess:
     async def test_get_scheduled_jobs_empty(self, data_sync: DataSyncService) -> None:

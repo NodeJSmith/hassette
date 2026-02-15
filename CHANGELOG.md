@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- `web_ui_hot_reload` config option — watches web UI static files and templates for changes, pushing live reloads to the browser via WebSocket. CSS changes are hot-swapped without a page reload; template and JS changes trigger a full reload.
+- Collapsible sidebar with persistent icon rail on desktop and mobile — click the toggle or press Escape to expand/collapse
+- SPA-like page navigation via HTMX boost — page transitions without full reloads
+
+### Changed
+- Live dashboard/page updates now use WebSocket push with idiomorph DOM morphing instead of 30-second polling intervals
+
 ## [0.22.0] - 2026-02-13
 
 ### Added

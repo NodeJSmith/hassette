@@ -6,7 +6,7 @@
     <span>Event Bus</span>
   </h1>
   <!-- App filter -->
-  <div class="field is-grouped mb-4">
+  <div class="field is-grouped mb-4" hx-disinherit="hx-select">
     <div class="control">
       <div class="select is-small">
         <select id="bus-owner-filter"
@@ -35,11 +35,7 @@
           <th>Avg Duration</th>
         </tr>
       </thead>
-      <tbody id="bus-listeners"
-             data-live-refresh="/ui/partials/bus-listeners"
-             hx-get="/ui/partials/bus-listeners"
-             hx-trigger="every 30s"
-             hx-swap="innerHTML">
+      <tbody id="bus-listeners" data-live-on-app="/ui/partials/bus-listeners">
         {% include "partials/bus_listeners.html" %}
       </tbody>
     </table>

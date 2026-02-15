@@ -6,7 +6,7 @@
     <span>Entity Browser</span>
     <span class="tag is-info is-light ml-2">{{ entity_count }} entities</span>
   </h1>
-  <div class="box" x-data="entityBrowser()">
+  <div class="box" x-data="entityBrowser">
     <!-- Filters -->
     <div class="field is-grouped mb-4">
       <div class="control">
@@ -43,24 +43,4 @@
       </tbody>
     </table>
   </div>
-{% endblock %}
-{% block scripts %}
-  <script>
-  function entityBrowser() {
-    return {
-      domain: '',
-      search: '',
-      init() {
-        this.refresh();
-      },
-      refresh() {
-        var params = [];
-        if (this.domain) params.push('domain=' + encodeURIComponent(this.domain));
-        if (this.search) params.push('search=' + encodeURIComponent(this.search));
-        var url = '/ui/partials/entity-list' + (params.length ? '?' + params.join('&') : '');
-        htmx.ajax('GET', url, {target: '#entity-list', swap: 'innerHTML'});
-      }
-    };
-  }
-  </script>
 {% endblock %}

@@ -1,5 +1,7 @@
 """E2E tests for the Dashboard page panels."""
 
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -70,5 +72,4 @@ def test_dashboard_view_all_links(page: Page, base_url: str, panel_heading: str,
     link = panel.locator("a.button")
     expect(link).to_be_visible()
     link.click()
-    page.wait_for_load_state("networkidle")
-    assert target_path in page.url
+    expect(page).to_have_url(re.compile(re.escape(target_path)))
