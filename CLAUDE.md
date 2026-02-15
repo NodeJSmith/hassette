@@ -27,12 +27,6 @@ uv run pytest tests/integration/test_api.py
 # Run a specific test
 uv run pytest tests/integration/test_api.py::test_function_name -v
 
-# Format code
-uv run ruff format .
-
-# Lint with auto-fix
-uv run ruff check --fix .
-
 # Type checking
 uv run pyright
 
