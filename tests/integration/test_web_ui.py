@@ -273,6 +273,11 @@ class TestStaticFiles:
         response = await client.get("/ui/static/js/live-updates.js")
         assert response.status_code == 200
 
+    async def test_live_updates_js_uses_morph_swap(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/static/js/live-updates.js")
+        assert response.status_code == 200
+        assert "morph:innerHTML" in response.text
+
     async def test_static_not_found(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/static/nonexistent.css")
         assert response.status_code == 404
@@ -312,8 +317,16 @@ class TestDashboardPage:
     async def test_dashboard_has_live_update_attributes(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         body = response.text
-        assert "data-live-refresh" in body
+        assert "data-live-on-state" in body
         assert "data-live-on-app" in body
+
+    async def test_dashboard_has_no_live_refresh_attribute(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        assert "data-live-refresh" not in response.text
+
+    async def test_dashboard_includes_idiomorph_script(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        assert "idiomorph" in response.text
 
     async def test_dashboard_includes_live_updates_js(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
@@ -441,6 +454,12 @@ class TestSchedulerPage:
         response = await client.get("/ui/scheduler")
         assert "No scheduled jobs" in response.text
 
+    async def test_scheduler_page_has_live_on_app_attributes(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/scheduler")
+        body = response.text
+        assert "data-live-on-app" in body
+        assert "data-live-refresh" not in body
+
 
 class TestEntitiesPage:
     async def test_entities_page_returns_html(self, client: "AsyncClient") -> None:
@@ -457,6 +476,15 @@ class TestEntitiesPage:
     async def test_entities_page_shows_entity_count(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/entities")
         assert "1 entities" in response.text
+
+
+class TestBusPage:
+    async def test_bus_page_has_live_on_app_attributes(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/bus")
+        assert response.status_code == 200
+        body = response.text
+        assert "data-live-on-app" in body
+        assert "data-live-refresh" not in body
 
 
 class TestAppDetailPage:
@@ -489,6 +517,12 @@ class TestAppDetailPage:
         body = response.text
         assert "hx-post" in body
         assert "/api/apps/my_app/" in body
+
+    async def test_app_detail_has_live_on_app_attributes(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/apps/my_app")
+        body = response.text
+        assert "data-live-on-app" in body
+        assert "data-live-refresh" not in body
 
 
 class TestPartials:
@@ -765,6 +799,42 @@ class TestInstanceDetail:
         assert "MultiApp[1]" in body
         assert "/ui/apps/multi_app/0" in body
         assert "/ui/apps/multi_app/1" in body
+
+    async def test_instance_detail_has_live_on_app_attributes(self, client: "AsyncClient", mock_hassette) -> None:
+        """Instance detail page should use data-live-on-app, not data-live-refresh."""
+        _setup_registry(
+            mock_hassette,
+            [
+                _make_manifest(
+                    app_key="multi_app",
+                    display_name="Multi App",
+                    instance_count=2,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=0,
+                            instance_name="MultiApp[0]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="MultiApp.MultiApp[0]",
+                        ),
+                        AppInstanceInfo(
+                            app_key="multi_app",
+                            index=1,
+                            instance_name="MultiApp[1]",
+                            class_name="MultiApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="MultiApp.MultiApp[1]",
+                        ),
+                    ],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps/multi_app/0")
+        assert response.status_code == 200
+        body = response.text
+        assert "data-live-on-app" in body
+        assert "data-live-refresh" not in body
 
     async def test_instance_detail_route(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /apps/{app_key}/{index} should render instance detail."""
@@ -1132,6 +1202,76 @@ class TestEmptyStates:
         response = await client.get("/ui/apps")
         assert response.status_code == 200
         assert "No apps are configured" in response.text
+
+
+class TestSidebarStructure:
+    """Sidebar HTML structure tests — validate elements rendered correctly."""
+
+    async def test_sidebar_brand_link(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        html = response.text
+        assert 'class="ht-brand-link"' in html
+        assert 'href="/ui/"' in html
+        assert "<img" in html
+        assert 'class="ht-brand-text"' in html
+
+    async def test_sidebar_no_close_button(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        html = response.text
+        assert "ht-sidebar-close" not in html
+        assert "fa-xmark" not in html
+
+    async def test_sidebar_toggle_button_exists(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        html = response.text
+        assert "ht-sidebar-toggle" in html
+        assert "fa-bars" in html
+
+    async def test_nav_links_no_individual_click_handlers(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        html = response.text
+        # Extract nav link <a> tags — they should not have @click attributes
+        import re
+
+        nav_links = re.findall(r'<a\s+href="/ui/[^"]*"[^>]*>', html)
+        assert len(nav_links) >= 5, f"Expected at least 5 nav links, found {len(nav_links)}"
+        for link in nav_links:
+            assert "@click" not in link, f"Nav link should not have @click: {link}"
+
+    async def test_status_bar_has_menu_toggle(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        html = response.text
+        assert "ht-menu-toggle" in html
+        assert "ht-status-bar" in html
+
+    async def test_sidebar_resize_handler(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/")
+        html = response.text
+        assert "@resize.window" in html
+
+
+class TestErrorPages:
+    """Error responses render full HTML pages with #page-content for hx-boost."""
+
+    async def test_ui_404_returns_html_with_page_content(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/apps/nonexistent")
+        assert response.status_code == 404
+        body = response.text
+        assert 'id="page-content"' in body
+        assert "404" in body
+
+    async def test_ui_404_extends_base_layout(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/apps/nonexistent")
+        body = response.text
+        assert "ht-layout" in body
+        assert "ht-sidebar" in body
+        assert "Back to Dashboard" in body
+
+    async def test_api_404_still_returns_json(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/apps/nonexistent")
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
 
 
 class TestUIDisabled:

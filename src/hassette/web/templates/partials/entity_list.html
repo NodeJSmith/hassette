@@ -46,7 +46,7 @@
     </tr>
   {% endfor %}
   {% if total > limit + offset %}
-    <tr>
+    <tr hx-disinherit="hx-select">
       <td colspan="4" class="has-text-centered">
         <button class="button is-small is-link is-outlined"
                 hx-get="/ui/partials/entity-list?offset={{ offset + limit }}&limit={{ limit }}&domain={{ domain | urlencode }}&search={{ search | urlencode }}"

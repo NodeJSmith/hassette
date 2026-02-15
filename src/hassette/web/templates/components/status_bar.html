@@ -1,4 +1,9 @@
 <div class="ht-status-bar" x-data>
+  <button class="ht-menu-toggle"
+          @click="sidebarOpen = !sidebarOpen"
+          aria-label="Toggle menu">
+    <span class="icon"><i class="fas fa-bars"></i></span>
+  </button>
   <span class="ht-ws-indicator"
         :class="$store.ws.connected ? 'is-connected' : 'is-disconnected'">
     <span class="ht-ws-dot"></span>

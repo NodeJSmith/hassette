@@ -1,14 +1,17 @@
 """Integration tests for the FastAPI web API using httpx AsyncClient."""
 
 import asyncio
+import logging
 from collections import deque
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from hassette.core.data_sync_service import DataSyncService
+from hassette.logging_ import LogCaptureHandler
 from hassette.web.app import create_fastapi_app
+from hassette.web.routes.config import _CONFIG_SAFE_FIELDS
 
 try:
     from httpx import ASGITransport, AsyncClient
@@ -348,6 +351,152 @@ class TestBusEndpoints:
 
         # Restore
         mock_hassette._bus_service.get_all_listener_metrics.return_value = []
+
+
+class TestLogsEndpoints:
+    @pytest.fixture
+    def log_handler(self) -> LogCaptureHandler:
+        handler = LogCaptureHandler(buffer_size=100)
+        # Register app_key mappings before emitting so records get app_key set
+        handler.register_app_logger("hassette.apps.my_app", "my_app")
+        handler.register_app_logger("hassette.apps.other_app", "other_app")
+        entries = [
+            ("hassette.core", logging.INFO, "Core started"),
+            ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),
+            ("hassette.apps.my_app", logging.WARNING, "Light unresponsive"),
+            ("hassette.core", logging.DEBUG, "Heartbeat sent"),
+            ("hassette.apps.my_app", logging.ERROR, "Service call failed"),
+            ("hassette.apps.other_app", logging.INFO, "OtherApp ready"),
+        ]
+        for logger_name, level, msg in entries:
+            record = logging.LogRecord(
+                name=logger_name,
+                level=level,
+                pathname="test.py",
+                lineno=1,
+                msg=msg,
+                args=(),
+                exc_info=None,
+            )
+            handler.emit(record)
+        return handler
+
+    async def test_get_logs_recent_returns_list(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+            response = await client.get("/api/logs/recent")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 6
+
+    async def test_get_logs_filter_by_level(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+            response = await client.get("/api/logs/recent?level=ERROR")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["level"] == "ERROR"
+
+    async def test_get_logs_filter_by_warning_includes_error(
+        self, client: "AsyncClient", log_handler: LogCaptureHandler
+    ) -> None:
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+            response = await client.get("/api/logs/recent?level=WARNING")
+        assert response.status_code == 200
+        data = response.json()
+        levels = {entry["level"] for entry in data}
+        assert levels == {"WARNING", "ERROR"}
+
+    async def test_get_logs_filter_by_app_key(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+            response = await client.get("/api/logs/recent?app_key=my_app")
+        assert response.status_code == 200
+        data = response.json()
+        assert all(entry["app_key"] == "my_app" for entry in data)
+        assert len(data) == 3
+
+    async def test_get_logs_limit(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+            response = await client.get("/api/logs/recent?limit=2")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+
+    async def test_get_logs_combined_filters(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+            response = await client.get("/api/logs/recent?app_key=my_app&level=WARNING")
+        assert response.status_code == 200
+        data = response.json()
+        assert all(entry["app_key"] == "my_app" for entry in data)
+        levels = {entry["level"] for entry in data}
+        assert levels <= {"WARNING", "ERROR", "CRITICAL"}
+        assert len(data) == 2
+
+    async def test_get_logs_empty_when_no_handler(self, client: "AsyncClient") -> None:
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=None):
+            response = await client.get("/api/logs/recent")
+        assert response.status_code == 200
+        assert response.json() == []
+
+
+class TestServicesEndpoint:
+    async def test_get_services_success(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.api = MagicMock()
+        mock_hassette.api.get_services = AsyncMock(
+            return_value={"light": {"turn_on": {}, "turn_off": {}}, "switch": {"toggle": {}}}
+        )
+        response = await client.get("/api/services")
+        assert response.status_code == 200
+        data = response.json()
+        assert "light" in data
+        assert "switch" in data
+
+    async def test_get_services_ha_failure_returns_502(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.api = MagicMock()
+        mock_hassette.api.get_services = AsyncMock(side_effect=ConnectionError("HA unreachable"))
+        response = await client.get("/api/services")
+        assert response.status_code == 502
+        data = response.json()
+        assert "detail" in data
+        assert "Home Assistant" in data["detail"]
+
+    async def test_get_services_generic_error_returns_502(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.api = MagicMock()
+        mock_hassette.api.get_services = AsyncMock(side_effect=RuntimeError("unexpected"))
+        response = await client.get("/api/services")
+        assert response.status_code == 502
+
+
+class TestConfigEndpointExpanded:
+    async def test_response_keys_are_subset_of_safe_fields(self, client: "AsyncClient", mock_hassette) -> None:
+        """All returned keys must be in the allowlist."""
+        mock_hassette.config.model_dump.return_value = {
+            "dev_mode": True,
+            "web_api_port": 8126,
+            "log_level": "INFO",
+        }
+        response = await client.get("/api/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert set(data.keys()) <= _CONFIG_SAFE_FIELDS
+
+    async def test_model_dump_called_with_safe_fields_include(self, client: "AsyncClient", mock_hassette) -> None:
+        """Verify model_dump is called with include=_CONFIG_SAFE_FIELDS to enforce allowlist."""
+        mock_hassette.config.model_dump.return_value = {"dev_mode": True}
+        await client.get("/api/config")
+        mock_hassette.config.model_dump.assert_called_with(include=_CONFIG_SAFE_FIELDS)
+
+    async def test_sensitive_fields_not_in_allowlist(self) -> None:
+        """Verify token and hass_url are not in the allowlist set."""
+        assert "token" not in _CONFIG_SAFE_FIELDS
+        assert "hass_url" not in _CONFIG_SAFE_FIELDS
+
+    async def test_known_safe_field_present(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.config.model_dump.return_value = {"dev_mode": True}
+        response = await client.get("/api/config")
+        data = response.json()
+        assert "dev_mode" in data
+        assert data["dev_mode"] is True
 
 
 class TestOpenApiDocs:

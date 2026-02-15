@@ -11,7 +11,7 @@
     if (!refreshTimer) {
       refreshTimer = setTimeout(function () {
         pendingRefresh.forEach(function (refreshUrl, target) {
-          if (refreshUrl) htmx.ajax("GET", refreshUrl, { target: target, swap: "innerHTML" });
+          if (refreshUrl) htmx.ajax("GET", refreshUrl, { target: target, swap: "morph:innerHTML" });
         });
         pendingRefresh.clear();
         refreshTimer = null;
@@ -59,4 +59,17 @@
       }, 600);
     }
   });
+  /* Update nav active state after boosted navigation */
+  function updateNavActive() {
+    function norm(p) { return p && p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p; }
+    var path = norm(window.location.pathname);
+    document.querySelectorAll(".menu-list a").forEach(function (link) {
+      var href = norm(link.getAttribute("href") || "");
+      var isRoot = href === "/ui";
+      var isActive = href === path || (!isRoot && href && path.startsWith(href + "/"));
+      link.classList.toggle("is-active", isActive);
+    });
+  }
+  document.body.addEventListener("htmx:pushedIntoHistory", updateNavActive);
+  window.addEventListener("popstate", updateNavActive);
 })();

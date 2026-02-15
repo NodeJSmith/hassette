@@ -1,13 +1,21 @@
-<aside class="ht-sidebar">
+<aside class="ht-sidebar" :class="{ 'is-open': sidebarOpen }">
   <div class="ht-sidebar-brand">
-    <img src="/ui/static/img/hassette-logo.png"
-         alt="Hassette"
-         style="height: 28px;
-                width: auto">
-    <span class="ht-brand-text">Hassette</span>
+    <a href="/ui/" class="ht-brand-link">
+      <img src="/ui/static/img/hassette-logo.png"
+           alt="Hassette"
+           style="height: 28px;
+                  width: auto" />
+      <span class="ht-brand-text">Hassette</span>
+    </a>
+    <button class="ht-sidebar-toggle"
+            @click="sidebarOpen = false"
+            aria-label="Close menu">
+      <span class="icon"><i class="fas fa-bars"></i></span>
+    </button>
   </div>
   <nav class="menu">
-    <ul class="menu-list">
+    <ul class="menu-list"
+        @click="if ($event.target.closest('a') && window.innerWidth < 769) sidebarOpen = false">
       <li>
         <a href="/ui/"
            class="{% if current_page == 'dashboard' %}is-active{% endif %}">
