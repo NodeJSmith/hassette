@@ -136,11 +136,11 @@ Optional labels applied when clearly warranted:
 
 ### Required Body Sections
 
-Every issue must have at minimum:
+Every non-bug issue (e.g., feature requests, tasks) must have at minimum:
 - **Description** — what and why
 - **Acceptance Criteria** — checklist of done conditions
 
-Bug reports should additionally include: Steps to Reproduce, Expected Behavior, Actual Behavior, and version info.
+Bug reports should instead focus on: Steps to Reproduce, Expected Behavior, Actual Behavior, and version info. Acceptance criteria for bug fixes may be captured later during triage or in follow-up tasks.
 
 ### Milestones
 
