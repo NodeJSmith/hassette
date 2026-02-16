@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "description": "JS dev tooling for Hassette web UI",
+  "scripts": {
+    "lint:js": "eslint src/hassette/web/static/js/",
+    "typecheck:js": "tsc --noEmit -p src/hassette/web/static/js/jsconfig.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.0",
+    "globals": "^17.3.0",
+    "typescript": "^5.9.3"
+  }
+}

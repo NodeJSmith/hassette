@@ -30,6 +30,15 @@ jobs:
             - name: Install fd-find
               run: sudo apt-get update && sudo apt-get install -y fd-find
 
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: "npm"
+
+            - name: Install JS dev tooling
+              run: npm ci
+
             - name: Run lint checks
               run: |
                   uv tool install ruff==0.14.9

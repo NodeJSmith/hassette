@@ -1,10 +1,32 @@
-/* Hassette WebSocket store for Alpine.js */
+/**
+ * Hassette WebSocket store for Alpine.js.
+ *
+ * Maintains a single WebSocket connection to `/api/ws`, dispatches
+ * custom DOM events for incoming messages, and handles automatic
+ * reconnection with exponential back-off.
+ *
+ * Custom events dispatched on `document`:
+ * - `ht:ws-connected`  — fired when the socket opens
+ * - `ht:ws-message`    — fired for every parsed JSON frame
+ * - `ht:refresh`       — fired on `app_status_changed` messages
+ * - `ht:log-entry`     — fired on `log` messages
+ */
 document.addEventListener("alpine:init", () => {
   Alpine.store("ws", {
+    /** @type {boolean} Whether the WebSocket is currently open. */
     connected: false,
+    /** @type {WebSocket | null} The underlying WebSocket instance. */
     _socket: null,
+    /** @type {number} Current reconnection delay in milliseconds. */
     _backoff: 1000,
 
+    /**
+     * Open a WebSocket connection to the Hassette server.
+     *
+     * If a connection is already open or connecting this is a no-op.
+     * If the socket is in the CLOSING state the method defers until
+     * the close completes, then retries.
+     */
     connect() {
       if (this._socket) {
         var state = this._socket.readyState;
@@ -48,9 +70,10 @@ document.addEventListener("alpine:init", () => {
             var kind = msg.data && msg.data.kind;
             if (kind === "css") {
               document.querySelectorAll('link[rel="stylesheet"][href*="/ui/static/"]').forEach(function (link) {
-                var url = new URL(link.href);
-                url.searchParams.set("_r", Date.now());
-                link.href = url.toString();
+                var el = /** @type {HTMLLinkElement} */ (link);
+                var url = new URL(el.href);
+                url.searchParams.set("_r", String(Date.now()));
+                el.href = url.toString();
               });
             } else {
               location.reload();
@@ -69,6 +92,12 @@ document.addEventListener("alpine:init", () => {
       });
     },
 
+    /**
+     * Subscribe to real-time log streaming over the WebSocket.
+     *
+     * @param {string} [minLevel="INFO"] - Minimum log level to receive
+     *   (e.g. `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"`).
+     */
     subscribeLogs(minLevel = "INFO") {
       if (this._socket && this._socket.readyState === WebSocket.OPEN) {
         this._socket.send(JSON.stringify({
@@ -78,6 +107,13 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
+    /**
+     * Schedule a reconnection attempt with exponential back-off.
+     *
+     * Delay is capped at 30 000 ms and grows by a factor of 1.5 on
+     * each consecutive failure.
+     * @private
+     */
     _reconnect() {
       const delay = Math.min(this._backoff, 30000);
       this._backoff = delay * 1.5;
