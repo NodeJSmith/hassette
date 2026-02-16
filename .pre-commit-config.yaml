@@ -72,7 +72,7 @@ repos:
       - id: eslint
         name: ESLint JS files
         language: system
-        entry: npx eslint
+        entry: npx --no-install eslint
         files: ^src/hassette/web/static/js/.*\.js$
         types: [javascript]
 

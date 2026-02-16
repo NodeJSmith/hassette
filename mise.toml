@@ -15,10 +15,16 @@ run = "uv sync"
 run = "mkdocs serve --livereload"
 depends = ["install"]
 
+[tasks."npm:install"]
+description = "Install Node.js dependencies"
+run = "npm ci"
+
 [tasks."lint:js"]
 description = "Lint JS files with ESLint"
 run = "npx eslint src/hassette/web/static/js/"
+depends = ["npm:install"]
 
 [tasks."typecheck:js"]
 description = "Type-check JS files with TypeScript"
 run = "npx tsc --noEmit -p src/hassette/web/static/js/jsconfig.json"
+depends = ["npm:install"]

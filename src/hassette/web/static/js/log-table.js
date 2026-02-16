@@ -122,11 +122,11 @@ document.addEventListener("alpine:init", function () {
       /**
        * Format a Unix timestamp (seconds) as a locale time string.
        *
-       * @param {number | null} ts - Unix epoch seconds, or null/undefined.
+       * @param {number | null | undefined} ts - Unix epoch seconds, or null/undefined.
        * @returns {string} Formatted time or an em-dash placeholder.
        */
       formatTime(ts) {
-        if (!ts) return "\u2014";
+        if (ts == null) return "\u2014";
         return new Date(ts * 1000).toLocaleTimeString();
       },
 

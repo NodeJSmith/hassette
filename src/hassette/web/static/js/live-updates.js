@@ -48,7 +48,8 @@
   /* On any generic refresh event, refresh all [data-live-refresh] elements */
   document.addEventListener("ht:refresh", function () {
     document.querySelectorAll("[data-live-refresh]").forEach(function (el) {
-      scheduleRefresh(el, el.getAttribute("data-live-refresh"));
+      var url = el.getAttribute("data-live-refresh");
+      if (url) scheduleRefresh(el, url);
     });
   });
 
