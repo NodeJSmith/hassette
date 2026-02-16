@@ -1,8 +1,6 @@
 """Integration tests for the FastAPI web API using httpx AsyncClient."""
 
-import asyncio
 import logging
-from collections import deque
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,6 +8,7 @@ import pytest
 
 from hassette.core.data_sync_service import DataSyncService
 from hassette.logging_ import LogCaptureHandler
+from hassette.test_utils.mock_hassette import create_mock_data_sync_service, create_mock_hassette
 from hassette.web.app import create_fastapi_app
 from hassette.web.routes.config import _CONFIG_SAFE_FIELDS
 
@@ -27,104 +26,50 @@ pytestmark = pytest.mark.skipif(not HAS_HTTPX, reason="httpx not installed")
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette instance for the FastAPI app."""
-    hassette = MagicMock()
-    hassette.config.run_web_api = True
-    hassette.config.web_api_cors_origins = ("http://localhost:3000",)
-    hassette.config.web_api_event_buffer_size = 100
-    hassette.config.web_api_log_level = "INFO"
-    hassette.config.dev_mode = True
-    hassette.config.allow_reload_in_prod = False
-
-    # Wire public properties to private mocks
-    hassette.state_proxy = hassette._state_proxy
-    hassette.websocket_service = hassette._websocket_service
-    hassette.app_handler = hassette._app_handler
-    hassette.bus_service = hassette._bus_service
-    hassette.scheduler_service = hassette._scheduler_service
-    hassette.data_sync_service = hassette._data_sync_service
-
-    # Mock state proxy
-    hassette._state_proxy.states = {
-        "light.kitchen": {
-            "entity_id": "light.kitchen",
-            "state": "on",
-            "attributes": {"brightness": 255},
-            "last_changed": "2024-01-01T00:00:00",
-            "last_updated": "2024-01-01T00:00:00",
+    return create_mock_hassette(
+        run_web_ui=False,
+        states={
+            "light.kitchen": {
+                "entity_id": "light.kitchen",
+                "state": "on",
+                "attributes": {"brightness": 255},
+                "last_changed": "2024-01-01T00:00:00",
+                "last_updated": "2024-01-01T00:00:00",
+            },
+            "sensor.temp": {
+                "entity_id": "sensor.temp",
+                "state": "21.5",
+                "attributes": {"unit_of_measurement": "°C"},
+                "last_changed": "2024-01-01T00:00:00",
+                "last_updated": "2024-01-01T00:00:00",
+            },
         },
-        "sensor.temp": {
-            "entity_id": "sensor.temp",
-            "state": "21.5",
-            "attributes": {"unit_of_measurement": "°C"},
-            "last_changed": "2024-01-01T00:00:00",
-            "last_updated": "2024-01-01T00:00:00",
-        },
-    }
-    hassette._state_proxy.get_state.side_effect = lambda eid: hassette._state_proxy.states.get(eid)
-    hassette._state_proxy.get_domain_states.return_value = {
-        "light.kitchen": hassette._state_proxy.states["light.kitchen"]
-    }
-    hassette._state_proxy.is_ready.return_value = True
-
-    # Mock websocket service
-    from hassette.types.enums import ResourceStatus
-
-    hassette._websocket_service.status = ResourceStatus.RUNNING
-
-    # Mock app handler
-    snapshot = SimpleNamespace(
-        running=[
-            SimpleNamespace(
-                app_key="my_app",
-                index=0,
-                instance_name="MyApp[0]",
-                class_name="MyApp",
-                status=SimpleNamespace(value="running"),
-                error_message=None,
-            )
-        ],
-        failed=[],
-        total_count=1,
-        running_count=1,
-        failed_count=0,
-        only_app=None,
+        old_snapshot=SimpleNamespace(
+            running=[
+                SimpleNamespace(
+                    app_key="my_app",
+                    index=0,
+                    instance_name="MyApp[0]",
+                    class_name="MyApp",
+                    status=SimpleNamespace(value="running"),
+                    error_message=None,
+                )
+            ],
+            failed=[],
+            total_count=1,
+            running_count=1,
+            failed_count=0,
+            only_app=None,
+        ),
+        app_action_mocks=True,
+        config_dump={"dev_mode": True, "web_api_port": 8126},
     )
-    hassette._app_handler.get_status_snapshot.return_value = snapshot
-    hassette._app_handler.start_app = AsyncMock()
-    hassette._app_handler.stop_app = AsyncMock()
-    hassette._app_handler.reload_app = AsyncMock()
-
-    # Mock scheduler
-    hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
-    hassette._scheduler_service.get_execution_history.return_value = []
-
-    # Mock bus service
-    hassette._bus_service.get_all_listener_metrics.return_value = []
-    hassette._bus_service.get_listener_metrics_by_owner.return_value = []
-
-    # Mock config for /api/config endpoint
-    hassette.config.model_dump.return_value = {"dev_mode": True, "web_api_port": 8126}
-
-    # Mock children for system status
-    hassette.children = []
-
-    return hassette
 
 
 @pytest.fixture
 def data_sync_service(mock_hassette):
     """Create a real DataSyncService with mocked Hassette."""
-    ds = DataSyncService.__new__(DataSyncService)
-    ds.hassette = mock_hassette
-    ds._event_buffer = deque(maxlen=100)
-    ds._ws_clients = set()
-    ds._lock = asyncio.Lock()
-    ds._start_time = 1704067200.0
-    ds._subscriptions = []
-    ds.logger = MagicMock()
-    mock_hassette._data_sync_service = ds
-    mock_hassette.data_sync_service = ds
-    return ds
+    return create_mock_data_sync_service(mock_hassette)
 
 
 @pytest.fixture

@@ -1,14 +1,14 @@
 """Integration tests for the Hassette Web UI (pages, partials, static assets)."""
 
-import asyncio
-from collections import deque
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.core.app_registry import AppInstanceInfo
 from hassette.core.data_sync_service import DataSyncService
+from hassette.test_utils.mock_hassette import create_mock_data_sync_service
+from hassette.test_utils.web_helpers import make_manifest, setup_registry
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -22,201 +22,63 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not HAS_HTTPX, reason="httpx not installed")
 
 
-def _make_full_snapshot(
-    manifests: list[AppManifestInfo] | None = None,
-    only_app: str | None = None,
-) -> AppFullSnapshot:
-    """Build an AppFullSnapshot from a list of manifests."""
-    manifests = manifests or []
-    counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
-    for m in manifests:
-        if m.status in counts:
-            counts[m.status] += 1
-    return AppFullSnapshot(
-        manifests=manifests,
-        only_app=only_app,
-        total=len(manifests),
-        **counts,
-    )
-
-
-def _make_manifest(
-    app_key: str = "my_app",
-    class_name: str = "MyApp",
-    display_name: str = "My App",
-    filename: str = "my_app.py",
-    enabled: bool = True,
-    auto_loaded: bool = False,
-    status: str = "running",
-    block_reason: str | None = None,
-    instance_count: int = 1,
-    instances: list[AppInstanceInfo] | None = None,
-    error_message: str | None = None,
-) -> AppManifestInfo:
-    return AppManifestInfo(
-        app_key=app_key,
-        class_name=class_name,
-        display_name=display_name,
-        filename=filename,
-        enabled=enabled,
-        auto_loaded=auto_loaded,
-        status=status,
-        block_reason=block_reason,
-        instance_count=instance_count,
-        instances=instances or [],
-        error_message=error_message,
-    )
-
-
-def _setup_registry(hassette: MagicMock, manifests: list[AppManifestInfo] | None = None) -> None:
-    """Configure the mock registry to return a proper AppFullSnapshot."""
-    snapshot = _make_full_snapshot(manifests)
-    hassette._app_handler.registry.get_full_snapshot.return_value = snapshot
-
-
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette instance with UI enabled."""
-    hassette = MagicMock()
-    hassette.config.run_web_api = True
-    hassette.config.run_web_ui = True
-    hassette.config.web_api_cors_origins = ("http://localhost:3000",)
-    hassette.config.web_api_event_buffer_size = 100
-    hassette.config.web_api_log_level = "INFO"
-    hassette.config.dev_mode = True
-    hassette.config.allow_reload_in_prod = False
+    from hassette.test_utils.mock_hassette import create_mock_hassette
 
-    # Mock state proxy — wire public property to private mock
-    hassette.state_proxy = hassette._state_proxy
-    hassette._state_proxy.states = {
-        "light.kitchen": {
-            "entity_id": "light.kitchen",
-            "state": "on",
-            "attributes": {"brightness": 255},
-            "last_changed": "2024-01-01T00:00:00",
-            "last_updated": "2024-01-01T00:00:00",
+    hassette = create_mock_hassette(
+        states={
+            "light.kitchen": {
+                "entity_id": "light.kitchen",
+                "state": "on",
+                "attributes": {"brightness": 255},
+                "last_changed": "2024-01-01T00:00:00",
+                "last_updated": "2024-01-01T00:00:00",
+            },
         },
-    }
-    hassette._state_proxy.get_state.side_effect = lambda eid: hassette._state_proxy.states.get(eid)
-    hassette._state_proxy.get_domain_states.side_effect = lambda domain: {
-        eid: s for eid, s in hassette._state_proxy.states.items() if eid.startswith(f"{domain}.")
-    }
-    hassette._state_proxy.is_ready.return_value = True
-
-    # Mock websocket service — wire public property
-    hassette.websocket_service = hassette._websocket_service
-    hassette._websocket_service.status = ResourceStatus.RUNNING
-
-    # Mock app handler — wire public property
-    hassette.app_handler = hassette._app_handler
-
-    # Old snapshot (for get_app_status_snapshot)
-    snapshot = SimpleNamespace(
-        running=[
-            SimpleNamespace(
-                app_key="my_app",
-                index=0,
-                instance_name="MyApp[0]",
-                class_name="MyApp",
-                status=SimpleNamespace(value="running"),
-                error_message=None,
-            )
-        ],
-        failed=[],
-        total_count=1,
-        running_count=1,
-        failed_count=0,
-        only_app=None,
+        manifests=[make_manifest()],
+        old_snapshot=SimpleNamespace(
+            running=[
+                SimpleNamespace(
+                    app_key="my_app",
+                    index=0,
+                    instance_name="MyApp[0]",
+                    class_name="MyApp",
+                    status=SimpleNamespace(value="running"),
+                    error_message=None,
+                )
+            ],
+            failed=[],
+            total_count=1,
+            running_count=1,
+            failed_count=0,
+            only_app=None,
+        ),
     )
-    hassette._app_handler.get_status_snapshot.return_value = snapshot
-
-    # Mock registry — new manifest snapshot (for get_all_manifests_snapshot)
-    _setup_registry(hassette, [_make_manifest()])
-
-    # Mock bus service — wire public property
-    hassette.bus_service = hassette._bus_service
-    hassette._bus_service.get_all_listener_metrics.return_value = []
-    hassette._bus_service.get_listener_metrics_by_owner.return_value = []
-
-    # Mock scheduler service — wire public property
-    hassette.scheduler_service = hassette._scheduler_service
-    hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
-    hassette._scheduler_service.get_execution_history.return_value = []
-
-    # Mock data_sync_service — wire public property (set later by data_sync_service fixture)
-    hassette.data_sync_service = hassette._data_sync_service
-
-    # Mock children for system status
-    hassette.children = []
-
     return hassette
 
 
 @pytest.fixture
 def mock_hassette_no_ui():
     """Create a mock Hassette instance with UI disabled."""
-    hassette = MagicMock()
-    hassette.config.run_web_api = True
-    hassette.config.run_web_ui = False
-    hassette.config.web_api_cors_origins = ("http://localhost:3000",)
-    hassette.config.web_api_event_buffer_size = 100
-    hassette.config.web_api_log_level = "INFO"
-    hassette.config.dev_mode = True
-    hassette.config.allow_reload_in_prod = False
+    from hassette.test_utils.mock_hassette import create_mock_hassette
 
-    # Wire public properties
-    hassette.state_proxy = hassette._state_proxy
-    hassette.websocket_service = hassette._websocket_service
-    hassette.app_handler = hassette._app_handler
-    hassette.bus_service = hassette._bus_service
-    hassette.scheduler_service = hassette._scheduler_service
-    hassette.data_sync_service = hassette._data_sync_service
-
-    hassette._state_proxy.states = {}
-    hassette._state_proxy.is_ready.return_value = True
-
-    hassette._websocket_service.status = ResourceStatus.RUNNING
-    hassette._app_handler.get_status_snapshot.return_value = SimpleNamespace(
-        running=[], failed=[], total_count=0, running_count=0, failed_count=0, only_app=None
-    )
-    _setup_registry(hassette, [])
-    hassette._bus_service.get_all_listener_metrics.return_value = []
-    hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
-    hassette._scheduler_service.get_execution_history.return_value = []
-    hassette.children = []
-    return hassette
+    return create_mock_hassette(run_web_ui=False)
 
 
 @pytest.fixture
 def data_sync_service(mock_hassette):
     """Create a DataSyncService with mocked Hassette."""
-    ds = DataSyncService.__new__(DataSyncService)
-    ds.hassette = mock_hassette
-    ds._event_buffer = deque(maxlen=100)
-    ds._ws_clients = set()
-    ds._lock = asyncio.Lock()
-    ds._start_time = 1704067200.0
-    ds._subscriptions = []
-    ds.logger = MagicMock()
-    mock_hassette._data_sync_service = ds
-    mock_hassette.data_sync_service = ds
-    return ds
+
+    return create_mock_data_sync_service(mock_hassette)
 
 
 @pytest.fixture
 def data_sync_service_no_ui(mock_hassette_no_ui):
     """Create a DataSyncService for the no-UI variant."""
-    ds = DataSyncService.__new__(DataSyncService)
-    ds.hassette = mock_hassette_no_ui
-    ds._event_buffer = deque(maxlen=100)
-    ds._ws_clients = set()
-    ds._lock = asyncio.Lock()
-    ds._start_time = 1704067200.0
-    ds._subscriptions = []
-    ds.logger = MagicMock()
-    mock_hassette_no_ui._data_sync_service = ds
-    mock_hassette_no_ui.data_sync_service = ds
-    return ds
+
+    return create_mock_data_sync_service(mock_hassette_no_ui)
 
 
 @pytest.fixture
@@ -379,11 +241,11 @@ class TestAppsPage:
         assert "My App" in response.text
 
     async def test_apps_page_shows_stopped_app(self, client: "AsyncClient", mock_hassette) -> None:
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(),
-                _make_manifest(
+                make_manifest(),
+                make_manifest(
                     app_key="stopped_app",
                     class_name="StoppedApp",
                     display_name="Stopped App",
@@ -397,10 +259,10 @@ class TestAppsPage:
         assert "ht-status-stopped" in body
 
     async def test_apps_page_shows_disabled_app(self, client: "AsyncClient", mock_hassette) -> None:
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="dis_app",
                     class_name="DisApp",
                     display_name="Disabled App",
@@ -583,11 +445,11 @@ class TestPartials:
         assert "my_app" in response.text
 
     async def test_manifest_list_partial_filter_by_status(self, client: "AsyncClient", mock_hassette) -> None:
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(app_key="running_app", status="running"),
-                _make_manifest(app_key="stopped_app", status="stopped"),
+                make_manifest(app_key="running_app", status="running"),
+                make_manifest(app_key="stopped_app", status="stopped"),
             ],
         )
         response = await client.get("/ui/partials/manifest-list?status=running")
@@ -732,10 +594,10 @@ class TestInstanceDetail:
 
     async def test_single_instance_renders_instance_detail(self, client: "AsyncClient", mock_hassette) -> None:
         """Single-instance app at /apps/{app_key} should render instance detail template."""
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="my_app",
                     instance_count=1,
                     instances=[
@@ -762,10 +624,10 @@ class TestInstanceDetail:
 
     async def test_multi_instance_renders_manifest_overview(self, client: "AsyncClient", mock_hassette) -> None:
         """Multi-instance app at /apps/{app_key} should render manifest overview with instances table."""
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="multi_app",
                     display_name="Multi App",
                     instance_count=2,
@@ -802,10 +664,10 @@ class TestInstanceDetail:
 
     async def test_instance_detail_has_live_on_app_attributes(self, client: "AsyncClient", mock_hassette) -> None:
         """Instance detail page should use data-live-on-app, not data-live-refresh."""
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="multi_app",
                     display_name="Multi App",
                     instance_count=2,
@@ -838,10 +700,10 @@ class TestInstanceDetail:
 
     async def test_instance_detail_route(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /apps/{app_key}/{index} should render instance detail."""
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="multi_app",
                     display_name="Multi App",
                     instance_count=2,
@@ -875,10 +737,10 @@ class TestInstanceDetail:
 
     async def test_instance_detail_404_bad_index(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /apps/{app_key}/{bad_index} should return 404."""
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="my_app",
                     instance_count=1,
                     instances=[
@@ -915,10 +777,10 @@ class TestInstanceDetail:
 
     async def test_zero_instance_renders_manifest_overview(self, client: "AsyncClient", mock_hassette) -> None:
         """Zero-instance app at /apps/{app_key} should render manifest overview."""
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="stopped_app",
                     display_name="Stopped App",
                     status="stopped",
@@ -940,10 +802,10 @@ class TestInstanceDetail:
         """Multi-instance manifest overview should show Instance column in bus listeners."""
         owner0 = "MultiApp.MultiApp[0]"
         owner1 = "MultiApp.MultiApp[1]"
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="multi_app",
                     display_name="Multi App",
                     instance_count=2,
@@ -1018,10 +880,10 @@ class TestInstanceDetail:
         """Multi-instance manifest overview should show Instance column in scheduled jobs."""
         owner0 = "MultiApp.MultiApp[0]"
         owner1 = "MultiApp.MultiApp[1]"
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="multi_app",
                     display_name="Multi App",
                     instance_count=2,
@@ -1077,10 +939,10 @@ class TestInstanceDetail:
 
     async def test_single_instance_detail_no_instance_column(self, client: "AsyncClient", mock_hassette) -> None:
         """Single-instance app at /apps/{app_key} should NOT show Instance column."""
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="my_app",
                     instance_count=1,
                     instances=[
@@ -1116,10 +978,10 @@ class TestInstanceDetail:
 
     async def test_multi_instance_listing_shows_group(self, client: "AsyncClient", mock_hassette) -> None:
         """Apps listing page should show grouped rows for multi-instance apps."""
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(
+                make_manifest(
                     app_key="multi_app",
                     display_name="Multi App",
                     instance_count=2,
@@ -1163,13 +1025,13 @@ class TestManifestAPI:
         assert data["manifests"][0]["app_key"] == "my_app"
 
     async def test_get_manifests_mixed_states(self, client: "AsyncClient", mock_hassette) -> None:
-        _setup_registry(
+        setup_registry(
             mock_hassette,
             [
-                _make_manifest(app_key="running_app", status="running"),
-                _make_manifest(app_key="stopped_app", status="stopped"),
-                _make_manifest(app_key="failed_app", status="failed", error_message="boom"),
-                _make_manifest(app_key="disabled_app", status="disabled", enabled=False),
+                make_manifest(app_key="running_app", status="running"),
+                make_manifest(app_key="stopped_app", status="stopped"),
+                make_manifest(app_key="failed_app", status="failed", error_message="boom"),
+                make_manifest(app_key="disabled_app", status="disabled", enabled=False),
             ],
         )
         response = await client.get("/api/apps/manifests")
@@ -1181,7 +1043,7 @@ class TestManifestAPI:
         assert data["disabled"] == 1
 
     async def test_get_manifests_empty(self, client: "AsyncClient", mock_hassette) -> None:
-        _setup_registry(mock_hassette, [])
+        setup_registry(mock_hassette, [])
         response = await client.get("/api/apps/manifests")
         data = response.json()
         assert data["total"] == 0
@@ -1192,13 +1054,13 @@ class TestEmptyStates:
     """Pages handle empty data gracefully."""
 
     async def test_dashboard_no_apps(self, client: "AsyncClient", mock_hassette) -> None:
-        _setup_registry(mock_hassette, [])
+        setup_registry(mock_hassette, [])
         response = await client.get("/ui/")
         assert response.status_code == 200
         assert "No apps configured" in response.text
 
     async def test_apps_page_no_apps(self, client: "AsyncClient", mock_hassette) -> None:
-        _setup_registry(mock_hassette, [])
+        setup_registry(mock_hassette, [])
         response = await client.get("/ui/apps")
         assert response.status_code == 200
         assert "No apps are configured" in response.text

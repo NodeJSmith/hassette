@@ -42,6 +42,12 @@ def wire_up_app_running_listener(bus: Bus, event: asyncio.Event, app_key: str):
     wire_up_app_state_listener(bus, event, app_key, ResourceStatus.RUNNING)
 
 
+@pytest.fixture
+def hassette_and_handler(hassette_with_app_handler_custom_config: Hassette) -> tuple[Hassette, "AppHandler"]:
+    """Extract Hassette + AppHandler pair from the custom-config fixture."""
+    return hassette_with_app_handler_custom_config, hassette_with_app_handler_custom_config._app_handler
+
+
 class TestBasicHotReload:
     """Basic hot reload functionality tests."""
 
@@ -49,9 +55,8 @@ class TestBasicHotReload:
     app_handler: "AppHandler"
 
     @pytest.fixture(autouse=True)
-    def setup(self, hassette_with_app_handler_custom_config: Hassette):
-        self.hassette = hassette_with_app_handler_custom_config
-        self.app_handler = hassette_with_app_handler_custom_config._app_handler
+    def setup(self, hassette_and_handler: tuple[Hassette, "AppHandler"]):
+        self.hassette, self.app_handler = hassette_and_handler
 
     async def test_hot_reload_starts_newly_enabled_app(self):
         """Enable a disabled app and verify it starts."""
@@ -197,9 +202,8 @@ class TestOnlyAppDecorator:
     app_handler: "AppHandler"
 
     @pytest.fixture(autouse=True)
-    def setup(self, hassette_with_app_handler_custom_config: Hassette):
-        self.hassette = hassette_with_app_handler_custom_config
-        self.app_handler = hassette_with_app_handler_custom_config._app_handler
+    def setup(self, hassette_and_handler: tuple[Hassette, "AppHandler"]):
+        self.hassette, self.app_handler = hassette_and_handler
 
     async def test_hot_reload_adds_only_app_decorator(self):
         """Add @only_app app to config and verify other apps stop."""

@@ -3,8 +3,7 @@ import contextlib
 import logging
 import threading
 import typing
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Generator
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
@@ -148,26 +147,63 @@ class _HassetteMock(Resource):
         return self._send_stream._closed and self._receive_stream._closed
 
 
-@dataclass
-class HassetteHarness:
-    config: HassetteConfig
-    use_bus: bool = False
-    use_scheduler: bool = False
-    use_api_mock: bool = False
-    use_api_real: bool = False
-    use_file_watcher: bool = False
-    use_app_handler: bool = False
-    use_websocket: bool = False
-    use_state_proxy: bool = False
-    use_state_registry: bool = False
-    unused_tcp_port: int = 0
+@contextlib.contextmanager
+def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
+    """Snapshot and restore config values around a test.
 
-    def __post_init__(self) -> None:
+    Enables module-scoped hassette reuse when tests mutate config.
+    """
+    original = config.model_dump()
+    try:
+        yield
+    finally:
+        for key, value in original.items():
+            setattr(config, key, value)
+
+
+# ---------------------------------------------------------------------------
+# Dependency graph and startup ordering for HassetteHarness components
+# ---------------------------------------------------------------------------
+
+_DEPENDENCIES: dict[str, set[str]] = {
+    "bus": set(),
+    "scheduler": set(),
+    "file_watcher": set(),
+    "api_mock": set(),
+    "app_handler": {"bus", "state_proxy"},
+    "state_proxy": {"bus"},
+    "state_registry": set(),
+}
+
+_CONFLICTS: list[tuple[str, str]] = []
+
+_STARTUP_ORDER: list[str] = [
+    "bus",
+    "scheduler",
+    "file_watcher",
+    "api_mock",
+    "app_handler",
+    "state_proxy",
+    "state_registry",
+]
+
+
+class HassetteHarness:
+    """Test harness for Hassette with fluent configuration API.
+
+    Use builder methods (`with_bus()`, `with_scheduler()`, etc.) to declare
+    which components the test needs.  Dependencies are resolved automatically
+    at startup — e.g. `with_state_proxy()` will pull in `bus` without the
+    caller having to add it explicitly.
+    """
+
+    def __init__(self, config: HassetteConfig, *, unused_tcp_port: int = 0) -> None:
+        self.config = config
+        self.unused_tcp_port = unused_tcp_port
+        self._components: set[str] = set()
+
         # need this for caplog to work properly
         logging.getLogger("hassette").propagate = True
-
-        if self.use_api_mock and self.use_api_real:
-            raise ValueError("Cannot use both API mock and real API in the same harness")
 
         self.logger = logging.getLogger("hassette")
         self.hassette = _HassetteMock(config=self.config)
@@ -177,44 +213,90 @@ class HassetteHarness:
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
         context.set_global_hassette(cast("Hassette", self.hassette))
-
         self.config.set_validated_app_manifests()
 
-    async def __aenter__(self):
+    # --- Builder methods (return self for chaining) ---
+
+    def with_bus(self) -> "HassetteHarness":
+        self._components.add("bus")
+        return self
+
+    def with_scheduler(self) -> "HassetteHarness":
+        self._components.add("scheduler")
+        return self
+
+    def with_api_mock(self) -> "HassetteHarness":
+        self._components.add("api_mock")
+        return self
+
+    def with_state_proxy(self) -> "HassetteHarness":
+        self._components.add("state_proxy")
+        return self
+
+    def with_state_registry(self) -> "HassetteHarness":
+        self._components.add("state_registry")
+        return self
+
+    def with_file_watcher(self) -> "HassetteHarness":
+        self._components.add("file_watcher")
+        return self
+
+    def with_app_handler(self) -> "HassetteHarness":
+        self._components.add("app_handler")
+        return self
+
+    # --- Convenience query ---
+
+    def _has(self, component: str) -> bool:
+        return component in self._components
+
+    # --- Dependency resolution ---
+
+    def _resolve_dependencies(self) -> None:
+        """Add implicit dependencies and validate conflicts."""
+        changed = True
+        while changed:
+            changed = False
+            for component in list(self._components):
+                deps = _DEPENDENCIES.get(component, set())
+                new_deps = deps - self._components
+                if new_deps:
+                    self._components |= new_deps
+                    changed = True
+
+        for a, b in _CONFLICTS:
+            if a in self._components and b in self._components:
+                raise ValueError(f"Cannot use both {a} and {b}")
+
+    # --- Lifecycle ---
+
+    async def __aenter__(self) -> "HassetteHarness":
         await self.start()
 
         assert self.hassette._loop is not None, "Event loop is not running"
         assert self.hassette._loop.is_running(), "Event loop is not running"
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         await self.stop()
 
     async def start(self) -> "HassetteHarness":
+        self._resolve_dependencies()
+
         self.hassette._loop = asyncio.get_running_loop()
         self.hassette._loop_thread_id = threading.get_ident()
         self.hassette.task_bucket = TaskBucket.create(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
         self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
 
-        if self.use_bus:
-            await self._start_bus()
-        if self.use_scheduler:
-            await self._start_scheduler()
-        if self.use_file_watcher:
-            await self._start_file_watcher()
-        if self.use_api_mock:
-            await self._start_api_mock()
+        # Start components in dependency order
+        for component in _STARTUP_ORDER:
+            if not self._has(component):
+                continue
+            starter = self._starters.get(component)
+            if starter:
+                await starter(self)
 
-        # if self.use_api_real:
-        #     await self.start_api_real()
-        if self.use_app_handler:
-            await self._start_app_handler()
-            if not self.use_state_proxy:
-                await self._start_state_proxy()
-        # if self.use_websocket:
-        #     await self.start_websocket()
-
-        # Set up API and websocket mocks before state proxy if needed
+        # Set up API and websocket mocks if not provided by a real component
         if not self.hassette._api_service:
             self.hassette._api_service = Mock()
             self.hassette._api_service.ready_event = asyncio.Event()
@@ -229,18 +311,9 @@ class HassetteHarness:
             self.hassette.api = AsyncMock()
             self.hassette.api.sync = Mock()
 
-        if self.use_state_proxy:
-            if not self.use_bus:
-                raise RuntimeError("State proxy requires bus")
-            await self._start_state_proxy()
-
-        if self.use_state_registry:
-            self.hassette.state_registry = STATE_REGISTRY
-            self.hassette.type_registry = TYPE_REGISTRY
-
         self.hassette._states = self.hassette.add_child(StateManager)
 
-        if not self.use_bus:
+        if not self._has("bus"):
             self.hassette.send_event = AsyncMock()
 
         for resource in self.hassette.children:
@@ -281,6 +354,8 @@ class HassetteHarness:
 
         self.hassette._loop = None
 
+    # --- Component starters ---
+
     async def _start_bus(self) -> None:
         send_stream, receive_stream = create_memory_object_stream[tuple[str, Event[Any]]](1000)
         self.hassette._send_stream = send_stream
@@ -303,14 +378,9 @@ class HassetteHarness:
         self.hassette._file_watcher = self.hassette.add_child(FileWatcherService)
 
     async def _start_app_handler(self) -> None:
-        if not self.use_bus:
-            raise RuntimeError("App handler requires bus")
-
         self.hassette._app_handler = self.hassette.add_child(AppHandler)
         self.hassette._websocket_service = Mock()
         self.hassette._websocket_service.status = ResourceStatus.RUNNING
-
-        return
 
     async def _start_api_mock(self) -> None:
         if not self.api_base_url:
@@ -349,11 +419,20 @@ class HassetteHarness:
 
         self.api_mock = mock_server
 
-        return
-
     async def _start_state_proxy(self) -> None:
-        if not self.use_bus:
-            raise RuntimeError("State proxy requires bus")
-
         self.hassette._state_proxy = self.hassette.add_child(StateProxy)
-        return
+
+    async def _start_state_registry(self) -> None:
+        self.hassette.state_registry = STATE_REGISTRY
+        self.hassette.type_registry = TYPE_REGISTRY
+
+    # Dispatch table: component name → starter method
+    _starters: typing.ClassVar[dict[str, Callable[["HassetteHarness"], typing.Awaitable[None]]]] = {
+        "bus": _start_bus,
+        "scheduler": _start_scheduler,
+        "file_watcher": _start_file_watcher,
+        "api_mock": _start_api_mock,
+        "app_handler": _start_app_handler,
+        "state_proxy": _start_state_proxy,
+        "state_registry": _start_state_registry,
+    }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- `HassetteHarness` now uses a fluent builder API (`with_bus()`, `with_state_proxy()`, etc.) with automatic dependency resolution instead of boolean flags (#253)
+- Consolidated duplicate mock Hassette, DataSyncService, and web test helper fixtures into shared factories in `test_utils/` (#253)
+
 ### Added
 - JSDoc comments across all web UI JavaScript files (#251)
 - ESLint linting, TypeScript type-checking, and `mise run lint:js` / `mise run typecheck:js` tasks (#251)
