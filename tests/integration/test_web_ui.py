@@ -11,7 +11,6 @@ from httpx import ASGITransport, AsyncClient
 from hassette.core.app_registry import AppInstanceInfo
 from hassette.core.data_sync_service import DataSyncService
 from hassette.logging_ import LogCaptureHandler
-from hassette.test_utils.mock_hassette import create_mock_data_sync_service
 from hassette.test_utils.web_helpers import (
     make_job,
     make_listener_metric,
@@ -19,6 +18,7 @@ from hassette.test_utils.web_helpers import (
     make_old_snapshot,
     setup_registry,
 )
+from hassette.test_utils.web_mocks import create_mock_data_sync_service
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -26,9 +26,9 @@ from hassette.web.app import create_fastapi_app
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette instance with UI enabled."""
-    from hassette.test_utils.mock_hassette import create_mock_hassette
+    from hassette.test_utils.web_mocks import create_hassette_stub
 
-    hassette = create_mock_hassette(
+    hassette = create_hassette_stub(
         states={
             "light.kitchen": {
                 "entity_id": "light.kitchen",
@@ -47,9 +47,9 @@ def mock_hassette():
 @pytest.fixture
 def mock_hassette_no_ui():
     """Create a mock Hassette instance with UI disabled."""
-    from hassette.test_utils.mock_hassette import create_mock_hassette
+    from hassette.test_utils.web_mocks import create_hassette_stub
 
-    return create_mock_hassette(run_web_ui=False)
+    return create_hassette_stub(run_web_ui=False)
 
 
 @pytest.fixture

@@ -1,7 +1,8 @@
-"""Reusable factories for mock Hassette, DataSyncService, and FastAPI app.
+"""Reusable factories for web/API test stubs (Hassette, DataSyncService, FastAPI app).
 
-These replace the 4-5 duplicate `mock_hassette()` / `data_sync_service()` /
-`app()` fixtures scattered across web test files.
+These build MagicMock-based stubs for testing HTTP endpoints, HTML responses,
+and WebSocket frames — as opposed to ``HassetteHarness`` which wires real
+components for integration tests (bus routing, scheduler, state propagation).
 """
 
 import asyncio
@@ -16,7 +17,7 @@ from hassette.test_utils.web_helpers import make_full_snapshot
 from hassette.types.enums import ResourceStatus
 
 
-def create_mock_hassette(
+def create_hassette_stub(
     *,
     # Config
     run_web_api: bool = True,
@@ -41,7 +42,7 @@ def create_mock_hassette(
     # Config endpoint
     config_dump: dict[str, Any] | None = None,
 ) -> MagicMock:
-    """Build a fully-wired MagicMock Hassette for web test fixtures.
+    """Build a fully-wired MagicMock Hassette stub for web/API test fixtures.
 
     All ``hassette.<public> = hassette._<private>`` wiring, state proxy
     side effects, and snapshot plumbing is handled automatically.

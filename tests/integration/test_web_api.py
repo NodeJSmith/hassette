@@ -11,15 +11,15 @@ from hassette.core.data_sync_service import DataSyncService
 if TYPE_CHECKING:
     from httpx import AsyncClient
 from hassette.logging_ import LogCaptureHandler
-from hassette.test_utils.mock_hassette import create_mock_hassette
 from hassette.test_utils.web_helpers import make_old_snapshot
+from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.routes.config import _CONFIG_SAFE_FIELDS
 
 
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette instance for the FastAPI app."""
-    return create_mock_hassette(
+    return create_hassette_stub(
         run_web_ui=False,
         states={
             "light.kitchen": {

@@ -83,6 +83,13 @@ class MyApp(App[MyConfig]):
         pass
 ```
 
+## Test Infrastructure
+
+Two mock strategies serve different testing needs. See `tests/TESTING.md` for the full guide, decision table, and code examples.
+
+- **`HassetteHarness`** — wires real components (bus, scheduler, state proxy) for integration tests
+- **`create_hassette_stub()`** — builds a MagicMock stub for web/API tests (HTTP, HTML, WebSocket)
+
 ## E2E Tests (Playwright)
 
 Browser-based tests live in `tests/e2e/` and are excluded from default `pytest` runs via the `e2e` marker.

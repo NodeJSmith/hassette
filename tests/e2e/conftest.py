@@ -12,7 +12,6 @@ import uvicorn
 
 from hassette.core.app_registry import AppInstanceInfo
 from hassette.logging_ import LogCaptureHandler
-from hassette.test_utils.mock_hassette import create_mock_data_sync_service, create_mock_hassette
 from hassette.test_utils.web_helpers import (
     make_job,
     make_listener_metric,
@@ -20,6 +19,7 @@ from hassette.test_utils.web_helpers import (
     make_old_app_instance,
     make_old_snapshot,
 )
+from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_data_sync_service
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -93,7 +93,7 @@ def mock_hassette():
         make_listener_metric(2, "MyApp.MyApp[0]", "state_changed.sensor.temperature", "on_temp_update", 20, 20, 0),
     ]
 
-    hassette = create_mock_hassette(
+    hassette = create_hassette_stub(
         states={
             "light.kitchen": {
                 "entity_id": "light.kitchen",

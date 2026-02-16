@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from hassette.test_utils.mock_hassette import create_mock_data_sync_service
+from hassette.test_utils.web_mocks import create_mock_data_sync_service
 from hassette.web.app import create_fastapi_app
 
 

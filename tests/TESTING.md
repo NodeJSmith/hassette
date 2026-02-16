@@ -24,6 +24,41 @@ async with HassetteHarness(config).with_state_proxy().with_scheduler() as harnes
 | `.with_file_watcher()`   | FileWatcherService                   | —                    |
 | `.with_app_handler()`    | AppHandler                           | `bus`, `state_proxy` |
 
+## Choosing a Mock Strategy
+
+Two parallel systems exist for different testing needs:
+
+| Scenario | Tool | Why |
+| --- | --- | --- |
+| Bus routing, scheduler firing, state propagation | `HassetteHarness` | Wires real components — catches integration bugs |
+| HTTP endpoints, HTML responses, WebSocket frames | `create_hassette_stub()` | MagicMock stub — fast, no real services needed |
+| DataSyncService + event buffer | `create_mock_data_sync_service()` | Bypasses `__init__`, wires to the stub |
+| FastAPI app from a stub | `create_test_fastapi_app()` | Thin wrapper with optional log handler patch |
+
+### `HassetteHarness` — real components
+
+Use when you need real event delivery, scheduling, or state propagation:
+
+```python
+from hassette.test_utils import HassetteHarness
+
+async with HassetteHarness(config).with_bus().with_scheduler() as harness:
+    hassette = harness.hassette
+    # Real bus, real scheduler — events flow end-to-end
+```
+
+### `create_hassette_stub()` — MagicMock stub
+
+Use when you only need HTTP/WS responses and don't care about internal wiring:
+
+```python
+from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_data_sync_service
+
+stub = create_hassette_stub(states={"light.kitchen": {...}})
+ds = create_mock_data_sync_service(stub)
+app = create_fastapi_app(stub)
+```
+
 ## Fixture Naming Conventions
 
 ### Harness fixtures (`src/hassette/test_utils/fixtures.py`)
@@ -33,7 +68,7 @@ async with HassetteHarness(config).with_state_proxy().with_scheduler() as harnes
 
 ### Web mock fixtures
 
-- `mock_hassette` — MagicMock Hassette created via `create_mock_hassette()` (local to each test file)
+- `mock_hassette` — MagicMock Hassette created via `create_hassette_stub()` (local to each test file)
 - `data_sync_service` — DataSyncService wired to the mock, via `create_mock_data_sync_service()` (shared in `tests/integration/conftest.py`)
 - `app` — FastAPI application instance (shared in `tests/integration/conftest.py`, can be overridden locally)
 - `client` — httpx `AsyncClient` (shared in `tests/integration/conftest.py`, can be overridden locally)
@@ -75,15 +110,15 @@ Playwright tests are synchronous. `tests/e2e/conftest.py` overrides the async `c
 
 ## Available Factories
 
-### `create_mock_hassette(**kwargs)` — `test_utils/mock_hassette.py`
+### `create_hassette_stub(**kwargs)` — `test_utils/web_mocks.py`
 
-Builds a fully-wired MagicMock Hassette. Handles all `hassette.<public> = hassette._<private>` wiring, state proxy side effects, and snapshot plumbing.
+Builds a fully-wired MagicMock Hassette stub for web/API tests. Handles all `hassette.<public> = hassette._<private>` wiring, state proxy side effects, and snapshot plumbing.
 
-### `create_mock_data_sync_service(mock_hassette, **kwargs)` — `test_utils/mock_hassette.py`
+### `create_mock_data_sync_service(mock_hassette, **kwargs)` — `test_utils/web_mocks.py`
 
 Builds a DataSyncService bypassing `__init__`. Use `use_real_lock=False` for session-scoped fixtures on Python 3.12+.
 
-### `create_test_fastapi_app(mock_hassette, *, log_handler=None)` — `test_utils/mock_hassette.py`
+### `create_test_fastapi_app(mock_hassette, *, log_handler=None)` — `test_utils/web_mocks.py`
 
 Thin wrapper around `create_fastapi_app()` with optional log handler patch.
 

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from hassette.core.data_sync_service import DataSyncService
-from hassette.test_utils.mock_hassette import create_mock_hassette
+from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.app import create_fastapi_app
 
 try:
@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(not HAS_STARLETTE_TC, reason="starlette testclie
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette for WebSocket tests."""
-    return create_mock_hassette(
+    return create_hassette_stub(
         run_web_ui=False,
         cors_origins=(),
         states={"light.kitchen": {"entity_id": "light.kitchen", "state": "on"}},

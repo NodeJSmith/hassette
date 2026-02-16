@@ -28,7 +28,6 @@ from .helpers import (
     write_app_toml,
     write_test_app_with_decorator,
 )
-from .mock_hassette import create_mock_data_sync_service, create_mock_hassette, create_test_fastapi_app
 from .test_server import SimpleTestServer
 from .web_helpers import (
     make_full_snapshot,
@@ -39,6 +38,7 @@ from .web_helpers import (
     make_old_snapshot,
     setup_registry,
 )
+from .web_mocks import create_hassette_stub, create_mock_data_sync_service, create_test_fastapi_app
 
 __all__ = [
     "HassetteHarness",
@@ -46,8 +46,8 @@ __all__ = [
     "build_harness",
     "create_app_manifest",
     "create_call_service_event",
+    "create_hassette_stub",
     "create_mock_data_sync_service",
-    "create_mock_hassette",
     "create_state_change_event",
     "create_test_fastapi_app",
     "hassette_harness",
