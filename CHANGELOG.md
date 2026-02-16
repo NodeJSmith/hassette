@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Entity browser "Load more" button now appends rows instead of replacing existing ones on domain-filtered views (#247)
+- `model_dump()` and `model_dump_json()` on `AppManifest` and `HassetteConfig` no longer leak extra fields (e.g. tokens from environment variables)
 
 ## [0.22.1] - 2026-02-15
 

@@ -48,7 +48,36 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
         InitSettingsSource.__init__(self, settings_cls, self.toml_data)
 
 
-class AppManifest(BaseModel):
+class ExcludeExtrasMixin:
+    """Mixin that excludes ``model_extra`` keys from serialization by default.
+
+    Models using ``extra="allow"`` silently collect unrecognised fields in
+    ``model_extra``.  This mixin overrides ``model_dump`` and
+    ``model_dump_json`` so those extra keys are excluded unless the caller
+    explicitly passes ``include``.  This prevents accidental exposure of
+    sensitive values (e.g. tokens, secrets) during serialization.
+    """
+
+    def _get_extra_keys(self) -> set[str]:
+        extras = getattr(self, "model_extra", None)
+        return set(extras) if extras else set()
+
+    def model_dump(self, *, exclude: set[str] | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Serialize declared fields only; extra fields are excluded for privacy."""
+        extra_keys = self._get_extra_keys()
+        if extra_keys and "include" not in kwargs:
+            exclude = (exclude or set()) | extra_keys
+        return super().model_dump(exclude=exclude, **kwargs)  # type: ignore[misc]
+
+    def model_dump_json(self, *, exclude: set[str] | None = None, **kwargs: Any) -> str:
+        """Serialize declared fields only; extra fields are excluded for privacy."""
+        extra_keys = self._get_extra_keys()
+        if extra_keys and "include" not in kwargs:
+            exclude = (exclude or set()) | extra_keys
+        return super().model_dump_json(exclude=exclude, **kwargs)  # type: ignore[misc]
+
+
+class AppManifest(ExcludeExtrasMixin, BaseModel):
     """Manifest for a Hassette app."""
 
     model_config = ConfigDict(
