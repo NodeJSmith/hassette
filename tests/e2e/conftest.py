@@ -256,13 +256,3 @@ def live_server(_fastapi_app):
 def base_url(live_server: str) -> str:
     """Override pytest-playwright's base_url fixture."""
     return live_server
-
-
-@pytest.fixture(autouse=True)
-def cleanup_state_proxy_fixture():
-    """Override the async autouse fixture from hassette.test_utils.fixtures.
-
-    The parent conftest registers an async cleanup_state_proxy_fixture via
-    pytest_plugins.  Playwright tests are synchronous, so the async fixture
-    causes a coroutine-never-awaited error.  This sync override is a no-op.
-    """
