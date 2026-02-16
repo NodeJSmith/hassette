@@ -255,6 +255,62 @@ async def cleanup_state_proxy_fixture(request: pytest.FixtureRequest):
     return
 
 
+_BUS_FIXTURES = frozenset(
+    {
+        "hassette_with_bus",
+        "hassette_with_scheduler",
+        "hassette_with_file_watcher",
+        "hassette_with_state_registry",
+    }
+)
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_bus_fixture(request: pytest.FixtureRequest):
+    """Automatically remove all bus listeners before each test.
+
+    Covers fixtures that include a Bus: hassette_with_bus, hassette_with_scheduler,
+    hassette_with_file_watcher, and hassette_with_state_registry.
+    """
+    from hassette.test_utils.reset import reset_bus
+
+    for name in _BUS_FIXTURES & set(request.fixturenames):
+        try:
+            hassette = request.getfixturevalue(name)
+            if hassette._bus is not None:
+                await reset_bus(hassette._bus)
+                break
+        except Exception:
+            pass
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_scheduler_fixture(request: pytest.FixtureRequest):
+    """Automatically remove all scheduler jobs before each test."""
+    from hassette.test_utils.reset import reset_scheduler
+
+    if "hassette_with_scheduler" in request.fixturenames:
+        try:
+            hassette = request.getfixturevalue("hassette_with_scheduler")
+            if hassette._scheduler is not None:
+                await reset_scheduler(hassette._scheduler)
+        except Exception:
+            pass
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_mock_api_fixture(request: pytest.FixtureRequest):
+    """Automatically clear mock API expectations before each test."""
+    from hassette.test_utils.reset import reset_mock_api
+
+    if "hassette_with_mock_api" in request.fixturenames:
+        try:
+            _, server = request.getfixturevalue("hassette_with_mock_api")
+            reset_mock_api(server)
+        except Exception:
+            pass
+
+
 def run_hassette_startup_tasks(config: "HassetteConfig") -> None:
     """Run Hassette's one-time startup tasks without constructing the full Hassette instance.
 

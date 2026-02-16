@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All test helper functions now exported from `hassette.test_utils` public API; tests import from the package instead of submodules (#253)
 - Replaced 28 `asyncio.sleep()` synchronization calls across 8 integration test files with `wait_for` polling helper for deterministic, faster tests (#253)
 - Renamed `create_mock_hassette()` to `create_hassette_stub()` and `mock_hassette.py` to `web_mocks.py` to clarify web/API stub vs harness distinction (#259)
+- Added autouse cleanup fixtures for bus, scheduler, and mock API to prevent test pollution in module-scoped fixtures (#256)
 
 ### Added
 - JSDoc comments across all web UI JavaScript files (#251)
