@@ -7,23 +7,23 @@
       <td>
         {% set s = state.get("state", "unknown") if state is mapping else state %}
         {% if s == "on" %}
-          <span class="tag ht-entity-on is-small">{{ s }}</span>
+          <span class="ht-badge ht-entity-on ht-badge--sm">{{ s }}</span>
         {% elif s == "off" %}
-          <span class="tag ht-entity-off is-small">{{ s }}</span>
+          <span class="ht-badge ht-entity-off ht-badge--sm">{{ s }}</span>
         {% elif s == "unavailable" %}
-          <span class="tag ht-entity-unavailable is-small">{{ s }}</span>
+          <span class="ht-badge ht-entity-unavailable ht-badge--sm">{{ s }}</span>
         {% else %}
-          <span class="tag is-light is-small">{{ s }}</span>
+          <span class="ht-badge ht-badge--neutral ht-badge--sm">{{ s }}</span>
         {% endif %}
       </td>
-      <td class="is-size-7">
+      <td class="ht-text-xs">
         {% if state is mapping and state.get("last_changed") %}
           {{ state.last_changed }}
         {% else %}
           —
         {% endif %}
       </td>
-      <td class="is-size-7">
+      <td class="ht-text-xs">
         {% if state is mapping and state.get("attributes") %}
           {% set attrs_json = state.attributes | tojson %}
           <div x-data="{ open: false }">
@@ -47,8 +47,8 @@
   {% endfor %}
   {% if total > limit + offset %}
     <tr id="load-more-row" hx-disinherit="hx-select">
-      <td colspan="4" class="has-text-centered">
-        <button class="button is-small is-link is-outlined"
+      <td colspan="4" class="ht-text-center">
+        <button class="ht-btn ht-btn--sm ht-btn--link"
                 hx-get="/ui/partials/entity-list?offset={{ offset + limit }}&limit={{ limit }}&domain={{ domain | urlencode }}&search={{ search | urlencode }}"
                 hx-target="#load-more-row"
                 hx-swap="outerHTML">Load more ({{ total - offset - limit }} remaining)</button>
@@ -57,6 +57,6 @@
   {% endif %}
 {% else %}
   <tr>
-    <td colspan="4" class="has-text-centered has-text-grey">No entities found.</td>
+    <td colspan="4" class="ht-text-center ht-text-muted">No entities found.</td>
   </tr>
 {% endif %}

@@ -1,7 +1,7 @@
 {% if logs %}
   <div style="max-height: 200px; overflow-y: auto;">
-    <table class="table is-fullwidth is-striped is-narrow is-size-7">
-      <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+    <table class="ht-table ht-table--striped ht-table--narrow ht-text-xs">
+      <thead style="position: sticky; top: 0; background: var(--ht-surface-sticky); z-index: 1;">
         <tr>
           <th>Level</th>
           <th>Time</th>
@@ -13,11 +13,11 @@
         {% for entry in logs | reverse %}
           <tr>
             <td>
-              <span class="tag is-small {% if entry.level == 'DEBUG' %}ht-log-debug {% elif entry.level == 'INFO' %}ht-log-info {% elif entry.level == 'WARNING' %}ht-log-warning {% elif entry.level == 'ERROR' %}ht-log-error {% elif entry.level == 'CRITICAL' %}ht-log-critical {% endif %}">
+              <span class="ht-badge ht-badge--sm {% if entry.level == 'DEBUG' %}ht-log-debug {% elif entry.level == 'INFO' %}ht-log-info {% elif entry.level == 'WARNING' %}ht-log-warning {% elif entry.level == 'ERROR' %}ht-log-error {% elif entry.level == 'CRITICAL' %}ht-log-critical {% endif %}">
                 {{ entry.level }}
               </span>
             </td>
-            <td class="is-whitespace-nowrap">
+            <td class="ht-nowrap">
               {% if entry.timestamp %}
                 <time x-data
                       x-text="new Date({{ entry.timestamp }} * 1000).toLocaleTimeString()"></time>
@@ -38,12 +38,12 @@
       </tbody>
     </table>
   </div>
-  <div class="mt-3">
-    <a href="/ui/logs" class="button is-small is-link is-outlined">View All</a>
+  <div class="ht-mt-3">
+    <a href="/ui/logs" class="ht-btn ht-btn--sm ht-btn--link">View All</a>
   </div>
 {% else %}
-  <p class="has-text-grey is-size-7">No recent logs.</p>
-  <div class="mt-3">
-    <a href="/ui/logs" class="button is-small is-link is-outlined">View All</a>
+  <p class="ht-text-muted ht-text-xs">No recent logs.</p>
+  <div class="ht-mt-3">
+    <a href="/ui/logs" class="ht-btn ht-btn--sm ht-btn--link">View All</a>
   </div>
 {% endif %}

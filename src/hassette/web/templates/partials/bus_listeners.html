@@ -26,12 +26,12 @@
       {% endif %}
     </td>
     <td>{{ l.total_invocations }}</td>
-    <td class="has-text-success">{{ l.successful }}</td>
-    <td class="{% if l.failed > 0 %}has-text-danger{% endif %}">{{ l.failed }}</td>
+    <td class="ht-text-success">{{ l.successful }}</td>
+    <td class="{% if l.failed > 0 %}ht-text-danger{% endif %}">{{ l.failed }}</td>
     <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
   </tr>
 {% else %}
   <tr>
-    <td colspan="7" class="has-text-centered has-text-grey">No bus listeners registered.</td>
+    <td colspan="7" class="ht-text-center ht-text-muted">No bus listeners registered.</td>
   </tr>
 {% endfor %}

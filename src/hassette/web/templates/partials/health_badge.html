@@ -1,24 +1,24 @@
-<div class="tags are-medium">
+<div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
   {% if status.status == "ok" %}
-    <span class="tag is-success is-light">
-      <span class="icon is-small"><i class="fas fa-circle-check"></i></span>&nbsp;OK
+    <span class="ht-badge ht-badge--success ht-badge--md">
+      <span class="ht-icon ht-icon--sm"><i class="fas fa-circle-check"></i></span>&nbsp;OK
     </span>
   {% elif status.status == "degraded" %}
-    <span class="tag is-warning is-light">
-      <span class="icon is-small"><i class="fas fa-triangle-exclamation"></i></span>&nbsp;Degraded
+    <span class="ht-badge ht-badge--warning ht-badge--md">
+      <span class="ht-icon ht-icon--sm"><i class="fas fa-triangle-exclamation"></i></span>&nbsp;Degraded
     </span>
   {% else %}
-    <span class="tag is-info is-light">
-      <span class="icon is-small"><i class="fas fa-spinner fa-spin"></i></span>&nbsp;Starting
+    <span class="ht-badge ht-badge--info ht-badge--md">
+      <span class="ht-icon ht-icon--sm"><i class="fas fa-spinner fa-spin"></i></span>&nbsp;Starting
     </span>
   {% endif %}
   {% if status.websocket_connected %}
-    <span class="tag is-success is-light">WS Connected</span>
+    <span class="ht-badge ht-badge--success ht-badge--md">WS Connected</span>
   {% else %}
-    <span class="tag is-danger is-light">WS Disconnected</span>
+    <span class="ht-badge ht-badge--danger ht-badge--md">WS Disconnected</span>
   {% endif %}
 </div>
-<table class="table is-narrow is-fullwidth">
+<table class="ht-table ht-table--narrow">
   <tbody>
     <tr>
       <th>Uptime</th>

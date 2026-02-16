@@ -3,27 +3,27 @@
 {% block title %}{{ manifest.display_name }} — Hassette{% endblock %}
 {% block content %}
   <!-- Header -->
-  <div class="level mb-4">
-    <div class="level-left">
-      <div class="level-item">
-        <h1 class="title is-4">
-          <a href="/ui/apps" class="has-text-grey-light mr-2"><i class="fas fa-arrow-left"></i></a>
-          <span class="icon"><i class="fas fa-cube"></i></span>
+  <div class="ht-level ht-mb-4">
+    <div class="ht-level-start">
+      <div class="ht-level-item">
+        <h1 class="ht-heading-4">
+          <a href="/ui/apps" class="ht-text-faint ht-mr-2"><i class="fas fa-arrow-left"></i></a>
+          <span class="ht-icon"><i class="fas fa-cube"></i></span>
           <span>{{ manifest.display_name }}</span>
           {{ status_badge(manifest.status) }}
         </h1>
       </div>
     </div>
-    <div class="level-right">
-      <div class="level-item">{{ action_buttons(app_key, manifest.status) }}</div>
+    <div class="ht-level-end">
+      <div class="ht-level-item">{{ action_buttons(app_key, manifest.status) }}</div>
     </div>
   </div>
-  <div class="columns is-multiline">
+  <div class="ht-grid">
     <!-- Config panel -->
-    <div class="column is-half">
-      <div class="box">
-        <h2 class="title is-5">Configuration</h2>
-        <table class="table is-fullwidth is-compact">
+    <div class="ht-grid-col-6">
+      <div class="ht-card">
+        <h2 class="ht-heading-5">Configuration</h2>
+        <table class="ht-table ht-table--dense">
           <tbody>
             <tr>
               <th>App Key</th>
@@ -58,7 +58,7 @@
             {% if manifest.error_message %}
               <tr>
                 <th>Error</th>
-                <td class="has-text-danger">{{ manifest.error_message }}</td>
+                <td class="ht-text-danger">{{ manifest.error_message }}</td>
               </tr>
             {% endif %}
             {% if manifest.block_reason %}
@@ -73,15 +73,15 @@
     </div>
     <!-- Instances -->
     {% if manifest.instance_count != 1 %}
-      <div class="column is-half">
-        <div class="box">
-          <h2 class="title is-5">
-            <span class="icon"><i class="fas fa-cubes"></i></span>
+      <div class="ht-grid-col-6">
+        <div class="ht-card">
+          <h2 class="ht-heading-5">
+            <span class="ht-icon"><i class="fas fa-cubes"></i></span>
             <span>Instances</span>
-            <span class="tag is-info is-light is-small ml-2">{{ manifest.instance_count }}</span>
+            <span class="ht-badge ht-badge--info ht-badge--sm ht-ml-2">{{ manifest.instance_count }}</span>
           </h2>
           {% if manifest.instances %}
-            <table class="table is-fullwidth is-hoverable is-compact is-size-7">
+            <table class="ht-table ht-table--dense ht-text-xs">
               <thead>
                 <tr>
                   <th>Index</th>
@@ -102,7 +102,7 @@
                     <td>{{ status_badge(inst.status, size="small") }}</td>
                     <td>
                       {% if inst.error_message %}
-                        <span class="has-text-danger">{{ inst.error_message }}</span>
+                        <span class="ht-text-danger">{{ inst.error_message }}</span>
                       {% else %}
                         —
                       {% endif %}
@@ -112,16 +112,16 @@
               </tbody>
             </table>
           {% else %}
-            <p class="has-text-grey is-size-7">No instances running.</p>
+            <p class="ht-text-muted ht-text-xs">No instances running.</p>
           {% endif %}
         </div>
       </div>
     {% endif %}
     <!-- Bus Listeners -->
-    <div class="column is-half">
-      <div class="box">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-ear-listen"></i></span>
+    <div class="ht-grid-col-6">
+      <div class="ht-card">
+        <h2 class="ht-heading-5">
+          <span class="ht-icon"><i class="fas fa-ear-listen"></i></span>
           <span>Bus Listeners</span>
         </h2>
         <div id="app-listeners"
@@ -131,10 +131,10 @@
       </div>
     </div>
     <!-- Scheduled Jobs -->
-    <div class="column is-half">
-      <div class="box">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-clock"></i></span>
+    <div class="ht-grid-col-6">
+      <div class="ht-card">
+        <h2 class="ht-heading-5">
+          <span class="ht-icon"><i class="fas fa-clock"></i></span>
           <span>Scheduled Jobs</span>
         </h2>
         <div id="app-jobs"
@@ -144,10 +144,10 @@
       </div>
     </div>
     <!-- Recent Logs -->
-    <div class="column is-half">
-      <div class="box">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-scroll"></i></span>
+    <div class="ht-grid-col-6">
+      <div class="ht-card">
+        <h2 class="ht-heading-5">
+          <span class="ht-icon"><i class="fas fa-scroll"></i></span>
           <span>Recent Logs</span>
         </h2>
         {{ log_table(show_app_column=false, app_key=app_key, max_height="400px") }}

@@ -1,9 +1,9 @@
 {% if events %}
-  <div class="content">
+  <div>
     <ul class="ht-event-list">
       {% for event in events | reverse %}
-        <li class="is-size-7">
-          <span class="tag is-small {% if event.type == 'state_changed' %}is-info is-light {% elif event.type == 'app_status_changed' %}is-warning is-light {% elif event.type == 'connectivity' %}is-link is-light {% else %}is-light{% endif %}">
+        <li class="ht-text-xs">
+          <span class="ht-badge ht-badge--sm {% if event.type == 'state_changed' %}ht-badge--info {% elif event.type == 'app_status_changed' %}ht-badge--warning {% elif event.type == 'connectivity' %}ht-badge--link {% else %}ht-badge--neutral{% endif %}">
             {{ event.type }}
           </span>
           {% if event.get("entity_id") %}<code>{{ event.entity_id }}</code>{% endif %}
@@ -12,5 +12,5 @@
     </ul>
   </div>
 {% else %}
-  <p class="has-text-grey is-size-7">No recent events.</p>
+  <p class="ht-text-muted ht-text-xs">No recent events.</p>
 {% endif %}

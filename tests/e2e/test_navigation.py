@@ -54,7 +54,7 @@ def test_sidebar_navigation(
     # Start on dashboard
     page.goto(base_url + "/ui/")
     # Click sidebar link (hx-boost converts to AJAX + pushState)
-    page.locator(f".menu-list a:has-text('{link_text}')").click()
+    page.locator(f".ht-nav-list a:has-text('{link_text}')").click()
     expect(page).to_have_url(re.compile(re.escape(expected_path)))
     expect(page.locator("body")).to_contain_text(expected_content)
 
@@ -73,7 +73,7 @@ SIDEBAR_ACTIVE = [
 @pytest.mark.parametrize(("path", "link_text"), SIDEBAR_ACTIVE, ids=[p for p, _ in SIDEBAR_ACTIVE])
 def test_sidebar_active_state(page: Page, base_url: str, path: str, link_text: str) -> None:
     page.goto(base_url + path)
-    active_link = page.locator(".menu-list a.is-active")
+    active_link = page.locator(".ht-nav-list a.is-active")
     expect(active_link).to_contain_text(link_text)
 
 
@@ -115,7 +115,7 @@ def test_sidebar_collapse_to_icon_rail(page: Page, base_url: str) -> None:
     assert box["width"] == pytest.approx(56, abs=4)
     # Brand text hidden, icons still visible
     expect(page.locator(".ht-brand-text")).not_to_be_visible()
-    expect(page.locator(".menu-list .icon").first).to_be_visible()
+    expect(page.locator(".ht-nav-list .ht-icon").first).to_be_visible()
 
 
 def test_sidebar_expand_from_icon_rail(page: Page, base_url: str) -> None:
@@ -146,7 +146,7 @@ def test_brand_link_navigates_to_dashboard(page: Page, base_url: str) -> None:
 def test_sidebar_stays_open_after_desktop_nav(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/ui/")
-    page.locator(".menu-list a:has-text('Apps')").click()
+    page.locator(".ht-nav-list a:has-text('Apps')").click()
     expect(page).to_have_url(re.compile(r"/ui/apps"))
     sidebar = page.locator(".ht-sidebar")
     expect(sidebar).to_have_class(re.compile(r"\bis-open\b"))

@@ -68,8 +68,8 @@ def test_dashboard_view_all_links(page: Page, base_url: str, panel_heading: str,
     """Each 'View All' / 'Manage Apps' link navigates to the correct full page."""
     page.goto(base_url + "/ui/")
     # Find the panel box containing the heading, then click its link
-    panel = page.locator(f".box:has(h2:has-text('{panel_heading}'))")
-    link = panel.locator("a.button")
+    panel = page.locator(f".ht-card:has(h2:has-text('{panel_heading}'))")
+    link = panel.locator("a.ht-btn")
     expect(link).to_be_visible()
     link.click()
     expect(page).to_have_url(re.compile(re.escape(target_path)))

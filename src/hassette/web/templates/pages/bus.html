@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Event Bus — Hassette{% endblock %}
 {% block content %}
-  <h1 class="title is-4">
-    <span class="icon"><i class="fas fa-tower-broadcast"></i></span>
+  <h1 class="ht-heading-4">
+    <span class="ht-icon"><i class="fas fa-tower-broadcast"></i></span>
     <span>Event Bus</span>
   </h1>
   <!-- App filter -->
-  <div class="field is-grouped mb-4" hx-disinherit="hx-select">
-    <div class="control">
-      <div class="select is-small">
+  <div class="ht-field-group ht-mb-4" hx-disinherit="hx-select">
+    <div class="ht-control">
+      <div class="ht-select ht-select--sm">
         <select id="bus-owner-filter"
                 hx-get="/ui/partials/bus-listeners"
                 hx-target="#bus-listeners"
@@ -22,8 +22,8 @@
     </div>
   </div>
   <!-- Listeners table -->
-  <div class="box">
-    <table class="table is-fullwidth is-hoverable is-compact">
+  <div class="ht-card">
+    <table class="ht-table ht-table--dense">
       <thead>
         <tr>
           <th>Handler</th>

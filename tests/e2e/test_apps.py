@@ -47,7 +47,7 @@ def test_app_detail_shows_sections(page: Page, base_url: str) -> None:
 
 def test_running_app_has_success_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/my_app")
-    badge = page.locator(".tag.is-success:has-text('running')").first
+    badge = page.locator(".ht-badge.ht-badge--success:has-text('running')").first
     expect(badge).to_be_visible()
 
 
@@ -65,7 +65,7 @@ def test_failed_app_shows_error_message(page: Page, base_url: str) -> None:
 
 def test_failed_app_has_danger_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/broken_app")
-    badge = page.locator(".tag.is-danger:has-text('failed')").first
+    badge = page.locator(".ht-badge.ht-badge--danger:has-text('failed')").first
     expect(badge).to_be_visible()
 
 
@@ -76,13 +76,13 @@ def test_failed_app_shows_start_button(page: Page, base_url: str) -> None:
 
 def test_stopped_app_has_stopped_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/other_app")
-    badge = page.locator(".tag.ht-status-stopped:has-text('stopped')").first
+    badge = page.locator(".ht-badge.ht-status-stopped:has-text('stopped')").first
     expect(badge).to_be_visible()
 
 
 def test_disabled_app_has_disabled_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/disabled_app")
-    badge = page.locator(".tag.ht-status-disabled:has-text('disabled')").first
+    badge = page.locator(".ht-badge.ht-status-disabled:has-text('disabled')").first
     expect(badge).to_be_visible()
 
 

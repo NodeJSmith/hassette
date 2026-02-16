@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Scheduler — Hassette{% endblock %}
 {% block content %}
-  <h1 class="title is-4">
-    <span class="icon"><i class="fas fa-clock"></i></span>
+  <h1 class="ht-heading-4">
+    <span class="ht-icon"><i class="fas fa-clock"></i></span>
     <span>Scheduler</span>
   </h1>
   <!-- App filter -->
-  <div class="field is-grouped mb-4" hx-disinherit="hx-select">
-    <div class="control">
-      <div class="select is-small">
+  <div class="ht-field-group ht-mb-4" hx-disinherit="hx-select">
+    <div class="ht-control">
+      <div class="ht-select ht-select--sm">
         <select id="scheduler-owner-filter"
                 hx-get="/ui/partials/scheduler-jobs"
                 hx-target="#scheduler-jobs"
@@ -23,12 +23,12 @@
     </div>
   </div>
   <!-- Scheduled Jobs -->
-  <div class="box mb-5">
-    <h2 class="title is-5">
-      <span class="icon"><i class="fas fa-list-check"></i></span>
+  <div class="ht-card ht-mb-6">
+    <h2 class="ht-heading-5">
+      <span class="ht-icon"><i class="fas fa-list-check"></i></span>
       <span>Scheduled Jobs</span>
     </h2>
-    <table class="table is-fullwidth is-hoverable is-compact">
+    <table class="ht-table ht-table--dense">
       <thead>
         <tr>
           <th>Name</th>
@@ -45,12 +45,12 @@
     </table>
   </div>
   <!-- Execution History -->
-  <div class="box">
-    <h2 class="title is-5">
-      <span class="icon"><i class="fas fa-history"></i></span>
+  <div class="ht-card">
+    <h2 class="ht-heading-5">
+      <span class="ht-icon"><i class="fas fa-history"></i></span>
       <span>Execution History</span>
     </h2>
-    <table class="table is-fullwidth is-hoverable is-compact">
+    <table class="ht-table ht-table--dense">
       <thead>
         <tr>
           <th>Job Name</th>

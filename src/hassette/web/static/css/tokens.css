@@ -1,0 +1,124 @@
+/* =====================================================
+   Hassette Design Tokens — Default Theme
+   Cool slate surfaces · Warm amber accent · Borders-only depth
+
+   To create a new theme, copy this file and override
+   the variables under [data-theme="your-theme"].
+   ===================================================== */
+
+:root, [data-theme="default"] {
+  /* — Palette ————————————————————————————————————————— */
+
+  /* Slate */
+  --ht-slate-50:  #f8fafc;
+  --ht-slate-100: #f1f5f9;
+  --ht-slate-200: #e2e8f0;
+  --ht-slate-300: #cbd5e1;
+  --ht-slate-400: #94a3b8;
+  --ht-slate-500: #64748b;
+  --ht-slate-600: #475569;
+  --ht-slate-700: #334155;
+  --ht-slate-800: #1e293b;
+  --ht-slate-900: #0f172a;
+
+  /* Amber accent */
+  --ht-amber:       #D4915C;
+  --ht-amber-dim:   rgba(212, 145, 92, 0.35);
+  --ht-amber-hover: #c07e4a;
+
+  /* — Semantic Colors ————————————————————————————————— */
+
+  --ht-success:       #16a34a;
+  --ht-success-light: #f0fdf4;
+  --ht-success-text:  #166534;
+
+  --ht-danger:        #dc2626;
+  --ht-danger-light:  #fef2f2;
+  --ht-danger-text:   #991b1b;
+
+  --ht-warning:       #ca8a04;
+  --ht-warning-light: #fefce8;
+  --ht-warning-text:  #854d0e;
+
+  --ht-info:          #2563eb;
+  --ht-info-light:    #eff6ff;
+  --ht-info-text:     #1e40af;
+
+  --ht-link:          #7c3aed;
+  --ht-link-light:    #f5f3ff;
+  --ht-link-text:     #5b21b6;
+
+  /* — Surfaces ———————————————————————————————————————— */
+
+  --ht-surface-canvas:   var(--ht-slate-50);
+  --ht-surface-card:     #ffffff;
+  --ht-surface-dropdown: #ffffff;
+  --ht-surface-sidebar:  var(--ht-slate-900);
+  --ht-surface-sticky:   white;
+
+  /* — Borders ————————————————————————————————————————— */
+
+  --ht-border:        rgba(0, 0, 0, 0.08);
+  --ht-border-strong: rgba(0, 0, 0, 0.15);
+  --ht-border-subtle: rgba(0, 0, 0, 0.04);
+
+  /* — Text ———————————————————————————————————————————— */
+
+  --ht-text:       var(--ht-slate-800);
+  --ht-text-muted: var(--ht-slate-500);
+  --ht-text-faint: var(--ht-slate-400);
+  --ht-text-on-dark: #fff;
+
+  /* — Sidebar ————————————————————————————————————————— */
+
+  --ht-sidebar-text:         var(--ht-slate-400);
+  --ht-sidebar-text-hover:   #fff;
+  --ht-sidebar-hover-bg:     rgba(255, 255, 255, 0.08);
+  --ht-sidebar-active-bg:    rgba(212, 145, 92, 0.15);
+  --ht-sidebar-active-color: var(--ht-amber);
+  --ht-sidebar-brand-color:  #fff;
+
+  /* — Backdrop ———————————————————————————————————————— */
+
+  --ht-backdrop: rgba(0, 0, 0, 0.5);
+
+  /* — Notice ——————————————————————————————————————————— */
+
+  --ht-notice-info-border: rgba(37, 99, 235, 0.15);
+
+  /* — Critical (darkened danger for severity) —————————— */
+
+  --ht-critical: #991b1b;
+
+  /* — Typography —————————————————————————————————————— */
+
+  --ht-font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --ht-font-body:    system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ht-font-mono:    'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+
+  /* — Type Scale —————————————————————————————————————— */
+
+  --ht-text-xs:   0.75rem;   /* 12px */
+  --ht-text-sm:   0.8125rem; /* 13px */
+  --ht-text-base: 0.875rem;  /* 14px */
+  --ht-text-lg:   1rem;      /* 16px */
+  --ht-text-xl:   1.25rem;   /* 20px */
+  --ht-text-2xl:  1.5rem;    /* 24px */
+
+  /* — Spacing (4px grid) —————————————————————————————— */
+
+  --ht-sp-1:  0.25rem;  /* 4px */
+  --ht-sp-2:  0.5rem;   /* 8px */
+  --ht-sp-3:  0.75rem;  /* 12px */
+  --ht-sp-4:  1rem;     /* 16px */
+  --ht-sp-6:  1.5rem;   /* 24px */
+  --ht-sp-8:  2rem;     /* 32px */
+  --ht-sp-12: 3rem;     /* 48px */
+
+  /* — Radius —————————————————————————————————————————— */
+
+  --ht-radius-sm:   3px;
+  --ht-radius-md:   5px;
+  --ht-radius-lg:   8px;
+  --ht-radius-full: 9999px;
+}

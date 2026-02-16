@@ -1,17 +1,154 @@
-/* Hassette Web UI — custom overrides */
+/* =====================================================
+   Hassette Design System — Components
+   Tokens live in tokens.css; this file is theme-agnostic.
+   ===================================================== */
 
-/* Layout: sidebar + main */
+/* — Reset ——————————————————————————————————————————————— */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0 0 0.5em;
+  line-height: 1.25;
+}
+
+p, ul, ol, table, pre, blockquote {
+  margin: 0 0 1em;
+}
+
+img, svg {
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+button {
+  cursor: pointer;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}
+
+/* — Base Typography ———————————————————————————————————— */
+body {
+  font-family: var(--ht-font-body);
+  font-size: var(--ht-text-base);
+  color: var(--ht-text);
+  background: var(--ht-surface-canvas);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--ht-font-heading);
+  font-weight: 600;
+  color: var(--ht-text);
+}
+
+code, pre {
+  font-family: var(--ht-font-mono);
+  font-size: 0.9em;
+  color: var(--ht-text);
+}
+
+a {
+  color: var(--ht-info);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+a code {
+  color: var(--ht-info);
+}
+
+a:hover code {
+  text-decoration: underline;
+}
+
+strong {
+  font-weight: 600;
+}
+
+/* — Layout ————————————————————————————————————————————— */
 .ht-layout {
   display: flex;
   min-height: 100vh;
   position: relative;
 }
 
-/* Sidebar */
+.ht-main {
+  flex: 1;
+  background: var(--ht-surface-canvas);
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.ht-section {
+  padding: 1.5rem;
+}
+
+/* 12-column CSS grid */
+.ht-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--ht-sp-6);
+}
+
+.ht-grid-col-6  { grid-column: span 6; }
+.ht-grid-col-12 { grid-column: span 12; }
+
+/* Level (horizontal bar) */
+.ht-level {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ht-sp-4);
+}
+
+.ht-level-start {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-level-end {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-level-item {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+/* — Sidebar ———————————————————————————————————————————— */
 .ht-sidebar {
   width: 220px;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: var(--ht-surface-sidebar);
+  color: var(--ht-sidebar-text);
   display: flex;
   flex-direction: column;
   padding: 1rem 0;
@@ -37,12 +174,12 @@
   display: none;
 }
 
-.ht-sidebar:not(.is-open) .menu-list a {
+.ht-sidebar:not(.is-open) .ht-nav-list a {
   justify-content: center;
   padding: 0.6rem 0;
 }
 
-.ht-sidebar:not(.is-open) .menu-list a span:not(.icon) {
+.ht-sidebar:not(.is-open) .ht-nav-list a span:not(.ht-icon) {
   display: none;
 }
 
@@ -51,9 +188,10 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.25rem 1.5rem;
+  font-family: var(--ht-font-heading);
   font-size: 1.25rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ht-sidebar-brand-color);
 }
 
 .ht-brand-link {
@@ -66,26 +204,36 @@
 
 .ht-brand-link:hover {
   opacity: 0.85;
+  text-decoration: none;
 }
 
-.ht-sidebar .menu-list a {
-  color: #b0b0c0;
+/* Navigation list */
+.ht-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ht-nav-list a {
+  color: var(--ht-sidebar-text);
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.6rem 1.25rem;
   border-radius: 0;
   transition: background 0.15s, color 0.15s;
+  text-decoration: none;
 }
 
-.ht-sidebar .menu-list a:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+.ht-nav-list a:hover {
+  background: var(--ht-sidebar-hover-bg);
+  color: var(--ht-sidebar-text-hover);
+  text-decoration: none;
 }
 
-.ht-sidebar .menu-list a.is-active {
-  background: rgba(72, 199, 142, 0.15);
-  color: #48c78e;
+.ht-nav-list a.is-active {
+  background: var(--ht-sidebar-active-bg);
+  color: var(--ht-sidebar-active-color);
   font-weight: 600;
 }
 
@@ -99,7 +247,7 @@
   display: none;
   background: none;
   border: none;
-  color: #b0b0c0;
+  color: var(--ht-sidebar-text);
   cursor: pointer;
   margin-left: auto;
   padding: 0.25rem;
@@ -107,15 +255,15 @@
 }
 
 .ht-sidebar-toggle:hover {
-  color: #fff;
+  color: var(--ht-sidebar-text-hover);
 }
 
-/* Sidebar backdrop overlay (mobile only — hidden on desktop) */
+/* Sidebar backdrop overlay (mobile only) */
 .ht-sidebar-backdrop {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--ht-backdrop);
   z-index: 20;
 }
 
@@ -124,32 +272,340 @@
   display: inline-flex;
   background: none;
   border: none;
-  color: #4a4a4a;
+  color: var(--ht-text-muted);
   cursor: pointer;
   padding: 0.25rem;
   font-size: 1.1rem;
 }
 
 .ht-menu-toggle:hover {
-  color: #1a1a2e;
+  color: var(--ht-text);
 }
 
-/* Main content area */
-.ht-main {
-  flex: 1;
-  background: #f5f5f5;
-  overflow-y: auto;
-  min-width: 0;
+/* — Cards —————————————————————————————————————————————— */
+.ht-card {
+  background: var(--ht-surface-card);
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-md);
+  padding: var(--ht-sp-6);
 }
 
-/* Status bar */
+/* — Tables ————————————————————————————————————————————— */
+.ht-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--ht-surface-card);
+}
+
+.ht-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--ht-text-sm);
+  color: var(--ht-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: var(--ht-sp-2) var(--ht-sp-3);
+  border-bottom: 1px solid var(--ht-border-strong);
+}
+
+.ht-table td {
+  padding: var(--ht-sp-2) var(--ht-sp-3);
+  border-bottom: 1px solid var(--ht-border-subtle);
+  vertical-align: middle;
+}
+
+.ht-table tbody tr:hover {
+  background: var(--ht-slate-50);
+}
+
+.ht-table--dense th,
+.ht-table--dense td {
+  padding: 0.3em 0.5em;
+}
+
+.ht-table--striped tbody tr:nth-child(even) {
+  background: var(--ht-slate-50);
+}
+
+/* Narrow variant (used in health badge config tables) */
+.ht-table--narrow th,
+.ht-table--narrow td {
+  padding: 0.25em 0.5em;
+}
+
+/* — Badges ————————————————————————————————————————————— */
+.ht-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  font-size: var(--ht-text-xs);
+  font-weight: 500;
+  padding: 0.15em 0.55em;
+  border-radius: var(--ht-radius-full);
+  line-height: 1.6;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.ht-badge--sm {
+  font-size: 0.6875rem;
+  padding: 0.1em 0.45em;
+}
+
+.ht-badge--md {
+  font-size: var(--ht-text-sm);
+  padding: 0.2em 0.65em;
+}
+
+/* Semantic badge variants */
+.ht-badge--success {
+  color: var(--ht-success-text);
+  background: var(--ht-success-light);
+}
+
+.ht-badge--danger {
+  color: var(--ht-danger-text);
+  background: var(--ht-danger-light);
+}
+
+.ht-badge--warning {
+  color: var(--ht-warning-text);
+  background: var(--ht-warning-light);
+}
+
+.ht-badge--info {
+  color: var(--ht-info-text);
+  background: var(--ht-info-light);
+}
+
+.ht-badge--link {
+  color: var(--ht-link-text);
+  background: var(--ht-link-light);
+}
+
+.ht-badge--neutral {
+  color: var(--ht-text-muted);
+  background: var(--ht-slate-100);
+}
+
+/* App status badges */
+.ht-status-stopped {
+  color: var(--ht-warning-text);
+  background: var(--ht-warning-light);
+}
+
+.ht-status-disabled {
+  color: var(--ht-text-muted);
+  background: var(--ht-slate-100);
+}
+
+.ht-status-blocked {
+  color: var(--ht-link-text);
+  background: var(--ht-link-light);
+}
+
+/* Entity state badges */
+.ht-entity-on {
+  color: var(--ht-text-on-dark);
+  background: var(--ht-success);
+}
+
+.ht-entity-off {
+  color: var(--ht-text-muted);
+  background: var(--ht-slate-200);
+}
+
+.ht-entity-unavailable {
+  color: var(--ht-text-on-dark);
+  background: var(--ht-danger);
+}
+
+/* Log level badges */
+.ht-log-debug    { color: var(--ht-text-muted); }
+.ht-log-info     { color: var(--ht-info); }
+.ht-log-warning  { color: var(--ht-text-on-dark); background: var(--ht-warning); }
+.ht-log-error    { color: var(--ht-text-on-dark); background: var(--ht-danger); }
+.ht-log-critical { color: var(--ht-text-on-dark); background: var(--ht-critical); font-weight: 700; }
+
+/* — Buttons ———————————————————————————————————————————— */
+.ht-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--ht-font-body);
+  font-size: var(--ht-text-sm);
+  font-weight: 500;
+  padding: 0.4em 0.85em;
+  border: 1px solid var(--ht-border-strong);
+  border-radius: var(--ht-radius-md);
+  background: var(--ht-surface-card);
+  color: var(--ht-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+.ht-btn:hover {
+  background: var(--ht-slate-50);
+  border-color: var(--ht-slate-300);
+  text-decoration: none;
+}
+
+.ht-btn--sm {
+  font-size: var(--ht-text-xs);
+  padding: 0.25em 0.6em;
+}
+
+.ht-btn--primary {
+  background: var(--ht-amber);
+  border-color: var(--ht-amber);
+  color: var(--ht-text-on-dark);
+}
+
+.ht-btn--primary:hover {
+  background: var(--ht-amber-hover);
+  border-color: var(--ht-amber-hover);
+}
+
+.ht-btn--success {
+  border-color: var(--ht-success);
+  color: var(--ht-success);
+}
+
+.ht-btn--success:hover {
+  background: var(--ht-success-light);
+}
+
+.ht-btn--warning {
+  border-color: var(--ht-warning);
+  color: var(--ht-warning);
+}
+
+.ht-btn--warning:hover {
+  background: var(--ht-warning-light);
+}
+
+.ht-btn--info {
+  border-color: var(--ht-info);
+  color: var(--ht-info);
+}
+
+.ht-btn--info:hover {
+  background: var(--ht-info-light);
+}
+
+.ht-btn--link {
+  border-color: var(--ht-link);
+  color: var(--ht-link);
+}
+
+.ht-btn--link:hover {
+  background: var(--ht-link-light);
+}
+
+.ht-btn-group {
+  display: flex;
+  gap: var(--ht-sp-2);
+  flex-wrap: wrap;
+}
+
+/* — Forms —————————————————————————————————————————————— */
+.ht-input,
+.ht-select select {
+  font-family: var(--ht-font-body);
+  font-size: var(--ht-text-sm);
+  padding: 0.35em 0.6em;
+  border: 1px solid var(--ht-border-strong);
+  border-radius: var(--ht-radius-md);
+  background: var(--ht-surface-card);
+  color: var(--ht-text);
+  line-height: 1.5;
+}
+
+.ht-input:focus,
+.ht-select select:focus {
+  outline: none;
+  border-color: var(--ht-amber);
+  box-shadow: 0 0 0 2px var(--ht-amber-dim);
+}
+
+.ht-input--sm,
+.ht-select--sm select {
+  font-size: var(--ht-text-xs);
+  padding: 0.25em 0.5em;
+}
+
+.ht-select {
+  display: inline-block;
+  position: relative;
+}
+
+.ht-field-group {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-control {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* — Tabs ——————————————————————————————————————————————— */
+.ht-tabs {
+  border-bottom: 1px solid var(--ht-border);
+  margin-bottom: var(--ht-sp-4);
+}
+
+.ht-tabs ul {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+}
+
+.ht-tabs li a {
+  display: block;
+  padding: 0.4em 0.85em;
+  font-size: var(--ht-text-sm);
+  color: var(--ht-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ht-tabs li a:hover {
+  color: var(--ht-text);
+  text-decoration: none;
+}
+
+.ht-tabs li.is-active a {
+  color: var(--ht-amber);
+  border-bottom-color: var(--ht-amber);
+  font-weight: 600;
+}
+
+/* — Notices ———————————————————————————————————————————— */
+.ht-notice--info {
+  background: var(--ht-info-light);
+  color: var(--ht-info-text);
+  border: 1px solid var(--ht-notice-info-border);
+  border-radius: var(--ht-radius-md);
+  padding: var(--ht-sp-4);
+}
+
+/* — Status Bar ————————————————————————————————————————— */
 .ht-status-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0.4rem 1.5rem;
-  background: #fff;
-  border-bottom: 1px solid #e8e8e8;
+  background: var(--ht-surface-card);
+  border-bottom: 1px solid var(--ht-border);
   gap: 0.75rem;
 }
 
@@ -159,78 +615,130 @@
   gap: 0.35rem;
 }
 
-.ht-ws-dot {
+/* — Pulse Dot Signature ———————————————————————————————— */
+.ht-pulse-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  background: var(--ht-amber);
+  animation: ht-breathe 2s ease-in-out infinite;
 }
 
-.is-connected .ht-ws-dot { background: #48c78e; }
-.is-disconnected .ht-ws-dot { background: #f14668; }
-
-/* Compact table rows */
-.table.is-compact td,
-.table.is-compact th {
-  padding: 0.4em 0.6em;
+.ht-pulse-dot--disconnected {
+  background: var(--ht-danger);
+  animation: none;
 }
 
-/* Log level badges */
-.ht-log-debug { color: #7a7a7a; }
-.ht-log-info { color: #3e8ed0; }
-.ht-log-warning { color: #ffe08a; background: #946b00; }
-.ht-log-error { color: #fff; background: #f14668; }
-.ht-log-critical { color: #fff; background: #cc0f35; font-weight: 700; }
-
-/* App status badges — stopped, disabled, blocked */
-.ht-status-stopped {
-  color: #946b00;
-  background: #ffe08a;
+@keyframes ht-breathe {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
 }
 
-.ht-status-disabled {
-  color: #666;
-  background: #e0e0e0;
+/* — Headings ——————————————————————————————————————————— */
+.ht-heading-1 {
+  font-family: var(--ht-font-heading);
+  font-size: var(--ht-text-2xl);
+  font-weight: 600;
+  color: var(--ht-text-faint);
 }
 
-.ht-status-blocked {
-  color: #6b3fa0;
-  background: #e8d5f5;
+.ht-heading-4 {
+  font-family: var(--ht-font-heading);
+  font-size: var(--ht-text-lg);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
 }
 
-/* Entity state badges */
-.ht-entity-on {
-  color: #fff;
-  background: #48c78e;
+.ht-heading-5 {
+  font-family: var(--ht-font-heading);
+  font-size: var(--ht-text-base);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
 }
 
-.ht-entity-off {
-  color: #363636;
-  background: #dbdbdb;
+.ht-subheading-4 {
+  font-family: var(--ht-font-heading);
+  font-size: var(--ht-text-lg);
+  font-weight: 400;
+  color: var(--ht-text-muted);
 }
 
-.ht-entity-unavailable {
-  color: #fff;
-  background: #f14668;
+.ht-subheading-6 {
+  font-size: var(--ht-text-sm);
+  color: var(--ht-text-muted);
 }
 
-/* Override Bulma's red <code> color */
-code {
-  color: #4a4a4a;
+.ht-label {
+  font-size: var(--ht-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ht-text-muted);
+  margin-bottom: 0.25em;
 }
 
-/* Links wrapping code use blue link color */
-a code {
-  color: #3e8ed0;
+/* — Icons —————————————————————————————————————————————— */
+.ht-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25em;
+  height: 1.25em;
 }
 
-a:hover code {
-  text-decoration: underline;
+.ht-icon--sm {
+  width: 1em;
+  height: 1em;
 }
 
-/* Live update pulse animation */
+/* — Utilities —————————————————————————————————————————— */
+/* Text alignment */
+.ht-text-center { text-align: center; }
+.ht-text-right  { text-align: right; }
+
+/* Text color */
+.ht-text-muted   { color: var(--ht-text-muted); }
+.ht-text-faint   { color: var(--ht-text-faint); }
+.ht-text-danger  { color: var(--ht-danger); }
+.ht-text-success { color: var(--ht-success); }
+
+/* Text size */
+.ht-text-xs { font-size: var(--ht-text-xs); }
+.ht-text-sm { font-size: var(--ht-text-sm); }
+
+/* Flex */
+.ht-flex     { display: flex; }
+.ht-flex-col { flex-direction: column; }
+.ht-flex-grow { flex-grow: 1; }
+
+/* Spacing: margin */
+.ht-mb-3 { margin-bottom: var(--ht-sp-3); }
+.ht-mb-4 { margin-bottom: var(--ht-sp-4); }
+.ht-mb-5 { margin-bottom: 1.25rem; }
+.ht-mb-6 { margin-bottom: var(--ht-sp-6); }
+.ht-ml-2 { margin-left: var(--ht-sp-2); }
+.ht-mr-2 { margin-right: var(--ht-sp-2); }
+.ht-mt-3 { margin-top: var(--ht-sp-3); }
+.ht-mt-4 { margin-top: var(--ht-sp-4); }
+.ht-mt-auto { margin-top: auto; }
+
+/* Spacing: padding */
+.ht-pl-6 { padding-left: var(--ht-sp-6); }
+
+/* Width */
+.ht-w-full { width: 100%; }
+
+/* Nowrap */
+.ht-nowrap { white-space: nowrap; }
+
+/* — Animations ————————————————————————————————————————— */
 @keyframes ht-pulse {
-  0% { opacity: 0.5; }
+  0%   { opacity: 0.5; }
   100% { opacity: 1; }
 }
 
@@ -238,11 +746,33 @@ a:hover code {
   animation: ht-pulse 0.6s ease-in-out;
 }
 
-/* =====================================================
-   Responsive: tablet & mobile (max-width: 768px)
-   ===================================================== */
+/* — Log container —————————————————————————————————————— */
+.ht-log-container {
+  overflow-y: auto;
+}
+
+/* — Group / instance rows —————————————————————————————— */
+.ht-group-header {
+  background: var(--ht-slate-50);
+}
+
+.ht-instance-row td:first-child {
+  padding-left: var(--ht-sp-6);
+}
+
+/* Event list (event feed partial) */
+.ht-event-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ht-event-list li {
+  padding: 0.2em 0;
+}
+
+/* — Responsive: tablet & mobile (max-width: 768px) ———— */
 @media screen and (max-width: 768px) {
-  /* Sidebar: fixed icon rail, expands to full overlay when open */
   .ht-sidebar {
     position: fixed;
     top: 0;
@@ -254,17 +784,14 @@ a:hover code {
     width: 260px;
   }
 
-  /* Show hamburger toggle inside sidebar when expanded on mobile */
   .ht-sidebar.is-open .ht-sidebar-toggle {
     display: inline-flex;
   }
 
-  /* Show backdrop when sidebar is fully open */
   .ht-sidebar-backdrop {
     display: block;
   }
 
-  /* Offset main content for the icon rail */
   .ht-main {
     margin-left: 56px;
   }
@@ -273,77 +800,73 @@ a:hover code {
     padding: 0.4rem 1rem;
   }
 
-  /* Main content: reduce section padding on mobile */
-  .ht-main .section {
+  .ht-section {
     padding: 1rem;
   }
 
-  /* Tables: horizontal scroll on mobile */
-  .table-container,
-  .box > .table,
-  .box > div > .table {
+  /* Grid: stack columns */
+  .ht-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ht-grid-col-6,
+  .ht-grid-col-12 {
+    grid-column: span 1;
+  }
+
+  /* Tables: horizontal scroll */
+  .ht-card > .ht-table,
+  .ht-card > div > .ht-table {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Dashboard columns: stack vertically on mobile */
-  .columns.is-multiline .column.is-half {
-    flex: none;
-    width: 100%;
-  }
-
-  /* Bulma .level: wrap on mobile */
-  .level {
+  /* Level: wrap */
+  .ht-level {
     flex-wrap: wrap;
     gap: 0.5rem;
   }
 
-  .level-left,
-  .level-right {
+  .ht-level-start,
+  .ht-level-end {
     flex-wrap: wrap;
     gap: 0.5rem;
   }
 
-  /* Tabs: scroll horizontally if too many */
-  .tabs ul {
+  /* Tabs: scroll horizontally */
+  .ht-tabs ul {
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  .tabs li {
+  .ht-tabs li {
     flex-shrink: 0;
   }
 
-  /* Field groups: stack vertically */
-  .field.is-grouped {
+  /* Field groups: stack */
+  .ht-field-group {
     flex-wrap: wrap;
   }
 
-  .field.is-grouped .control {
-    margin-bottom: 0.5rem;
-  }
-
-  /* Page titles: smaller on mobile */
-  .title.is-4 {
+  /* Headings: smaller */
+  .ht-heading-4 {
     font-size: 1.1rem;
   }
 
-  .title.is-5 {
+  .ht-heading-5 {
     font-size: 1rem;
   }
 }
 
-/* =====================================================
-   Responsive: small phones (max-width: 480px)
-   ===================================================== */
+/* — Responsive: small phones (max-width: 480px) ———————— */
 @media screen and (max-width: 480px) {
-  .ht-main .section {
+  .ht-section {
     padding: 0.75rem;
   }
 
-  .box {
-    padding: 0.75rem;
+  .ht-card {
+    padding: var(--ht-sp-3);
   }
 }

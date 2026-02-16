@@ -6,11 +6,14 @@
     <title>
       {% block title %}Hassette{% endblock %}
     </title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="icon" type="image/png" href="/ui/static/img/hassette-logo.png">
+    <link rel="stylesheet" href="/ui/static/css/tokens.css">
     <link rel="stylesheet" href="/ui/static/css/style.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="https://unpkg.com/idiomorph@0.3.0/dist/idiomorph-ext.min.js"></script>
@@ -37,7 +40,7 @@
            @click="sidebarOpen = false"></div>
       <main class="ht-main">
         {% include "components/status_bar.html" %}
-        <section id="page-content" class="section">
+        <section id="page-content" class="ht-section">
           {% block content %}{% endblock %}
         </section>
       </main>

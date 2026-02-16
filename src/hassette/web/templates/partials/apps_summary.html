@@ -1,27 +1,27 @@
 {% if app_status.total == 0 %}
-  <p class="has-text-grey">No apps configured.</p>
+  <p class="ht-text-muted">No apps configured.</p>
 {% else %}
-  <div class="level">
-    <div class="level-item has-text-centered">
+  <div class="ht-level">
+    <div class="ht-level-item">
       <div>
-        <p class="heading">Total</p>
-        <p class="title is-4">{{ app_status.total }}</p>
+        <p class="ht-label">Total</p>
+        <p class="ht-heading-4">{{ app_status.total }}</p>
       </div>
     </div>
-    <div class="level-item has-text-centered">
+    <div class="ht-level-item">
       <div>
-        <p class="heading">Running</p>
-        <p class="title is-4 has-text-success">{{ app_status.running }}</p>
+        <p class="ht-label">Running</p>
+        <p class="ht-heading-4 ht-text-success">{{ app_status.running }}</p>
       </div>
     </div>
-    <div class="level-item has-text-centered">
+    <div class="ht-level-item">
       <div>
-        <p class="heading">Failed</p>
-        <p class="title is-4 {% if app_status.failed > 0 %}has-text-danger{% endif %}">{{ app_status.failed }}</p>
+        <p class="ht-label">Failed</p>
+        <p class="ht-heading-4 {% if app_status.failed > 0 %}ht-text-danger{% endif %}">{{ app_status.failed }}</p>
       </div>
     </div>
   </div>
-  <div class="mt-auto">
-    <a href="/ui/apps" class="button is-small is-link is-outlined">Manage Apps</a>
+  <div class="ht-mt-auto">
+    <a href="/ui/apps" class="ht-btn ht-btn--sm ht-btn--link">Manage Apps</a>
   </div>
 {% endif %}

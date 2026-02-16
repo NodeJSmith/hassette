@@ -1,5 +1,5 @@
 {% if jobs %}
-  <table class="table is-fullwidth is-hoverable is-compact is-size-7">
+  <table class="ht-table ht-table--dense ht-text-xs">
     <thead>
       <tr>
         <th>Name</th>
@@ -26,15 +26,15 @@
             </td>
           {% endif %}
           <td>
-            <span class="tag is-info is-light is-small">{{ job.trigger_type }}</span>
+            <span class="ht-badge ht-badge--info ht-badge--sm">{{ job.trigger_type }}</span>
           </td>
           <td>{{ job.next_run }}</td>
           <td>{{ "Yes" if job.repeat else "No" }}</td>
           <td>
             {% if job.cancelled %}
-              <span class="tag is-warning is-light is-small">cancelled</span>
+              <span class="ht-badge ht-badge--warning ht-badge--sm">cancelled</span>
             {% else %}
-              <span class="tag is-success is-light is-small">active</span>
+              <span class="ht-badge ht-badge--success ht-badge--sm">active</span>
             {% endif %}
           </td>
         </tr>
@@ -42,5 +42,5 @@
     </tbody>
   </table>
 {% else %}
-  <p class="has-text-grey is-size-7">No scheduled jobs.</p>
+  <p class="ht-text-muted ht-text-xs">No scheduled jobs.</p>
 {% endif %}

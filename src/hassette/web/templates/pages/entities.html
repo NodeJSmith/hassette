@@ -1,24 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Entities — Hassette{% endblock %}
 {% block content %}
-  <h1 class="title is-4">
-    <span class="icon"><i class="fas fa-list"></i></span>
+  <h1 class="ht-heading-4">
+    <span class="ht-icon"><i class="fas fa-list"></i></span>
     <span>Entity Browser</span>
-    <span class="tag is-info is-light ml-2">{{ entity_count }} entities</span>
+    <span class="ht-badge ht-badge--info ht-ml-2">{{ entity_count }} entities</span>
   </h1>
-  <div class="box" x-data="entityBrowser">
+  <div class="ht-card" x-data="entityBrowser">
     <!-- Filters -->
-    <div class="field is-grouped mb-4">
-      <div class="control">
-        <div class="select is-small">
+    <div class="ht-field-group ht-mb-4">
+      <div class="ht-control">
+        <div class="ht-select ht-select--sm">
           <select id="entity-domain-filter" x-model="domain" @change="refresh()">
             <option value="">All Domains</option>
             {% for domain in domains %}<option value="{{ domain }}">{{ domain }}</option>{% endfor %}
           </select>
         </div>
       </div>
-      <div class="control">
-        <input class="input is-small"
+      <div class="ht-control">
+        <input class="ht-input ht-input--sm"
                type="text"
                id="entity-search"
                placeholder="Search entity ID..."
@@ -26,8 +26,8 @@
                @input.debounce.300ms="refresh()">
       </div>
     </div>
-    <p class="is-size-7 has-text-grey mb-3">Select a domain or enter a search term to browse entities.</p>
-    <table class="table is-fullwidth is-hoverable is-compact">
+    <p class="ht-text-xs ht-text-muted ht-mb-3">Select a domain or enter a search term to browse entities.</p>
+    <table class="ht-table ht-table--dense">
       <thead>
         <tr>
           <th>Entity ID</th>
@@ -38,7 +38,7 @@
       </thead>
       <tbody id="entity-list">
         <tr>
-          <td colspan="4" class="has-text-centered has-text-grey">Select a domain or search to load entities.</td>
+          <td colspan="4" class="ht-text-center ht-text-muted">Select a domain or search to load entities.</td>
         </tr>
       </tbody>
     </table>
