@@ -28,12 +28,12 @@ async with HassetteHarness(config).with_state_proxy().with_scheduler() as harnes
 
 Two parallel systems exist for different testing needs:
 
-| Scenario | Tool | Why |
-| --- | --- | --- |
-| Bus routing, scheduler firing, state propagation | `HassetteHarness` | Wires real components — catches integration bugs |
-| HTTP endpoints, HTML responses, WebSocket frames | `create_hassette_stub()` | MagicMock stub — fast, no real services needed |
-| DataSyncService + event buffer | `create_mock_data_sync_service()` | Bypasses `__init__`, wires to the stub |
-| FastAPI app from a stub | `create_test_fastapi_app()` | Thin wrapper with optional log handler patch |
+| Scenario                                         | Tool                              | Why                                              |
+| ------------------------------------------------ | --------------------------------- | ------------------------------------------------ |
+| Bus routing, scheduler firing, state propagation | `HassetteHarness`                 | Wires real components — catches integration bugs |
+| HTTP endpoints, HTML responses, WebSocket frames | `create_hassette_stub()`          | MagicMock stub — fast, no real services needed   |
+| DataSyncService + event buffer                   | `create_mock_data_sync_service()` | Bypasses `__init__`, wires to the stub           |
+| FastAPI app from a stub                          | `create_test_fastapi_app()`       | Thin wrapper with optional log handler patch     |
 
 ### `HassetteHarness` — real components
 
@@ -100,13 +100,18 @@ with preserve_config(hassette.config):
 # config is restored after the block
 ```
 
-### `cleanup_state_proxy_fixture` — autouse async reset
+### Autouse cleanup fixtures — `tests/integration/conftest.py`
 
-Defined in `fixtures.py`, resets state proxy before each test when `hassette_with_state_proxy` is used.
+Four autouse fixtures reset module-scoped harness state before each test. They live in `tests/integration/conftest.py` (not in the plugin module) to avoid interfering with sync Playwright e2e tests.
 
-### e2e sync override
+| Fixture                       | Resets                                                | Covers fixtures                                                                                              |
+| ----------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `cleanup_state_proxy_fixture` | State cache + bus listeners via `reset_state_proxy()` | `hassette_with_state_proxy`                                                                                  |
+| `cleanup_bus_fixture`         | All bus listeners via `reset_bus()`                   | `hassette_with_bus`, `hassette_with_scheduler`, `hassette_with_file_watcher`, `hassette_with_state_registry` |
+| `cleanup_scheduler_fixture`   | All scheduler jobs via `reset_scheduler()`            | `hassette_with_scheduler`                                                                                    |
+| `cleanup_mock_api_fixture`    | Mock server expectations via `reset_mock_api()`       | `hassette_with_mock_api`                                                                                     |
 
-Playwright tests are synchronous. `tests/e2e/conftest.py` overrides the async `cleanup_state_proxy_fixture` with a sync no-op.
+Reset functions are defined in `src/hassette/test_utils/reset.py`.
 
 ## Available Factories
 
@@ -152,4 +157,9 @@ Configures the mock registry to return a proper `AppFullSnapshot`.
 
 ## Shared Integration Fixtures
 
-`tests/integration/conftest.py` provides the `data_sync_service` fixture shared across all integration web test files. Each file defines its own `mock_hassette` with different configuration needs.
+`tests/integration/conftest.py` provides:
+
+- **Autouse cleanup fixtures** — `cleanup_state_proxy_fixture`, `cleanup_bus_fixture`, `cleanup_scheduler_fixture`, `cleanup_mock_api_fixture` (reset module-scoped harness state between tests)
+- **`data_sync_service`** — shared across integration web test files; each file defines its own `mock_hassette`
+- **`app`** — FastAPI application instance
+- **`client`** — httpx `AsyncClient`
