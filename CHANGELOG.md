@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Changed
+- E2E tests now run by default with `uv run pytest` instead of requiring `-m e2e`; added `nox -s e2e` session for CI
 - `HassetteHarness` now uses a fluent builder API (`with_bus()`, `with_state_proxy()`, etc.) with automatic dependency resolution instead of boolean flags (#253)
 - Consolidated duplicate mock Hassette, DataSyncService, and web test helper fixtures into shared factories in `test_utils/` (#253)
 - All test helper functions now exported from `hassette.test_utils` public API; tests import from the package instead of submodules (#253)

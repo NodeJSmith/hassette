@@ -22,11 +22,8 @@ jobs:
 
             - run: uv sync
 
-            - name: Install Playwright browsers and system deps
-              run: uv run playwright install --with-deps chromium
-
             - name: Run e2e tests
-              run: uv run pytest -m e2e -v --tracing retain-on-failure --output test-results
+              run: uv run nox -s e2e
 
             - name: Upload test results
               if: failure()
