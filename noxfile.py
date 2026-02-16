@@ -17,10 +17,36 @@ def tests(session: "Session"):
         "--reinstall-package",
         "hassette",
         "pytest",
+        "-m",
+        "not docker and not e2e",
         "-n",
         "auto",
         "--dist",
         "loadscope",
+        "-W",
+        "error",
+        "--tb=line",
+        external=True,
+    )
+
+
+@nox.session(python=["3.13"])
+def e2e(session: "Session"):
+    session.run("uv", "run", "--active", "playwright", "install", "--with-deps", "chromium", external=True)
+    session.run(
+        "uv",
+        "run",
+        "--active",
+        "--reinstall-package",
+        "hassette",
+        "pytest",
+        "-m",
+        "e2e",
+        "-v",
+        "--tracing",
+        "retain-on-failure",
+        "--output",
+        "test-results",
         "-W",
         "error",
         "--tb=line",
@@ -38,6 +64,8 @@ def tests_with_coverage(session: "Session"):
         "--reinstall-package",
         "hassette",
         "pytest",
+        "-m",
+        "not docker and not e2e",
         "-n",
         "auto",
         "--dist",

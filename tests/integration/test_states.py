@@ -4,7 +4,6 @@ Tests cover domain-specific accessors, generic state access,
 typed getters, and DomainStates helper class.
 """
 
-import asyncio
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
@@ -12,17 +11,28 @@ import pytest
 
 from hassette.models import states
 from hassette.state_manager import DomainStates, StateManager
-from hassette.test_utils.helpers import (
+from hassette.test_utils import (
     make_full_state_change_event,
     make_light_state_dict,
     make_sensor_state_dict,
     make_state_dict,
     make_switch_state_dict,
+    wait_for,
 )
 from hassette.types import Topic
 
 if TYPE_CHECKING:
     from hassette import Hassette
+
+
+async def _send_and_wait(hassette: "Hassette", entity_id: str, old_state: dict | None, new_state: dict | None) -> None:
+    """Send a state change event and wait for the proxy to process it."""
+    event = make_full_state_change_event(entity_id, old_state, new_state)
+    await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+    await wait_for(
+        lambda: hassette._state_proxy.get_state(entity_id) is not None,
+        desc=f"{entity_id} state arrived",
+    )
 
 
 class TestStatesDomainAccessors:
@@ -42,10 +52,7 @@ class TestStatesDomainAccessors:
             ("light.kitchen", light2_dict),
             ("sensor.temp", sensor_dict),
         ]:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+            await _send_and_wait(hassette, entity_id, None, state_dict)
 
         # Create StateManager instance and access lights
         states_instance = StateManager.create(hassette, hassette)
@@ -78,10 +85,7 @@ class TestStatesDomainAccessors:
         sensor2 = make_sensor_state_dict("sensor.humidity", "60", unit_of_measurement="%")
 
         for entity_id, state_dict in [("sensor.temperature", sensor1), ("sensor.humidity", sensor2)]:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+            await _send_and_wait(hassette, entity_id, None, state_dict)
 
         states_instance = StateManager.create(hassette, hassette)
         sensors = states_instance.sensor
@@ -106,10 +110,7 @@ class TestStatesDomainAccessors:
         switch2 = make_switch_state_dict("switch.outlet2", "off")
 
         for entity_id, state_dict in [("switch.outlet1", switch1), ("switch.outlet2", switch2)]:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+            await _send_and_wait(hassette, entity_id, None, state_dict)
 
         states_instance = StateManager.create(hassette, hassette)
         switches = states_instance.switch
@@ -135,9 +136,7 @@ class TestStatesGenericAccess:
 
         # Add light
         light = make_light_state_dict("light.test", "on", brightness=200)
-        event = make_full_state_change_event("light.test", None, light)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
+        await _send_and_wait(hassette, "light.test", None, light)
 
         states_instance = StateManager.create(hassette, hassette)
         lights = states_instance[states.LightState]
@@ -164,10 +163,7 @@ class TestDomainStates:
         # Add a sensor state with a decimal value
         old_sensor_dict = make_state_dict("input_number.test_value", "22.1")
         new_sensor_dict = make_state_dict("input_number.test_value", "22.5")
-        event = make_full_state_change_event("input_number.test_value", old_sensor_dict, new_sensor_dict)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+        await _send_and_wait(hassette, "input_number.test_value", old_sensor_dict, new_sensor_dict)
 
         states_instance = StateManager.create(hassette, hassette)
 
@@ -183,10 +179,7 @@ class TestDomainStates:
         # Add a sensor state with a decimal value
         old_state_dict = make_state_dict("input_number.test_value", "22.1")
         new_state_dict = make_state_dict("input_number.test_value", "22.5")
-        event = make_full_state_change_event("input_number.test_value", old_state_dict, new_state_dict)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+        await _send_and_wait(hassette, "input_number.test_value", old_state_dict, new_state_dict)
 
         states_instance = StateManager.create(hassette, hassette)
         input_number_manager = states_instance.input_number
@@ -204,8 +197,10 @@ class TestDomainStates:
         new_state_dict = make_state_dict("input_number.test_value", "23.0")
         event = make_full_state_change_event("input_number.test_value", old_state_dict, new_state_dict)
         await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+        await wait_for(
+            lambda: input_number_manager.get("input_number.test_value") is not orig_obj,
+            desc="updated state arrived",
+        )
 
         assert input_number_manager.get("input_number.test_value") is not orig_obj, (
             "State object should be replaced after state change"
@@ -218,10 +213,7 @@ class TestDomainStates:
         # Add lights
         for i in range(3):
             light = make_light_state_dict(f"light.room_{i}", "on")
-            event = make_full_state_change_event(f"light.room_{i}", None, light)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+            await _send_and_wait(hassette, f"light.room_{i}", None, light)
 
         states_instance = StateManager.create(hassette, hassette)
         lights = states_instance.light
@@ -244,10 +236,7 @@ class TestDomainStates:
         sensor2 = make_sensor_state_dict("sensor.test_2", "20")
 
         for entity_id, state_dict in [("sensor.test_1", sensor1), ("sensor.test_2", sensor2)]:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+            await _send_and_wait(hassette, entity_id, None, state_dict)
 
         states_instance = StateManager.create(hassette, hassette)
         sensors = states_instance.sensor
@@ -260,9 +249,7 @@ class TestDomainStates:
 
         # Add light
         light = make_light_state_dict("light.test", "on", brightness=100)
-        event = make_full_state_change_event("light.test", None, light)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
+        await _send_and_wait(hassette, "light.test", None, light)
 
         states_instance = StateManager.create(hassette, hassette)
         lights = states_instance.light
@@ -281,9 +268,7 @@ class TestDomainStates:
 
         # Add sensor
         sensor = make_sensor_state_dict("sensor.test", "25")
-        event = make_full_state_change_event("sensor.test", None, sensor)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
+        await _send_and_wait(hassette, "sensor.test", None, sensor)
 
         states_instance = StateManager.create(hassette, hassette)
 
@@ -325,10 +310,7 @@ class TestStatesIntegration:
             ("sensor.test", sensor),
             ("switch.test", switch),
         ]:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+            await _send_and_wait(hassette, entity_id, None, state_dict)
 
         # Verify proxy stores BaseState (not domain-specific types)
         light_state_raw = proxy.states.get("light.test")
@@ -369,9 +351,7 @@ class TestStatesIntegration:
 
         # Add a light via state change event
         light = make_light_state_dict("light.dynamic", "on", brightness=150)
-        event = make_full_state_change_event("light.dynamic", None, light)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
+        await _send_and_wait(hassette, "light.dynamic", None, light)
 
         # States should now show the new light
         new_light_count = len(light_manager)
@@ -401,10 +381,7 @@ class TestStatesIntegration:
         ]
 
         for entity_id, state_dict in entities:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+            await _send_and_wait(hassette, entity_id, None, state_dict)
 
         # Each domain should only contain its entities with proper types
         light_ids = set()
@@ -451,10 +428,7 @@ class TestStatesIntegration:
         ]
 
         for entity_id, state_dict in entities:
-            event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-
-        await asyncio.sleep(0.1)
+            await _send_and_wait(hassette, entity_id, None, state_dict)
 
         states_instance = StateManager.create(hassette, hassette)
 
@@ -481,9 +455,7 @@ class TestStateManagerGenericAccess:
         hassette = hassette_with_state_proxy
 
         light_dict = make_light_state_dict("light.bedroom", "on", brightness=150)
-        event = make_full_state_change_event("light.bedroom", None, light_dict)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
+        await _send_and_wait(hassette, "light.bedroom", None, light_dict)
 
         states_instance = StateManager.create(hassette, hassette)
         result = states_instance.get("light.bedroom")
@@ -500,9 +472,7 @@ class TestStateManagerGenericAccess:
 
         # Manually inject state for unregistered domain
         test_dict = make_state_dict("test.test_entity", "test_value")
-        event = make_full_state_change_event("test.test_entity", None, test_dict)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)
+        await _send_and_wait(hassette, "test.test_entity", None, test_dict)
 
         states_instance = StateManager.create(hassette, hassette)
         result = states_instance.get("test.test_entity")

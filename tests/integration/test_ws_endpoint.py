@@ -2,14 +2,12 @@
 
 import asyncio
 import json
-from collections import deque
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
 from hassette.core.data_sync_service import DataSyncService
-from hassette.types.enums import ResourceStatus
+from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.app import create_fastapi_app
 
 try:
@@ -25,56 +23,14 @@ pytestmark = pytest.mark.skipif(not HAS_STARLETTE_TC, reason="starlette testclie
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette for WebSocket tests."""
-    hassette = MagicMock()
-    hassette.config.run_web_api = True
-    hassette.config.run_web_ui = False
-    hassette.config.web_api_cors_origins = ()
-    hassette.config.web_api_event_buffer_size = 100
-    hassette.config.web_api_log_level = "INFO"
-    hassette.config.dev_mode = True
-    hassette.config.allow_reload_in_prod = False
-
-    hassette.state_proxy = hassette._state_proxy
-    hassette._state_proxy.states = {"light.kitchen": {"entity_id": "light.kitchen", "state": "on"}}
-    hassette._state_proxy.is_ready.return_value = True
-
-    hassette.websocket_service = hassette._websocket_service
-    hassette._websocket_service.status = ResourceStatus.RUNNING
-
-    hassette.app_handler = hassette._app_handler
-    snapshot = SimpleNamespace(
-        running=[],
-        failed=[],
-        total_count=3,
-        running_count=2,
-        failed_count=1,
-        only_app=None,
+    return create_hassette_stub(
+        run_web_ui=False,
+        cors_origins=(),
+        states={"light.kitchen": {"entity_id": "light.kitchen", "state": "on"}},
+        old_snapshot=SimpleNamespace(
+            running=[], failed=[], total_count=3, running_count=2, failed_count=1, only_app=None
+        ),
     )
-    hassette._app_handler.get_status_snapshot.return_value = snapshot
-
-    hassette.bus_service = hassette._bus_service
-    hassette.scheduler_service = hassette._scheduler_service
-    hassette.data_sync_service = hassette._data_sync_service
-
-    hassette.children = []
-
-    return hassette
-
-
-@pytest.fixture
-def data_sync_service(mock_hassette):
-    """Create a real DataSyncService with mocked Hassette."""
-    ds = DataSyncService.__new__(DataSyncService)
-    ds.hassette = mock_hassette
-    ds._event_buffer = deque(maxlen=100)
-    ds._ws_clients = set()
-    ds._lock = asyncio.Lock()
-    ds._start_time = 1704067200.0
-    ds._subscriptions = []
-    ds.logger = MagicMock()
-    mock_hassette._data_sync_service = ds
-    mock_hassette.data_sync_service = ds
-    return ds
 
 
 @pytest.fixture

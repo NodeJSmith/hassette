@@ -21,6 +21,7 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
 from hassette.scheduler import Scheduler
+from hassette.test_utils import wait_for
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -175,7 +176,7 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
     task = asyncio.create_task(hassette_instance.run_forever())
     asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
-    await asyncio.sleep(0.1)
+    await wait_for(lambda: start_resources.called, desc="run_forever started")
     await task
 
     start_resources.assert_called_once()

@@ -36,7 +36,6 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
             break
 
     assert updated_files, "No watchable files found to touch in test_event_emitted_on_file_change"
-    await asyncio.sleep(0.2)
 
     # Event emission can be racy, so retry briefly.
     for _ in range(2):

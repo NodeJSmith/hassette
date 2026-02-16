@@ -14,11 +14,12 @@ from hassette.core.core import Hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
-from hassette.test_utils.helpers import (
+from hassette.test_utils import (
     make_full_state_change_event,
     make_light_state_dict,
     make_sensor_state_dict,
     make_switch_state_dict,
+    wait_for,
 )
 from hassette.types import Topic
 
@@ -53,13 +54,15 @@ class TestStateProxyInit:
             old_state_dict: Old state dictionary (or None)
             new_state_dict: New state dictionary (or None)
         """
-        from hassette.test_utils.helpers import make_full_state_change_event
+        from hassette.test_utils import make_full_state_change_event
         from hassette.types import Topic
 
         event = make_full_state_change_event(entity_id, old_state_dict, new_state_dict)
         await self.hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        # Give time for event processing
-        await asyncio.sleep(0.1)
+        await wait_for(
+            lambda: self.hassette._state_proxy.get_state(entity_id) is not None,
+            desc=f"{entity_id} state arrived",
+        )
 
     async def test_waits_for_dependencies(self, hassette_with_state_proxy: "Hassette") -> None:
         """State proxy waits for WebSocket, API, and Bus services before initializing."""
@@ -110,7 +113,7 @@ class TestStateProxyInit:
 
 
 @pytest.fixture
-def proxy():
+def state_proxy():
     mock_hassette = Mock()
     mock_hassette.config.state_proxy_log_level = "DEBUG"
     mock_hassette.config.task_bucket_log_level = "DEBUG"
@@ -125,46 +128,46 @@ def proxy():
 class TestStateProxyGetState:
     """Tests for get_state method."""
 
-    async def test_returns_state_when_ready_and_exists(self, proxy: "StateProxy") -> None:
+    async def test_returns_state_when_ready_and_exists(self, state_proxy: "StateProxy") -> None:
         """get_state returns state when proxy is ready and entity exists."""
 
         # Add a state to the cache manually
         light_dict = make_light_state_dict("light.test", "on", brightness=200)
-        proxy.states["light.test"] = light_dict
+        state_proxy.states["light.test"] = light_dict
 
         # Retrieve it
-        result = proxy.get_state("light.test")
+        result = state_proxy.get_state("light.test")
         assert result is not None
         assert result["entity_id"] == "light.test"
         assert isinstance(result, dict)
 
-    async def test_returns_none_for_missing_entity(self, proxy: "StateProxy") -> None:
+    async def test_returns_none_for_missing_entity(self, state_proxy: "StateProxy") -> None:
         """get_state returns None when entity does not exist in cache."""
-        result = proxy.get_state("light.nonexistent")
+        result = state_proxy.get_state("light.nonexistent")
         assert result is None
 
-    async def test_raises_when_not_ready(self, proxy: "StateProxy") -> None:
+    async def test_raises_when_not_ready(self, state_proxy: "StateProxy") -> None:
         """get_state raises ResourceNotReadyError when proxy is not ready."""
 
         # Mark proxy as not ready
-        proxy.mark_not_ready(reason="Test")
+        state_proxy.mark_not_ready(reason="Test")
 
         with pytest.raises(ResourceNotReadyError, match="StateProxy is not ready"):
-            proxy._get_state_once("light.test")
-        proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
+            state_proxy._get_state_once("light.test")
+        state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
-    async def test_lockfree_read_access(self, proxy: "StateProxy") -> None:
+    async def test_lockfree_read_access(self, state_proxy: "StateProxy") -> None:
         """get_state does not acquire lock (lock-free read)."""
 
         # Add state
         light_dict = make_light_state_dict("light.test", "on")
-        proxy.states["light.test"] = light_dict
+        state_proxy.states["light.test"] = light_dict
 
         # Lock should not be acquired during read
         # We can't directly test that lock is not acquired, but we can verify
         # that multiple reads can happen simultaneously without blocking
         results = await asyncio.gather(
-            *[asyncio.create_task(asyncio.to_thread(lambda: proxy.get_state("light.test"))) for _ in range(10)]
+            *[asyncio.create_task(asyncio.to_thread(lambda: state_proxy.get_state("light.test"))) for _ in range(10)]
         )
 
         assert all(r is not None for r in results)
@@ -183,7 +186,10 @@ class TestStateProxyStateChanged:
         event = make_full_state_change_event("light.new_light", None, light_dict)
 
         await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)  # Give time for event processing
+        await wait_for(
+            lambda: "light.new_light" in proxy.states,
+            desc="light.new_light state arrived",
+        )
 
         # Verify entity was added
         assert "light.new_light" in proxy.states
@@ -298,37 +304,37 @@ class TestStateProxyStateChanged:
 class TestStateProxyWebsocketListeners:
     """Tests for websocket events that trigger clear/sync states."""
 
-    async def test_clears_cache_on_stop(self, proxy: "StateProxy") -> None:
+    async def test_clears_cache_on_stop(self, state_proxy: "StateProxy") -> None:
         """on_disconnect clears the state cache."""
 
         # Add some states
-        proxy.states["light.test"] = make_light_state_dict("light.test", "on")
-        proxy.states["sensor.test"] = make_sensor_state_dict("sensor.test", "20")
-        assert len(proxy.states) >= 2
+        state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
+        state_proxy.states["sensor.test"] = make_sensor_state_dict("sensor.test", "20")
+        assert len(state_proxy.states) >= 2
 
         # Trigger HA stop
-        with patch.object(proxy, "mark_not_ready") as mock_mark_not_ready:
-            await proxy.on_disconnect()
+        with patch.object(state_proxy, "mark_not_ready") as mock_mark_not_ready:
+            await state_proxy.on_disconnect()
 
         # Cache should be cleared
-        assert len(proxy.states) == 0
+        assert len(state_proxy.states) == 0
         mock_mark_not_ready.assert_called_once()
 
-    async def test_marks_not_ready_on_stop(self, proxy: "StateProxy") -> None:
+    async def test_marks_not_ready_on_stop(self, state_proxy: "StateProxy") -> None:
         """on_disconnect marks proxy as not ready."""
 
-        orig_state = proxy.is_ready()
+        orig_state = state_proxy.is_ready()
 
         if not orig_state:
-            proxy.mark_ready(reason="Test setup")
+            state_proxy.mark_ready(reason="Test setup")
 
-        with patch.object(proxy, "mark_not_ready") as mock_mark_not_ready:
-            await proxy.on_disconnect()
+        with patch.object(state_proxy, "mark_not_ready") as mock_mark_not_ready:
+            await state_proxy.on_disconnect()
 
         mock_mark_not_ready.assert_called_once()
 
         if orig_state:
-            proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
+            state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
     async def test_subscribes_to_start_on_stop(self, hassette_with_state_proxy: "Hassette") -> None:
         """on_disconnect clears cache but does not add new subscriptions (they're already registered)."""
@@ -349,27 +355,30 @@ class TestStateProxyWebsocketListeners:
         listeners_after = await proxy.bus.get_listeners()
         assert len(listeners_after) == expected_sub_count
 
-    async def test_resyncs_on_start(self, proxy: "StateProxy") -> None:
+    async def test_resyncs_on_start(self, state_proxy: "StateProxy") -> None:
         """on_reconnect performs full state resync."""
         # Clear cache and mark not ready (simulating HA stop)
-        proxy.states.clear()
-        proxy.mark_not_ready(reason="HA stopped")
+        state_proxy.states.clear()
+        state_proxy.mark_not_ready(reason="HA stopped")
 
         # Configure mock API response for resync
         mock_states = [
             make_light_state_dict("light.kitchen", "on"),
             make_sensor_state_dict("sensor.temp", "21.0"),
         ]
-        # okay to set this one directly since it's on the "proxy" fixture, which isn't shared
-        proxy.hassette.api.get_states_raw = AsyncMock(return_value=[mock_states[0], mock_states[1]])
+        # okay to set this one directly since it's on the "state_proxy" fixture, which isn't shared
+        state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[mock_states[0], mock_states[1]])
 
         # Trigger HA start
-        await proxy.on_reconnect()
-        await asyncio.sleep(0.1)
+        await state_proxy.on_reconnect()
+        await wait_for(
+            lambda: state_proxy.is_ready() and len(state_proxy.states) >= 2,
+            desc="state proxy resynced",
+        )
 
         # States should be resynced
-        assert proxy.is_ready()
-        assert len(proxy.states) >= 2
+        assert state_proxy.is_ready()
+        assert len(state_proxy.states) >= 2
 
     async def test_handles_resync_failure(self, hassette_with_state_proxy: "Hassette") -> None:
         """on_reconnect handles API failure gracefully."""
@@ -407,43 +416,43 @@ class TestStateProxyShutdown:
         listeners_after = await proxy.bus.get_listeners()
         assert len(listeners_after) == 0, "All listeners should be removed on shutdown"
 
-    async def test_clears_cache_on_shutdown(self, proxy: "StateProxy") -> None:
+    async def test_clears_cache_on_shutdown(self, state_proxy: "StateProxy") -> None:
         """Shutdown clears the state cache."""
 
         # Add states
-        proxy.states["light.test"] = make_light_state_dict("light.test", "on")
+        state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
 
-        await proxy.on_shutdown()
+        await state_proxy.on_shutdown()
 
-        assert len(proxy.states) == 0
+        assert len(state_proxy.states) == 0
 
-    async def test_marks_not_ready_on_shutdown(self, proxy: "StateProxy") -> None:
+    async def test_marks_not_ready_on_shutdown(self, state_proxy: "StateProxy") -> None:
         """Shutdown marks proxy as not ready."""
 
-        orig_state = proxy.is_ready()
+        orig_state = state_proxy.is_ready()
         if not orig_state:
-            proxy.mark_ready(reason="Test setup")
+            state_proxy.mark_ready(reason="Test setup")
 
-        with patch.object(proxy, "mark_not_ready") as mock_mark_not_ready:
-            await proxy.on_shutdown()
+        with patch.object(state_proxy, "mark_not_ready") as mock_mark_not_ready:
+            await state_proxy.on_shutdown()
 
         mock_mark_not_ready.assert_called_once()
 
         if orig_state:
-            proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
+            state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
 
 class TestStateProxyConcurrency:
     """Tests for thread-safety and concurrency."""
 
-    async def test_concurrent_reads_dont_block(self, proxy: "StateProxy") -> None:
+    async def test_concurrent_reads_dont_block(self, state_proxy: "StateProxy") -> None:
         """Multiple concurrent reads should not block each other."""
         # Add test state
-        proxy.states["light.test"] = make_light_state_dict("light.test", "on")
+        state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
 
         # Perform many concurrent reads
         async def read_state():
-            return proxy.get_state("light.test")
+            return state_proxy.get_state("light.test")
 
         results = await asyncio.gather(*[read_state() for _ in range(100)])
 

@@ -83,16 +83,26 @@ class MyApp(App[MyConfig]):
         pass
 ```
 
+## Test Infrastructure
+
+Two mock strategies serve different testing needs. See `tests/TESTING.md` for the full guide, decision table, and code examples.
+
+- **`HassetteHarness`** — wires real components (bus, scheduler, state proxy) for integration tests
+- **`create_hassette_stub()`** — builds a MagicMock stub for web/API tests (HTTP, HTML, WebSocket)
+
 ## E2E Tests (Playwright)
 
-Browser-based tests live in `tests/e2e/` and are excluded from default `pytest` runs via the `e2e` marker.
+Browser-based tests live in `tests/e2e/` and run as part of the default `pytest` suite. Playwright and Chromium must be installed first.
 
 ```bash
 # Install browser (one-time setup — requires sudo for system deps)
 uv run playwright install --with-deps chromium
 
-# Run e2e tests
-uv run pytest -m e2e -v
+# Run e2e tests via nox (used by CI)
+uv run nox -s e2e
+
+# Run e2e tests only (useful with xdist: -n auto for parallelism)
+uv run pytest -m e2e -v -n auto
 
 # Debug with headed browser
 uv run pytest -m e2e --headed

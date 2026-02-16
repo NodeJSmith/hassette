@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -6,6 +5,7 @@ import pytest
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.events.hassette import HassetteServiceEvent
 from hassette.resources.base import Service
+from hassette.test_utils import preserve_config, wait_for
 from hassette.types.enums import ResourceStatus
 
 
@@ -13,19 +13,10 @@ from hassette.types.enums import ResourceStatus
 def get_service_watcher_mock(hassette_with_bus):
     """Return a fresh service watcher for each test."""
     watcher = ServiceWatcher.create(hassette_with_bus)
-    # Snapshot children and config to restore after test (module-scoped hassette shares state)
     original_children = list(hassette_with_bus.children)
-    config = hassette_with_bus.config
-    orig_max = config.service_restart_max_attempts
-    orig_backoff = config.service_restart_backoff_seconds
-    orig_max_backoff = config.service_restart_max_backoff_seconds
-    orig_mult = config.service_restart_backoff_multiplier
-    yield watcher
-    hassette_with_bus.children[:] = original_children
-    config.service_restart_max_attempts = orig_max
-    config.service_restart_backoff_seconds = orig_backoff
-    config.service_restart_max_backoff_seconds = orig_max_backoff
-    config.service_restart_backoff_multiplier = orig_mult
+    with preserve_config(hassette_with_bus.config):
+        yield watcher
+        hassette_with_bus.children[:] = original_children
 
 
 def get_dummy_service(called: dict[str, int], hassette, *, fail: bool = False) -> Service:
@@ -67,7 +58,10 @@ async def test_restart_service_cancels_then_starts(get_service_watcher_mock: Ser
     with patch("hassette.core.service_watcher.asyncio.sleep", return_value=None):
         await get_service_watcher_mock.restart_service(event)
 
-    await asyncio.sleep(0.1)  # allow restart to run
+    await wait_for(
+        lambda: call_counts == {"cancel": 1, "start": 1},
+        desc="restart_service completed",
+    )
 
     assert call_counts == {"cancel": 1, "start": 1}, (
         f"Expected cancel and start to be called once each, got {call_counts}"

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- E2E tests now run by default with `uv run pytest` instead of requiring `-m e2e`; added `nox -s e2e` session for CI
+- `HassetteHarness` now uses a fluent builder API (`with_bus()`, `with_state_proxy()`, etc.) with automatic dependency resolution instead of boolean flags (#253)
+- Consolidated duplicate mock Hassette, DataSyncService, and web test helper fixtures into shared factories in `test_utils/` (#253)
+- All test helper functions now exported from `hassette.test_utils` public API; tests import from the package instead of submodules (#253)
+- Replaced 28 `asyncio.sleep()` synchronization calls across 8 integration test files with `wait_for` polling helper for deterministic, faster tests (#253)
+- Renamed `create_mock_hassette()` to `create_hassette_stub()` and `mock_hassette.py` to `web_mocks.py` to clarify web/API stub vs harness distinction (#259)
+- Added autouse cleanup fixtures for bus, scheduler, and mock API to prevent test pollution in module-scoped fixtures (#256)
+
 ### Added
 - JSDoc comments across all web UI JavaScript files (#251)
 - ESLint linting, TypeScript type-checking, and `mise run lint:js` / `mise run typecheck:js` tasks (#251)

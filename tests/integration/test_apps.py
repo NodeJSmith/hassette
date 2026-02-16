@@ -9,6 +9,7 @@ import pytest
 from hassette import Hassette
 from hassette.bus import Listener
 from hassette.core.app_change_detector import ChangeSet
+from hassette.test_utils import wait_for
 from hassette.types import Topic
 from hassette.utils.app_utils import load_app_class_from_manifest
 
@@ -198,8 +199,14 @@ class TestApps:
         )
 
         await self.app_handler.apply_changes(change_set)
-        # using manual sleep here, as the event doesn't get sent unless we call `handle_changes`
-        await asyncio.sleep(0.3)
+        await wait_for(
+            lambda: (
+                "my_app" in self.app_handler.apps
+                and self.app_handler.get("my_app", 0) is not None
+                and typing.cast("MyApp", self.app_handler.get("my_app", 0)).app_config.test_entity == "light.office"
+            ),
+            desc="app reload completed with updated config",
+        )
 
         assert "my_app" in self.app_handler.apps, "my_app should still be running after reload"
         my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app", 0))

@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import tracemalloc
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
 import tomli_w
 
 from hassette import Hassette, HassetteConfig
+from hassette.task_bucket import TaskBucket
 
 tracemalloc.start()
 
@@ -67,7 +69,7 @@ class TestConfig(HassetteConfig):
 
 
 @pytest.fixture(scope="session")
-def test_config_class():
+def test_config_class() -> type[HassetteConfig]:
     """
     Provide the TestConfig class for testing.
     This is used to ensure the configuration class is available for tests that require it.
@@ -76,7 +78,7 @@ def test_config_class():
 
 
 @pytest.fixture(scope="session")
-def test_config(unused_tcp_port_factory):
+def test_config(unused_tcp_port_factory) -> HassetteConfig:
     """
     Provide a HassetteConfig instance for testing.
     This is used to ensure the configuration is set up correctly for tests.
@@ -90,7 +92,7 @@ def test_config(unused_tcp_port_factory):
 
 
 @pytest.fixture(scope="session")
-def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory):
+def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory) -> HassetteConfig:
     """
     Provide a HassetteConfig instance for testing.
     This is used to ensure the configuration is set up correctly for tests.
@@ -114,7 +116,7 @@ def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory):
 
 
 @pytest.fixture
-def env_file_path():
+def env_file_path() -> Path:
     """
     Provide the path to the test environment file.
     This is used to ensure the environment is set up correctly for tests.
@@ -123,7 +125,7 @@ def env_file_path():
 
 
 @pytest.fixture(scope="session")
-def test_data_path():
+def test_data_path() -> Path:
     """
     Provide the path to the test data directory.
     This is used to access any test-specific files needed during testing.
@@ -132,31 +134,31 @@ def test_data_path():
 
 
 @pytest.fixture(scope="session")
-def test_config_path():
+def test_config_path() -> Path:
     """Provide the path to the test config directory."""
     return TEST_CONFIG_PATH
 
 
 @pytest.fixture(scope="session")
-def test_events_path():
+def test_events_path() -> Path:
     """Provide the path to the test events directory."""
     return TEST_EVENTS_PATH
 
 
 @pytest.fixture(scope="session")
-def test_api_responses_path():
+def test_api_responses_path() -> Path:
     """Provide the path to the test API responses directory."""
     return TEST_API_RESPONSES_PATH
 
 
 @pytest.fixture(scope="session")
-def test_apps_path():
+def test_apps_path() -> Path:
     """Provide the path to the test apps directory."""
     return TEST_APPS_PATH
 
 
 @pytest.fixture(scope="session")
-def apps_config_file(tmp_path_factory):
+def apps_config_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Return a temporary hassette.toml populated with app definitions for app-centric tests."""
 
     tmp_dir = tmp_path_factory.mktemp("hassette_apps")
@@ -166,7 +168,7 @@ def apps_config_file(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def test_config_with_apps(apps_config_file):
+def test_config_with_apps(apps_config_file: Path) -> HassetteConfig:
     """Provide a HassetteConfig instance that loads apps from a temporary hassette.toml."""
 
     class AppsTestConfig(TestConfig):
@@ -181,7 +183,7 @@ def test_config_with_apps(apps_config_file):
 
 
 @pytest.fixture
-def my_app_class():
+def my_app_class() -> type:
     """
     Provide the MyApp class for testing.
     This is used to ensure the MyApp class is available for tests that require it.
@@ -192,13 +194,13 @@ def my_app_class():
 
 
 @pytest.fixture
-def caplog_info(caplog):
+def caplog_info(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
     caplog.set_level(logging.INFO)
     return caplog
 
 
 @pytest.fixture
-async def bucket_fixture(hassette_with_nothing: Hassette):  # pytest-asyncio provides event_loop
+async def bucket_fixture(hassette_with_nothing: Hassette) -> AsyncIterator[TaskBucket]:
     try:
         yield hassette_with_nothing.task_bucket
     finally:

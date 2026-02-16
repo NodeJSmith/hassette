@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from hassette import HassetteConfig, context
-from hassette.test_utils.fixtures import build_harness, run_hassette_startup_tasks
+from hassette.test_utils import HassetteHarness, build_harness, run_hassette_startup_tasks
 
 APP_KEY = "env_reader"
 TOKEN = "test-token"
@@ -205,7 +205,7 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
 async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """AppConfig subclasses (BaseSettings) can read required fields from os.environ."""
 
-    from hassette.test_utils.harness import wait_for
+    from hassette.test_utils import wait_for
 
     monkeypatch.chdir(tmp_path)
 
@@ -229,7 +229,7 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
     app_settings_config = _build_config_class(toml_file=toml_file, env_files=[])
     config = app_settings_config(import_dot_env_files=False)
 
-    async with build_harness(config=config, use_bus=True, use_app_handler=True, use_scheduler=True) as harness:
+    async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
         await wait_for(
             lambda: (
                 harness.hassette.get_app("env_reader") is not None
@@ -250,7 +250,7 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
 ):
     """If an env var exists only in HassetteConfig.env_files, AppConfig won't see it unless imported to os.environ."""
 
-    from hassette.test_utils.harness import wait_for
+    from hassette.test_utils import wait_for
 
     monkeypatch.chdir(tmp_path)
 
@@ -277,7 +277,7 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
     config = custom_env_config(import_dot_env_files=False)
     run_hassette_startup_tasks(config)
 
-    async with build_harness(config=config, use_bus=True, use_app_handler=True, use_scheduler=True) as harness:
+    async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
         await wait_for(
             lambda: (
                 (harness.hassette.get_app("env_reader") is not None)
@@ -305,7 +305,7 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
 ):
     """With import_dot_env_files=True, custom env files become visible to AppConfig via os.environ."""
 
-    from hassette.test_utils.harness import wait_for
+    from hassette.test_utils import wait_for
 
     monkeypatch.chdir(tmp_path)
 
@@ -333,7 +333,7 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
 
-    async with build_harness(config=config, use_bus=True, use_app_handler=True, use_scheduler=True) as harness:
+    async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
         await wait_for(
             lambda: (
                 harness.hassette.get_app("env_reader") is not None
