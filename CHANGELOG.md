@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- Entity browser "Load more" button now appends rows instead of replacing existing ones on domain-filtered views (#247)
+
 ## [0.22.1] - 2026-02-15
 
 ### Added
