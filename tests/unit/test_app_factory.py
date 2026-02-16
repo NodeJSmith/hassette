@@ -41,8 +41,13 @@ def factory(mock_hassette, mock_registry):
     """Create an AppFactory instance with mocked dependencies."""
     # Ensure propagate=True so caplog can capture logs even if integration
     # tests ran first and set propagate=False on the hassette logger.
-    logging.getLogger("hassette").propagate = True
-    return AppFactory(mock_hassette, mock_registry)
+    logger = logging.getLogger("hassette")
+    old_propagate = logger.propagate
+    logger.propagate = True
+    try:
+        yield AppFactory(mock_hassette, mock_registry)
+    finally:
+        logger.propagate = old_propagate
 
 
 class TestAppFactoryInit:
