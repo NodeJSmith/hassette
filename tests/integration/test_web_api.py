@@ -1,26 +1,19 @@
 """Integration tests for the FastAPI web API using httpx AsyncClient."""
 
 import logging
-from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from hassette.core.data_sync_service import DataSyncService
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 from hassette.logging_ import LogCaptureHandler
-from hassette.test_utils.mock_hassette import create_mock_data_sync_service, create_mock_hassette
-from hassette.web.app import create_fastapi_app
+from hassette.test_utils.mock_hassette import create_mock_hassette
+from hassette.test_utils.web_helpers import make_old_snapshot
 from hassette.web.routes.config import _CONFIG_SAFE_FIELDS
-
-try:
-    from httpx import ASGITransport, AsyncClient
-
-    HAS_HTTPX = True
-except ImportError:
-    HAS_HTTPX = False
-
-
-pytestmark = pytest.mark.skipif(not HAS_HTTPX, reason="httpx not installed")
 
 
 @pytest.fixture
@@ -44,46 +37,10 @@ def mock_hassette():
                 "last_updated": "2024-01-01T00:00:00",
             },
         },
-        old_snapshot=SimpleNamespace(
-            running=[
-                SimpleNamespace(
-                    app_key="my_app",
-                    index=0,
-                    instance_name="MyApp[0]",
-                    class_name="MyApp",
-                    status=SimpleNamespace(value="running"),
-                    error_message=None,
-                )
-            ],
-            failed=[],
-            total_count=1,
-            running_count=1,
-            failed_count=0,
-            only_app=None,
-        ),
+        old_snapshot=make_old_snapshot(),
         app_action_mocks=True,
         config_dump={"dev_mode": True, "web_api_port": 8126},
     )
-
-
-@pytest.fixture
-def data_sync_service(mock_hassette):
-    """Create a real DataSyncService with mocked Hassette."""
-    return create_mock_data_sync_service(mock_hassette)
-
-
-@pytest.fixture
-def app(mock_hassette, data_sync_service):  # noqa: ARG001
-    """Create a FastAPI app with mocked dependencies."""
-    return create_fastapi_app(mock_hassette)
-
-
-@pytest.fixture
-async def client(app):
-    """Create an httpx AsyncClient for testing."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
 
 
 class TestHealthEndpoints:

@@ -15,7 +15,7 @@ import pytest
 
 from hassette import Bus, Hassette
 from hassette.events.hassette import HassetteFileWatcherEvent
-from hassette.test_utils.helpers import create_app_manifest, write_app_toml, write_test_app_with_decorator
+from hassette.test_utils import create_app_manifest, write_app_toml, write_test_app_with_decorator
 from hassette.types import ResourceStatus
 
 if TYPE_CHECKING:

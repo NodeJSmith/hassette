@@ -13,7 +13,13 @@ import uvicorn
 from hassette.core.app_registry import AppInstanceInfo
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.mock_hassette import create_mock_data_sync_service, create_mock_hassette
-from hassette.test_utils.web_helpers import make_listener_metric, make_manifest
+from hassette.test_utils.web_helpers import (
+    make_job,
+    make_listener_metric,
+    make_manifest,
+    make_old_app_instance,
+    make_old_snapshot,
+)
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -126,53 +132,29 @@ def mock_hassette():
             },
         },
         manifests=manifests,
-        old_snapshot=SimpleNamespace(
+        old_snapshot=make_old_snapshot(
             running=[
-                SimpleNamespace(
-                    app_key="my_app",
-                    index=0,
-                    instance_name="MyApp[0]",
-                    class_name="MyApp",
-                    status=SimpleNamespace(value="running"),
-                    error_message=None,
-                    owner_id="MyApp.MyApp[0]",
-                )
+                make_old_app_instance(owner_id="MyApp.MyApp[0]"),
             ],
             failed=[
-                SimpleNamespace(
+                make_old_app_instance(
                     app_key="broken_app",
-                    index=0,
                     instance_name="BrokenApp[0]",
                     class_name="BrokenApp",
-                    status=SimpleNamespace(value="failed"),
+                    status="failed",
                     error_message="Init error: bad config",
                     owner_id=None,
-                )
+                ),
             ],
-            total_count=2,
-            running_count=1,
-            failed_count=1,
-            only_app=None,
         ),
         listener_metrics=listener_metrics,
         scheduler_jobs=[
-            SimpleNamespace(
-                job_id="job-1",
-                name="check_lights",
-                owner="MyApp.MyApp[0]",
-                next_run="2024-01-01T00:05:00",
-                repeat=True,
-                cancelled=False,
-                trigger=type("interval", (), {})(),
-            ),
-            SimpleNamespace(
+            make_job(),
+            make_job(
                 job_id="job-2",
                 name="morning_routine",
-                owner="MyApp.MyApp[0]",
                 next_run="2024-01-01T07:00:00",
-                repeat=True,
-                cancelled=False,
-                trigger=type("cron", (), {})(),
+                trigger_type="cron",
             ),
         ],
     )

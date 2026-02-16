@@ -14,7 +14,7 @@ from hassette.core.core import Hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
-from hassette.test_utils.helpers import (
+from hassette.test_utils import (
     make_full_state_change_event,
     make_light_state_dict,
     make_sensor_state_dict,
@@ -53,7 +53,7 @@ class TestStateProxyInit:
             old_state_dict: Old state dictionary (or None)
             new_state_dict: New state dictionary (or None)
         """
-        from hassette.test_utils.helpers import make_full_state_change_event
+        from hassette.test_utils import make_full_state_change_event
         from hassette.types import Topic
 
         event = make_full_state_change_event(entity_id, old_state_dict, new_state_dict)

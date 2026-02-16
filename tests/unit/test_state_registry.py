@@ -1,7 +1,7 @@
 import typing
 
 from hassette.models.states import BaseState
-from hassette.test_utils.helpers import make_state_dict
+from hassette.test_utils import make_state_dict
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette

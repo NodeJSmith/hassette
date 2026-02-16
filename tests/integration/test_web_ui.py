@@ -1,25 +1,26 @@
 """Integration tests for the Hassette Web UI (pages, partials, static assets)."""
 
+import logging
+import re
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
 from hassette.core.app_registry import AppInstanceInfo
 from hassette.core.data_sync_service import DataSyncService
+from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.mock_hassette import create_mock_data_sync_service
-from hassette.test_utils.web_helpers import make_manifest, setup_registry
+from hassette.test_utils.web_helpers import (
+    make_job,
+    make_listener_metric,
+    make_manifest,
+    make_old_snapshot,
+    setup_registry,
+)
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
-
-try:
-    from httpx import ASGITransport, AsyncClient
-
-    HAS_HTTPX = True
-except ImportError:
-    HAS_HTTPX = False
-
-pytestmark = pytest.mark.skipif(not HAS_HTTPX, reason="httpx not installed")
 
 
 @pytest.fixture
@@ -38,23 +39,7 @@ def mock_hassette():
             },
         },
         manifests=[make_manifest()],
-        old_snapshot=SimpleNamespace(
-            running=[
-                SimpleNamespace(
-                    app_key="my_app",
-                    index=0,
-                    instance_name="MyApp[0]",
-                    class_name="MyApp",
-                    status=SimpleNamespace(value="running"),
-                    error_message=None,
-                )
-            ],
-            failed=[],
-            total_count=1,
-            running_count=1,
-            failed_count=0,
-            only_app=None,
-        ),
+        old_snapshot=make_old_snapshot(),
     )
     return hassette
 
@@ -68,13 +53,6 @@ def mock_hassette_no_ui():
 
 
 @pytest.fixture
-def data_sync_service(mock_hassette):
-    """Create a DataSyncService with mocked Hassette."""
-
-    return create_mock_data_sync_service(mock_hassette)
-
-
-@pytest.fixture
 def data_sync_service_no_ui(mock_hassette_no_ui):
     """Create a DataSyncService for the no-UI variant."""
 
@@ -82,20 +60,8 @@ def data_sync_service_no_ui(mock_hassette_no_ui):
 
 
 @pytest.fixture
-def app(mock_hassette, data_sync_service):  # noqa: ARG001
-    return create_fastapi_app(mock_hassette)
-
-
-@pytest.fixture
 def app_no_ui(mock_hassette_no_ui, data_sync_service_no_ui):  # noqa: ARG001
     return create_fastapi_app(mock_hassette_no_ui)
-
-
-@pytest.fixture
-async def client(app):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
 
 
 @pytest.fixture
@@ -160,21 +126,22 @@ class TestDashboardPage:
         assert "Scheduler" in body
         assert "Entities" in body
 
-    async def test_dashboard_contains_htmx(self, client: "AsyncClient") -> None:
+    @pytest.mark.parametrize(
+        "expected_text",
+        [
+            pytest.param("htmx.org", id="contains_htmx"),
+            pytest.param("System Health", id="contains_health_data"),
+            pytest.param("Event Bus", id="contains_bus_metrics"),
+            pytest.param("1", id="shows_app_counts"),
+            pytest.param("idiomorph", id="includes_idiomorph_script"),
+            pytest.param("live-updates.js", id="includes_live_updates_js"),
+            pytest.param("Scheduled Jobs", id="shows_scheduled_jobs_panel"),
+            pytest.param("Recent Logs", id="shows_recent_logs_panel"),
+        ],
+    )
+    async def test_dashboard_contains(self, client: "AsyncClient", expected_text: str) -> None:
         response = await client.get("/ui/")
-        assert "htmx.org" in response.text
-
-    async def test_dashboard_contains_health_data(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/")
-        assert "System Health" in response.text
-
-    async def test_dashboard_contains_bus_metrics(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/")
-        assert "Event Bus" in response.text
-
-    async def test_dashboard_shows_app_counts(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/")
-        assert "1" in response.text
+        assert expected_text in response.text
 
     async def test_dashboard_has_live_update_attributes(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
@@ -185,22 +152,6 @@ class TestDashboardPage:
     async def test_dashboard_has_no_live_refresh_attribute(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         assert "data-live-refresh" not in response.text
-
-    async def test_dashboard_includes_idiomorph_script(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/")
-        assert "idiomorph" in response.text
-
-    async def test_dashboard_includes_live_updates_js(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/")
-        assert "live-updates.js" in response.text
-
-    async def test_dashboard_shows_scheduled_jobs_panel(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/")
-        assert "Scheduled Jobs" in response.text
-
-    async def test_dashboard_shows_recent_logs_panel(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/")
-        assert "Recent Logs" in response.text
 
     async def test_dashboard_shows_bus_view_all_link(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
@@ -506,19 +457,7 @@ class TestPartials:
         assert "/ui/scheduler" in response.text
 
     async def test_dashboard_scheduler_partial_with_jobs(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(
-            return_value=[
-                SimpleNamespace(
-                    job_id="job-1",
-                    name="check_lights",
-                    owner="MyApp.MyApp[0]",
-                    next_run="2024-01-01T00:05:00",
-                    repeat=True,
-                    cancelled=False,
-                    trigger=type("interval", (), {})(),
-                ),
-            ]
-        )
+        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[make_job()])
         response = await client.get("/ui/partials/dashboard-scheduler")
         assert response.status_code == 200
         # Should show count "1" for active/total/repeating
@@ -541,8 +480,6 @@ class TestPartials:
         assert "<html" not in response.text
 
     async def test_dashboard_logs_partial_empty(self, client: "AsyncClient") -> None:
-        from unittest.mock import patch
-
         with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=None):
             response = await client.get("/ui/partials/dashboard-logs")
         assert response.status_code == 200
@@ -550,13 +487,7 @@ class TestPartials:
         assert "/ui/logs" in response.text
 
     async def test_dashboard_logs_partial_with_entries(self, client: "AsyncClient") -> None:
-        from unittest.mock import patch
-
-        from hassette.logging_ import LogCaptureHandler
-
         handler = LogCaptureHandler(buffer_size=100)
-        import logging
-
         record = logging.LogRecord(
             name="hassette.test",
             level=logging.INFO,
@@ -841,31 +772,8 @@ class TestInstanceDetail:
         mock_hassette._app_handler.registry.get_apps_by_key.return_value = app_instances
 
         # Mock listener metrics with per-instance owner IDs
-        def _make_listener_metric(owner: str) -> MagicMock:
-            d = {
-                "listener_id": 1,
-                "owner": owner,
-                "topic": "state_changed.light.kitchen",
-                "handler_name": "on_light",
-                "total_invocations": 5,
-                "successful": 5,
-                "failed": 0,
-                "di_failures": 0,
-                "cancelled": 0,
-                "total_duration_ms": 10.0,
-                "min_duration_ms": 1.0,
-                "max_duration_ms": 3.0,
-                "avg_duration_ms": 2.0,
-                "last_invoked_at": None,
-                "last_error_message": None,
-                "last_error_type": None,
-            }
-            m = MagicMock()
-            m.to_dict.return_value = d
-            return m
-
         mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = lambda owner: [
-            _make_listener_metric(owner)
+            make_listener_metric(1, owner, "state_changed.light.kitchen", "on_light")
         ]
         response = await client.get("/ui/apps/multi_app")
         assert response.status_code == 200
@@ -916,19 +824,7 @@ class TestInstanceDetail:
             ("multi_app", idx, inst) for idx, inst in app_instances.items()
         ]
         mock_hassette._app_handler.registry.get_apps_by_key.return_value = app_instances
-        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(
-            return_value=[
-                SimpleNamespace(
-                    job_id="job-1",
-                    name="my_task",
-                    owner=owner0,
-                    next_run="2024-01-01T00:05:00",
-                    repeat=True,
-                    cancelled=False,
-                    trigger=type("interval", (), {})(),
-                ),
-            ]
-        )
+        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[make_job(name="my_task", owner=owner0)])
         response = await client.get("/ui/apps/multi_app")
         assert response.status_code == 200
         body = response.text
@@ -1093,8 +989,6 @@ class TestSidebarStructure:
         response = await client.get("/ui/")
         html = response.text
         # Extract nav link <a> tags — they should not have @click attributes
-        import re
-
         nav_links = re.findall(r'<a\s+href="/ui/[^"]*"[^>]*>', html)
         assert len(nav_links) >= 5, f"Expected at least 5 nav links, found {len(nav_links)}"
         for link in nav_links:
@@ -1144,131 +1038,3 @@ class TestUIDisabled:
     async def test_api_still_works(self, client_no_ui: "AsyncClient") -> None:
         response = await client_no_ui.get("/api/healthz")
         assert response.status_code == 200
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Unit tests for AppRegistry.get_full_snapshot()
-# ──────────────────────────────────────────────────────────────────────
-
-
-class TestAppRegistryGetFullSnapshot:
-    """Unit tests for get_full_snapshot() status derivation."""
-
-    def _make_registry(self):
-        from hassette.core.app_registry import AppRegistry
-
-        return AppRegistry()
-
-    def _make_manifest_obj(self, app_key: str, enabled: bool = True, auto_loaded: bool = False):
-        """Build a minimal AppManifest-like object for the registry."""
-        return SimpleNamespace(
-            app_key=app_key,
-            class_name=f"{app_key.title().replace('_', '')}",
-            display_name=app_key.replace("_", " ").title(),
-            filename=f"{app_key}.py",
-            enabled=enabled,
-            auto_loaded=auto_loaded,
-        )
-
-    def _make_app_instance(self, app_key: str, index: int = 0):
-        """Build a minimal App-like object for the registry."""
-        class_name = app_key.title().replace("_", "")
-        instance_name = f"{app_key}.{index}"
-        return SimpleNamespace(
-            app_config=SimpleNamespace(instance_name=instance_name),
-            class_name=class_name,
-            status=ResourceStatus.RUNNING,
-            unique_name=f"{class_name}.{instance_name}",
-        )
-
-    def test_empty_manifests(self):
-        reg = self._make_registry()
-        snap = reg.get_full_snapshot()
-        assert snap.total == 0
-        assert snap.manifests == []
-
-    def test_running_app(self):
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app")})
-        reg.register_app("my_app", 0, self._make_app_instance("my_app"))
-        snap = reg.get_full_snapshot()
-        assert snap.total == 1
-        assert snap.running == 1
-        assert snap.manifests[0].status == "running"
-        assert snap.manifests[0].instance_count == 1
-
-    def test_stopped_app(self):
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app")})
-        # No instances registered — status is "stopped"
-        snap = reg.get_full_snapshot()
-        assert snap.stopped == 1
-        assert snap.manifests[0].status == "stopped"
-
-    def test_failed_app(self):
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app")})
-        reg.record_failure("my_app", 0, RuntimeError("init error"))
-        snap = reg.get_full_snapshot()
-        assert snap.failed == 1
-        assert snap.manifests[0].status == "failed"
-        assert snap.manifests[0].error_message == "init error"
-
-    def test_disabled_app(self):
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app", enabled=False)})
-        snap = reg.get_full_snapshot()
-        assert snap.disabled == 1
-        assert snap.manifests[0].status == "disabled"
-
-    def test_blocked_app(self):
-        from hassette.types.enums import BlockReason
-
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app")})
-        reg.block_app("my_app", BlockReason.ONLY_APP)
-        snap = reg.get_full_snapshot()
-        assert snap.blocked == 1
-        assert snap.manifests[0].status == "blocked"
-        assert snap.manifests[0].block_reason == "only_app"
-
-    def test_mixed_states(self):
-        from hassette.types.enums import BlockReason
-
-        reg = self._make_registry()
-        reg.set_manifests(
-            {
-                "running_app": self._make_manifest_obj("running_app"),
-                "stopped_app": self._make_manifest_obj("stopped_app"),
-                "failed_app": self._make_manifest_obj("failed_app"),
-                "disabled_app": self._make_manifest_obj("disabled_app", enabled=False),
-                "blocked_app": self._make_manifest_obj("blocked_app"),
-            }
-        )
-        reg.register_app("running_app", 0, self._make_app_instance("running_app"))
-        reg.record_failure("failed_app", 0, ValueError("bad config"))
-        reg.block_app("blocked_app", BlockReason.ONLY_APP)
-
-        snap = reg.get_full_snapshot()
-        assert snap.total == 5
-        assert snap.running == 1
-        assert snap.stopped == 1
-        assert snap.failed == 1
-        assert snap.disabled == 1
-        assert snap.blocked == 1
-
-        statuses = {m.app_key: m.status for m in snap.manifests}
-        assert statuses["running_app"] == "running"
-        assert statuses["stopped_app"] == "stopped"
-        assert statuses["failed_app"] == "failed"
-        assert statuses["disabled_app"] == "disabled"
-        assert statuses["blocked_app"] == "blocked"
-
-    def test_disabled_takes_priority_over_running(self):
-        """Even if an app has running instances, disabled=False should win."""
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app", enabled=False)})
-        reg.register_app("my_app", 0, self._make_app_instance("my_app"))
-        snap = reg.get_full_snapshot()
-        # Disabled takes priority
-        assert snap.manifests[0].status == "disabled"

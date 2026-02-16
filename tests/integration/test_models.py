@@ -1,6 +1,7 @@
 # ruff: noqa: ARG001
 
 import inspect
+import logging
 import typing
 from importlib import import_module
 from pathlib import Path
@@ -14,6 +15,8 @@ from hassette.models.states import base
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+
+logger = logging.getLogger(__name__)
 
 EXCLUDE_CLASSES = [
     base.BaseState,
@@ -73,12 +76,12 @@ def test_all_domains_registered(hassette_with_state_proxy: "Hassette", all_model
 
     if missing_domains:
         full_domain_list = sorted(registered_domains + missing_domains)
-        print(f"Missing domains: {missing_domains}")
-        print(f"Full domain list: {full_domain_list}")
+        logger.info("Missing domains: %s", missing_domains)
+        logger.info("Full domain list: %s", full_domain_list)
 
     assert not missing_domains, f"Domains not registered: {missing_domains}"
 
-    print(f"All {len(all_models)} state models are properly registered in the registry.")
+    logger.info("All %d state models are properly registered in the registry.", len(all_models))
 
 
 def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
@@ -100,11 +103,11 @@ def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
     missing_classes = sorted(missing_classes)
 
     if missing_classes:
-        print(f"Missing classes in registry: {missing_classes}")
+        logger.info("Missing classes in registry: %s", missing_classes)
 
     assert not missing_classes, f"Classes not registered: {missing_classes}"
 
-    print(f"All {len(all_models)} state models are included in the registry.")
+    logger.info("All %d state models are included in the registry.", len(all_models))
 
 
 def test_registry_can_convert_all_domains(
@@ -126,4 +129,4 @@ def test_registry_can_convert_all_domains(
             f"Registry returned {retrieved_class} for domain '{domain}', expected {model_cls}"
         )
 
-    print(f"Registry can successfully look up all {len(all_models)} state classes by domain.")
+    logger.info("Registry can successfully look up all %d state classes by domain.", len(all_models))

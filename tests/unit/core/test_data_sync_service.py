@@ -11,6 +11,7 @@ import pytest
 from hassette.core.data_sync_service import DataSyncService
 from hassette.logging_ import LogCaptureHandler, LogEntry
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.test_utils.web_helpers import make_old_snapshot
 from hassette.web.models import AppStatusResponse, SystemStatusResponse
 
 
@@ -61,24 +62,7 @@ def mock_hassette():
     hassette._websocket_service.status = "running"
 
     # Mock app handler
-    snapshot = SimpleNamespace(
-        running=[
-            SimpleNamespace(
-                app_key="my_app",
-                index=0,
-                instance_name="MyApp[0]",
-                class_name="MyApp",
-                status=SimpleNamespace(value="running"),
-                error_message=None,
-            )
-        ],
-        failed=[],
-        total_count=1,
-        running_count=1,
-        failed_count=0,
-        only_app=None,
-    )
-    hassette._app_handler.get_status_snapshot.return_value = snapshot
+    hassette._app_handler.get_status_snapshot.return_value = make_old_snapshot()
 
     # Mock scheduler service
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from hassette.core.data_sync_service import DataSyncService
-from hassette.test_utils.mock_hassette import create_mock_data_sync_service, create_mock_hassette
+from hassette.test_utils.mock_hassette import create_mock_hassette
 from hassette.web.app import create_fastapi_app
 
 try:
@@ -31,12 +31,6 @@ def mock_hassette():
             running=[], failed=[], total_count=3, running_count=2, failed_count=1, only_app=None
         ),
     )
-
-
-@pytest.fixture
-def data_sync_service(mock_hassette):
-    """Create a real DataSyncService with mocked Hassette."""
-    return create_mock_data_sync_service(mock_hassette)
 
 
 @pytest.fixture

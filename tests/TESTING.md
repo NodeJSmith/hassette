@@ -5,7 +5,7 @@
 `HassetteHarness` provides a fluent builder for composing test environments. Dependencies are resolved automatically at startup.
 
 ```python
-from hassette.test_utils.harness import HassetteHarness
+from hassette.test_utils import HassetteHarness
 
 # Builder chains — bus is auto-added because state_proxy depends on it
 async with HassetteHarness(config).with_state_proxy().with_scheduler() as harness:
@@ -31,12 +31,12 @@ async with HassetteHarness(config).with_state_proxy().with_scheduler() as harnes
 - `hassette_harness` — factory that creates a bare `HassetteHarness` with a fresh TCP port
 - `hassette_with_*` — pre-configured harness fixtures (e.g., `hassette_with_bus`, `hassette_with_state_proxy`)
 
-### Web mock fixtures (local to each test file)
+### Web mock fixtures
 
-- `mock_hassette` — MagicMock Hassette created via `create_mock_hassette()`
-- `data_sync_service` — DataSyncService wired to the mock, via `create_mock_data_sync_service()`
-- `app` — FastAPI application instance
-- `client` — httpx `AsyncClient` or Starlette `TestClient`
+- `mock_hassette` — MagicMock Hassette created via `create_mock_hassette()` (local to each test file)
+- `data_sync_service` — DataSyncService wired to the mock, via `create_mock_data_sync_service()` (shared in `tests/integration/conftest.py`)
+- `app` — FastAPI application instance (shared in `tests/integration/conftest.py`, can be overridden locally)
+- `client` — httpx `AsyncClient` (shared in `tests/integration/conftest.py`, can be overridden locally)
 
 ### Component extractors (local fixtures)
 
@@ -57,7 +57,7 @@ Module scope with autouse cleanup gives 5-10x speedup over function scope. Prefe
 ### `preserve_config()` — for config mutation in module-scoped fixtures
 
 ```python
-from hassette.test_utils.harness import preserve_config
+from hassette.test_utils import preserve_config
 
 with preserve_config(hassette.config):
     hassette.config.some_setting = "temporary"
@@ -99,6 +99,22 @@ Builds an `AppFullSnapshot` from a list of manifests with auto-computed status c
 
 Builds a mock listener metric with `.to_dict()` and direct attribute access.
 
+### `make_old_app_instance(**kwargs)` — `test_utils/web_helpers.py`
+
+Builds a `SimpleNamespace` app entry for old-style `AppHandler.get_status_snapshot()` snapshots. Includes `owner_id` (defaults to `None`).
+
+### `make_old_snapshot(running=None, failed=None, only_app=None)` — `test_utils/web_helpers.py`
+
+Builds an outer `SimpleNamespace` for `AppHandler.get_status_snapshot()`. Auto-computes counts. Defaults to one running app when both `running` and `failed` are `None`.
+
+### `make_job(**kwargs)` — `test_utils/web_helpers.py`
+
+Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).
+
 ### `setup_registry(hassette, manifests)` — `test_utils/web_helpers.py`
 
 Configures the mock registry to return a proper `AppFullSnapshot`.
+
+## Shared Integration Fixtures
+
+`tests/integration/conftest.py` provides the `data_sync_service` fixture shared across all integration web test files. Each file defines its own `mock_hassette` with different configuration needs.

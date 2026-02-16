@@ -10,7 +10,7 @@ from hassette.events import Event
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.task_bucket import TaskBucket
-from hassette.test_utils.helpers import make_full_state_change_event, make_light_state_dict, make_state_dict
+from hassette.test_utils import make_full_state_change_event, make_light_state_dict, make_state_dict
 
 
 @dataclass(frozen=True, slots=True)

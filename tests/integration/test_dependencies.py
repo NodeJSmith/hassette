@@ -26,7 +26,7 @@ from hassette.conversion import ANNOTATION_CONVERTER
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
 from hassette.exceptions import DependencyInjectionError, DependencyResolutionError
 from hassette.models import states
-from hassette.test_utils.helpers import make_full_state_change_event, make_light_state_dict
+from hassette.test_utils import make_full_state_change_event, make_light_state_dict
 from hassette.utils.type_utils import get_typed_signature
 
 

@@ -4,9 +4,9 @@ import asyncio
 import contextlib
 import json
 import time
-import typing
 from collections import deque
 from dataclasses import asdict
+from typing import TYPE_CHECKING, Any
 
 from hassette.bus import Bus
 from hassette.events import Event, RawStateChangeEvent
@@ -24,10 +24,11 @@ from hassette.web.models import (
     SystemStatusResponse,
 )
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
     from hassette.events import HassStateDict
+    from hassette.scheduler import ScheduledJob
 
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 
@@ -147,31 +148,19 @@ class DataSyncService(Resource):
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
-    async def _on_service_status(self, event: Event) -> None:
+    async def _on_service_status(self, event: Event[Any]) -> None:
         raw = event.payload.data if hasattr(event, "payload") else {}
-        entry = {
-            "type": "service_status",
-            "data": _serialize_payload(raw),
-            "timestamp": time.time(),
-        }
+        entry = {"type": "service_status", "data": _serialize_payload(raw), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_ws_connected(self) -> None:
-        entry = {
-            "type": "connectivity",
-            "data": {"connected": True},
-            "timestamp": time.time(),
-        }
+        entry = {"type": "connectivity", "data": {"connected": True}, "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_ws_disconnected(self) -> None:
-        entry = {
-            "type": "connectivity",
-            "data": {"connected": False},
-            "timestamp": time.time(),
-        }
+        entry = {"type": "connectivity", "data": {"connected": False}, "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
@@ -184,9 +173,7 @@ class DataSyncService(Resource):
 
     def get_user_app_owner_map(self) -> dict[str, str]:
         """Return {owner_id: app_key} for all running user-app instances."""
-        return {
-            app.unique_name: app_key for app_key, _index, app in self.hassette.app_handler.registry.iter_all_instances()
-        }
+        return {app.unique_name: app_key for app_key, _, app in self.hassette.app_handler.registry.iter_all_instances()}
 
     def get_instance_owner_map(self) -> dict[str, tuple[str, int]]:
         """Return {owner_id: (app_key, index)} for all running user-app instances."""
@@ -219,7 +206,7 @@ class DataSyncService(Resource):
         return [self._serialize_job(job) for job in sorted(jobs, key=lambda j: j.next_run) if job.owner == owner_id]
 
     @staticmethod
-    def _serialize_job(job: typing.Any) -> dict:
+    def _serialize_job(job: "ScheduledJob") -> dict:
         """Convert a scheduled job to a JSON-safe dict."""
         return {
             "job_id": job.job_id,
@@ -254,7 +241,7 @@ class DataSyncService(Resource):
                 class_name=info.class_name,
                 status=info.status.value,
                 error_message=info.error_message,
-                owner_id=getattr(info, "owner_id", None),
+                owner_id=info.owner_id,
             )
             for info in (*snapshot.running, *snapshot.failed)
         ]
@@ -286,9 +273,9 @@ class DataSyncService(Resource):
                         index=inst.index,
                         instance_name=inst.instance_name,
                         class_name=inst.class_name,
-                        status=inst.status.value if hasattr(inst.status, "value") else str(inst.status),
+                        status=str(inst.status),
                         error_message=inst.error_message,
-                        owner_id=getattr(inst, "owner_id", None),
+                        owner_id=inst.owner_id,
                     )
                     for inst in m.instances
                 ],

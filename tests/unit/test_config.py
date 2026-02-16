@@ -8,7 +8,7 @@ import pytest
 
 from hassette import HassetteConfig, context
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
-from hassette.test_utils.fixtures import run_hassette_startup_tasks
+from hassette.test_utils import run_hassette_startup_tasks
 
 
 def _cleanup_env(*keys: str) -> None:

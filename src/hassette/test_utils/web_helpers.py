@@ -4,6 +4,7 @@ These build manifest, snapshot, listener-metric, and registry objects
 used by both e2e and integration web tests.
 """
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
@@ -96,3 +97,79 @@ def setup_registry(hassette: MagicMock, manifests: list[AppManifestInfo] | None 
     """Configure the mock registry to return a proper AppFullSnapshot."""
     snapshot = make_full_snapshot(manifests)
     hassette._app_handler.registry.get_full_snapshot.return_value = snapshot
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Old-style snapshot factories (for AppHandler.get_status_snapshot())
+# ──────────────────────────────────────────────────────────────────────
+
+
+def make_old_app_instance(
+    app_key: str = "my_app",
+    index: int = 0,
+    instance_name: str = "MyApp[0]",
+    class_name: str = "MyApp",
+    status: str = "running",
+    error_message: str | None = None,
+    owner_id: str | None = None,
+) -> SimpleNamespace:
+    """Build a ``SimpleNamespace`` app entry for old-style snapshots."""
+    return SimpleNamespace(
+        app_key=app_key,
+        index=index,
+        instance_name=instance_name,
+        class_name=class_name,
+        status=SimpleNamespace(value=status),
+        error_message=error_message,
+        owner_id=owner_id,
+    )
+
+
+def make_old_snapshot(
+    running: list[SimpleNamespace] | None = None,
+    failed: list[SimpleNamespace] | None = None,
+    only_app: str | None = None,
+) -> SimpleNamespace:
+    """Build an outer ``SimpleNamespace`` for ``AppHandler.get_status_snapshot()``.
+
+    When *running* and *failed* are both ``None``, defaults to a single
+    running ``make_old_app_instance()`` entry.  Counts are auto-computed.
+    """
+    if running is None and failed is None:
+        running = [make_old_app_instance()]
+    running = running or []
+    failed = failed or []
+    return SimpleNamespace(
+        running=running,
+        failed=failed,
+        total_count=len(running) + len(failed),
+        running_count=len(running),
+        failed_count=len(failed),
+        only_app=only_app,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Scheduler job factory
+# ──────────────────────────────────────────────────────────────────────
+
+
+def make_job(
+    job_id: str = "job-1",
+    name: str = "check_lights",
+    owner: str = "MyApp.MyApp[0]",
+    next_run: str = "2024-01-01T00:05:00",
+    repeat: bool = True,
+    cancelled: bool = False,
+    trigger_type: str = "interval",
+) -> SimpleNamespace:
+    """Build a ``SimpleNamespace`` scheduler job for test fixtures."""
+    return SimpleNamespace(
+        job_id=job_id,
+        name=name,
+        owner=owner,
+        next_run=next_run,
+        repeat=repeat,
+        cancelled=cancelled,
+        trigger=type(trigger_type, (), {})(),
+    )

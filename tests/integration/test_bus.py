@@ -21,7 +21,7 @@ from hassette.event_handling.predicates import (
     StateDidChange,
 )
 from hassette.events.base import Event
-from hassette.test_utils.helpers import create_call_service_event, create_state_change_event
+from hassette.test_utils import create_call_service_event, create_state_change_event
 from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
