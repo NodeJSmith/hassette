@@ -32,47 +32,47 @@
 
 ### Surfaces
 
-| Level | Token | Value | Use |
-|-------|-------|-------|-----|
-| L0 | `--ht-surface-canvas` | slate-50 (`#f8fafc`) | Page background |
-| L1 | `--ht-surface-card` | `#ffffff` | Cards, panels |
-| L2 | `--ht-surface-dropdown` | `#ffffff` + strong border | Dropdowns, popovers |
-| — | `--ht-surface-sidebar` | slate-900 (`#0f172a`) | Dark sidebar |
-| — | `--ht-surface-sticky` | `white` | Sticky table headers |
+| Level | Token                   | Value                     | Use                  |
+| ----- | ----------------------- | ------------------------- | -------------------- |
+| L0    | `--ht-surface-canvas`   | slate-50 (`#f8fafc`)      | Page background      |
+| L1    | `--ht-surface-card`     | `#ffffff`                 | Cards, panels        |
+| L2    | `--ht-surface-dropdown` | `#ffffff` + strong border | Dropdowns, popovers  |
+| —     | `--ht-surface-sidebar`  | slate-900 (`#0f172a`)     | Dark sidebar         |
+| —     | `--ht-surface-sticky`   | `white`                   | Sticky table headers |
 
 ### Semantic Colors
 
 Each semantic color has three tokens: base, `-light` (background tint), `-text` (high-contrast label).
 
-| Semantic | Base | Light | Text |
-|----------|------|-------|------|
-| Success | `#16a34a` | `#f0fdf4` | `#166534` |
-| Danger | `#dc2626` | `#fef2f2` | `#991b1b` |
-| Warning | `#ca8a04` | `#fefce8` | `#854d0e` |
-| Info | `#2563eb` | `#eff6ff` | `#1e40af` |
-| Link | `#7c3aed` | `#f5f3ff` | `#5b21b6` |
-| Critical | `#991b1b` | — | — |
+| Semantic | Base      | Light     | Text      |
+| -------- | --------- | --------- | --------- |
+| Success  | `#16a34a` | `#f0fdf4` | `#166534` |
+| Danger   | `#dc2626` | `#fef2f2` | `#991b1b` |
+| Warning  | `#ca8a04` | `#fefce8` | `#854d0e` |
+| Info     | `#2563eb` | `#eff6ff` | `#1e40af` |
+| Link     | `#7c3aed` | `#f5f3ff` | `#5b21b6` |
+| Critical | `#991b1b` | —         | —         |
 
 ---
 
 ## Typography
 
-| Role | Font | Token |
-|------|------|-------|
-| Headings | Space Grotesk 600 | `--ht-font-heading` |
-| Body | system-ui stack | `--ht-font-body` |
-| Data / code | JetBrains Mono | `--ht-font-mono` |
+| Role        | Font              | Token               |
+| ----------- | ----------------- | ------------------- |
+| Headings    | Space Grotesk 600 | `--ht-font-heading` |
+| Body        | system-ui stack   | `--ht-font-body`    |
+| Data / code | JetBrains Mono    | `--ht-font-mono`    |
 
 ### Type Scale
 
-| Token | Size | Use |
-|-------|------|-----|
-| `--ht-text-xs` | 12px | Table data, timestamps, secondary labels |
-| `--ht-text-sm` | 13px | Compact UI, badge text |
-| `--ht-text-base` | 14px | Body text, form inputs |
-| `--ht-text-lg` | 16px | Section headings, emphasis |
-| `--ht-text-xl` | 20px | Page headings |
-| `--ht-text-2xl` | 24px | Dashboard hero numbers |
+| Token            | Size | Use                                      |
+| ---------------- | ---- | ---------------------------------------- |
+| `--ht-text-xs`   | 12px | Table data, timestamps, secondary labels |
+| `--ht-text-sm`   | 13px | Compact UI, badge text                   |
+| `--ht-text-base` | 14px | Body text, form inputs                   |
+| `--ht-text-lg`   | 16px | Section headings, emphasis               |
+| `--ht-text-xl`   | 20px | Page headings                            |
+| `--ht-text-2xl`  | 24px | Dashboard hero numbers                   |
 
 ---
 
@@ -84,12 +84,12 @@ Each semantic color has three tokens: base, `-light` (background tint), `-text` 
 
 ## Radius
 
-| Token | Value | Use |
-|-------|-------|-----|
-| `--ht-radius-sm` | 3px | Badges, small tags |
-| `--ht-radius-md` | 5px | Cards, buttons, inputs |
-| `--ht-radius-lg` | 8px | Large panels, modals |
-| `--ht-radius-full` | 9999px | Pills, dots |
+| Token              | Value  | Use                    |
+| ------------------ | ------ | ---------------------- |
+| `--ht-radius-sm`   | 3px    | Badges, small tags     |
+| `--ht-radius-md`   | 5px    | Cards, buttons, inputs |
+| `--ht-radius-lg`   | 8px    | Large panels, modals   |
+| `--ht-radius-full` | 9999px | Pills, dots            |
 
 ---
 
@@ -204,11 +204,11 @@ Flex row with bottom border. Active tab: amber bottom border + bold text.
 
 ## Breakpoints
 
-| Breakpoint | Behavior |
-|------------|----------|
-| > 768px | Desktop: sidebar open, 12-col grid |
-| <= 768px | Tablet/mobile: sidebar collapses to icon rail, grid becomes single column, status bar compacts |
-| <= 480px | Small phone: reduced padding |
+| Breakpoint | Behavior                                                                                       |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| > 768px    | Desktop: sidebar open, 12-col grid                                                             |
+| <= 768px   | Tablet/mobile: sidebar collapses to icon rail, grid becomes single column, status bar compacts |
+| <= 480px   | Small phone: reduced padding                                                                   |
 
 ---
 
