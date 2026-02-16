@@ -213,3 +213,6 @@ docs/code-reference
 .claude/settings.local.json
 .claude/plan/
 .mcp.json
+
+# Node (JS dev tooling)
+node_modules/

@@ -14,3 +14,11 @@ run = "uv sync"
 [tasks.serve_docs]
 run = "mkdocs serve --livereload"
 depends = ["install"]
+
+[tasks."lint:js"]
+description = "Lint JS files with ESLint"
+run = "npx eslint src/hassette/web/static/js/"
+
+[tasks."typecheck:js"]
+description = "Type-check JS files with TypeScript"
+run = "npx tsc --noEmit -p src/hassette/web/static/js/jsconfig.json"

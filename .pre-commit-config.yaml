@@ -69,6 +69,13 @@ repos:
         stages:
           - pre-push
 
+      - id: eslint
+        name: ESLint JS files
+        language: system
+        entry: npx eslint
+        files: ^src/hassette/web/static/js/.*\.js$
+        types: [javascript]
+
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.408
     hooks:
