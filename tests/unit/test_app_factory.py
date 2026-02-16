@@ -1,5 +1,6 @@
 """Unit tests for AppFactory."""
 
+import logging
 from typing import cast
 from unittest.mock import Mock, patch
 
@@ -38,6 +39,9 @@ def mock_manifest():
 @pytest.fixture
 def factory(mock_hassette, mock_registry):
     """Create an AppFactory instance with mocked dependencies."""
+    # Ensure propagate=True so caplog can capture logs even if integration
+    # tests ran first and set propagate=False on the hassette logger.
+    logging.getLogger("hassette").propagate = True
     return AppFactory(mock_hassette, mock_registry)
 
 
