@@ -21,7 +21,7 @@ from hassette.event_handling.predicates import (
     StateDidChange,
 )
 from hassette.events.base import Event
-from hassette.test_utils import create_call_service_event, create_state_change_event
+from hassette.test_utils import create_call_service_event, create_state_change_event, wait_for
 from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
@@ -204,11 +204,11 @@ async def test_once_listener_removed(hassette_with_bus: "Hassette") -> None:
     await hassette.send_event("custom.once", Event(topic="custom.once", payload=SimpleNamespace(value=1)))
 
     await asyncio.wait_for(first_invocation.wait(), timeout=1)
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: len(received_payloads) == 1, desc="once handler fired")
 
     await hassette.send_event("custom.once", Event(topic="custom.once", payload=SimpleNamespace(value=2)))
 
-    await asyncio.sleep(0.1)
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
     assert received_payloads == [1], f"Expected handler to fire once with payload 1, got {received_payloads}"
 
@@ -227,7 +227,7 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus: "Hassette") -> No
     await hassette.send_event("custom.cleanup", Event(topic="custom.cleanup", payload=SimpleNamespace(value=9)))
 
     await asyncio.wait_for(event_received.wait(), timeout=1)
-    await asyncio.sleep(0.1)
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
     assert len(hassette._bus.task_bucket) == 0, (
         f"Expected no leftover bus tasks, found {len(hassette._bus.task_bucket)}"

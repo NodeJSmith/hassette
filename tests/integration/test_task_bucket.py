@@ -5,6 +5,7 @@ import logging
 import pytest
 
 from hassette.task_bucket import TaskBucket
+from hassette.test_utils import wait_for
 
 
 async def sleeper():
@@ -53,7 +54,10 @@ async def test_crash_is_logged(bucket_fixture: TaskBucket, caplog):
     assert num_tasks >= 1, f"bucket should track at least one task, tracks {num_tasks}"
 
     await task_started.wait()
-    await asyncio.sleep(0.2)  # let it crash and log
+    await wait_for(
+        lambda: any("exploder" in r.getMessage() and "crashed" in r.getMessage() for r in caplog.records),
+        desc="crash logged for exploder task",
+    )
 
     log_messages = [record.getMessage() for record in caplog.records]
 

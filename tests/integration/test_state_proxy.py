@@ -19,6 +19,7 @@ from hassette.test_utils import (
     make_light_state_dict,
     make_sensor_state_dict,
     make_switch_state_dict,
+    wait_for,
 )
 from hassette.types import Topic
 
@@ -58,8 +59,10 @@ class TestStateProxyInit:
 
         event = make_full_state_change_event(entity_id, old_state_dict, new_state_dict)
         await self.hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        # Give time for event processing
-        await asyncio.sleep(0.1)
+        await wait_for(
+            lambda: self.hassette._state_proxy.get_state(entity_id) is not None,
+            desc=f"{entity_id} state arrived",
+        )
 
     async def test_waits_for_dependencies(self, hassette_with_state_proxy: "Hassette") -> None:
         """State proxy waits for WebSocket, API, and Bus services before initializing."""
@@ -183,7 +186,10 @@ class TestStateProxyStateChanged:
         event = make_full_state_change_event("light.new_light", None, light_dict)
 
         await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.sleep(0.1)  # Give time for event processing
+        await wait_for(
+            lambda: "light.new_light" in proxy.states,
+            desc="light.new_light state arrived",
+        )
 
         # Verify entity was added
         assert "light.new_light" in proxy.states
@@ -365,7 +371,10 @@ class TestStateProxyWebsocketListeners:
 
         # Trigger HA start
         await state_proxy.on_reconnect()
-        await asyncio.sleep(0.1)
+        await wait_for(
+            lambda: state_proxy.is_ready() and len(state_proxy.states) >= 2,
+            desc="state proxy resynced",
+        )
 
         # States should be resynced
         assert state_proxy.is_ready()
