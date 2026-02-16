@@ -8,12 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- JSDoc comments and type annotations across all web UI JavaScript files
-- ESLint flat config with `eslint:recommended` for JS linting
-- TypeScript type-checking via `jsconfig.json` and `globals.d.ts` ambient declarations
-- ESLint pre-commit hook for JS files
-- `mise run lint:js` and `mise run typecheck:js` tasks for JS dev tooling
-- Root-level `package.json` with ESLint, globals, and TypeScript devDependencies
+- JSDoc comments across all web UI JavaScript files
+- ESLint linting, TypeScript type-checking, and `mise run lint:js` / `mise run typecheck:js` tasks
 
 ### Fixed
 - Entity browser "Load more" button now appends rows instead of replacing existing ones on domain-filtered views (#247)
