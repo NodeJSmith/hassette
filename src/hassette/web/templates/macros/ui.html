@@ -85,14 +85,19 @@
           <span class="ht-badge ht-badge--neutral ht-badge--sm"
                 x-show="!loading"
                 x-text="filteredEntries.length + ' entries'"></span>
-          {% if show_app_column %}<span class="ht-badge ht-badge--neutral ht-badge--sm" x-show="loading">Loading...</span>{% endif %}
+          {% if show_app_column %}
+            <span class="ht-badge ht-badge--neutral ht-badge--sm" x-show="loading">Loading...</span>
+          {% endif %}
         </div>
       </div>
       <div class="ht-log-container"
            style="max-height: {{ max_height }};
                   overflow-y: auto">
         <table class="ht-table ht-table--dense ht-text-xs">
-          <thead style="position: sticky; top: 0; background: var(--ht-surface-sticky); z-index: 1;">
+          <thead style="position: sticky;
+                        top: 0;
+                        background: var(--ht-surface-sticky);
+                        z-index: 1">
             <tr>
               <th style="width: 80px; cursor: pointer;" @click="toggleSort('level')">
                 Level <i class="fas" :class="sortIcon('level')"></i>
