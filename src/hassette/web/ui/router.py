@@ -97,9 +97,10 @@ async def app_detail_page(app_key: str, request: Request, data_sync: DataSyncDep
         raise HTTPException(status_code=404, detail=f"App '{app_key}' not found")
 
     instance = manifest.instances[0] if manifest.instances else None
+    instance_index = instance.index if instance else 0
     owner_id = instance.owner_id if instance else None
-    listeners = data_sync.get_listener_metrics_for_instance(app_key, 0) if owner_id else []
-    jobs = await data_sync.get_scheduled_jobs_for_instance(app_key, 0) if owner_id else []
+    listeners = data_sync.get_listener_metrics_for_instance(app_key, instance_index) if owner_id else []
+    jobs = await data_sync.get_scheduled_jobs_for_instance(app_key, instance_index) if owner_id else []
     logs = data_sync.get_recent_logs(app_key=app_key, limit=50)
     ctx = {
         **base_context("apps"),
@@ -107,7 +108,7 @@ async def app_detail_page(app_key: str, request: Request, data_sync: DataSyncDep
         "manifest": manifest,
         "instance": instance,
         "app_key": app_key,
-        "instance_index": 0,
+        "instance_index": instance_index,
         "owner_id": owner_id,
         "listeners": listeners,
         "jobs": jobs,

@@ -671,6 +671,36 @@ class TestInstanceDetail:
         response = await client.get("/ui/apps/nonexistent/0")
         assert response.status_code == 404
 
+    async def test_default_page_uses_actual_instance_index(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /apps/{app_key} should use the actual instance index, not hardcoded 0."""
+        setup_registry(
+            mock_hassette,
+            [
+                make_manifest(
+                    app_key="offset_app",
+                    instance_count=1,
+                    instances=[
+                        AppInstanceInfo(
+                            app_key="offset_app",
+                            index=3,
+                            instance_name="OffsetApp[3]",
+                            class_name="OffsetApp",
+                            status=ResourceStatus.RUNNING,
+                            owner_id="OffsetApp.OffsetApp[3]",
+                        )
+                    ],
+                ),
+            ],
+        )
+        response = await client.get("/ui/apps/offset_app")
+        assert response.status_code == 200
+        body = response.text
+        # Partial URLs must reference the real instance index (3), not hardcoded 0
+        assert "instance-listeners/offset_app/3" in body
+        assert "instance-jobs/offset_app/3" in body
+        assert "instance-listeners/offset_app/0" not in body
+        assert "instance-jobs/offset_app/0" not in body
+
     async def test_instance_listeners_partial(self, client: "AsyncClient") -> None:
         """Instance-scoped listeners partial returns HTML."""
         response = await client.get("/ui/partials/instance-listeners/my_app/0")
@@ -933,7 +963,7 @@ class TestAlertFailedAppsPartial:
         """No failed apps means the partial renders empty (no alert)."""
         response = await client.get("/ui/partials/alert-failed-apps")
         assert response.status_code == 200
-        assert "failed" not in response.text.lower() or "app(s) failed" not in response.text
+        assert response.text.strip() == ""
 
     async def test_alert_with_failed_app(self, client: "AsyncClient", mock_hassette) -> None:
         """A failed app renders the danger alert with app key and error message."""
@@ -1064,7 +1094,7 @@ class TestSidebarStructure:
     async def test_sidebar_no_close_button(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         html = response.text
-        assert 'class="ht-sidebar-close"' not in html
+        assert not re.search(r"\bht-sidebar-close\b", html)
         assert "fa-xmark" not in html
 
     async def test_sidebar_toggle_button_exists(self, client: "AsyncClient") -> None:

@@ -1048,6 +1048,7 @@ html.ht-sidebar-closed .ht-sidebar:not(.is-open) {
 .ht-detail-panel {
   padding: var(--ht-sp-2) var(--ht-sp-4);
   background: var(--ht-surface-code);
+  color: var(--ht-text-code);
   border-radius: var(--ht-radius-sm);
   margin: 0 var(--ht-sp-2) var(--ht-sp-2);
   display: flex;
@@ -1073,6 +1074,11 @@ html.ht-sidebar-closed .ht-sidebar:not(.is-open) {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 500;
+}
+
+.ht-detail-panel .ht-detail-label {
+  color: var(--ht-text-code);
+  opacity: 0.65;
 }
 
 /* — Responsive: small phones (max-width: 480px) ———————— */
