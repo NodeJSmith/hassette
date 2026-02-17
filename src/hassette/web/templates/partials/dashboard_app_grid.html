@@ -3,9 +3,7 @@
     {% for m in manifests %}
       <a href="/ui/apps/{{ m.app_key }}"
          class="ht-app-chip ht-app-chip--{{ m.status }}"
-         title="{{ m.display_name }} — {{ m.status }}">
-        {{ m.display_name }}
-      </a>
+         title="{{ m.display_name }} — {{ m.status }}">{{ m.display_name }}</a>
     {% endfor %}
   </div>
   <div class="ht-mt-3">

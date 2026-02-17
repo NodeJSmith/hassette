@@ -37,8 +37,7 @@
   {% endif %}
   <!-- Collapsible metadata -->
   <div class="ht-mb-4" x-data="{ detailsOpen: false }">
-    <button class="ht-btn ht-btn--sm"
-            @click="detailsOpen = !detailsOpen">
+    <button class="ht-btn ht-btn--sm" @click="detailsOpen = !detailsOpen">
       <i class="fas fa-caret-right" x-show="!detailsOpen"></i>
       <i class="fas fa-caret-down" x-show="detailsOpen" x-cloak></i>
       Details
@@ -83,7 +82,9 @@
   <!-- Error display -->
   {% if instance and instance.error_message %}
     <div class="ht-card ht-mb-4">
-      <p class="ht-text-danger"><strong>Error:</strong> {{ instance.error_message }}</p>
+      <p class="ht-text-danger">
+        <strong>Error:</strong> {{ instance.error_message }}
+      </p>
       {% if instance.error_traceback %}
         <div x-data="{ tbOpen: false }">
           <button class="ht-btn ht-btn--sm ht-mt-3"
@@ -95,7 +96,9 @@
     </div>
   {% elif manifest.error_message %}
     <div class="ht-card ht-mb-4">
-      <p class="ht-text-danger"><strong>Error:</strong> {{ manifest.error_message }}</p>
+      <p class="ht-text-danger">
+        <strong>Error:</strong> {{ manifest.error_message }}
+      </p>
       {% if manifest.error_traceback %}
         <div x-data="{ tbOpen: false }">
           <button class="ht-btn ht-btn--sm ht-mt-3"
@@ -110,19 +113,25 @@
   <div class="ht-card ht-mb-4"
        id="app-listeners"
        data-live-on-app="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}">
-    <h2 class="ht-heading-5"><i class="fas fa-ear-listen"></i> Bus Listeners</h2>
+    <h2 class="ht-heading-5">
+      <i class="fas fa-ear-listen"></i> Bus Listeners
+    </h2>
     {% include "partials/app_detail_listeners.html" %}
   </div>
   <!-- Scheduled Jobs -->
   <div class="ht-card ht-mb-4"
        id="app-jobs"
        data-live-on-app="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}">
-    <h2 class="ht-heading-5"><i class="fas fa-clock"></i> Scheduled Jobs</h2>
+    <h2 class="ht-heading-5">
+      <i class="fas fa-clock"></i> Scheduled Jobs
+    </h2>
     {% include "partials/app_detail_jobs.html" %}
   </div>
   <!-- Recent Logs -->
   <div class="ht-card">
-    <h2 class="ht-heading-5"><i class="fas fa-scroll"></i> Recent Logs</h2>
+    <h2 class="ht-heading-5">
+      <i class="fas fa-scroll"></i> Recent Logs
+    </h2>
     {{ log_table(show_app_column=false, app_key=app_key, max_height="600px") }}
   </div>
 {% endblock %}

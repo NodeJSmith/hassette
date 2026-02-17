@@ -34,12 +34,7 @@
          hx-target="#page-content"
          hx-select="#page-content"
          hx-swap="outerHTML show:window:top"
-         x-data="{
-           sidebarOpen: (() => {
-             const saved = localStorage.getItem('ht-sidebar');
-             return saved !== null ? saved === 'open' : window.innerWidth >= 769;
-           })()
-         }"
+         x-data="{ sidebarOpen: (() => { const saved = localStorage.getItem('ht-sidebar'); return saved !== null ? saved === 'open' : window.innerWidth >= 769; })() }"
          x-effect="localStorage.setItem('ht-sidebar', sidebarOpen ? 'open' : 'closed')"
          @keydown.escape.window="sidebarOpen = false"
          @resize.window="if (window.innerWidth < 769) sidebarOpen = false">

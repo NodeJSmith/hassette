@@ -14,9 +14,7 @@
     </td>
     <td>
       <span class="ht-badge ht-badge--info ht-badge--sm">{{ job.trigger_type }}</span>
-      {% if job.trigger_detail %}
-        <code class="ht-text-xs ht-text-muted">{{ job.trigger_detail }}</code>
-      {% endif %}
+      {% if job.trigger_detail %}<code class="ht-text-xs ht-text-muted">{{ job.trigger_detail }}</code>{% endif %}
     </td>
     <td>
       {% if job.next_run %}

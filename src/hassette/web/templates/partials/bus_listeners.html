@@ -23,7 +23,8 @@
         </td>
         <td>
           {% if instance_owner_map and l.owner in instance_owner_map %}
-            <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}" @click.stop><code>{{ l.owner }}</code></a>
+            <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}"
+               @click.stop><code>{{ l.owner }}</code></a>
           {% elif app_owner_map and l.owner in app_owner_map %}
             <a href="/ui/apps/{{ app_owner_map[l.owner] }}" @click.stop><code>{{ l.owner }}</code></a>
           {% else %}
@@ -57,7 +58,7 @@
                 <span class="ht-detail-label">Rate Limiting</span>
                 <span class="ht-text-xs">
                   {% if l.debounce %}debounce: {{ l.debounce }}s{% endif %}
-                  {% if l.debounce and l.throttle %} · {% endif %}
+                  {% if l.debounce and l.throttle %}·{% endif %}
                   {% if l.throttle %}throttle: {{ l.throttle }}s{% endif %}
                 </span>
               </div>

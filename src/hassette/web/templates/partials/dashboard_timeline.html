@@ -12,9 +12,7 @@
         {% else %}
           <span class="ht-badge ht-badge--sm ht-badge--neutral">{{ event.type }}</span>
         {% endif %}
-        {% if event.get("entity_id") %}
-          <code class="ht-text-xs">{{ event.entity_id }}</code>
-        {% endif %}
+        {% if event.get("entity_id") %}<code class="ht-text-xs">{{ event.entity_id }}</code>{% endif %}
         {% if event.get("timestamp") %}
           <time class="ht-text-xs ht-text-muted"
                 x-data
