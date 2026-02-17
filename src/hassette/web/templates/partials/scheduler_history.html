@@ -31,7 +31,7 @@
                   @click="tbOpen = !tbOpen"
                   :aria-expanded="tbOpen"
                   x-text="tbOpen ? 'Hide' : 'Traceback'">Traceback</button>
-          <pre class="ht-traceback" x-show="tbOpen" x-transition>{{ record.error_traceback }}</pre>
+          <pre class="ht-traceback" x-cloak x-show="tbOpen" x-transition>{{ record.error_traceback }}</pre>
         {% endif %}
       {% else %}
         —

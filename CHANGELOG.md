@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - App detail page now uses the actual instance index instead of hardcoded 0, fixing data/URL desync for non-zero instances (#262)
 - Detail panel labels now have proper text contrast on dark `--ht-surface-code` background (#262)
+- Collapsible panels and tracebacks no longer flash visible before Alpine.js initializes (#262)
 
 ### Added
 - Global alert banner showing HA disconnect warnings and failed app errors with expandable tracebacks (#262)

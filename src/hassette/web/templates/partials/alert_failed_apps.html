@@ -10,7 +10,7 @@
               :aria-expanded="detailsOpen"
               x-text="detailsOpen ? 'Hide' : 'Details'">Details</button>
     </div>
-    <div class="ht-alert-details" x-show="detailsOpen" x-transition>
+    <div class="ht-alert-details" x-cloak x-show="detailsOpen" x-transition>
       {% for app in failed_apps %}
         <div class="ht-alert-item" x-data="{ tbOpen: false }">
           <div class="ht-alert-item-header">
@@ -26,7 +26,7 @@
             {% endif %}
           </div>
           {% if app.error_traceback %}
-            <pre class="ht-traceback" x-show="tbOpen" x-transition>{{ app.error_traceback }}</pre>
+            <pre class="ht-traceback" x-cloak x-show="tbOpen" x-transition>{{ app.error_traceback }}</pre>
           {% endif %}
         </div>
       {% endfor %}

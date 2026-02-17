@@ -44,7 +44,7 @@
         <td class="{% if l.failed > 0 %}ht-text-danger{% endif %}">{{ l.failed }}</td>
         <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
       </tr>
-      <tr x-show="open" x-transition class="ht-detail-panel-row">
+      <tr x-cloak x-show="open" x-transition class="ht-detail-panel-row">
         <td colspan="7">
           <div class="ht-detail-panel">
             {% if l.predicate_description %}
