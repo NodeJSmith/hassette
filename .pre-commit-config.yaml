@@ -63,11 +63,9 @@ repos:
       - id: djlint
         name: Lint Jinja2 templates
         language: system
-        entry: uv run djlint --check src/hassette/web/templates/
+        entry: uv run djlint --reformat src/hassette/web/templates/
         pass_filenames: false
         files: ^src/hassette/web/templates/
-        stages:
-          - pre-push
 
       - id: eslint
         name: ESLint JS files
