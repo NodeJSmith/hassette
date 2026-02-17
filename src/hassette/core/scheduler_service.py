@@ -227,6 +227,7 @@ class SchedulerService(Service):
                 status=result.status,
                 error_message=result.error_message,
                 error_type=result.error_type,
+                error_traceback=result.error_traceback,
             )
             self._execution_log.append(record)
 

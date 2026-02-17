@@ -1,37 +1,88 @@
-{% for l in listeners %}
-  <tr>
-    <td>
-      {% set owner_class = l.owner.split('.')[0] %}
-      {% if owner_class in l.handler_name %}
-        <code title="{{ l.handler_name }}">{{ l.handler_name.split(".")[-1] }}</code>
-      {% else %}
-        <code title="{{ l.handler_name }}">{{ l.handler_name }}</code>
-      {% endif %}
-    </td>
-    <td>
-      {% if instance_owner_map and l.owner in instance_owner_map %}
-        <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}"><code>{{ l.owner }}</code></a>
-      {% elif app_owner_map and l.owner in app_owner_map %}
-        <a href="/ui/apps/{{ app_owner_map[l.owner] }}"><code>{{ l.owner }}</code></a>
-      {% else %}
-        <code>{{ l.owner }}</code>
-      {% endif %}
-    </td>
-    <td>
-      {% set topic_parts = l.topic.split('.') %}
-      {% if topic_parts | length > 3 %}
-        <code title="{{ l.topic }}">{{ topic_parts[-3:] | join(".") }}</code>
-      {% else %}
-        <code>{{ l.topic }}</code>
-      {% endif %}
-    </td>
-    <td>{{ l.total_invocations }}</td>
-    <td class="ht-text-success">{{ l.successful }}</td>
-    <td class="{% if l.failed > 0 %}ht-text-danger{% endif %}">{{ l.failed }}</td>
-    <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
-  </tr>
-{% else %}
-  <tr>
-    <td colspan="7" class="ht-text-center ht-text-muted">No bus listeners registered.</td>
-  </tr>
-{% endfor %}
+<table class="ht-table ht-table--dense">
+  <thead>
+    <tr>
+      <th>Handler</th>
+      <th>App</th>
+      <th>Topic</th>
+      <th>Invocations</th>
+      <th>Success</th>
+      <th>Failed</th>
+      <th>Avg Duration</th>
+    </tr>
+  </thead>
+  {% for l in listeners %}
+    <tbody x-data="{ open: false }">
+      <tr class="ht-detail-row" @click="open = !open" style="cursor: pointer">
+        <td>
+          {% set owner_class = l.owner.split('.')[0] %}
+          {% if owner_class in l.handler_name %}
+            <code title="{{ l.handler_name }}">{{ l.handler_name.split(".")[-1] }}</code>
+          {% else %}
+            <code title="{{ l.handler_name }}">{{ l.handler_name }}</code>
+          {% endif %}
+        </td>
+        <td>
+          {% if instance_owner_map and l.owner in instance_owner_map %}
+            <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}" @click.stop><code>{{ l.owner }}</code></a>
+          {% elif app_owner_map and l.owner in app_owner_map %}
+            <a href="/ui/apps/{{ app_owner_map[l.owner] }}" @click.stop><code>{{ l.owner }}</code></a>
+          {% else %}
+            <code>{{ l.owner }}</code>
+          {% endif %}
+        </td>
+        <td>
+          {% set topic_parts = l.topic.split('.') %}
+          {% if topic_parts | length > 3 %}
+            <code title="{{ l.topic }}">{{ topic_parts[-3:] | join(".") }}</code>
+          {% else %}
+            <code>{{ l.topic }}</code>
+          {% endif %}
+        </td>
+        <td>{{ l.total_invocations }}</td>
+        <td class="ht-text-success">{{ l.successful }}</td>
+        <td class="{% if l.failed > 0 %}ht-text-danger{% endif %}">{{ l.failed }}</td>
+        <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
+      </tr>
+      <tr x-show="open" x-transition class="ht-detail-panel-row">
+        <td colspan="7">
+          <div class="ht-detail-panel">
+            {% if l.predicate_description %}
+              <div class="ht-detail-field">
+                <span class="ht-detail-label">Predicate</span>
+                <code class="ht-text-xs">{{ l.predicate_description }}</code>
+              </div>
+            {% endif %}
+            {% if l.debounce or l.throttle %}
+              <div class="ht-detail-field">
+                <span class="ht-detail-label">Rate Limiting</span>
+                <span class="ht-text-xs">
+                  {% if l.debounce %}debounce: {{ l.debounce }}s{% endif %}
+                  {% if l.debounce and l.throttle %} · {% endif %}
+                  {% if l.throttle %}throttle: {{ l.throttle }}s{% endif %}
+                </span>
+              </div>
+            {% endif %}
+            {% if l.once %}
+              <div class="ht-detail-field">
+                <span class="ht-detail-label">Once</span>
+                <span class="ht-badge ht-badge--warning ht-badge--sm">single-fire</span>
+              </div>
+            {% endif %}
+            {% if l.priority != 0 %}
+              <div class="ht-detail-field">
+                <span class="ht-detail-label">Priority</span>
+                <span class="ht-text-xs">{{ l.priority }}</span>
+              </div>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  {% else %}
+    <tbody>
+      <tr>
+        <td colspan="7" class="ht-text-center ht-text-muted">No bus listeners registered.</td>
+      </tr>
+    </tbody>
+  {% endfor %}
+</table>

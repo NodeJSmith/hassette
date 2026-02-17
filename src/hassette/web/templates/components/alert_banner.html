@@ -1,0 +1,13 @@
+<div class="ht-alert-banner" x-data>
+  <div class="ht-alert ht-alert--warning"
+       x-show="$store.ws._ready && !$store.ws.connected"
+       x-transition
+       x-cloak>
+    <span class="ht-icon"><i class="fas fa-triangle-exclamation"></i></span>
+    <span>Home Assistant disconnected</span>
+  </div>
+  <div id="alert-failed-apps"
+       data-live-on-app="/ui/partials/alert-failed-apps">
+    {% include "partials/alert_failed_apps.html" %}
+  </div>
+</div>

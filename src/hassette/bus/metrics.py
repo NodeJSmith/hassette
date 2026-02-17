@@ -32,6 +32,13 @@ class ListenerMetrics:
     min_duration_ms: float = 0.0
     max_duration_ms: float = 0.0
 
+    # Listener configuration
+    predicate_description: str | None = None
+    debounce: float | None = None
+    throttle: float | None = None
+    once: bool = False
+    priority: int = 0
+
     # Recency
     last_invoked_at: float | None = None
     last_error_message: str | None = None
@@ -92,6 +99,11 @@ class ListenerMetrics:
             "min_duration_ms": self.min_duration_ms,
             "max_duration_ms": self.max_duration_ms,
             "total_duration_ms": self.total_duration_ms,
+            "predicate_description": self.predicate_description,
+            "debounce": self.debounce,
+            "throttle": self.throttle,
+            "once": self.once,
+            "priority": self.priority,
             "last_invoked_at": self.last_invoked_at,
             "last_error_message": self.last_error_message,
             "last_error_type": self.last_error_type,

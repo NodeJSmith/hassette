@@ -40,6 +40,7 @@ def make_manifest(
     instance_count: int = 1,
     instances: list[AppInstanceInfo] | None = None,
     error_message: str | None = None,
+    error_traceback: str | None = None,
 ) -> AppManifestInfo:
     """Build an AppManifestInfo with sensible defaults."""
     return AppManifestInfo(
@@ -54,6 +55,7 @@ def make_manifest(
         instance_count=instance_count,
         instances=instances or [],
         error_message=error_message,
+        error_traceback=error_traceback,
     )
 
 
@@ -65,6 +67,11 @@ def make_listener_metric(
     invocations: int = 10,
     successful: int = 9,
     failed: int = 1,
+    predicate_description: str | None = None,
+    debounce: float | None = None,
+    throttle: float | None = None,
+    once: bool = False,
+    priority: int = 0,
 ) -> MagicMock:
     """Build a mock listener metric with `.to_dict()` and direct attribute access."""
     d = {
@@ -81,6 +88,11 @@ def make_listener_metric(
         "min_duration_ms": 1.0,
         "max_duration_ms": 5.0,
         "avg_duration_ms": 2.0,
+        "predicate_description": predicate_description,
+        "debounce": debounce,
+        "throttle": throttle,
+        "once": once,
+        "priority": priority,
         "last_invoked_at": None,
         "last_error_message": None,
         "last_error_type": None,
@@ -162,8 +174,16 @@ def make_job(
     repeat: bool = True,
     cancelled: bool = False,
     trigger_type: str = "interval",
+    trigger_detail: str | None = None,
 ) -> SimpleNamespace:
     """Build a ``SimpleNamespace`` scheduler job for test fixtures."""
+    trigger_attrs: dict[str, str] = {}
+    if trigger_detail is not None:
+        if trigger_type == "cron":
+            trigger_attrs["cron_expression"] = trigger_detail
+        else:
+            trigger_attrs["interval"] = trigger_detail
+    trigger_cls = type(trigger_type, (), trigger_attrs)()
     return SimpleNamespace(
         job_id=job_id,
         name=name,
@@ -171,5 +191,5 @@ def make_job(
         next_run=next_run,
         repeat=repeat,
         cancelled=cancelled,
-        trigger=type(trigger_type, (), {})(),
+        trigger=trigger_cls,
     )

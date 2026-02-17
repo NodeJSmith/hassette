@@ -23,9 +23,15 @@
     </td>
     <td>{{ "%.1f" | format(record.duration_ms) }}ms</td>
     <td>{{ job_status_badge(record.status) }}</td>
-    <td>
+    <td x-data="{ tbOpen: false }">
       {% if record.error_message %}
         <span class="ht-text-danger ht-text-xs">{{ record.error_message }}</span>
+        {% if record.error_traceback %}
+          <button class="ht-btn ht-btn--ghost ht-btn--xs"
+                  @click="tbOpen = !tbOpen"
+                  x-text="tbOpen ? 'Hide' : 'Traceback'"></button>
+          <pre class="ht-traceback" x-show="tbOpen" x-transition>{{ record.error_traceback }}</pre>
+        {% endif %}
       {% else %}
         —
       {% endif %}

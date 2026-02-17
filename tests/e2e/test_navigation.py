@@ -16,7 +16,6 @@ PAGES = [
     ("/ui/logs", "Log Viewer"),
     ("/ui/scheduler", "Scheduled Jobs"),
     ("/ui/bus", "Event Bus"),
-    ("/ui/entities", "Entity Browser"),
 ]
 
 
@@ -34,11 +33,10 @@ def test_all_pages_load(page: Page, base_url: str, path: str, heading: str) -> N
 
 # Sidebar navigation entries: (link text, expected URL path suffix, expected content)
 SIDEBAR_LINKS = [
-    ("Dashboard", "/ui/", "System Health"),
+    ("Dashboard", "/ui/", "Activity"),
     ("Apps", "/ui/apps", "App Management"),
     ("Scheduler", "/ui/scheduler", "Scheduled Jobs"),
     ("Bus", "/ui/bus", "Event Bus"),
-    ("Entities", "/ui/entities", "Entity Browser"),
     ("Logs", "/ui/logs", "Log Viewer"),
 ]
 
@@ -65,7 +63,6 @@ SIDEBAR_ACTIVE = [
     ("/ui/apps", "Apps"),
     ("/ui/scheduler", "Scheduler"),
     ("/ui/bus", "Bus"),
-    ("/ui/entities", "Entities"),
     ("/ui/logs", "Logs"),
 ]
 
@@ -177,8 +174,8 @@ def test_mobile_expand_collapse_with_backdrop(page: Page, base_url: str) -> None
     # Backdrop visible
     backdrop = page.locator(".ht-sidebar-backdrop")
     expect(backdrop).to_be_visible()
-    # Click backdrop to close
-    backdrop.click(force=True)
+    # Click backdrop to close — target the strip right of the 260px sidebar
+    backdrop.click(force=True, position={"x": 320, "y": 300})
     expect(sidebar).not_to_have_class(re.compile(r"\bis-open\b"))
 
 

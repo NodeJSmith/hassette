@@ -39,7 +39,7 @@ def test_app_detail_navigation(page: Page, base_url: str) -> None:
 def test_app_detail_shows_sections(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/my_app")
     body = page.locator("body")
-    expect(body).to_contain_text("Configuration")
+    expect(body).to_contain_text("App Key")
     expect(body).to_contain_text("Bus Listeners")
     expect(body).to_contain_text("Scheduled Jobs")
     expect(body).to_contain_text("Recent Logs")
@@ -84,6 +84,22 @@ def test_disabled_app_has_disabled_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/disabled_app")
     badge = page.locator(".ht-badge.ht-status-disabled:has-text('disabled')").first
     expect(badge).to_be_visible()
+
+
+def test_app_detail_log_entries_show_app_logs(page: Page, base_url: str) -> None:
+    """App detail page should show app-specific log entries after Alpine fetch completes."""
+    page.goto(base_url + "/ui/apps/my_app")
+    # Wait for Alpine logTable to finish loading (loading badge disappears, entries badge appears)
+    entries_badge = page.locator("text=/\\d+ entries/")
+    expect(entries_badge).to_be_visible(timeout=5000)
+    body = page.locator("body")
+    # App-specific log messages should be present
+    expect(body).to_contain_text("MyApp initialized")
+    expect(body).to_contain_text("Light kitchen unresponsive")
+    expect(body).to_contain_text("Failed to call service")
+    # Core-only log messages should NOT appear (filtered by app_key)
+    expect(body).not_to_contain_text("Hassette started successfully")
+    expect(body).not_to_contain_text("WebSocket heartbeat sent")
 
 
 def test_app_detail_shows_config_metadata(page: Page, base_url: str) -> None:

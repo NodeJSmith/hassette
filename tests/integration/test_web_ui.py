@@ -2,18 +2,14 @@
 
 import logging
 import re
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from hassette.core.app_registry import AppInstanceInfo
-from hassette.core.data_sync_service import DataSyncService
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
-    make_job,
-    make_listener_metric,
     make_manifest,
     make_old_snapshot,
     setup_registry,
@@ -124,18 +120,16 @@ class TestDashboardPage:
         assert "Apps" in body
         assert "Logs" in body
         assert "Scheduler" in body
-        assert "Entities" in body
+        assert "Event Bus" in body
 
     @pytest.mark.parametrize(
         "expected_text",
         [
             pytest.param("htmx.org", id="contains_htmx"),
-            pytest.param("System Health", id="contains_health_data"),
-            pytest.param("Event Bus", id="contains_bus_metrics"),
-            pytest.param("1", id="shows_app_counts"),
+            pytest.param("Apps", id="contains_apps_panel"),
+            pytest.param("Activity", id="contains_activity_panel"),
             pytest.param("idiomorph", id="includes_idiomorph_script"),
             pytest.param("live-updates.js", id="includes_live_updates_js"),
-            pytest.param("Scheduled Jobs", id="shows_scheduled_jobs_panel"),
             pytest.param("Recent Logs", id="shows_recent_logs_panel"),
         ],
     )
@@ -274,23 +268,6 @@ class TestSchedulerPage:
         assert "data-live-refresh" not in body
 
 
-class TestEntitiesPage:
-    async def test_entities_page_returns_html(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/entities")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    async def test_entities_page_shows_domain_filter(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/entities")
-        body = response.text
-        assert "entity-domain-filter" in body
-        assert "light" in body  # domain from mock state proxy
-
-    async def test_entities_page_shows_entity_count(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/entities")
-        assert "1 entities" in response.text
-
-
 class TestBusPage:
     async def test_bus_page_has_live_on_app_attributes(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/bus")
@@ -316,7 +293,7 @@ class TestAppDetailPage:
     async def test_app_detail_contains_sections(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/apps/my_app")
         body = response.text
-        assert "Configuration" in body
+        assert "App Key" in body
         assert "Bus Listeners" in body
         assert "Scheduled Jobs" in body
         assert "Recent Logs" in body
@@ -340,29 +317,6 @@ class TestAppDetailPage:
 
 class TestPartials:
     """Partial endpoints return HTML fragments, not full pages."""
-
-    async def test_health_badge_partial(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/health-badge")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "<html" not in response.text
-        assert "<head" not in response.text
-
-    async def test_event_feed_partial(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/event-feed")
-        assert response.status_code == 200
-        assert "<html" not in response.text
-        assert "No recent events" in response.text
-
-    async def test_event_feed_partial_with_events(
-        self, client: "AsyncClient", data_sync_service: DataSyncService
-    ) -> None:
-        data_sync_service._event_buffer.append(
-            {"type": "state_changed", "entity_id": "light.kitchen", "timestamp": 1704067200.0}
-        )
-        response = await client.get("/ui/partials/event-feed")
-        assert response.status_code == 200
-        assert "state_changed" in response.text
 
     async def test_app_list_partial(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/app-list")
@@ -408,17 +362,6 @@ class TestPartials:
         assert "running_app" in response.text
         assert "stopped_app" not in response.text
 
-    async def test_bus_metrics_partial(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/bus-metrics")
-        assert response.status_code == 200
-        assert "<html" not in response.text
-        assert "Listeners" in response.text
-
-    async def test_apps_summary_partial(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/apps-summary")
-        assert response.status_code == 200
-        assert "<html" not in response.text
-
     async def test_scheduler_jobs_partial(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/scheduler-jobs")
         assert response.status_code == 200
@@ -429,50 +372,16 @@ class TestPartials:
         assert response.status_code == 200
         assert "No execution history" in response.text
 
-    async def test_entity_list_partial_empty(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/entity-list")
-        assert response.status_code == 200
-
-    async def test_entity_list_partial_by_domain(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/entity-list?domain=light")
-        assert response.status_code == 200
-        assert "light.kitchen" in response.text
-
-    async def test_entity_list_partial_search(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/entity-list?search=kitchen")
-        assert response.status_code == 200
-        assert "light.kitchen" in response.text
-
-    async def test_entity_list_partial_search_no_match(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/entity-list?search=nonexistent")
-        assert response.status_code == 200
-        assert "No entities found" in response.text
-
-    async def test_dashboard_scheduler_partial(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/dashboard-scheduler")
+    async def test_dashboard_app_grid_partial(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/partials/dashboard-app-grid")
         assert response.status_code == 200
         assert "<html" not in response.text
-        assert "Active" in response.text
-        assert "Total" in response.text
-        assert "/ui/scheduler" in response.text
+        assert "my_app" in response.text
 
-    async def test_dashboard_scheduler_partial_with_jobs(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[make_job()])
-        response = await client.get("/ui/partials/dashboard-scheduler")
+    async def test_dashboard_timeline_partial(self, client: "AsyncClient") -> None:
+        response = await client.get("/ui/partials/dashboard-timeline")
         assert response.status_code == 200
-        # Should show count "1" for active/total/repeating
-        body = response.text
-        assert "Active" in body
-        assert "Repeating" in body
-        assert "/ui/scheduler" in body
-        # Restore empty jobs
-        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
-
-    async def test_dashboard_scheduler_partial_empty(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/dashboard-scheduler")
-        assert response.status_code == 200
-        assert "Active" in response.text
-        assert "/ui/scheduler" in response.text
+        assert "<html" not in response.text
 
     async def test_dashboard_logs_partial(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/dashboard-logs")
@@ -504,11 +413,6 @@ class TestPartials:
         assert "Test log message" in response.text
         assert "/ui/logs" in response.text
 
-    async def test_bus_metrics_partial_has_view_all(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/bus-metrics")
-        assert response.status_code == 200
-        assert "/ui/bus" in response.text
-
     async def test_app_detail_listeners_partial(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/app-detail-listeners/my_app")
         assert response.status_code == 200
@@ -518,6 +422,74 @@ class TestPartials:
         response = await client.get("/ui/partials/app-detail-jobs/my_app")
         assert response.status_code == 200
         assert "<html" not in response.text
+
+
+def _make_log_handler_with_app_key() -> LogCaptureHandler:
+    """Create a LogCaptureHandler with mixed app and core log entries."""
+    handler = LogCaptureHandler(buffer_size=100)
+    handler.register_app_logger("hassette.apps.my_app", "my_app")
+    entries = [
+        ("hassette.core", logging.INFO, "Core startup message"),
+        ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),
+        ("hassette.apps.my_app", logging.WARNING, "Light unresponsive"),
+        ("hassette.core", logging.DEBUG, "Heartbeat sent"),
+        ("hassette.apps.my_app", logging.ERROR, "Service call failed"),
+    ]
+    for logger_name, level, msg in entries:
+        record = logging.LogRecord(
+            name=logger_name, level=level, pathname="test.py", lineno=1, msg=msg, args=(), exc_info=None
+        )
+        handler.emit(record)
+    return handler
+
+
+class TestLogFiltering:
+    """Tests that log endpoints filter correctly by app_key."""
+
+    async def test_log_entries_partial_filters_by_app_key(self, client: "AsyncClient") -> None:
+        handler = _make_log_handler_with_app_key()
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            response = await client.get("/ui/partials/log-entries?app_key=my_app")
+        assert response.status_code == 200
+        assert "MyApp initialized" in response.text
+        assert "Light unresponsive" in response.text
+        assert "Service call failed" in response.text
+        assert "Core startup message" not in response.text
+        assert "Heartbeat sent" not in response.text
+
+    async def test_log_entries_partial_without_filter_shows_all(self, client: "AsyncClient") -> None:
+        handler = _make_log_handler_with_app_key()
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            response = await client.get("/ui/partials/log-entries")
+        assert response.status_code == 200
+        assert "MyApp initialized" in response.text
+        assert "Core startup message" in response.text
+
+    async def test_api_logs_recent_filters_by_app_key(self, client: "AsyncClient") -> None:
+        handler = _make_log_handler_with_app_key()
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            response = await client.get("/api/logs/recent?app_key=my_app")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 3
+        messages = [e["message"] for e in data]
+        assert "MyApp initialized" in messages
+        assert "Light unresponsive" in messages
+        assert "Service call failed" in messages
+        # Core-only logs should not be present
+        assert "Core startup message" not in messages
+        assert "Heartbeat sent" not in messages
+
+    async def test_api_logs_recent_without_filter_returns_all(self, client: "AsyncClient") -> None:
+        handler = _make_log_handler_with_app_key()
+        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+            response = await client.get("/api/logs/recent")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 5
+        messages = [e["message"] for e in data]
+        assert "Core startup message" in messages
+        assert "MyApp initialized" in messages
 
 
 class TestInstanceDetail:
@@ -548,13 +520,15 @@ class TestInstanceDetail:
         assert response.status_code == 200
         body = response.text
         # Instance detail template should show instance-specific info
-        assert "Configuration" in body
+        assert "App Key" in body
         assert "Bus Listeners" in body
         assert "Scheduled Jobs" in body
         assert "instance-listeners" in body  # instance-scoped partial URL
 
-    async def test_multi_instance_renders_manifest_overview(self, client: "AsyncClient", mock_hassette) -> None:
-        """Multi-instance app at /apps/{app_key} should render manifest overview with instances table."""
+    async def test_multi_instance_renders_instance_detail_with_switcher(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        """Multi-instance app at /apps/{app_key} should render instance detail with instance switcher."""
         setup_registry(
             mock_hassette,
             [
@@ -586,12 +560,14 @@ class TestInstanceDetail:
         response = await client.get("/ui/apps/multi_app")
         assert response.status_code == 200
         body = response.text
-        # Should show manifest overview with instances table
-        assert "Instances" in body
-        assert "MultiApp[0]" in body
-        assert "MultiApp[1]" in body
+        # Should show instance detail with switcher dropdown
+        assert "App Key" in body
+        assert "Bus Listeners" in body
+        # Instance switcher contains links to both instances
         assert "/ui/apps/multi_app/0" in body
         assert "/ui/apps/multi_app/1" in body
+        assert "MultiApp[0]" in body
+        assert "MultiApp[1]" in body
 
     async def test_instance_detail_has_live_on_app_attributes(self, client: "AsyncClient", mock_hassette) -> None:
         """Instance detail page should use data-live-on-app, not data-live-refresh."""
@@ -706,8 +682,8 @@ class TestInstanceDetail:
         assert response.status_code == 200
         assert "<html" not in response.text
 
-    async def test_zero_instance_renders_manifest_overview(self, client: "AsyncClient", mock_hassette) -> None:
-        """Zero-instance app at /apps/{app_key} should render manifest overview."""
+    async def test_zero_instance_renders_instance_detail(self, client: "AsyncClient", mock_hassette) -> None:
+        """Zero-instance app at /apps/{app_key} should render instance detail."""
         setup_registry(
             mock_hassette,
             [
@@ -723,14 +699,13 @@ class TestInstanceDetail:
         response = await client.get("/ui/apps/stopped_app")
         assert response.status_code == 200
         body = response.text
-        # Should show manifest overview (not instance detail)
         assert "Stopped App" in body
-        assert "Configuration" in body
+        assert "App Key" in body
 
-    async def test_multi_instance_detail_shows_instance_column_in_listeners(
+    async def test_multi_instance_detail_no_instance_column_in_listeners(
         self, client: "AsyncClient", mock_hassette
     ) -> None:
-        """Multi-instance manifest overview should show Instance column in bus listeners."""
+        """Multi-instance at /apps/{app_key} renders instance detail (index 0), no Instance column."""
         owner0 = "MultiApp.MultiApp[0]"
         owner1 = "MultiApp.MultiApp[1]"
         setup_registry(
@@ -761,31 +736,17 @@ class TestInstanceDetail:
                 ),
             ],
         )
-        # Set up registry._apps so get_instance_owner_map() and _resolve_owner_ids() work
-        app_instances = {
-            0: SimpleNamespace(unique_name=owner0),
-            1: SimpleNamespace(unique_name=owner1),
-        }
-        mock_hassette._app_handler.registry.iter_all_instances.return_value = [
-            ("multi_app", idx, inst) for idx, inst in app_instances.items()
-        ]
-        mock_hassette._app_handler.registry.get_apps_by_key.return_value = app_instances
-
-        # Mock listener metrics with per-instance owner IDs
-        mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = lambda owner: [
-            make_listener_metric(1, owner, "state_changed.light.kitchen", "on_light")
-        ]
         response = await client.get("/ui/apps/multi_app")
         assert response.status_code == 200
         body = response.text
-        assert "<th>Instance</th>" in body
+        # Instance detail (index 0) should NOT have Instance column
+        assert "<th>Instance</th>" not in body
+        # Instance switcher should contain links to both instances
         assert "/ui/apps/multi_app/0" in body
         assert "/ui/apps/multi_app/1" in body
 
-    async def test_multi_instance_detail_shows_instance_column_in_jobs(
-        self, client: "AsyncClient", mock_hassette
-    ) -> None:
-        """Multi-instance manifest overview should show Instance column in scheduled jobs."""
+    async def test_multi_instance_detail_shows_switcher_and_jobs(self, client: "AsyncClient", mock_hassette) -> None:
+        """Multi-instance at /apps/{app_key} renders instance detail with switcher and jobs."""
         owner0 = "MultiApp.MultiApp[0]"
         owner1 = "MultiApp.MultiApp[1]"
         setup_registry(
@@ -816,22 +777,14 @@ class TestInstanceDetail:
                 ),
             ],
         )
-        app_instances = {
-            0: SimpleNamespace(unique_name=owner0),
-            1: SimpleNamespace(unique_name=owner1),
-        }
-        mock_hassette._app_handler.registry.iter_all_instances.return_value = [
-            ("multi_app", idx, inst) for idx, inst in app_instances.items()
-        ]
-        mock_hassette._app_handler.registry.get_apps_by_key.return_value = app_instances
-        mock_hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[make_job(name="my_task", owner=owner0)])
         response = await client.get("/ui/apps/multi_app")
         assert response.status_code == 200
         body = response.text
-        # Jobs section should also have Instance column
-        assert "my_task" in body
-        # The instance column header appears in both listeners and jobs sections
-        assert body.count("<th>Instance</th>") >= 1
+        # Instance switcher should be present
+        assert "MultiApp[0]" in body
+        assert "MultiApp[1]" in body
+        # Scheduled Jobs section visible (flat layout, no tabs)
+        assert "Scheduled Jobs" in body
 
     async def test_single_instance_detail_no_instance_column(self, client: "AsyncClient", mock_hassette) -> None:
         """Single-instance app at /apps/{app_key} should NOT show Instance column."""
@@ -976,7 +929,7 @@ class TestSidebarStructure:
     async def test_sidebar_no_close_button(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         html = response.text
-        assert "ht-sidebar-close" not in html
+        assert 'class="ht-sidebar-close"' not in html
         assert "fa-xmark" not in html
 
     async def test_sidebar_toggle_button_exists(self, client: "AsyncClient") -> None:

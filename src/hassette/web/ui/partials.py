@@ -9,18 +9,6 @@ from hassette.web.ui import templates
 router = APIRouter()
 
 
-@router.get("/partials/health-badge", response_class=HTMLResponse)
-async def health_badge_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
-    status = data_sync.get_system_status()
-    return templates.TemplateResponse(request, "partials/health_badge.html", {"status": status})
-
-
-@router.get("/partials/event-feed", response_class=HTMLResponse)
-async def event_feed_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
-    events = data_sync.get_recent_events(limit=10)
-    return templates.TemplateResponse(request, "partials/event_feed.html", {"events": events})
-
-
 @router.get("/partials/app-list", response_class=HTMLResponse)
 async def app_list_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
     app_status = data_sync.get_app_status_snapshot()
@@ -49,9 +37,6 @@ async def log_entries_partial(
     )
 
 
-# --- New Phase 2 partials ---
-
-
 @router.get("/partials/manifest-list", response_class=HTMLResponse)
 async def manifest_list_partial(
     request: Request,
@@ -63,23 +48,6 @@ async def manifest_list_partial(
     if status:
         manifests = [m for m in manifests if m.status == status]
     return templates.TemplateResponse(request, "partials/manifest_list.html", {"manifests": manifests})
-
-
-@router.get("/partials/bus-metrics", response_class=HTMLResponse)
-async def bus_metrics_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
-    bus_metrics = data_sync.get_bus_metrics_summary()
-    return templates.TemplateResponse(request, "partials/bus_metrics.html", {"bus_metrics": bus_metrics})
-
-
-@router.get("/partials/apps-summary", response_class=HTMLResponse)
-async def apps_summary_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
-    snapshot = data_sync.get_all_manifests_snapshot()
-    app_status = {
-        "total": snapshot.total,
-        "running": snapshot.running,
-        "failed": snapshot.failed,
-    }
-    return templates.TemplateResponse(request, "partials/apps_summary.html", {"app_status": app_status})
 
 
 @router.get("/partials/scheduler-jobs", response_class=HTMLResponse)
@@ -134,12 +102,16 @@ async def bus_listeners_partial(
     )
 
 
-@router.get("/partials/dashboard-scheduler", response_class=HTMLResponse)
-async def dashboard_scheduler_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
-    scheduler_summary = await data_sync.get_scheduler_summary()
-    return templates.TemplateResponse(
-        request, "partials/dashboard_scheduler.html", {"scheduler_summary": scheduler_summary}
-    )
+@router.get("/partials/dashboard-app-grid", response_class=HTMLResponse)
+async def dashboard_app_grid_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
+    snapshot = data_sync.get_all_manifests_snapshot()
+    return templates.TemplateResponse(request, "partials/dashboard_app_grid.html", {"manifests": snapshot.manifests})
+
+
+@router.get("/partials/dashboard-timeline", response_class=HTMLResponse)
+async def dashboard_timeline_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
+    events = data_sync.get_recent_events(limit=20)
+    return templates.TemplateResponse(request, "partials/dashboard_timeline.html", {"events": events})
 
 
 @router.get("/partials/dashboard-logs", response_class=HTMLResponse)
@@ -148,38 +120,12 @@ async def dashboard_logs_partial(request: Request, data_sync: DataSyncDep) -> HT
     return templates.TemplateResponse(request, "partials/dashboard_logs.html", {"logs": logs})
 
 
-@router.get("/partials/entity-list", response_class=HTMLResponse)
-async def entity_list_partial(
-    request: Request,
-    data_sync: DataSyncDep,
-    domain: str | None = None,
-    search: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
-) -> HTMLResponse:
-    all_states = data_sync.get_domain_states(domain) if domain else data_sync.get_all_entity_states()
+@router.get("/partials/alert-failed-apps", response_class=HTMLResponse)
+async def alert_failed_apps_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
+    from hassette.web.ui.context import alert_context
 
-    entities = sorted(all_states.items(), key=lambda kv: kv[0])
-
-    if search:
-        search_lower = search.lower()
-        entities = [(eid, s) for eid, s in entities if search_lower in eid.lower()]
-
-    total = len(entities)
-    entities = entities[offset : offset + limit]
-
-    return templates.TemplateResponse(
-        request,
-        "partials/entity_list.html",
-        {
-            "entities": entities,
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "domain": domain or "",
-            "search": search or "",
-        },
-    )
+    ctx = alert_context(data_sync)
+    return templates.TemplateResponse(request, "partials/alert_failed_apps.html", ctx)
 
 
 @router.get("/partials/app-detail-listeners/{app_key}", response_class=HTMLResponse)

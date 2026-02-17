@@ -8,9 +8,6 @@
       <div class="ht-level-item">
         <h1 class="ht-heading-4">
           <a href="/ui/apps" class="ht-text-faint ht-mr-2"><i class="fas fa-arrow-left"></i></a>
-          {% if is_multi_instance %}
-            <a href="/ui/apps/{{ app_key }}" class="ht-text-faint ht-mr-2"><i class="fas fa-cubes"></i></a>
-          {% endif %}
           <span class="ht-icon"><i class="fas fa-cube"></i></span>
           <span>{{ manifest.display_name }}</span>
           {% set inst_status = instance.status if instance else manifest.status %}
@@ -22,118 +19,110 @@
       <div class="ht-level-item">{{ action_buttons(app_key, manifest.status) }}</div>
     </div>
   </div>
-  {% if is_multi_instance and instance %}
-    <p class="ht-subheading-6 ht-mb-4">
-      Instance: <strong>{{ instance.instance_name }}</strong> (index {{ instance_index }})
-    </p>
+  <!-- Instance switcher (multi-instance only) -->
+  {% if is_multi_instance and manifest.instances %}
+    <div class="ht-mb-4" x-data>
+      <label class="ht-detail-label ht-mr-2">Instance</label>
+      <div class="ht-select ht-select--sm">
+        <select @change="window.location.href = $el.value">
+          {% for inst in manifest.instances %}
+            <option value="/ui/apps/{{ app_key }}/{{ inst.index }}"
+                    {% if inst.index == instance_index %}selected{% endif %}>
+              {{ inst.instance_name }} ({{ inst.status }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
   {% endif %}
-  <div class="ht-grid">
-    <!-- Config panel -->
-    <div class="ht-grid-col-6">
-      <div class="ht-card">
-        <h2 class="ht-heading-5">Configuration</h2>
-        <table class="ht-table ht-table--dense">
-          <tbody>
-            <tr>
-              <th>App Key</th>
-              <td>
-                <code>{{ manifest.app_key }}</code>
-              </td>
-            </tr>
-            <tr>
-              <th>Class Name</th>
-              <td>
-                <code>{{ manifest.class_name }}</code>
-              </td>
-            </tr>
-            {% if instance %}
-              <tr>
-                <th>Instance Name</th>
-                <td>
-                  <code>{{ instance.instance_name }}</code>
-                </td>
-              </tr>
-              <tr>
-                <th>Index</th>
-                <td>{{ instance_index }}</td>
-              </tr>
-              {% if owner_id %}
-                <tr>
-                  <th>Owner ID</th>
-                  <td>
-                    <code>{{ owner_id }}</code>
-                  </td>
-                </tr>
-              {% endif %}
-            {% endif %}
-            <tr>
-              <th>Filename</th>
-              <td>
-                {% if is_multi_instance %}
-                  <a href="/ui/apps/{{ app_key }}"><code>{{ manifest.filename }}</code></a>
-                {% else %}
-                  <code>{{ manifest.filename }}</code>
-                {% endif %}
-              </td>
-            </tr>
-            <tr>
-              <th>Enabled</th>
-              <td>{{ "Yes" if manifest.enabled else "No" }}</td>
-            </tr>
-            <tr>
-              <th>Auto-loaded</th>
-              <td>{{ "Yes" if manifest.auto_loaded else "No" }}</td>
-            </tr>
-            {% if instance and instance.error_message %}
-              <tr>
-                <th>Error</th>
-                <td class="ht-text-danger">{{ instance.error_message }}</td>
-              </tr>
-            {% elif manifest.error_message %}
-              <tr>
-                <th>Error</th>
-                <td class="ht-text-danger">{{ manifest.error_message }}</td>
-              </tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <!-- Bus Listeners -->
-    <div class="ht-grid-col-6">
-      <div class="ht-card">
-        <h2 class="ht-heading-5">
-          <span class="ht-icon"><i class="fas fa-ear-listen"></i></span>
-          <span>Bus Listeners</span>
-        </h2>
-        <div id="app-listeners"
-             data-live-on-app="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}">
-          {% include "partials/app_detail_listeners.html" %}
+  <!-- Collapsible metadata -->
+  <div class="ht-mb-4" x-data="{ detailsOpen: false }">
+    <button class="ht-btn ht-btn--sm"
+            @click="detailsOpen = !detailsOpen">
+      <i class="fas fa-caret-right" x-show="!detailsOpen"></i>
+      <i class="fas fa-caret-down" x-show="detailsOpen" x-cloak></i>
+      Details
+    </button>
+    <div x-show="detailsOpen" x-cloak x-transition class="ht-card ht-mt-3">
+      <div class="ht-detail-fields">
+        <div class="ht-detail-field">
+          <span class="ht-detail-label">App Key</span>
+          <code>{{ manifest.app_key }}</code>
+        </div>
+        <div class="ht-detail-field">
+          <span class="ht-detail-label">Class</span>
+          <code>{{ manifest.class_name }}</code>
+        </div>
+        <div class="ht-detail-field">
+          <span class="ht-detail-label">File</span>
+          <code>{{ manifest.filename }}</code>
+        </div>
+        {% if is_multi_instance and instance %}
+          <div class="ht-detail-field">
+            <span class="ht-detail-label">Instance</span>
+            <code>{{ instance.instance_name }}</code>
+          </div>
+          {% if owner_id %}
+            <div class="ht-detail-field">
+              <span class="ht-detail-label">Owner ID</span>
+              <code>{{ owner_id }}</code>
+            </div>
+          {% endif %}
+        {% endif %}
+        <div class="ht-detail-field">
+          <span class="ht-detail-label">Enabled</span>
+          <span>{{ "Yes" if manifest.enabled else "No" }}</span>
+        </div>
+        <div class="ht-detail-field">
+          <span class="ht-detail-label">Auto-loaded</span>
+          <span>{{ "Yes" if manifest.auto_loaded else "No" }}</span>
         </div>
       </div>
     </div>
-    <!-- Scheduled Jobs -->
-    <div class="ht-grid-col-6">
-      <div class="ht-card">
-        <h2 class="ht-heading-5">
-          <span class="ht-icon"><i class="fas fa-clock"></i></span>
-          <span>Scheduled Jobs</span>
-        </h2>
-        <div id="app-jobs"
-             data-live-on-app="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}">
-          {% include "partials/app_detail_jobs.html" %}
+  </div>
+  <!-- Error display -->
+  {% if instance and instance.error_message %}
+    <div class="ht-card ht-mb-4">
+      <p class="ht-text-danger"><strong>Error:</strong> {{ instance.error_message }}</p>
+      {% if instance.error_traceback %}
+        <div x-data="{ tbOpen: false }">
+          <button class="ht-btn ht-btn--sm ht-mt-3"
+                  @click="tbOpen = !tbOpen"
+                  x-text="tbOpen ? 'Hide traceback' : 'Show traceback'"></button>
+          <pre class="ht-traceback" x-show="tbOpen" x-transition>{{ instance.error_traceback }}</pre>
         </div>
-      </div>
+      {% endif %}
     </div>
-    <!-- Recent Logs -->
-    <div class="ht-grid-col-6">
-      <div class="ht-card">
-        <h2 class="ht-heading-5">
-          <span class="ht-icon"><i class="fas fa-scroll"></i></span>
-          <span>Recent Logs</span>
-        </h2>
-        {{ log_table(show_app_column=false, app_key=app_key, max_height="400px") }}
-      </div>
+  {% elif manifest.error_message %}
+    <div class="ht-card ht-mb-4">
+      <p class="ht-text-danger"><strong>Error:</strong> {{ manifest.error_message }}</p>
+      {% if manifest.error_traceback %}
+        <div x-data="{ tbOpen: false }">
+          <button class="ht-btn ht-btn--sm ht-mt-3"
+                  @click="tbOpen = !tbOpen"
+                  x-text="tbOpen ? 'Hide traceback' : 'Show traceback'"></button>
+          <pre class="ht-traceback" x-show="tbOpen" x-transition>{{ manifest.error_traceback }}</pre>
+        </div>
+      {% endif %}
     </div>
+  {% endif %}
+  <!-- Bus Listeners -->
+  <div class="ht-card ht-mb-4"
+       id="app-listeners"
+       data-live-on-app="/ui/partials/instance-listeners/{{ app_key }}/{{ instance_index }}">
+    <h2 class="ht-heading-5"><i class="fas fa-ear-listen"></i> Bus Listeners</h2>
+    {% include "partials/app_detail_listeners.html" %}
+  </div>
+  <!-- Scheduled Jobs -->
+  <div class="ht-card ht-mb-4"
+       id="app-jobs"
+       data-live-on-app="/ui/partials/instance-jobs/{{ app_key }}/{{ instance_index }}">
+    <h2 class="ht-heading-5"><i class="fas fa-clock"></i> Scheduled Jobs</h2>
+    {% include "partials/app_detail_jobs.html" %}
+  </div>
+  <!-- Recent Logs -->
+  <div class="ht-card">
+    <h2 class="ht-heading-5"><i class="fas fa-scroll"></i> Recent Logs</h2>
+    {{ log_table(show_app_column=false, app_key=app_key, max_height="600px") }}
   </div>
 {% endblock %}

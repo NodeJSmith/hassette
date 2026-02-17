@@ -15,6 +15,8 @@ document.addEventListener("alpine:init", () => {
   Alpine.store("ws", {
     /** @type {boolean} Whether the WebSocket is currently open. */
     connected: false,
+    /** @type {boolean} True after first open or close — suppresses banner on initial connect. */
+    _ready: false,
     /** @type {WebSocket | null} The underlying WebSocket instance. */
     _socket: null,
     /** @type {number} Current reconnection delay in milliseconds. */
@@ -48,6 +50,7 @@ document.addEventListener("alpine:init", () => {
 
       socket.addEventListener("open", () => {
         this.connected = true;
+        this._ready = true;
         this._backoff = 1000;
         document.dispatchEvent(new CustomEvent("ht:ws-connected"));
       });
@@ -84,6 +87,7 @@ document.addEventListener("alpine:init", () => {
 
       socket.addEventListener("close", () => {
         this.connected = false;
+        this._ready = true;
         this._reconnect();
       });
 

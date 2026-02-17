@@ -23,21 +23,8 @@
   </div>
   <!-- Listeners table -->
   <div class="ht-card">
-    <table class="ht-table ht-table--dense">
-      <thead>
-        <tr>
-          <th>Handler</th>
-          <th>App</th>
-          <th>Topic</th>
-          <th>Invocations</th>
-          <th>Success</th>
-          <th>Failed</th>
-          <th>Avg Duration</th>
-        </tr>
-      </thead>
-      <tbody id="bus-listeners" data-live-on-app="/ui/partials/bus-listeners">
-        {% include "partials/bus_listeners.html" %}
-      </tbody>
-    </table>
+    <div id="bus-listeners" data-live-on-app="/ui/partials/bus-listeners">
+      {% include "partials/bus_listeners.html" %}
+    </div>
   </div>
 {% endblock %}

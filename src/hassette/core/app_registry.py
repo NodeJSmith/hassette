@@ -6,6 +6,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 from hassette.types.enums import BlockReason, ResourceStatus
+from hassette.utils.exception_utils import get_traceback_string
 
 if TYPE_CHECKING:
     from hassette import AppConfig
@@ -24,6 +25,7 @@ class AppInstanceInfo:
     status: ResourceStatus
     error: Exception | None = None
     error_message: str | None = None
+    error_traceback: str | None = None
     owner_id: str | None = None
 
 
@@ -83,6 +85,7 @@ class AppManifestInfo:
     instance_count: int = 0
     instances: list[AppInstanceInfo] = field(default_factory=list)
     error_message: str | None = None
+    error_traceback: str | None = None
 
 
 @dataclass
@@ -239,6 +242,7 @@ class AppRegistry:
                     status=ResourceStatus.FAILED,
                     error=error,
                     error_message=str(error),
+                    error_traceback=get_traceback_string(error) if error.__traceback__ else None,
                 )
                 failed.append(info)
 
@@ -285,8 +289,11 @@ class AppRegistry:
                         )
                     )
 
+            error_traceback: str | None = None
+
             if app_key in self._failed_apps:
                 for index, error in self._failed_apps[app_key]:
+                    tb = get_traceback_string(error) if error.__traceback__ else None
                     instances.append(
                         AppInstanceInfo(
                             app_key=app_key,
@@ -296,10 +303,12 @@ class AppRegistry:
                             status=ResourceStatus.FAILED,
                             error=error,
                             error_message=str(error),
+                            error_traceback=tb,
                         )
                     )
                     if error_message is None:
                         error_message = str(error)
+                        error_traceback = tb
 
             block_reason = self._blocked_apps.get(app_key)
 
@@ -316,6 +325,7 @@ class AppRegistry:
                     instance_count=len(instances),
                     instances=instances,
                     error_message=error_message,
+                    error_traceback=error_traceback,
                 )
             )
 

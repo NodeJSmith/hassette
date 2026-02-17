@@ -208,6 +208,16 @@ class DataSyncService(Resource):
     @staticmethod
     def _serialize_job(job: "ScheduledJob") -> dict:
         """Convert a scheduled job to a JSON-safe dict."""
+        trigger = job.trigger
+        trigger_type = type(trigger).__name__ if trigger else "once"
+        trigger_detail: str | None = None
+        if trigger is not None:
+            cron_expr = getattr(trigger, "cron_expression", None)
+            interval = getattr(trigger, "interval", None)
+            if cron_expr is not None:
+                trigger_detail = str(cron_expr)
+            elif interval is not None:
+                trigger_detail = str(interval)
         return {
             "job_id": job.job_id,
             "name": job.name,
@@ -215,7 +225,8 @@ class DataSyncService(Resource):
             "next_run": str(job.next_run),
             "repeat": job.repeat,
             "cancelled": job.cancelled,
-            "trigger_type": type(job.trigger).__name__ if job.trigger else "once",
+            "trigger_type": trigger_type,
+            "trigger_detail": trigger_detail,
         }
 
     # --- Entity state access (delegates to StateProxy) ---
@@ -275,11 +286,13 @@ class DataSyncService(Resource):
                         class_name=inst.class_name,
                         status=str(inst.status),
                         error_message=inst.error_message,
+                        error_traceback=inst.error_traceback,
                         owner_id=inst.owner_id,
                     )
                     for inst in m.instances
                 ],
                 error_message=m.error_message,
+                error_traceback=m.error_traceback,
             )
             for m in snapshot.manifests
         ]

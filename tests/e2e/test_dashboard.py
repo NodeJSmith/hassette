@@ -8,30 +8,36 @@ from playwright.sync_api import Page, expect
 pytestmark = pytest.mark.e2e
 
 PANEL_HEADINGS = [
-    "System Health",
     "Apps",
-    "Event Bus",
-    "Recent Events",
-    "Scheduled Jobs",
+    "Activity",
     "Recent Logs",
 ]
 
 
 def test_dashboard_panels_visible(page: Page, base_url: str) -> None:
-    """Verify all 6 panel headings are visible on the dashboard."""
+    """Verify all panel headings are visible on the dashboard."""
     page.goto(base_url + "/ui/")
     body = page.locator("body")
     for heading in PANEL_HEADINGS:
         expect(body).to_contain_text(heading)
 
 
-def test_dashboard_scheduler_panel_content(page: Page, base_url: str) -> None:
-    """Verify scheduled jobs panel shows summary counts from seed data."""
+def test_dashboard_app_grid_shows_apps(page: Page, base_url: str) -> None:
+    """Verify app grid shows cards for each app from seed data."""
     page.goto(base_url + "/ui/")
-    scheduler_panel = page.locator("#dashboard-scheduler")
-    expect(scheduler_panel).to_contain_text("Active")
-    expect(scheduler_panel).to_contain_text("Total")
-    expect(scheduler_panel).to_contain_text("Repeating")
+    grid = page.locator("#dashboard-app-grid")
+    expect(grid).to_contain_text("My App")
+    expect(grid).to_contain_text("Broken App")
+    expect(grid).to_contain_text("Other App")
+    expect(grid).to_contain_text("Disabled App")
+
+
+def test_dashboard_app_grid_failed_chip_visible(page: Page, base_url: str) -> None:
+    """Verify failed app chip is rendered with danger border class."""
+    page.goto(base_url + "/ui/")
+    failed_chip = page.locator(".ht-app-chip--failed")
+    expect(failed_chip).to_be_visible()
+    expect(failed_chip).to_contain_text("Broken App")
 
 
 def test_dashboard_logs_panel_content(page: Page, base_url: str) -> None:
@@ -52,9 +58,7 @@ def test_dashboard_logs_panel_has_table_headers(page: Page, base_url: str) -> No
 
 
 VIEW_ALL_LINKS = [
-    ("Scheduled Jobs", "/ui/scheduler"),
     ("Recent Logs", "/ui/logs"),
-    ("Event Bus", "/ui/bus"),
     ("Apps", "/ui/apps"),
 ]
 

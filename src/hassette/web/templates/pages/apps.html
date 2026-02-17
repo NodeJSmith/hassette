@@ -11,34 +11,6 @@
     </div>
   {% else %}
     <div class="ht-card">
-      <!-- Summary bar -->
-      <div class="ht-level ht-mb-4">
-        <div class="ht-level-start">
-          <div class="ht-level-item">
-            <span class="ht-badge ht-badge--success ht-badge--md">{{ manifest_snapshot.running }} running</span>
-          </div>
-          {% if manifest_snapshot.failed > 0 %}
-            <div class="ht-level-item">
-              <span class="ht-badge ht-badge--danger ht-badge--md">{{ manifest_snapshot.failed }} failed</span>
-            </div>
-          {% endif %}
-          {% if manifest_snapshot.stopped > 0 %}
-            <div class="ht-level-item">
-              <span class="ht-badge ht-status-stopped ht-badge--md">{{ manifest_snapshot.stopped }} stopped</span>
-            </div>
-          {% endif %}
-          {% if manifest_snapshot.disabled > 0 %}
-            <div class="ht-level-item">
-              <span class="ht-badge ht-status-disabled ht-badge--md">{{ manifest_snapshot.disabled }} disabled</span>
-            </div>
-          {% endif %}
-          {% if manifest_snapshot.blocked > 0 %}
-            <div class="ht-level-item">
-              <span class="ht-badge ht-status-blocked ht-badge--md">{{ manifest_snapshot.blocked }} blocked</span>
-            </div>
-          {% endif %}
-        </div>
-      </div>
       <!-- Status filter tabs -->
       <div class="ht-tabs ht-mb-3" hx-disinherit="hx-select">
         <ul>
