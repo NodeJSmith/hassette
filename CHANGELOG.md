@@ -8,18 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Changed
-- Replaced Bulma CSS framework with a custom `ht-` prefixed design system featuring cool slate surfaces, warm amber accent, and Space Grotesk + JetBrains Mono typography
-- Extracted all design tokens into `tokens.css` with `[data-theme]` selector support for future theming
-- Redesigned dashboard with app status chip grid, activity timeline, and streamlined layout
-- App detail pages now use a flat single-page layout with collapsible metadata, inline tracebacks, and instance switcher dropdown
-- Bus listener and scheduler job tables show expanded detail rows with predicate, rate-limiting, and trigger information
+- Replaced Bulma CSS framework with a custom `ht-` prefixed design system featuring cool slate surfaces, warm amber accent, and Space Grotesk + JetBrains Mono typography (#262)
+- Extracted all design tokens into `tokens.css` with `[data-theme]` selector support for future theming (#262)
+- Redesigned dashboard with app status chip grid, activity timeline, and streamlined layout (#262)
+- App detail pages now use a flat single-page layout with collapsible metadata, inline tracebacks, and instance switcher dropdown (#262)
+- Bus listener and scheduler job tables show expanded detail rows with predicate, rate-limiting, and trigger information (#262)
 
 ### Added
-- Global alert banner showing HA disconnect warnings and failed app errors with expandable tracebacks
+- Global alert banner showing HA disconnect warnings and failed app errors with expandable tracebacks (#262)
 
 ### Removed
-- Bulma CSS CDN dependency
-- Entity Browser page and related partials
+- Bulma CSS CDN dependency (#262)
+- Entity Browser page and related partials (#262)
 
 ## Previous Unreleased
 
