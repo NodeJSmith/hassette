@@ -34,6 +34,7 @@ class AppInstanceResponse(BaseModel):
     class_name: str
     status: str
     error_message: str | None = None
+    error_traceback: str | None = None
     owner_id: str | None = None
 
 
@@ -57,6 +58,7 @@ class AppManifestResponse(BaseModel):
     instance_count: int = 0
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
+    error_traceback: str | None = None
 
 
 class AppManifestListResponse(BaseModel):
@@ -101,6 +103,7 @@ class ScheduledJobResponse(BaseModel):
     repeat: bool
     cancelled: bool
     trigger_type: str
+    trigger_detail: str | None = None
 
 
 class JobExecutionResponse(BaseModel):
@@ -112,6 +115,7 @@ class JobExecutionResponse(BaseModel):
     status: str
     error_message: str | None = None
     error_type: str | None = None
+    error_traceback: str | None = None
 
 
 class ListenerMetricsResponse(BaseModel):
@@ -128,6 +132,11 @@ class ListenerMetricsResponse(BaseModel):
     min_duration_ms: float
     max_duration_ms: float
     total_duration_ms: float
+    predicate_description: str | None = None
+    debounce: float | None = None
+    throttle: float | None = None
+    once: bool = False
+    priority: int = 0
     last_invoked_at: float | None = None
     last_error_message: str | None = None
     last_error_type: str | None = None

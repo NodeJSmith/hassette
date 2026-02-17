@@ -1,0 +1,35 @@
+{% if failed_apps %}
+  <div class="ht-alert ht-alert--danger" x-data="{ detailsOpen: false }">
+    <div class="ht-alert-header">
+      <span>
+        <span class="ht-icon"><i class="fas fa-circle-xmark"></i></span>
+        {{ failed_apps | length }} app(s) failed
+      </span>
+      <button class="ht-btn ht-btn--ghost ht-btn--xs"
+              @click="detailsOpen = !detailsOpen"
+              :aria-expanded="detailsOpen"
+              x-text="detailsOpen ? 'Hide' : 'Details'">Details</button>
+    </div>
+    <div class="ht-alert-details" x-cloak x-show="detailsOpen" x-transition>
+      {% for app in failed_apps %}
+        <div class="ht-alert-item" x-data="{ tbOpen: false }">
+          <div class="ht-alert-item-header">
+            <a href="/ui/apps/{{ app.app_key }}">
+              <strong>{{ app.app_key }}</strong>
+            </a>
+            <span class="ht-text-muted">{{ app.error_message }}</span>
+            {% if app.error_traceback %}
+              <button class="ht-btn ht-btn--ghost ht-btn--xs"
+                      @click="tbOpen = !tbOpen"
+                      :aria-expanded="tbOpen"
+                      x-text="tbOpen ? 'Hide traceback' : 'Traceback'">Traceback</button>
+            {% endif %}
+          </div>
+          {% if app.error_traceback %}
+            <pre class="ht-traceback" x-cloak x-show="tbOpen" x-transition>{{ app.error_traceback }}</pre>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}

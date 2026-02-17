@@ -10,57 +10,50 @@
     <button class="ht-sidebar-toggle"
             @click="sidebarOpen = false"
             aria-label="Close menu">
-      <span class="icon"><i class="fas fa-bars"></i></span>
+      <span class="ht-icon"><i class="fas fa-bars"></i></span>
     </button>
   </div>
-  <nav class="menu">
-    <ul class="menu-list"
+  <nav>
+    <ul class="ht-nav-list"
         @click="if ($event.target.closest('a') && window.innerWidth < 769) sidebarOpen = false">
       <li>
         <a href="/ui/"
            class="{% if current_page == 'dashboard' %}is-active{% endif %}">
-          <span class="icon"><i class="fas fa-gauge-high"></i></span>
+          <span class="ht-icon"><i class="fas fa-gauge-high"></i></span>
           <span>Dashboard</span>
         </a>
       </li>
       <li>
         <a href="/ui/apps"
            class="{% if current_page == 'apps' %}is-active{% endif %}">
-          <span class="icon"><i class="fas fa-cubes"></i></span>
+          <span class="ht-icon"><i class="fas fa-cubes"></i></span>
           <span>Apps</span>
         </a>
       </li>
       <li>
         <a href="/ui/scheduler"
            class="{% if current_page == 'scheduler' %}is-active{% endif %}">
-          <span class="icon"><i class="fas fa-clock"></i></span>
+          <span class="ht-icon"><i class="fas fa-clock"></i></span>
           <span>Scheduler</span>
         </a>
       </li>
       <li>
         <a href="/ui/bus"
            class="{% if current_page == 'bus' %}is-active{% endif %}">
-          <span class="icon"><i class="fas fa-tower-broadcast"></i></span>
+          <span class="ht-icon"><i class="fas fa-tower-broadcast"></i></span>
           <span>Event Bus</span>
-        </a>
-      </li>
-      <li>
-        <a href="/ui/entities"
-           class="{% if current_page == 'entities' %}is-active{% endif %}">
-          <span class="icon"><i class="fas fa-list"></i></span>
-          <span>Entities</span>
         </a>
       </li>
       <li>
         <a href="/ui/logs"
            class="{% if current_page == 'logs' %}is-active{% endif %}">
-          <span class="icon"><i class="fas fa-scroll"></i></span>
+          <span class="ht-icon"><i class="fas fa-scroll"></i></span>
           <span>Logs</span>
         </a>
       </li>
     </ul>
   </nav>
   <div class="ht-sidebar-footer">
-    <span class="is-size-7 has-text-grey">v{{ hassette_version }}</span>
+    <span class="ht-text-xs ht-text-muted">v{{ hassette_version }}</span>
   </div>
 </aside>

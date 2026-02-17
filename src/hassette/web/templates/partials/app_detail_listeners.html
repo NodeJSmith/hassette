@@ -1,5 +1,5 @@
 {% if listeners %}
-  <table class="table is-fullwidth is-hoverable is-compact is-size-7">
+  <table class="ht-table ht-table--dense ht-text-xs">
     <thead>
       <tr>
         <th>Handler</th>
@@ -30,13 +30,13 @@
             <code>{{ l.topic }}</code>
           </td>
           <td>{{ l.total_invocations }}</td>
-          <td class="has-text-success">{{ l.successful }}</td>
-          <td class="{% if l.failed > 0 %}has-text-danger{% endif %}">{{ l.failed }}</td>
+          <td class="ht-text-success">{{ l.successful }}</td>
+          <td class="{% if l.failed > 0 %}ht-text-danger{% endif %}">{{ l.failed }}</td>
           <td>{{ "%.1f" | format(l.avg_duration_ms) }}ms</td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
 {% else %}
-  <p class="has-text-grey is-size-7">No bus listeners registered.</p>
+  <p class="ht-text-muted ht-text-xs">No bus listeners registered.</p>
 {% endif %}

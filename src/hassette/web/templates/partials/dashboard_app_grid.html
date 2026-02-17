@@ -1,0 +1,14 @@
+{% if manifests %}
+  <div class="ht-app-chips">
+    {% for m in manifests %}
+      <a href="/ui/apps/{{ m.app_key }}"
+         class="ht-app-chip ht-app-chip--{{ m.status }}"
+         title="{{ m.display_name }} — {{ m.status }}">{{ m.display_name }}</a>
+    {% endfor %}
+  </div>
+  <div class="ht-mt-3">
+    <a href="/ui/apps" class="ht-btn ht-btn--sm ht-btn--link">Manage Apps</a>
+  </div>
+{% else %}
+  <p class="ht-text-muted ht-text-xs">No apps configured.</p>
+{% endif %}

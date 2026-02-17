@@ -16,7 +16,7 @@ def test_ws_connection_indicator_renders(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/")
     # The page should load without JS errors even without a WS connection.
     # Verify the page still has its core structure.
-    expect(page.locator("body")).to_contain_text("System Health")
+    expect(page.locator("body")).to_contain_text("Apps")
     expect(page.locator("body")).to_contain_text("Dashboard")
 
 

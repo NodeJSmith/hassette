@@ -4,7 +4,7 @@
       {% if manifest.instance_count > 1 %}class="ht-group-header"{% endif %}>
     <td>
       {% if manifest.instance_count > 1 %}
-        <span class="icon is-small mr-1"
+        <span class="ht-icon ht-icon--sm ht-mr-2"
               style="cursor: pointer"
               @click="expanded['{{ manifest.app_key }}'] = !(expanded['{{ manifest.app_key }}'] ?? true)"
               x-bind:title="(expanded['{{ manifest.app_key }}'] ?? true) ? 'Collapse' : 'Expand'">
@@ -21,12 +21,12 @@
     <td>
       {{ status_badge(manifest.status, block_reason=manifest.block_reason or '') }}
       {% if manifest.instance_count > 1 %}
-        <span class="tag is-info is-light is-small">{{ manifest.instance_count }} instances</span>
+        <span class="ht-badge ht-badge--info ht-badge--sm">{{ manifest.instance_count }} instances</span>
       {% endif %}
     </td>
     <td>
       {% if manifest.error_message %}
-        <span class="has-text-danger is-size-7">{{ manifest.error_message }}</span>
+        <span class="ht-text-danger ht-text-xs">{{ manifest.error_message }}</span>
       {% else %}
         —
       {% endif %}

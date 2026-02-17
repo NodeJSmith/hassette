@@ -68,9 +68,17 @@ def _build_manifests() -> list:
                     class_name="BrokenApp",
                     status=ResourceStatus.FAILED,
                     error_message="Init error: bad config",
+                    error_traceback=(
+                        'Traceback (most recent call last):\n  File "broken_app.py", line 10, in '
+                        'on_initialize\n    raise ValueError("bad config")\nValueError: bad config\n'
+                    ),
                 )
             ],
             error_message="Init error: bad config",
+            error_traceback=(
+                'Traceback (most recent call last):\n  File "broken_app.py", line 10, in on_initialize\n'
+                '    raise ValueError("bad config")\nValueError: bad config\n'
+            ),
         ),
         make_manifest(
             app_key="disabled_app",
@@ -89,8 +97,25 @@ def mock_hassette():
     """Create a session-scoped mock Hassette with rich seed data."""
     manifests = _build_manifests()
     listener_metrics = [
-        make_listener_metric(1, "MyApp.MyApp[0]", "state_changed.light.kitchen", "on_light_change"),
-        make_listener_metric(2, "MyApp.MyApp[0]", "state_changed.sensor.temperature", "on_temp_update", 20, 20, 0),
+        make_listener_metric(
+            1,
+            "MyApp.MyApp[0]",
+            "state_changed.light.kitchen",
+            "on_light_change",
+            predicate_description="EntityMatches(entity_id='light.kitchen')",
+            debounce=0.5,
+        ),
+        make_listener_metric(
+            2,
+            "MyApp.MyApp[0]",
+            "state_changed.sensor.temperature",
+            "on_temp_update",
+            20,
+            20,
+            0,
+            predicate_description="EntityMatches(entity_id='sensor.temperature')",
+            throttle=1.0,
+        ),
     ]
 
     hassette = create_hassette_stub(
@@ -149,12 +174,13 @@ def mock_hassette():
         ),
         listener_metrics=listener_metrics,
         scheduler_jobs=[
-            make_job(),
+            make_job(trigger_detail="PT30S"),
             make_job(
                 job_id="job-2",
                 name="morning_routine",
                 next_run="2024-01-01T07:00:00",
                 trigger_type="cron",
+                trigger_detail="0 7 * * * 0",
             ),
         ],
     )
@@ -184,6 +210,7 @@ def data_sync_service(mock_hassette):
 def _log_handler():
     """Create a LogCaptureHandler with seed log entries for e2e tests."""
     handler = LogCaptureHandler(buffer_size=100)
+    handler.register_app_logger("hassette.apps.my_app", "my_app")
     entries = [
         ("hassette.core", logging.INFO, "Hassette started successfully"),
         ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),

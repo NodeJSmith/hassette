@@ -191,3 +191,4 @@ class JobExecutionRecord:
     status: str  # "success", "error", "cancelled"
     error_message: str | None = None
     error_type: str | None = None
+    error_traceback: str | None = None

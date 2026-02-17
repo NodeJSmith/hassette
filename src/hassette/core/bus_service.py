@@ -182,15 +182,23 @@ class BusService(Service):
 
     def _get_or_create_metrics(self, listener: "Listener") -> ListenerMetrics:
         """Get or create a ListenerMetrics entry for a listener."""
-        return self._listener_metrics.setdefault(
-            listener.listener_id,
-            ListenerMetrics(
-                listener_id=listener.listener_id,
-                owner=listener.owner,
-                topic=listener.topic,
-                handler_name=listener.handler_name,
-            ),
+        if listener.listener_id in self._listener_metrics:
+            return self._listener_metrics[listener.listener_id]
+
+        rate_limiter = listener.adapter.rate_limiter
+        metrics = ListenerMetrics(
+            listener_id=listener.listener_id,
+            owner=listener.owner,
+            topic=listener.topic,
+            handler_name=listener.handler_name,
+            predicate_description=repr(listener.predicate) if listener.predicate else None,
+            debounce=rate_limiter.debounce if rate_limiter else None,
+            throttle=rate_limiter.throttle if rate_limiter else None,
+            once=listener.once,
+            priority=listener.priority,
         )
+        self._listener_metrics[listener.listener_id] = metrics
+        return metrics
 
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener."""

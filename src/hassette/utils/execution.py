@@ -6,6 +6,7 @@ used by both the scheduler and bus execution paths.
 
 import asyncio
 import time
+import traceback
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ class ExecutionResult:
     status: str = "pending"
     error_message: str | None = None
     error_type: str | None = None
+    error_traceback: str | None = None
 
     @property
     def is_success(self) -> bool:
@@ -58,6 +60,7 @@ async def track_execution() -> AsyncIterator[ExecutionResult]:
         result.status = "error"
         result.error_message = str(exc)
         result.error_type = type(exc).__name__
+        result.error_traceback = traceback.format_exc()
         raise
     finally:
         result.duration_ms = (time.monotonic() - result.started_at) * 1000

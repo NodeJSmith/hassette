@@ -2,12 +2,13 @@
   <button class="ht-menu-toggle"
           @click="sidebarOpen = !sidebarOpen"
           aria-label="Toggle menu">
-    <span class="icon"><i class="fas fa-bars"></i></span>
+    <span class="ht-icon"><i class="fas fa-bars"></i></span>
   </button>
   <span class="ht-ws-indicator"
         :class="$store.ws.connected ? 'is-connected' : 'is-disconnected'">
-    <span class="ht-ws-dot"></span>
-    <span class="is-size-7"
+    <span class="ht-pulse-dot"
+          :class="$store.ws.connected ? '' : 'ht-pulse-dot--disconnected'"></span>
+    <span class="ht-text-xs"
           x-text="$store.ws.connected ? 'Connected' : 'Disconnected'"></span>
   </span>
 </div>

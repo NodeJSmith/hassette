@@ -1,0 +1,26 @@
+{% if events %}
+  <div class="ht-timeline">
+    {% for event in events | reverse %}
+      <div class="ht-timeline-entry">
+        {% if event.type == 'state_changed' and event.get("entity_id") %}
+          {% set domain = event.entity_id.split('.')[0] %}
+          <span class="ht-badge ht-badge--sm ht-badge--info">{{ domain }}</span>
+        {% elif event.type == 'app_status_changed' %}
+          <span class="ht-badge ht-badge--sm ht-badge--warning">{{ event.type }}</span>
+        {% elif event.type == 'connectivity' %}
+          <span class="ht-badge ht-badge--sm ht-badge--link">{{ event.type }}</span>
+        {% else %}
+          <span class="ht-badge ht-badge--sm ht-badge--neutral">{{ event.type }}</span>
+        {% endif %}
+        {% if event.get("entity_id") %}<code class="ht-text-xs">{{ event.entity_id }}</code>{% endif %}
+        {% if event.get("timestamp") %}
+          <time class="ht-text-xs ht-text-muted"
+                x-data
+                x-text="new Date({{ event.timestamp }} * 1000).toLocaleTimeString()"></time>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="ht-text-muted ht-text-xs">No recent activity.</p>
+{% endif %}

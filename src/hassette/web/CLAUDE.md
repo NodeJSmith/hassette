@@ -4,37 +4,33 @@
 
 ```
 templates/
-├── base.html              # Root layout: Bulma, HTMX, Alpine.js, nav
+├── base.html              # Root layout: HTMX, Alpine.js, nav, alert banner
 ├── macros/
 │   └── ui.html            # Shared Jinja2 macros (status_badge, action_buttons, log_table, job_status_badge)
 ├── components/
 │   ├── nav.html            # Sidebar navigation
-│   └── status_bar.html     # Top status bar (health badge)
+│   ├── status_bar.html     # Top status bar (health badge)
+│   └── alert_banner.html   # Global alert strip (HA disconnect + failed apps)
 ├── pages/                  # Full-page templates (extend base.html)
 │   ├── dashboard.html
 │   ├── apps.html
-│   ├── app_detail.html
-│   ├── app_instance_detail.html
+│   ├── app_instance_detail.html  # App/instance detail: flat layout with metadata, listeners, jobs, logs
 │   ├── logs.html
 │   ├── scheduler.html
-│   ├── bus.html
-│   └── entities.html
+│   └── bus.html
 └── partials/               # HTML fragments for HTMX swaps (no <html>, no <head>)
-    ├── health_badge.html
-    ├── event_feed.html
+    ├── alert_failed_apps.html
     ├── app_list.html
     ├── app_row.html
     ├── manifest_list.html
     ├── manifest_row.html
     ├── instance_row.html
     ├── log_entries.html
-    ├── entity_list.html
     ├── scheduler_jobs.html
     ├── scheduler_history.html
     ├── bus_listeners.html
-    ├── bus_metrics.html
-    ├── apps_summary.html
-    ├── dashboard_scheduler.html
+    ├── dashboard_app_grid.html
+    ├── dashboard_timeline.html
     ├── dashboard_logs.html
     ├── app_detail_listeners.html
     └── app_detail_jobs.html
@@ -83,7 +79,6 @@ All custom CSS classes use the `ht-` prefix:
 
 ### Alpine.js Components
 - `logTable(config)` — log viewer (`static/js/log-table.js`). Has `init()` and `destroy()` lifecycle methods.
-- `entityBrowser()` — defined inline in `pages/entities.html` `{% block scripts %}`.
 - Alpine stores: `$store.ws` — WebSocket state (`static/js/ws-handler.js`).
 
 ### HTMX

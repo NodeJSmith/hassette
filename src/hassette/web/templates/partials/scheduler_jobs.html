@@ -13,7 +13,8 @@
       {% endif %}
     </td>
     <td>
-      <span class="tag is-info is-light is-small">{{ job.trigger_type }}</span>
+      <span class="ht-badge ht-badge--info ht-badge--sm">{{ job.trigger_type }}</span>
+      {% if job.trigger_detail %}<code class="ht-text-xs ht-text-muted">{{ job.trigger_detail }}</code>{% endif %}
     </td>
     <td>
       {% if job.next_run %}
@@ -25,21 +26,21 @@
     </td>
     <td>
       {% if job.repeat %}
-        <span class="tag is-link is-light is-small">repeating</span>
+        <span class="ht-badge ht-badge--link ht-badge--sm">repeating</span>
       {% else %}
-        <span class="tag is-light is-small">once</span>
+        <span class="ht-badge ht-badge--neutral ht-badge--sm">once</span>
       {% endif %}
     </td>
     <td>
       {% if job.cancelled %}
-        <span class="tag is-warning is-light is-small">cancelled</span>
+        <span class="ht-badge ht-badge--warning ht-badge--sm">cancelled</span>
       {% else %}
-        <span class="tag is-success is-light is-small">active</span>
+        <span class="ht-badge ht-badge--success ht-badge--sm">active</span>
       {% endif %}
     </td>
   </tr>
 {% else %}
   <tr>
-    <td colspan="6" class="has-text-centered has-text-grey">No scheduled jobs.</td>
+    <td colspan="6" class="ht-text-center ht-text-muted">No scheduled jobs.</td>
   </tr>
 {% endfor %}

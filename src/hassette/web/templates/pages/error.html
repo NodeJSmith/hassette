@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ status_code }} — Hassette{% endblock %}
 {% block content %}
-  <div class="has-text-centered" style="padding: 3rem 1rem;">
-    <h1 class="title is-1 has-text-grey-light">{{ status_code }}</h1>
-    <h2 class="subtitle is-4">{{ detail }}</h2>
-    <a href="/ui/" class="button is-primary is-outlined mt-4">
-      <span class="icon"><i class="fas fa-home"></i></span>
+  <div class="ht-text-center ht-p-hero">
+    <h1 class="ht-heading-1">{{ status_code }}</h1>
+    <h2 class="ht-subheading-4">{{ detail }}</h2>
+    <a href="/ui/" class="ht-btn ht-btn--primary ht-mt-4">
+      <span class="ht-icon"><i class="fas fa-home"></i></span>
       <span>Back to Dashboard</span>
     </a>
   </div>

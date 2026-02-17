@@ -1,73 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Hassette{% endblock %}
 {% block content %}
-  <h1 class="title is-4">
-    <span class="icon"><i class="fas fa-gauge-high"></i></span>
+  <h1 class="ht-heading-4">
+    <span class="ht-icon"><i class="fas fa-gauge-high"></i></span>
     <span>Dashboard</span>
   </h1>
-  <div class="columns is-multiline">
-    <!-- System Health -->
-    <div class="column is-half">
-      <div class="box" style="height: 100%;">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-heart-pulse"></i></span>
-          <span>System Health</span>
-        </h2>
-        <div id="health-badge" data-live-on-state="/ui/partials/health-badge">{% include "partials/health_badge.html" %}</div>
-      </div>
-    </div>
-    <!-- Apps Summary -->
-    <div class="column is-half">
-      <div class="box is-flex is-flex-direction-column" style="height: 100%;">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-cubes"></i></span>
-          <span>Apps</span>
-        </h2>
-        <div id="apps-summary"
-             class="is-flex is-flex-direction-column is-flex-grow-1"
-             data-live-on-app="/ui/partials/apps-summary">{% include "partials/apps_summary.html" %}</div>
-      </div>
-    </div>
-    <!-- Left: Stacked Scheduled Jobs + Event Bus -->
-    <div class="column is-half">
-      <div class="box">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-clock"></i></span>
-          <span>Scheduled Jobs</span>
-        </h2>
-        <div id="dashboard-scheduler"
-             data-live-on-app="/ui/partials/dashboard-scheduler">
-          {% include "partials/dashboard_scheduler.html" %}
-        </div>
-      </div>
-      <div class="box">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-diagram-project"></i></span>
-          <span>Event Bus</span>
-        </h2>
-        <div id="bus-metrics" data-live-on-app="/ui/partials/bus-metrics">{% include "partials/bus_metrics.html" %}</div>
-      </div>
-    </div>
-    <!-- Right: Recent Events (matches height of stacked panels) -->
-    <div class="column is-half">
-      <div class="box" style="height: 100%;">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-bolt"></i></span>
-          <span>Recent Events</span>
-        </h2>
-        <div id="event-feed" data-live-on-state="/ui/partials/event-feed">{% include "partials/event_feed.html" %}</div>
-      </div>
-    </div>
-    <!-- Recent Logs (full width) -->
-    <div class="column is-full">
-      <div class="box">
-        <h2 class="title is-5">
-          <span class="icon"><i class="fas fa-scroll"></i></span>
+  <!-- App Status Grid (full width) -->
+  <div class="ht-card ht-mb-4">
+    <h2 class="ht-heading-5">
+      <span class="ht-icon"><i class="fas fa-cubes"></i></span>
+      <span>Apps</span>
+    </h2>
+    <div id="dashboard-app-grid"
+         data-live-on-app="/ui/partials/dashboard-app-grid">{% include "partials/dashboard_app_grid.html" %}</div>
+  </div>
+  <div class="ht-grid">
+    <!-- Recent Logs (larger, left) -->
+    <div class="ht-grid-col-7">
+      <div class="ht-card ht-card--full-height">
+        <h2 class="ht-heading-5">
+          <span class="ht-icon"><i class="fas fa-scroll"></i></span>
           <span>Recent Logs</span>
         </h2>
         <div id="dashboard-logs" data-live-on-app="/ui/partials/dashboard-logs">
           {% include "partials/dashboard_logs.html" %}
         </div>
+      </div>
+    </div>
+    <!-- Activity Timeline (smaller, right) -->
+    <div class="ht-grid-col-5">
+      <div class="ht-card ht-card--full-height">
+        <h2 class="ht-heading-5">
+          <span class="ht-icon"><i class="fas fa-bolt"></i></span>
+          <span>Activity</span>
+        </h2>
+        <div id="dashboard-timeline"
+             data-live-on-state="/ui/partials/dashboard-timeline"
+             data-live-on-app="/ui/partials/dashboard-timeline">{% include "partials/dashboard_timeline.html" %}</div>
       </div>
     </div>
   </div>
