@@ -32,15 +32,15 @@
 
 ### Surfaces
 
-| Level | Token                   | Value                          | Use                        |
-| ----- | ----------------------- | ------------------------------ | -------------------------- |
-| L0    | `--ht-surface-canvas`   | slate-50 (`#f8fafc`)           | Page background            |
-| L1    | `--ht-surface-card`     | `#ffffff`                      | Cards, panels              |
-| L2    | `--ht-surface-dropdown` | `#ffffff` + strong border      | Dropdowns, popovers        |
-| —     | `--ht-surface-sidebar`  | slate-900 (`#0f172a`)          | Dark sidebar               |
-| —     | `--ht-surface-sticky`   | `white`                        | Sticky table headers       |
-| —     | `--ht-surface-inset`    | `rgba(0, 0, 0, 0.05)`         | Alert items, nested panels |
-| —     | `--ht-surface-code`     | `#1e1e2e`                      | Code blocks, tracebacks    |
+| Level | Token                   | Value                     | Use                        |
+| ----- | ----------------------- | ------------------------- | -------------------------- |
+| L0    | `--ht-surface-canvas`   | slate-50 (`#f8fafc`)      | Page background            |
+| L1    | `--ht-surface-card`     | `#ffffff`                 | Cards, panels              |
+| L2    | `--ht-surface-dropdown` | `#ffffff` + strong border | Dropdowns, popovers        |
+| —     | `--ht-surface-sidebar`  | slate-900 (`#0f172a`)     | Dark sidebar               |
+| —     | `--ht-surface-sticky`   | `white`                   | Sticky table headers       |
+| —     | `--ht-surface-inset`    | `rgba(0, 0, 0, 0.05)`     | Alert items, nested panels |
+| —     | `--ht-surface-code`     | `#1e1e2e`                 | Code blocks, tracebacks    |
 
 ### Semantic Colors
 
@@ -59,12 +59,12 @@ Each semantic color has three tokens: base, `-light` (background tint), `-text` 
 
 Translucent overlays for alert banners (warning/danger variants):
 
-| Token                  | Value                        |
-| ---------------------- | ---------------------------- |
-| `--ht-warning-bg`      | `rgba(234, 179, 8, 0.1)`    |
-| `--ht-warning-border`  | `rgba(234, 179, 8, 0.3)`    |
-| `--ht-danger-bg`       | `rgba(239, 68, 68, 0.1)`    |
-| `--ht-danger-border`   | `rgba(239, 68, 68, 0.3)`    |
+| Token                 | Value                    |
+| --------------------- | ------------------------ |
+| `--ht-warning-bg`     | `rgba(234, 179, 8, 0.1)` |
+| `--ht-warning-border` | `rgba(234, 179, 8, 0.3)` |
+| `--ht-danger-bg`      | `rgba(239, 68, 68, 0.1)` |
+| `--ht-danger-border`  | `rgba(239, 68, 68, 0.3)` |
 
 ---
 
