@@ -55,6 +55,8 @@
   --ht-surface-dropdown: #ffffff;
   --ht-surface-sidebar:  var(--ht-slate-900);
   --ht-surface-sticky:   white;
+  --ht-surface-inset:    rgba(0, 0, 0, 0.05);   /* Alert items, nested panels */
+  --ht-surface-code:     #1e1e2e;               /* Code blocks, tracebacks */
 
   /* — Borders ————————————————————————————————————————— */
 
@@ -68,6 +70,7 @@
   --ht-text-muted: var(--ht-slate-500);
   --ht-text-faint: var(--ht-slate-400);
   --ht-text-on-dark: #fff;
+  --ht-text-code:  #cdd6f4;                     /* Light text on dark code surfaces */
 
   /* — Sidebar ————————————————————————————————————————— */
 
@@ -81,6 +84,13 @@
   /* — Backdrop ———————————————————————————————————————— */
 
   --ht-backdrop: rgba(0, 0, 0, 0.5);
+
+  /* — Alert Tints (translucent overlays for alert banners) */
+
+  --ht-warning-bg:     rgba(234, 179, 8, 0.1);
+  --ht-warning-border: rgba(234, 179, 8, 0.3);
+  --ht-danger-bg:      rgba(239, 68, 68, 0.1);
+  --ht-danger-border:  rgba(239, 68, 68, 0.3);
 
   /* — Notice ——————————————————————————————————————————— */
 

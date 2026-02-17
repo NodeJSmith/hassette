@@ -2,7 +2,7 @@
 
 import logging
 import re
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from hassette.core.app_registry import AppInstanceInfo
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
+    make_listener_metric,
     make_manifest,
     make_old_snapshot,
     setup_registry,
@@ -859,6 +860,140 @@ class TestInstanceDetail:
         assert "2 instances" in body
         assert "MultiApp[0]" in body
         assert "MultiApp[1]" in body
+
+
+class TestBusListenersPartial:
+    """Tests for the /partials/bus-listeners HTMX endpoint."""
+
+    async def test_bus_listeners_partial_empty(self, client: "AsyncClient") -> None:
+        """Empty listener list renders the empty-state message."""
+        response = await client.get("/ui/partials/bus-listeners")
+        assert response.status_code == 200
+        assert "<html" not in response.text
+        assert "No bus listeners registered" in response.text
+
+    async def test_bus_listeners_partial_with_data(self, client: "AsyncClient", mock_hassette) -> None:
+        """Listeners owned by registered apps render in the table."""
+        owner_id = "MyApp.MyApp[0]"
+        mock_hassette._bus_service.get_all_listener_metrics.return_value = [
+            make_listener_metric(1, owner_id, "state_changed.light.kitchen", "on_light_change"),
+        ]
+        mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = (
+            lambda owner: mock_hassette._bus_service.get_all_listener_metrics.return_value if owner == owner_id else []
+        )
+        # Wire up owner map so the filter in partials.py includes this listener
+        mock_hassette._app_handler.registry.iter_all_instances.return_value = iter(
+            [("my_app", 0, MagicMock(unique_name=owner_id))]
+        )
+        response = await client.get("/ui/partials/bus-listeners")
+        assert response.status_code == 200
+        body = response.text
+        assert "on_light_change" in body
+        assert "light.kitchen" in body
+
+    async def test_bus_listeners_partial_filters_internal_owners(self, client: "AsyncClient", mock_hassette) -> None:
+        """Listeners owned by internal services (not user apps) are filtered out."""
+        internal_owner = "hassette.core.BusService"
+        mock_hassette._bus_service.get_all_listener_metrics.return_value = [
+            make_listener_metric(1, internal_owner, "state_changed.*", "internal_handler"),
+        ]
+        mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = (
+            lambda owner: mock_hassette._bus_service.get_all_listener_metrics.return_value
+            if owner == internal_owner
+            else []
+        )
+        mock_hassette._app_handler.registry.iter_all_instances.return_value = iter([])
+        response = await client.get("/ui/partials/bus-listeners")
+        assert response.status_code == 200
+        assert "internal_handler" not in response.text
+        assert "No bus listeners registered" in response.text
+
+    async def test_bus_listeners_partial_shows_table_headers(self, client: "AsyncClient", mock_hassette) -> None:
+        """When listeners exist, the table headers are present."""
+        owner_id = "MyApp.MyApp[0]"
+        mock_hassette._bus_service.get_all_listener_metrics.return_value = [
+            make_listener_metric(1, owner_id, "state_changed.light.kitchen", "on_light_change"),
+        ]
+        mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = (
+            lambda owner: mock_hassette._bus_service.get_all_listener_metrics.return_value if owner == owner_id else []
+        )
+        mock_hassette._app_handler.registry.iter_all_instances.return_value = iter(
+            [("my_app", 0, MagicMock(unique_name=owner_id))]
+        )
+        response = await client.get("/ui/partials/bus-listeners")
+        body = response.text
+        for header in ("Handler", "App", "Topic", "Invocations", "Success", "Failed", "Avg Duration"):
+            assert header in body
+
+
+class TestAlertFailedAppsPartial:
+    """Tests for the /partials/alert-failed-apps HTMX endpoint."""
+
+    async def test_alert_no_failed_apps(self, client: "AsyncClient") -> None:
+        """No failed apps means the partial renders empty (no alert)."""
+        response = await client.get("/ui/partials/alert-failed-apps")
+        assert response.status_code == 200
+        assert "failed" not in response.text.lower() or "app(s) failed" not in response.text
+
+    async def test_alert_with_failed_app(self, client: "AsyncClient", mock_hassette) -> None:
+        """A failed app renders the danger alert with app key and error message."""
+        setup_registry(
+            mock_hassette,
+            [
+                make_manifest(app_key="broken_app", status="failed", error_message="Import error in module"),
+            ],
+        )
+        response = await client.get("/ui/partials/alert-failed-apps")
+        assert response.status_code == 200
+        body = response.text
+        assert "1 app(s) failed" in body
+        assert "broken_app" in body
+        assert "Import error in module" in body
+        assert "ht-alert--danger" in body
+
+    async def test_alert_with_failed_app_traceback(self, client: "AsyncClient", mock_hassette) -> None:
+        """A failed app with a traceback includes the traceback toggle."""
+        setup_registry(
+            mock_hassette,
+            [
+                make_manifest(
+                    app_key="broken_app",
+                    status="failed",
+                    error_message="Import error",
+                    error_traceback="Traceback (most recent call last):\n  File ...",
+                ),
+            ],
+        )
+        response = await client.get("/ui/partials/alert-failed-apps")
+        body = response.text
+        assert "ht-traceback" in body
+        assert "Traceback (most recent call last)" in body
+
+    async def test_alert_multiple_failed_apps(self, client: "AsyncClient", mock_hassette) -> None:
+        """Multiple failed apps show the correct count."""
+        setup_registry(
+            mock_hassette,
+            [
+                make_manifest(app_key="broken_1", status="failed", error_message="Error 1"),
+                make_manifest(app_key="broken_2", status="failed", error_message="Error 2"),
+                make_manifest(app_key="running_ok", status="running"),
+            ],
+        )
+        response = await client.get("/ui/partials/alert-failed-apps")
+        body = response.text
+        assert "2 app(s) failed" in body
+        assert "broken_1" in body
+        assert "broken_2" in body
+
+    async def test_alert_is_html_fragment(self, client: "AsyncClient", mock_hassette) -> None:
+        """Alert partial is an HTML fragment, not a full page."""
+        setup_registry(
+            mock_hassette,
+            [make_manifest(app_key="broken", status="failed", error_message="boom")],
+        )
+        response = await client.get("/ui/partials/alert-failed-apps")
+        assert "<html" not in response.text
+        assert "<!DOCTYPE" not in response.text
 
 
 class TestManifestAPI:
