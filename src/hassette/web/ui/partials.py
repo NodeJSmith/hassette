@@ -5,6 +5,7 @@ from starlette.responses import HTMLResponse
 
 from hassette.web.dependencies import DataSyncDep
 from hassette.web.ui import templates
+from hassette.web.ui.context import alert_context
 
 router = APIRouter()
 
@@ -122,8 +123,6 @@ async def dashboard_logs_partial(request: Request, data_sync: DataSyncDep) -> HT
 
 @router.get("/partials/alert-failed-apps", response_class=HTMLResponse)
 async def alert_failed_apps_partial(request: Request, data_sync: DataSyncDep) -> HTMLResponse:
-    from hassette.web.ui.context import alert_context
-
     ctx = alert_context(data_sync)
     return templates.TemplateResponse(request, "partials/alert_failed_apps.html", ctx)
 

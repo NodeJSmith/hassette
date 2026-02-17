@@ -14,9 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - App detail pages now use a flat single-page layout with collapsible metadata, inline tracebacks, and instance switcher dropdown (#262)
 - Bus listener and scheduler job tables show expanded detail rows with predicate, rate-limiting, and trigger information (#262)
 - Replaced hardcoded CSS fallback colors in alerts and detail panels with proper design tokens (`--ht-surface-inset`, `--ht-surface-code`, `--ht-warning-*`, `--ht-danger-*`)
+- Toggle buttons now show fallback text before Alpine.js initializes and expose `aria-expanded` for accessibility (#262)
 
 ### Added
 - Global alert banner showing HA disconnect warnings and failed app errors with expandable tracebacks (#262)
+- `ht-btn--ghost` and `ht-btn--xs` button modifier classes (#262)
 
 ### Removed
 - Bulma CSS CDN dependency (#262)

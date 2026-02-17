@@ -7,7 +7,8 @@
       </span>
       <button class="ht-btn ht-btn--ghost ht-btn--xs"
               @click="detailsOpen = !detailsOpen"
-              x-text="detailsOpen ? 'Hide' : 'Details'"></button>
+              :aria-expanded="detailsOpen"
+              x-text="detailsOpen ? 'Hide' : 'Details'">Details</button>
     </div>
     <div class="ht-alert-details" x-show="detailsOpen" x-transition>
       {% for app in failed_apps %}
@@ -20,7 +21,8 @@
             {% if app.error_traceback %}
               <button class="ht-btn ht-btn--ghost ht-btn--xs"
                       @click="tbOpen = !tbOpen"
-                      x-text="tbOpen ? 'Hide traceback' : 'Traceback'"></button>
+                      :aria-expanded="tbOpen"
+                      x-text="tbOpen ? 'Hide traceback' : 'Traceback'">Traceback</button>
             {% endif %}
           </div>
           {% if app.error_traceback %}

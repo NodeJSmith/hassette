@@ -29,7 +29,8 @@
         {% if record.error_traceback %}
           <button class="ht-btn ht-btn--ghost ht-btn--xs"
                   @click="tbOpen = !tbOpen"
-                  x-text="tbOpen ? 'Hide' : 'Traceback'"></button>
+                  :aria-expanded="tbOpen"
+                  x-text="tbOpen ? 'Hide' : 'Traceback'">Traceback</button>
           <pre class="ht-traceback" x-show="tbOpen" x-transition>{{ record.error_traceback }}</pre>
         {% endif %}
       {% else %}

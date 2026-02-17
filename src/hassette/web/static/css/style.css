@@ -472,6 +472,21 @@ html.ht-sidebar-closed .ht-sidebar:not(.is-open) {
   padding: 0.25em 0.6em;
 }
 
+.ht-btn--xs {
+  font-size: 0.6875rem;
+  padding: 0.15em 0.45em;
+}
+
+.ht-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.ht-btn--ghost:hover {
+  background: var(--ht-slate-100);
+  border-color: transparent;
+}
+
 .ht-btn--primary {
   background: var(--ht-amber);
   border-color: var(--ht-amber);

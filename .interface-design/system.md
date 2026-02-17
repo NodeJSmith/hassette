@@ -136,7 +136,7 @@ Semantic variants: `--success`, `--danger`, `--warning`, `--info`, `--link`, `--
 
 ```
 padding: 0.3em 0.5em
-border-radius: var(--ht-radius-sm)     /* 3px */
+border-radius: var(--ht-radius-full)   /* pill */
 font-size: var(--ht-text-xs)           /* 12px */
 font-weight: 500
 ```
@@ -189,7 +189,7 @@ Mobile: collapses to 56px icon rail by default, expands to 260px overlay with ba
   height: 8px;
   border-radius: 50%;
   background: var(--ht-amber);
-  animation: ht-breathe 3s ease-in-out infinite;  /* slow inhale/exhale */
+  animation: ht-breathe 2s ease-in-out infinite;  /* slow inhale/exhale */
 }
 .ht-pulse-dot--disconnected {
   background: var(--ht-danger);
