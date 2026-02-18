@@ -7,11 +7,10 @@
 ## Dependencies
 
 - [Prereq 1: Data model](./prereq-01-data-model.md) — table structure and column names
-- [Prereq 5: Schema design](./prereq-05-schema-design.md) — session table and session FK on execution tables
 
 ## Dependents
 
-- [Prereq 5: Schema design](./prereq-05-schema-design.md) — query patterns drive index design
+- [Prereq 5: Schema design](./prereq-05-schema-design.md) — uses these query patterns to drive index and FK design (including session table and session FK on execution tables)
 
 ## Problem
 
