@@ -16,7 +16,7 @@ design/
 
 ### `adrs/`
 
-Architecture Decision Records — one file per significant decision. Created when a technical direction is chosen (not when it's still being explored). Numbered sequentially: `001-short-name.md`, `002-short-name.md`.
+Architecture Decision Records — one file per significant decision. Created when a technical direction is chosen (not when it's still being explored). Numbered sequentially: `0001-short-name.md`, `0002-short-name.md`.
 
 ADRs record: context, decision, consequences, and alternatives considered. They are append-only — superseded decisions get a `Superseded by: ADR-NNN` status, not deleted.
 
