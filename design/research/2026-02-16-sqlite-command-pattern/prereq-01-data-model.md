@@ -59,9 +59,9 @@ The codebase already uses the `whenever` library extensively (`ZonedDateTime`, `
 - **Python type**: `Instant` from `whenever`
 - **DB storage**: REAL (UTC epoch seconds) — fast comparisons, no ambiguity
 - **Display**: Convert to `ZonedDateTime` in the UI layer (browser `toLocaleString()` or server-side `instant.to_system_tz()`)
-- **Field name**: `execution_start_dtme` (not `started_at` — follows project naming convention)
+- **Field name**: `execution_start_ts` (not `started_at` — follows project naming convention)
 
-No need to store `execution_end_dtme` — `duration_ms` is sufficient and avoids redundant computation.
+No need to store `execution_end_ts` — `duration_ms` is sufficient and avoids redundant computation.
 
 ### Identity: Structured fields, not opaque `owner` string
 
@@ -233,7 +233,7 @@ class HandlerInvocationRecord:
     listener_id: int          # FK to listeners table
 
     # Execution
-    execution_start_dtme: Instant
+    execution_start_ts: Instant
     duration_ms: float
     status: str               # "success", "error", "cancelled"
 
@@ -253,7 +253,7 @@ class JobExecutionRecord:
     job_id: int               # FK to scheduled_jobs table
 
     # Execution
-    execution_start_dtme: Instant
+    execution_start_ts: Instant
     duration_ms: float
     status: str               # "success", "error", "cancelled"
 
@@ -264,7 +264,7 @@ class JobExecutionRecord:
 ```
 
 Changes from current `JobExecutionRecord`:
-- `started_at: float` → `execution_start_dtme: Instant`
+- `started_at: float` → `execution_start_ts: Instant`
 - `owner: str` → removed (identity lives on parent `scheduled_jobs` table)
 - `job_id: int` (process-local) → FK to `scheduled_jobs` parent table
 - `job_name: str` → removed (lives on parent table)

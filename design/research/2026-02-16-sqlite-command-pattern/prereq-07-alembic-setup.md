@@ -139,7 +139,7 @@ def upgrade():
             id                    INTEGER PRIMARY KEY AUTOINCREMENT,
             listener_id           INTEGER NOT NULL REFERENCES listeners(id),
             session_id            INTEGER NOT NULL REFERENCES sessions(id),
-            execution_start_dtme  REAL    NOT NULL,
+            execution_start_ts  REAL    NOT NULL,
             duration_ms           REAL    NOT NULL,
             status                TEXT    NOT NULL,
             error_type            TEXT,
@@ -153,7 +153,7 @@ def upgrade():
             id                    INTEGER PRIMARY KEY AUTOINCREMENT,
             job_id                INTEGER NOT NULL REFERENCES scheduled_jobs(id),
             session_id            INTEGER NOT NULL REFERENCES sessions(id),
-            execution_start_dtme  REAL    NOT NULL,
+            execution_start_ts  REAL    NOT NULL,
             duration_ms           REAL    NOT NULL,
             status                TEXT    NOT NULL,
             error_type            TEXT,
@@ -163,14 +163,14 @@ def upgrade():
     """)
 
     # Indexes
-    op.execute("CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_dtme DESC)")
-    op.execute("CREATE INDEX idx_hi_status_time ON handler_invocations(status, execution_start_dtme DESC)")
-    op.execute("CREATE INDEX idx_hi_time ON handler_invocations(execution_start_dtme)")
+    op.execute("CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_ts DESC)")
+    op.execute("CREATE INDEX idx_hi_status_time ON handler_invocations(status, execution_start_ts DESC)")
+    op.execute("CREATE INDEX idx_hi_time ON handler_invocations(execution_start_ts)")
     op.execute("CREATE INDEX idx_hi_session ON handler_invocations(session_id)")
 
-    op.execute("CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_dtme DESC)")
-    op.execute("CREATE INDEX idx_je_status_time ON job_executions(status, execution_start_dtme DESC)")
-    op.execute("CREATE INDEX idx_je_time ON job_executions(execution_start_dtme)")
+    op.execute("CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_ts DESC)")
+    op.execute("CREATE INDEX idx_je_status_time ON job_executions(status, execution_start_ts DESC)")
+    op.execute("CREATE INDEX idx_je_time ON job_executions(execution_start_ts)")
     op.execute("CREATE INDEX idx_je_session ON job_executions(session_id)")
 
 

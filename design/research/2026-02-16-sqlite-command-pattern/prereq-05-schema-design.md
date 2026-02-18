@@ -120,7 +120,7 @@ CREATE TABLE handler_invocations (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     listener_id           INTEGER NOT NULL REFERENCES listeners(id),
     session_id            INTEGER NOT NULL REFERENCES sessions(id),
-    execution_start_dtme  REAL    NOT NULL,  -- Instant (UTC epoch seconds)
+    execution_start_ts  REAL    NOT NULL,  -- Instant (UTC epoch seconds)
     duration_ms           REAL    NOT NULL,  -- monotonic-clock duration
     status                TEXT    NOT NULL,  -- "success", "error", "cancelled"
     error_type            TEXT,              -- exception class name (NULL on success)
@@ -138,7 +138,7 @@ CREATE TABLE job_executions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id                INTEGER NOT NULL REFERENCES scheduled_jobs(id),
     session_id            INTEGER NOT NULL REFERENCES sessions(id),
-    execution_start_dtme  REAL    NOT NULL,  -- Instant (UTC epoch seconds)
+    execution_start_ts  REAL    NOT NULL,  -- Instant (UTC epoch seconds)
     duration_ms           REAL    NOT NULL,  -- monotonic-clock duration
     status                TEXT    NOT NULL,  -- "success", "error", "cancelled"
     error_type            TEXT,              -- exception class name (NULL on success)
@@ -221,15 +221,15 @@ Derived from [prereq 4](./prereq-04-frontend-query-requirements.md) query patter
 
 ```sql
 -- handler_invocations
-CREATE INDEX idx_hi_listener_time  ON handler_invocations(listener_id, execution_start_dtme DESC);
-CREATE INDEX idx_hi_status_time    ON handler_invocations(status, execution_start_dtme DESC);
-CREATE INDEX idx_hi_time           ON handler_invocations(execution_start_dtme);
+CREATE INDEX idx_hi_listener_time  ON handler_invocations(listener_id, execution_start_ts DESC);
+CREATE INDEX idx_hi_status_time    ON handler_invocations(status, execution_start_ts DESC);
+CREATE INDEX idx_hi_time           ON handler_invocations(execution_start_ts);
 CREATE INDEX idx_hi_session        ON handler_invocations(session_id);
 
 -- job_executions
-CREATE INDEX idx_je_job_time       ON job_executions(job_id, execution_start_dtme DESC);
-CREATE INDEX idx_je_status_time    ON job_executions(status, execution_start_dtme DESC);
-CREATE INDEX idx_je_time           ON job_executions(execution_start_dtme);
+CREATE INDEX idx_je_job_time       ON job_executions(job_id, execution_start_ts DESC);
+CREATE INDEX idx_je_status_time    ON job_executions(status, execution_start_ts DESC);
+CREATE INDEX idx_je_time           ON job_executions(execution_start_ts);
 CREATE INDEX idx_je_session        ON job_executions(session_id);
 ```
 
@@ -263,8 +263,8 @@ PRAGMA foreign_keys = ON;            -- enforce FK constraints
 Periodic cleanup in the executor's `serve()` loop or a dedicated maintenance task:
 
 ```sql
-DELETE FROM handler_invocations WHERE execution_start_dtme < ?;
-DELETE FROM job_executions WHERE execution_start_dtme < ?;
+DELETE FROM handler_invocations WHERE execution_start_ts < ?;
+DELETE FROM job_executions WHERE execution_start_ts < ?;
 ```
 
 The `?` parameter is computed in Python as `Instant.now() - timedelta(days=retention_days)` converted to epoch seconds.

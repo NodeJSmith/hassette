@@ -55,7 +55,7 @@ SELECT
     AVG(hi.duration_ms) AS avg_duration_ms,
     MIN(hi.duration_ms) AS min_duration_ms,
     MAX(hi.duration_ms) AS max_duration_ms,
-    MAX(hi.execution_start_dtme) AS last_invoked_at,
+    MAX(hi.execution_start_ts) AS last_invoked_at,
     -- Last error details (from most recent error invocation)
     last_err.error_type AS last_error_type,
     last_err.error_message AS last_error_message
@@ -64,7 +64,7 @@ LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
 LEFT JOIN handler_invocations last_err ON last_err.id = (
     SELECT id FROM handler_invocations
     WHERE listener_id = l.id AND status = 'error'
-    ORDER BY execution_start_dtme DESC LIMIT 1
+    ORDER BY execution_start_ts DESC LIMIT 1
 )
 WHERE l.app_key = ? AND l.instance_index = ?
 GROUP BY l.id
@@ -89,7 +89,7 @@ SELECT
     COUNT(je.rowid) AS total_executions,
     SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,
     SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS failed,
-    MAX(je.execution_start_dtme) AS last_executed_at,
+    MAX(je.execution_start_ts) AS last_executed_at,
     AVG(je.duration_ms) AS avg_duration_ms
 FROM scheduled_jobs sj
 LEFT JOIN job_executions je ON je.job_id = sj.id
@@ -131,7 +131,7 @@ Note: `total_listeners` / `total_jobs` counts all registered entries from the pa
 
 ```sql
 SELECT
-    hi.execution_start_dtme,
+    hi.execution_start_ts,
     hi.duration_ms,
     hi.status,
     hi.error_type,
@@ -139,7 +139,7 @@ SELECT
     hi.error_traceback
 FROM handler_invocations hi
 WHERE hi.listener_id = ?
-ORDER BY hi.execution_start_dtme DESC
+ORDER BY hi.execution_start_ts DESC
 LIMIT ?
 ```
 
@@ -149,14 +149,14 @@ LIMIT ?
 
 ```sql
 SELECT
-    je.execution_start_dtme,
+    je.execution_start_ts,
     je.duration_ms,
     je.status,
     je.error_type,
     je.error_message
 FROM job_executions je
 WHERE je.job_id = ?
-ORDER BY je.execution_start_dtme DESC
+ORDER BY je.execution_start_ts DESC
 LIMIT ?
 ```
 
@@ -170,15 +170,15 @@ SELECT
     l.app_key,
     l.handler_method,
     l.topic,
-    hi.execution_start_dtme,
+    hi.execution_start_ts,
     hi.duration_ms,
     hi.error_type,
     hi.error_message
 FROM handler_invocations hi
 JOIN listeners l ON l.id = hi.listener_id
 WHERE hi.status = 'error'
-    AND hi.execution_start_dtme > ?  -- time filter
-ORDER BY hi.execution_start_dtme DESC
+    AND hi.execution_start_ts > ?  -- time filter
+ORDER BY hi.execution_start_ts DESC
 LIMIT ?
 
 -- Job errors (same pattern)
@@ -186,15 +186,15 @@ SELECT
     sj.app_key,
     sj.job_name,
     sj.handler_method,
-    je.execution_start_dtme,
+    je.execution_start_ts,
     je.duration_ms,
     je.error_type,
     je.error_message
 FROM job_executions je
 JOIN scheduled_jobs sj ON sj.id = je.job_id
 WHERE je.status = 'error'
-    AND je.execution_start_dtme > ?
-ORDER BY je.execution_start_dtme DESC
+    AND je.execution_start_ts > ?
+ORDER BY je.execution_start_ts DESC
 LIMIT ?
 ```
 
@@ -207,7 +207,7 @@ SELECT
     l.app_key,
     l.handler_method,
     l.topic,
-    hi.execution_start_dtme,
+    hi.execution_start_ts,
     hi.duration_ms
 FROM handler_invocations hi
 JOIN listeners l ON l.id = hi.listener_id
@@ -278,7 +278,7 @@ SELECT ...
 FROM handler_invocations hi
 JOIN listeners l ON l.id = hi.listener_id
 WHERE hi.status = 'error' AND hi.session_id = ?
-ORDER BY hi.execution_start_dtme DESC
+ORDER BY hi.execution_start_ts DESC
 LIMIT ?
 ```
 
@@ -305,10 +305,10 @@ The scheduler page will continue to read `next_run` and `cancelled` from the in-
 
 ```sql
 DELETE FROM handler_invocations
-WHERE execution_start_dtme < ?
+WHERE execution_start_ts < ?
 
 DELETE FROM job_executions
-WHERE execution_start_dtme < ?
+WHERE execution_start_ts < ?
 ```
 
 ## Index recommendations
@@ -317,15 +317,15 @@ Driven by the query patterns above. All execution table indexes include the FK c
 
 ```sql
 -- handler_invocations
-CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_dtme DESC);
-CREATE INDEX idx_hi_status_time ON handler_invocations(status, execution_start_dtme DESC);
-CREATE INDEX idx_hi_time ON handler_invocations(execution_start_dtme);
+CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_ts DESC);
+CREATE INDEX idx_hi_status_time ON handler_invocations(status, execution_start_ts DESC);
+CREATE INDEX idx_hi_time ON handler_invocations(execution_start_ts);
 CREATE INDEX idx_hi_session ON handler_invocations(session_id);
 
 -- job_executions
-CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_dtme DESC);
-CREATE INDEX idx_je_status_time ON job_executions(status, execution_start_dtme DESC);
-CREATE INDEX idx_je_time ON job_executions(execution_start_dtme);
+CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_ts DESC);
+CREATE INDEX idx_je_status_time ON job_executions(status, execution_start_ts DESC);
+CREATE INDEX idx_je_time ON job_executions(execution_start_ts);
 CREATE INDEX idx_je_session ON job_executions(session_id);
 
 -- listeners (natural key for upsert + app filtering)
