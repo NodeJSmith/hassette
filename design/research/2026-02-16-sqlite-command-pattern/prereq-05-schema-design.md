@@ -6,8 +6,8 @@
 
 ## Dependencies
 
-- [Prereq 1: HandlerInvocationRecord](./prereq-01-handler-invocation-record.md) — record fields define `handler_invocations` columns
-- [Prereq 2: Stable listener identity](./prereq-02-stable-listener-identity.md) — stable key is a column in `handler_invocations`
+- [Prereq 1: Data model](./prereq-01-data-model.md) — record fields define all table structures
+- ~~[Prereq 2: Stable listener identity](./prereq-02-stable-listener-identity.md)~~ — superseded by prereq 1's parent table natural keys
 - [Prereq 3: Exception handling audit](./prereq-03-exception-handling-audit.md) — status values and error field semantics
 - [Prereq 4: Frontend query requirements](./prereq-04-frontend-query-requirements.md) — query patterns drive index design
 - [Prereq 6: Open questions](./prereq-06-open-questions.md) — DB file location, retention policy, aiosqlite decision

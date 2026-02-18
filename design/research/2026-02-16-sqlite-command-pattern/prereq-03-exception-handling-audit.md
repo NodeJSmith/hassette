@@ -10,7 +10,7 @@
 
 ## Dependents
 
-- [Prereq 1: HandlerInvocationRecord](./prereq-01-handler-invocation-record.md) — status values depend on error classification decisions
+- [Prereq 1: Data model](./prereq-01-data-model.md) — status values depend on error classification decisions
 - [Prereq 5: Schema design](./prereq-05-schema-design.md) — status column values and error fields informed by this audit
 
 ## Problem

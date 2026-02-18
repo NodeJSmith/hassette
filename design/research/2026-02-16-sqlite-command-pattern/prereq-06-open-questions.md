@@ -114,7 +114,7 @@ No action needed — the two coexist under `data_dir` in separate files.
 
 **Question**: Should DI failures be a distinct `status` value (`"di_failure"`) or just `status="error"` with `error_type="DependencyError"`?
 
-**Recommendation**: `status="error"` with `error_type="DependencyError"`. See [prereq 1](./prereq-01-handler-invocation-record.md) for full rationale. Keeps the status enum simple and shared between handler invocations and job executions.
+**Recommendation**: `status="error"` with `error_type="DependencyError"`. See [prereq 1](./prereq-01-data-model.md) for full rationale. Keeps the status enum simple and shared between handler invocations and job executions.
 
 Queryable via: `WHERE status = 'error' AND error_type = 'DependencyError'`
 
