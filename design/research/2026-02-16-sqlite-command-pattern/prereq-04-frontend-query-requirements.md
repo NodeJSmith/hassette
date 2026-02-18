@@ -1,12 +1,13 @@
-# Prereq 4: Frontend Query Requirements Audit
+# Prereq 4: Frontend Query Requirements
 
-**Status**: Not started
+**Status**: Decisions made, ready for implementation
 
 **Parent**: [SQLite + Command Executor research](./research.md)
 
 ## Dependencies
 
-- **None** — can start immediately (analysis of existing code)
+- [Prereq 1: Data model](./prereq-01-data-model.md) — table structure and column names
+- [Prereq 5: Schema design](./prereq-05-schema-design.md) — session table and session FK on execution tables
 
 ## Dependents
 
@@ -14,135 +15,338 @@
 
 ## Problem
 
-Schema indexes should be driven by the actual queries `DataSyncService` will run, not guessed. This prereq maps every current read path to a future DB query pattern and identifies new queries the DB enables.
+Schema indexes should be driven by the queries the UI actually needs, not guessed. This prereq defines what the UI should be able to show, translates that into query patterns against the [prereq 1 data model](./prereq-01-data-model.md), and identifies indexes.
 
-## Current read paths in `DataSyncService`
+The current `DataSyncService` was a proof of concept — we're designing from "what should the UI show" forward, not mapping existing methods 1:1.
 
-From `core/data_sync_service.py`:
+## Decisions
 
-### Bus / Listener data
+### Single source of truth: DB only, no parallel in-memory aggregates
 
-| Method                                              | Current source                                                                             | Called by                  |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------- |
-| `get_listener_metrics(owner)`                       | `bus_service.get_all_listener_metrics()` → `dict[int, ListenerMetrics]`, filtered by owner | Dashboard listener list    |
-| `get_listener_metrics_for_instance(app_key, index)` | Same, filtered by resolved owner                                                           | Per-instance listener view |
-| `get_bus_metrics_summary()`                         | Sum over all `ListenerMetrics` values                                                      | Dashboard summary cards    |
+**Decision**: All telemetry reads come from the database. No parallel in-memory `ListenerMetrics` path.
 
-### Scheduler / Job data
+Dual data paths inevitably drift. One source of truth, one code path, one place to debug. If aggregate queries are slow, we add indexes or materialized views — not a second data path.
 
-| Method                                    | Current source                                                                                                | Called by                     |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `get_job_execution_history(limit, owner)` | `scheduler_service.get_execution_history()` → `deque[JobExecutionRecord]`, filtered by owner, sliced by limit | Dashboard job history table   |
-| `get_scheduled_jobs(owner)`               | `scheduler_service.get_all_jobs()` → heap queue                                                               | Dashboard scheduled jobs list |
-| `get_scheduler_summary()`                 | Count over all jobs                                                                                           | Dashboard summary cards       |
+`ListenerMetrics` in its current form is retired. Aggregate values are computed via SQL `GROUP BY` against `handler_invocations` joined to `listeners`.
 
-### Other (not migrating to DB)
+## What the UI should show
 
-| Method                                                                   | Source                         | Notes                                |
-| ------------------------------------------------------------------------ | ------------------------------ | ------------------------------------ |
-| `get_entity_state()` / `get_all_entity_states()` / `get_domain_states()` | `StateProxy`                   | Stays in-memory (mirrors HA)         |
-| `get_app_status_snapshot()` / `get_all_manifests_snapshot()`             | `AppHandler`                   | Runtime state, not telemetry         |
-| `get_recent_events(limit)`                                               | `_event_buffer: deque[dict]`   | Could move to DB later, not in scope |
-| `get_recent_logs(limit, app_key, level)`                                 | `LogCaptureHandler._buffer`    | Could move to DB later, not in scope |
-| `get_system_status()`                                                    | Computed from multiple sources | Runtime state, not telemetry         |
+### Per-app listener summary
 
-## Future DB query patterns
+"For this app instance, show me all its listeners and how they're doing."
 
-### Replacing `get_listener_metrics(owner)` — aggregate view
-
-This is the most complex migration. Currently returns `ListenerMetrics` objects with aggregate fields. Two strategies:
-
-**Strategy A: Compute from per-invocation records**
 ```sql
 SELECT
-    stable_key,
-    owner,
-    handler_name,
-    topic,
-    COUNT(*) as total_invocations,
-    SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful,
-    SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as failed,
-    SUM(CASE WHEN status = 'error' AND error_type = 'DependencyError' THEN 1 ELSE 0 END) as di_failures,
-    SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
-    AVG(duration_ms) as avg_duration_ms,
-    MIN(duration_ms) as min_duration_ms,
-    MAX(duration_ms) as max_duration_ms,
-    MAX(started_at) as last_invoked_at
-FROM handler_invocations
-WHERE owner = ?
-GROUP BY stable_key
+    l.id,
+    l.handler_method,
+    l.topic,
+    l.debounce,
+    l.throttle,
+    l.once,
+    l.priority,
+    l.predicate_description,
+    l.source_location,
+    l.registration_source,
+    COUNT(hi.rowid) AS total_invocations,
+    SUM(CASE WHEN hi.status = 'success' THEN 1 ELSE 0 END) AS successful,
+    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS failed,
+    SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError' THEN 1 ELSE 0 END) AS di_failures,
+    SUM(CASE WHEN hi.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+    SUM(hi.duration_ms) AS total_duration_ms,
+    AVG(hi.duration_ms) AS avg_duration_ms,
+    MIN(hi.duration_ms) AS min_duration_ms,
+    MAX(hi.duration_ms) AS max_duration_ms,
+    MAX(hi.execution_start_dtme) AS last_invoked_at,
+    -- Last error details (from most recent error invocation)
+    last_err.error_type AS last_error_type,
+    last_err.error_message AS last_error_message
+FROM listeners l
+LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
+LEFT JOIN handler_invocations last_err ON last_err.id = (
+    SELECT id FROM handler_invocations
+    WHERE listener_id = l.id AND status = 'error'
+    ORDER BY execution_start_dtme DESC LIMIT 1
+)
+WHERE l.app_key = ? AND l.instance_index = ?
+GROUP BY l.id
 ```
 
-Pros: Single source of truth, no dual maintenance. Cons: Potentially slow on large tables (mitigated by indexes + retention policy).
+### Per-app job summary
 
-**Strategy B: Keep `ListenerMetrics` in parallel, use DB for drill-down only**
-
-Pros: Fast aggregate reads (in-memory). Cons: Dual data paths, aggregates can drift from DB if there's a bug.
-
-**Recommendation**: Start with Strategy B (parallel), migrate to Strategy A once we can benchmark aggregate query performance with realistic data volumes. The parallel approach lets the dashboard stay fast while we build confidence in DB performance.
-
-### Replacing `get_job_execution_history(limit, owner)`
+"For this app instance, show me all its scheduled jobs and their recent results."
 
 ```sql
-SELECT job_id, job_name, owner, started_at, duration_ms, status,
-       error_type, error_message, error_traceback
-FROM job_executions
-WHERE owner = ?  -- optional filter
-ORDER BY started_at DESC
+SELECT
+    sj.id,
+    sj.job_name,
+    sj.handler_method,
+    sj.trigger_type,
+    sj.trigger_value,
+    sj.repeat,
+    sj.args_json,
+    sj.kwargs_json,
+    sj.source_location,
+    sj.registration_source,
+    COUNT(je.rowid) AS total_executions,
+    SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,
+    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS failed,
+    MAX(je.execution_start_dtme) AS last_executed_at,
+    AVG(je.duration_ms) AS avg_duration_ms
+FROM scheduled_jobs sj
+LEFT JOIN job_executions je ON je.job_id = sj.id
+WHERE sj.app_key = ? AND sj.instance_index = ?
+GROUP BY sj.id
+```
+
+### Global summary cards (dashboard)
+
+"High-level numbers across all listeners and jobs."
+
+```sql
+-- Listener summary
+SELECT
+    (SELECT COUNT(*) FROM listeners) AS total_listeners,
+    COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
+    COUNT(hi.rowid) AS total_invocations,
+    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+    SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError' THEN 1 ELSE 0 END) AS total_di_failures,
+    AVG(hi.duration_ms) AS avg_duration_ms
+FROM handler_invocations hi
+
+-- Job summary
+SELECT
+    (SELECT COUNT(*) FROM scheduled_jobs) AS total_jobs,
+    COUNT(DISTINCT je.job_id) AS executed_jobs,
+    COUNT(je.rowid) AS total_executions,
+    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors
+FROM job_executions je
+```
+
+Note: `total_listeners` / `total_jobs` counts all registered entries from the parent tables (including those never invoked). `invoked_listeners` / `executed_jobs` counts only those with at least one execution record.
+
+### Handler invocation history (drill-down) — NEW
+
+**Currently missing from the UI.** The bus page shows aggregate counts per listener but there is no way to click into a listener and see individual invocations. The scheduler page has this for jobs (execution history table) but listeners have no equivalent. This is a key new capability enabled by per-invocation records in the DB.
+
+"Click a listener → see its last N invocations."
+
+```sql
+SELECT
+    hi.execution_start_dtme,
+    hi.duration_ms,
+    hi.status,
+    hi.error_type,
+    hi.error_message,
+    hi.error_traceback
+FROM handler_invocations hi
+WHERE hi.listener_id = ?
+ORDER BY hi.execution_start_dtme DESC
 LIMIT ?
 ```
 
-Straightforward — `JobExecutionRecord` already has all needed fields.
+### Job execution history (drill-down)
 
-### Replacing `get_bus_metrics_summary()`
+"Click a job → see its last N executions."
 
 ```sql
 SELECT
-    COUNT(*) as total,
-    SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful,
-    SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as failed,
-    AVG(duration_ms) as avg_duration_ms
-FROM handler_invocations
+    je.execution_start_dtme,
+    je.duration_ms,
+    je.status,
+    je.error_type,
+    je.error_message
+FROM job_executions je
+WHERE je.job_id = ?
+ORDER BY je.execution_start_dtme DESC
+LIMIT ?
 ```
 
-Or, with Strategy B, just sum the in-memory `ListenerMetrics` as today.
+### Error drill-down
 
-### New queries the DB enables
+"Show me all recent errors across all handlers and jobs."
 
-These don't exist today but are natural once per-invocation data is persisted:
+```sql
+-- Handler errors
+SELECT
+    l.app_key,
+    l.handler_method,
+    l.topic,
+    hi.execution_start_dtme,
+    hi.duration_ms,
+    hi.error_type,
+    hi.error_message
+FROM handler_invocations hi
+JOIN listeners l ON l.id = hi.listener_id
+WHERE hi.status = 'error'
+    AND hi.execution_start_dtme > ?  -- time filter
+ORDER BY hi.execution_start_dtme DESC
+LIMIT ?
 
-| Query                      | Use case                                             | SQL pattern                                                                   |
-| -------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Handler invocation history | Click a handler → see last N invocations             | `WHERE stable_key = ? ORDER BY started_at DESC LIMIT ?`                       |
-| Error drill-down           | Dashboard error tab, filter by time/type             | `WHERE status = 'error' AND started_at > ? ORDER BY started_at DESC`          |
-| Duration trends            | Performance sparkline per handler                    | `WHERE stable_key = ? ORDER BY started_at DESC LIMIT 100` (compute in Python) |
-| Cross-restart history      | "This handler has failed 47 times across 3 sessions" | `WHERE stable_key = ? GROUP BY ...` (joins sessions table)                    |
-| Slow handler detection     | Highlight handlers > p95 duration                    | `WHERE duration_ms > ? ORDER BY duration_ms DESC LIMIT ?`                     |
+-- Job errors (same pattern)
+SELECT
+    sj.app_key,
+    sj.job_name,
+    sj.handler_method,
+    je.execution_start_dtme,
+    je.duration_ms,
+    je.error_type,
+    je.error_message
+FROM job_executions je
+JOIN scheduled_jobs sj ON sj.id = je.job_id
+WHERE je.status = 'error'
+    AND je.execution_start_dtme > ?
+ORDER BY je.execution_start_dtme DESC
+LIMIT ?
+```
+
+### Slow handler/job detection
+
+"Highlight anything running slower than expected."
+
+```sql
+SELECT
+    l.app_key,
+    l.handler_method,
+    l.topic,
+    hi.execution_start_dtme,
+    hi.duration_ms
+FROM handler_invocations hi
+JOIN listeners l ON l.id = hi.listener_id
+WHERE hi.duration_ms > ?  -- threshold
+ORDER BY hi.duration_ms DESC
+LIMIT ?
+```
+
+### Session list
+
+"Show me all sessions — when they started, how long they ran, how they ended."
+
+```sql
+SELECT
+    s.id,
+    s.started_at,
+    s.stopped_at,
+    s.status,
+    s.error_type,
+    s.error_message,
+    (COALESCE(s.stopped_at, s.last_heartbeat_at) - s.started_at) AS duration_seconds
+FROM sessions s
+ORDER BY s.started_at DESC
+LIMIT ?
+```
+
+### Current session summary
+
+"This session has been running for X hours with Y invocations and Z errors."
+
+```sql
+SELECT
+    s.started_at,
+    s.last_heartbeat_at,
+    (SELECT COUNT(*) FROM handler_invocations WHERE session_id = s.id) AS total_invocations,
+    (SELECT COUNT(*) FROM handler_invocations WHERE session_id = s.id AND status = 'error') AS invocation_errors,
+    (SELECT COUNT(*) FROM job_executions WHERE session_id = s.id) AS total_executions,
+    (SELECT COUNT(*) FROM job_executions WHERE session_id = s.id AND status = 'error') AS execution_errors
+FROM sessions s
+WHERE s.status = 'running'
+```
+
+### Session scoping
+
+Most queries above support an optional `AND session_id = ?` filter to scope to the current session or a specific historical session. This enables a "current session" vs "all time" toggle in the UI.
+
+Examples of session-scoped variants:
+
+```sql
+-- Per-app listener summary, current session only
+SELECT ...
+FROM listeners l
+LEFT JOIN handler_invocations hi ON hi.listener_id = l.id AND hi.session_id = ?
+WHERE l.app_key = ? AND l.instance_index = ?
+GROUP BY l.id
+
+-- Global summary cards, current session only
+SELECT
+    COUNT(DISTINCT hi.listener_id) AS active_listeners,
+    COUNT(hi.rowid) AS total_invocations,
+    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+    AVG(hi.duration_ms) AS avg_duration_ms
+FROM handler_invocations hi
+WHERE hi.session_id = ?
+
+-- Error drill-down, current session only
+SELECT ...
+FROM handler_invocations hi
+JOIN listeners l ON l.id = hi.listener_id
+WHERE hi.status = 'error' AND hi.session_id = ?
+ORDER BY hi.execution_start_dtme DESC
+LIMIT ?
+```
+
+The session filter goes on the JOIN condition (for LEFT JOINs with GROUP BY) or in the WHERE clause (for direct queries). This keeps the "all time" query as the default and session scoping as an additive filter.
+
+## Data that stays in-memory (not in DB)
+
+Some data the UI currently shows is runtime state that doesn't belong in the telemetry DB:
+
+| Data                          | Current source                     | Why it stays in-memory                                                              |
+| ----------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------- |
+| Scheduled job `next_run`      | Scheduler heap queue               | Computed from trigger config + current time. Changes every execution.               |
+| Scheduled job `cancelled` flag | `ScheduledJob.cancelled`          | Runtime lifecycle state — a cancelled job is removed, not persisted.                |
+| App status (running/stopped)  | `AppHandler` / manifests           | Runtime lifecycle, not telemetry. Changes on start/stop/reload.                     |
+| Entity states                 | `StateProxy` (mirrors HA)          | Real-time HA state, not hassette telemetry.                                         |
+| Recent events buffer          | `DataSyncService._event_buffer`    | Rolling 50-event buffer for dashboard timeline. Could move to DB later, not now.    |
+| Recent logs                   | `LogCaptureHandler._buffer`        | In-memory log ring buffer. Could move to DB later, not now.                         |
+
+The scheduler page will continue to read `next_run` and `cancelled` from the in-memory scheduler, alongside DB-sourced execution history and registration metadata. These are complementary data sources, not competing ones — runtime state from memory, historical telemetry from DB.
+
+### Retention cleanup
+
+"Delete records older than N days."
+
+```sql
+DELETE FROM handler_invocations
+WHERE execution_start_dtme < ?
+
+DELETE FROM job_executions
+WHERE execution_start_dtme < ?
+```
 
 ## Index recommendations
 
-Based on the query patterns above:
+Driven by the query patterns above. All execution table indexes include the FK column for JOIN performance.
 
 ```sql
--- Primary access pattern: filter by owner, group by stable_key
-CREATE INDEX idx_handler_inv_owner ON handler_invocations(owner);
+-- handler_invocations
+CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_dtme DESC);
+CREATE INDEX idx_hi_status_time ON handler_invocations(status, execution_start_dtme DESC);
+CREATE INDEX idx_hi_time ON handler_invocations(execution_start_dtme);
+CREATE INDEX idx_hi_session ON handler_invocations(session_id);
 
--- Drill-down: specific handler history
-CREATE INDEX idx_handler_inv_key_time ON handler_invocations(stable_key, started_at DESC);
+-- job_executions
+CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_dtme DESC);
+CREATE INDEX idx_je_status_time ON job_executions(status, execution_start_dtme DESC);
+CREATE INDEX idx_je_time ON job_executions(execution_start_dtme);
+CREATE INDEX idx_je_session ON job_executions(session_id);
 
--- Error filtering
-CREATE INDEX idx_handler_inv_status_time ON handler_invocations(status, started_at DESC);
+-- listeners (natural key for upsert + app filtering)
+CREATE UNIQUE INDEX idx_listeners_natural_key ON listeners(app_key, instance_index, handler_method, topic);
 
--- Retention cleanup
-CREATE INDEX idx_handler_inv_created ON handler_invocations(created_at);
-
--- Job history: filter by owner, order by time
-CREATE INDEX idx_job_exec_owner_time ON job_executions(owner, started_at DESC);
-
--- Job retention cleanup
-CREATE INDEX idx_job_exec_created ON job_executions(created_at);
+-- scheduled_jobs (natural key for upsert + app filtering)
+CREATE UNIQUE INDEX idx_jobs_natural_key ON scheduled_jobs(app_key, instance_index, job_name);
 ```
+
+Notes:
+- `idx_hi_listener_time` / `idx_je_job_time` — covers drill-down queries and the GROUP BY aggregates (SQLite can use the index to skip scanning irrelevant rows)
+- `idx_hi_status_time` / `idx_je_status_time` — covers error drill-down
+- `idx_hi_time` / `idx_je_time` — covers retention cleanup and time-range filters on global queries
+- `idx_hi_session` / `idx_je_session` — covers session scoping and current session summary subqueries
+- Natural key unique indexes on parent tables double as the upsert conflict target and the app-level filter
+
+## UI layout decisions deferred to implementation
+
+This prereq defines *what data* the UI needs but not *where it goes*. Layout decisions for new views (handler invocation drill-down, session list, current/all-time toggle, source code display) will be made during implementation. The existing UI patterns provide clear precedent — the bus page already has expandable detail rows, the scheduler page already has a history table, and the design system is documented in `design/interface-design/`.
 
 ## Deliverable
 
-This file, refined after reviewing actual template code to confirm which methods are called and how results are rendered. The index list feeds directly into [prereq 5](./prereq-05-schema-design.md).
+This file (decisions finalized). Query patterns and index recommendations feed directly into [prereq 5](./prereq-05-schema-design.md). `DataSyncService` decomposition is tracked in [prereq 8](./prereq-08-datasyncservice-decomposition.md).

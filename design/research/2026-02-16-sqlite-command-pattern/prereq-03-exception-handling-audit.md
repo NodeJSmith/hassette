@@ -1,6 +1,6 @@
 # Prereq 3: Exception Handling Audit
 
-**Status**: Not started
+**Status**: Decisions made, ready for implementation
 
 **Parent**: [SQLite + Command Executor research](./research.md)
 
@@ -70,33 +70,35 @@ Success            → status="success"
 | **Timing source**             | Inline `time.monotonic()`        | Delegated to `track_execution()` | Executor owns timing directly                   |
 | **Record creation**           | N/A (only aggregates)            | In `finally` block               | Executor creates record in `finally`            |
 
-## Questions to answer
+## Decisions
 
-### 1. Should the executor preserve the HassetteError vs Exception logging distinction?
+### 1. Preserve the HassetteError vs Exception logging distinction
 
-**Current behavior**: `HassetteError` → `logger.error("...")` (one-line message). General `Exception` → `logger.exception("...")` (message + traceback).
+**Decision**: Yes.
 
-**Recommendation**: Yes, preserve this. It's a good UX — framework errors (rate limit exceeded, invalid config, etc.) produce clean log lines. Unexpected errors get full tracebacks for debugging. The executor can check `isinstance(exc, HassetteError)` to choose the log level.
+`HassetteError` → `logger.error("...")` (one-line message, no traceback). General `Exception` → `logger.exception("...")` (message + traceback). The executor checks `isinstance(exc, HassetteError)` to choose the log method.
 
-### 2. Should the executor use `track_execution()` or own timing directly?
+Framework errors (rate limit exceeded, invalid config, etc.) produce clean log lines. Unexpected errors get full tracebacks for debugging. Good UX worth preserving.
 
-**Current state**: `run_job()` delegates to `track_execution()`, `_dispatch()` does inline timing.
+### 2. Executor owns timing directly, not via `track_execution()`
 
-**Recommendation**: Executor owns timing directly. `track_execution()` re-raises all exceptions, but the executor needs to swallow non-Cancelled exceptions. Fighting the context manager's semantics isn't worth it. The executor's `_execute_handler()` and `_execute_job()` methods each have a `started = time.monotonic()` and compute duration in the `finally` block.
+**Decision**: Executor owns timing directly.
+
+`track_execution()` re-raises all exceptions, but the executor needs to swallow non-Cancelled exceptions. Fighting the context manager's semantics isn't worth it. The executor captures `time.monotonic()` at the start of invocation and computes `duration_ms` in the `finally` block. The wall-clock `Instant` is captured separately by the executor (see [prereq 1](./prereq-01-data-model.md) — "`ExecutionResult` stays monotonic-only" aside).
 
 `track_execution()` remains available for user code and other contexts where re-raise-after-capture is the right behavior.
 
-### 3. Should CancelledError produce a record?
+### 3. CancelledError produces a record, then re-raises
 
-**Current behavior**: `_dispatch()` records cancelled in metrics. `run_job()` records cancelled via `track_execution()`.
+**Decision**: Yes, produce a record with `status="cancelled"`, then re-raise.
 
-**Recommendation**: Yes, produce a record with `status="cancelled"`. Then re-raise. The record is queued via `put_nowait()` before the `raise`, so the write queue still gets it.
+The record is queued via `put_nowait()` before the re-raise, so the write queue still gets it. Swallowing `CancelledError` would break asyncio's cancellation machinery. See [prereq 1](./prereq-01-data-model.md) for full `cancelled` status documentation.
 
-### 4. Should the executor handle `listener.once` removal?
+### 4. Executor does NOT handle `listener.once` removal
 
-**Current behavior**: `_dispatch()` removes one-shot listeners in its `finally` block.
+**Decision**: Keep `listener.once` removal in `_dispatch()`, not the executor.
 
-**Recommendation**: No. `listener.once` is bus routing logic, not an execution concern. Keep it in `_dispatch()`:
+`listener.once` is bus routing logic, not an execution concern:
 
 ```python
 async def _dispatch(self, topic, event, listener):
@@ -105,15 +107,21 @@ async def _dispatch(self, topic, event, listener):
         self.remove_listener(listener)
 ```
 
-This keeps the executor focused on execution + recording, and the bus focused on listener lifecycle.
+The executor is focused on execution + recording. The bus owns listener lifecycle. Similarly, the executor does not own job rescheduling — that stays in `SchedulerService`.
+
+## Executor exception contract (summary)
+
+```
+CancelledError     → record status="cancelled" → RE-RAISE
+DependencyError    → record status="error", error_type="DependencyError" → logger.error() → SWALLOW
+HassetteError      → record status="error" → logger.error() (clean, no traceback) → SWALLOW
+Exception          → record status="error" → logger.exception() (with traceback) → SWALLOW
+```
+
+**What the executor owns**: invocation, timing, record creation, error classification, logging, error hooks (future).
+
+**What the executor does NOT own**: listener lifecycle (`once` removal), job rescheduling, topic routing, DI resolution.
 
 ## Deliverable
 
-A decision doc (this file, updated with final decisions) that defines the executor's exception contract:
-
-- What it catches, what it swallows, what it re-raises
-- How it logs different exception types
-- What status values it produces
-- What it does NOT own (listener lifecycle, job rescheduling)
-
-This directly feeds into the `CommandExecutor` implementation and the test cases needed to verify behavioral equivalence.
+This file (decisions finalized). Feeds directly into the `CommandExecutor` implementation and the test cases needed to verify behavioral equivalence with the current `_dispatch()` and `run_job()` methods.
