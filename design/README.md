@@ -7,6 +7,7 @@ Internal project design artifacts. Not published to readthedocs — that lives i
 ```
 design/
 ├── adrs/                  Architecture Decision Records
+├── audits/                Diagnostic snapshots (health, security, dependencies)
 ├── interface-design/      Design system (tokens, layout, component specs)
 └── research/              Feasibility analysis and implementation planning
 ```
@@ -22,6 +23,19 @@ ADRs record: context, decision, consequences, and alternatives considered. They 
 ### `interface-design/`
 
 Design system specification for the web UI. Tokens (colors, spacing, typography), component patterns, and layout rules. Referenced by frontend code and UI-related issues.
+
+### `audits/`
+
+Point-in-time diagnostic snapshots of the codebase. Organized by date:
+
+```
+audits/
+└── YYYY-MM-DD/
+    ├── research.md           Main audit brief
+    └── ...                   Additional artifacts (data, follow-up analysis)
+```
+
+Audits are backward-looking — they assess the current state of the codebase and produce prioritized work items. They feed into multiple future efforts (refactors, test coverage, ADRs) rather than a single decision.
 
 ### `research/`
 
