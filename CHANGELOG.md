@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Toggle buttons now show fallback text before Alpine.js initializes and expose `aria-expanded` for accessibility (#262)
 
 ### Fixed
+- WebSocket service now fires disconnect event and marks not-ready immediately on unexpected connection loss, preventing stale state in StateProxy (#270)
 - App detail page now uses the actual instance index instead of hardcoded 0, fixing data/URL desync for non-zero instances (#262)
 - Detail panel labels now have proper text contrast on dark `--ht-surface-code` background (#262)
 - Collapsible panels and tracebacks no longer flash visible before Alpine.js initializes (#262)

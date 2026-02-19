@@ -144,7 +144,14 @@ class WebsocketService(Service):
                 self.logger.info("Websocket connected to %s", self.url)
 
                 # Keep running until recv loop ends (disconnect, error, etc.)
-                await self._recv_task
+                try:
+                    await self._recv_task
+                except Exception:
+                    self.logger.warning("WebSocket recv loop failed, notifying downstream consumers")
+                    self.mark_not_ready(reason="WebSocket recv loop failed")
+                    with suppress(BaseException):
+                        await self._send_connection_lost_event()
+                    raise
 
     async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
         # inner function so we can use `self` in the retry decorator
