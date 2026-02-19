@@ -294,9 +294,13 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
     websocket_service.hassette.send_event = send_event_mock
 
     with (
-        patch.object(websocket_service, "_make_connection", return_value=_make_failing_recv_task(
-            RetryableConnectionClosedError("peer gone"),
-        )),
+        patch.object(
+            websocket_service,
+            "_make_connection",
+            return_value=_make_failing_recv_task(
+                RetryableConnectionClosedError("peer gone"),
+            ),
+        ),
         pytest.raises(RetryableConnectionClosedError),
     ):
         await websocket_service.serve()
@@ -311,9 +315,13 @@ async def test_marked_not_ready_on_recv_loop_failure(websocket_service: Websocke
     websocket_service.hassette.send_event = AsyncMock()
 
     with (
-        patch.object(websocket_service, "_make_connection", return_value=_make_failing_recv_task(
-            RetryableConnectionClosedError("peer gone"),
-        )),
+        patch.object(
+            websocket_service,
+            "_make_connection",
+            return_value=_make_failing_recv_task(
+                RetryableConnectionClosedError("peer gone"),
+            ),
+        ),
         pytest.raises(RetryableConnectionClosedError),
     ):
         await websocket_service.serve()
@@ -326,9 +334,13 @@ async def test_disconnect_event_failure_does_not_mask_original_error(websocket_s
     websocket_service.hassette.send_event = AsyncMock(side_effect=RuntimeError("bus is down"))
 
     with (
-        patch.object(websocket_service, "_make_connection", return_value=_make_failing_recv_task(
-            RetryableConnectionClosedError("peer gone"),
-        )),
+        patch.object(
+            websocket_service,
+            "_make_connection",
+            return_value=_make_failing_recv_task(
+                RetryableConnectionClosedError("peer gone"),
+            ),
+        ),
         pytest.raises(RetryableConnectionClosedError),
     ):
         await websocket_service.serve()
