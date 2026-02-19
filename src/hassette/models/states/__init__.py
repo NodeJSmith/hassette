@@ -5,10 +5,19 @@ from .automation import AutomationState
 from .base import BaseState
 from .calendar import CalendarState
 from .camera import CameraState
-from .climate import ClimateState
+from .climate import ClimateAttributes, ClimateState
+from .cover import CoverAttributes, CoverState
 from .device_tracker import DeviceTrackerState
 from .event import EventState
-from .fan import FanState
+from .fan import FanAttributes, FanState
+from .features import (
+    ClimateEntityFeature,
+    CoverEntityFeature,
+    FanEntityFeature,
+    LightEntityFeature,
+    MediaPlayerEntityFeature,
+    VacuumEntityFeature,
+)
 from .humidifier import HumidifierState
 from .image_processing import ImageProcessingState
 from .input import (
@@ -19,8 +28,8 @@ from .input import (
     InputSelectState,
     InputTextState,
 )
-from .light import LightState
-from .media_player import MediaPlayerState
+from .light import LightAttributes, LightState
+from .media_player import MediaPlayerAttributes, MediaPlayerState
 from .number import NumberState
 from .person import PersonState
 from .remote import RemoteState
@@ -33,7 +42,6 @@ from .simple import (
     BinarySensorState,
     ButtonState,
     ConversationState,
-    CoverState,
     DateState,
     DateTimeState,
     LockState,
@@ -50,7 +58,7 @@ from .sun import SunState
 from .text import TextState
 from .timer import TimerState
 from .update import UpdateState
-from .vacuum import VacuumState
+from .vacuum import VacuumAttributes, VacuumState
 from .water_heater import WaterHeaterState
 from .weather import WeatherState
 from .zone import ZoneState
@@ -66,13 +74,19 @@ __all__ = [
     "ButtonState",
     "CalendarState",
     "CameraState",
+    "ClimateAttributes",
+    "ClimateEntityFeature",
     "ClimateState",
     "ConversationState",
+    "CoverAttributes",
+    "CoverEntityFeature",
     "CoverState",
     "DateState",
     "DateTimeState",
     "DeviceTrackerState",
     "EventState",
+    "FanAttributes",
+    "FanEntityFeature",
     "FanState",
     "HumidifierState",
     "ImageProcessingState",
@@ -82,8 +96,12 @@ __all__ = [
     "InputNumberState",
     "InputSelectState",
     "InputTextState",
+    "LightAttributes",
+    "LightEntityFeature",
     "LightState",
     "LockState",
+    "MediaPlayerAttributes",
+    "MediaPlayerEntityFeature",
     "MediaPlayerState",
     "NotifyState",
     "NumberState",
@@ -104,6 +122,8 @@ __all__ = [
     "TodoState",
     "TtsState",
     "UpdateState",
+    "VacuumAttributes",
+    "VacuumEntityFeature",
     "VacuumState",
     "ValveState",
     "WaterHeaterState",

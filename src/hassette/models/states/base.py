@@ -59,6 +59,12 @@ class AttributesBase(BaseModel):
         """Get a single integration-specific attribute with a default."""
         return self.extras.get(key, default)
 
+    def _has_feature(self, flag: int) -> bool:
+        """Check whether *flag* is set in :pyattr:`supported_features`."""
+        if self.supported_features is None:
+            return False
+        return bool(int(self.supported_features) & flag)
+
 
 class BaseState(BaseModel, Generic[StateValueT]):
     """Represents a Home Assistant state object."""
