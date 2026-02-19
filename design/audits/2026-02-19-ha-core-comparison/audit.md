@@ -52,26 +52,15 @@ Hassette only models 3 integration-specific fields (`assumed_state`, `adb_respon
 
 ---
 
-### 2. CoverState has no attributes
+### ~~2. CoverState has no attributes~~ (Resolved)
 
-**File:** `src/hassette/models/states/simple.py:33`
-
-Defined as a bare `StringBaseState` with no `CoverAttributes` class.
-
-**Missing state_attributes:**
-
-| Attribute | HA constant | Type |
-|-----------|------------|------|
-| `current_cover_position` | `ATTR_CURRENT_POSITION` | `int \| None` |
-| `current_cover_tilt_position` | `ATTR_CURRENT_TILT_POSITION` | `int \| None` |
-
-**Fix:** Create `cover.py` with `CoverAttributes` and `CoverState`, remove `CoverState` from `simple.py`.
+CoverState now has a dedicated `src/hassette/models/states/cover.py` with `CoverAttributes` including `current_position`, `current_tilt_position`, and feature support helpers. No action needed.
 
 ---
 
 ### 3. LockState has no attributes
 
-**File:** `src/hassette/models/states/simple.py:60`
+**File:** `src/hassette/models/states/simple.py:51`
 
 Defined as a bare `StringBaseState` with no `LockAttributes` class.
 
@@ -254,7 +243,7 @@ These Hassette state models match HA core well:
 - **TimerState** — Complete
 - **UpdateState** — Complete
 - **VacuumState** — Complete
-- **ValveState** — Bare (same as Cover pattern — may need attributes)
+- **ValveState** — Bare `StringBaseState` with no attributes — may need `current_position` similar to CoverState
 - **WaterHeaterState** — Complete
 - **ZoneState** — Complete
 
