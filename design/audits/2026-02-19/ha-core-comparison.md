@@ -149,7 +149,7 @@ Defined as a bare `StringBaseState` with no `LockAttributes` class.
 |-----------|------|-------|
 | `direction` | `str \| None` | `current_direction` in HA core |
 
-**Integration-specific fields that don't belong in core model:**
+**Integration-specific fields that don't belong in the core model:**
 
 These should be removed — they're specific to certain fan integrations and will correctly land in `extras` via `extra="allow"`:
 
