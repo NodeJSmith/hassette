@@ -8,7 +8,7 @@ from pydantic import AliasChoices, BeforeValidator, Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
-from hassette.config.classes import AppManifest, HassetteTomlConfigSettingsSource
+from hassette.config.classes import AppManifest, ExcludeExtrasMixin, HassetteTomlConfigSettingsSource
 from hassette.config.defaults import (
     AUTODETECT_EXCLUDE_DIRS_DEFAULT,
     ENV_FILE_LOCATIONS,
@@ -33,7 +33,7 @@ LOGGER = logging.getLogger(LOGGER_NAME)
 LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 
 
-class HassetteConfig(BaseSettings):
+class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Configuration for Hassette."""
 
     model_config = SettingsConfigDict(
