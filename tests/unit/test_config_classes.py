@@ -89,11 +89,47 @@ class TestAppManifestModelDump:
         assert manifest.model_extra is not None
         assert manifest.model_extra["secret_token"] == "super-secret"
 
+    def test_include_none_still_excludes_extras(self) -> None:
+        """include=None (default) must not bypass extra field exclusion."""
+        manifest = _make_manifest(secret_token="super-secret")
+        result = manifest.model_dump(include=None)
+
+        assert "secret_token" not in result
+        assert "app_key" in result
+
+    def test_include_none_still_excludes_extras_json(self) -> None:
+        """include=None (default) must not bypass extra field exclusion in JSON."""
+        manifest = _make_manifest(secret_token="super-secret")
+        result = json.loads(manifest.model_dump_json(include=None))
+
+        assert "secret_token" not in result
+        assert "app_key" in result
+
+    def test_dict_shaped_exclude_with_extras(self) -> None:
+        """Dict-shaped exclude (for nested field exclusion) must not TypeError."""
+        manifest = _make_manifest(secret_token="super-secret")
+        result = manifest.model_dump(exclude={"app_config": True})
+
+        assert "app_config" not in result
+        assert "secret_token" not in result
+        assert "app_key" in result
+
+    def test_dict_shaped_exclude_with_extras_json(self) -> None:
+        """Dict-shaped exclude works for model_dump_json too."""
+        manifest = _make_manifest(secret_token="super-secret")
+        result = json.loads(manifest.model_dump_json(exclude={"app_config": True}))
+
+        assert "app_config" not in result
+        assert "secret_token" not in result
+        assert "app_key" in result
+
 
 class TestHassetteConfigModelDump:
     """model_dump on HassetteConfig excludes extra fields."""
 
     def test_extra_fields_excluded(self, test_config) -> None:
+        if test_config.__pydantic_extra__ is None:
+            test_config.__pydantic_extra__ = {}
         test_config.__pydantic_extra__["some_random_env"] = "leaked_value"
 
         try:
@@ -110,6 +146,8 @@ class TestHassetteConfigModelDump:
         assert "log_level" in result
 
     def test_model_dump_json_excludes_extras(self, test_config) -> None:
+        if test_config.__pydantic_extra__ is None:
+            test_config.__pydantic_extra__ = {}
         test_config.__pydantic_extra__["secret_sauce"] = "hidden"
 
         try:

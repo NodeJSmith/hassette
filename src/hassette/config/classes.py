@@ -62,18 +62,37 @@ class ExcludeExtrasMixin:
         extras = getattr(self, "model_extra", None)
         return set(extras) if extras else set()
 
-    def model_dump(self, *, exclude: set[str] | None = None, **kwargs: Any) -> dict[str, Any]:
+    @staticmethod
+    def _merge_exclude(exclude: Any | None, extra_keys: set[str]) -> Any:
+        """Merge extra keys into an existing ``exclude`` value.
+
+        Handles the three shapes Pydantic accepts for *exclude*:
+        - ``None``  → return a new ``set`` of extra keys
+        - ``dict``  → copy and mark each extra key as ``True`` (fully excluded)
+        - ``set`` (or other iterable) → union with extra keys
+        """
+        if exclude is None:
+            return set(extra_keys)
+        if isinstance(exclude, dict):
+            return {**exclude, **{k: True for k in extra_keys}}
+        return set(exclude) | extra_keys
+
+    def model_dump(self, *, exclude: Any | None = None, **kwargs: Any) -> dict[str, Any]:
         """Serialize declared fields only; extra fields are excluded for privacy."""
         extra_keys = self._get_extra_keys()
-        if extra_keys and "include" not in kwargs:
-            exclude = (exclude or set()) | extra_keys
+        if extra_keys and kwargs.get("include") is not None:
+            pass  # caller explicitly requested specific fields — respect that
+        elif extra_keys:
+            exclude = self._merge_exclude(exclude, extra_keys)
         return super().model_dump(exclude=exclude, **kwargs)  # type: ignore[misc]
 
-    def model_dump_json(self, *, exclude: set[str] | None = None, **kwargs: Any) -> str:
+    def model_dump_json(self, *, exclude: Any | None = None, **kwargs: Any) -> str:
         """Serialize declared fields only; extra fields are excluded for privacy."""
         extra_keys = self._get_extra_keys()
-        if extra_keys and "include" not in kwargs:
-            exclude = (exclude or set()) | extra_keys
+        if extra_keys and kwargs.get("include") is not None:
+            pass  # caller explicitly requested specific fields — respect that
+        elif extra_keys:
+            exclude = self._merge_exclude(exclude, extra_keys)
         return super().model_dump_json(exclude=exclude, **kwargs)  # type: ignore[misc]
 
 
