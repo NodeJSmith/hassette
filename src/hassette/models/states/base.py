@@ -50,6 +50,15 @@ class AttributesBase(BaseModel):
     supported_features: int | float | None = Field(default=None)
     """Bitfield of supported features."""
 
+    @property
+    def extras(self) -> dict[str, Any]:
+        """Integration-specific attributes not covered by the typed model."""
+        return self.model_extra or {}
+
+    def extra(self, key: str, default: Any = None) -> Any:
+        """Get a single integration-specific attribute with a default."""
+        return self.extras.get(key, default)
+
 
 class BaseState(BaseModel, Generic[StateValueT]):
     """Represents a Home Assistant state object."""
@@ -110,6 +119,15 @@ class BaseState(BaseModel, Generic[StateValueT]):
             return False
 
         return len(self.attributes.entity_id) > 1  # type: ignore
+
+    @property
+    def extras(self) -> dict[str, Any]:
+        """Extra fields not covered by the typed state model."""
+        return self.model_extra or {}
+
+    def extra(self, key: str, default: Any = None) -> Any:
+        """Get a single extra field with a default."""
+        return self.extras.get(key, default)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
