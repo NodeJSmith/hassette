@@ -26,13 +26,13 @@ The architectural goal is equally important: `BusService._dispatch()` and `Sched
 
 **Data stores (all in-memory, all lost on restart):**
 
-| Store | Location | Type | Capacity |
-|-------|----------|------|----------|
-| Listener metrics | `BusService._listener_metrics` | `dict[int, ListenerMetrics]` | Unbounded (per listener) |
-| Job execution log | `SchedulerService._execution_log` | `deque[JobExecutionRecord]` | Bounded ring buffer |
-| Event buffer | `DataSyncService._event_buffer` | `deque[dict]` | Bounded ring buffer |
-| Log buffer | `LogCaptureHandler._buffer` | `deque[LogEntry]` | Bounded (default 2000) |
-| Entity state | `StateProxy.states` | `dict[str, HassStateDict]` | Unbounded (mirrors HA) |
+| Store             | Location                          | Type                         | Capacity                 |
+| ----------------- | --------------------------------- | ---------------------------- | ------------------------ |
+| Listener metrics  | `BusService._listener_metrics`    | `dict[int, ListenerMetrics]` | Unbounded (per listener) |
+| Job execution log | `SchedulerService._execution_log` | `deque[JobExecutionRecord]`  | Bounded ring buffer      |
+| Event buffer      | `DataSyncService._event_buffer`   | `deque[dict]`                | Bounded ring buffer      |
+| Log buffer        | `LogCaptureHandler._buffer`       | `deque[LogEntry]`            | Bounded (default 2000)   |
+| Entity state      | `StateProxy.states`               | `dict[str, HassStateDict]`   | Unbounded (mirrors HA)   |
 
 **Current frontend data pipeline:**
 
@@ -92,19 +92,19 @@ Both methods mix invocation, timing, error classification, metrics recording, an
 
 ### What would need to change
 
-| Area | Files affected | Effort | Risk |
-|------|---------------|--------|------|
-| New `DatabaseService` | 1 new file + `core.py` wiring | Medium | Low — follows existing `Service` pattern |
-| New `CommandExecutor` | 1-2 new files (executor + command types) | Medium | Medium — new pattern, but scoped to 2-3 methods |
-| Slim down `BusService._dispatch()` | `bus_service.py` | Medium | Medium — hot path, behavioral change |
-| Slim down `SchedulerService.run_job()` | `scheduler_service.py` | Low | Low — `JobExecutionRecord` already exists |
-| `DataSyncService` read migration | `data_sync_service.py` | Medium | Medium — central aggregation layer |
-| `ListenerMetrics` replacement/evolution | `bus/metrics.py` | Medium | Medium — aggregate metrics may be computed from DB |
-| Schema / migrations | New `schema.sql` or migration files | Low | Low — greenfield |
-| FastAPI DB dependency | `web/dependencies.py` | Low | Low |
-| Config additions | `config/config.py` | Low | Low |
-| Tests | 5-10 new test files | High | Low — follows existing patterns |
-| Template changes | Minimal — existing templates work | Low | Low |
+| Area                                    | Files affected                           | Effort | Risk                                               |
+| --------------------------------------- | ---------------------------------------- | ------ | -------------------------------------------------- |
+| New `DatabaseService`                   | 1 new file + `core.py` wiring            | Medium | Low — follows existing `Service` pattern           |
+| New `CommandExecutor`                   | 1-2 new files (executor + command types) | Medium | Medium — new pattern, but scoped to 2-3 methods    |
+| Slim down `BusService._dispatch()`      | `bus_service.py`                         | Medium | Medium — hot path, behavioral change               |
+| Slim down `SchedulerService.run_job()`  | `scheduler_service.py`                   | Low    | Low — `JobExecutionRecord` already exists          |
+| `DataSyncService` read migration        | `data_sync_service.py`                   | Medium | Medium — central aggregation layer                 |
+| `ListenerMetrics` replacement/evolution | `bus/metrics.py`                         | Medium | Medium — aggregate metrics may be computed from DB |
+| Schema / migrations                     | New `schema.sql` or migration files      | Low    | Low — greenfield                                   |
+| FastAPI DB dependency                   | `web/dependencies.py`                    | Low    | Low                                                |
+| Config additions                        | `config/config.py`                       | Low    | Low                                                |
+| Tests                                   | 5-10 new test files                      | High   | Low — follows existing patterns                    |
+| Template changes                        | Minimal — existing templates work        | Low    | Low                                                |
 
 ### What already supports this
 
