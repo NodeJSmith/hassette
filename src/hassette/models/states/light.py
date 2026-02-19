@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import Field
 
 from .base import AttributesBase, StringBaseState
+from .features import LightEntityFeature
 
 
 class LightAttributes(AttributesBase):
@@ -47,6 +48,21 @@ class LightAttributes(AttributesBase):
 
     color_temp: int | None = Field(default=None, deprecated=True)
     """Deprecated: The CT color value in mireds."""
+
+    @property
+    def supports_effect(self) -> bool:
+        """Whether this light supports effects."""
+        return self._has_feature(LightEntityFeature.EFFECT)
+
+    @property
+    def supports_flash(self) -> bool:
+        """Whether this light supports flash."""
+        return self._has_feature(LightEntityFeature.FLASH)
+
+    @property
+    def supports_transition(self) -> bool:
+        """Whether this light supports transition."""
+        return self._has_feature(LightEntityFeature.TRANSITION)
 
 
 class LightState(StringBaseState):

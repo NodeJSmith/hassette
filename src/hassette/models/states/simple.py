@@ -30,15 +30,6 @@ class ConversationState(StringBaseState):
     domain: Literal["conversation"]
 
 
-class CoverState(StringBaseState):
-    """Representation of a Home Assistant cover state.
-
-    See: https://www.home-assistant.io/integrations/cover/
-    """
-
-    domain: Literal["cover"]
-
-
 class DateState(DateTimeBaseState):
     """Representation of a Home Assistant date state.
 
