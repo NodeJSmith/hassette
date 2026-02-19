@@ -26,12 +26,12 @@ Design system specification for the web UI. Tokens (colors, spacing, typography)
 
 ### `audits/`
 
-Point-in-time diagnostic snapshots of the codebase. Organized by date:
+Point-in-time diagnostic snapshots of the codebase. Organized by date and topic:
 
 ```
 audits/
-└── YYYY-MM-DD/
-    ├── research.md           Main audit brief
+└── YYYY-MM-DD-topic-name/
+    ├── audit.md              Main audit brief
     └── ...                   Additional artifacts (data, follow-up analysis)
 ```
 
