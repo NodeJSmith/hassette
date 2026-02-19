@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added autouse cleanup fixtures for bus, scheduler, and mock API to prevent test pollution in module-scoped fixtures (#256)
 
 ### Added
+- `extras` property and `extra()` helper on `BaseState` and `AttributesBase` for safe access to integration-specific attributes (#271)
 - JSDoc comments across all web UI JavaScript files (#251)
 - ESLint linting, TypeScript type-checking, and `mise run lint:js` / `mise run typecheck:js` tasks (#251)
 
