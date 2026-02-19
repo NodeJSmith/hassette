@@ -149,7 +149,7 @@ class WebsocketService(Service):
                 except Exception:
                     self.logger.warning("WebSocket recv loop failed, notifying downstream consumers")
                     self.mark_not_ready(reason="WebSocket recv loop failed")
-                    with suppress(BaseException):
+                    with suppress(Exception):
                         await self._send_connection_lost_event()
                     raise
 
