@@ -37,6 +37,12 @@ class LightAttributes(AttributesBase):
     rgb_color: tuple[int, int, int] | None = Field(default=None)
     """The rgb color value."""
 
+    rgbw_color: tuple[int, int, int, int] | None = Field(default=None)
+    """The RGBW color value (red, green, blue, white)."""
+
+    rgbww_color: tuple[int, int, int, int, int] | None = Field(default=None)
+    """The RGBWW color value (red, green, blue, cold white, warm white)."""
+
     xy_color: list[float] | None = Field(default=None)
     """The x and y color value."""
 

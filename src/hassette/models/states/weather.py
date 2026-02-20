@@ -21,6 +21,18 @@ class WeatherAttributes(AttributesBase):
     precipitation_unit: str | None = Field(default=None)
     attribution: str | None = Field(default=None)
 
+    ozone: float | None = Field(default=None)
+    """Ozone level."""
+
+    uv_index: float | None = Field(default=None)
+    """UV index."""
+
+    wind_gust_speed: float | None = Field(default=None)
+    """Wind gust speed."""
+
+    visibility: float | None = Field(default=None)
+    """Visibility distance."""
+
 
 class WeatherState(StringBaseState):
     """Representation of a Home Assistant weather state.

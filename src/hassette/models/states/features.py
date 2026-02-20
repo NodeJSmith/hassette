@@ -12,6 +12,15 @@ remote, update, weather, calendar, lock, valve, …) can be added later.
 from enum import IntFlag
 
 
+class LockEntityFeature(IntFlag):
+    """Supported features of the lock entity.
+
+    See: https://www.home-assistant.io/integrations/lock/
+    """
+
+    OPEN = 1
+
+
 class LightEntityFeature(IntFlag):
     """Supported features of the light entity.
 

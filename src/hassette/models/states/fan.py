@@ -12,13 +12,9 @@ class FanAttributes(AttributesBase):
     percentage: int | float | None = Field(default=None)
     percentage_step: float | None = Field(default=None)
     preset_mode: str | None = Field(default=None)
-    temperature: int | float | None = Field(default=None)
-    model: str | None = Field(default=None)
-    sn: str | None = Field(default=None)
-    screen_status: bool | None = Field(default=None)
-    child_lock: bool | None = Field(default=None)
-    night_light: str | None = Field(default=None)
-    mode: str | None = Field(default=None)
+
+    direction: str | None = Field(default=None)
+    """Current direction of the fan."""
 
     @property
     def supports_set_speed(self) -> bool:

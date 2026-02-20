@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Collapsible panels and tracebacks no longer flash visible before Alpine.js initializes (#262)
 
 ### Added
+- Aligned all state model attributes with Home Assistant core — added missing fields to sensor, humidifier, light, climate, weather, fan, camera, and media_player; created dedicated `LockState` module with `LockAttributes` and `LockEntityFeature`
 - `supports_*` boolean properties on light, climate, cover, fan, media_player, and vacuum attribute classes for checking entity capabilities without manual bitmask operations (#272)
 - `IntFlag` enums (`LightEntityFeature`, `ClimateEntityFeature`, etc.) matching Home Assistant core feature flags (#272)
 - Global alert banner showing HA disconnect warnings and failed app errors with expandable tracebacks (#262)

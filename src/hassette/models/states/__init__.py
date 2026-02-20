@@ -15,6 +15,7 @@ from .features import (
     CoverEntityFeature,
     FanEntityFeature,
     LightEntityFeature,
+    LockEntityFeature,
     MediaPlayerEntityFeature,
     VacuumEntityFeature,
 )
@@ -29,6 +30,7 @@ from .input import (
     InputTextState,
 )
 from .light import LightAttributes, LightState
+from .lock import LockAttributes, LockState
 from .media_player import MediaPlayerAttributes, MediaPlayerState
 from .number import NumberState
 from .person import PersonState
@@ -44,7 +46,6 @@ from .simple import (
     ConversationState,
     DateState,
     DateTimeState,
-    LockState,
     NotifyState,
     SttState,
     SwitchState,
@@ -99,6 +100,8 @@ __all__ = [
     "LightAttributes",
     "LightEntityFeature",
     "LightState",
+    "LockAttributes",
+    "LockEntityFeature",
     "LockState",
     "MediaPlayerAttributes",
     "MediaPlayerEntityFeature",

@@ -23,6 +23,27 @@ class ClimateAttributes(AttributesBase):
     swing_mode: str | None = Field(default=None)
     swing_modes: list[str] | None = Field(default=None)
 
+    humidity: float | None = Field(default=None)
+    """Target humidity."""
+
+    swing_horizontal_mode: str | None = Field(default=None)
+    """Current horizontal swing mode."""
+
+    target_temp_step: float | None = Field(default=None)
+    """Temperature step granularity."""
+
+    min_humidity: float | None = Field(default=None)
+    """Minimum humidity for target humidity."""
+
+    max_humidity: float | None = Field(default=None)
+    """Maximum humidity for target humidity."""
+
+    target_humidity_step: float | None = Field(default=None)
+    """Step size for target humidity."""
+
+    swing_horizontal_modes: list[str] | None = Field(default=None)
+    """Available horizontal swing modes."""
+
     @property
     def supports_target_temperature(self) -> bool:
         """Whether this climate entity supports target temperature."""

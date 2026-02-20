@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import Field
 
@@ -7,9 +7,83 @@ from .features import MediaPlayerEntityFeature
 
 
 class MediaPlayerAttributes(AttributesBase):
-    assumed_state: bool | None = Field(default=None)
-    adb_response: Any | None = Field(default=None)
-    hdmi_input: Any | None = Field(default=None)
+    volume_level: float | None = Field(default=None)
+    """Volume level of the media player (0..1)."""
+
+    is_volume_muted: bool | None = Field(default=None)
+    """Whether volume is currently muted."""
+
+    media_content_id: str | None = Field(default=None)
+    """Content ID of current playing media."""
+
+    media_content_type: str | None = Field(default=None)
+    """Content type of current playing media."""
+
+    media_duration: int | None = Field(default=None)
+    """Duration of current playing media in seconds."""
+
+    media_position: int | None = Field(default=None)
+    """Position of current playing media in seconds."""
+
+    media_position_updated_at: str | None = Field(default=None)
+    """When media position was last updated (ISO datetime)."""
+
+    media_title: str | None = Field(default=None)
+    """Title of current playing media."""
+
+    media_artist: str | None = Field(default=None)
+    """Artist of current playing media."""
+
+    media_album_name: str | None = Field(default=None)
+    """Album name of current playing media."""
+
+    media_album_artist: str | None = Field(default=None)
+    """Album artist of current playing media."""
+
+    media_track: int | None = Field(default=None)
+    """Track number of current playing media."""
+
+    media_series_title: str | None = Field(default=None)
+    """Series title for current playing media."""
+
+    media_season: str | None = Field(default=None)
+    """Season for current playing media."""
+
+    media_episode: str | None = Field(default=None)
+    """Episode for current playing media."""
+
+    media_channel: str | None = Field(default=None)
+    """Channel currently playing."""
+
+    media_playlist: str | None = Field(default=None)
+    """Playlist currently playing."""
+
+    app_id: str | None = Field(default=None)
+    """ID of the current running app."""
+
+    app_name: str | None = Field(default=None)
+    """Name of the current running app."""
+
+    source: str | None = Field(default=None)
+    """Currently selected input source."""
+
+    sound_mode: str | None = Field(default=None)
+    """Currently selected sound mode."""
+
+    shuffle: bool | None = Field(default=None)
+    """Whether shuffle is enabled."""
+
+    repeat: str | None = Field(default=None)
+    """Current repeat mode."""
+
+    group_members: list[str] | None = Field(default=None)
+    """List of group member entity IDs."""
+
+    source_list: list[str] | None = Field(default=None)
+    """List of available input sources."""
+
+    sound_mode_list: list[str] | None = Field(default=None)
+    """List of available sound modes."""
 
     @property
     def supports_pause(self) -> bool:
