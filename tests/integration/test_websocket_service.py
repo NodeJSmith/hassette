@@ -1,6 +1,7 @@
+import asyncio
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from aiohttp import ClientWebSocketResponse, WSMsgType
@@ -14,6 +15,7 @@ from hassette.exceptions import (
     ResourceNotReadyError,
     RetryableConnectionClosedError,
 )
+from hassette.types import Topic
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -272,3 +274,73 @@ async def test_raw_recv_raises_on_closing_frame(websocket_service: WebsocketServ
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service._raw_recv()
+
+
+# --- Disconnect handling on recv loop failure ---
+
+
+def _make_failing_recv_task(error: Exception) -> asyncio.Task:
+    """Create a task that raises the given error, simulating a failed recv loop."""
+
+    async def _fail():
+        raise error
+
+    return asyncio.ensure_future(_fail())
+
+
+async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: WebsocketService) -> None:
+    """Fire WEBSOCKET_DISCONNECTED when the recv loop dies unexpectedly."""
+    send_event_mock = AsyncMock()
+    websocket_service.hassette.send_event = send_event_mock
+
+    with (
+        patch.object(
+            websocket_service,
+            "_make_connection",
+            return_value=_make_failing_recv_task(
+                RetryableConnectionClosedError("peer gone"),
+            ),
+        ),
+        pytest.raises(RetryableConnectionClosedError),
+    ):
+        await websocket_service.serve()
+
+    topics_sent = [call.args[0] for call in send_event_mock.await_args_list]
+    assert Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED in topics_sent
+
+
+async def test_marked_not_ready_on_recv_loop_failure(websocket_service: WebsocketService) -> None:
+    """Mark the service not-ready immediately when the recv loop fails."""
+    websocket_service.mark_ready("test ready")
+    websocket_service.hassette.send_event = AsyncMock()
+
+    with (
+        patch.object(
+            websocket_service,
+            "_make_connection",
+            return_value=_make_failing_recv_task(
+                RetryableConnectionClosedError("peer gone"),
+            ),
+        ),
+        pytest.raises(RetryableConnectionClosedError),
+    ):
+        await websocket_service.serve()
+
+    assert not websocket_service.is_ready()
+
+
+async def test_disconnect_event_failure_does_not_mask_original_error(websocket_service: WebsocketService) -> None:
+    """Ensure that a broken send_event doesn't swallow the recv loop error."""
+    websocket_service.hassette.send_event = AsyncMock(side_effect=RuntimeError("bus is down"))
+
+    with (
+        patch.object(
+            websocket_service,
+            "_make_connection",
+            return_value=_make_failing_recv_task(
+                RetryableConnectionClosedError("peer gone"),
+            ),
+        ),
+        pytest.raises(RetryableConnectionClosedError),
+    ):
+        await websocket_service.serve()
