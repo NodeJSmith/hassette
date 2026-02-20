@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.23.0] - 2026-02-19
+
 ### Changed
 - Replaced Bulma CSS framework with a custom `ht-` prefixed design system featuring cool slate surfaces, warm amber accent, and Space Grotesk + JetBrains Mono typography (#262)
 - Extracted all design tokens into `tokens.css` with `[data-theme]` selector support for future theming (#262)
@@ -15,26 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bus listener and scheduler job tables show expanded detail rows with predicate, rate-limiting, and trigger information (#262)
 - Replaced hardcoded CSS fallback colors in alerts and detail panels with proper design tokens (`--ht-surface-inset`, `--ht-surface-code`, `--ht-warning-*`, `--ht-danger-*`)
 - Toggle buttons now show fallback text before Alpine.js initializes and expose `aria-expanded` for accessibility (#262)
-
-### Fixed
-- WebSocket service now fires disconnect event and marks not-ready immediately on unexpected connection loss, preventing stale state in StateProxy (#270)
-- App detail page now uses the actual instance index instead of hardcoded 0, fixing data/URL desync for non-zero instances (#262)
-- Detail panel labels now have proper text contrast on dark `--ht-surface-code` background (#262)
-- Collapsible panels and tracebacks no longer flash visible before Alpine.js initializes (#262)
-
-### Added
-- `supports_*` boolean properties on light, climate, cover, fan, media_player, and vacuum attribute classes for checking entity capabilities without manual bitmask operations (#272)
-- `IntFlag` enums (`LightEntityFeature`, `ClimateEntityFeature`, etc.) matching Home Assistant core feature flags (#272)
-- Global alert banner showing HA disconnect warnings and failed app errors with expandable tracebacks (#262)
-- `ht-btn--ghost` and `ht-btn--xs` button modifier classes (#262)
-
-### Removed
-- Bulma CSS CDN dependency (#262)
-- Entity Browser page and related partials (#262)
-
-## Previous Unreleased
-
-### Changed
 - E2E tests now run by default with `uv run pytest` instead of requiring `-m e2e`; added `nox -s e2e` session for CI
 - `HassetteHarness` now uses a fluent builder API (`with_bus()`, `with_state_proxy()`, etc.) with automatic dependency resolution instead of boolean flags (#253)
 - Consolidated duplicate mock Hassette, DataSyncService, and web test helper fixtures into shared factories in `test_utils/` (#253)
@@ -43,14 +25,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `create_mock_hassette()` to `create_hassette_stub()` and `mock_hassette.py` to `web_mocks.py` to clarify web/API stub vs harness distinction (#259)
 - Added autouse cleanup fixtures for bus, scheduler, and mock API to prevent test pollution in module-scoped fixtures (#256)
 
+### Fixed
+- WebSocket service now fires disconnect event and marks not-ready immediately on unexpected connection loss, preventing stale state in StateProxy (#270)
+- App detail page now uses the actual instance index instead of hardcoded 0, fixing data/URL desync for non-zero instances (#262)
+- Detail panel labels now have proper text contrast on dark `--ht-surface-code` background (#262)
+- Collapsible panels and tracebacks no longer flash visible before Alpine.js initializes (#262)
+- Entity browser "Load more" button now appends rows instead of replacing existing ones on domain-filtered views (#247)
+- `model_dump()` and `model_dump_json()` on `AppManifest` and `HassetteConfig` no longer leak extra fields (e.g. tokens from environment variables)
+
 ### Added
+- `supports_*` boolean properties on light, climate, cover, fan, media_player, and vacuum attribute classes for checking entity capabilities without manual bitmask operations (#272)
+- `IntFlag` enums (`LightEntityFeature`, `ClimateEntityFeature`, etc.) matching Home Assistant core feature flags (#272)
+- Global alert banner showing HA disconnect warnings and failed app errors with expandable tracebacks (#262)
+- `ht-btn--ghost` and `ht-btn--xs` button modifier classes (#262)
 - `extras` property and `extra()` helper on `BaseState` and `AttributesBase` for safe access to integration-specific attributes (#271)
 - JSDoc comments across all web UI JavaScript files (#251)
 - ESLint linting, TypeScript type-checking, and `mise run lint:js` / `mise run typecheck:js` tasks (#251)
 
-### Fixed
-- Entity browser "Load more" button now appends rows instead of replacing existing ones on domain-filtered views (#247)
-- `model_dump()` and `model_dump_json()` on `AppManifest` and `HassetteConfig` no longer leak extra fields (e.g. tokens from environment variables)
+### Removed
+- Bulma CSS CDN dependency (#262)
+- Entity Browser page and related partials (#262)
 
 ## [0.22.1] - 2026-02-15
 
