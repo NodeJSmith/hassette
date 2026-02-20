@@ -16,7 +16,6 @@ from hassette.models.states.media_player import MediaPlayerAttributes
 from hassette.models.states.sensor import SensorAttributes
 from hassette.models.states.weather import WeatherAttributes
 
-
 # ── Sensor (Finding #9) ──────────────────────────────────────────────
 
 
