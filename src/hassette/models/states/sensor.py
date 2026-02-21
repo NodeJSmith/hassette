@@ -13,6 +13,9 @@ class SensorAttributes(AttributesBase):
     state_class: STATE_CLASS | str | None = Field(default=None)
     unit_of_measurement: UNIT_OF_MEASUREMENT | str | None = Field(default=None)
 
+    last_reset: str | None = Field(default=None)
+    """ISO datetime of the last meter reset (for sensors with TOTAL state_class)."""
+
     options: list[str] | None = Field(default=None)
 
 

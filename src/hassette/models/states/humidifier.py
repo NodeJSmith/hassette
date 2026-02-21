@@ -14,6 +14,9 @@ class HumidifierAttributes(AttributesBase):
     mode: str | None = Field(default=None)
     action: str | None = Field(default=None)
 
+    target_humidity_step: float | None = Field(default=None)
+    """Step size for target humidity adjustment."""
+
 
 class HumidifierState(StringBaseState):
     """Representation of a Home Assistant humidifier state.

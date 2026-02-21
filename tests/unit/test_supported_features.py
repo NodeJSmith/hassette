@@ -11,10 +11,12 @@ from hassette.models.states.features import (
     CoverEntityFeature,
     FanEntityFeature,
     LightEntityFeature,
+    LockEntityFeature,
     MediaPlayerEntityFeature,
     VacuumEntityFeature,
 )
 from hassette.models.states.light import LightAttributes
+from hassette.models.states.lock import LockAttributes
 from hassette.models.states.media_player import MediaPlayerAttributes
 from hassette.models.states.vacuum import VacuumAttributes
 
@@ -398,3 +400,32 @@ class TestVacuumSupportedFeatures:
         attrs = VacuumAttributes(supported_features=None)
         assert attrs.supports_start is False
         assert attrs.supports_clean_area is False
+
+
+# ── Lock ──────────────────────────────────────────────────────────────
+
+
+class TestLockSupportedFeatures:
+    @pytest.mark.parametrize(
+        ("feature_value", "property_name"),
+        [
+            (LockEntityFeature.OPEN, "supports_open"),
+        ],
+    )
+    def test_feature_present(self, feature_value: int, property_name: str) -> None:
+        attrs = LockAttributes(supported_features=feature_value)
+        assert getattr(attrs, property_name) is True
+
+    @pytest.mark.parametrize(
+        ("feature_value", "property_name"),
+        [
+            (LockEntityFeature.OPEN, "supports_open"),
+        ],
+    )
+    def test_feature_absent(self, feature_value: int, property_name: str) -> None:
+        attrs = LockAttributes(supported_features=0)
+        assert getattr(attrs, property_name) is False
+
+    def test_none_returns_all_false(self) -> None:
+        attrs = LockAttributes(supported_features=None)
+        assert attrs.supports_open is False

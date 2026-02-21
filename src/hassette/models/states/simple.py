@@ -48,15 +48,6 @@ class DateTimeState(DateTimeBaseState):
     domain: Literal["datetime"]
 
 
-class LockState(StringBaseState):
-    """Representation of a Home Assistant lock state.
-
-    See: https://www.home-assistant.io/integrations/lock/
-    """
-
-    domain: Literal["lock"]
-
-
 class NotifyState(StringBaseState):
     """Representation of a Home Assistant notify state.
 
