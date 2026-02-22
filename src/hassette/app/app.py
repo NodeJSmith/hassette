@@ -117,6 +117,11 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
             return self.hassette.config.apps_log_level
 
     @property
+    def app_key(self) -> str:
+        """Key for this app in the hassette.toml configuration."""
+        return self.app_manifest.app_key
+
+    @property
     def instance_name(self) -> str:
         """Name for the instance of the app. Used for logging and ownership of resources."""
         return self.app_config.instance_name

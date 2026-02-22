@@ -32,6 +32,14 @@ class IntervalTrigger:
         self.interval = interval
         self.start = start or now()
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, IntervalTrigger):
+            return NotImplemented
+        return self.interval == other.interval
+
+    def __hash__(self) -> int:
+        return hash(self.interval)
+
     @classmethod
     def from_arguments(
         cls,
@@ -61,6 +69,14 @@ class CronTrigger:
         self.cron_expression = cron_expression
         base = start or now()
         self.cron_iter = croniter(cron_expression, base.py_datetime(), ret_type=datetime)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, CronTrigger):
+            return NotImplemented
+        return self.cron_expression == other.cron_expression
+
+    def __hash__(self) -> int:
+        return hash(self.cron_expression)
 
     @classmethod
     def from_arguments(
@@ -167,6 +183,20 @@ class ScheduledJob:
 
         self.args = tuple(self.args)
         self.kwargs = dict(self.kwargs)
+
+    def matches(self, other: "ScheduledJob") -> bool:
+        """Check whether two jobs represent the same logical configuration.
+
+        Compares the callable, trigger, repeat flag, args, and kwargs. Does not compare
+        runtime state (job_id, next_run, sort_index, cancelled, owner).
+        """
+        return (
+            self.job == other.job
+            and self.trigger == other.trigger
+            and self.repeat == other.repeat
+            and self.args == other.args
+            and self.kwargs == other.kwargs
+        )
 
     def cancel(self) -> None:
         """Cancel the scheduled job by setting the cancelled flag to True."""
