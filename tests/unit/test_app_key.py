@@ -12,5 +12,5 @@ class TestAppKey:
         manifest = Mock()
         manifest.app_key = "my_kitchen_lights"
 
-        with patch.object(App, "app_manifest", manifest):
+        with patch.object(App, "app_manifest", manifest, create=True):
             assert app.app_key == "my_kitchen_lights"
