@@ -31,7 +31,7 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | 
     if "::" in config.base_url:
         raise IPV6NotSupportedError(f"IPv6 addresses are not supported in base_url, got: {config.base_url}")
 
-    yurl = URL(config.base_url.strip())
+    yurl = URL(config.base_url.strip().strip("'\""))
 
     if not yurl.scheme:
         raise SchemeRequiredInBaseUrlError(

@@ -111,3 +111,25 @@ def test_no_scheme_raises_exception(func):
 
     with pytest.raises(SchemeRequiredInBaseUrlError):
         func(config)
+
+
+@pytest.mark.parametrize(
+    ("input_url", "expected_scheme", "expected_host", "expected_port"),
+    [
+        ('"http://homeassistant:8123"', "http", "homeassistant", 8123),
+        ("'http://homeassistant:8123'", "http", "homeassistant", 8123),
+        ('" http://homeassistant:8123 "', "http", "homeassistant", 8123),
+        ("' http://homeassistant:8123 '", "http", "homeassistant", 8123),
+        ('"https://example.com"', "https", "example.com", None),
+        ("'https://example.com'", "https", "example.com", None),
+    ],
+)
+def test_quoted_urls_are_stripped(input_url: str, expected_scheme: str, expected_host: str, expected_port: int | None):
+    """Test that literal quote characters wrapping a URL are stripped before parsing."""
+    config = _make_config(input_url)
+
+    scheme, host, port = _parse_and_normalize_url(config)
+
+    assert scheme == expected_scheme
+    assert host == expected_host
+    assert port == expected_port
