@@ -31,15 +31,14 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | 
     if "::" in config.base_url:
         raise IPV6NotSupportedError(f"IPv6 addresses are not supported in base_url, got: {config.base_url}")
 
-    yurl = URL(config.base_url.strip())
+    cleaned_url = config.base_url.strip().strip("'\"")
+    yurl = URL(cleaned_url)
 
     if not yurl.scheme:
-        raise SchemeRequiredInBaseUrlError(
-            f"base_url must include a scheme (http:// or https://), got: {config.base_url}"
-        )
+        raise SchemeRequiredInBaseUrlError(f"base_url must include a scheme (http:// or https://), got: {cleaned_url}")
 
     if yurl.host is None:
-        raise BaseUrlRequiredError(f"base_url must include a valid hostname, got: {config.base_url}")
+        raise BaseUrlRequiredError(f"base_url must include a valid hostname, got: {cleaned_url}")
 
     return yurl.scheme, yurl.host, yurl.explicit_port
 
