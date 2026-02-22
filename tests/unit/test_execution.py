@@ -14,7 +14,7 @@ class TestExecutionResult:
         assert result.duration_ms == 0.0
         assert result.error_message is None
         assert result.error_type is None
-        assert result.started_at == 0.0
+        assert result.monotonic_start == 0.0
 
     def test_is_success(self) -> None:
         result = ExecutionResult(status="success")
@@ -36,7 +36,7 @@ class TestTrackExecution:
 
         assert result.status == "success"
         assert result.duration_ms >= 0.0
-        assert result.started_at > 0.0
+        assert result.monotonic_start > 0.0
         assert result.error_message is None
         assert result.error_type is None
 
@@ -73,11 +73,11 @@ class TestTrackExecution:
         assert result.duration_ms >= 40.0
         assert result.duration_ms < 500.0
 
-    async def test_started_at_is_monotonic(self) -> None:
+    async def test_monotonic_start_is_set(self) -> None:
         async with track_execution() as result:
             pass
 
-        assert result.started_at > 0.0
+        assert result.monotonic_start > 0.0
 
     async def test_hassette_error_subclass(self) -> None:
         """Verify that HassetteError subclasses are properly tracked."""

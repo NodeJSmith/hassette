@@ -94,7 +94,9 @@ class StateProxy(Resource):
         self.state_change_sub = self.bus.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
         if not self.hassette.config.disable_state_proxy_polling:
             self.poll_job = self.scheduler.run_every(
-                self._load_cache, interval=TimeDelta(seconds=self.hassette.config.state_proxy_poll_interval_seconds)
+                self._load_cache,
+                interval=TimeDelta(seconds=self.hassette.config.state_proxy_poll_interval_seconds),
+                if_exists="skip",
             )
         else:
             self.poll_job = None
@@ -292,7 +294,7 @@ class StateProxy(Resource):
             self.state_change_sub = None
 
         if self.poll_job is not None:
-            self.poll_job.cancel()
+            self.scheduler.remove_job(self.poll_job)
             self.poll_job = None
 
         # mark the proxy as not ready

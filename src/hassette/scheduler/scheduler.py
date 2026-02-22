@@ -107,7 +107,7 @@ import asyncio
 import typing
 from collections.abc import Mapping
 from datetime import time
-from typing import Any
+from typing import Any, Literal
 
 from whenever import Time, TimeDelta, ZonedDateTime
 
@@ -128,11 +128,15 @@ class Scheduler(Resource):
     scheduler_service: SchedulerService
     """The scheduler service instance."""
 
+    _jobs_by_name: dict[str, "ScheduledJob"]
+    """Tracks jobs by name for uniqueness validation within this scheduler instance."""
+
     @classmethod
     def create(cls, hassette: "Hassette", parent: "Resource"):
         inst = cls(hassette=hassette, parent=parent)
         inst.scheduler_service = inst.hassette._scheduler_service
         assert inst.scheduler_service is not None, "Scheduler service not initialized"
+        inst._jobs_by_name = {}
 
         inst.mark_ready(reason="Scheduler initialized")
         return inst
@@ -142,18 +146,39 @@ class Scheduler(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.scheduler_service_log_level
 
-    def add_job(self, job: "ScheduledJob") -> "ScheduledJob":
+    def add_job(self, job: "ScheduledJob", *, if_exists: Literal["error", "skip"] = "error") -> "ScheduledJob":
         """Add a job to the scheduler.
 
         Args:
             job: The job to add.
+            if_exists: Behavior when a job with the same name already exists.
+                ``"error"`` (default) raises ``ValueError``.
+                ``"skip"`` returns the existing job if it matches; raises
+                ``ValueError`` if the name matches but the configuration differs.
 
         Returns:
-            The added job.
+            The added job, or the existing job when ``if_exists="skip"`` and a
+            matching job is already registered.
+
+        Raises:
+            TypeError: If job is not a ScheduledJob.
+            ValueError: If a job with the same name already exists and either
+                ``if_exists="error"`` or the existing job's configuration differs.
         """
 
         if not isinstance(job, ScheduledJob):
             raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
+
+        existing = self._jobs_by_name.get(job.name)
+        if existing is not None:
+            if if_exists == "skip" and existing.matches(job):
+                return existing
+            raise ValueError(
+                f"A job named '{job.name}' already exists in scheduler for '{self.owner_id}'. "
+                "Job names must be unique per scheduler instance."
+            )
+
+        self._jobs_by_name[job.name] = job
 
         self.scheduler_service.add_job(job)
 
@@ -165,11 +190,13 @@ class Scheduler(Resource):
         Args:
             job: The job to remove.
         """
+        self._jobs_by_name.pop(job.name, None)
 
         return self.scheduler_service.remove_job(job)
 
     def remove_all_jobs(self) -> asyncio.Task:
         """Remove all jobs for the owner of this scheduler."""
+        self._jobs_by_name.clear()
         return self.scheduler_service.remove_jobs_by_owner(self.owner_id)
 
     def schedule(
@@ -180,6 +207,7 @@ class Scheduler(Resource):
         repeat: bool = False,
         name: str = "",
         *,
+        if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -191,6 +219,8 @@ class Scheduler(Resource):
             trigger: Optional trigger for repeating jobs.
             repeat: Whether the job should repeat.
             name: Optional name for the job.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
 
@@ -208,7 +238,7 @@ class Scheduler(Resource):
             args=tuple(args) if args else (),
             kwargs=dict(kwargs) if kwargs else {},
         )
-        return self.add_job(job)
+        return self.add_job(job, if_exists=if_exists)
 
     def run_once(
         self,
@@ -216,6 +246,7 @@ class Scheduler(Resource):
         start: "ScheduleStartType",
         name: str = "",
         *,
+        if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -225,6 +256,8 @@ class Scheduler(Resource):
             func: The function to run.
             start: The time to run the job.
             name: Optional name for the job.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
 
@@ -236,7 +269,7 @@ class Scheduler(Resource):
         if start_dtme is None:
             raise ValueError("start must be a valid start time")
 
-        return self.schedule(func, start_dtme, name=name, args=args, kwargs=kwargs)
+        return self.schedule(func, start_dtme, name=name, if_exists=if_exists, args=args, kwargs=kwargs)
 
     def run_every(
         self,
@@ -245,6 +278,7 @@ class Scheduler(Resource):
         name: str = "",
         start: "ScheduleStartType" = None,
         *,
+        if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -256,6 +290,8 @@ class Scheduler(Resource):
             name: Optional name for the job.
             start: Optional start time for the first run. If provided the job will run at this time. Otherwise it will
                 run at the current time plus the interval.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
 
@@ -270,7 +306,9 @@ class Scheduler(Resource):
         first_run = start_dtme if start_dtme else now().add(seconds=interval_seconds)
         trigger = IntervalTrigger.from_arguments(seconds=interval_seconds, start=first_run)
 
-        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+        return self.schedule(
+            func, first_run, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
+        )
 
     def run_in(
         self,
@@ -279,6 +317,7 @@ class Scheduler(Resource):
         name: str = "",
         start: "ScheduleStartType" = None,
         *,
+        if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -290,6 +329,8 @@ class Scheduler(Resource):
             name: Optional name for the job.
             start: Optional start time for the job. If provided the job will run at this time, otherwise it will run at
                 the current time plus the delay.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
 
@@ -302,7 +343,7 @@ class Scheduler(Resource):
         start_dtme = get_start_dtme(start)
 
         run_at = start_dtme if start_dtme else now().add(seconds=delay_seconds)
-        return self.schedule(func, run_at, name=name, args=args, kwargs=kwargs)
+        return self.schedule(func, run_at, name=name, if_exists=if_exists, args=args, kwargs=kwargs)
 
     def run_minutely(
         self,
@@ -311,6 +352,7 @@ class Scheduler(Resource):
         name: str = "",
         start: "ScheduleStartType" = None,
         *,
+        if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -322,6 +364,8 @@ class Scheduler(Resource):
             name: Optional name for the job.
             start: Optional start time for the first run. If provided the job will run at this time. Otherwise, the job
                 will run at now + N minutes.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
 
@@ -335,7 +379,9 @@ class Scheduler(Resource):
 
         trigger = IntervalTrigger.from_arguments(minutes=minutes, start=start_dtme)
         first_run = start_dtme if start_dtme else now().add(minutes=minutes)
-        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+        return self.schedule(
+            func, first_run, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
+        )
 
     def run_hourly(
         self,
@@ -344,6 +390,7 @@ class Scheduler(Resource):
         name: str = "",
         start: "ScheduleStartType" = None,
         *,
+        if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -355,6 +402,8 @@ class Scheduler(Resource):
             name: Optional name for the job.
             start: Optional start time for the first run. If provided the job will run at this time, otherwise the job
                 will run at now + N hours.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
 
@@ -368,7 +417,9 @@ class Scheduler(Resource):
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
         first_run = start_dtme if start_dtme else now().add(hours=hours)
-        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+        return self.schedule(
+            func, first_run, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
+        )
 
     def run_daily(
         self,
@@ -377,6 +428,7 @@ class Scheduler(Resource):
         name: str = "",
         start: "ScheduleStartType" = None,
         *,
+        if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -388,6 +440,8 @@ class Scheduler(Resource):
             name: Optional name for the job.
             start: Optional start time for the first run. If provided the job will run at this time, otherwise the job
                 will run at now + N days.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
 
@@ -405,7 +459,9 @@ class Scheduler(Resource):
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
         first_run = start_dtme if start_dtme else now().add(hours=hours)
-        return self.schedule(func, first_run, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+        return self.schedule(
+            func, first_run, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
+        )
 
     def run_cron(
         self,
@@ -419,6 +475,7 @@ class Scheduler(Resource):
         name: str = "",
         start: "ScheduleStartType" = None,
         *,
+        if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -437,6 +494,8 @@ class Scheduler(Resource):
             name: Optional name for the job.
             start: Optional start time for the first run. If provided the job will run at this time, otherwise the job
                 will run at the next scheduled time based on the cron expression.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
 
@@ -455,7 +514,9 @@ class Scheduler(Resource):
             start=start_dtme,
         )
         run_at = trigger.next_run_time()
-        return self.schedule(func, run_at, trigger=trigger, repeat=True, name=name, args=args, kwargs=kwargs)
+        return self.schedule(
+            func, run_at, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
+        )
 
 
 def get_start_dtme(start: "ScheduleStartType") -> ZonedDateTime | None:

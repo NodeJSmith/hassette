@@ -16,7 +16,7 @@ from dataclasses import dataclass
 class ExecutionResult:
     """Captures timing and error information from a tracked execution."""
 
-    started_at: float = 0.0
+    monotonic_start: float = 0.0
     duration_ms: float = 0.0
     status: str = "pending"
     error_message: str | None = None
@@ -49,7 +49,7 @@ async def track_execution() -> AsyncIterator[ExecutionResult]:
         # result.status == "success", result.duration_ms populated
     """
     result = ExecutionResult()
-    result.started_at = time.monotonic()
+    result.monotonic_start = time.monotonic()
     try:
         yield result
         result.status = "success"
@@ -63,4 +63,4 @@ async def track_execution() -> AsyncIterator[ExecutionResult]:
         result.error_traceback = traceback.format_exc()
         raise
     finally:
-        result.duration_ms = (time.monotonic() - result.started_at) * 1000
+        result.duration_ms = (time.monotonic() - result.monotonic_start) * 1000

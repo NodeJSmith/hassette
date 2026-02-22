@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- `App.app_key` property for accessing the app's configuration key
+- `if_exists` parameter on all `Scheduler.run_*` methods with `"error"` (default) and `"skip"` modes for idempotent job registration
+- `ScheduledJob.matches()` method for comparing job configuration (callable, trigger, repeat, args, kwargs)
+- `__eq__`/`__hash__` on `IntervalTrigger` and `CronTrigger` comparing configuration only (interval/cron expression)
+
+### Changed
+- **Breaking:** Scheduler now enforces job name uniqueness per instance, raising `ValueError` on duplicate names
+- **Breaking:** Renamed `ExecutionResult.started_at` to `monotonic_start` to clarify it stores a monotonic clock value
+
+### Fixed
+- StateProxy `on_disconnect` now uses `remove_job()` instead of `cancel()` to properly free the job name slot for reconnection
+
 ## [0.23.0] - 2026-02-19
 
 ### Changed

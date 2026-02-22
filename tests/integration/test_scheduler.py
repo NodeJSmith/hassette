@@ -79,8 +79,12 @@ async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> N
         return _job
 
     reference = now()
-    hassette_with_scheduler._scheduler.run_once(make_job("late", late_job_complete), start=reference.add(seconds=0.4))
-    hassette_with_scheduler._scheduler.run_once(make_job("early", early_job_complete), start=reference.add(seconds=0.1))
+    hassette_with_scheduler._scheduler.run_once(
+        make_job("late", late_job_complete), start=reference.add(seconds=0.4), name="late_job"
+    )
+    hassette_with_scheduler._scheduler.run_once(
+        make_job("early", early_job_complete), start=reference.add(seconds=0.1), name="early_job"
+    )
 
     await asyncio.wait_for(early_job_complete.wait(), timeout=2)
     await asyncio.wait_for(late_job_complete.wait(), timeout=2)
