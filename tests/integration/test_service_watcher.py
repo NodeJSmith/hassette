@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -10,13 +11,19 @@ from hassette.types.enums import ResourceStatus
 
 
 @pytest.fixture
-def get_service_watcher_mock(hassette_with_bus):
+async def get_service_watcher_mock(hassette_with_bus):
     """Return a fresh service watcher for each test."""
     watcher = ServiceWatcher.create(hassette_with_bus)
     original_children = list(hassette_with_bus.children)
     with preserve_config(hassette_with_bus.config):
         yield watcher
+        # Clean up bus listeners registered by this watcher
+        await watcher.on_shutdown()
         hassette_with_bus.children[:] = original_children
+        # Reset shutdown state so module-scoped hassette is clean for next test
+        hassette_with_bus.shutdown_event = asyncio.Event()
+        hassette_with_bus._shutting_down = False
+        hassette_with_bus.ready_event.set()
 
 
 def get_dummy_service(called: dict[str, int], hassette, *, fail: bool = False) -> Service:
@@ -46,6 +53,14 @@ def _make_failed_event(service: Service) -> HassetteServiceEvent:
     )
 
 
+def _make_running_event(service: Service) -> HassetteServiceEvent:
+    return HassetteServiceEvent.from_data(
+        resource_name=service.class_name,
+        role=service.role,
+        status=ResourceStatus.RUNNING,
+    )
+
+
 async def test_restart_service_cancels_then_starts(get_service_watcher_mock: ServiceWatcher):
     """Restarting a failed service cancels and reinitializes it."""
     call_counts = {"cancel": 0, "start": 0}
@@ -71,11 +86,12 @@ async def test_restart_service_cancels_then_starts(get_service_watcher_mock: Ser
 async def test_always_failing_service_stops_after_max_attempts(get_service_watcher_mock: ServiceWatcher):
     """A service that always fails on restart stops being restarted after max attempts."""
     watcher = get_service_watcher_mock
-    watcher.hassette.config.service_restart_max_attempts = 3
+    hassette = watcher.hassette
+    hassette.config.service_restart_max_attempts = 3
     call_counts = {"cancel": 0, "start": 0}
 
-    dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
-    watcher.hassette.children.append(dummy_service)
+    dummy_service = get_dummy_service(call_counts, hassette, fail=True)
+    hassette.children.append(dummy_service)
 
     event = _make_failed_event(dummy_service)
     key = watcher._service_key(dummy_service.class_name, dummy_service.role)
@@ -88,11 +104,13 @@ async def test_always_failing_service_stops_after_max_attempts(get_service_watch
                 await watcher.restart_service(event)
 
     assert watcher._restart_attempts[key] == 3
+    assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before max attempts exceeded"
 
-    # The 4th call should be a no-op (max attempts exceeded)
+    # The 4th call should trigger shutdown (max attempts exceeded)
     with patch("hassette.core.service_watcher.asyncio.sleep", return_value=None):
         await watcher.restart_service(event)
 
+    assert hassette.shutdown_event.is_set(), "Shutdown should be triggered after max attempts exceeded"
     # Attempt counter stays at 3 (not incremented because we returned early)
     assert watcher._restart_attempts[key] == 3
     # on_initialize was called 3 times (each restart attempted the init)
@@ -132,21 +150,22 @@ async def test_exponential_backoff_applied(get_service_watcher_mock: ServiceWatc
 async def test_config_values_are_respected(get_service_watcher_mock: ServiceWatcher):
     """Custom config values for max attempts and backoff are respected."""
     watcher = get_service_watcher_mock
-    watcher.hassette.config.service_restart_max_attempts = 1
-    watcher.hassette.config.service_restart_backoff_seconds = 0.5
-    watcher.hassette.config.service_restart_backoff_multiplier = 3.0
-    watcher.hassette.config.service_restart_max_backoff_seconds = 10.0
+    hassette = watcher.hassette
+    hassette.config.service_restart_max_attempts = 1
+    hassette.config.service_restart_backoff_seconds = 0.5
+    hassette.config.service_restart_backoff_multiplier = 3.0
+    hassette.config.service_restart_max_backoff_seconds = 10.0
 
     call_counts = {"cancel": 0, "start": 0}
-    dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
-    watcher.hassette.children.append(dummy_service)
+    dummy_service = get_dummy_service(call_counts, hassette, fail=True)
+    hassette.children.append(dummy_service)
 
     event = _make_failed_event(dummy_service)
     key = watcher._service_key(dummy_service.class_name, dummy_service.role)
 
     sleep_calls: list[float] = []
 
-    async def mock_sleep(delay):
+    async def mock_sleep(delay: float) -> None:
         sleep_calls.append(delay)
 
     # First attempt: should use backoff of 0.5 * 3^0 = 0.5
@@ -158,11 +177,13 @@ async def test_config_values_are_respected(get_service_watcher_mock: ServiceWatc
 
     assert sleep_calls == [0.5]
     assert watcher._restart_attempts[key] == 1
+    assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before max attempts exceeded"
 
-    # Second attempt: max_attempts=1, so should be rejected
+    # Second attempt: max_attempts=1, so should trigger shutdown
     with patch("hassette.core.service_watcher.asyncio.sleep", side_effect=mock_sleep):
         await watcher.restart_service(event)
 
+    assert hassette.shutdown_event.is_set(), "Shutdown should be triggered after max attempts exceeded"
     # No additional sleep call — we returned early
     assert sleep_calls == [0.5]
     assert call_counts["start"] == 1  # only the first attempt called on_initialize
@@ -178,12 +199,13 @@ async def test_attempt_counter_increments_when_restart_succeeds_but_serve_fails_
     every FAILED event restarts from attempt 1 and the service never gives up.
     """
     watcher = get_service_watcher_mock
-    watcher.hassette.config.service_restart_max_attempts = 3
+    hassette = watcher.hassette
+    hassette.config.service_restart_max_attempts = 3
 
     call_counts = {"cancel": 0, "start": 0}
     # fail=False: on_initialize succeeds, restart() won't raise
-    dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=False)
-    watcher.hassette.children.append(dummy_service)
+    dummy_service = get_dummy_service(call_counts, hassette, fail=False)
+    hassette.children.append(dummy_service)
 
     event = _make_failed_event(dummy_service)
     key = watcher._service_key(dummy_service.class_name, dummy_service.role)
@@ -197,10 +219,13 @@ async def test_attempt_counter_increments_when_restart_succeeds_but_serve_fails_
                 f"After restart {i + 1}, counter should be {i + 1} but got {watcher._restart_attempts[key]}"
             )
 
-    # 4th FAILED event: counter is 3, max is 3 → should refuse to restart
+    assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before max attempts exceeded"
+
+    # 4th FAILED event: counter is 3, max is 3 → should trigger shutdown
     with patch("hassette.core.service_watcher.asyncio.sleep", return_value=None):
         await watcher.restart_service(event)
 
+    assert hassette.shutdown_event.is_set(), "Shutdown should be triggered after max attempts exceeded"
     # Counter stays at 3, start was only called 3 times (not 4)
     assert watcher._restart_attempts[key] == 3
     assert call_counts["start"] == 3
@@ -234,3 +259,88 @@ async def test_max_backoff_caps_delay(get_service_watcher_mock: ServiceWatcher):
     # attempt 1: min(10 * 10^1, 30) = 30.0 (capped)
     # attempt 2: min(10 * 10^2, 30) = 30.0 (capped)
     assert sleep_calls == [10.0, 30.0, 30.0]
+
+
+async def test_restart_counter_resets_on_service_running(get_service_watcher_mock: ServiceWatcher):
+    """Restart attempt counter resets when a service transitions to RUNNING."""
+    watcher = get_service_watcher_mock
+    watcher.hassette.config.service_restart_max_attempts = 3
+
+    call_counts = {"cancel": 0, "start": 0}
+    dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
+    watcher.hassette.children.append(dummy_service)
+
+    event = _make_failed_event(dummy_service)
+    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+
+    # Accumulate 2 restart attempts
+    with patch("hassette.core.service_watcher.asyncio.sleep", return_value=None):
+        for _ in range(2):
+            with pytest.raises(RuntimeError, match="always fails"):
+                await watcher.restart_service(event)
+
+    assert watcher._restart_attempts[key] == 2
+
+    # Fire a RUNNING event — counter should reset
+    await watcher._on_service_running(_make_running_event(dummy_service))
+
+    assert key not in watcher._restart_attempts
+
+    # After reset, the service gets a fresh retry budget
+    with (
+        patch("hassette.core.service_watcher.asyncio.sleep", return_value=None),
+        pytest.raises(RuntimeError, match="always fails"),
+    ):
+        await watcher.restart_service(event)
+
+    assert watcher._restart_attempts[key] == 1  # fresh counter, not 3
+
+
+async def test_bus_driven_failed_events_trigger_shutdown_after_max_attempts(
+    get_service_watcher_mock: ServiceWatcher,
+):
+    """Full wiring: bus dispatch -> listener -> restart_service -> hassette.shutdown().
+
+    Unlike other tests that call restart_service() directly, this one fires
+    a single FAILED event through the bus.  Because the dummy service always
+    fails on restart, handle_failed() emits a new FAILED event each time,
+    creating a cascade that exhausts the retry budget and triggers shutdown.
+    """
+    watcher = get_service_watcher_mock
+    hassette = watcher.hassette
+    hassette.config.service_restart_max_attempts = 2
+    # Zero backoff so asyncio.sleep is never called by the handler.
+    # Patching asyncio.sleep globally would prevent wait_for() from yielding
+    # to the event loop, starving the bus dispatch tasks.
+    hassette.config.service_restart_backoff_seconds = 0.0
+
+    call_counts = {"cancel": 0, "start": 0}
+    # fail=True: on_initialize raises → handle_failed emits a new FAILED event,
+    # creating the cascade that eventually exceeds the retry budget.
+    dummy_service = get_dummy_service(call_counts, hassette, fail=True)
+    hassette.children.append(dummy_service)
+
+    event = _make_failed_event(dummy_service)
+
+    # Stub hassette.shutdown() to set the event without running the full
+    # lifecycle (which would cancel_all tasks including this test's coroutine).
+    async def _shutdown_stub() -> None:
+        hassette.shutdown_event.set()
+
+    hassette.shutdown = _shutdown_stub  # type: ignore[assignment]
+
+    # Initialize watcher to register bus listeners, then await get_listeners()
+    # which guarantees all preceding add_listener tasks have completed
+    await watcher.on_initialize()
+    listeners = await watcher.bus.get_listeners()
+    assert len(listeners) == 4, f"Expected 4 listeners, got {len(listeners)}"
+
+    # Single FAILED event kicks off the cascade:
+    #   FAILED → restart_service (counter 0→1) → service.restart() fails
+    #   → handle_failed sends FAILED → restart_service (counter 1→2 ≥ max)
+    #   → hassette.shutdown()
+    await hassette.send_event(event.topic, event)
+    await wait_for(
+        lambda: hassette.shutdown_event.is_set(),
+        desc="shutdown triggered after max attempts exceeded",
+    )

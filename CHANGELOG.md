@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - StateProxy `on_disconnect` now uses `remove_job()` instead of `cancel()` to properly free the job name slot for reconnection (#297)
 - Strip literal quote characters from `base_url` before parsing, fixing connection failures when Docker Compose passes quoted env var values (#298)
+- ServiceWatcher now triggers Hassette shutdown when a service exceeds its max restart attempts, instead of silently giving up (#301)
 
 ## [0.23.0] - 2026-02-19
 
