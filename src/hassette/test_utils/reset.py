@@ -74,14 +74,33 @@ def reset_mock_api(server: "SimpleTestServer") -> None:
 
 
 async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: list["Resource"] | None = None) -> None:
-    """Reset Hassette lifecycle state for module-scoped fixture reuse.
+    """Clear Hassette shutdown/ready flags for module-scoped fixture reuse.
+
+    This helper is intentionally limited: it only clears an in-flight shutdown
+    request and marks the instance as ready again, optionally restoring the
+    ``children`` list to a previously captured snapshot. It does **not** undo the
+    effects of a full ``await hassette.shutdown()`` call (such as closed event
+    streams or fully shut-down children) and must not be used to revive a
+    Hassette that has been completely shut down.
 
     Args:
-        hassette: The Hassette instance to reset.
+        hassette: The Hassette instance whose shutdown/ready flags should be
+            cleared for test-fixture reuse.
         original_children: If provided, restore the children list to this snapshot.
+
+    Raises:
+        RuntimeError: If event streams were already closed by a full shutdown.
     """
+    if hassette.event_streams_closed:
+        msg = (
+            "reset_hassette_lifecycle() cannot be used after a full Hassette "
+            "shutdown (event streams are already closed). Create a fresh Hassette "
+            "instance instead."
+        )
+        raise RuntimeError(msg)
+
     hassette.shutdown_event = asyncio.Event()
     hassette._shutting_down = False
-    hassette.ready_event.set()
+    hassette.mark_ready("reset for test")
     if original_children is not None:
         hassette.children[:] = original_children
