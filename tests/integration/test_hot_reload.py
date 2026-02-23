@@ -7,39 +7,24 @@ and app-lifecycle pipeline.
 """
 
 import asyncio
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import anyio
 import pytest
 
-from hassette import Bus, Hassette
-from hassette.events.hassette import HassetteFileWatcherEvent
-from hassette.test_utils import create_app_manifest, write_app_toml, write_test_app_with_decorator
+from hassette import Hassette
+from hassette.test_utils import (
+    create_app_manifest,
+    emit_file_change_event,
+    wire_up_app_running_listener,
+    wire_up_app_state_listener,
+    write_app_toml,
+    write_test_app_with_decorator,
+)
 from hassette.types import ResourceStatus
 
 if TYPE_CHECKING:
     from hassette.core.app_handler import AppHandler
-
-
-async def emit_file_change_event(hassette: Hassette, changed_paths: set[Path]) -> None:
-    """Emit a synthetic file-watcher event for the given paths."""
-    event = HassetteFileWatcherEvent.create_event(changed_file_paths=changed_paths)
-    await hassette.send_event(event.topic, event)
-
-
-def wire_up_app_state_listener(bus: Bus, event: asyncio.Event, app_key: str, status: ResourceStatus):
-    """Wire up a listener that fires when a specific app reaches the given status."""
-
-    async def handler():
-        bus.task_bucket.post_to_loop(event.set)
-
-    bus.on_app_state_changed(handler=handler, app_key=app_key, status=status, once=True)
-
-
-def wire_up_app_running_listener(bus: Bus, event: asyncio.Event, app_key: str):
-    """Wire up a listener that fires when a specific app reaches RUNNING status."""
-    wire_up_app_state_listener(bus, event, app_key, ResourceStatus.RUNNING)
 
 
 @pytest.fixture

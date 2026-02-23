@@ -4,11 +4,14 @@ Provides functions to reset Resource state between tests, enabling module-scoped
 fixtures without test pollution.
 """
 
+import asyncio
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hassette.bus.bus import Bus
+    from hassette.core.core import Hassette
     from hassette.core.state_proxy import StateProxy
+    from hassette.resources.base import Resource
     from hassette.scheduler.scheduler import Scheduler
     from hassette.test_utils.test_server import SimpleTestServer
 
@@ -68,3 +71,17 @@ def reset_mock_api(server: "SimpleTestServer") -> None:
     """
     server._expectations.clear()
     server._unexpected.clear()
+
+
+async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: list["Resource"] | None = None) -> None:
+    """Reset Hassette lifecycle state for module-scoped fixture reuse.
+
+    Args:
+        hassette: The Hassette instance to reset.
+        original_children: If provided, restore the children list to this snapshot.
+    """
+    hassette.shutdown_event = asyncio.Event()
+    hassette._shutting_down = False
+    hassette.ready_event.set()
+    if original_children is not None:
+        hassette.children[:] = original_children

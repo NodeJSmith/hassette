@@ -3,20 +3,19 @@ from unittest.mock import patch
 import pytest
 
 from hassette.core.service_watcher import ServiceWatcher
-from hassette.events.hassette import HassetteServiceEvent
 from hassette.resources.base import Service
-from hassette.test_utils import preserve_config, wait_for
-from hassette.types.enums import ResourceStatus
+from hassette.test_utils import make_service_failed_event, preserve_config, wait_for
+from hassette.test_utils.reset import reset_hassette_lifecycle
 
 
 @pytest.fixture
-def get_service_watcher_mock(hassette_with_bus):
+async def get_service_watcher_mock(hassette_with_bus):
     """Return a fresh service watcher for each test."""
     watcher = ServiceWatcher.create(hassette_with_bus)
     original_children = list(hassette_with_bus.children)
     with preserve_config(hassette_with_bus.config):
         yield watcher
-        hassette_with_bus.children[:] = original_children
+        await reset_hassette_lifecycle(hassette_with_bus, original_children=original_children)
 
 
 def get_dummy_service(called: dict[str, int], hassette, *, fail: bool = False) -> Service:
@@ -37,15 +36,6 @@ def get_dummy_service(called: dict[str, int], hassette, *, fail: bool = False) -
     return _Dummy(hassette)
 
 
-def _make_failed_event(service: Service) -> HassetteServiceEvent:
-    return HassetteServiceEvent.from_data(
-        resource_name=service.class_name,
-        role=service.role,
-        status=ResourceStatus.FAILED,
-        exception=Exception("test"),
-    )
-
-
 async def test_restart_service_cancels_then_starts(get_service_watcher_mock: ServiceWatcher):
     """Restarting a failed service cancels and reinitializes it."""
     call_counts = {"cancel": 0, "start": 0}
@@ -53,7 +43,7 @@ async def test_restart_service_cancels_then_starts(get_service_watcher_mock: Ser
     dummy_service = get_dummy_service(call_counts, get_service_watcher_mock.hassette)
     get_service_watcher_mock.hassette.children.append(dummy_service)
 
-    event = _make_failed_event(dummy_service)
+    event = make_service_failed_event(dummy_service)
 
     with patch("hassette.core.service_watcher.asyncio.sleep", return_value=None):
         await get_service_watcher_mock.restart_service(event)
@@ -77,7 +67,7 @@ async def test_always_failing_service_stops_after_max_attempts(get_service_watch
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
     watcher.hassette.children.append(dummy_service)
 
-    event = _make_failed_event(dummy_service)
+    event = make_service_failed_event(dummy_service)
     key = watcher._service_key(dummy_service.class_name, dummy_service.role)
 
     # Each call to restart_service raises because the dummy always fails,
@@ -111,7 +101,7 @@ async def test_exponential_backoff_applied(get_service_watcher_mock: ServiceWatc
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
     watcher.hassette.children.append(dummy_service)
 
-    event = _make_failed_event(dummy_service)
+    event = make_service_failed_event(dummy_service)
 
     sleep_calls: list[float] = []
 
@@ -141,7 +131,7 @@ async def test_config_values_are_respected(get_service_watcher_mock: ServiceWatc
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
     watcher.hassette.children.append(dummy_service)
 
-    event = _make_failed_event(dummy_service)
+    event = make_service_failed_event(dummy_service)
     key = watcher._service_key(dummy_service.class_name, dummy_service.role)
 
     sleep_calls: list[float] = []
@@ -185,7 +175,7 @@ async def test_attempt_counter_increments_when_restart_succeeds_but_serve_fails_
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=False)
     watcher.hassette.children.append(dummy_service)
 
-    event = _make_failed_event(dummy_service)
+    event = make_service_failed_event(dummy_service)
     key = watcher._service_key(dummy_service.class_name, dummy_service.role)
 
     # Simulate 3 FAILED events arriving (serve() failing async each time).
@@ -218,7 +208,7 @@ async def test_max_backoff_caps_delay(get_service_watcher_mock: ServiceWatcher):
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
     watcher.hassette.children.append(dummy_service)
 
-    event = _make_failed_event(dummy_service)
+    event = make_service_failed_event(dummy_service)
 
     sleep_calls: list[float] = []
 
