@@ -329,6 +329,17 @@ def make_service_failed_event(
     )
 
 
+def make_service_running_event(service: "Service") -> "HassetteServiceEvent":
+    """Create a HassetteServiceEvent with RUNNING status for testing."""
+    from hassette.events.hassette import HassetteServiceEvent
+
+    return HassetteServiceEvent.from_data(
+        resource_name=service.class_name,
+        role=service.role,
+        status=ResourceStatus.RUNNING,
+    )
+
+
 def wire_up_app_state_listener(
     bus: "Bus",
     event: asyncio.Event,

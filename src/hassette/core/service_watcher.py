@@ -60,12 +60,13 @@ class ServiceWatcher(Resource):
 
             if attempts >= max_attempts:
                 self.logger.error(
-                    "%s '%s' has failed %d times (max %d), not restarting",
+                    "%s '%s' has failed %d times (max %d), shutting down Hassette",
                     role,
                     name,
                     attempts,
                     max_attempts,
                 )
+                await self.hassette.shutdown()
                 return
 
             # Calculate exponential backoff
@@ -151,12 +152,27 @@ class ServiceWatcher(Resource):
                 data.exception_traceback,
             )
             await self.hassette.shutdown()
-        except Exception:
-            self.logger.error("Failed to handle %s crash for '%s': %s", role, name)
+        except Exception as e:
+            self.logger.error("Failed to handle %s crash for '%s': %s", role, name, e)
             raise
+
+    async def _on_service_running(self, event: HassetteServiceEvent) -> None:
+        """Reset restart attempt counter when a service transitions to RUNNING."""
+        data = event.payload.data
+        name = data.resource_name
+        role = data.role
+
+        if name is None:
+            return
+
+        key = self._service_key(name, role)
+        if key in self._restart_attempts:
+            self.logger.debug("%s '%s' is running, resetting restart counter", role, name)
+            self._restart_attempts.pop(key)
 
     def _register_internal_event_listeners(self) -> None:
         """Register internal event listeners for resource lifecycle."""
         self.bus.on_hassette_service_failed(handler=self.restart_service)
         self.bus.on_hassette_service_crashed(handler=self.shutdown_if_crashed)
         self.bus.on_hassette_service_status(handler=self.log_service_event)
+        self.bus.on_hassette_service_started(handler=self._on_service_running)
