@@ -1,3 +1,4 @@
+import asyncio
 import json
 import textwrap
 from logging import getLogger
@@ -11,9 +12,14 @@ from whenever import ZonedDateTime
 
 from hassette.config.classes import AppManifest
 from hassette.events import CallServiceEvent, RawStateChangeEvent, create_event_from_hass
+from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
+    from hassette.bus.bus import Bus
+    from hassette.core.core import Hassette
     from hassette.events import HassEventEnvelopeDict
+    from hassette.events.hassette import HassetteServiceEvent
+    from hassette.resources.base import Service
 
 
 def create_state_change_event(
@@ -293,3 +299,61 @@ class {class_name}Config(AppConfig):
 '''
 
     app_file.write_text(textwrap.dedent(content).lstrip())
+
+
+async def emit_service_event(hassette: "Hassette", event: "HassetteServiceEvent") -> None:
+    """Inject a HassetteServiceEvent into the bus."""
+    await hassette.send_event(event.topic, event)
+
+
+async def emit_file_change_event(hassette: "Hassette", changed_paths: set[Path]) -> None:
+    """Emit a synthetic file-watcher event for the given paths."""
+    from hassette.events.hassette import HassetteFileWatcherEvent
+
+    event = HassetteFileWatcherEvent.create_event(changed_file_paths=changed_paths)
+    await hassette.send_event(event.topic, event)
+
+
+def make_service_failed_event(
+    service: "Service",
+    exception: Exception | None = None,
+) -> "HassetteServiceEvent":
+    """Create a HassetteServiceEvent with FAILED status for testing."""
+    from hassette.events.hassette import HassetteServiceEvent
+
+    return HassetteServiceEvent.from_data(
+        resource_name=service.class_name,
+        role=service.role,
+        status=ResourceStatus.FAILED,
+        exception=exception or Exception("test"),
+    )
+
+
+def make_service_running_event(service: "Service") -> "HassetteServiceEvent":
+    """Create a HassetteServiceEvent with RUNNING status for testing."""
+    from hassette.events.hassette import HassetteServiceEvent
+
+    return HassetteServiceEvent.from_data(
+        resource_name=service.class_name,
+        role=service.role,
+        status=ResourceStatus.RUNNING,
+    )
+
+
+def wire_up_app_state_listener(
+    bus: "Bus",
+    event: asyncio.Event,
+    app_key: str,
+    status: ResourceStatus,
+) -> None:
+    """Wire up a listener that fires when a specific app reaches the given status."""
+
+    async def handler() -> None:
+        bus.task_bucket.post_to_loop(event.set)
+
+    bus.on_app_state_changed(handler=handler, app_key=app_key, status=status, once=True)
+
+
+def wire_up_app_running_listener(bus: "Bus", event: asyncio.Event, app_key: str) -> None:
+    """Wire up a listener that fires when a specific app reaches RUNNING status."""
+    wire_up_app_state_listener(bus, event, app_key, ResourceStatus.RUNNING)
