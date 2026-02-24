@@ -206,6 +206,55 @@ class Bus(Resource):
         self.add_listener(listener)
         return Subscription(listener, unsubscribe)
 
+    def _subscribe(
+        self,
+        *,
+        method_name: str,
+        topic: str | Topic,
+        handler: "HandlerType",
+        preds: list["Predicate"],
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        log_params: Mapping[str, Any] | None = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Common subscription tail: log, normalize where, delegate to on()."""
+        params_str = ", ".join(f"{k}='{v}'" for k, v in log_params.items()) if log_params else ""
+
+        self.logger.debug(
+            "Subscribing to %s with %s - being handled by '%s'",
+            method_name,
+            params_str,
+            callable_short_name(handler),
+        )
+
+        if where is not None:
+            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
+
+        return self.on(topic=topic, handler=handler, where=preds, kwargs=kwargs, **opts)
+
+    @staticmethod
+    def _normalize_service_where(
+        preds: list["Predicate"],
+        where: "Predicate | Sequence[Predicate] | Mapping[str, ChangeType] | None",
+    ) -> None:
+        """Normalize on_call_service's Mapping-aware where clause into predicates."""
+        if where is None:
+            return
+
+        if isinstance(where, Mapping):
+            preds.append(P.ServiceDataWhere(where))
+        elif callable(where):
+            preds.append(where)
+        else:
+            mappings = [w for w in where if isinstance(w, Mapping)]
+            other = [w for w in where if not isinstance(w, Mapping)]
+
+            preds.extend(P.ServiceDataWhere(w) for w in mappings)
+
+            if other:
+                preds.append(P.AllOf.ensure_iterable(other))
+
     def on_state_change(
         self,
         entity_id: str,
@@ -235,19 +284,6 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        self.logger.debug(
-            (
-                "Subscribing to entity '%s' with changed='%s', changed_from='%s', changed_to='%s', where='%s' -"
-                " being handled by '%s'"
-            ),
-            entity_id,
-            changed,
-            changed_from,
-            changed_to,
-            where,
-            callable_short_name(handler),
-        )
-
         preds: list[Predicate] = [P.EntityMatches(entity_id)]
         if changed:
             if changed is True:
@@ -261,12 +297,16 @@ class Bus(Resource):
         if changed_to is not NOT_PROVIDED:
             preds.append(P.StateTo(condition=changed_to))
 
-        if where is not None:
-            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))  # allow extra guards
-
-        topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
-
-        return self.on(topic=topic, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self._subscribe(
+            method_name=f"entity '{entity_id}'",
+            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+            handler=handler,
+            preds=preds,
+            where=where,
+            kwargs=kwargs,
+            log_params={"changed": changed, "changed_from": changed_from, "changed_to": changed_to, "where": where},
+            **opts,
+        )
 
     def on_attribute_change(
         self,
@@ -299,19 +339,6 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        self.logger.debug(
-            (
-                "Subscribing to entity '%s' attribute '%s' with changed_from='%s', changed_to='%s'"
-                ", where='%s' - being handled by '%s'"
-            ),
-            entity_id,
-            attr,
-            changed_from,
-            changed_to,
-            where,
-            callable_short_name(handler),
-        )
-
         preds: list[Predicate] = [P.EntityMatches(entity_id)]
 
         # if not changed then we are going to fire every time the entity has a StateChanged event
@@ -339,11 +366,16 @@ class Bus(Resource):
         if changed_to is not NOT_PROVIDED:
             preds.append(P.AttrTo(attr, condition=changed_to))
 
-        if where is not None:
-            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
-
-        topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
-        return self.on(topic=topic, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self._subscribe(
+            method_name=f"entity '{entity_id}' attribute '{attr}'",
+            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+            handler=handler,
+            preds=preds,
+            where=where,
+            kwargs=kwargs,
+            log_params={"changed_from": changed_from, "changed_to": changed_to, "where": where},
+            **opts,
+        )
 
     def on_call_service(
         self,
@@ -369,14 +401,6 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        self.logger.debug(
-            ("Subscribing to call_service with domain='%s', service='%s', where='%s' - being handled by '%s'"),
-            domain,
-            service,
-            where,
-            callable_short_name(handler),
-        )
-
         preds: list[Predicate] = []
         if domain is not None:
             preds.append(P.DomainMatches(domain))
@@ -384,21 +408,18 @@ class Bus(Resource):
         if service is not None:
             preds.append(P.ServiceMatches(service))
 
-        if where is not None:
-            if isinstance(where, Mapping):
-                preds.append(P.ServiceDataWhere(where))
-            elif callable(where):
-                preds.append(where)
-            else:
-                mappings = [w for w in where if isinstance(w, Mapping)]
-                other = [w for w in where if not isinstance(w, Mapping)]
+        self._normalize_service_where(preds, where)
 
-                preds.extend(P.ServiceDataWhere(w) for w in mappings)
-
-                if other:
-                    preds.append(P.AllOf.ensure_iterable(other))
-
-        return self.on(topic=Topic.HASS_EVENT_CALL_SERVICE, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self._subscribe(
+            method_name="call_service",
+            topic=Topic.HASS_EVENT_CALL_SERVICE,
+            handler=handler,
+            preds=preds,
+            where=None,
+            kwargs=kwargs,
+            log_params={"domain": domain, "service": service, "where": where},
+            **opts,
+        )
 
     def on_component_loaded(
         self,
@@ -422,22 +443,21 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        self.logger.debug(
-            ("Subscribing to component_loaded with component='%s', where='%s' - being handled by '%s'"),
-            component,
-            where,
-            callable_short_name(handler),
-        )
-
         preds: list[Predicate] = []
 
         if component is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.component"), condition=component))
 
-        if where is not None:
-            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
-
-        return self.on(topic=Topic.HASS_EVENT_COMPONENT_LOADED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self._subscribe(
+            method_name="component_loaded",
+            topic=Topic.HASS_EVENT_COMPONENT_LOADED,
+            handler=handler,
+            preds=preds,
+            where=where,
+            kwargs=kwargs,
+            log_params={"component": component, "where": where},
+            **opts,
+        )
 
     def on_service_registered(
         self,
@@ -463,14 +483,6 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        self.logger.debug(
-            ("Subscribing to service_registered with domain='%s', service='%s', where='%s' - being handled by '%s'"),
-            domain,
-            service,
-            where,
-            callable_short_name(handler),
-        )
-
         preds: list[Predicate] = []
 
         if domain is not None:
@@ -479,10 +491,16 @@ class Bus(Resource):
         if service is not None:
             preds.append(P.ServiceMatches(service))
 
-        if where is not None:
-            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
-
-        return self.on(topic=Topic.HASS_EVENT_SERVICE_REGISTERED, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self._subscribe(
+            method_name="service_registered",
+            topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
+            handler=handler,
+            preds=preds,
+            where=where,
+            kwargs=kwargs,
+            log_params={"domain": domain, "service": service, "where": where},
+            **opts,
+        )
 
     def on_homeassistant_restart(
         self,
@@ -572,22 +590,21 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        self.logger.debug(
-            ("Subscribing to hassette.service_status with status='%s', where='%s' - being handled by '%s'"),
-            status,
-            where,
-            callable_short_name(handler),
-        )
-
         preds: list[Predicate] = []
 
         if status is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
-        if where is not None:
-            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
-
-        return self.on(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self._subscribe(
+            method_name="hassette.service_status",
+            topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
+            handler=handler,
+            preds=preds,
+            where=where,
+            kwargs=kwargs,
+            log_params={"status": status, "where": where},
+            **opts,
+        )
 
     def on_hassette_service_failed(
         self,
@@ -733,14 +750,6 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        self.logger.debug(
-            "Subscribing to app_state_changed with app_key='%s', status='%s', where='%s' - being handled by '%s'",
-            app_key,
-            status,
-            where,
-            callable_short_name(handler),
-        )
-
         preds: list[Predicate] = []
 
         if app_key is not None:
@@ -749,11 +758,15 @@ class Bus(Resource):
         if status is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
-        if where is not None:
-            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
-
-        return self.on(
-            topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED, handler=handler, where=preds, kwargs=kwargs, **opts
+        return self._subscribe(
+            method_name="app_state_changed",
+            topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
+            handler=handler,
+            preds=preds,
+            where=where,
+            kwargs=kwargs,
+            log_params={"app_key": app_key, "status": status, "where": where},
+            **opts,
         )
 
     def on_app_running(
