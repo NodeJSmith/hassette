@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Renamed `ExecutionResult.started_at` to `monotonic_start` to clarify it stores a monotonic clock value (#297)
 
 ### Fixed
+- Await `Bus.remove_all_listeners()` in `ServiceWatcher`, `StateProxy`, and `AppHandler` shutdown to prevent listener cleanup race condition
 - StateProxy `on_disconnect` now uses `remove_job()` instead of `cancel()` to properly free the job name slot for reconnection (#297)
 - Strip literal quote characters from `base_url` before parsing, fixing connection failures when Docker Compose passes quoted env var values (#298)
 - ServiceWatcher now triggers Hassette shutdown when a service exceeds its max restart attempts, instead of silently giving up (#301)
