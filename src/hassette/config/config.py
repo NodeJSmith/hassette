@@ -260,7 +260,21 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     disable_state_proxy_polling: bool = Field(default=False)
     """Whether to disable polling for the state proxy. Defaults to False."""
 
+    # Database configuration
+
+    db_path: Path | None = Field(default=None)
+    """Path to the SQLite database file. Defaults to data_dir / "hassette.db" when None."""
+
+    db_retention_days: int = Field(default=7, ge=1)
+    """Number of days to retain execution records (handler_invocations, job_executions)."""
+
+    db_max_size_mb: int = Field(default=500)
+    """Maximum database size in megabytes before warnings are emitted."""
+
     # Service log levels
+
+    database_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    """Logging level for the database service. Defaults to INFO or the value of log_level."""
 
     bus_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the event bus service. Defaults to INFO or the value of log_level."""
