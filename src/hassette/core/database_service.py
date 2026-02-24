@@ -56,7 +56,6 @@ class DatabaseService(Service):
         inst._session_id = None
         inst._db_path = Path()
         inst._consecutive_heartbeat_failures = 0
-        inst._bus = inst.add_child(Bus)
         inst._session_error = False
         return inst
 
@@ -91,6 +90,7 @@ class DatabaseService(Service):
         """Set up the database: run migrations, open connection, create session."""
         self._consecutive_heartbeat_failures = 0
         self._session_error = False
+        self._bus = self.add_child(Bus)
         self._db_path = self._resolve_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
