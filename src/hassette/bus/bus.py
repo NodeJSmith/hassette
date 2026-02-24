@@ -84,7 +84,7 @@ import typing
 from collections.abc import Mapping
 from typing import Any, TypeVar, Unpack
 
-from typing_extensions import TypedDict
+from typing_extensions import Sentinel, TypedDict
 
 from hassette.const import NOT_PROVIDED
 from hassette.event_handling import predicates as P
@@ -220,7 +220,11 @@ class Bus(Resource):
     ) -> Subscription:
         """Common subscription tail: log, normalize where, delegate to on()."""
         if self.logger.isEnabledFor(10):  # DEBUG
-            filtered = {k: v for k, v in log_params.items() if v is not None and v} if log_params else {}
+            filtered = (
+                {k: v for k, v in log_params.items() if v is not None and not isinstance(v, Sentinel)}
+                if log_params
+                else {}
+            )
             params_str = ", ".join(f"{k}='{v}'" for k, v in filtered.items())
 
             self.logger.debug(
