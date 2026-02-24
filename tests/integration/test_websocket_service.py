@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 @pytest.fixture
 def websocket_service(hassette_with_bus: "Hassette") -> WebsocketService:
     """Create a fresh websocket service instance for each test."""
-    return WebsocketService.create(hassette_with_bus)
+    return WebsocketService(hassette_with_bus, parent=hassette_with_bus)
 
 
 def _build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:

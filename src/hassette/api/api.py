@@ -195,13 +195,11 @@ class Api(Resource):
     _api_service: "ApiResource"
     """Internal API service instance."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: "Resource"):
-        inst = cls(hassette=hassette, parent=parent)
-        inst._api_service = inst.hassette._api_service
-        inst.sync = inst.add_child(ApiSyncFacade, api=inst)
-        inst.mark_ready(reason="API initialized")
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self._api_service = self.hassette._api_service
+        self.sync = self.add_child(ApiSyncFacade, api=self)
+        self.mark_ready(reason="API initialized")
 
     @property
     def config_log_level(self):

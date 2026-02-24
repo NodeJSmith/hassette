@@ -83,23 +83,18 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     index: int
     """Index of this app instance, used for unique naming."""
 
-    def __init__(self, *args, app_config: AppConfigT, index: int, **kwargs):
-        # unlike most classes, this one does take additional init args
-        # this is because the unique name we use for the logger depends on the app config
+    def __init__(
+        self, hassette: "Hassette", *, app_config: AppConfigT, index: int, parent: Resource | None = None
+    ) -> None:
+        # app_config and index must be set before super().__init__ because
+        # unique_name (used by the logger) depends on app_config
         self.app_config = app_config
         self.index = index
-        super().__init__(*args, **kwargs)
-
-    @classmethod
-    def create(cls, hassette: "Hassette", app_config: AppConfigT, index: int):
-        inst = cls(hassette=hassette, app_config=app_config, index=index)
-        inst.app_config = app_config
-        inst.index = index
-        inst.api = inst.add_child(Api)
-        inst.scheduler = inst.add_child(Scheduler)
-        inst.bus = inst.add_child(Bus, priority=0)
-        inst.states = inst.add_child(StateManager)
-        return inst
+        super().__init__(hassette, parent=parent)
+        self.api = self.add_child(Api)
+        self.scheduler = self.add_child(Scheduler)
+        self.bus = self.add_child(Bus, priority=0)
+        self.states = self.add_child(StateManager)
 
     @property
     def unique_name(self) -> str:

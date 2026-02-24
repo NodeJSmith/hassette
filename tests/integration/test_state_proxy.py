@@ -126,7 +126,7 @@ def state_proxy():
         asyncio.sleep(0)
     )
 
-    proxy = StateProxy.create(mock_hassette, mock_hassette)
+    proxy = StateProxy(mock_hassette, parent=mock_hassette)
     proxy.mark_ready(reason="Test setup")
     return proxy
 

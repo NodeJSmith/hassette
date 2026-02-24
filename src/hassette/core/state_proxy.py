@@ -30,26 +30,14 @@ class StateProxy(Resource):
     state_change_sub: "Subscription | None"
     poll_job: "ScheduledJob | None"
 
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: "Resource"):
-        """Create a new StateProxy instance.
-
-        Args:
-            hassette: The Hassette instance.
-            parent: The parent resource (typically the Hassette core).
-
-        Returns:
-            A new StateProxy instance.
-        """
-        inst = cls(hassette=hassette, parent=parent)
-        inst.states = {}
-        inst.lock = FairAsyncRLock()
-        inst.bus = inst.add_child(Bus, priority=100)
-        inst.scheduler = inst.add_child(Scheduler)
-        inst.state_change_sub = None
-        inst.poll_job = None
-
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self.states = {}
+        self.lock = FairAsyncRLock()
+        self.bus = self.add_child(Bus, priority=100)
+        self.scheduler = self.add_child(Scheduler)
+        self.state_change_sub = None
+        self.poll_job = None
 
     @property
     def config_log_level(self):

@@ -28,6 +28,7 @@ from .api_resource import ApiResource
 from .app_handler import AppHandler
 from .bus_service import BusService
 from .data_sync_service import DataSyncService
+from .database_service import DatabaseService
 from .file_watcher import FileWatcherService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
@@ -74,7 +75,7 @@ class Hassette(Resource):
         self.unique_id = ""
         enable_logging(self.config.log_level, log_buffer_size=self.config.web_api_log_buffer_size)
 
-        super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
+        super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
         self.logger.info("Starting Hassette...", stacklevel=2)
 
         # set context variables
@@ -89,6 +90,7 @@ class Hassette(Resource):
         self._loop_thread_id: int | None = None
 
         # private background services
+        self._database_service = self.add_child(DatabaseService)
         self._bus_service = self.add_child(BusService, stream=self._receive_stream.clone())
 
         self._service_watcher = self.add_child(ServiceWatcher)
@@ -167,6 +169,11 @@ class Hassette(Resource):
         if self._loop is None:
             raise RuntimeError("Event loop is not running")
         return self._loop
+
+    @property
+    def database_service(self) -> DatabaseService:
+        """DatabaseService instance for SQLite telemetry storage."""
+        return self._database_service
 
     @property
     def data_sync_service(self) -> DataSyncService:

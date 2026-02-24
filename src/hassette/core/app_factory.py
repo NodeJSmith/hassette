@@ -68,7 +68,7 @@ class AppFactory:
 
             try:
                 validated = app_class.app_config_cls.model_validate(config)
-                app_instance = app_class.create(
+                app_instance = app_class(
                     hassette=self.hassette,
                     app_config=validated,
                     index=idx,

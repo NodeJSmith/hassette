@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- `DatabaseService` with Alembic migration infrastructure for persistent SQLite telemetry storage (sessions, listeners, scheduled jobs, handler invocations, job executions) (#305)
 - Event injection and lifecycle reset utilities in `test_utils` for service-level integration tests (`emit_service_event`, `emit_file_change_event`, `make_service_failed_event`, `make_service_running_event`, `wire_up_app_state_listener`, `wire_up_app_running_listener`, `reset_hassette_lifecycle`) (#303)
 - `App.app_key` property for accessing the app's configuration key (#297)
 - `if_exists` parameter on all `Scheduler.run_*` methods with `"error"` (default) and `"skip"` modes for idempotent job registration (#297)

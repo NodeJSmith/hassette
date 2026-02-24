@@ -35,6 +35,7 @@ from hassette.types import Topic
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.events.hass.raw import HassEventEnvelopeDict
+    from hassette.resources.base import Resource
 
 LOGGER = getLogger(__name__)
 
@@ -77,20 +78,17 @@ class WebsocketService(Service):
     _connect_lock: asyncio.Lock
     """Lock to prevent concurrent connection attempts."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette"):
-        inst = cls(hassette=hassette, parent=hassette)
-        inst.url = inst.hassette.ws_url
-        inst._stack = AsyncExitStack()
-        inst._session = None
-        inst._ws = None
-        inst._response_futures = {}
-        inst._seq = count(1)
-
-        inst._recv_task = None
-        inst._subscription_ids = set()
-        inst._connect_lock = asyncio.Lock()  # if you don't already have it
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self.url = self.hassette.ws_url
+        self._stack = AsyncExitStack()
+        self._session = None
+        self._ws = None
+        self._response_futures = {}
+        self._seq = count(1)
+        self._recv_task = None
+        self._subscription_ids = set()
+        self._connect_lock = asyncio.Lock()
 
     @property
     def config_log_level(self):
