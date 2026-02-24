@@ -124,7 +124,7 @@ class AppHandler(Resource):
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
         self.mark_not_ready(reason="shutting-down")
 
-        self.bus.remove_all_listeners()
+        await self.bus.remove_all_listeners()
         await self.lifecycle.shutdown_all()
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":

@@ -120,6 +120,12 @@ def state_proxy():
     mock_hassette.config.log_level = "DEBUG"
     mock_hassette.config.bus_service_log_level = "DEBUG"
 
+    # Bus.remove_all_listeners() delegates to bus_service.remove_listeners_by_owner()
+    # which must return an awaitable Task, not a plain Mock.
+    mock_hassette._bus_service.remove_listeners_by_owner.side_effect = lambda *_args, **_kwargs: asyncio.ensure_future(
+        asyncio.sleep(0)
+    )
+
     proxy = StateProxy(mock_hassette, parent=mock_hassette)
     proxy.mark_ready(reason="Test setup")
     return proxy
