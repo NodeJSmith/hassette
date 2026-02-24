@@ -124,10 +124,11 @@ async def test_max_restart_exceeded_emits_crashed_event(get_service_watcher_mock
     finally:
         hassette.send_event = original_send  # type: ignore[assignment]
 
-    mock_send.assert_called_once()
-    call_args = mock_send.call_args
-    assert call_args[0][0] == Topic.HASSETTE_EVENT_SERVICE_STATUS
-    crashed_event = call_args[0][1]
+    # First send_event call should be the CRASHED event (shutdown may emit STOPPED after)
+    assert mock_send.call_count >= 1
+    first_call = mock_send.call_args_list[0]
+    assert first_call[0][0] == Topic.HASSETTE_EVENT_SERVICE_STATUS
+    crashed_event = first_call[0][1]
     assert crashed_event.payload.data.status == ResourceStatus.CRASHED
     assert crashed_event.payload.data.previous_status == ResourceStatus.FAILED
     assert crashed_event.payload.data.resource_name == dummy_service.class_name
