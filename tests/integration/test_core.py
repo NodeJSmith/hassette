@@ -15,6 +15,7 @@ from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.data_sync_service import DataSyncService
+from hassette.core.database_service import DatabaseService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
@@ -56,6 +57,7 @@ def test_unique_name_is_constant(hassette_instance: Hassette) -> None:
 
 def test_constructor_registers_background_services(hassette_instance: Hassette) -> None:
     """Constructor wires up expected services and resources."""
+    assert isinstance(hassette_instance._database_service, DatabaseService)
     assert isinstance(hassette_instance._bus_service, BusService)
     assert isinstance(hassette_instance._service_watcher, ServiceWatcher)
     assert isinstance(hassette_instance._websocket_service, WebsocketService)
@@ -70,6 +72,7 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
     assert hassette_instance.api is not None
 
     expected_children = [
+        hassette_instance._database_service,
         hassette_instance._bus_service,
         hassette_instance._service_watcher,
         hassette_instance._websocket_service,

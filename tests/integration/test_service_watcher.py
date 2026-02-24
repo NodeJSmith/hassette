@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -6,6 +6,7 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.resources.base import Service
 from hassette.test_utils import make_service_failed_event, make_service_running_event, preserve_config, wait_for
 from hassette.test_utils.reset import reset_hassette_lifecycle
+from hassette.types import ResourceStatus, Topic
 
 
 @pytest.fixture
@@ -92,6 +93,45 @@ async def test_always_failing_service_stops_after_max_attempts(get_service_watch
     assert watcher._restart_attempts[key] == 3
     # on_initialize was called 3 times (each restart attempted the init)
     assert call_counts["start"] == 3
+
+
+async def test_max_restart_exceeded_emits_crashed_event(get_service_watcher_mock: ServiceWatcher):
+    """When max restart attempts are exceeded, a CRASHED event is emitted before shutdown."""
+    watcher = get_service_watcher_mock
+    hassette = watcher.hassette
+    hassette.config.service_restart_max_attempts = 1
+    call_counts = {"cancel": 0, "start": 0}
+
+    dummy_service = get_dummy_service(call_counts, hassette, fail=True)
+    hassette.children.append(dummy_service)
+
+    event = make_service_failed_event(dummy_service)
+
+    # First call fails and increments counter
+    with (
+        patch("hassette.core.service_watcher.asyncio.sleep", return_value=None),
+        pytest.raises(RuntimeError, match="always fails"),
+    ):
+        await watcher.restart_service(event)
+
+    # Second call exceeds max — should emit CRASHED then shutdown
+    mock_send = AsyncMock()
+    original_send = hassette.send_event
+    hassette.send_event = mock_send  # type: ignore[assignment]
+    try:
+        with patch("hassette.core.service_watcher.asyncio.sleep", return_value=None):
+            await watcher.restart_service(event)
+    finally:
+        hassette.send_event = original_send  # type: ignore[assignment]
+
+    # First send_event call should be the CRASHED event (shutdown may emit STOPPED after)
+    assert mock_send.call_count >= 1
+    first_call = mock_send.call_args_list[0]
+    assert first_call[0][0] == Topic.HASSETTE_EVENT_SERVICE_STATUS
+    crashed_event = first_call[0][1]
+    assert crashed_event.payload.data.status == ResourceStatus.CRASHED
+    assert crashed_event.payload.data.previous_status == ResourceStatus.FAILED
+    assert crashed_event.payload.data.resource_name == dummy_service.class_name
 
 
 async def test_exponential_backoff_applied(get_service_watcher_mock: ServiceWatcher):
