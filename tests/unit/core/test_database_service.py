@@ -27,12 +27,12 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
 
 @pytest.fixture
 def service(mock_hassette: MagicMock) -> DatabaseService:
-    """Create a DatabaseService instance using the factory."""
-    return DatabaseService.create(mock_hassette)
+    """Create a DatabaseService instance."""
+    return DatabaseService(mock_hassette, parent=mock_hassette)
 
 
-def test_create_sets_defaults(service: DatabaseService) -> None:
-    """Factory sets _db, _session_id, _db_path, failure counter, and session error flag to initial values."""
+def test_init_sets_defaults(service: DatabaseService) -> None:
+    """Constructor sets _db, _session_id, _db_path, failure counter, and session error flag to initial values."""
     assert service._db is None
     assert service._session_id is None
     assert service._db_path == Path()

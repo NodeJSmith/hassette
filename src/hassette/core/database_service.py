@@ -14,6 +14,7 @@ from hassette.types import ResourceStatus
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.resources.base import Resource
 
 # Heartbeat interval: 5 minutes
 _HEARTBEAT_INTERVAL_SECONDS = 300
@@ -50,15 +51,13 @@ class DatabaseService(Service):
     _session_error: bool
     """Whether a service crash has been recorded for this session."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette") -> "DatabaseService":
-        inst = cls(hassette, parent=hassette)
-        inst._db = None
-        inst._session_id = None
-        inst._db_path = Path()
-        inst._consecutive_heartbeat_failures = 0
-        inst._session_error = False
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self._db = None
+        self._session_id = None
+        self._db_path = Path()
+        self._consecutive_heartbeat_failures = 0
+        self._session_error = False
 
     @property
     def config_log_level(self) -> str:
