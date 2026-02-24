@@ -285,7 +285,7 @@ class HassetteHarness:
 
         self.hassette._loop = asyncio.get_running_loop()
         self.hassette._loop_thread_id = threading.get_ident()
-        self.hassette.task_bucket = TaskBucket.create(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
+        self.hassette.task_bucket = TaskBucket(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
         self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
 
         # Start components in dependency order

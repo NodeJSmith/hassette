@@ -73,8 +73,8 @@ class TestAppFactoryCreateInstances:
 
         factory.create_instances("test_app", mock_manifest)
 
-        mock_app_class.create.assert_called_once()
-        mock_registry.register_app.assert_called_once_with("test_app", 0, mock_app_class.create.return_value)
+        mock_app_class.assert_called_once()
+        mock_registry.register_app.assert_called_once_with("test_app", 0, mock_app_class.return_value)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_success_multiple_configs(
@@ -89,10 +89,10 @@ class TestAppFactoryCreateInstances:
 
         factory.create_instances("test_app", mock_manifest)
 
-        assert mock_app_class.create.call_count == 2
+        assert mock_app_class.call_count == 2
         assert mock_registry.register_app.call_count == 2
-        mock_registry.register_app.assert_any_call("test_app", 0, mock_app_class.create.return_value)
-        mock_registry.register_app.assert_any_call("test_app", 1, mock_app_class.create.return_value)
+        mock_registry.register_app.assert_any_call("test_app", 0, mock_app_class.return_value)
+        mock_registry.register_app.assert_any_call("test_app", 1, mock_app_class.return_value)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_empty_config(
@@ -104,7 +104,7 @@ class TestAppFactoryCreateInstances:
 
         factory.create_instances("test_app", mock_manifest)
 
-        mock_app_class.create.assert_not_called()
+        mock_app_class.assert_not_called()
         mock_registry.register_app.assert_not_called()
 
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
@@ -142,7 +142,7 @@ class TestAppFactoryCreateInstances:
         assert isinstance(call_args[0][2], ValueError)
 
         # Second config should succeed
-        mock_registry.register_app.assert_called_once_with("test_app", 1, mock_app_class.create.return_value)
+        mock_registry.register_app.assert_called_once_with("test_app", 1, mock_app_class.return_value)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_validation_failure(
@@ -164,11 +164,11 @@ class TestAppFactoryCreateInstances:
     def test_create_instances_app_create_failure(
         self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
     ):
-        """Records failure when App.create() raises exception."""
+        """Records failure when App() constructor raises exception."""
         create_error = RuntimeError("Create failed")
         mock_app_class = Mock(__name__="TestApp")
 
-        mock_app_class.create.side_effect = create_error
+        mock_app_class.side_effect = create_error
         mock_load_class.return_value = mock_app_class
         factory.create_instances("test_app", mock_manifest)
 

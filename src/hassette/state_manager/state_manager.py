@@ -219,6 +219,10 @@ class StateManager(Resource):
 
     _domain_states_cache: dict[type[BaseState], DomainStates[BaseState]]
 
+    def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self._domain_states_cache = {}
+
     async def after_initialize(self) -> None:
         self.mark_ready()
 
@@ -226,22 +230,6 @@ class StateManager(Resource):
     def _state_proxy(self) -> StateProxy:
         """Access the underlying StateProxy instance."""
         return self.hassette._state_proxy
-
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: "Resource"):
-        """Create a new States resource instance.
-
-        Args:
-            hassette: The Hassette instance.
-            parent: The parent resource (typically the Hassette core).
-
-        Returns:
-            A new States resource instance.
-        """
-        inst = cls(hassette=hassette, parent=parent)
-        inst._domain_states_cache = {}
-
-        return inst
 
     def __getattr__(self, domain: str) -> "DomainStates[BaseState]":
         """Dynamically access domain states by property name.

@@ -125,15 +125,13 @@ class Bus(Resource):
     priority: int = 0
     """Priority level for event handlers created by this bus."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: "Resource", priority: int = 0):
-        inst = cls(hassette=hassette, parent=parent)
-        inst.bus_service = inst.hassette._bus_service
-        inst.priority = priority
+    def __init__(self, hassette: "Hassette", *, priority: int = 0, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self.bus_service = self.hassette._bus_service
+        self.priority = priority
 
-        assert inst.bus_service is not None, "Bus service not initialized"
-        inst.mark_ready(reason="Bus initialized")
-        return inst
+        assert self.bus_service is not None, "Bus service not initialized"
+        self.mark_ready(reason="Bus initialized")
 
     async def on_shutdown(self) -> None:
         """Cleanup all listeners owned by this bus's owner on shutdown."""

@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import typing
 import uuid
 from abc import abstractmethod
@@ -112,21 +111,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     def __init_subclass__(cls) -> None:
         cls.class_name = cls.__name__
 
-    @classmethod
-    def create(
-        cls, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None, **kwargs
-    ):
-        sig = inspect.signature(cls)
-        # Start with a copy of incoming kwargs to preserve any extra arguments
-        final_kwargs = dict(kwargs)
-        if "hassette" in sig.parameters:
-            final_kwargs["hassette"] = hassette
-        if "task_bucket" in sig.parameters:
-            final_kwargs["task_bucket"] = task_bucket
-        if "parent" in sig.parameters:
-            final_kwargs["parent"] = parent
-        return cls(**final_kwargs)
-
     def __init__(
         self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
     ) -> None:
@@ -147,7 +131,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             # TaskBucket is special: it is its own task bucket
             self.task_bucket = self
         else:
-            self.task_bucket = task_bucket or TaskBucket.create(self.hassette, parent=self)
+            self.task_bucket = task_bucket or TaskBucket(self.hassette, parent=self)
 
     def _get_logger_name(self) -> str:
         if self.class_name == "Hassette":
@@ -224,14 +208,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if "parent" in kwargs:
             raise ValueError("Cannot specify 'parent' argument when adding a child resource; it is set automatically.")
 
-        sig = inspect.signature(child_class.create)
-        if "parent" in sig.parameters:
-            kwargs["parent"] = self
-
-        if "hassette" not in sig.parameters:
-            raise ValueError("Child resource class must accept 'hassette' argument in its create() method.")
-
-        inst = child_class.create(self.hassette, **kwargs)
+        inst = child_class(hassette=self.hassette, parent=self, **kwargs)
         self.children.append(inst)
         return inst
 

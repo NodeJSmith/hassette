@@ -30,14 +30,10 @@ class TaskBucket(Resource):
     _tasks: "weakref.WeakSet[asyncio.Task[Any]]"
     """Weak set of tasks tracked by this bucket."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: "Resource"):
-        inst = cls(hassette=hassette, parent=parent)
-
-        inst._tasks = weakref.WeakSet()
-
-        inst.mark_ready(reason="TaskBucket initialized")
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self._tasks = weakref.WeakSet()
+        self.mark_ready(reason="TaskBucket initialized")
 
     @property
     def config_cancel_timeout(self) -> int | float:

@@ -13,7 +13,7 @@ from fair_async_rlock import FairAsyncRLock
 from hassette.bus.metrics import ListenerMetrics
 from hassette.events import Event, HassPayload
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.resources.base import Service
+from hassette.resources.base import Resource, Service
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -49,16 +49,19 @@ class BusService(Service):
     Metrics persist after listener removal (~200 bytes each) to preserve
     historical data for the web UI. This is intentional and not a leak."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette", stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"):
-        inst = cls(hassette, parent=hassette)
-        inst.stream = stream
-        inst.listener_seq = itertools.count(1)
-        inst.router = Router()
-        inst._listener_metrics = {}
-        inst._setup_exclusion_filters()
-
-        return inst
+    def __init__(
+        self,
+        hassette: "Hassette",
+        *,
+        stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]",
+        parent: "Resource | None" = None,
+    ) -> None:
+        super().__init__(hassette, parent=parent)
+        self.stream = stream
+        self.listener_seq = itertools.count(1)
+        self.router = Router()
+        self._listener_metrics = {}
+        self._setup_exclusion_filters()
 
     @property
     def config_log_level(self):

@@ -11,7 +11,7 @@ from hassette.test_utils.reset import reset_hassette_lifecycle
 @pytest.fixture
 async def get_service_watcher_mock(hassette_with_bus):
     """Return a fresh service watcher for each test."""
-    watcher = ServiceWatcher.create(hassette_with_bus)
+    watcher = ServiceWatcher(hassette_with_bus, parent=hassette_with_bus)
     original_children = list(hassette_with_bus.children)
     with preserve_config(hassette_with_bus.config):
         yield watcher

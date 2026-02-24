@@ -50,12 +50,10 @@ class ApiResource(Resource):
     _session: aiohttp.ClientSession | None
     """HTTP client session for making requests."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette"):
-        inst = cls(hassette, parent=hassette)
-        inst._stack = AsyncExitStack()
-        inst._session = None
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self._stack = AsyncExitStack()
+        self._session = None
 
     async def on_initialize(self):
         """
