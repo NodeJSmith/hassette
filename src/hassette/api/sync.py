@@ -38,12 +38,10 @@ class ApiSyncFacade(Resource):
 
     _api: "Api"
 
-    @classmethod
-    def create(cls, hassette: "Hassette", api: "Api"):
-        inst = cls(hassette, parent=api)
-        inst._api = api
-        inst.mark_ready(reason="Synchronous API facade initialized")
-        return inst
+    def __init__(self, hassette: "Hassette", *, api: "Api", parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self._api = api
+        self.mark_ready(reason="Synchronous API facade initialized")
 
     def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""

@@ -21,12 +21,10 @@ class ServiceWatcher(Resource):
     _restart_attempts: dict[str, int]
     """Tracks restart attempt counts per service, keyed by 'name:role'."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette"):
-        inst = cls(hassette, parent=hassette)
-        inst.bus = inst.add_child(Bus)
-        inst._restart_attempts = {}
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self.bus = self.add_child(Bus)
+        self._restart_attempts = {}
 
     @property
     def config_log_level(self):

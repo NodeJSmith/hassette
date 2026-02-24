@@ -58,8 +58,7 @@ class DomainStates(typing.Generic[StateT]):
 class StateManager(Resource):
     @property
     def _state_proxy(self) -> StateProxy: ...
-    @classmethod
-    def create(cls, hassette: Hassette, parent: Resource) -> StateManager: ...
+    def __init__(self, hassette: Hassette, *, parent: Resource | None = None) -> None: ...
 
     # Known domain properties with full typing
     @property

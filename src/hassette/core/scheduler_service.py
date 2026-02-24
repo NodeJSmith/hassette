@@ -38,15 +38,12 @@ class SchedulerService(Service):
     _execution_log: "deque[JobExecutionRecord]"
     """Ring buffer of recent job execution records."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette"):
-        inst = cls(hassette, parent=hassette)
-        inst._job_queue = inst.add_child(_ScheduledJobQueue)
-        inst._wakeup_event = asyncio.Event()
-        inst._exit_event = asyncio.Event()
-        inst._execution_log = deque(maxlen=hassette.config.web_api_job_history_size)
-
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self._job_queue = self.add_child(_ScheduledJobQueue)
+        self._wakeup_event = asyncio.Event()
+        self._exit_event = asyncio.Event()
+        self._execution_log = deque(maxlen=hassette.config.web_api_job_history_size)
 
     @property
     def min_delay(self) -> float:
@@ -302,15 +299,11 @@ class _ScheduledJobQueue(Resource):
     _queue: "HeapQueue[ScheduledJob]"
     """The heap queue of scheduled jobs."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: Resource):
-        inst = cls(hassette, parent=parent)
-        inst._lock = FairAsyncRLock()
-        inst._queue = HeapQueue()
-
-        inst.mark_ready(reason="Queue ready")
-
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self._lock = FairAsyncRLock()
+        self._queue = HeapQueue()
+        self.mark_ready(reason="Queue ready")
 
     @property
     def config_log_level(self):

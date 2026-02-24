@@ -131,15 +131,13 @@ class Scheduler(Resource):
     _jobs_by_name: dict[str, "ScheduledJob"]
     """Tracks jobs by name for uniqueness validation within this scheduler instance."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: "Resource"):
-        inst = cls(hassette=hassette, parent=parent)
-        inst.scheduler_service = inst.hassette._scheduler_service
-        assert inst.scheduler_service is not None, "Scheduler service not initialized"
-        inst._jobs_by_name = {}
+    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self.scheduler_service = self.hassette._scheduler_service
+        assert self.scheduler_service is not None, "Scheduler service not initialized"
+        self._jobs_by_name = {}
 
-        inst.mark_ready(reason="Scheduler initialized")
-        return inst
+        self.mark_ready(reason="Scheduler initialized")
 
     @property
     def config_log_level(self):

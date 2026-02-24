@@ -120,7 +120,7 @@ def state_proxy():
     mock_hassette.config.log_level = "DEBUG"
     mock_hassette.config.bus_service_log_level = "DEBUG"
 
-    proxy = StateProxy.create(mock_hassette, mock_hassette)
+    proxy = StateProxy(mock_hassette, parent=mock_hassette)
     proxy.mark_ready(reason="Test setup")
     return proxy
 

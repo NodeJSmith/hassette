@@ -53,16 +53,14 @@ class DataSyncService(Resource):
     _start_time: float
     _subscriptions: "list[Subscription]"
 
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: Resource):
-        inst = cls(hassette=hassette, parent=parent)
-        inst.bus = inst.add_child(Bus)
-        inst._event_buffer = deque(maxlen=hassette.config.web_api_event_buffer_size)
-        inst._ws_clients = set()
-        inst._lock = asyncio.Lock()
-        inst._start_time = time.time()
-        inst._subscriptions = []
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self.bus = self.add_child(Bus)
+        self._event_buffer = deque(maxlen=hassette.config.web_api_event_buffer_size)
+        self._ws_clients: set[asyncio.Queue] = set()
+        self._lock = asyncio.Lock()
+        self._start_time = time.time()
+        self._subscriptions = []
 
     @property
     def config_log_level(self):

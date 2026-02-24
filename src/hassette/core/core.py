@@ -75,7 +75,7 @@ class Hassette(Resource):
         self.unique_id = ""
         enable_logging(self.config.log_level, log_buffer_size=self.config.web_api_log_buffer_size)
 
-        super().__init__(self, task_bucket=TaskBucket.create(self, self), parent=self)
+        super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
         self.logger.info("Starting Hassette...", stacklevel=2)
 
         # set context variables

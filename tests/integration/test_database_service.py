@@ -36,7 +36,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
 @pytest.fixture
 def service(mock_hassette: MagicMock) -> DatabaseService:
     """Create a DatabaseService instance (not yet initialized)."""
-    return DatabaseService.create(mock_hassette)
+    return DatabaseService(mock_hassette, parent=mock_hassette)
 
 
 @pytest.fixture

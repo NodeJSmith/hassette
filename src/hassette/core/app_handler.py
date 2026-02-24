@@ -54,26 +54,23 @@ class AppHandler(Resource):
     bus: Bus
     """Event bus for inter-service communication."""
 
-    @classmethod
-    def create(cls, hassette: "Hassette"):
-        inst = cls(hassette, parent=hassette)
+    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+        super().__init__(hassette, parent=parent)
 
         # Initialize components
-        inst.registry = AppRegistry()
-        inst.factory = AppFactory(hassette, inst.registry)
-        inst.change_detector = AppChangeDetector()
-        inst.set_apps_configs(hassette.config.app_manifests)
-        inst.lifecycle = AppLifecycleManager(hassette, inst.registry)
+        self.registry = AppRegistry()
+        self.factory = AppFactory(hassette, self.registry)
+        self.change_detector = AppChangeDetector()
+        self.set_apps_configs(hassette.config.app_manifests)
+        self.lifecycle = AppLifecycleManager(hassette, self.registry)
 
-        inst.registry.logger.setLevel(inst.config_log_level)
-        inst.factory.logger.setLevel(inst.config_log_level)
-        inst.lifecycle.logger.setLevel(inst.config_log_level)
-        inst.change_detector.logger.setLevel(inst.config_log_level)
+        self.registry.logger.setLevel(self.config_log_level)
+        self.factory.logger.setLevel(self.config_log_level)
+        self.lifecycle.logger.setLevel(self.config_log_level)
+        self.change_detector.logger.setLevel(self.config_log_level)
 
         # Event bus for status events
-        inst.bus = inst.add_child(Bus)
-
-        return inst
+        self.bus = self.add_child(Bus)
 
     # --- Public API ---
 

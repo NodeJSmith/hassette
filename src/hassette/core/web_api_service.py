@@ -20,13 +20,11 @@ class WebApiService(Service):
     port: int
     _server: uvicorn.Server | None
 
-    @classmethod
-    def create(cls, hassette: "Hassette", parent: "Resource"):
-        inst = cls(hassette=hassette, parent=parent)
-        inst.host = hassette.config.web_api_host
-        inst.port = hassette.config.web_api_port
-        inst._server = None
-        return inst
+    def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
+        super().__init__(hassette, parent=parent)
+        self.host = hassette.config.web_api_host
+        self.port = hassette.config.web_api_port
+        self._server = None
 
     @property
     def config_log_level(self):
