@@ -34,6 +34,8 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp>=3.11.18",
+    "aiosqlite>=0.20",
+    "alembic>=1.13",
     "anyio>=4.10.0",
     "coloredlogs>=15.0.1",
     "fastapi>=0.128.6",
