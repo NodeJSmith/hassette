@@ -210,7 +210,7 @@ class Bus(Resource):
         self,
         *,
         method_name: str,
-        topic: str | Topic,
+        topic: str,
         handler: "HandlerType",
         preds: list["Predicate"],
         where: "Predicate | Sequence[Predicate] | None" = None,
@@ -219,14 +219,16 @@ class Bus(Resource):
         **opts: Unpack[Options],
     ) -> Subscription:
         """Common subscription tail: log, normalize where, delegate to on()."""
-        params_str = ", ".join(f"{k}='{v}'" for k, v in log_params.items()) if log_params else ""
+        if self.logger.isEnabledFor(10):  # DEBUG
+            filtered = {k: v for k, v in log_params.items() if v is not None and v} if log_params else {}
+            params_str = ", ".join(f"{k}='{v}'" for k, v in filtered.items())
 
-        self.logger.debug(
-            "Subscribing to %s with %s - being handled by '%s'",
-            method_name,
-            params_str,
-            callable_short_name(handler),
-        )
+            self.logger.debug(
+                "Subscribing to %s with %s - being handled by '%s'",
+                method_name,
+                params_str,
+                callable_short_name(handler),
+            )
 
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
