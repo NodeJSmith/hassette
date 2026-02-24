@@ -10,6 +10,7 @@ from alembic.config import Config
 from hassette.bus import Bus
 from hassette.events import HassetteServiceEvent
 from hassette.resources.base import Service
+from hassette.types import ResourceStatus
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -133,8 +134,11 @@ class DatabaseService(Service):
     async def on_shutdown(self) -> None:
         """Finalize the session and close the database connection.
 
-        If a service crash was already recorded (``_session_error``), only
-        updates timestamps — the ``failure`` status is preserved.
+        Session status logic:
+        - ``_session_error`` is True → a CRASHED event was recorded, keep ``failure``
+        - ``self.status`` is FAILED → DatabaseService itself failed (e.g. heartbeat),
+          write ``failure`` with no error details (will be restarted)
+        - Otherwise → clean shutdown, write ``success``
         """
         self._bus.remove_all_listeners()
 
@@ -142,9 +146,15 @@ class DatabaseService(Service):
             try:
                 now = time.time()
                 if self._session_error:
+                    # CRASHED event already wrote failure details — just set timestamps
                     await self._db.execute(
                         "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
                         (now, now, self._session_id),
+                    )
+                elif self.status == ResourceStatus.FAILED:
+                    await self._db.execute(
+                        "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
+                        ("failure", now, now, self._session_id),
                     )
                 else:
                     await self._db.execute(

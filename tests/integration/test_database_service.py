@@ -490,3 +490,22 @@ async def test_on_shutdown_writes_success_when_no_crash(initialized_service: Dat
         assert row[1] is not None
     finally:
         conn.close()
+
+
+async def test_on_shutdown_writes_failure_when_service_failed(initialized_service: DatabaseService) -> None:
+    """on_shutdown() writes 'failure' when the service itself is in FAILED status."""
+    db_path = initialized_service._db_path
+    session_id = initialized_service.session_id
+
+    # Simulate DatabaseService being in FAILED state (e.g. heartbeat raised from serve())
+    initialized_service.status = ResourceStatus.FAILED
+    await initialized_service.on_shutdown()
+
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        assert row is not None
+        assert row[0] == "failure"
+        assert row[1] is not None
+    finally:
+        conn.close()
