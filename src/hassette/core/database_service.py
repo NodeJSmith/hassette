@@ -7,6 +7,8 @@ import aiosqlite
 from alembic import command
 from alembic.config import Config
 
+from hassette.bus import Bus
+from hassette.events import HassetteServiceEvent
 from hassette.resources.base import Service
 
 if typing.TYPE_CHECKING:
@@ -18,7 +20,7 @@ _HEARTBEAT_INTERVAL_SECONDS = 300
 # Retention cleanup interval: 1 hour
 _RETENTION_INTERVAL_SECONDS = 3600
 
-# Mark service not-ready after this many consecutive heartbeat failures
+# Raise from serve() after this many consecutive heartbeat failures
 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 
 
@@ -39,7 +41,13 @@ class DatabaseService(Service):
     """Resolved path to the SQLite database file."""
 
     _consecutive_heartbeat_failures: int
-    """Counter for consecutive heartbeat failures; triggers not-ready after threshold."""
+    """Counter for consecutive heartbeat failures; triggers RuntimeError after threshold."""
+
+    _bus: Bus
+    """Event bus for subscribing to service lifecycle events."""
+
+    _session_error: bool
+    """Whether a service crash has been recorded for this session."""
 
     @classmethod
     def create(cls, hassette: "Hassette") -> "DatabaseService":
@@ -48,6 +56,8 @@ class DatabaseService(Service):
         inst._session_id = None
         inst._db_path = Path()
         inst._consecutive_heartbeat_failures = 0
+        inst._bus = inst.add_child(Bus)
+        inst._session_error = False
         return inst
 
     @property
@@ -80,6 +90,7 @@ class DatabaseService(Service):
     async def on_initialize(self) -> None:
         """Set up the database: run migrations, open connection, create session."""
         self._consecutive_heartbeat_failures = 0
+        self._session_error = False
         self._db_path = self._resolve_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -91,6 +102,8 @@ class DatabaseService(Service):
         await self._set_pragmas()
         await self._mark_orphaned_sessions()
         await self._create_session()
+
+        self._bus.on_hassette_service_crashed(handler=self._on_service_crashed)
 
     async def serve(self) -> None:
         """Run the heartbeat and retention loop until shutdown."""
@@ -109,20 +122,35 @@ class DatabaseService(Service):
 
             await self._update_heartbeat()
 
+            if self._consecutive_heartbeat_failures >= _MAX_CONSECUTIVE_HEARTBEAT_FAILURES:
+                raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
+
             elapsed = time.monotonic() - last_retention_run
             if elapsed >= _RETENTION_INTERVAL_SECONDS:
                 await self._run_retention_cleanup()
                 last_retention_run = time.monotonic()
 
     async def on_shutdown(self) -> None:
-        """Finalize the session and close the database connection."""
+        """Finalize the session and close the database connection.
+
+        If a service crash was already recorded (``_session_error``), only
+        updates timestamps — the ``failure`` status is preserved.
+        """
+        self._bus.remove_all_listeners()
+
         if self._db is not None and self._session_id is not None:
             try:
                 now = time.time()
-                await self._db.execute(
-                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
-                    ("success", now, now, self._session_id),
-                )
+                if self._session_error:
+                    await self._db.execute(
+                        "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
+                        (now, now, self._session_id),
+                    )
+                else:
+                    await self._db.execute(
+                        "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
+                        ("success", now, now, self._session_id),
+                    )
                 await self._db.commit()
             except Exception:
                 self.logger.exception("Failed to update session on shutdown")
@@ -145,7 +173,7 @@ class DatabaseService(Service):
         """Run Alembic migrations to HEAD (synchronous, called via to_thread)."""
         config = Config()
         config.set_main_option("script_location", str(Path(__file__).parent.parent / "migrations"))
-        config.set_main_option("sqlalchemy.url", f"sqlite:///{self._db_path}")
+        config.set_main_option("sqlalchemy.url", f"sqlite:///{self._db_path.as_posix()}")
         command.upgrade(config, "head")
 
     async def _set_pragmas(self) -> None:
@@ -182,9 +210,8 @@ class DatabaseService(Service):
     async def _update_heartbeat(self) -> None:
         """Update the heartbeat timestamp for the current session.
 
-        Tracks consecutive failures and marks the service not-ready after
-        _MAX_CONSECUTIVE_HEARTBEAT_FAILURES, allowing the ServiceWatcher to
-        handle restart.
+        Tracks consecutive failures. The caller (serve()) checks the failure
+        count and raises RuntimeError to trigger ServiceWatcher restart.
         """
         if self._db is None or self._session_id is None:
             return
@@ -206,9 +233,30 @@ class DatabaseService(Service):
                 self._consecutive_heartbeat_failures,
                 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
             )
-            if self._consecutive_heartbeat_failures >= _MAX_CONSECUTIVE_HEARTBEAT_FAILURES:
-                reason = f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times"
-                self.mark_not_ready(reason=reason)
+
+    async def _on_service_crashed(self, event: HassetteServiceEvent) -> None:
+        """Record service crash details in the session row.
+
+        Called via Bus subscription when any service reaches CRASHED status.
+        Sets ``_session_error`` so ``on_shutdown()`` preserves the failure status.
+        """
+        data = event.payload.data
+        if self._db is None or self._session_id is None:
+            self.logger.warning("Cannot record crash — database not initialized")
+            return
+
+        try:
+            now = time.time()
+            await self._db.execute(
+                "UPDATE sessions SET status = 'failure', last_heartbeat_at = ?,"
+                " error_type = ?, error_message = ?, error_traceback = ? WHERE id = ?",
+                (now, data.exception_type, data.exception, data.exception_traceback, self._session_id),
+            )
+            await self._db.commit()
+            self._session_error = True
+            self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
+        except Exception:
+            self.logger.exception("Failed to record service crash for session %d", self._session_id)
 
     async def _run_retention_cleanup(self) -> None:
         """Delete execution records older than the retention window."""

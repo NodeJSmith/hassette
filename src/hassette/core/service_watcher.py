@@ -3,7 +3,10 @@ import typing
 
 from hassette.bus import Bus
 from hassette.events import HassetteServiceEvent
+from hassette.events.base import HassettePayload
+from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.base import Resource
+from hassette.types import ResourceStatus, Topic
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -66,6 +69,23 @@ class ServiceWatcher(Resource):
                     attempts,
                     max_attempts,
                 )
+                # Emit CRASHED event so DatabaseService can record the failure
+                crashed_event = HassetteServiceEvent(
+                    topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
+                    payload=HassettePayload(
+                        event_type=str(ResourceStatus.CRASHED),
+                        data=ServiceStatusPayload(
+                            resource_name=name,
+                            role=role,
+                            status=ResourceStatus.CRASHED,
+                            previous_status=ResourceStatus.FAILED,
+                            exception=data.exception,
+                            exception_type=data.exception_type,
+                            exception_traceback=data.exception_traceback,
+                        ),
+                    ),
+                )
+                await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, crashed_event)
                 await self.hassette.shutdown()
                 return
 

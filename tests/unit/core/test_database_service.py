@@ -32,11 +32,12 @@ def service(mock_hassette: MagicMock) -> DatabaseService:
 
 
 def test_create_sets_defaults(service: DatabaseService) -> None:
-    """Factory sets _db, _session_id, _db_path, and failure counter to initial values."""
+    """Factory sets _db, _session_id, _db_path, failure counter, and session error flag to initial values."""
     assert service._db is None
     assert service._session_id is None
     assert service._db_path == Path()
     assert service._consecutive_heartbeat_failures == 0
+    assert service._session_error is False
 
 
 def test_config_log_level_delegates_to_config(service: DatabaseService) -> None:

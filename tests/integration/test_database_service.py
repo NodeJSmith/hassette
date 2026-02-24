@@ -11,6 +11,10 @@ import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
+from hassette.events import HassetteServiceEvent
+from hassette.events.base import HassettePayload
+from hassette.events.hassette import ServiceStatusPayload
+from hassette.types import ResourceRole, ResourceStatus, Topic
 
 
 @pytest.fixture
@@ -336,30 +340,21 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
     assert row[0] > initial_heartbeat
 
 
-async def test_heartbeat_failure_tracking_marks_not_ready(initialized_service: DatabaseService) -> None:
-    """After MAX consecutive heartbeat failures, service is marked not-ready."""
+async def test_heartbeat_failure_counter_tracks_failures(initialized_service: DatabaseService) -> None:
+    """Heartbeat failures increment counter; recovery resets it."""
     assert initialized_service._consecutive_heartbeat_failures == 0
-
-    # Service must be marked ready first so we can observe the transition
-    initialized_service.mark_ready(reason="test setup")
-    assert initialized_service.is_ready() is True
 
     # Close the DB to force heartbeat failures
     await initialized_service._db.close()  # type: ignore[union-attr]
 
-    # First two failures should NOT mark not-ready
     await initialized_service._update_heartbeat()
     assert initialized_service._consecutive_heartbeat_failures == 1
-    assert initialized_service.is_ready() is True
 
     await initialized_service._update_heartbeat()
     assert initialized_service._consecutive_heartbeat_failures == 2
-    assert initialized_service.is_ready() is True
 
-    # Third failure should trigger mark_not_ready
     await initialized_service._update_heartbeat()
     assert initialized_service._consecutive_heartbeat_failures == 3
-    assert initialized_service.is_ready() is False
 
     # Restore a valid connection and verify recovery resets counter
     initialized_service._db = await aiosqlite.connect(initialized_service._db_path)
@@ -398,3 +393,100 @@ async def test_session_id_property_works_after_init(initialized_service: Databas
     sid = initialized_service.session_id
     assert isinstance(sid, int)
     assert sid > 0
+
+
+def _make_crashed_event(
+    resource_name: str = "TestService",
+    exception_type: str = "RuntimeError",
+    exception: str = "something broke",
+    exception_traceback: str = "Traceback ...",
+) -> HassetteServiceEvent:
+    """Build a CRASHED HassetteServiceEvent for testing."""
+    return HassetteServiceEvent(
+        topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
+        payload=HassettePayload(
+            event_type=str(ResourceStatus.CRASHED),
+            data=ServiceStatusPayload(
+                resource_name=resource_name,
+                role=ResourceRole.SERVICE,
+                status=ResourceStatus.CRASHED,
+                previous_status=ResourceStatus.FAILED,
+                exception=exception,
+                exception_type=exception_type,
+                exception_traceback=exception_traceback,
+            ),
+        ),
+    )
+
+
+async def test_serve_raises_after_max_heartbeat_failures(initialized_service: DatabaseService) -> None:
+    """serve() raises RuntimeError after MAX consecutive heartbeat failures."""
+    # Close DB to force failures
+    await initialized_service._db.close()  # type: ignore[union-attr]
+
+    with (
+        patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.01),
+        pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"),
+    ):
+        await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
+
+
+async def test_on_service_crashed_records_failure(initialized_service: DatabaseService) -> None:
+    """_on_service_crashed writes failure details to the session row."""
+    event = _make_crashed_event(
+        resource_name="WebSocketService",
+        exception_type="ConnectionError",
+        exception="lost connection",
+        exception_traceback="Traceback (most recent call last):\n  ...",
+    )
+
+    await initialized_service._on_service_crashed(event)
+
+    cursor = await initialized_service.db.execute(
+        "SELECT status, error_type, error_message, error_traceback FROM sessions WHERE id = ?",
+        (initialized_service.session_id,),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "failure"
+    assert row[1] == "ConnectionError"
+    assert row[2] == "lost connection"
+    assert row[3] == "Traceback (most recent call last):\n  ..."
+    assert initialized_service._session_error is True
+
+
+async def test_on_shutdown_preserves_failure_status(initialized_service: DatabaseService) -> None:
+    """on_shutdown() does not overwrite 'failure' status set by _on_service_crashed."""
+    event = _make_crashed_event()
+    await initialized_service._on_service_crashed(event)
+
+    db_path = initialized_service._db_path
+    session_id = initialized_service.session_id
+    await initialized_service.on_shutdown()
+
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        assert row is not None
+        assert row[0] == "failure"  # NOT overwritten to "success"
+        assert row[1] is not None  # stopped_at IS set
+    finally:
+        conn.close()
+
+
+async def test_on_shutdown_writes_success_when_no_crash(initialized_service: DatabaseService) -> None:
+    """on_shutdown() writes 'success' when no crash was recorded."""
+    db_path = initialized_service._db_path
+    session_id = initialized_service.session_id
+
+    assert initialized_service._session_error is False
+    await initialized_service.on_shutdown()
+
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        assert row is not None
+        assert row[0] == "success"
+        assert row[1] is not None
+    finally:
+        conn.close()
