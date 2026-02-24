@@ -18,6 +18,9 @@ _HEARTBEAT_INTERVAL_SECONDS = 300
 # Retention cleanup interval: 1 hour
 _RETENTION_INTERVAL_SECONDS = 3600
 
+# Mark service not-ready after this many consecutive heartbeat failures
+_MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
+
 
 class DatabaseService(Service):
     """Manages the SQLite database for operational telemetry.
@@ -35,12 +38,16 @@ class DatabaseService(Service):
     _db_path: Path
     """Resolved path to the SQLite database file."""
 
+    _consecutive_heartbeat_failures: int
+    """Counter for consecutive heartbeat failures; triggers not-ready after threshold."""
+
     @classmethod
     def create(cls, hassette: "Hassette") -> "DatabaseService":
         inst = cls(hassette, parent=hassette)
         inst._db = None
         inst._session_id = None
         inst._db_path = Path()
+        inst._consecutive_heartbeat_failures = 0
         return inst
 
     @property
@@ -72,6 +79,7 @@ class DatabaseService(Service):
 
     async def on_initialize(self) -> None:
         """Set up the database: run migrations, open connection, create session."""
+        self._consecutive_heartbeat_failures = 0
         self._db_path = self._resolve_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -172,7 +180,12 @@ class DatabaseService(Service):
         self.logger.info("Created session %d", self._session_id)
 
     async def _update_heartbeat(self) -> None:
-        """Update the heartbeat timestamp for the current session."""
+        """Update the heartbeat timestamp for the current session.
+
+        Tracks consecutive failures and marks the service not-ready after
+        _MAX_CONSECUTIVE_HEARTBEAT_FAILURES, allowing the ServiceWatcher to
+        handle restart.
+        """
         if self._db is None or self._session_id is None:
             return
         try:
@@ -183,8 +196,19 @@ class DatabaseService(Service):
             )
             await self._db.commit()
             self.logger.debug("Heartbeat updated for session %d", self._session_id)
+            if self._consecutive_heartbeat_failures > 0:
+                self.logger.info("Heartbeat recovered after %d failure(s)", self._consecutive_heartbeat_failures)
+                self._consecutive_heartbeat_failures = 0
         except Exception:
-            self.logger.exception("Failed to update heartbeat")
+            self._consecutive_heartbeat_failures += 1
+            self.logger.exception(
+                "Failed to update heartbeat (failure %d/%d)",
+                self._consecutive_heartbeat_failures,
+                _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
+            )
+            if self._consecutive_heartbeat_failures >= _MAX_CONSECUTIVE_HEARTBEAT_FAILURES:
+                reason = f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times"
+                self.mark_not_ready(reason=reason)
 
     async def _run_retention_cleanup(self) -> None:
         """Delete execution records older than the retention window."""

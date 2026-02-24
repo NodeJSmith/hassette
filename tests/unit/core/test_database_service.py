@@ -16,7 +16,6 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.data_dir = tmp_path
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
-    hassette.config.db_max_size_mb = 500
     hassette.config.database_service_log_level = "INFO"
     hassette.config.log_level = "INFO"
     hassette.config.task_bucket_log_level = "INFO"
@@ -33,10 +32,11 @@ def service(mock_hassette: MagicMock) -> DatabaseService:
 
 
 def test_create_sets_defaults(service: DatabaseService) -> None:
-    """Factory sets _db, _session_id, and _db_path to initial values."""
+    """Factory sets _db, _session_id, _db_path, and failure counter to initial values."""
     assert service._db is None
     assert service._session_id is None
     assert service._db_path == Path()
+    assert service._consecutive_heartbeat_failures == 0
 
 
 def test_config_log_level_delegates_to_config(service: DatabaseService) -> None:

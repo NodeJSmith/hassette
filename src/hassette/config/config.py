@@ -268,9 +268,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     db_retention_days: int = Field(default=7, ge=1)
     """Number of days to retain execution records (handler_invocations, job_executions)."""
 
-    db_max_size_mb: int = Field(default=500)
-    """Maximum database size in megabytes before warnings are emitted."""
-
     # Service log levels
 
     database_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)

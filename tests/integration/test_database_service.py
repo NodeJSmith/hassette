@@ -5,8 +5,9 @@ import sqlite3
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
@@ -19,7 +20,6 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.data_dir = tmp_path
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
-    hassette.config.db_max_size_mb = 500
     hassette.config.database_service_log_level = "INFO"
     hassette.config.log_level = "INFO"
     hassette.config.task_bucket_log_level = "INFO"
@@ -334,6 +334,53 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] > initial_heartbeat
+
+
+async def test_heartbeat_failure_tracking_marks_not_ready(initialized_service: DatabaseService) -> None:
+    """After MAX consecutive heartbeat failures, service is marked not-ready."""
+    assert initialized_service._consecutive_heartbeat_failures == 0
+
+    # Service must be marked ready first so we can observe the transition
+    initialized_service.mark_ready(reason="test setup")
+    assert initialized_service.is_ready() is True
+
+    # Close the DB to force heartbeat failures
+    await initialized_service._db.close()  # type: ignore[union-attr]
+
+    # First two failures should NOT mark not-ready
+    await initialized_service._update_heartbeat()
+    assert initialized_service._consecutive_heartbeat_failures == 1
+    assert initialized_service.is_ready() is True
+
+    await initialized_service._update_heartbeat()
+    assert initialized_service._consecutive_heartbeat_failures == 2
+    assert initialized_service.is_ready() is True
+
+    # Third failure should trigger mark_not_ready
+    await initialized_service._update_heartbeat()
+    assert initialized_service._consecutive_heartbeat_failures == 3
+    assert initialized_service.is_ready() is False
+
+    # Restore a valid connection and verify recovery resets counter
+    initialized_service._db = await aiosqlite.connect(initialized_service._db_path)
+    await initialized_service._update_heartbeat()
+    assert initialized_service._consecutive_heartbeat_failures == 0
+
+
+async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseService) -> None:
+    """A successful heartbeat after failures resets the failure counter."""
+    # Simulate one failure by temporarily breaking the connection
+    real_db = initialized_service._db
+    initialized_service._db = MagicMock()
+    initialized_service._db.execute = AsyncMock(side_effect=Exception("db error"))
+
+    await initialized_service._update_heartbeat()
+    assert initialized_service._consecutive_heartbeat_failures == 1
+
+    # Restore real connection — next heartbeat should succeed and reset
+    initialized_service._db = real_db
+    await initialized_service._update_heartbeat()
+    assert initialized_service._consecutive_heartbeat_failures == 0
 
 
 async def test_db_property_works_after_init(initialized_service: DatabaseService) -> None:
