@@ -32,12 +32,10 @@ def service(mock_hassette: MagicMock) -> DatabaseService:
 
 
 def test_init_sets_defaults(service: DatabaseService) -> None:
-    """Constructor sets _db, _session_id, _db_path, failure counter, and session error flag to initial values."""
+    """Constructor sets _db, _db_path, and failure counter to initial values."""
     assert service._db is None
-    assert service._session_id is None
     assert service._db_path == Path()
     assert service._consecutive_heartbeat_failures == 0
-    assert service._session_error is False
 
 
 def test_config_log_level_delegates_to_config(service: DatabaseService) -> None:
@@ -50,12 +48,6 @@ def test_db_property_raises_when_uninitialized(service: DatabaseService) -> None
     """Accessing db before initialization raises RuntimeError."""
     with pytest.raises(RuntimeError, match="Database connection is not initialized"):
         _ = service.db
-
-
-def test_session_id_property_raises_when_uninitialized(service: DatabaseService) -> None:
-    """Accessing session_id before initialization raises RuntimeError."""
-    with pytest.raises(RuntimeError, match="Session ID is not initialized"):
-        _ = service.session_id
 
 
 def test_resolve_db_path_uses_config_when_set(service: DatabaseService) -> None:

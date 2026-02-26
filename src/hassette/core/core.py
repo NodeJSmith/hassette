@@ -1,5 +1,7 @@
 import asyncio
+import sqlite3
 import threading
+import time
 import typing
 from typing import Any, ParamSpec, TypeVar
 
@@ -13,6 +15,7 @@ from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
+from hassette.events import HassetteServiceEvent
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
@@ -116,7 +119,21 @@ class Hassette(Resource):
         self.state_registry = STATE_REGISTRY
         self.type_registry = TYPE_REGISTRY
 
+        self._session_id: int | None = None
+        self._session_error: bool = False
+
         self.logger.info("All components registered...", stacklevel=2)
+
+    @property
+    def session_id(self) -> int:
+        """Return the current session ID.
+
+        Raises:
+            RuntimeError: If no session has been created.
+        """
+        if self._session_id is None:
+            raise RuntimeError("Session ID is not initialized")
+        return self._session_id
 
     def _startup_tasks(self):
         """Perform one-time startup tasks.
@@ -273,6 +290,15 @@ class Hassette(Resource):
             await self.shutdown()
             return
 
+        try:
+            await self._mark_orphaned_sessions()
+            await self._create_session()
+            self._bus.on_hassette_service_crashed(handler=self._on_service_crashed)
+        except Exception:
+            self.logger.exception("Failed to initialize session tracking")
+            await self.shutdown()
+            return
+
         # does not take into consideration if apps failed to load, but those errors would have been logged already
         self.logger.info("All services started successfully.")
         self.logger.info("Hassette is running.")
@@ -318,3 +344,96 @@ class Hassette(Resource):
             await self._send_stream.aclose()
         if self._receive_stream is not None:
             await self._receive_stream.aclose()
+
+    async def before_shutdown(self) -> None:
+        """Remove bus listeners and finalize session before child shutdown."""
+        try:
+            await self._bus.remove_all_listeners()
+        except Exception:
+            self.logger.exception("Failed to remove bus listeners during shutdown")
+        finally:
+            await self._finalize_session()
+
+    async def _mark_orphaned_sessions(self) -> None:
+        """Mark any sessions left in 'running' status as 'unknown'."""
+        db = self._database_service.db
+        cursor = await db.execute(
+            "UPDATE sessions SET status = 'unknown', stopped_at = last_heartbeat_at WHERE status = 'running'"
+        )
+        if cursor.rowcount and cursor.rowcount > 0:
+            self.logger.warning("Marked %d orphaned session(s) as 'unknown'", cursor.rowcount)
+        await db.commit()
+
+    async def _create_session(self) -> None:
+        """Insert a new session row and store the session ID."""
+        db = self._database_service.db
+        now = time.time()
+        cursor = await db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+            (now, now),
+        )
+        self._session_id = cursor.lastrowid
+        await db.commit()
+        self.logger.info("Created session %d", self._session_id)
+
+    async def _on_service_crashed(self, event: HassetteServiceEvent) -> None:
+        """Record service crash details in the session row.
+
+        Called via Bus subscription when any service reaches CRASHED status.
+        Sets ``_session_error`` so ``_finalize_session()`` preserves the failure status.
+        """
+        data = event.payload.data
+        if self._session_id is None:
+            self.logger.warning("Cannot record crash — no active session")
+            return
+
+        try:
+            db = self._database_service.db
+        except RuntimeError:
+            self.logger.warning("Cannot record crash — database not initialized")
+            return
+
+        try:
+            now = time.time()
+            await db.execute(
+                "UPDATE sessions SET status = 'failure', last_heartbeat_at = ?,"
+                " error_type = ?, error_message = ?, error_traceback = ? WHERE id = ?",
+                (now, data.exception_type, data.exception, data.exception_traceback, self._session_id),
+            )
+            await db.commit()
+            self._session_error = True
+            self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
+        except sqlite3.Error:
+            self.logger.exception("Failed to record service crash for session %d", self._session_id)
+
+    async def _finalize_session(self) -> None:
+        """Write final session status before shutdown.
+
+        If ``_session_error`` is True, a CRASHED event already wrote failure
+        details — only set timestamps.  Otherwise write ``success``.
+        """
+        if self._session_id is None:
+            return
+
+        try:
+            db = self._database_service.db
+        except RuntimeError:
+            self.logger.warning("Cannot finalize session — database not initialized")
+            return
+
+        try:
+            now = time.time()
+            if self._session_error:
+                # CRASHED event already wrote failure details — just set timestamps
+                await db.execute(
+                    "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
+                    (now, now, self._session_id),
+                )
+            else:
+                await db.execute(
+                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
+                    ("success", now, now, self._session_id),
+                )
+            await db.commit()
+        except sqlite3.Error:
+            self.logger.exception("Failed to finalize session on shutdown")
