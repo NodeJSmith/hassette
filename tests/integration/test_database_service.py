@@ -1,7 +1,6 @@
 """Integration tests for DatabaseService with real SQLite."""
 
 import asyncio
-import sqlite3
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -11,10 +10,6 @@ import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
-from hassette.events import HassetteServiceEvent
-from hassette.events.base import HassettePayload
-from hassette.events.hassette import ServiceStatusPayload
-from hassette.types import ResourceRole, ResourceStatus, Topic
 
 
 @pytest.fixture
@@ -30,6 +25,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.resource_shutdown_timeout_seconds = 5
     hassette.config.task_cancellation_timeout_seconds = 5
     hassette.ready_event = asyncio.Event()
+    hassette._session_id = None
     return hassette
 
 
@@ -41,9 +37,18 @@ def service(mock_hassette: MagicMock) -> DatabaseService:
 
 @pytest.fixture
 async def initialized_service(service: DatabaseService) -> AsyncIterator[DatabaseService]:
-    """Initialize a DatabaseService and clean up after the test."""
+    """Initialize a DatabaseService and create a session row for heartbeat tests."""
     await service.on_initialize()
     try:
+        # Manually create a session row so heartbeat/retention tests have a valid session_id
+        now = time.time()
+        cursor = await service.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+            (now, now),
+        )
+        service.hassette._session_id = cursor.lastrowid
+        service.hassette.session_id = cursor.lastrowid
+        await service.db.commit()
         yield service
     finally:
         if service._db is not None:
@@ -51,132 +56,54 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
             service._db = None
 
 
-def _get_tables(db_path: Path) -> list[str]:
-    """Helper: return user-defined table names from the database."""
+async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService) -> None:
+    """on_initialize creates all 5 tables and 8 indexes on a fresh database."""
+    import sqlite3
+
+    db_path = initialized_service._db_path
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' "
             "AND name NOT LIKE 'alembic%' AND name NOT LIKE 'sqlite_%'"
         )
-        return sorted(row[0] for row in cursor.fetchall())
-    finally:
-        conn.close()
+        tables = sorted(row[0] for row in cursor.fetchall())
+        assert tables == ["handler_invocations", "job_executions", "listeners", "scheduled_jobs", "sessions"]
 
-
-def _get_indexes(db_path: Path) -> list[str]:
-    """Helper: return index names from the database."""
-    conn = sqlite3.connect(db_path)
-    try:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
-        return sorted(row[0] for row in cursor.fetchall())
+        indexes = sorted(row[0] for row in cursor.fetchall())
+        assert len(indexes) == 8
+        assert "idx_hi_listener_time" in indexes
+        assert "idx_hi_status_time" in indexes
+        assert "idx_hi_time" in indexes
+        assert "idx_hi_session" in indexes
+        assert "idx_je_job_time" in indexes
+        assert "idx_je_status_time" in indexes
+        assert "idx_je_time" in indexes
+        assert "idx_je_session" in indexes
     finally:
         conn.close()
-
-
-async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService) -> None:
-    """on_initialize creates all 5 tables and 8 indexes on a fresh database."""
-    db_path = initialized_service._db_path
-    tables = _get_tables(db_path)
-    assert tables == ["handler_invocations", "job_executions", "listeners", "scheduled_jobs", "sessions"]
-
-    indexes = _get_indexes(db_path)
-    assert len(indexes) == 8
-    assert "idx_hi_listener_time" in indexes
-    assert "idx_hi_status_time" in indexes
-    assert "idx_hi_time" in indexes
-    assert "idx_hi_session" in indexes
-    assert "idx_je_job_time" in indexes
-    assert "idx_je_status_time" in indexes
-    assert "idx_je_time" in indexes
-    assert "idx_je_session" in indexes
 
 
 async def test_migration_idempotency(service: DatabaseService) -> None:
     """Running migrations twice on the same database does not error."""
     await service.on_initialize()
     try:
-        session_id_1 = service.session_id
+        # Verify DB is connected
+        cursor = await service.db.execute("SELECT 1")
+        row = await cursor.fetchone()
+        assert row == (1,)
 
         # Close and re-initialize on same database
         await service._db.close()  # type: ignore[union-attr]
         service._db = None
-        service._session_id = None
 
         await service.on_initialize()
-        session_id_2 = service.session_id
 
-        # Second session should have a different ID
-        assert session_id_2 != session_id_1
-        assert session_id_2 > session_id_1
-    finally:
-        if service._db:
-            await service._db.close()
-            service._db = None
-
-
-async def test_session_lifecycle(service: DatabaseService) -> None:
-    """on_initialize creates a running session; on_shutdown marks it success."""
-    await service.on_initialize()
-    try:
-        session_id = service.session_id
-
-        # Verify session is running
-        cursor = await service.db.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,))
+        # Verify DB reconnected successfully
+        cursor = await service.db.execute("SELECT 1")
         row = await cursor.fetchone()
-        assert row is not None
-        assert row[0] == "running"
-        assert row[1] is None  # stopped_at is NULL while running
-
-        db_path = service._db_path
-        await service.on_shutdown()
-
-        # Verify via direct connection since service closed its connection
-        conn = sqlite3.connect(db_path)
-        try:
-            cursor_sync = conn.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,))
-            row = cursor_sync.fetchone()
-            assert row is not None
-            assert row[0] == "success"
-            assert row[1] is not None  # stopped_at is set
-        finally:
-            conn.close()
-    except Exception:
-        if service._db:
-            await service._db.close()
-            service._db = None
-        raise
-
-
-async def test_orphan_recovery(service: DatabaseService) -> None:
-    """On startup, sessions left in 'running' are marked 'unknown'."""
-    # First init creates a running session
-    await service.on_initialize()
-    first_session_id = service.session_id
-    heartbeat_ts = time.time() - 600  # 10 minutes ago
-
-    # Simulate a crash: update heartbeat and leave session as 'running'
-    await service.db.execute("UPDATE sessions SET last_heartbeat_at = ? WHERE id = ?", (heartbeat_ts, first_session_id))
-    await service.db.commit()
-    await service._db.close()  # type: ignore[union-attr]
-    service._db = None
-    service._session_id = None
-
-    # Re-initialize — should mark first session as 'unknown'
-    await service.on_initialize()
-    try:
-        cursor = await service.db.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (first_session_id,))
-        row = await cursor.fetchone()
-        assert row is not None
-        assert row[0] == "unknown"
-        assert row[1] == pytest.approx(heartbeat_ts, abs=1)
-
-        # New session should be running
-        assert service.session_id != first_session_id
-        cursor = await service.db.execute("SELECT status FROM sessions WHERE id = ?", (service.session_id,))
-        row = await cursor.fetchone()
-        assert row is not None
-        assert row[0] == "running"
+        assert row == (1,)
     finally:
         if service._db:
             await service._db.close()
@@ -208,9 +135,8 @@ async def test_pragmas_are_set(initialized_service: DatabaseService) -> None:
 
 async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
     """_update_heartbeat updates last_heartbeat_at."""
-    cursor = await initialized_service.db.execute(
-        "SELECT last_heartbeat_at FROM sessions WHERE id = ?", (initialized_service.session_id,)
-    )
+    session_id = initialized_service.hassette.session_id
+    cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
     row = await cursor.fetchone()
     assert row is not None
     initial_heartbeat = row[0]
@@ -218,9 +144,7 @@ async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
     await asyncio.sleep(0.05)
     await initialized_service._update_heartbeat()
 
-    cursor = await initialized_service.db.execute(
-        "SELECT last_heartbeat_at FROM sessions WHERE id = ?", (initialized_service.session_id,)
-    )
+    cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] > initial_heartbeat
@@ -228,7 +152,7 @@ async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
 
 async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     """_run_retention_cleanup deletes old records but keeps recent ones."""
-    session_id = initialized_service.session_id
+    session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
     # Insert a listener for FK reference
@@ -307,10 +231,9 @@ async def test_serve_exits_on_shutdown(initialized_service: DatabaseService) -> 
 
 async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseService) -> None:
     """serve() updates heartbeat and runs retention cleanup during the loop."""
+    session_id = initialized_service.hassette.session_id
     # Get initial heartbeat
-    cursor = await initialized_service.db.execute(
-        "SELECT last_heartbeat_at FROM sessions WHERE id = ?", (initialized_service.session_id,)
-    )
+    cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
     row = await cursor.fetchone()
     assert row is not None
     initial_heartbeat = row[0]
@@ -332,9 +255,7 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
     await shutdown_task
 
     # Heartbeat should have been updated
-    cursor = await initialized_service.db.execute(
-        "SELECT last_heartbeat_at FROM sessions WHERE id = ?", (initialized_service.session_id,)
-    )
+    cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] > initial_heartbeat
@@ -388,37 +309,6 @@ async def test_db_property_works_after_init(initialized_service: DatabaseService
     assert row == (1,)
 
 
-async def test_session_id_property_works_after_init(initialized_service: DatabaseService) -> None:
-    """session_id property returns the ID after initialization."""
-    sid = initialized_service.session_id
-    assert isinstance(sid, int)
-    assert sid > 0
-
-
-def _make_crashed_event(
-    resource_name: str = "TestService",
-    exception_type: str = "RuntimeError",
-    exception: str = "something broke",
-    exception_traceback: str = "Traceback ...",
-) -> HassetteServiceEvent:
-    """Build a CRASHED HassetteServiceEvent for testing."""
-    return HassetteServiceEvent(
-        topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
-        payload=HassettePayload(
-            event_type=str(ResourceStatus.CRASHED),
-            data=ServiceStatusPayload(
-                resource_name=resource_name,
-                role=ResourceRole.SERVICE,
-                status=ResourceStatus.CRASHED,
-                previous_status=ResourceStatus.FAILED,
-                exception=exception,
-                exception_type=exception_type,
-                exception_traceback=exception_traceback,
-            ),
-        ),
-    )
-
-
 async def test_serve_raises_after_max_heartbeat_failures(initialized_service: DatabaseService) -> None:
     """serve() raises RuntimeError after MAX consecutive heartbeat failures."""
     # Close DB to force failures
@@ -429,83 +319,3 @@ async def test_serve_raises_after_max_heartbeat_failures(initialized_service: Da
         pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"),
     ):
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
-
-
-async def test_on_service_crashed_records_failure(initialized_service: DatabaseService) -> None:
-    """_on_service_crashed writes failure details to the session row."""
-    event = _make_crashed_event(
-        resource_name="WebSocketService",
-        exception_type="ConnectionError",
-        exception="lost connection",
-        exception_traceback="Traceback (most recent call last):\n  ...",
-    )
-
-    await initialized_service._on_service_crashed(event)
-
-    cursor = await initialized_service.db.execute(
-        "SELECT status, error_type, error_message, error_traceback FROM sessions WHERE id = ?",
-        (initialized_service.session_id,),
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == "failure"
-    assert row[1] == "ConnectionError"
-    assert row[2] == "lost connection"
-    assert row[3] == "Traceback (most recent call last):\n  ..."
-    assert initialized_service._session_error is True
-
-
-async def test_on_shutdown_preserves_failure_status(initialized_service: DatabaseService) -> None:
-    """on_shutdown() does not overwrite 'failure' status set by _on_service_crashed."""
-    event = _make_crashed_event()
-    await initialized_service._on_service_crashed(event)
-
-    db_path = initialized_service._db_path
-    session_id = initialized_service.session_id
-    await initialized_service.on_shutdown()
-
-    conn = sqlite3.connect(db_path)
-    try:
-        row = conn.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
-        assert row is not None
-        assert row[0] == "failure"  # NOT overwritten to "success"
-        assert row[1] is not None  # stopped_at IS set
-    finally:
-        conn.close()
-
-
-async def test_on_shutdown_writes_success_when_no_crash(initialized_service: DatabaseService) -> None:
-    """on_shutdown() writes 'success' when no crash was recorded."""
-    db_path = initialized_service._db_path
-    session_id = initialized_service.session_id
-
-    assert initialized_service._session_error is False
-    await initialized_service.on_shutdown()
-
-    conn = sqlite3.connect(db_path)
-    try:
-        row = conn.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
-        assert row is not None
-        assert row[0] == "success"
-        assert row[1] is not None
-    finally:
-        conn.close()
-
-
-async def test_on_shutdown_writes_failure_when_service_failed(initialized_service: DatabaseService) -> None:
-    """on_shutdown() writes 'failure' when the service itself is in FAILED status."""
-    db_path = initialized_service._db_path
-    session_id = initialized_service.session_id
-
-    # Simulate DatabaseService being in FAILED state (e.g. heartbeat raised from serve())
-    initialized_service.status = ResourceStatus.FAILED
-    await initialized_service.on_shutdown()
-
-    conn = sqlite3.connect(db_path)
-    try:
-        row = conn.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
-        assert row is not None
-        assert row[0] == "failure"
-        assert row[1] is not None
-    finally:
-        conn.close()

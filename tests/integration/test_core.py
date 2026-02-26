@@ -176,6 +176,10 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     hassette_instance._start_resources = start_resources
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance._mark_orphaned_sessions = AsyncMock()
+    hassette_instance._create_session = AsyncMock()
+    bus_subscribe = Mock()
+    hassette_instance._bus.on_hassette_service_crashed = bus_subscribe
 
     task = asyncio.create_task(hassette_instance.run_forever())
     asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
@@ -186,6 +190,9 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     hassette_instance.wait_for_ready.assert_awaited_once_with(
         list(hassette_instance.children), timeout=hassette_instance.config.startup_timeout_seconds
     )
+    hassette_instance._mark_orphaned_sessions.assert_awaited_once()
+    hassette_instance._create_session.assert_awaited_once()
+    bus_subscribe.assert_called_once_with(handler=hassette_instance._on_service_crashed)
     hassette_instance.shutdown.assert_awaited()
     assert hassette_instance._loop is asyncio.get_running_loop(), f"Event loop does not match {hassette_instance._loop}"
     assert hassette_instance._loop_thread_id == threading.get_ident(), "Thread ID does not match"
@@ -202,3 +209,16 @@ async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) 
     hassette_instance.wait_for_ready.assert_awaited_once()
     hassette_instance.shutdown.assert_awaited_once()
     assert hassette_instance.ready_event.is_set(), "Ready event was not set"
+
+
+async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance: Hassette) -> None:
+    """before_shutdown removes bus listeners and finalizes the session."""
+    completed_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+    completed_future.set_result(None)
+    hassette_instance._bus.remove_all_listeners = Mock(return_value=completed_future)
+    hassette_instance._finalize_session = AsyncMock()
+
+    await hassette_instance.before_shutdown()
+
+    hassette_instance._bus.remove_all_listeners.assert_called_once()
+    hassette_instance._finalize_session.assert_awaited_once()
