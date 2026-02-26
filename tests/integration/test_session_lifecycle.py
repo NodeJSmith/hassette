@@ -223,3 +223,111 @@ async def test_session_id_property_returns_id(mock_hassette: MagicMock, db_servi
     sid = Hassette.session_id.fget(mock_hassette)  # type: ignore[union-attr]
     assert isinstance(sid, int)
     assert sid > 0
+
+
+async def test_mark_orphaned_sessions_no_orphans(mock_hassette: MagicMock, db_service: DatabaseService) -> None:
+    """_mark_orphaned_sessions is a no-op when no sessions are in 'running' status."""
+    from hassette.core.core import Hassette
+
+    mock_hassette._database_service = db_service
+
+    # No sessions exist at all — the rowcount branch should be skipped
+    await Hassette._mark_orphaned_sessions(mock_hassette)
+
+    cursor = await db_service.db.execute("SELECT count(*) FROM sessions WHERE status = 'unknown'")
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 0
+
+
+async def test_on_service_crashed_no_session(mock_hassette: MagicMock, db_service: DatabaseService) -> None:
+    """_on_service_crashed returns early when _session_id is None."""
+    from hassette.core.core import Hassette
+
+    mock_hassette._database_service = db_service
+    mock_hassette._session_id = None
+
+    event = _make_crashed_event()
+    await Hassette._on_service_crashed(mock_hassette, event)
+
+    # No rows should have been written
+    cursor = await db_service.db.execute("SELECT count(*) FROM sessions")
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 0
+
+
+async def test_on_service_crashed_db_not_initialized(mock_hassette: MagicMock) -> None:
+    """_on_service_crashed returns early when database is not initialized."""
+    from hassette.core.core import Hassette
+
+    mock_hassette._session_id = 1
+
+    # Make the db property raise RuntimeError
+    db_service = MagicMock()
+    type(db_service).db = property(lambda _: (_ for _ in ()).throw(RuntimeError("not initialized")))
+    mock_hassette._database_service = db_service
+
+    event = _make_crashed_event()
+    # Should not raise — logs warning and returns
+    await Hassette._on_service_crashed(mock_hassette, event)
+
+
+async def test_on_service_crashed_db_error(mock_hassette: MagicMock, db_service: DatabaseService) -> None:
+    """_on_service_crashed handles sqlite3.Error during the UPDATE."""
+    from unittest.mock import AsyncMock
+
+    from hassette.core.core import Hassette
+
+    mock_hassette._database_service = db_service
+    await Hassette._create_session(mock_hassette)
+
+    # Patch execute to raise sqlite3.Error on the crash UPDATE
+    db_service.db.execute = AsyncMock(side_effect=sqlite3.OperationalError("disk I/O error"))
+
+    event = _make_crashed_event()
+    # Should not raise — catches sqlite3.Error and logs
+    await Hassette._on_service_crashed(mock_hassette, event)
+
+
+async def test_finalize_session_no_session(mock_hassette: MagicMock, db_service: DatabaseService) -> None:
+    """_finalize_session returns early when _session_id is None."""
+    from hassette.core.core import Hassette
+
+    mock_hassette._database_service = db_service
+    mock_hassette._session_id = None
+
+    # Should not raise — early return
+    await Hassette._finalize_session(mock_hassette)
+
+
+async def test_finalize_session_db_not_initialized(mock_hassette: MagicMock) -> None:
+    """_finalize_session returns early when database is not initialized."""
+    from hassette.core.core import Hassette
+
+    mock_hassette._session_id = 1
+
+    # Make the db property raise RuntimeError
+    db_service = MagicMock()
+    type(db_service).db = property(lambda _: (_ for _ in ()).throw(RuntimeError("not initialized")))
+    mock_hassette._database_service = db_service
+
+    # Should not raise — logs warning and returns
+    await Hassette._finalize_session(mock_hassette)
+
+
+async def test_finalize_session_db_error(mock_hassette: MagicMock, db_service: DatabaseService) -> None:
+    """_finalize_session handles sqlite3.Error during the UPDATE."""
+    from unittest.mock import AsyncMock
+
+    from hassette.core.core import Hassette
+
+    mock_hassette._database_service = db_service
+    mock_hassette._session_error = False
+    await Hassette._create_session(mock_hassette)
+
+    # Patch execute to raise sqlite3.Error on the finalize UPDATE
+    db_service.db.execute = AsyncMock(side_effect=sqlite3.OperationalError("disk I/O error"))
+
+    # Should not raise — catches sqlite3.Error and logs
+    await Hassette._finalize_session(mock_hassette)

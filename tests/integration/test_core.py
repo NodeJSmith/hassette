@@ -198,6 +198,21 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     assert hassette_instance._loop_thread_id == threading.get_ident(), "Thread ID does not match"
 
 
+async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
+    """run_forever triggers shutdown when session initialization raises."""
+    hassette_instance._start_resources = Mock()
+    hassette_instance.wait_for_ready = AsyncMock(return_value=True)
+    hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance._mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
+    hassette_instance._create_session = AsyncMock()
+
+    await hassette_instance.run_forever()
+
+    hassette_instance._mark_orphaned_sessions.assert_awaited_once()
+    hassette_instance._create_session.assert_not_awaited()
+    hassette_instance.shutdown.assert_awaited()
+
+
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown when resources fail to become ready."""
     hassette_instance._start_resources = Mock()
@@ -221,4 +236,15 @@ async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance
     await hassette_instance.before_shutdown()
 
     hassette_instance._bus.remove_all_listeners.assert_called_once()
+    hassette_instance._finalize_session.assert_awaited_once()
+
+
+async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hassette_instance: Hassette) -> None:
+    """before_shutdown still finalizes session when remove_all_listeners raises."""
+    hassette_instance._bus.remove_all_listeners = AsyncMock(side_effect=RuntimeError("bus error"))
+    hassette_instance._finalize_session = AsyncMock()
+
+    await hassette_instance.before_shutdown()
+
+    hassette_instance._bus.remove_all_listeners.assert_awaited_once()
     hassette_instance._finalize_session.assert_awaited_once()

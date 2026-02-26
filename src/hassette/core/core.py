@@ -290,9 +290,14 @@ class Hassette(Resource):
             await self.shutdown()
             return
 
-        await self._mark_orphaned_sessions()
-        await self._create_session()
-        self._bus.on_hassette_service_crashed(handler=self._on_service_crashed)
+        try:
+            await self._mark_orphaned_sessions()
+            await self._create_session()
+            self._bus.on_hassette_service_crashed(handler=self._on_service_crashed)
+        except Exception:
+            self.logger.exception("Failed to initialize session tracking")
+            await self.shutdown()
+            return
 
         # does not take into consideration if apps failed to load, but those errors would have been logged already
         self.logger.info("All services started successfully.")
@@ -342,8 +347,12 @@ class Hassette(Resource):
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""
-        await self._bus.remove_all_listeners()
-        await self._finalize_session()
+        try:
+            await self._bus.remove_all_listeners()
+        except Exception:
+            self.logger.exception("Failed to remove bus listeners during shutdown")
+        finally:
+            await self._finalize_session()
 
     async def _mark_orphaned_sessions(self) -> None:
         """Mark any sessions left in 'running' status as 'unknown'."""
