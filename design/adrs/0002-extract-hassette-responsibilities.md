@@ -297,7 +297,7 @@ Code works, tests pass, no bugs reported. Leave Hassette as-is.
 
 **Day 4-5: Tests and Test Fixtures**
 1. Create `tests/integration/test_session_manager.py`
-2. Move session lifecycle tests from `test_core.py`
+2. Move existing session lifecycle tests from `tests/integration/test_session_lifecycle.py` (and any remaining session-init assertions in `test_core.py`)
 3. Add new tests for session isolation
 4. **Create test fixture: `create_session_manager(db_service)` helper in `conftest.py`**
 5. **Update HassetteHarness to optionally include SessionManager**
@@ -431,7 +431,7 @@ After completing each phase:
 ## References
 
 - **Audit findings**: Codebase audit (2026-02-26) identified god object pattern
-- **Research brief**: `design/research/2026-02-26-hassette-refactoring/research.md` — comprehensive analysis of 4 refactoring options
+- **Research brief**: [design/research/2026-02-26-hassette-refactoring/research.md](../research/2026-02-26-hassette-refactoring/research.md) — comprehensive analysis of 4 refactoring options
 - **Blast radius analysis**: 64 files depend on Hassette, 86 test files
 - **Recent session migration**: Commit #312 (Feb 26) — precedent for correct ownership principle
 - **Resource/Service pattern**: `src/hassette/resources/base.py` — foundation for new services
