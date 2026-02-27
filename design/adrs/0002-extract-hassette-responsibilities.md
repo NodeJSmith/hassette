@@ -129,10 +129,10 @@ AppHandler becomes a facade that coordinates three focused services:
 - Easier to add features (e.g., app health checks, restart policies)
 - Reduces AppHandler from orchestrator+implementation to pure facade
 
-**Implementation location**:
-- `src/hassette/core/app_registry.py`
+**Implementation location & refactoring plan**:
+- `src/hassette/core/app_registry.py` (refactor existing module — extract core registry operations)
 - `src/hassette/core/app_lifecycle_service.py` (rename from `app_lifecycle.py`)
-- `src/hassette/core/app_change_detector.py`
+- `src/hassette/core/app_change_detector.py` (refactor existing module — extract change detection logic)
 - `src/hassette/core/app_handler.py` (becomes facade)
 
 ### Post-Refactor Hassette Responsibilities
@@ -346,10 +346,10 @@ Code works, tests pass, no bugs reported. Leave Hassette as-is.
 ### Phase 3: Refactor AppHandler (Week 3)
 
 **Day 1-2: Extract AppRegistry**
-1. Create `src/hassette/core/app_registry.py`
+1. Refactor existing `src/hassette/core/app_registry.py`
 2. Move app instance tracking from AppHandler._registry
 3. Methods: `register()`, `unregister()`, `get_all()`, `get_by_key()`, `get_by_name()`
-4. Tests: `tests/unit/test_app_registry.py`
+4. Tests: Update existing `tests/unit/core/test_app_registry.py`
 
 **Day 3: Extract AppLifecycle**
 1. Rename `app_lifecycle.py` → `app_lifecycle_service.py`
@@ -359,11 +359,11 @@ Code works, tests pass, no bugs reported. Leave Hassette as-is.
 5. Tests: `tests/integration/test_app_lifecycle_service.py`
 
 **Day 4: Extract AppChangeDetector**
-1. Create `src/hassette/core/app_change_detector.py`
+1. Refactor existing `src/hassette/core/app_change_detector.py`
 2. Move change detection from AppHandler._change_detector
 3. Depends on AppRegistry for app file lookup
 4. Methods: `detect_changes()`, `get_changed_apps()`
-5. Tests: `tests/unit/test_app_change_detector.py`
+5. Tests: Update existing `tests/unit/core/test_app_change_detector.py`
 
 **Day 5: Refactor AppHandler to Facade and Update Test Harness**
 1. AppHandler becomes coordinator of 3 services
