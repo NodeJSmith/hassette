@@ -22,5 +22,5 @@ def safe_json_serialize(value: Any) -> str:
     """
     try:
         return json.dumps(value, default=str, sort_keys=True)
-    except (TypeError, ValueError):
+    except Exception:
         return '"<NON_SERIALIZABLE>"'

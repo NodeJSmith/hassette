@@ -21,7 +21,7 @@ class CommandExecutor(Service):
     """Executes handler invocations and scheduled jobs, persisting execution records to SQLite.
 
     Lifecycle:
-        on_initialize(): waits for DatabaseService to be ready, sets session_id.
+        on_initialize(): waits for DatabaseService to be ready.
         serve(): drains the write queue in batches until shutdown, then flushes remaining records.
 
     Records are queued immediately after each execution and persisted in batches by serve().
@@ -30,9 +30,6 @@ class CommandExecutor(Service):
 
     _write_queue: asyncio.Queue[HandlerInvocationRecord | JobExecutionRecord]
     """Unbounded queue of execution records pending DB persistence."""
-
-    _session_id: int
-    """Session ID for the current Hassette session. Set during on_initialize()."""
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
@@ -48,9 +45,8 @@ class CommandExecutor(Service):
     # ------------------------------------------------------------------
 
     async def on_initialize(self) -> None:
-        """Wait for DatabaseService to be ready, then capture the session ID."""
+        """Wait for DatabaseService to be ready."""
         await self.hassette.wait_for_ready([self.hassette.database_service])
-        self._session_id = self.hassette.session_id
 
     async def serve(self) -> None:
         """Drain the write queue in batches until shutdown, then flush remaining records."""
@@ -72,17 +68,16 @@ class CommandExecutor(Service):
                     await fut
 
             if self.shutdown_event.is_set():
-                # If the get_fut completed and put an item back, we need to put it back
+                # get_fut dequeued an item before shutdown was detected — re-enqueue so _flush_queue() picks it up
                 if get_fut in done and not get_fut.cancelled() and get_fut.exception() is None:
                     result = get_fut.result()
                     self._write_queue.put_nowait(result)
                 await self._flush_queue()
                 return
 
-            # Queue has an item — put it back and drain the full queue in one batch
+            # Queue has an item — drain the full queue in one batch
             if get_fut in done and not get_fut.cancelled() and get_fut.exception() is None:
-                self._write_queue.put_nowait(get_fut.result())
-                await self._drain_and_persist()
+                await self._drain_and_persist(first_item=get_fut.result())
 
     # ------------------------------------------------------------------
     # Execution
@@ -119,7 +114,7 @@ class CommandExecutor(Service):
             duration_ms = (time.monotonic() - _mono_start) * 1000
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="cancelled",
@@ -134,7 +129,7 @@ class CommandExecutor(Service):
             self.logger.error("Handler DI error (topic=%s): %s", cmd.topic, e)
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -149,7 +144,7 @@ class CommandExecutor(Service):
             self.logger.error("Handler error (topic=%s): %s", cmd.topic, e)
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -165,7 +160,7 @@ class CommandExecutor(Service):
             tb = traceback.format_exc()
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -179,7 +174,7 @@ class CommandExecutor(Service):
             duration_ms = (time.monotonic() - _mono_start) * 1000
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="success",
@@ -203,7 +198,7 @@ class CommandExecutor(Service):
             duration_ms = (time.monotonic() - _mono_start) * 1000
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="cancelled",
@@ -218,7 +213,7 @@ class CommandExecutor(Service):
             self.logger.error("Job DI error (job_db_id=%s): %s", cmd.job_db_id, e)
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -233,7 +228,7 @@ class CommandExecutor(Service):
             self.logger.error("Job error (job_db_id=%s): %s", cmd.job_db_id, e)
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -249,7 +244,7 @@ class CommandExecutor(Service):
             tb = traceback.format_exc()
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -263,7 +258,7 @@ class CommandExecutor(Service):
             duration_ms = (time.monotonic() - _mono_start) * 1000
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self._session_id,
+                session_id=self.hassette.session_id,
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="success",
@@ -380,17 +375,31 @@ class CommandExecutor(Service):
     # Queue persistence
     # ------------------------------------------------------------------
 
-    async def _drain_and_persist(self) -> None:
+    async def _drain_and_persist(
+        self,
+        first_item: HandlerInvocationRecord | JobExecutionRecord | None = None,
+    ) -> None:
         """Drain up to 100 items from the write queue and persist them to DB.
 
         Separates HandlerInvocationRecord and JobExecutionRecord items into
         separate batches, writing each with executemany in a single transaction.
+
+        Args:
+            first_item: An already-dequeued item to include as the first record.
+                When provided, at most 99 additional items are drained from the queue
+                so that the total batch size stays at 100.
         """
         invocations: list[HandlerInvocationRecord] = []
         job_executions: list[JobExecutionRecord] = []
 
-        # Drain up to 100 items (non-blocking after the first)
-        for _ in range(100):
+        if first_item is not None:
+            if isinstance(first_item, HandlerInvocationRecord):
+                invocations.append(first_item)
+            else:
+                job_executions.append(first_item)
+
+        # Drain remaining items up to a total batch size of 100 (non-blocking)
+        for _ in range(99 if first_item is not None else 100):
             try:
                 item = self._write_queue.get_nowait()
             except asyncio.QueueEmpty:

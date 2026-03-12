@@ -34,7 +34,6 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.task_cancellation_timeout_seconds = 5
     hassette.config.command_executor_log_level = "INFO"
     hassette.ready_event = asyncio.Event()
-    hassette._session_id = None
     return hassette
 
 
@@ -55,7 +54,6 @@ async def initialized_db(mock_hassette: MagicMock) -> AsyncIterator[tuple[Databa
         )
         session_id = cursor.lastrowid
         assert session_id is not None
-        mock_hassette._session_id = session_id
         mock_hassette.session_id = session_id
         await db_service.db.commit()
         mock_hassette.database_service = db_service
@@ -71,13 +69,11 @@ async def executor(
     mock_hassette: MagicMock, initialized_db: tuple[DatabaseService, int]
 ) -> AsyncIterator[CommandExecutor]:
     """Create and prepare a CommandExecutor with real DB wired in."""
-    _db_service, session_id = initialized_db
+    _db_service, _session_id = initialized_db
     # wait_for_ready on the mock should be a no-op
     mock_hassette.wait_for_ready = AsyncMock(return_value=True)
     exc = CommandExecutor(mock_hassette, parent=mock_hassette)
     await exc.on_initialize()
-    # Confirm session_id was set by on_initialize
-    assert exc._session_id == session_id
     return exc
 
 
