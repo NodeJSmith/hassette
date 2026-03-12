@@ -45,11 +45,7 @@ def _find_call_source(filename: str, lineno: int) -> str | None:
 
     try:
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Call)
-                and hasattr(node, "lineno")
-                and node.lineno == lineno
-            ):
+            if isinstance(node, ast.Call) and hasattr(node, "lineno") and node.lineno == lineno:
                 segment = ast.get_source_segment(source, node)
                 if segment is not None:
                     return segment

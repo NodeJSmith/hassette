@@ -6,8 +6,6 @@ import ast
 import types
 from unittest.mock import patch
 
-import pytest
-
 from hassette.utils.source_capture import capture_registration_source
 
 
@@ -42,9 +40,7 @@ def test_graceful_on_no_source() -> None:
     fake_frame_info = types.SimpleNamespace(
         filename="<stdin>",
         lineno=1,
-        frame=types.SimpleNamespace(
-            f_code=types.SimpleNamespace(co_filename="<stdin>")
-        ),
+        frame=types.SimpleNamespace(f_code=types.SimpleNamespace(co_filename="<stdin>")),
     )
 
     # Patch inspect.stack to return only this fake frame so no real hassette frames exist to skip

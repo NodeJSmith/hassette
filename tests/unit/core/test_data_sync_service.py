@@ -427,14 +427,14 @@ class TestOwnerResolution:
     def test_get_job_execution_history_returns_records(self, data_sync_with_apps: DataSyncService) -> None:
         # owner is no longer stored on JobExecutionRecord; filtering is done at the DB layer (future WP).
         records = [
+            JobExecutionRecord(job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=10, status="success"),
+            JobExecutionRecord(job_id=2, session_id=1, execution_start_ts=2.0, duration_ms=20, status="success"),
             JobExecutionRecord(
-                job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=10, status="success"
-            ),
-            JobExecutionRecord(
-                job_id=2, session_id=1, execution_start_ts=2.0, duration_ms=20, status="success"
-            ),
-            JobExecutionRecord(
-                job_id=3, session_id=1, execution_start_ts=3.0, duration_ms=5, status="error",
+                job_id=3,
+                session_id=1,
+                execution_start_ts=3.0,
+                duration_ms=5,
+                status="error",
                 error_message="boom",
             ),
         ]

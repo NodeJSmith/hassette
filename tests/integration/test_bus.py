@@ -453,7 +453,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         hassette_with_bus.task_bucket.post_to_loop(event_handled.set)
 
     hassette._bus.on(topic="custom.exec_test", handler=handler)

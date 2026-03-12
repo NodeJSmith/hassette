@@ -7,8 +7,6 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
-import pytest
-
 from hassette.utils.serialization import safe_json_serialize
 
 

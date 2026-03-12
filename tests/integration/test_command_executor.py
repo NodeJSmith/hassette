@@ -249,9 +249,7 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
 
 
 @pytest.mark.asyncio
-async def test_serve_drains_queue_to_db(
-    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
-) -> None:
+async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """Records placed in the write queue appear in handler_invocations after drain."""
     db_service, session_id = initialized_db
 
@@ -288,9 +286,7 @@ async def test_serve_drains_queue_to_db(
 
 
 @pytest.mark.asyncio
-async def test_flush_queue_on_shutdown(
-    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
-) -> None:
+async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """_flush_queue() persists remaining records before returning."""
     db_service, session_id = initialized_db
 
@@ -330,9 +326,7 @@ async def test_flush_queue_on_shutdown(
 
 
 @pytest.mark.asyncio
-async def test_register_listener_upsert(
-    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
-) -> None:
+async def test_register_listener_upsert(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """register_listener() inserts on first call, updates last_registered_at on second."""
     db_service, _ = initialized_db
     reg = _make_listener_registration()
@@ -378,9 +372,7 @@ async def test_register_listener_upsert(
 
 
 @pytest.mark.asyncio
-async def test_register_job_upsert(
-    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
-) -> None:
+async def test_register_job_upsert(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """register_job() inserts on first call, updates last_registered_at on second."""
     db_service, _ = initialized_db
     reg = _make_job_registration()

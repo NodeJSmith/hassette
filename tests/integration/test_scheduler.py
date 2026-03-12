@@ -1,7 +1,7 @@
 import asyncio
+from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
-from unittest.mock import AsyncMock, call
 from whenever import ZonedDateTime
 
 from hassette import Hassette
@@ -101,12 +101,12 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
 
 async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) -> None:
     """Adding a job triggers register_job() and sets job.db_id."""
-    DB_ID = 99
+    db_id = 99
 
     scheduler_service = hassette_with_scheduler._scheduler_service
     assert scheduler_service is not None
     executor = scheduler_service._executor
-    executor.register_job = AsyncMock(return_value=DB_ID)
+    executor.register_job = AsyncMock(return_value=db_id)
 
     job_executed = asyncio.Event()
 
@@ -119,7 +119,7 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) ->
     await asyncio.sleep(0.1)
 
     assert scheduled_job.db_id is not None, "job.db_id should be set after registration"
-    assert scheduled_job.db_id == DB_ID, f"Expected db_id={DB_ID}, got {scheduled_job.db_id}"
+    assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
 
     scheduled_job.cancel()
 
