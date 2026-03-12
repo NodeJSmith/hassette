@@ -42,9 +42,15 @@ def test_graceful_on_no_source() -> None:
         lineno=1,
         frame=types.SimpleNamespace(f_code=types.SimpleNamespace(co_filename="<stdin>")),
     )
+    # Dummy frame representing capture_registration_source's own frame (stack[0], skipped by stack[1:])
+    own_frame = types.SimpleNamespace(
+        filename="/some/hassette/utils/source_capture.py",
+        lineno=57,
+        frame=types.SimpleNamespace(f_code=types.SimpleNamespace(co_filename="/some/hassette/utils/source_capture.py")),
+    )
 
-    # Patch inspect.stack to return only this fake frame so no real hassette frames exist to skip
-    with patch("inspect.stack", return_value=[fake_frame_info]):
+    # Patch inspect.stack to return [own_frame, fake_frame_info]; stack[1:] leaves fake_frame_info as first candidate
+    with patch("inspect.stack", return_value=[own_frame, fake_frame_info]):
         source_location, registration_source = capture_registration_source()
 
     assert source_location is not None

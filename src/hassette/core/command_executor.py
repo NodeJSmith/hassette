@@ -304,6 +304,7 @@ class CommandExecutor(Service):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (app_key, instance_index, handler_method, topic)
             DO UPDATE SET last_registered_at = excluded.last_registered_at
+            RETURNING id
             """,
             (
                 registration.app_key,
@@ -321,11 +322,11 @@ class CommandExecutor(Service):
                 registration.last_registered_at,
             ),
         )
+        row = await cursor.fetchone()
         await db.commit()
-        row_id = cursor.lastrowid
-        if row_id is None:
-            raise RuntimeError("SQLite lastrowid is None after INSERT INTO listeners — this should never happen")
-        return row_id
+        if row is None:
+            raise RuntimeError("RETURNING id returned no row after INSERT INTO listeners — this should never happen")
+        return row[0]
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
         """Upsert a scheduled job registration into the scheduled_jobs table.
@@ -351,6 +352,7 @@ class CommandExecutor(Service):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (app_key, instance_index, job_name)
             DO UPDATE SET last_registered_at = excluded.last_registered_at
+            RETURNING id
             """,
             (
                 registration.app_key,
@@ -368,11 +370,11 @@ class CommandExecutor(Service):
                 registration.last_registered_at,
             ),
         )
+        row = await cursor.fetchone()
         await db.commit()
-        row_id = cursor.lastrowid
-        if row_id is None:
-            raise RuntimeError("SQLite lastrowid is None after INSERT INTO scheduled_jobs — this should never happen")
-        return row_id
+        if row is None:
+            raise RuntimeError("RETURNING id returned no row after INSERT INTO scheduled_jobs — should never happen")
+        return row[0]
 
     # ------------------------------------------------------------------
     # Queue persistence
@@ -434,6 +436,24 @@ class CommandExecutor(Service):
             invocations: Handler invocation records to insert into handler_invocations.
             job_executions: Job execution records to insert into job_executions.
         """
+        # Filter out records with unregistered IDs (id=0 sentinel means the handler fired before
+        # register_listener/register_job completed — a startup race). Log and drop rather than
+        # violate the FK constraint.
+        unregistered_invocations = [r for r in invocations if r.listener_id == 0]
+        unregistered_jobs = [r for r in job_executions if r.job_id == 0]
+        if unregistered_invocations:
+            self.logger.warning(
+                "Dropping %d handler invocation record(s) with listener_id=0 (fired before registration completed)",
+                len(unregistered_invocations),
+            )
+        if unregistered_jobs:
+            self.logger.warning(
+                "Dropping %d job execution record(s) with job_id=0 (fired before registration completed)",
+                len(unregistered_jobs),
+            )
+        invocations = [r for r in invocations if r.listener_id != 0]
+        job_executions = [r for r in job_executions if r.job_id != 0]
+
         if not invocations and not job_executions:
             return
 

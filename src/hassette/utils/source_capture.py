@@ -6,7 +6,7 @@ import inspect
 from typing import Any
 
 # Path fragments that identify internal hassette frames to skip
-_INTERNAL_PATH_FRAGMENTS = ("hassette/bus/", "hassette/scheduler/")
+_INTERNAL_PATH_FRAGMENTS = ("hassette/bus/", "hassette/scheduler/", "hassette/core/")
 
 
 def _is_internal_frame(filename: str) -> bool:
@@ -58,8 +58,8 @@ def capture_registration_source(*, frames_to_skip: int = 0) -> tuple[str, str | 
     """Capture the source location and code of the calling registration.
 
     Walks the call stack, skips internal hassette frames (from
-    ``hassette/bus/`` or ``hassette/scheduler/``), and returns information
-    about the first app-level frame.
+    ``hassette/bus/``, ``hassette/scheduler/``, or ``hassette/core/``), and
+    returns information about the first app-level frame.
 
     The per-file AST and source are cached (LRU, maxsize=256) so repeated
     calls from the same file only read and parse the file once.
