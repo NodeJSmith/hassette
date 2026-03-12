@@ -189,6 +189,7 @@ class DataSyncService(Resource):
 
     def get_listener_metrics_for_instance(self, app_key: str, index: int) -> list[dict]:
         """Return listener metrics filtered to a specific app instance."""
+        # TODO(#267): migrate to TelemetryQueryService once DB-backed metrics are available
         owner_id = self._resolve_instance_owner_id(app_key, index)
         if not owner_id:
             return []
@@ -345,18 +346,15 @@ class DataSyncService(Resource):
         return result
 
     def get_job_execution_history(self, limit: int = 50, owner: str | None = None) -> list[dict]:
-        if owner:
-            owner_ids = self._resolve_owner_ids(owner)
-            if owner_ids:
-                owner_set = set(owner_ids)
-                records = self.hassette.scheduler_service.get_execution_history(limit * 2)
-                records = [r for r in records if r.owner in owner_set][-limit:]
-                return [asdict(r) for r in records]
-        records = self.hassette.scheduler_service.get_execution_history(limit, owner)
+        # Note: owner-based filtering is no longer supported at the record level;
+        # owner identity now lives on the parent scheduled_jobs table row.
+        # TODO(#267): migrate to TelemetryQueryService once DB-backed history is available
+        records = self.hassette.scheduler_service.get_execution_history(limit)
         return [asdict(r) for r in records]
 
     async def get_scheduler_summary(self) -> SchedulerSummaryResponse:
         """Compute aggregate counts across all scheduled jobs."""
+        # TODO(#267): extend with DB-backed execution counts once TelemetryQueryService is available
         jobs = await self.hassette.scheduler_service.get_all_jobs()
         return SchedulerSummaryResponse(
             total_jobs=len(jobs),
@@ -408,6 +406,7 @@ class DataSyncService(Resource):
 
     def get_listener_metrics(self, owner: str | None = None) -> list[dict]:
         """Return per-listener metrics, optionally filtered by owner."""
+        # TODO(#267): migrate to TelemetryQueryService once DB-backed metrics are available
         bus_service = self.hassette.bus_service
         if not owner:
             return [m.to_dict() for m in bus_service.get_all_listener_metrics()]
@@ -421,6 +420,7 @@ class DataSyncService(Resource):
 
     def get_bus_metrics_summary(self) -> BusMetricsSummaryResponse:
         """Compute aggregate totals across all listener metrics."""
+        # TODO(#267): migrate to TelemetryQueryService once DB-backed metrics are available
         all_metrics = self.hassette.bus_service.get_all_listener_metrics()
         return BusMetricsSummaryResponse(
             total_listeners=len(all_metrics),

@@ -1,9 +1,11 @@
 import asyncio
+from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 from whenever import ZonedDateTime
 
 from hassette import Hassette
+from hassette.core.commands import ExecuteJob
 from hassette.scheduler import ScheduledJob
 from hassette.utils.date_utils import now
 
@@ -63,6 +65,63 @@ def test_scheduled_job_copies_args_kwargs() -> None:
 
     assert job.args == (1, 2), f"Expected (1, 2), got {job.args}"
     assert job.kwargs == {"alpha": 99}, f"Expected {{'alpha': 99}}, got {job.kwargs}"
+
+
+async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None:
+    """run_job() delegates execution to CommandExecutor.execute() with an ExecuteJob command."""
+    job_executed = asyncio.Event()
+
+    async def target() -> None:
+        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
+
+    # Reset the mock call history and set up a stub that also runs the job
+    scheduler_service = hassette_with_scheduler._scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+
+    executed_cmds: list[ExecuteJob] = []
+
+    async def _capturing_execute(cmd: object) -> None:
+        if isinstance(cmd, ExecuteJob):
+            executed_cmds.append(cmd)
+            await cmd.callable()
+
+    executor.execute.side_effect = _capturing_execute
+    executor.execute.reset_mock()
+
+    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01)
+
+    await asyncio.wait_for(job_executed.wait(), timeout=1)
+    scheduled_job.cancel()
+
+    assert len(executed_cmds) == 1, f"Expected executor.execute() called once, got {len(executed_cmds)} calls"
+    assert isinstance(executed_cmds[0], ExecuteJob), "Expected ExecuteJob command"
+    assert executed_cmds[0].job is scheduled_job, "ExecuteJob.job should be the scheduled job"
+
+
+async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) -> None:
+    """Adding a job triggers register_job() and sets job.db_id."""
+    db_id = 99
+
+    scheduler_service = hassette_with_scheduler._scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+    executor.register_job = AsyncMock(return_value=db_id)
+
+    job_executed = asyncio.Event()
+
+    async def target() -> None:
+        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
+
+    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.5)
+
+    # Give the background registration task time to complete
+    await asyncio.sleep(0.1)
+
+    assert scheduled_job.db_id is not None, "job.db_id should be set after registration"
+    assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
+
+    scheduled_job.cancel()
 
 
 async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> None:

@@ -63,6 +63,9 @@ class Listener:
     priority: int = 0
     """Priority for listener ordering. Higher values run first. Default is 0 for app handlers."""
 
+    db_id: int | None = None
+    """Database row ID for this listener. Set by the executor after persistence; None until then."""
+
     @property
     def handler_name(self) -> str:
         return callable_name(self.orig_handler)

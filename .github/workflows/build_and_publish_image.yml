@@ -3,6 +3,8 @@ name: Build & Publish Image
 on:
     push:
         tags: ["v*"] # only versioned releases
+    pull_request:
+        branches: [main] # publish sha-only image for PR testing
     workflow_dispatch: # manual trigger
 
 permissions:
@@ -15,7 +17,8 @@ jobs:
         runs-on: ubuntu-latest
         strategy:
             matrix:
-                python-version: ["3.11", "3.12", "3.13"]
+                # PRs build only 3.13 for speed; releases build all supported versions
+                python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.13"]') || fromJSON('["3.11", "3.12", "3.13"]') }}
         env:
             IMAGE_NAME: hassette
             REGISTRY: ghcr.io
@@ -62,6 +65,7 @@ jobs:
                       type=raw,value=latest,enable=${{ github.event_name == 'push' && env.IS_STABLE_RELEASE == 'true' }}
 
             - name: Build & Push
+              if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
               uses: docker/build-push-action@v6
               with:
                   context: .

@@ -390,8 +390,8 @@ async def test_attribute_change_handles_globs(
     assert actual == expected, f"Expected handler to receive {expected}, got {actual}"
 
 
-async def test_listener_metrics_created_eagerly_on_registration(hassette_with_bus: "Hassette") -> None:
-    """Metrics entry is created at registration time, not lazily on first dispatch."""
+async def test_listener_registration_spawns_background_task(hassette_with_bus: "Hassette") -> None:
+    """Listener registration spawns a background task to persist the listener via executor."""
     hassette = hassette_with_bus
 
     def handler(event: Event) -> None:
@@ -400,17 +400,13 @@ async def test_listener_metrics_created_eagerly_on_registration(hassette_with_bu
     subscription = hassette._bus.on_state_change("sensor.eager_test", handler=handler)
     listener = subscription.listener
 
-    # Allow the add_listener task to complete
+    # Allow the add_listener registration task to complete
     await asyncio.sleep(0.05)
 
-    metrics = hassette._bus_service._listener_metrics.get(listener.listener_id)
-    assert metrics is not None, "Metrics should exist immediately after registration"
-    assert metrics.total_invocations == 0
-    assert metrics.successful == 0
-    assert metrics.failed == 0
-    assert metrics.owner == listener.owner
-    assert metrics.topic == listener.topic
-    assert metrics.handler_name == listener.handler_name
+    # The mock executor's register_listener should have been called
+    hassette._bus_service._executor.register_listener.assert_called()
+    # db_id should be set by the background task (mock returns 0)
+    assert listener.db_id == 0
 
 
 async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hassette") -> None:
@@ -447,3 +443,29 @@ async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hass
     actual = set(received_entity_ids)
 
     assert actual == expected, f"Expected handler to receive {expected}, got {actual}"
+
+
+async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
+    """_dispatch() delegates to the executor with an InvokeHandler command."""
+    from hassette.core.commands import InvokeHandler
+    from hassette.events.base import Event
+
+    hassette = hassette_with_bus
+    event_handled = asyncio.Event()
+
+    def handler(_event: Event) -> None:
+        hassette_with_bus.task_bucket.post_to_loop(event_handled.set)
+
+    hassette._bus.on(topic="custom.exec_test", handler=handler)
+
+    payload_event = Event(topic="custom.exec_test", payload="test-payload")
+    await hassette.send_event("custom.exec_test", payload_event)
+
+    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
+
+    executor = hassette._bus_service._executor
+    executor.execute.assert_called()
+    call_args = executor.execute.call_args_list
+    assert len(call_args) >= 1
+    cmd = call_args[-1].args[0]
+    assert isinstance(cmd, InvokeHandler), f"Expected InvokeHandler, got {type(cmd)}"

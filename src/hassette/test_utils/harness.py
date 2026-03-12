@@ -357,18 +357,40 @@ class HassetteHarness:
     # --- Component starters ---
 
     async def _start_bus(self) -> None:
+        from hassette.core.commands import InvokeHandler
+
         send_stream, receive_stream = create_memory_object_stream[tuple[str, Event[Any]]](1000)
         self.hassette._send_stream = send_stream
         self.hassette._receive_stream = receive_stream
 
-        self.hassette._bus_service = self.hassette.add_child(BusService, stream=receive_stream.clone())
+        async def _stub_execute(cmd: Any) -> None:
+            if isinstance(cmd, InvokeHandler):
+                await cmd.listener.invoke(cmd.event)
+
+        mock_executor = AsyncMock()
+        mock_executor.execute = AsyncMock(side_effect=_stub_execute)
+        mock_executor.register_listener = AsyncMock(return_value=0)
+        self.hassette._bus_service = self.hassette.add_child(
+            BusService, stream=receive_stream.clone(), executor=mock_executor
+        )
         self.hassette._bus = self.hassette.add_child(Bus)
 
         self._exit_stack.push_async_callback(send_stream.aclose)
         self._exit_stack.push_async_callback(receive_stream.aclose)
 
     async def _start_scheduler(self) -> None:
-        self.hassette._scheduler_service = self.hassette.add_child(SchedulerService)
+        from unittest.mock import AsyncMock
+
+        from hassette.core.commands import ExecuteJob
+
+        async def _stub_execute(cmd: Any) -> None:
+            if isinstance(cmd, ExecuteJob):
+                await cmd.callable()
+
+        mock_executor = AsyncMock()
+        mock_executor.execute = AsyncMock(side_effect=_stub_execute)
+        mock_executor.register_job = AsyncMock(return_value=0)
+        self.hassette._scheduler_service = self.hassette.add_child(SchedulerService, executor=mock_executor)
         self.hassette._scheduler = self.hassette.add_child(Scheduler)
 
     async def _start_file_watcher(self) -> None:
