@@ -30,6 +30,7 @@ from hassette.utils.url_utils import build_rest_url, build_ws_url
 from .api_resource import ApiResource
 from .app_handler import AppHandler
 from .bus_service import BusService
+from .command_executor import CommandExecutor
 from .data_sync_service import DataSyncService
 from .database_service import DatabaseService
 from .file_watcher import FileWatcherService
@@ -94,14 +95,17 @@ class Hassette(Resource):
 
         # private background services
         self._database_service = self.add_child(DatabaseService)
-        self._bus_service = self.add_child(BusService, stream=self._receive_stream.clone())
+        self._command_executor = self.add_child(CommandExecutor)
+        self._bus_service = self.add_child(
+            BusService, stream=self._receive_stream.clone(), executor=self._command_executor
+        )
 
         self._service_watcher = self.add_child(ServiceWatcher)
         self._websocket_service = self.add_child(WebsocketService)
         self._file_watcher = self.add_child(FileWatcherService)
         self._web_ui_watcher = self.add_child(WebUiWatcherService)
         self._app_handler = self.add_child(AppHandler)
-        self._scheduler_service = self.add_child(SchedulerService)
+        self._scheduler_service = self.add_child(SchedulerService, executor=self._command_executor)
 
         self._api_service = self.add_child(ApiResource)
         self._state_proxy = self.add_child(StateProxy)
@@ -186,6 +190,11 @@ class Hassette(Resource):
         if self._loop is None:
             raise RuntimeError("Event loop is not running")
         return self._loop
+
+    @property
+    def command_executor(self) -> CommandExecutor:
+        """CommandExecutor for telemetry recording."""
+        return self._command_executor
 
     @property
     def database_service(self) -> DatabaseService:

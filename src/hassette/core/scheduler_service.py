@@ -2,7 +2,6 @@ import asyncio
 import heapq
 import time
 import typing
-from collections import deque
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
@@ -10,13 +9,17 @@ from typing import Any, Generic, TypeVar, cast
 from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
 
+from hassette.core.commands import ExecuteJob
+from hassette.core.registration import ScheduledJobRegistration
 from hassette.resources.base import Resource, Service
-from hassette.scheduler.classes import JobExecutionRecord
+from hassette.scheduler.classes import CronTrigger, IntervalTrigger
 from hassette.utils.date_utils import now
-from hassette.utils.execution import ExecutionResult, track_execution
+from hassette.utils.serialization import safe_json_serialize
+from hassette.utils.source_capture import capture_registration_source
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.core.command_executor import CommandExecutor
     from hassette.scheduler.classes import ScheduledJob
 
 
@@ -35,15 +38,15 @@ class SchedulerService(Service):
     _exit_event: asyncio.Event
     """Event to signal the scheduler to exit."""
 
-    _execution_log: "deque[JobExecutionRecord]"
-    """Ring buffer of recent job execution records."""
+    _executor: "CommandExecutor"
+    """Command executor for running jobs and persisting registration/execution records."""
 
-    def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
+    def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
+        self._executor = executor
         self._job_queue = self.add_child(_ScheduledJobQueue)
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
-        self._execution_log = deque(maxlen=hassette.config.web_api_job_history_size)
 
     @property
     def min_delay(self) -> float:
@@ -58,7 +61,7 @@ class SchedulerService(Service):
         return self.hassette.config.scheduler_default_delay_seconds
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> str:
         """Return the log level from the config for this resource."""
         return self.hassette.config.scheduler_service_log_level
 
@@ -66,7 +69,7 @@ class SchedulerService(Service):
         self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()
 
-    async def serve(self):
+    async def serve(self) -> None:
         """Run the scheduler forever, processing jobs as they become due."""
 
         self.mark_ready(reason="Scheduler started")
@@ -151,8 +154,40 @@ class SchedulerService(Service):
         return TimeDelta(seconds=delay)
 
     def add_job(self, job: "ScheduledJob"):
-        """Push a job to the queue."""
+        """Push a job to the queue and register it with the executor."""
+        ts = time.time()
+        source_location, registration_source = capture_registration_source()
+        trigger = job.trigger
+        if isinstance(trigger, IntervalTrigger):
+            trigger_type = "interval"
+            trigger_value = str(trigger.interval)
+        elif isinstance(trigger, CronTrigger):
+            trigger_type = "cron"
+            trigger_value = str(trigger.cron_expression)
+        else:
+            trigger_type = None
+            trigger_value = None
+        reg = ScheduledJobRegistration(
+            app_key=job.owner,
+            instance_index=0,
+            job_name=job.name,
+            handler_method=getattr(job.job, "__qualname__", str(job.job)),
+            trigger_type=trigger_type,
+            trigger_value=trigger_value,
+            repeat=job.repeat,
+            args_json=safe_json_serialize(list(job.args)),
+            kwargs_json=safe_json_serialize(job.kwargs),
+            source_location=source_location,
+            registration_source=registration_source,
+            first_registered_at=ts,
+            last_registered_at=ts,
+        )
+        self.task_bucket.spawn(self._register_job_async(job, reg))
         return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
+
+    async def _register_job_async(self, job: "ScheduledJob", reg: ScheduledJobRegistration) -> None:
+        """Background task: register job in DB and set its db_id."""
+        job.db_id = await self._executor.register_job(reg)
 
     async def _dispatch_and_log(self, job: "ScheduledJob"):
         """Dispatch a job and log its execution.
@@ -182,8 +217,8 @@ class SchedulerService(Service):
         except Exception:
             self.logger.exception("Error rescheduling job %s", job)
 
-    async def run_job(self, job: "ScheduledJob"):
-        """Run a scheduled job, recording execution metrics.
+    async def run_job(self, job: "ScheduledJob") -> None:
+        """Run a scheduled job by delegating to the CommandExecutor.
 
         Args:
             job: The job to run.
@@ -193,40 +228,28 @@ class SchedulerService(Service):
             await self._remove_job(job)
             return
 
-        func = job.job
-
         run_at_delta = job.next_run - now()
         if run_at_delta.in_seconds() < -self.hassette.config.scheduler_behind_schedule_threshold_seconds:
             self.logger.warning(
                 "Job %s is behind schedule by %s seconds, running now.", job, abs(run_at_delta.in_seconds())
             )
 
-        timestamp = time.time()
-        result = ExecutionResult()  # safety default for finally block if track_execution() entry fails
+        async_fn = self.task_bucket.make_async_adapter(job.job)
 
-        try:
-            async with track_execution() as result:
-                self.logger.debug("Running job %s at %s", job, now())
-                async_func = self.task_bucket.make_async_adapter(func)
-                await async_func(*job.args, **job.kwargs)
-        except asyncio.CancelledError:
-            self.logger.debug("Execution cancelled for job %s", job)
-            raise
-        except Exception:
-            self.logger.exception("Error running job %s", job)
-        finally:
-            record = JobExecutionRecord(
-                job_id=job.job_id,
-                job_name=job.name,
-                owner=job.owner,
-                started_at=timestamp,
-                duration_ms=result.duration_ms,
-                status=result.status,
-                error_message=result.error_message,
-                error_type=result.error_type,
-                error_traceback=result.error_traceback,
+        async def _bound_callable() -> None:
+            await async_fn(*job.args, **job.kwargs)
+
+        if job.db_id is None:
+            self.logger.debug(
+                "Job %s has no db_id yet (registration pending); execution record will use id=0",
+                job,
             )
-            self._execution_log.append(record)
+        cmd = ExecuteJob(
+            job=job,
+            callable=_bound_callable,
+            job_db_id=job.db_id or 0,
+        )
+        await self._executor.execute(cmd)
 
     async def reschedule_job(self, job: "ScheduledJob"):
         """Reschedule a job if it is repeating.
@@ -261,12 +284,14 @@ class SchedulerService(Service):
         # One-time job, remove it
         await self._remove_job(job)
 
-    def get_execution_history(self, limit: int = 50, owner: str | None = None) -> list["JobExecutionRecord"]:
-        """Return recent job execution records, optionally filtered by owner."""
-        entries = list(self._execution_log)
-        if owner:
-            entries = [e for e in entries if e.owner == owner]
-        return entries[-limit:]
+    def get_execution_history(self, limit: int = 50) -> list:
+        """Return recent job execution records.
+
+        Note: filtering by owner is no longer supported because owner identity now lives
+        on the parent ``scheduled_jobs`` table record, not on ``JobExecutionRecord``.
+        """
+        # TODO(#267): return DB-backed history from TelemetryQueryService
+        return []
 
     async def get_all_jobs(self) -> list["ScheduledJob"]:
         """Return all currently scheduled jobs across all apps."""
@@ -306,7 +331,7 @@ class _ScheduledJobQueue(Resource):
         self.mark_ready(reason="Queue ready")
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> str:
         """Return the log level from the config for this resource."""
         return self.hassette.config.scheduler_service_log_level
 

@@ -172,6 +172,9 @@ class ScheduledJob:
     job_id: int = field(default_factory=next_id, init=False, compare=False)
     """Unique identifier for the job instance."""
 
+    db_id: int | None = field(default=None, compare=False)
+    """Database row ID for this job. Set by the executor after persistence; None until then."""
+
     def __repr__(self) -> str:
         return f"ScheduledJob(name={self.name!r}, owner={self.owner})"
 
@@ -209,14 +212,19 @@ class ScheduledJob:
         self.sort_index = (next_run.timestamp_nanos(), self.job_id)
 
 
-@dataclass
+@dataclass(frozen=True)
 class JobExecutionRecord:
     """Record of a single job execution for metrics tracking."""
 
     job_id: int
-    job_name: str
-    owner: str
-    started_at: float
+    """FK to the scheduled_jobs table entry for this job."""
+
+    session_id: int
+    """Session during which the execution occurred."""
+
+    execution_start_ts: float
+    """Unix timestamp (epoch seconds) when execution began."""
+
     duration_ms: float
     status: str  # "success", "error", "cancelled"
     error_message: str | None = None

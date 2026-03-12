@@ -424,36 +424,26 @@ class TestOwnerResolution:
         assert len(result) == 1
         assert result[0]["owner"] == "Battery.0"
 
-    def test_get_job_execution_history_resolves_app_key(self, data_sync_with_apps: DataSyncService) -> None:
+    def test_get_job_execution_history_returns_records(self, data_sync_with_apps: DataSyncService) -> None:
+        # owner is no longer stored on JobExecutionRecord; filtering is done at the DB layer (future WP).
         records = [
             JobExecutionRecord(
-                job_id=1, job_name="check", owner="Battery.0", started_at=1.0, duration_ms=10, status="success"
+                job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=10, status="success"
             ),
             JobExecutionRecord(
-                job_id=2, job_name="check", owner="Battery.1", started_at=2.0, duration_ms=20, status="success"
+                job_id=2, session_id=1, execution_start_ts=2.0, duration_ms=20, status="success"
             ),
             JobExecutionRecord(
-                job_id=3, job_name="other", owner="Other.0", started_at=3.0, duration_ms=5, status="success"
+                job_id=3, session_id=1, execution_start_ts=3.0, duration_ms=5, status="error",
+                error_message="boom",
             ),
         ]
         data_sync_with_apps.hassette._scheduler_service.get_execution_history.return_value = records
 
-        result = data_sync_with_apps.get_job_execution_history(owner="battery")
-        assert len(result) == 2
-        owners = {r["owner"] for r in result}
-        assert owners == {"Battery.0", "Battery.1"}
-
-    def test_get_job_execution_history_exact_match_fallback(self, data_sync_with_apps: DataSyncService) -> None:
-        records = [
-            JobExecutionRecord(
-                job_id=1, job_name="job", owner="SomeService.0", started_at=1.0, duration_ms=10, status="success"
-            ),
-        ]
-        data_sync_with_apps.hassette._scheduler_service.get_execution_history.return_value = records
-
-        result = data_sync_with_apps.get_job_execution_history(owner="SomeService.0")
-        assert len(result) == 1
-        data_sync_with_apps.hassette._scheduler_service.get_execution_history.assert_called_with(50, "SomeService.0")
+        result = data_sync_with_apps.get_job_execution_history(limit=50)
+        assert len(result) == 3
+        assert result[0]["job_id"] == 1
+        assert result[2]["status"] == "error"
 
 
 class TestSystemStatus:

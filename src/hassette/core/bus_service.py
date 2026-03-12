@@ -10,18 +10,20 @@ from typing import Any
 
 from fair_async_rlock import FairAsyncRLock
 
-from hassette.bus.metrics import ListenerMetrics
+from hassette.core.commands import InvokeHandler
+from hassette.core.registration import ListenerRegistration
 from hassette.events import Event, HassPayload
-from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource, Service
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
+from hassette.utils.source_capture import capture_registration_source
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream
 
     from hassette import Hassette
     from hassette.bus import Listener
+    from hassette.core.command_executor import CommandExecutor
     from hassette.events import EventPayload
 
 
@@ -43,28 +45,23 @@ class BusService(Service):
     _excluded_entity_globs: tuple[str, ...]
     _has_exclusions: bool
 
-    _listener_metrics: dict[int, ListenerMetrics]
-    """Per-listener aggregate metrics, keyed by listener_id.
-
-    Metrics persist after listener removal (~200 bytes each) to preserve
-    historical data for the web UI. This is intentional and not a leak."""
-
     def __init__(
         self,
         hassette: "Hassette",
         *,
         stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]",
+        executor: "CommandExecutor",
         parent: "Resource | None" = None,
     ) -> None:
         super().__init__(hassette, parent=parent)
         self.stream = stream
+        self._executor = executor
         self.listener_seq = itertools.count(1)
         self.router = Router()
-        self._listener_metrics = {}
         self._setup_exclusion_filters()
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> str:
         """Return the log level from the config for this resource."""
         return self.hassette.config.bus_service_log_level
 
@@ -83,8 +80,29 @@ class BusService(Service):
 
     def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Add a listener to the bus."""
-        self._get_or_create_metrics(listener)
+        now = time.time()
+        source_location, registration_source = capture_registration_source()
+        reg = ListenerRegistration(
+            app_key=listener.owner,
+            instance_index=0,
+            handler_method=listener.handler_name,
+            topic=listener.topic,
+            debounce=listener.adapter.rate_limiter.debounce if listener.adapter.rate_limiter else None,
+            throttle=listener.adapter.rate_limiter.throttle if listener.adapter.rate_limiter else None,
+            once=listener.once,
+            priority=listener.priority,
+            predicate_description=repr(listener.predicate) if listener.predicate else None,
+            source_location=source_location,
+            registration_source=registration_source,
+            first_registered_at=now,
+            last_registered_at=now,
+        )
+        self.task_bucket.spawn(self._register_listener_async(listener, reg))
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
+
+    async def _register_listener_async(self, listener: "Listener", reg: ListenerRegistration) -> None:
+        """Background task: register listener in DB and set its db_id."""
+        listener.db_id = await self._executor.register_listener(reg)
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus."""
@@ -183,62 +201,25 @@ class BusService(Service):
         all_listeners = await self.router.get_topic_listeners(topic)
         return [listener for listener in all_listeners if await listener.matches(event)]
 
-    def _get_or_create_metrics(self, listener: "Listener") -> ListenerMetrics:
-        """Get or create a ListenerMetrics entry for a listener."""
-        if listener.listener_id in self._listener_metrics:
-            return self._listener_metrics[listener.listener_id]
-
-        rate_limiter = listener.adapter.rate_limiter
-        metrics = ListenerMetrics(
-            listener_id=listener.listener_id,
-            owner=listener.owner,
-            topic=listener.topic,
-            handler_name=listener.handler_name,
-            predicate_description=repr(listener.predicate) if listener.predicate else None,
-            debounce=rate_limiter.debounce if rate_limiter else None,
-            throttle=rate_limiter.throttle if rate_limiter else None,
-            once=listener.once,
-            priority=listener.priority,
-        )
-        self._listener_metrics[listener.listener_id] = metrics
-        return metrics
-
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener."""
+        if listener.db_id is None:
+            self.logger.debug(
+                "Listener %s has no db_id yet (registration pending); invocation record will use id=0",
+                listener,
+            )
+        cmd = InvokeHandler(listener=listener, event=event, topic=topic, listener_id=listener.db_id or 0)
+        await self._executor.execute(cmd)
+        if listener.once:
+            self.remove_listener(listener)
 
-        # we are assuming matches() has already been called
-        metrics = self._get_or_create_metrics(listener)
-        started = time.monotonic()
-        try:
-            self.logger.debug("Dispatching %s -> %r", topic, listener)
-            await listener.invoke(event)
-            metrics.record_success((time.monotonic() - started) * 1000)
-        except asyncio.CancelledError:
-            metrics.record_cancelled((time.monotonic() - started) * 1000)
-            self.logger.debug("Listener dispatch cancelled (topic=%s, handler=%r)", topic, listener.handler_name)
-            raise
-        except DependencyError as e:
-            # Catch before HassetteError (its parent) to classify DI failures separately
-            metrics.record_di_failure((time.monotonic() - started) * 1000, str(e), type(e).__name__)
-            self.logger.error("Listener DI error (topic=%s): %s", topic, e)
-        except HassetteError as e:
-            metrics.record_error((time.monotonic() - started) * 1000, str(e), type(e).__name__)
-            self.logger.error("Listener error (topic=%s): %s", topic, e)
-        except Exception as e:
-            metrics.record_error((time.monotonic() - started) * 1000, str(e), type(e).__name__)
-            self.logger.exception("Listener error (topic=%s, handler=%r)", topic, listener.handler_name)
-        finally:
-            # if once, remove after running
-            if listener.once:
-                self.remove_listener(listener)
+    def get_all_listener_metrics(self) -> list:
+        # TODO(#267): return DB-backed metrics from TelemetryQueryService
+        return []
 
-    def get_all_listener_metrics(self) -> list[ListenerMetrics]:
-        """Return all listener metrics."""
-        return list(self._listener_metrics.values())
-
-    def get_listener_metrics_by_owner(self, owner: str) -> list[ListenerMetrics]:
-        """Return listener metrics filtered by owner."""
-        return [m for m in self._listener_metrics.values() if m.owner == owner]
+    def get_listener_metrics_by_owner(self, owner: str) -> list:
+        # TODO(#267): return DB-backed metrics from TelemetryQueryService
+        return []
 
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")

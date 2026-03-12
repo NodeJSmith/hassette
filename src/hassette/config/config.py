@@ -297,6 +297,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     task_bucket_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for task buckets. Defaults to INFO or the value of log_level."""
 
+    command_executor_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    """Logging level for the command executor service. Defaults to INFO or the value of log_level."""
+
     apps_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Default logging level for apps, can be overridden in app initialization. Defaults to INFO or the value\
         of log_level."""
