@@ -58,9 +58,8 @@ def e2e(session: "Session"):
 def smoke(session: "Session"):
     """Startup smoke tests against a real HA Docker container.
 
-    Requires Docker and the HA container to be running:
-        docker compose -f tests/smoke/docker-compose.yml up -d
-    Or run via CI which starts the container automatically.
+    The ``ha_container`` pytest fixture manages Docker automatically —
+    it starts the container before the session and tears it down after.
     """
     session.run(
         "uv",

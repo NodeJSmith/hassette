@@ -26,7 +26,7 @@ JWT_KEY_HEX = (
 # Raw token field (63 bytes = 126 hex chars) — used for OAuth refresh, not LLAT auth
 RAW_TOKEN_HEX = "0" * 126
 
-# Fixed timestamps: issued 2026-01-01T00:00:00Z, expires 2036-01-01T00:00:00Z
+# Fixed timestamps: issued 2025-01-01T00:00:00Z, expires 2035-01-01T00:00:00Z
 IAT = 1735689600
 EXP = IAT + 315360000  # +3650 days ≈ 10 years
 

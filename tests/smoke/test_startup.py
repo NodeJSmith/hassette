@@ -17,7 +17,7 @@ from hassette.bus import Bus
 from hassette.events import RawStateChangeEvent
 from tests.smoke.conftest import make_smoke_config, startup_context
 
-pytestmark = pytest.mark.smoke
+pytestmark = [pytest.mark.smoke, pytest.mark.filterwarnings("default::DeprecationWarning")]
 
 
 async def test_startup_completes(ha_container, tmp_path):
@@ -70,7 +70,7 @@ async def test_bus_handler_fires_on_state_change(ha_container, tmp_path):
 async def test_no_sentinel_records_dropped(ha_container, tmp_path, caplog):
     """No sentinel/unregistered invocation records are dropped during startup."""
     config = make_smoke_config(ha_container, tmp_path)
-    with caplog.at_level(logging.WARNING, logger="hassette.core.command_executor"):
+    with caplog.at_level(logging.WARNING, logger="hassette.CommandExecutor"):
         async with startup_context(config):
             await asyncio.sleep(2.0)
 

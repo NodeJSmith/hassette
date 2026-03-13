@@ -17,10 +17,6 @@ from pydantic_settings import SettingsConfigDict
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 
-# pyproject.toml sets filterwarnings=["error"] globally.
-# Smoke tests run against external containers (HA, httpx) that may emit
-# DeprecationWarnings we cannot control. Downgrade them to warnings, not errors.
-pytestmark = pytest.mark.filterwarnings("default::DeprecationWarning")
 
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
