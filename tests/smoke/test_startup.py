@@ -74,8 +74,5 @@ async def test_no_sentinel_records_dropped(ha_container, tmp_path, caplog):
         async with startup_context(config):
             await asyncio.sleep(2.0)
 
-    dropped = [
-        r for r in caplog.records
-        if "Dropping" in r.message and "invocation record" in r.message
-    ]
+    dropped = [r for r in caplog.records if "Dropping" in r.message and "invocation record" in r.message]
     assert dropped == [], f"Sentinel records dropped during startup: {[r.message for r in dropped]}"
