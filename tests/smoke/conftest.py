@@ -17,7 +17,6 @@ from pydantic_settings import SettingsConfigDict
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 
-
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
 HA_URL = "http://localhost:18123"
