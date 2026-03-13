@@ -263,12 +263,8 @@ class DatabaseService(Service):
         try:
             retention_days = self.hassette.config.db_retention_days
             cutoff = time.time() - (retention_days * 86400)
-            cursor_hi = await self.db.execute(
-                "DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,)
-            )
-            cursor_je = await self.db.execute(
-                "DELETE FROM job_executions WHERE execution_start_ts < ?", (cutoff,)
-            )
+            cursor_hi = await self.db.execute("DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,))
+            cursor_je = await self.db.execute("DELETE FROM job_executions WHERE execution_start_ts < ?", (cutoff,))
             await self.db.commit()
             hi_deleted = cursor_hi.rowcount or 0
             je_deleted = cursor_je.rowcount or 0
