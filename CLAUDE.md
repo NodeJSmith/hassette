@@ -83,6 +83,35 @@ class MyApp(App[MyConfig]):
         pass
 ```
 
+## Bug Investigation Workflow (TDD)
+
+When investigating a crash or regression, follow this sequence before writing any fix:
+
+1. **Reproduce first** — confirm the bug is real and understand what triggers it (logs, crash output, minimal repro)
+2. **Write a failing test** — write a test that captures the exact failure mode; run it and confirm it fails (RED)
+3. **Fix the code** — write the minimal change that makes the test pass (GREEN)
+4. **Verify** — run the full test file to ensure no regressions; check the new test passes and existing tests still pass
+
+This discipline matters most for startup races, timing bugs, and subtle state issues — categories where "it seemed to work" is not trustworthy evidence.
+
+### Regression test patterns for this project
+
+**Startup races** — use `asyncio.Event` as a gate to simulate a dependency not yet ready:
+```python
+gate = asyncio.Event()
+mock_service.wait_for_ready = AsyncMock(side_effect=lambda _: gate.wait())
+task = asyncio.create_task(executor.register_listener(...))
+await asyncio.sleep(0)         # let the task run until it blocks on gate
+assert not task.done()         # confirms the gate is actually blocking it
+gate.set()
+await task
+assert result > 0              # confirms registration succeeded after unblocking
+```
+
+**Sentinel filtering** — verify that records with unregistered IDs (listener_id=0, job_id=0, session_id=0) are silently dropped and not written to the database.
+
+**Error isolation** — confirm that exceptions raised inside `execute()` do not propagate out of the method; the caller (TaskBucket) must not crash.
+
 ## Test Infrastructure
 
 Two mock strategies serve different testing needs. See `tests/TESTING.md` for the full guide, decision table, and code examples.
