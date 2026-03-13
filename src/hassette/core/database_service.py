@@ -235,11 +235,11 @@ class DatabaseService(Service):
         try:
             session_id = self.hassette.session_id
             now = time.time()
-            await self._db.execute(  # type: ignore[union-attr]
+            await self.db.execute(
                 "UPDATE sessions SET last_heartbeat_at = ? WHERE id = ?",
                 (now, session_id),
             )
-            await self._db.commit()  # type: ignore[union-attr]
+            await self.db.commit()
             self.logger.debug("Heartbeat updated for session %d", session_id)
             if self._consecutive_heartbeat_failures > 0:
                 self.logger.info("Heartbeat recovered after %d failure(s)", self._consecutive_heartbeat_failures)
@@ -263,13 +263,13 @@ class DatabaseService(Service):
         try:
             retention_days = self.hassette.config.db_retention_days
             cutoff = time.time() - (retention_days * 86400)
-            cursor_hi = await self._db.execute(  # type: ignore[union-attr]
+            cursor_hi = await self.db.execute(
                 "DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,)
             )
-            cursor_je = await self._db.execute(  # type: ignore[union-attr]
+            cursor_je = await self.db.execute(
                 "DELETE FROM job_executions WHERE execution_start_ts < ?", (cutoff,)
             )
-            await self._db.commit()  # type: ignore[union-attr]
+            await self.db.commit()
             hi_deleted = cursor_hi.rowcount or 0
             je_deleted = cursor_je.rowcount or 0
             if hi_deleted or je_deleted:

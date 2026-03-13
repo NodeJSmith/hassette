@@ -390,7 +390,9 @@ class Hassette(Resource):
             (now, now),
         )
         await db.commit()
-        return cursor.lastrowid  # type: ignore[return-value]
+        if cursor.lastrowid is None:
+            raise RuntimeError("INSERT INTO sessions returned no lastrowid")
+        return cursor.lastrowid
 
     async def _on_service_crashed(self, event: HassetteServiceEvent) -> None:
         """Record service crash details in the session row.
