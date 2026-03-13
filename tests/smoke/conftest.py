@@ -122,6 +122,9 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
         while hassette._session_id is None or hassette._session_id <= 0:
+            if task.done():
+                await task  # re-raises any startup exception immediately
+                raise RuntimeError("Hassette exited during startup without reaching running state")
             if loop.time() > deadline:
                 task.cancel()
                 raise TimeoutError(f"Hassette did not reach running state within {timeout}s")

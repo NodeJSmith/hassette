@@ -13,7 +13,6 @@ import logging
 
 import pytest
 
-from hassette.bus import Bus
 from hassette.events import RawStateChangeEvent
 from tests.smoke.conftest import make_smoke_config, startup_context
 
@@ -59,7 +58,7 @@ async def test_bus_handler_fires_on_state_change(ha_container, tmp_path):
         received.append(event)
 
     async with startup_context(config) as hassette:
-        bus = hassette.add_child(Bus)
+        bus = hassette._bus
         bus.on_state_change("light.kitchen_lights", handler=capture_event)
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
         await asyncio.sleep(1.5)
