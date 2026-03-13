@@ -48,6 +48,19 @@ class CommandExecutor(Service):
         """Wait for DatabaseService to be ready."""
         await self.hassette.wait_for_ready([self.hassette.database_service])
 
+    def _safe_session_id(self) -> int:
+        """Return the current session ID, or 0 if no session has been created yet.
+
+        Sessions are created in run_forever() after all resources start. During the
+        startup window, handlers may fire before the session exists. Using 0 as a
+        sentinel lets _persist_batch() filter these pre-session records rather than
+        crashing with RuntimeError or violating the FK constraint.
+        """
+        try:
+            return self.hassette.session_id
+        except RuntimeError:
+            return 0
+
     async def serve(self) -> None:
         """Drain the write queue in batches until shutdown, then flush remaining records."""
         self.mark_ready(reason="CommandExecutor started")
@@ -114,7 +127,7 @@ class CommandExecutor(Service):
             duration_ms = (time.monotonic() - _mono_start) * 1000
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="cancelled",
@@ -129,7 +142,7 @@ class CommandExecutor(Service):
             self.logger.error("Handler DI error (topic=%s): %s", cmd.topic, e)
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -144,7 +157,7 @@ class CommandExecutor(Service):
             self.logger.error("Handler error (topic=%s): %s", cmd.topic, e)
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -160,7 +173,7 @@ class CommandExecutor(Service):
             tb = traceback.format_exc()
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -174,7 +187,7 @@ class CommandExecutor(Service):
             duration_ms = (time.monotonic() - _mono_start) * 1000
             record = HandlerInvocationRecord(
                 listener_id=cmd.listener_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="success",
@@ -198,7 +211,7 @@ class CommandExecutor(Service):
             duration_ms = (time.monotonic() - _mono_start) * 1000
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="cancelled",
@@ -213,7 +226,7 @@ class CommandExecutor(Service):
             self.logger.error("Job DI error (job_db_id=%s): %s", cmd.job_db_id, e)
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -228,7 +241,7 @@ class CommandExecutor(Service):
             self.logger.error("Job error (job_db_id=%s): %s", cmd.job_db_id, e)
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -244,7 +257,7 @@ class CommandExecutor(Service):
             tb = traceback.format_exc()
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="error",
@@ -258,7 +271,7 @@ class CommandExecutor(Service):
             duration_ms = (time.monotonic() - _mono_start) * 1000
             record = JobExecutionRecord(
                 job_id=cmd.job_db_id,
-                session_id=self.hassette.session_id,
+                session_id=self._safe_session_id(),
                 execution_start_ts=execution_start_ts,
                 duration_ms=duration_ms,
                 status="success",
@@ -288,6 +301,7 @@ class CommandExecutor(Service):
         Returns:
             The row ID of the inserted or updated row.
         """
+        await self.hassette.wait_for_ready([self.hassette.database_service])
         db = self.hassette.database_service.db
         cursor = await db.execute(
             """
@@ -335,6 +349,7 @@ class CommandExecutor(Service):
         Returns:
             The row ID of the inserted or updated row.
         """
+        await self.hassette.wait_for_ready([self.hassette.database_service])
         db = self.hassette.database_service.db
         cursor = await db.execute(
             """
@@ -448,20 +463,24 @@ class CommandExecutor(Service):
         # Filter out records with unregistered IDs (id=0 sentinel means the handler fired before
         # register_listener/register_job completed — a startup race). Log and drop rather than
         # violate the FK constraint.
-        unregistered_invocations = [r for r in invocations if r.listener_id == 0]
-        unregistered_jobs = [r for r in job_executions if r.job_id == 0]
+        # Also filter session_id=0 (handler fired before _create_session() ran — a second startup
+        # race). Both 0-sentinels would violate FK constraints on their respective parent tables.
+        unregistered_invocations = [r for r in invocations if r.listener_id == 0 or r.session_id == 0]
+        unregistered_jobs = [r for r in job_executions if r.job_id == 0 or r.session_id == 0]
         if unregistered_invocations:
             self.logger.warning(
-                "Dropping %d handler invocation record(s) with listener_id=0 (fired before registration completed)",
+                "Dropping %d handler invocation record(s) with listener_id=0 or session_id=0 "
+                "(fired before registration or session creation completed)",
                 len(unregistered_invocations),
             )
         if unregistered_jobs:
             self.logger.warning(
-                "Dropping %d job execution record(s) with job_id=0 (fired before registration completed)",
+                "Dropping %d job execution record(s) with job_id=0 or session_id=0 "
+                "(fired before registration or session creation completed)",
                 len(unregistered_jobs),
             )
-        invocations = [r for r in invocations if r.listener_id != 0]
-        job_executions = [r for r in job_executions if r.job_id != 0]
+        invocations = [r for r in invocations if r.listener_id != 0 and r.session_id != 0]
+        job_executions = [r for r in job_executions if r.job_id != 0 and r.session_id != 0]
 
         if not invocations and not job_executions:
             return
