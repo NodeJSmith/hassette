@@ -32,21 +32,6 @@ jobs:
 
       - run: uv sync
 
-      - name: Start HA container
-        run: docker compose -f tests/smoke/docker-compose.yml up -d homeassistant
-
-      - name: Wait for HA to be ready
-        run: |
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:18123/api/ \
-              -H "Authorization: Bearer hassette-smoke-test-token" && break
-            echo "Attempt $i/30 — waiting..."
-            sleep 3
-          done || (docker compose -f tests/smoke/docker-compose.yml logs homeassistant && exit 1)
-
       - name: Run smoke tests
         run: uv run nox -s smoke
 
-      - name: Tear down HA container
-        if: always()
-        run: docker compose -f tests/smoke/docker-compose.yml down

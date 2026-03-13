@@ -56,7 +56,7 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> str:
     # Copy only the committed fixture files — skip HA runtime artifacts.
     # This prevents root-owned files from previous container runs from
     # polluting the copy and causing PermissionError.
-    _IGNORE = shutil.ignore_patterns(
+    _ignore = shutil.ignore_patterns(
         ".HA_VERSION",
         "home-assistant.log*",
         "known_devices.yaml",
@@ -73,7 +73,7 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> str:
         "trace.saved_traces",
     )
     config_tmp = tmp_path_factory.mktemp("ha-config", numbered=False)
-    shutil.copytree(FIXTURE_DIR, config_tmp, dirs_exist_ok=True, ignore=_IGNORE)
+    shutil.copytree(FIXTURE_DIR, config_tmp, dirs_exist_ok=True, ignore=_ignore)
 
     env = {**os.environ, "HA_CONFIG_PATH": str(config_tmp)}
     subprocess.run(
