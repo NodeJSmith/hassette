@@ -641,12 +641,12 @@ async def test_concurrent_registrations_do_not_raise(
         exc = CommandExecutor(mock_hassette, parent=mock_hassette)
         await exc.on_initialize()
 
-        N = 10
-        regs = [_make_listener_registration(topic=f"test.topic.{i}") for i in range(N)]
+        batch_size = 10
+        regs = [_make_listener_registration(topic=f"test.topic.{i}") for i in range(batch_size)]
 
         ids = await asyncio.gather(*[exc.register_listener(reg) for reg in regs])
 
-        assert len(ids) == N
+        assert len(ids) == batch_size
         assert all(isinstance(id_, int) and id_ > 0 for id_ in ids), f"All IDs must be positive ints, got: {ids}"
     finally:
         await db_service.on_shutdown()

@@ -1,6 +1,7 @@
 """Unit tests for DatabaseService."""
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -56,10 +57,8 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
     finally:
         if service._db_worker_task is not None and not service._db_worker_task.done():
             service._db_worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await service._db_worker_task
-            except (asyncio.CancelledError, Exception):
-                pass
 
 
 def test_init_sets_defaults(service: DatabaseService) -> None:
