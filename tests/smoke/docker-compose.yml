@@ -3,7 +3,7 @@ services:
     image: homeassistant/home-assistant:2025.3
     container_name: hassette-smoke-ha
     volumes:
-      - ../../tests/fixtures/ha-config:/config
+      - ${HA_CONFIG_PATH:-../../tests/fixtures/ha-config}:/config
     ports:
       - "18123:8123"
     restart: "no"
@@ -15,7 +15,7 @@ services:
           "-sf",
           "http://localhost:8123/api/",
           "-H",
-          "Authorization: Bearer hassette-smoke-test-token",
+          "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0",
         ]
       interval: 5s
       timeout: 5s

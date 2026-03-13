@@ -13,6 +13,8 @@ import logging
 
 import pytest
 
+from hassette.bus import Bus
+from hassette.events import RawStateChangeEvent
 from tests.smoke.conftest import make_smoke_config, startup_context
 
 pytestmark = pytest.mark.smoke
@@ -43,7 +45,7 @@ async def test_demo_entities_visible(ha_container, tmp_path):
     config = make_smoke_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         states = await hassette.api.get_states()
-        entity_ids = {s["entity_id"] for s in states}
+        entity_ids = {s.entity_id for s in states}
         assert "light.kitchen_lights" in entity_ids
         assert "binary_sensor.movement_backyard" in entity_ids
 
@@ -53,11 +55,12 @@ async def test_bus_handler_fires_on_state_change(ha_container, tmp_path):
     config = make_smoke_config(ha_container, tmp_path)
     received: list[object] = []
 
-    async def capture_event(event: object) -> None:
+    async def capture_event(event: RawStateChangeEvent) -> None:
         received.append(event)
 
     async with startup_context(config) as hassette:
-        hassette.bus.on_state_change("light.kitchen_lights", handler=capture_event)
+        bus = hassette.add_child(Bus)
+        bus.on_state_change("light.kitchen_lights", handler=capture_event)
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
         await asyncio.sleep(1.5)
 

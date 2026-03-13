@@ -1,6 +1,9 @@
 """Smoke test fixtures."""
 
 import asyncio
+import contextlib
+import os
+import shutil
 import subprocess
 import time
 from collections.abc import AsyncIterator
@@ -20,8 +23,9 @@ from hassette.config.config import HassetteConfig
 pytestmark = pytest.mark.filterwarnings("default::DeprecationWarning")
 
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
+FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
 HA_URL = "http://localhost:18123"
-HA_TOKEN = "hassette-smoke-test-token"
+HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"  # noqa: E501 — JWT cannot be line-wrapped
 STARTUP_TIMEOUT = 60  # seconds
 
 
@@ -40,14 +44,42 @@ class _SmokeConfig(HassetteConfig):
 
 
 @pytest.fixture(scope="session")
-def ha_container() -> str:
+def ha_container(tmp_path_factory: pytest.TempPathFactory) -> str:
     """Start the HA Docker container for the test session and tear it down after.
+
+    Copies the committed fixture files to a temporary directory before starting
+    the container, so HA's writes (log files, updated .storage/ entries) never
+    pollute the repository working tree.
 
     Yields the base URL for the running Home Assistant instance.
     """
+    # Copy only the committed fixture files — skip HA runtime artifacts.
+    # This prevents root-owned files from previous container runs from
+    # polluting the copy and causing PermissionError.
+    _IGNORE = shutil.ignore_patterns(
+        ".HA_VERSION",
+        "home-assistant.log*",
+        "known_devices.yaml",
+        "blueprints",
+        "core.area_registry",
+        "core.device_registry",
+        "core.entity_registry",
+        "core.restore_state",
+        "homeassistant.exposed_entities",
+        "http",
+        "http.auth",
+        "person",
+        "repairs.issue_registry",
+        "trace.saved_traces",
+    )
+    config_tmp = tmp_path_factory.mktemp("ha-config", numbered=False)
+    shutil.copytree(FIXTURE_DIR, config_tmp, dirs_exist_ok=True, ignore=_IGNORE)
+
+    env = {**os.environ, "HA_CONFIG_PATH": str(config_tmp)}
     subprocess.run(
         ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "homeassistant"],
         check=True,
+        env=env,
     )
     try:
         deadline = time.monotonic() + STARTUP_TIMEOUT
@@ -71,6 +103,7 @@ def ha_container() -> str:
         subprocess.run(
             ["docker", "compose", "-f", str(COMPOSE_FILE), "down"],
             check=False,
+            env=env,
         )
 
 
@@ -91,19 +124,18 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
     hassette = Hassette(config)
     task = asyncio.create_task(hassette.run_forever())
     try:
-        deadline = asyncio.get_event_loop().time() + timeout
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
         while hassette._session_id is None or hassette._session_id <= 0:
-            if asyncio.get_event_loop().time() > deadline:
+            if loop.time() > deadline:
                 task.cancel()
                 raise TimeoutError(f"Hassette did not reach running state within {timeout}s")
             await asyncio.sleep(0.1)
         yield hassette
     finally:
         hassette.shutdown_event.set()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
 
 def make_smoke_config(ha_url: str, tmp_path: Path) -> HassetteConfig:

@@ -1,49 +1,64 @@
 {
-  "version": 7,
+  "version": 1,
   "minor_version": 1,
   "key": "auth",
   "data": {
     "users": [
       {
-        "id": "hassette-test-user-0000-000000000000",
+        "id": "00000000000000000000000000000001",
         "group_ids": [
           "system-admin"
         ],
-        "local_only": false,
-        "name": "Smoke Test Admin",
-        "is_active": true,
         "is_owner": true,
-        "system_generated": false
+        "is_active": true,
+        "name": "Smoke Test Admin",
+        "system_generated": false,
+        "local_only": false
       }
     ],
-    "groups": [],
+    "groups": [
+      {
+        "id": "system-admin",
+        "name": "Administrators"
+      },
+      {
+        "id": "system-users",
+        "name": "Users"
+      },
+      {
+        "id": "system-read-only",
+        "name": "Read Only"
+      }
+    ],
     "credentials": [
       {
-        "id": "hassette-test-cred-0000-000000000000",
-        "user_id": "hassette-test-user-0000-000000000000",
+        "id": "00000000000000000000000000000002",
+        "user_id": "00000000000000000000000000000001",
         "auth_provider_type": "homeassistant",
         "auth_provider_id": null,
         "data": {
-          "username": "admin",
-          "password": "$2b$04$g70CBz4jR4b2qfGZyHBrUOT7ocjfjefoB2hD1JYbWoheY84NQhngq"
-        },
-        "created_at": "2026-01-01T00:00:00+00:00"
+          "username": "admin"
+        }
       }
     ],
-    "access_tokens": [
+    "refresh_tokens": [
       {
-        "id": "hassette-test-token-000-000000000000",
-        "user_id": "hassette-test-user-0000-000000000000",
+        "id": "00000000000000000000000000000003",
+        "user_id": "00000000000000000000000000000001",
         "client_id": null,
         "client_name": "Hassette Smoke Tests",
         "client_icon": null,
         "token_type": "long_lived_access_token",
         "created_at": "2026-01-01T00:00:00+00:00",
-        "access_token_expiration": null,
+        "access_token_expiration": 315360000.0,
+        "token": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "jwt_key": "00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002",
+        "last_used_at": null,
+        "last_used_ip": null,
         "expire_at": null,
-        "token": "$2b$04$xwuR1x8sR/IIkg2bvam19..jMk2J.1smWs4ghjQk3Ovp/BfT0WCFa"
+        "credential_id": null,
+        "version": "2025.3.4"
       }
-    ],
-    "refresh_tokens": []
+    ]
   }
 }

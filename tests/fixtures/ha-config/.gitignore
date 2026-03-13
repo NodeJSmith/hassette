@@ -1,0 +1,18 @@
+# HA runtime files — generated on startup, not part of the fixture
+.HA_VERSION
+home-assistant.log
+home-assistant.log.*
+known_devices.yaml
+blueprints/
+
+# Dynamic storage files — HA auto-generates these; not needed in the fixture
+.storage/core.area_registry
+.storage/core.device_registry
+.storage/core.entity_registry
+.storage/core.restore_state
+.storage/homeassistant.exposed_entities
+.storage/http
+.storage/http.auth
+.storage/person
+.storage/repairs.issue_registry
+.storage/trace.saved_traces
