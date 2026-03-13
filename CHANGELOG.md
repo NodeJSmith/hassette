@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
-- `CommandExecutor` startup crash: `register_listener()`/`register_job()` now wait for `DatabaseService` to be ready before accessing `.db`, and `execute()` no longer raises `RuntimeError` when handlers fire before `_create_session()` completes
+- `CommandExecutor` startup crash: `register_listener()`/`register_job()` now wait for `DatabaseService` to be ready before accessing `.db`, and `execute()` no longer raises `RuntimeError` when handlers fire before `_create_session()` completes (#330)
 
 ### Added
 - `CommandExecutor` service consolidates handler invocation and scheduled job execution with unified timing, error classification, and batched SQLite telemetry writes (#329)
