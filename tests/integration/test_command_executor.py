@@ -444,3 +444,166 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     assert record.error_type == "RuntimeError"
     assert record.error_message == "job failed"
     assert record.error_traceback is not None
+
+
+# ---------------------------------------------------------------------------
+# Startup race regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_safe_session_id_returns_zero_when_no_session(mock_hassette: MagicMock) -> None:
+    """_safe_session_id() returns 0 instead of raising when no session exists yet.
+
+    Regression: before the fix, all execute() paths called self.hassette.session_id
+    directly, crashing with RuntimeError during the startup window before
+    _create_session() runs.
+    """
+
+    class _NoSession:
+        @property
+        def session_id(self) -> int:
+            raise RuntimeError("No active session")
+
+    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+    exc.hassette = _NoSession()  # type: ignore[assignment]
+    assert exc._safe_session_id() == 0
+
+
+@pytest.mark.asyncio
+async def test_execute_does_not_crash_when_no_session(executor: CommandExecutor) -> None:
+    """execute() must not raise when session_id is unavailable (pre-session startup race).
+
+    Regression: TaskBucket tasks crashed with RuntimeError("No active session") when
+    handlers fired before run_forever() called _create_session().
+    """
+
+    class _NoSession:
+        @property
+        def session_id(self) -> int:
+            raise RuntimeError("No active session")
+
+    executor.hassette = _NoSession()  # type: ignore[assignment]
+
+    listener = _make_mock_listener()
+    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
+
+    # Must not raise
+    await executor.execute(cmd)
+
+    # Record should be queued with session_id=0 sentinel
+    assert not executor._write_queue.empty()
+    record = executor._write_queue.get_nowait()
+    assert isinstance(record, HandlerInvocationRecord)
+    assert record.session_id == 0
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_drops_presession_records(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """_persist_batch() silently drops records with session_id=0 (FK sentinel).
+
+    Regression: records queued before _create_session() runs would have violated
+    the sessions FK constraint. The 0-sentinel matches the existing listener_id=0
+    pattern for the registration race.
+    """
+    db_service, session_id = initialized_db
+    reg = _make_listener_registration()
+    listener_id = await executor.register_listener(reg)
+
+    now = time.time()
+    valid = HandlerInvocationRecord(
+        listener_id=listener_id,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=5.0,
+        status="success",
+        error_type=None,
+        error_message=None,
+        error_traceback=None,
+    )
+    pre_session = HandlerInvocationRecord(
+        listener_id=listener_id,
+        session_id=0,  # startup race sentinel
+        execution_start_ts=now,
+        duration_ms=3.0,
+        status="success",
+        error_type=None,
+        error_message=None,
+        error_traceback=None,
+    )
+
+    await executor._persist_batch([valid, pre_session], [])
+
+    cursor = await db_service.db.execute(
+        "SELECT session_id FROM handler_invocations WHERE listener_id = ?",
+        (listener_id,),
+    )
+    rows = await cursor.fetchall()
+    # Only the valid record written — pre-session record silently dropped
+    assert len(rows) == 1
+    assert rows[0][0] == session_id
+
+
+@pytest.mark.asyncio
+async def test_register_listener_blocks_until_database_ready(
+    mock_hassette: MagicMock,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """register_listener() waits for DatabaseService before accessing .db.
+
+    Regression: BusService fires register_listener() as a background task immediately
+    on add_listener(), before CommandExecutor.on_initialize() completes. Previously
+    this crashed with RuntimeError("Database connection is not initialized").
+    """
+    db_service, _ = initialized_db
+
+    db_ready = asyncio.Event()
+
+    async def gated_wait(resources: list) -> bool:
+        if db_service in resources:
+            await db_ready.wait()
+        return True
+
+    mock_hassette.wait_for_ready = gated_wait
+    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+
+    task = asyncio.create_task(exc.register_listener(_make_listener_registration()))
+    await asyncio.sleep(0)
+    assert not task.done(), "register_listener should block while DatabaseService is not ready"
+
+    db_ready.set()
+    listener_id = await asyncio.wait_for(task, timeout=1.0)
+    assert listener_id > 0
+
+
+@pytest.mark.asyncio
+async def test_register_job_blocks_until_database_ready(
+    mock_hassette: MagicMock,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """register_job() waits for DatabaseService before accessing .db.
+
+    Regression: same race as register_listener — SchedulerService fires register_job()
+    as a background task before the DB is ready.
+    """
+    db_service, _ = initialized_db
+
+    db_ready = asyncio.Event()
+
+    async def gated_wait(resources: list) -> bool:
+        if db_service in resources:
+            await db_ready.wait()
+        return True
+
+    mock_hassette.wait_for_ready = gated_wait
+    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+
+    task = asyncio.create_task(exc.register_job(_make_job_registration()))
+    await asyncio.sleep(0)
+    assert not task.done(), "register_job should block while DatabaseService is not ready"
+
+    db_ready.set()
+    job_id = await asyncio.wait_for(task, timeout=1.0)
+    assert job_id > 0
