@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
-- `DatabaseService` now serializes all SQLite writes through a single-writer queue, eliminating `OperationalError: cannot commit transaction - SQL statements in progress` race conditions at startup (#331)
+- `DatabaseService` now serializes all SQLite writes through a single-writer queue, eliminating `OperationalError: cannot commit transaction - SQL statements in progress` race conditions at startup (#331, #333)
 - `CommandExecutor` startup crash: `register_listener()`/`register_job()` now wait for `DatabaseService` to be ready before accessing `.db`, and `execute()` no longer raises `RuntimeError` when handlers fire before `_create_session()` completes (#330)
 
 ### Added
