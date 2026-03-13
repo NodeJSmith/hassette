@@ -18,7 +18,7 @@ def tests(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "not docker and not e2e",
+        "not docker and not e2e and not smoke",
         "-n",
         "auto",
         "--dist",
@@ -54,6 +54,30 @@ def e2e(session: "Session"):
     )
 
 
+@nox.session(python=["3.13"])
+def smoke(session: "Session"):
+    """Startup smoke tests against a real HA Docker container.
+
+    The ``ha_container`` pytest fixture manages Docker automatically —
+    it starts the container before the session and tears it down after.
+    """
+    session.run(
+        "uv",
+        "run",
+        "--active",
+        "--reinstall-package",
+        "hassette",
+        "pytest",
+        "-m",
+        "smoke",
+        "-v",
+        "-n",
+        "0",
+        "--tb=short",
+        external=True,
+    )
+
+
 @nox.session(python=["3.11", "3.12", "3.13"], tags=["coverage"])
 def tests_with_coverage(session: "Session"):
     session.env["COVERAGE_FILE"] = f".coverage.{session.python}"
@@ -65,7 +89,7 @@ def tests_with_coverage(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "not docker and not e2e",
+        "not docker and not e2e and not smoke",
         "-n",
         "auto",
         "--dist",
