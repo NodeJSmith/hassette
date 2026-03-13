@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CommandExecutor` startup crash: `register_listener()`/`register_job()` now wait for `DatabaseService` to be ready before accessing `.db`, and `execute()` no longer raises `RuntimeError` when handlers fire before `_create_session()` completes (#330)
 
 ### Added
+- Docker-based startup smoke tests that run Hassette against a real Home Assistant container, verifying WebSocket connect, session creation, entity visibility, event bus firing, and sentinel record integrity
 - `CommandExecutor` service consolidates handler invocation and scheduled job execution with unified timing, error classification, and batched SQLite telemetry writes (#329)
 - `DatabaseService` with Alembic migration infrastructure for persistent SQLite telemetry storage (sessions, listeners, scheduled jobs, handler invocations, job executions) (#305)
 - Event injection and lifecycle reset utilities in `test_utils` for service-level integration tests (`emit_service_event`, `emit_file_change_event`, `make_service_failed_event`, `make_service_running_event`, `wire_up_app_state_listener`, `wire_up_app_running_listener`, `reset_hassette_lifecycle`) (#303)
