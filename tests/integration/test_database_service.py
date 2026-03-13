@@ -51,9 +51,7 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
         await service.db.commit()
         yield service
     finally:
-        if service._db is not None:
-            await service._db.close()
-            service._db = None
+        await service.on_shutdown()
 
 
 async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService) -> None:
@@ -94,9 +92,8 @@ async def test_migration_idempotency(service: DatabaseService) -> None:
         row = await cursor.fetchone()
         assert row == (1,)
 
-        # Close and re-initialize on same database
-        await service._db.close()  # type: ignore[union-attr]
-        service._db = None
+        # Tear down the first init cleanly before re-initializing
+        await service.on_shutdown()
 
         await service.on_initialize()
 
@@ -105,9 +102,7 @@ async def test_migration_idempotency(service: DatabaseService) -> None:
         row = await cursor.fetchone()
         assert row == (1,)
     finally:
-        if service._db:
-            await service._db.close()
-            service._db = None
+        await service.on_shutdown()
 
 
 async def test_pragmas_are_set(initialized_service: DatabaseService) -> None:
@@ -143,6 +138,7 @@ async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
 
     await asyncio.sleep(0.05)
     await initialized_service._update_heartbeat()
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
 
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
     row = await cursor.fetchone()
@@ -201,6 +197,7 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     await db.commit()
 
     await initialized_service._run_retention_cleanup()
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
 
     # Old records should be deleted, recent ones retained
     cursor = await db.execute("SELECT COUNT(*) FROM handler_invocations")
@@ -253,6 +250,7 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
 
     await shutdown_task
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
 
     # Heartbeat should have been updated
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
@@ -269,17 +267,21 @@ async def test_heartbeat_failure_counter_tracks_failures(initialized_service: Da
     await initialized_service._db.close()  # type: ignore[union-attr]
 
     await initialized_service._update_heartbeat()
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     await initialized_service._update_heartbeat()
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
     assert initialized_service._consecutive_heartbeat_failures == 2
 
     await initialized_service._update_heartbeat()
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
     assert initialized_service._consecutive_heartbeat_failures == 3
 
     # Restore a valid connection and verify recovery resets counter
     initialized_service._db = await aiosqlite.connect(initialized_service._db_path)
     await initialized_service._update_heartbeat()
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
     assert initialized_service._consecutive_heartbeat_failures == 0
 
 
@@ -291,11 +293,13 @@ async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseSe
     initialized_service._db.execute = AsyncMock(side_effect=Exception("db error"))
 
     await initialized_service._update_heartbeat()
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     # Restore real connection — next heartbeat should succeed and reset
     initialized_service._db = real_db
     await initialized_service._update_heartbeat()
+    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
     assert initialized_service._consecutive_heartbeat_failures == 0
 
 
@@ -319,3 +323,35 @@ async def test_serve_raises_after_max_heartbeat_failures(initialized_service: Da
         pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"),
     ):
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
+
+
+async def test_drain_on_shutdown(service: DatabaseService) -> None:
+    """on_shutdown() blocks until all queued coroutines complete before closing the connection."""
+    await service.on_initialize()
+
+    completed: list[int] = []
+    gates: list[asyncio.Event] = [asyncio.Event() for _ in range(3)]
+
+    async def slow_coro(index: int) -> None:
+        await gates[index].wait()
+        completed.append(index)
+
+    # Enqueue three slow coroutines before unblocking any of them
+    service.enqueue(slow_coro(0))
+    service.enqueue(slow_coro(1))
+    service.enqueue(slow_coro(2))
+
+    # on_shutdown() must not return until all three are done
+    async def release_gates_then_shutdown() -> None:
+        # Give the worker a moment to pick up the first item
+        await asyncio.sleep(0)
+        # Release gates one by one to simulate sequential slow writes
+        for gate in gates:
+            gate.set()
+            await asyncio.sleep(0)
+        await service.on_shutdown()
+
+    await asyncio.wait_for(release_gates_then_shutdown(), timeout=5.0)
+
+    assert completed == [0, 1, 2], f"Not all coroutines completed before shutdown; got: {completed}"
+    assert service._db is None, "Database connection should be closed after shutdown"

@@ -1,5 +1,4 @@
 import asyncio
-import sqlite3
 import threading
 import time
 import typing
@@ -139,7 +138,7 @@ class Hassette(Resource):
             raise RuntimeError("Session ID is not initialized")
         return self._session_id
 
-    def _startup_tasks(self):
+    def _startup_tasks(self) -> None:
         """Perform one-time startup tasks.
 
         These were originally on the `HassetteConfig` class but we do not want these called
@@ -365,6 +364,10 @@ class Hassette(Resource):
 
     async def _mark_orphaned_sessions(self) -> None:
         """Mark any sessions left in 'running' status as 'unknown'."""
+        await self._database_service.submit(Hassette._do_mark_orphaned_sessions(self))
+
+    async def _do_mark_orphaned_sessions(self) -> None:
+        """Execute the orphan-session UPDATE; called by the write-queue worker."""
         db = self._database_service.db
         cursor = await db.execute(
             "UPDATE sessions SET status = 'unknown', stopped_at = last_heartbeat_at WHERE status = 'running'"
@@ -375,15 +378,19 @@ class Hassette(Resource):
 
     async def _create_session(self) -> None:
         """Insert a new session row and store the session ID."""
+        self._session_id = await self._database_service.submit(Hassette._do_create_session(self))
+        self.logger.info("Created session %d", self._session_id)
+
+    async def _do_create_session(self) -> int:
+        """Execute the session INSERT and return the new row ID; called by the write-queue worker."""
         db = self._database_service.db
         now = time.time()
         cursor = await db.execute(
             "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
             (now, now),
         )
-        self._session_id = cursor.lastrowid
         await db.commit()
-        self.logger.info("Created session %d", self._session_id)
+        return cursor.lastrowid  # type: ignore[return-value]
 
     async def _on_service_crashed(self, event: HassetteServiceEvent) -> None:
         """Record service crash details in the session row.
@@ -397,22 +404,27 @@ class Hassette(Resource):
             return
 
         try:
-            db = self._database_service.db
+            _ = self._database_service.db
         except RuntimeError:
             self.logger.warning("Cannot record crash — database not initialized")
             return
 
+        self._session_error = True
+        self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
+        self._database_service.enqueue(Hassette._do_on_service_crashed(self, event))
+
+    async def _do_on_service_crashed(self, event: HassetteServiceEvent) -> None:
+        """Execute the crash UPDATE; called by the write-queue worker."""
+        data = event.payload.data
         try:
             now = time.time()
-            await db.execute(
+            await self._database_service.db.execute(
                 "UPDATE sessions SET status = 'failure', last_heartbeat_at = ?,"
                 " error_type = ?, error_message = ?, error_traceback = ? WHERE id = ?",
                 (now, data.exception_type, data.exception, data.exception_traceback, self._session_id),
             )
-            await db.commit()
-            self._session_error = True
-            self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
-        except sqlite3.Error:
+            await self._database_service.db.commit()
+        except Exception:
             self.logger.exception("Failed to record service crash for session %d", self._session_id)
 
     async def _finalize_session(self) -> None:
@@ -425,24 +437,28 @@ class Hassette(Resource):
             return
 
         try:
-            db = self._database_service.db
+            _ = self._database_service.db
         except RuntimeError:
             self.logger.warning("Cannot finalize session — database not initialized")
             return
 
+        await self._database_service.submit(Hassette._do_finalize_session(self))
+
+    async def _do_finalize_session(self) -> None:
+        """Execute the finalize UPDATE; called by the write-queue worker."""
         try:
             now = time.time()
             if self._session_error:
                 # CRASHED event already wrote failure details — just set timestamps
-                await db.execute(
+                await self._database_service.db.execute(
                     "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
                     (now, now, self._session_id),
                 )
             else:
-                await db.execute(
+                await self._database_service.db.execute(
                     "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
                     ("success", now, now, self._session_id),
                 )
-            await db.commit()
-        except sqlite3.Error:
+            await self._database_service.db.commit()
+        except Exception:
             self.logger.exception("Failed to finalize session on shutdown")

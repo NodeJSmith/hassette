@@ -281,7 +281,7 @@ class CommandExecutor(Service):
             )
             self._write_queue.put_nowait(record)
 
-    async def _run_error_hooks(self, exc: Exception, cmd: InvokeHandler | ExecuteJob) -> None:
+    async def _run_error_hooks(self, _exc: Exception, _cmd: InvokeHandler | ExecuteJob) -> None:
         """No-op stub for error hooks. Hook registration wired in #268."""
         pass
 
@@ -302,6 +302,17 @@ class CommandExecutor(Service):
             The row ID of the inserted or updated row.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
+        return await self.hassette.database_service.submit(self._do_register_listener(registration))
+
+    async def _do_register_listener(self, registration: ListenerRegistration) -> int:
+        """Execute the listener INSERT OR CONFLICT SQL; called by the DB write-queue worker.
+
+        Args:
+            registration: The listener registration data.
+
+        Returns:
+            The row ID of the inserted or updated row.
+        """
         db = self.hassette.database_service.db
         cursor = await db.execute(
             """
@@ -350,6 +361,17 @@ class CommandExecutor(Service):
             The row ID of the inserted or updated row.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
+        return await self.hassette.database_service.submit(self._do_register_job(registration))
+
+    async def _do_register_job(self, registration: ScheduledJobRegistration) -> int:
+        """Execute the scheduled_jobs INSERT OR CONFLICT SQL; called by the DB write-queue worker.
+
+        Args:
+            registration: The scheduled job registration data.
+
+        Returns:
+            The row ID of the inserted or updated row.
+        """
         db = self.hassette.database_service.db
         cursor = await db.execute(
             """
@@ -455,6 +477,19 @@ class CommandExecutor(Service):
         job_executions: list[JobExecutionRecord],
     ) -> None:
         """Write a batch of execution records to the DB in a single transaction.
+
+        Args:
+            invocations: Handler invocation records to insert into handler_invocations.
+            job_executions: Job execution records to insert into job_executions.
+        """
+        await self.hassette.database_service.submit(self._do_persist_batch(invocations, job_executions))
+
+    async def _do_persist_batch(
+        self,
+        invocations: list[HandlerInvocationRecord],
+        job_executions: list[JobExecutionRecord],
+    ) -> None:
+        """Execute the executemany inserts for a batch of records; called by the DB write-queue worker.
 
         Args:
             invocations: Handler invocation records to insert into handler_invocations.

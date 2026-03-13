@@ -1,8 +1,9 @@
 """Unit tests for DatabaseService."""
 
 import asyncio
+from collections.abc import AsyncIterator
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -29,6 +30,36 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
 def service(mock_hassette: MagicMock) -> DatabaseService:
     """Create a DatabaseService instance."""
     return DatabaseService(mock_hassette, parent=mock_hassette)
+
+
+@pytest.fixture
+async def initialized_service_with_worker(service: DatabaseService) -> AsyncIterator[DatabaseService]:
+    """Initialize DatabaseService with the worker running; cancel worker in cleanup.
+
+    Does NOT call on_shutdown — leaves worker task and connection management to the test.
+    """
+    mock_conn = AsyncMock()
+    mock_conn.execute = AsyncMock()
+    mock_conn.commit = AsyncMock()
+    mock_conn.close = AsyncMock()
+
+    async def fake_connect(*_args: object, **_kwargs: object) -> AsyncMock:
+        return mock_conn
+
+    with (
+        patch.object(service, "_run_migrations"),
+        patch("aiosqlite.connect", side_effect=fake_connect),
+    ):
+        await service.on_initialize()
+    try:
+        yield service
+    finally:
+        if service._db_worker_task is not None and not service._db_worker_task.done():
+            service._db_worker_task.cancel()
+            try:
+                await service._db_worker_task
+            except (asyncio.CancelledError, Exception):
+                pass
 
 
 def test_init_sets_defaults(service: DatabaseService) -> None:
@@ -63,3 +94,90 @@ def test_resolve_db_path_defaults_to_data_dir(service: DatabaseService, tmp_path
     service.hassette.config.data_dir = tmp_path
     result = service._resolve_db_path()
     assert result == tmp_path / "hassette.db"
+
+
+def test_init_sets_worker_fields_to_none(service: DatabaseService) -> None:
+    """Constructor sets _db_write_queue and _db_worker_task to None."""
+    assert service._db_write_queue is None
+    assert service._db_worker_task is None
+
+
+async def test_worker_not_started_before_initialize(service: DatabaseService) -> None:
+    """Before on_initialize, _db_worker_task is None."""
+    assert service._db_worker_task is None
+
+
+async def test_worker_started_after_initialize(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """After on_initialize, _db_worker_task is a running Task."""
+    task = initialized_service_with_worker._db_worker_task
+    assert task is not None
+    assert isinstance(task, asyncio.Task)
+    assert not task.done()
+
+
+async def test_submit_returns_coroutine_result(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """submit() returns the value produced by the submitted coroutine."""
+
+    async def coro() -> int:
+        return 42
+
+    result = await initialized_service_with_worker.submit(coro())
+    assert result == 42
+
+
+async def test_submit_propagates_coroutine_exception(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """submit() re-raises the exception from a failing coroutine at the await site."""
+
+    class SentinelError(Exception):
+        pass
+
+    async def failing_coro() -> None:
+        raise SentinelError("boom")
+
+    with pytest.raises(SentinelError, match="boom"):
+        await initialized_service_with_worker.submit(failing_coro())
+
+
+async def test_enqueue_is_fire_and_forget(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """enqueue() returns synchronously; the coroutine completes asynchronously."""
+    completed: list[int] = []
+
+    async def coro() -> None:
+        completed.append(1)
+
+    # enqueue() must return immediately (it is synchronous)
+    initialized_service_with_worker.enqueue(coro())
+
+    # Coroutine should not have run yet (worker hasn't been awaited)
+    # After draining the queue, it should have run
+    assert initialized_service_with_worker._db_write_queue is not None
+    await initialized_service_with_worker._db_write_queue.join()
+    assert completed == [1]
+
+
+async def test_worker_continues_after_enqueue_error(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """Worker processes subsequent items even if an enqueued coroutine raises."""
+    completed: list[int] = []
+
+    async def failing_coro() -> None:
+        raise ValueError("intentional failure")
+
+    async def succeeding_coro() -> None:
+        completed.append(1)
+
+    initialized_service_with_worker.enqueue(failing_coro())
+    initialized_service_with_worker.enqueue(succeeding_coro())
+
+    assert initialized_service_with_worker._db_write_queue is not None
+    await initialized_service_with_worker._db_write_queue.join()
+    assert completed == [1]
