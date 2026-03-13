@@ -33,9 +33,7 @@ EXP = IAT + 315360000  # +3650 days ≈ 10 years
 # Pre-computed bcrypt hash of "smoke" with rounds=4.
 # Smoke tests authenticate with the LLAT JWT, not a password.
 # This value only needs to be a valid bcrypt hash so HA boots without errors.
-ADMIN_PASSWORD_HASH_B64 = (
-    "JDJiJDA0JDR6MnVBRHdVenU4bzRZbmM5M2twYS5pUXI2RHZXS3pLWHdaRTdqSGovU3NtRjg1WGpMRkd5"
-)
+ADMIN_PASSWORD_HASH_B64 = "JDJiJDA0JDR6MnVBRHdVenU4bzRZbmM5M2twYS5pUXI2RHZXS3pLWHdaRTdqSGovU3NtRjg1WGpMRkd5"
 
 STORAGE = Path("tests/fixtures/ha-config/.storage")
 
@@ -53,9 +51,7 @@ def make_jwt(token_id: str, jwt_key_hex: str, iat: int, exp: int) -> str:
     3. Re-verifying the JWT signature using that entry's ``jwt_key``
     """
     header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
-    payload = _b64url(
-        json.dumps({"iss": token_id, "iat": iat, "exp": exp}, separators=(",", ":")).encode()
-    )
+    payload = _b64url(json.dumps({"iss": token_id, "iat": iat, "exp": exp}, separators=(",", ":")).encode())
     signing_input = f"{header}.{payload}".encode()
     # HA passes jwt_key directly to PyJWT as a string; PyJWT encodes it as UTF-8.
     # Use the same encoding so the signature matches.
