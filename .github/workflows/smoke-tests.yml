@@ -1,0 +1,52 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/hassette/core/core.py"
+      - "src/hassette/core/command_executor.py"
+      - "src/hassette/core/websocket_service.py"
+      - "src/hassette/core/database_service.py"
+      - "src/hassette/core/bus_service.py"
+      - "tests/smoke/**"
+      - "tests/fixtures/ha-config/**"
+      - ".github/workflows/smoke-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - run: uv sync
+
+      - name: Start HA container
+        run: docker compose -f tests/smoke/docker-compose.yml up -d homeassistant
+
+      - name: Wait for HA to be ready
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:18123/api/ \
+              -H "Authorization: Bearer hassette-smoke-test-token" && break
+            echo "Attempt $i/30 — waiting..."
+            sleep 3
+          done || (docker compose -f tests/smoke/docker-compose.yml logs homeassistant && exit 1)
+
+      - name: Run smoke tests
+        run: uv run nox -s smoke
+
+      - name: Tear down HA container
+        if: always()
+        run: docker compose -f tests/smoke/docker-compose.yml down

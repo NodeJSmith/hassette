@@ -54,6 +54,31 @@ def e2e(session: "Session"):
     )
 
 
+@nox.session(python=["3.13"])
+def smoke(session: "Session"):
+    """Startup smoke tests against a real HA Docker container.
+
+    Requires Docker and the HA container to be running:
+        docker compose -f tests/smoke/docker-compose.yml up -d
+    Or run via CI which starts the container automatically.
+    """
+    session.run(
+        "uv",
+        "run",
+        "--active",
+        "--reinstall-package",
+        "hassette",
+        "pytest",
+        "-m",
+        "smoke",
+        "-v",
+        "-n",
+        "0",
+        "--tb=short",
+        external=True,
+    )
+
+
 @nox.session(python=["3.11", "3.12", "3.13"], tags=["coverage"])
 def tests_with_coverage(session: "Session"):
     session.env["COVERAGE_FILE"] = f".coverage.{session.python}"
