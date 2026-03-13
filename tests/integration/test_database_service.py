@@ -138,7 +138,8 @@ async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
 
     await asyncio.sleep(0.05)
     await initialized_service._update_heartbeat()
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
 
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
     row = await cursor.fetchone()
@@ -197,7 +198,8 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     await db.commit()
 
     await initialized_service._run_retention_cleanup()
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
 
     # Old records should be deleted, recent ones retained
     cursor = await db.execute("SELECT COUNT(*) FROM handler_invocations")
@@ -250,7 +252,8 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
 
     await shutdown_task
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
 
     # Heartbeat should have been updated
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
@@ -264,24 +267,29 @@ async def test_heartbeat_failure_counter_tracks_failures(initialized_service: Da
     assert initialized_service._consecutive_heartbeat_failures == 0
 
     # Close the DB to force heartbeat failures
-    await initialized_service._db.close()  # type: ignore[union-attr]
+    assert initialized_service._db is not None
+    await initialized_service._db.close()
 
     await initialized_service._update_heartbeat()
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     await initialized_service._update_heartbeat()
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 2
 
     await initialized_service._update_heartbeat()
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 3
 
     # Restore a valid connection and verify recovery resets counter
     initialized_service._db = await aiosqlite.connect(initialized_service._db_path)
     await initialized_service._update_heartbeat()
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 0
 
 
@@ -293,13 +301,15 @@ async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseSe
     initialized_service._db.execute = AsyncMock(side_effect=Exception("db error"))
 
     await initialized_service._update_heartbeat()
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     # Restore real connection — next heartbeat should succeed and reset
     initialized_service._db = real_db
     await initialized_service._update_heartbeat()
-    await initialized_service._db_write_queue.join()  # type: ignore[union-attr]
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 0
 
 
@@ -316,7 +326,8 @@ async def test_db_property_works_after_init(initialized_service: DatabaseService
 async def test_serve_raises_after_max_heartbeat_failures(initialized_service: DatabaseService) -> None:
     """serve() raises RuntimeError after MAX consecutive heartbeat failures."""
     # Close DB to force failures
-    await initialized_service._db.close()  # type: ignore[union-attr]
+    assert initialized_service._db is not None
+    await initialized_service._db.close()
 
     with (
         patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.01),

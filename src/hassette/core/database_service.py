@@ -118,8 +118,9 @@ class DatabaseService(Service):
     async def on_shutdown(self) -> None:
         """Drain the write queue, cancel the worker, then close the database connection."""
         if self._db_worker_task is not None:
-            if self._db_write_queue is not None:
-                await self._db_write_queue.join()
+            queue, self._db_write_queue = self._db_write_queue, None
+            if queue is not None:
+                await queue.join()
             self._db_worker_task.cancel()
             await asyncio.gather(self._db_worker_task, return_exceptions=True)
             self._db_worker_task = None
@@ -148,10 +149,10 @@ class DatabaseService(Service):
             coro, future = await queue.get()
             try:
                 result = await coro
-                if future is not None:
+                if future is not None and not future.done():
                     future.set_result(result)
             except Exception as exc:
-                if future is not None:
+                if future is not None and not future.done():
                     future.set_exception(exc)
                 else:
                     self.logger.exception("Unhandled error in enqueued DB write")
@@ -174,6 +175,7 @@ class DatabaseService(Service):
             Exception: Whatever exception the coroutine raises.
         """
         if self._db_write_queue is None:
+            coro.close()
             raise RuntimeError("DatabaseService.submit() called before on_initialize()")
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         await self._db_write_queue.put((coro, future))
@@ -190,6 +192,7 @@ class DatabaseService(Service):
             coro: The coroutine to execute.
         """
         if self._db_write_queue is None:
+            coro.close()
             raise RuntimeError("DatabaseService.enqueue() called before on_initialize()")
         self._db_write_queue.put_nowait((coro, None))
 
@@ -216,19 +219,20 @@ class DatabaseService(Service):
         await db.execute("PRAGMA foreign_keys = ON")
 
     async def _update_heartbeat(self) -> None:
-        """Enqueue a heartbeat update for the current session.
+        """Await a heartbeat update for the current session.
 
-        Early-return guards run inline; the DB write is submitted fire-and-forget
-        via enqueue(). The caller (serve()) checks _consecutive_heartbeat_failures
-        after queue.join() to decide whether to raise RuntimeError.
+        Early-return guards run inline; the DB write is awaited via submit()
+        so that _consecutive_heartbeat_failures is updated before returning.
         """
         if self._db is None:
+            return
+        if self._db_write_queue is None:
             return
         try:
             _ = self.hassette.session_id
         except RuntimeError:
             return
-        self.enqueue(self._do_update_heartbeat())
+        await self.submit(self._do_update_heartbeat())
 
     async def _do_update_heartbeat(self) -> None:
         """Execute the heartbeat DB write; called by the write-queue worker."""
