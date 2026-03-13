@@ -1,0 +1,23 @@
+services:
+  homeassistant:
+    image: homeassistant/home-assistant:2025.3
+    container_name: hassette-smoke-ha
+    volumes:
+      - ../../tests/fixtures/ha-config:/config
+    ports:
+      - "18123:8123"
+    restart: "no"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-sf",
+          "http://localhost:8123/api/",
+          "-H",
+          "Authorization: Bearer hassette-smoke-test-token",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s

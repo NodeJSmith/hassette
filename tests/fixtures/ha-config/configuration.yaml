@@ -1,0 +1,5 @@
+homeassistant:
+  name: Hassette Smoke Test
+  unit_system: metric
+  time_zone: America/New_York
+demo:
