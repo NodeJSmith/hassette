@@ -18,8 +18,7 @@
         </td>
         <td>
           {% if l.app_key is defined and l.instance_index is defined %}
-            <a href="/ui/apps/{{ l.app_key }}/{{ l.instance_index }}"
-               @click.stop><code>{{ l.app_key }}</code></a>
+            <a href="/ui/apps/{{ l.app_key }}/{{ l.instance_index }}" @click.stop><code>{{ l.app_key }}</code></a>
           {% elif l.app_key is defined %}
             <a href="/ui/apps/{{ l.app_key }}" @click.stop><code>{{ l.app_key }}</code></a>
           {% else %}
