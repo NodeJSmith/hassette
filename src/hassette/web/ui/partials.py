@@ -1,41 +1,11 @@
 """HTMX partial fragment routes for the Hassette Web UI."""
 
-from typing import TYPE_CHECKING
-
 from fastapi import APIRouter, Query, Request
 from starlette.responses import HTMLResponse
 
-from hassette.scheduler.classes import CronTrigger, IntervalTrigger
 from hassette.web.dependencies import RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.ui import templates
-from hassette.web.ui.context import alert_context
-
-if TYPE_CHECKING:
-    from hassette.scheduler.classes import ScheduledJob
-
-
-def _job_to_dict(job: "ScheduledJob") -> dict:
-    """Serialize a ScheduledJob to a template-friendly dict."""
-    trigger = job.trigger
-    if isinstance(trigger, IntervalTrigger):
-        trigger_type = "interval"
-        trigger_detail: str | None = str(trigger.interval)
-    elif isinstance(trigger, CronTrigger):
-        trigger_type = "cron"
-        trigger_detail = str(trigger.cron_expression)
-    else:
-        trigger_type = "once"
-        trigger_detail = None
-    return {
-        "name": job.name,
-        "owner": job.owner,
-        "next_run": str(job.next_run),
-        "repeat": job.repeat,
-        "cancelled": job.cancelled,
-        "trigger_type": trigger_type,
-        "trigger_detail": trigger_detail,
-    }
-
+from hassette.web.ui.context import alert_context, job_to_dict
 
 router = APIRouter()
 
@@ -84,16 +54,19 @@ async def manifest_list_partial(
 @router.get("/partials/scheduler-jobs", response_class=HTMLResponse)
 async def scheduler_jobs_partial(
     request: Request,
-    telemetry: TelemetryDep,
     scheduler: SchedulerDep,
     app_key: str | None = None,
     instance_index: int = 0,
 ) -> HTMLResponse:
+    all_scheduler_jobs = await scheduler.get_all_jobs()
     if app_key is not None:
-        jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index)
+        jobs = [
+            job_to_dict(j, app_key=app_key, instance_index=instance_index)
+            for j in all_scheduler_jobs
+            if j.owner == app_key
+        ]
     else:
-        all_scheduler_jobs = await scheduler.get_all_jobs()
-        jobs = [_job_to_dict(j) for j in all_scheduler_jobs]
+        jobs = [job_to_dict(j) for j in all_scheduler_jobs]
     return templates.TemplateResponse(
         request,
         "partials/scheduler_jobs.html",
@@ -104,18 +77,13 @@ async def scheduler_jobs_partial(
 @router.get("/partials/scheduler-history", response_class=HTMLResponse)
 async def scheduler_history_partial(
     request: Request,
-    telemetry: TelemetryDep,
-    app_key: str | None = None,
-    instance_index: int = 0,
+    app_key: str | None = None,  # noqa: ARG001 — stub until get_job_executions is wired
+    instance_index: int = 0,  # noqa: ARG001 — stub until get_job_executions is wired
 ) -> HTMLResponse:
-    if app_key is not None:
-        history = await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index)
-    else:
-        history = []
     return templates.TemplateResponse(
         request,
         "partials/scheduler_history.html",
-        {"history": history},
+        {"history": []},
     )
 
 
@@ -172,8 +140,9 @@ async def app_detail_listeners_partial(app_key: str, request: Request, telemetry
 
 
 @router.get("/partials/app-detail-jobs/{app_key}", response_class=HTMLResponse)
-async def app_detail_jobs_partial(app_key: str, request: Request, telemetry: TelemetryDep) -> HTMLResponse:
-    jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=0)
+async def app_detail_jobs_partial(app_key: str, request: Request, scheduler: SchedulerDep) -> HTMLResponse:
+    all_scheduler_jobs = await scheduler.get_all_jobs()
+    jobs = [job_to_dict(j, app_key=app_key, instance_index=0) for j in all_scheduler_jobs if j.owner == app_key]
     return templates.TemplateResponse(
         request,
         "partials/app_detail_jobs.html",
@@ -190,6 +159,7 @@ async def instance_listeners_partial(
 
 
 @router.get("/partials/instance-jobs/{app_key}/{index}", response_class=HTMLResponse)
-async def instance_jobs_partial(app_key: str, index: int, request: Request, telemetry: TelemetryDep) -> HTMLResponse:
-    jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=index)
+async def instance_jobs_partial(app_key: str, index: int, request: Request, scheduler: SchedulerDep) -> HTMLResponse:
+    all_scheduler_jobs = await scheduler.get_all_jobs()
+    jobs = [job_to_dict(j, app_key=app_key, instance_index=index) for j in all_scheduler_jobs if j.owner == app_key]
     return templates.TemplateResponse(request, "partials/app_detail_jobs.html", {"jobs": jobs})

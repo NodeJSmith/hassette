@@ -1,44 +1,13 @@
 """Full-page routes for the Hassette Web UI."""
 
 import asyncio
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Request
 from starlette.responses import HTMLResponse
 
-from hassette.scheduler.classes import CronTrigger, IntervalTrigger
 from hassette.web.dependencies import RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.ui import templates
-from hassette.web.ui.context import alert_context, base_context
-
-if TYPE_CHECKING:
-    from hassette.scheduler.classes import ScheduledJob
-
-
-def _job_to_dict(job: "ScheduledJob", app_key: str | None = None, instance_index: int = 0) -> dict:
-    """Serialize a ScheduledJob to a template-friendly dict."""
-    trigger = job.trigger
-    if isinstance(trigger, IntervalTrigger):
-        trigger_type = "interval"
-        trigger_detail: str | None = str(trigger.interval)
-    elif isinstance(trigger, CronTrigger):
-        trigger_type = "cron"
-        trigger_detail = str(trigger.cron_expression)
-    else:
-        trigger_type = "once"
-        trigger_detail = None
-    return {
-        "name": job.name,
-        "owner": job.owner,
-        "app_key": app_key,
-        "instance_index": instance_index,
-        "next_run": str(job.next_run),
-        "repeat": job.repeat,
-        "cancelled": job.cancelled,
-        "trigger_type": trigger_type,
-        "trigger_detail": trigger_detail,
-    }
-
+from hassette.web.ui.context import alert_context, base_context, job_to_dict
 
 router = APIRouter()
 
@@ -86,7 +55,7 @@ async def logs_page(request: Request, runtime: RuntimeDep) -> HTMLResponse:
 @router.get("/scheduler", response_class=HTMLResponse)
 async def scheduler_page(request: Request, runtime: RuntimeDep, scheduler: SchedulerDep) -> HTMLResponse:
     all_jobs = await scheduler.get_all_jobs()
-    jobs = [_job_to_dict(j) for j in all_jobs]
+    jobs = [job_to_dict(j) for j in all_jobs]
     ctx = {
         **base_context("scheduler"),
         **alert_context(runtime),
@@ -131,7 +100,7 @@ async def app_detail_page(
     instance_index = instance.index if instance else 0
     listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
     all_jobs = await scheduler.get_all_jobs()
-    jobs = [_job_to_dict(j, app_key=app_key, instance_index=instance_index) for j in all_jobs if j.owner == app_key]
+    jobs = [job_to_dict(j, app_key=app_key, instance_index=instance_index) for j in all_jobs if j.owner == app_key]
     logs = runtime.get_recent_logs(app_key=app_key, limit=50)
     ctx = {
         **base_context("apps"),
@@ -169,7 +138,7 @@ async def app_instance_detail_page(
 
     listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=index)
     all_jobs = await scheduler.get_all_jobs()
-    jobs = [_job_to_dict(j, app_key=app_key, instance_index=index) for j in all_jobs if j.owner == app_key]
+    jobs = [job_to_dict(j, app_key=app_key, instance_index=index) for j in all_jobs if j.owner == app_key]
     logs = runtime.get_recent_logs(app_key=app_key, limit=50)
     ctx = {
         **base_context("apps"),

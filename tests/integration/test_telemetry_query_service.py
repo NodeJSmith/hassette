@@ -51,7 +51,7 @@ async def db(mock_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, i
     mock_hassette.session_id = session_id
     mock_hassette.database_service = db_service
     yield db_service, session_id
-    await db_service.db.close()
+    await db_service.on_shutdown()
 
 
 @pytest.fixture

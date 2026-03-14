@@ -59,7 +59,9 @@ class TelemetryQueryService(Resource):
 
         query = f"""
             SELECT
-                l.id,
+                l.id AS listener_id,
+                l.app_key,
+                l.instance_index,
                 l.handler_method,
                 l.topic,
                 l.debounce,

@@ -122,7 +122,7 @@ class ListenerMetricsResponse(BaseModel):
     listener_id: int
     owner: str
     topic: str
-    handler_name: str
+    handler_method: str
     total_invocations: int
     successful: int
     failed: int

@@ -135,7 +135,7 @@ Builds an `AppManifestInfo` with sensible defaults.
 
 Builds an `AppFullSnapshot` from a list of manifests with auto-computed status counts.
 
-### `make_listener_metric(listener_id, owner, topic, handler_name, ...)` — `test_utils/web_helpers.py`
+### `make_listener_metric(listener_id, owner, topic, handler_method, ...)` — `test_utils/web_helpers.py`
 
 Builds a mock listener metric with `.to_dict()` and direct attribute access.
 

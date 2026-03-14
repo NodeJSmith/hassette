@@ -66,7 +66,7 @@ def make_listener_metric(
     listener_id: int,
     owner: str,
     topic: str,
-    handler_name: str,
+    handler_method: str,
     invocations: int = 10,
     successful: int = 9,
     failed: int = 1,
@@ -81,7 +81,7 @@ def make_listener_metric(
         "listener_id": listener_id,
         "owner": owner,
         "topic": topic,
-        "handler_name": handler_name,
+        "handler_method": handler_method,
         "total_invocations": invocations,
         "successful": successful,
         "failed": failed,
@@ -182,7 +182,7 @@ def make_job(
 ) -> SimpleNamespace:
     """Build a ``SimpleNamespace`` scheduler job for test fixtures.
 
-    Uses real ``IntervalTrigger``/``CronTrigger`` objects so that ``_job_to_dict``
+    Uses real ``IntervalTrigger``/``CronTrigger`` objects so that ``job_to_dict``
     isinstance checks work correctly in route handlers.
     """
     if trigger_type == "cron":
