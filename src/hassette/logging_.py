@@ -83,7 +83,7 @@ class LogCaptureHandler(logging.Handler):
                 continue
 
     def set_broadcast(self, fn: Callable[[dict], Awaitable[None]], loop: asyncio.AbstractEventLoop) -> None:
-        """Called by DataSyncService after initialization to wire up WS broadcast."""
+        """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn
         self._loop = loop
 
@@ -115,7 +115,7 @@ class LogCaptureHandler(logging.Handler):
             )
 
 
-# Module-level reference so DataSyncService can find it
+# Module-level reference so RuntimeQueryService can find it
 _log_capture_handler: LogCaptureHandler | None = None
 
 

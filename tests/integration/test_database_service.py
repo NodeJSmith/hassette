@@ -90,7 +90,7 @@ async def test_migration_idempotency(service: DatabaseService) -> None:
         # Verify DB is connected
         cursor = await service.db.execute("SELECT 1")
         row = await cursor.fetchone()
-        assert row == (1,)
+        assert row[0] == 1
 
         # Tear down the first init cleanly before re-initializing
         await service.on_shutdown()
@@ -100,7 +100,7 @@ async def test_migration_idempotency(service: DatabaseService) -> None:
         # Verify DB reconnected successfully
         cursor = await service.db.execute("SELECT 1")
         row = await cursor.fetchone()
-        assert row == (1,)
+        assert row[0] == 1
     finally:
         await service.on_shutdown()
 
@@ -320,7 +320,7 @@ async def test_db_property_works_after_init(initialized_service: DatabaseService
 
     cursor = await conn.execute("SELECT 1")
     row = await cursor.fetchone()
-    assert row == (1,)
+    assert row[0] == 1
 
 
 async def test_serve_raises_after_max_heartbeat_failures(initialized_service: DatabaseService) -> None:

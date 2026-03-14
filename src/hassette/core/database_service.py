@@ -84,6 +84,7 @@ class DatabaseService(Service):
         await asyncio.to_thread(self._run_migrations)
 
         self._db = await aiosqlite.connect(self._db_path)
+        self._db.row_factory = aiosqlite.Row
 
         await self._set_pragmas()
 

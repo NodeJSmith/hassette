@@ -216,7 +216,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Allowed CORS origins for the web API, typically the UI dev server."""
 
     web_api_event_buffer_size: int = Field(default=500)
-    """Maximum number of recent events to keep in the DataSyncService ring buffer."""
+    """Maximum number of recent events to keep in the RuntimeQueryService ring buffer."""
 
     web_api_log_buffer_size: int = Field(default=2000)
     """Maximum number of log entries to keep in the LogCaptureHandler ring buffer."""

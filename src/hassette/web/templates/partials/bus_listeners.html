@@ -14,21 +14,16 @@
     <tbody x-data="{ open: false }">
       <tr class="ht-detail-row" @click="open = !open" style="cursor: pointer">
         <td>
-          {% set owner_class = l.owner.split('.')[0] %}
-          {% if owner_class in l.handler_name %}
-            <code title="{{ l.handler_name }}">{{ l.handler_name.split(".")[-1] }}</code>
-          {% else %}
-            <code title="{{ l.handler_name }}">{{ l.handler_name }}</code>
-          {% endif %}
+          <code title="{{ l.handler_method }}">{{ l.handler_method.split(".")[-1] }}</code>
         </td>
         <td>
-          {% if instance_owner_map and l.owner in instance_owner_map %}
-            <a href="/ui/apps/{{ instance_owner_map[l.owner][0] }}/{{ instance_owner_map[l.owner][1] }}"
-               @click.stop><code>{{ l.owner }}</code></a>
-          {% elif app_owner_map and l.owner in app_owner_map %}
-            <a href="/ui/apps/{{ app_owner_map[l.owner] }}" @click.stop><code>{{ l.owner }}</code></a>
+          {% if l.app_key is defined and l.instance_index is defined %}
+            <a href="/ui/apps/{{ l.app_key }}/{{ l.instance_index }}"
+               @click.stop><code>{{ l.app_key }}</code></a>
+          {% elif l.app_key is defined %}
+            <a href="/ui/apps/{{ l.app_key }}" @click.stop><code>{{ l.app_key }}</code></a>
           {% else %}
-            <code>{{ l.owner }}</code>
+            <code>{{ l.get('owner', '') }}</code>
           {% endif %}
         </td>
         <td>

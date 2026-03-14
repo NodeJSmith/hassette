@@ -1,4 +1,4 @@
-"""Reusable factories for web/API test stubs (Hassette, DataSyncService, FastAPI app).
+"""Reusable factories for web/API test stubs (Hassette, RuntimeQueryService, FastAPI app).
 
 These build MagicMock-based stubs for testing HTTP endpoints, HTML responses,
 and WebSocket frames — as opposed to ``HassetteHarness`` which wires real
@@ -12,9 +12,24 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.app_registry import AppManifestInfo
-from hassette.core.data_sync_service import DataSyncService
+from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.test_utils.web_helpers import make_full_snapshot
 from hassette.types.enums import ResourceStatus
+
+
+def _wire_telemetry_stubs(hassette: MagicMock) -> None:
+    """Wire empty-return async stubs for all TelemetryQueryService methods."""
+    ts = hassette._telemetry_query_service
+    ts.get_listener_summary = AsyncMock(return_value=[])
+    ts.get_job_summary = AsyncMock(return_value=[])
+    ts.get_global_summary = AsyncMock(return_value=None)
+    ts.get_handler_invocations = AsyncMock(return_value=[])
+    ts.get_job_executions = AsyncMock(return_value=[])
+    ts.get_recent_errors = AsyncMock(return_value=[])
+    ts.get_slow_handlers = AsyncMock(return_value=[])
+    ts.get_session_list = AsyncMock(return_value=[])
+    ts.get_current_session_summary = AsyncMock(return_value=None)
+    hassette.telemetry_query_service = ts
 
 
 def create_hassette_stub(
@@ -38,7 +53,6 @@ def create_hassette_stub(
     listener_metrics: list[MagicMock] | None = None,
     # Scheduler
     scheduler_jobs: list[Any] | None = None,
-    scheduler_history: list[Any] | None = None,
     # Config endpoint
     config_dump: dict[str, Any] | None = None,
 ) -> MagicMock:
@@ -92,21 +106,16 @@ def create_hassette_stub(
 
     # --- Bus service ---
     hassette.bus_service = hassette._bus_service
-    hassette._bus_service.get_all_listener_metrics.return_value = listener_metrics or []
-    if listener_metrics:
-        hassette._bus_service.get_listener_metrics_by_owner.side_effect = lambda owner: [
-            m for m in listener_metrics if m.to_dict()["owner"] == owner
-        ]
-    else:
-        hassette._bus_service.get_listener_metrics_by_owner.return_value = []
 
     # --- Scheduler service ---
     hassette.scheduler_service = hassette._scheduler_service
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=scheduler_jobs or [])
-    hassette._scheduler_service.get_execution_history.return_value = scheduler_history or []
 
-    # --- Data sync service placeholder ---
-    hassette.data_sync_service = hassette._data_sync_service
+    # --- Runtime query service placeholder ---
+    hassette.runtime_query_service = hassette._runtime_query_service
+
+    # --- Telemetry query service stubs ---
+    _wire_telemetry_stubs(hassette)
 
     # --- Config endpoint ---
     if config_dump is not None:
@@ -118,14 +127,14 @@ def create_hassette_stub(
     return hassette
 
 
-def create_mock_data_sync_service(
+def create_mock_runtime_query_service(
     mock_hassette: MagicMock,
     *,
     buffer_size: int = 100,
     start_time: float = 1704067200.0,
     use_real_lock: bool = True,
-) -> DataSyncService:
-    """Build a DataSyncService wired to the given mock Hassette.
+) -> RuntimeQueryService:
+    """Build a RuntimeQueryService wired to the given mock Hassette.
 
     Args:
         mock_hassette: The mock Hassette instance to wire into.
@@ -135,17 +144,17 @@ def create_mock_data_sync_service(
             event loop on Python 3.12+).  Set to False for session-scoped
             fixtures where no loop is active yet.
     """
-    ds = DataSyncService.__new__(DataSyncService)
-    ds.hassette = mock_hassette
-    ds._event_buffer = deque(maxlen=buffer_size)
-    ds._ws_clients = set()
-    ds._lock = asyncio.Lock() if use_real_lock else MagicMock()
-    ds._start_time = start_time
-    ds._subscriptions = []
-    ds.logger = MagicMock()
-    mock_hassette._data_sync_service = ds
-    mock_hassette.data_sync_service = ds
-    return ds
+    svc = RuntimeQueryService.__new__(RuntimeQueryService)
+    svc.hassette = mock_hassette
+    svc._event_buffer = deque(maxlen=buffer_size)
+    svc._ws_clients = set()
+    svc._lock = asyncio.Lock() if use_real_lock else MagicMock()
+    svc._start_time = start_time
+    svc._subscriptions = []
+    svc.logger = MagicMock()
+    mock_hassette._runtime_query_service = svc
+    mock_hassette.runtime_query_service = svc
+    return svc
 
 
 def create_test_fastapi_app(
@@ -163,6 +172,6 @@ def create_test_fastapi_app(
     from hassette.web.app import create_fastapi_app
 
     if log_handler is not None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
             return create_fastapi_app(mock_hassette)
     return create_fastapi_app(mock_hassette)

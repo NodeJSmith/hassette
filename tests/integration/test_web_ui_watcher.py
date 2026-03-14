@@ -17,8 +17,8 @@ from hassette.core.web_ui_watcher import _WEB_DIR, WebUiWatcherService
 def mock_hassette() -> MagicMock:
     hassette = MagicMock()
     hassette.config.web_ui_hot_reload = True
-    hassette.data_sync_service = MagicMock()
-    hassette.data_sync_service.broadcast = AsyncMock()
+    hassette.runtime_query_service = MagicMock()
+    hassette.runtime_query_service.broadcast = AsyncMock()
     return hassette
 
 
@@ -50,7 +50,7 @@ async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService) ->
         await watcher.serve()
 
     watcher.mark_ready.assert_called_once()
-    watcher.hassette.data_sync_service.broadcast.assert_awaited_once_with(
+    watcher.hassette.runtime_query_service.broadcast.assert_awaited_once_with(
         {"type": "dev_reload", "data": {"path": "static/css/style.css", "kind": "css"}}
     )
 
@@ -62,7 +62,7 @@ async def test_js_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    watcher.hassette.data_sync_service.broadcast.assert_awaited_once_with(
+    watcher.hassette.runtime_query_service.broadcast.assert_awaited_once_with(
         {"type": "dev_reload", "data": {"path": "static/js/app.js", "kind": "js"}}
     )
 
@@ -74,7 +74,7 @@ async def test_template_change_broadcasts_dev_reload(watcher: WebUiWatcherServic
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    watcher.hassette.data_sync_service.broadcast.assert_awaited_once_with(
+    watcher.hassette.runtime_query_service.broadcast.assert_awaited_once_with(
         {"type": "dev_reload", "data": {"path": "templates/pages/dashboard.html", "kind": "template"}}
     )
 
@@ -90,8 +90,8 @@ async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService) ->
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    assert watcher.hassette.data_sync_service.broadcast.await_count == 2
-    kinds = {call.args[0]["data"]["kind"] for call in watcher.hassette.data_sync_service.broadcast.await_args_list}
+    assert watcher.hassette.runtime_query_service.broadcast.await_count == 2
+    kinds = {call.args[0]["data"]["kind"] for call in watcher.hassette.runtime_query_service.broadcast.await_args_list}
     assert kinds == {"css", "js"}
 
 
@@ -99,4 +99,4 @@ async def test_disabled_config_does_not_broadcast(watcher: WebUiWatcherService) 
     watcher.hassette.config.web_ui_hot_reload = False
     watcher.shutdown_event.set()
     await watcher.serve()
-    watcher.hassette.data_sync_service.broadcast.assert_not_awaited()
+    watcher.hassette.runtime_query_service.broadcast.assert_not_awaited()

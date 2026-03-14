@@ -19,7 +19,7 @@ from hassette.test_utils.web_helpers import (
     make_old_app_instance,
     make_old_snapshot,
 )
-from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_data_sync_service
+from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -118,6 +118,62 @@ def mock_hassette():
         ),
     ]
 
+    # Listener data in the new TelemetryQueryService dict format (handler_method, app_key, instance_index).
+    telemetry_listeners = [
+        {
+            "id": 1,
+            "handler_method": "on_light_change",
+            "topic": "state_changed.light.kitchen",
+            "app_key": "my_app",
+            "instance_index": 0,
+            "debounce": 0.5,
+            "throttle": None,
+            "once": False,
+            "priority": 0,
+            "predicate_description": "EntityMatches(entity_id='light.kitchen')",
+            "source_location": None,
+            "registration_source": None,
+            "total_invocations": 10,
+            "successful": 9,
+            "failed": 1,
+            "di_failures": 0,
+            "cancelled": 0,
+            "total_duration_ms": 20.0,
+            "avg_duration_ms": 2.0,
+            "min_duration_ms": 1.0,
+            "max_duration_ms": 5.0,
+            "last_invoked_at": None,
+            "last_error_type": None,
+            "last_error_message": None,
+        },
+        {
+            "id": 2,
+            "handler_method": "on_temp_update",
+            "topic": "state_changed.sensor.temperature",
+            "app_key": "my_app",
+            "instance_index": 0,
+            "debounce": None,
+            "throttle": 1.0,
+            "once": False,
+            "priority": 0,
+            "predicate_description": "EntityMatches(entity_id='sensor.temperature')",
+            "source_location": None,
+            "registration_source": None,
+            "total_invocations": 20,
+            "successful": 20,
+            "failed": 0,
+            "di_failures": 0,
+            "cancelled": 0,
+            "total_duration_ms": 40.0,
+            "avg_duration_ms": 2.0,
+            "min_duration_ms": 1.0,
+            "max_duration_ms": 5.0,
+            "last_invoked_at": None,
+            "last_error_type": None,
+            "last_error_message": None,
+        },
+    ]
+
     hassette = create_hassette_stub(
         states={
             "light.kitchen": {
@@ -185,6 +241,15 @@ def mock_hassette():
         ],
     )
 
+    # Wire telemetry mock to return new-format listener dicts for my_app.
+    from unittest.mock import AsyncMock
+    hassette._telemetry_query_service.get_listener_summary = AsyncMock(
+        side_effect=lambda app_key, instance_index, session_id=None: (
+            telemetry_listeners if app_key == "my_app" else []
+        )
+    )
+    hassette.telemetry_query_service = hassette._telemetry_query_service
+
     # --- e2e-specific: owner resolution wiring ---
     app_instances = {
         0: SimpleNamespace(unique_name="MyApp.MyApp[0]"),
@@ -201,9 +266,9 @@ def mock_hassette():
 
 
 @pytest.fixture(scope="session")
-def data_sync_service(mock_hassette):
-    """Create a session-scoped DataSyncService wired to mock_hassette."""
-    return create_mock_data_sync_service(mock_hassette, use_real_lock=False)
+def runtime_query_service(mock_hassette):
+    """Create a session-scoped RuntimeQueryService wired to mock_hassette."""
+    return create_mock_runtime_query_service(mock_hassette, use_real_lock=False)
 
 
 @pytest.fixture(scope="session")
@@ -233,13 +298,13 @@ def _log_handler():
 
 
 @pytest.fixture(scope="session")
-def _fastapi_app(mock_hassette, data_sync_service, _log_handler):  # noqa: ARG001
+def _fastapi_app(mock_hassette, runtime_query_service, _log_handler):  # noqa: ARG001
     """Create the FastAPI app instance."""
 
-    with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=_log_handler):
+    with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler):
         app = create_fastapi_app(mock_hassette)
     # Patch persistently so runtime calls also find the handler
-    patcher = patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=_log_handler)
+    patcher = patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler)
     patcher.start()
     return app
 

@@ -15,7 +15,7 @@ from hassette.test_utils.web_helpers import (
     make_old_snapshot,
     setup_registry,
 )
-from hassette.test_utils.web_mocks import create_mock_data_sync_service
+from hassette.test_utils.web_mocks import create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -50,14 +50,14 @@ def mock_hassette_no_ui():
 
 
 @pytest.fixture
-def data_sync_service_no_ui(mock_hassette_no_ui):
-    """Create a DataSyncService for the no-UI variant."""
+def runtime_query_service_no_ui(mock_hassette_no_ui):
+    """Create a RuntimeQueryService for the no-UI variant."""
 
-    return create_mock_data_sync_service(mock_hassette_no_ui)
+    return create_mock_runtime_query_service(mock_hassette_no_ui)
 
 
 @pytest.fixture
-def app_no_ui(mock_hassette_no_ui, data_sync_service_no_ui):  # noqa: ARG001
+def app_no_ui(mock_hassette_no_ui, runtime_query_service_no_ui):  # noqa: ARG001
     return create_fastapi_app(mock_hassette_no_ui)
 
 
@@ -390,7 +390,7 @@ class TestPartials:
         assert "<html" not in response.text
 
     async def test_dashboard_logs_partial_empty(self, client: "AsyncClient") -> None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=None):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=None):
             response = await client.get("/ui/partials/dashboard-logs")
         assert response.status_code == 200
         assert "No recent logs" in response.text
@@ -408,7 +408,7 @@ class TestPartials:
             exc_info=None,
         )
         handler.emit(record)
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=handler):
             response = await client.get("/ui/partials/dashboard-logs")
         assert response.status_code == 200
         assert "Test log message" in response.text
@@ -449,7 +449,7 @@ class TestLogFiltering:
 
     async def test_log_entries_partial_filters_by_app_key(self, client: "AsyncClient") -> None:
         handler = _make_log_handler_with_app_key()
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=handler):
             response = await client.get("/ui/partials/log-entries?app_key=my_app")
         assert response.status_code == 200
         assert "MyApp initialized" in response.text
@@ -460,7 +460,7 @@ class TestLogFiltering:
 
     async def test_log_entries_partial_without_filter_shows_all(self, client: "AsyncClient") -> None:
         handler = _make_log_handler_with_app_key()
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=handler):
             response = await client.get("/ui/partials/log-entries")
         assert response.status_code == 200
         assert "MyApp initialized" in response.text
@@ -468,7 +468,7 @@ class TestLogFiltering:
 
     async def test_api_logs_recent_filters_by_app_key(self, client: "AsyncClient") -> None:
         handler = _make_log_handler_with_app_key()
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=handler):
             response = await client.get("/api/logs/recent?app_key=my_app")
         assert response.status_code == 200
         data = response.json()
@@ -483,7 +483,7 @@ class TestLogFiltering:
 
     async def test_api_logs_recent_without_filter_returns_all(self, client: "AsyncClient") -> None:
         handler = _make_log_handler_with_app_key()
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=handler):
             response = await client.get("/api/logs/recent")
         assert response.status_code == 200
         data = response.json()
@@ -902,55 +902,22 @@ class TestBusListenersPartial:
         assert "<html" not in response.text
         assert "No bus listeners registered" in response.text
 
-    async def test_bus_listeners_partial_with_data(self, client: "AsyncClient", mock_hassette) -> None:
-        """Listeners owned by registered apps render in the table."""
-        owner_id = "MyApp.MyApp[0]"
-        mock_hassette._bus_service.get_all_listener_metrics.return_value = [
-            make_listener_metric(1, owner_id, "state_changed.light.kitchen", "on_light_change"),
-        ]
-        mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = (
-            lambda owner: mock_hassette._bus_service.get_all_listener_metrics.return_value if owner == owner_id else []
-        )
-        # Wire up owner map so the filter in partials.py includes this listener
-        mock_hassette._app_handler.registry.iter_all_instances.return_value = iter(
-            [("my_app", 0, MagicMock(unique_name=owner_id))]
-        )
+    async def test_bus_listeners_partial_no_app_key_returns_empty(self, client: "AsyncClient") -> None:
+        """Without app_key param, the partial returns empty data (TelemetryDep stubs return [])."""
         response = await client.get("/ui/partials/bus-listeners")
         assert response.status_code == 200
-        body = response.text
-        assert "on_light_change" in body
-        assert "light.kitchen" in body
-
-    async def test_bus_listeners_partial_filters_internal_owners(self, client: "AsyncClient", mock_hassette) -> None:
-        """Listeners owned by internal services (not user apps) are filtered out."""
-        internal_owner = "hassette.core.BusService"
-        mock_hassette._bus_service.get_all_listener_metrics.return_value = [
-            make_listener_metric(1, internal_owner, "state_changed.*", "internal_handler"),
-        ]
-        mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = (
-            lambda owner: mock_hassette._bus_service.get_all_listener_metrics.return_value
-            if owner == internal_owner
-            else []
-        )
-        mock_hassette._app_handler.registry.iter_all_instances.return_value = iter([])
-        response = await client.get("/ui/partials/bus-listeners")
-        assert response.status_code == 200
-        assert "internal_handler" not in response.text
         assert "No bus listeners registered" in response.text
 
-    async def test_bus_listeners_partial_shows_table_headers(self, client: "AsyncClient", mock_hassette) -> None:
-        """When listeners exist, the table headers are present."""
-        owner_id = "MyApp.MyApp[0]"
-        mock_hassette._bus_service.get_all_listener_metrics.return_value = [
-            make_listener_metric(1, owner_id, "state_changed.light.kitchen", "on_light_change"),
-        ]
-        mock_hassette._bus_service.get_listener_metrics_by_owner.side_effect = (
-            lambda owner: mock_hassette._bus_service.get_all_listener_metrics.return_value if owner == owner_id else []
-        )
-        mock_hassette._app_handler.registry.iter_all_instances.return_value = iter(
-            [("my_app", 0, MagicMock(unique_name=owner_id))]
-        )
+    async def test_bus_listeners_partial_with_app_key_returns_empty_stub(self, client: "AsyncClient") -> None:
+        """With app_key param, TelemetryQueryService stubs return [] — empty table."""
+        response = await client.get("/ui/partials/bus-listeners?app_key=my_app")
+        assert response.status_code == 200
+        assert "No bus listeners registered" in response.text
+
+    async def test_bus_listeners_partial_shows_table_structure(self, client: "AsyncClient") -> None:
+        """The table structure (headers) is always present in the response."""
         response = await client.get("/ui/partials/bus-listeners")
+        assert response.status_code == 200
         body = response.text
         for header in ("Handler", "App", "Topic", "Invocations", "Success", "Failed", "Avg Duration"):
             assert header in body

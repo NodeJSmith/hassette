@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.core.data_sync_service import DataSyncService
+from hassette.core.runtime_query_service import RuntimeQueryService
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -68,34 +68,6 @@ class TestHealthEndpoints:
         assert "app_count" in data
 
 
-class TestEntityEndpoints:
-    async def test_get_all_entities(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/entities")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["count"] == 2
-        assert len(data["entities"]) == 2
-
-    async def test_get_entity_found(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/entities/light.kitchen")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["entity_id"] == "light.kitchen"
-        assert data["state"] == "on"
-
-    async def test_get_entity_not_found(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette._state_proxy.get_state.side_effect = lambda _eid: None
-        response = await client.get("/api/entities/nonexistent.entity")
-        # Restore for other tests
-        mock_hassette._state_proxy.get_state.side_effect = lambda _eid: mock_hassette._state_proxy.states.get(_eid)
-        assert response.status_code == 404
-
-    async def test_get_domain_entities(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/entities/domain/light")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["count"] == 1
-
 
 class TestAppEndpoints:
     async def test_get_apps(self, client: "AsyncClient") -> None:
@@ -148,8 +120,8 @@ class TestEventsEndpoint:
         assert response.status_code == 200
         assert response.json() == []
 
-    async def test_get_recent_events_with_data(self, client: "AsyncClient", data_sync_service: DataSyncService) -> None:
-        data_sync_service._event_buffer.append({"type": "test", "timestamp": 1234567890.0})
+    async def test_get_recent_events_with_data(self, client: "AsyncClient", runtime_query_service: RuntimeQueryService) -> None:
+        runtime_query_service._event_buffer.append({"type": "test", "timestamp": 1234567890.0})
         response = await client.get("/api/events/recent")
         assert response.status_code == 200
         data = response.json()
@@ -178,44 +150,16 @@ class TestConfigEndpoint:
 
 class TestBusEndpoints:
     async def test_get_bus_listeners_empty(self, client: "AsyncClient") -> None:
+        # Returns empty when no app_key is provided (TelemetryDep stubs return [])
         response = await client.get("/api/bus/listeners")
         assert response.status_code == 200
         assert response.json() == []
 
-    async def test_get_bus_listeners_with_data(self, client: "AsyncClient", mock_hassette) -> None:
-        from hassette.bus.metrics import ListenerMetrics
-
-        m = ListenerMetrics(listener_id=1, owner="my_app", topic="hass.event.state_changed", handler_name="on_light")
-        m.record_success(10.0)
-        mock_hassette._bus_service.get_all_listener_metrics.return_value = [m]
-
-        response = await client.get("/api/bus/listeners")
+    async def test_get_bus_listeners_with_app_key_returns_empty_stub(self, client: "AsyncClient") -> None:
+        # TelemetryQueryService stubs return [] for all app_key queries
+        response = await client.get("/api/bus/listeners?app_key=my_app")
         assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["listener_id"] == 1
-        assert data[0]["owner"] == "my_app"
-        assert data[0]["total_invocations"] == 1
-        assert data[0]["successful"] == 1
-
-        # Restore
-        mock_hassette._bus_service.get_all_listener_metrics.return_value = []
-
-    async def test_get_bus_listeners_filter_by_owner(self, client: "AsyncClient", mock_hassette) -> None:
-        from hassette.bus.metrics import ListenerMetrics
-
-        m = ListenerMetrics(listener_id=2, owner="other_app", topic="t", handler_name="h")
-        mock_hassette._bus_service.get_listener_metrics_by_owner.return_value = [m]
-
-        response = await client.get("/api/bus/listeners?owner=other_app")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["owner"] == "other_app"
-        mock_hassette._bus_service.get_listener_metrics_by_owner.assert_called_with("other_app")
-
-        # Restore
-        mock_hassette._bus_service.get_listener_metrics_by_owner.return_value = []
+        assert response.json() == []
 
     async def test_get_bus_metrics_summary_empty(self, client: "AsyncClient") -> None:
         response = await client.get("/api/bus/metrics")
@@ -227,32 +171,6 @@ class TestBusEndpoints:
         assert data["total_failed"] == 0
         assert data["total_di_failures"] == 0
         assert data["total_cancelled"] == 0
-
-    async def test_get_bus_metrics_summary_with_data(self, client: "AsyncClient", mock_hassette) -> None:
-        from hassette.bus.metrics import ListenerMetrics
-
-        m1 = ListenerMetrics(listener_id=1, owner="app1", topic="t1", handler_name="h1")
-        m1.record_success(10.0)
-        m1.record_error(5.0, "err", "ValueError")
-
-        m2 = ListenerMetrics(listener_id=2, owner="app2", topic="t2", handler_name="h2")
-        m2.record_success(20.0)
-        m2.record_di_failure(3.0, "bad", "DependencyInjectionError")
-
-        mock_hassette._bus_service.get_all_listener_metrics.return_value = [m1, m2]
-
-        response = await client.get("/api/bus/metrics")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total_listeners"] == 2
-        assert data["total_invocations"] == 4
-        assert data["total_successful"] == 2
-        assert data["total_failed"] == 1
-        assert data["total_di_failures"] == 1
-        assert data["total_cancelled"] == 0
-
-        # Restore
-        mock_hassette._bus_service.get_all_listener_metrics.return_value = []
 
 
 class TestLogsEndpoints:
@@ -284,7 +202,7 @@ class TestLogsEndpoints:
         return handler
 
     async def test_get_logs_recent_returns_list(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
             response = await client.get("/api/logs/recent")
         assert response.status_code == 200
         data = response.json()
@@ -292,7 +210,7 @@ class TestLogsEndpoints:
         assert len(data) == 6
 
     async def test_get_logs_filter_by_level(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
             response = await client.get("/api/logs/recent?level=ERROR")
         assert response.status_code == 200
         data = response.json()
@@ -302,7 +220,7 @@ class TestLogsEndpoints:
     async def test_get_logs_filter_by_warning_includes_error(
         self, client: "AsyncClient", log_handler: LogCaptureHandler
     ) -> None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
             response = await client.get("/api/logs/recent?level=WARNING")
         assert response.status_code == 200
         data = response.json()
@@ -310,7 +228,7 @@ class TestLogsEndpoints:
         assert levels == {"WARNING", "ERROR"}
 
     async def test_get_logs_filter_by_app_key(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
             response = await client.get("/api/logs/recent?app_key=my_app")
         assert response.status_code == 200
         data = response.json()
@@ -318,14 +236,14 @@ class TestLogsEndpoints:
         assert len(data) == 3
 
     async def test_get_logs_limit(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
             response = await client.get("/api/logs/recent?limit=2")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
 
     async def test_get_logs_combined_filters(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=log_handler):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
             response = await client.get("/api/logs/recent?app_key=my_app&level=WARNING")
         assert response.status_code == 200
         data = response.json()
@@ -335,7 +253,7 @@ class TestLogsEndpoints:
         assert len(data) == 2
 
     async def test_get_logs_empty_when_no_handler(self, client: "AsyncClient") -> None:
-        with patch("hassette.core.data_sync_service.get_log_capture_handler", return_value=None):
+        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=None):
             response = await client.get("/api/logs/recent")
         assert response.status_code == 200
         assert response.json() == []

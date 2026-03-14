@@ -1,4 +1,4 @@
-"""DataSyncService: aggregates and caches system state for the web UI."""
+"""RuntimeQueryService: aggregates and caches live system state for the web UI."""
 
 import asyncio
 import contextlib
@@ -13,22 +13,17 @@ from hassette.events import Event, RawStateChangeEvent
 from hassette.logging_ import LogEntry, get_log_capture_handler
 from hassette.resources.base import Resource
 from hassette.types import Topic
-from hassette.types.enums import ResourceStatus
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
     AppStatusResponse,
-    BusMetricsSummaryResponse,
-    SchedulerSummaryResponse,
     SystemStatusResponse,
 )
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
-    from hassette.events import HassStateDict
-    from hassette.scheduler import ScheduledJob
 
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 
@@ -40,10 +35,11 @@ def _serialize_payload(data: object) -> object:
     return data
 
 
-class DataSyncService(Resource):
-    """Aggregates and caches system state for the web UI.
+class RuntimeQueryService(Resource):
+    """Aggregates and caches live system state for the web UI.
 
-    Single source of truth that FastAPI endpoints query.
+    Reads from in-memory sources: AppHandler, event buffer, log buffer, WS clients.
+    All reads are instant — no database I/O.
     """
 
     bus: Bus
@@ -63,7 +59,7 @@ class DataSyncService(Resource):
         self._subscriptions = []
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> str:
         return self.hassette.config.web_api_log_level
 
     async def on_initialize(self) -> None:
@@ -106,7 +102,7 @@ class DataSyncService(Resource):
             except RuntimeError:
                 self.logger.warning("No running event loop, log broadcast will not be available")
 
-        self.mark_ready(reason="DataSyncService initialized")
+        self.mark_ready(reason="RuntimeQueryService initialized")
 
     async def on_shutdown(self) -> None:
         # Remove bus listeners
@@ -161,83 +157,6 @@ class DataSyncService(Resource):
         entry = {"type": "connectivity", "data": {"connected": False}, "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
-
-    # --- Owner resolution ---
-
-    def _resolve_owner_ids(self, app_key: str) -> list[str]:
-        """Resolve an app_key to the owner_id(s) used by listeners and jobs."""
-        instances = self.hassette.app_handler.registry.get_apps_by_key(app_key)
-        return [app.unique_name for app in instances.values()]
-
-    def get_user_app_owner_map(self) -> dict[str, str]:
-        """Return {owner_id: app_key} for all running user-app instances."""
-        return {app.unique_name: app_key for app_key, _, app in self.hassette.app_handler.registry.iter_all_instances()}
-
-    def get_instance_owner_map(self) -> dict[str, tuple[str, int]]:
-        """Return {owner_id: (app_key, index)} for all running user-app instances."""
-        return {
-            app.unique_name: (app_key, index)
-            for app_key, index, app in self.hassette.app_handler.registry.iter_all_instances()
-        }
-
-    def _resolve_instance_owner_id(self, app_key: str, index: int) -> str | None:
-        """Resolve a specific app instance to its owner_id (unique_name)."""
-        app = self.hassette.app_handler.registry.get(app_key, index)
-        if app is not None:
-            return app.unique_name
-        return None
-
-    def get_listener_metrics_for_instance(self, app_key: str, index: int) -> list[dict]:
-        """Return listener metrics filtered to a specific app instance."""
-        # TODO(#267): migrate to TelemetryQueryService once DB-backed metrics are available
-        owner_id = self._resolve_instance_owner_id(app_key, index)
-        if not owner_id:
-            return []
-        bus_service = self.hassette.bus_service
-        return [m.to_dict() for m in bus_service.get_listener_metrics_by_owner(owner_id)]
-
-    async def get_scheduled_jobs_for_instance(self, app_key: str, index: int) -> list[dict]:
-        """Return scheduled jobs filtered to a specific app instance."""
-        owner_id = self._resolve_instance_owner_id(app_key, index)
-        if not owner_id:
-            return []
-        jobs = await self.hassette.scheduler_service.get_all_jobs()
-        return [self._serialize_job(job) for job in sorted(jobs, key=lambda j: j.next_run) if job.owner == owner_id]
-
-    @staticmethod
-    def _serialize_job(job: "ScheduledJob") -> dict:
-        """Convert a scheduled job to a JSON-safe dict."""
-        trigger = job.trigger
-        trigger_type = type(trigger).__name__ if trigger else "once"
-        trigger_detail: str | None = None
-        if trigger is not None:
-            cron_expr = getattr(trigger, "cron_expression", None)
-            interval = getattr(trigger, "interval", None)
-            if cron_expr is not None:
-                trigger_detail = str(cron_expr)
-            elif interval is not None:
-                trigger_detail = str(interval)
-        return {
-            "job_id": job.job_id,
-            "name": job.name,
-            "owner": job.owner,
-            "next_run": str(job.next_run),
-            "repeat": job.repeat,
-            "cancelled": job.cancelled,
-            "trigger_type": trigger_type,
-            "trigger_detail": trigger_detail,
-        }
-
-    # --- Entity state access (delegates to StateProxy) ---
-
-    def get_entity_state(self, entity_id: str) -> "HassStateDict | None":
-        return self.hassette.state_proxy.get_state(entity_id)
-
-    def get_all_entity_states(self) -> "dict[str, HassStateDict]":
-        return dict(self.hassette.state_proxy.states)
-
-    def get_domain_states(self, domain: str) -> "dict[str, HassStateDict]":
-        return self.hassette.state_proxy.get_domain_states(domain)
 
     # --- App status ---
 
@@ -330,54 +249,23 @@ class DataSyncService(Resource):
 
         return [e.to_dict() for e in entries[-limit:]]
 
-    # --- Scheduler access ---
-
-    async def get_scheduled_jobs(self, owner: str | None = None) -> list[dict]:
-        """Return all scheduled jobs across all apps, sorted by next_run."""
-        jobs = await self.hassette.scheduler_service.get_all_jobs()
-        result = [self._serialize_job(job) for job in sorted(jobs, key=lambda j: j.next_run)]
-        if owner:
-            owner_ids = self._resolve_owner_ids(owner)
-            if owner_ids:
-                owner_set = set(owner_ids)
-                result = [j for j in result if j["owner"] in owner_set]
-            else:
-                result = [j for j in result if j["owner"] == owner]
-        return result
-
-    def get_job_execution_history(self, limit: int = 50, owner: str | None = None) -> list[dict]:
-        # Note: owner-based filtering is no longer supported at the record level;
-        # owner identity now lives on the parent scheduled_jobs table row.
-        # TODO(#267): migrate to TelemetryQueryService once DB-backed history is available
-        records = self.hassette.scheduler_service.get_execution_history(limit)
-        return [asdict(r) for r in records]
-
-    async def get_scheduler_summary(self) -> SchedulerSummaryResponse:
-        """Compute aggregate counts across all scheduled jobs."""
-        # TODO(#267): extend with DB-backed execution counts once TelemetryQueryService is available
-        jobs = await self.hassette.scheduler_service.get_all_jobs()
-        return SchedulerSummaryResponse(
-            total_jobs=len(jobs),
-            active=sum(1 for j in jobs if not j.cancelled),
-            cancelled=sum(1 for j in jobs if j.cancelled),
-            repeating=sum(1 for j in jobs if j.repeat and not j.cancelled),
-        )
-
     # --- System status ---
 
     def get_system_status(self) -> SystemStatusResponse:
+        from hassette.types.enums import ResourceStatus
+
         ws_connected = self.hassette.websocket_service.status == ResourceStatus.RUNNING
         uptime = time.time() - self._start_time
 
         try:
             entity_count = len(self.hassette.state_proxy.states)
-        except Exception:
+        except (AttributeError, RuntimeError):
             entity_count = 0
 
         try:
             snapshot = self.hassette.app_handler.get_status_snapshot()
             app_count = snapshot.total_count
-        except Exception:
+        except (AttributeError, RuntimeError):
             app_count = 0
 
         services_running = [
@@ -386,9 +274,14 @@ class DataSyncService(Resource):
             if hasattr(child, "status") and child.status == ResourceStatus.RUNNING
         ]
 
+        try:
+            proxy_ready = self.hassette.state_proxy.is_ready()
+        except (AttributeError, RuntimeError):
+            proxy_ready = False
+
         if ws_connected:
             status = "ok"
-        elif self.hassette.state_proxy.is_ready():
+        elif proxy_ready:
             status = "degraded"
         else:
             status = "starting"
@@ -400,35 +293,6 @@ class DataSyncService(Resource):
             entity_count=entity_count,
             app_count=app_count,
             services_running=services_running,
-        )
-
-    # --- Bus listener metrics ---
-
-    def get_listener_metrics(self, owner: str | None = None) -> list[dict]:
-        """Return per-listener metrics, optionally filtered by owner."""
-        # TODO(#267): migrate to TelemetryQueryService once DB-backed metrics are available
-        bus_service = self.hassette.bus_service
-        if not owner:
-            return [m.to_dict() for m in bus_service.get_all_listener_metrics()]
-        owner_ids = self._resolve_owner_ids(owner)
-        if not owner_ids:
-            return [m.to_dict() for m in bus_service.get_listener_metrics_by_owner(owner)]
-        result: list[dict] = []
-        for oid in owner_ids:
-            result.extend(m.to_dict() for m in bus_service.get_listener_metrics_by_owner(oid))
-        return result
-
-    def get_bus_metrics_summary(self) -> BusMetricsSummaryResponse:
-        """Compute aggregate totals across all listener metrics."""
-        # TODO(#267): migrate to TelemetryQueryService once DB-backed metrics are available
-        all_metrics = self.hassette.bus_service.get_all_listener_metrics()
-        return BusMetricsSummaryResponse(
-            total_listeners=len(all_metrics),
-            total_invocations=sum(m.total_invocations for m in all_metrics),
-            total_successful=sum(m.successful for m in all_metrics),
-            total_failed=sum(m.failed for m in all_metrics),
-            total_di_failures=sum(m.di_failures for m in all_metrics),
-            total_cancelled=sum(m.cancelled for m in all_metrics),
         )
 
     # --- WebSocket client management ---

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from hassette.config.helpers import VERSION
 
 if TYPE_CHECKING:
-    from hassette.core.data_sync_service import DataSyncService
+    from hassette.core.runtime_query_service import RuntimeQueryService
 
 
 def base_context(current_page: str) -> dict:
@@ -16,9 +16,9 @@ def base_context(current_page: str) -> dict:
     }
 
 
-def alert_context(data_sync: "DataSyncService") -> dict[str, Any]:
+def alert_context(runtime: "RuntimeQueryService") -> dict[str, Any]:
     """Build the alert banner context from current system state."""
-    snapshot = data_sync.get_all_manifests_snapshot()
+    snapshot = runtime.get_all_manifests_snapshot()
     failed_apps = [
         {
             "app_key": m.app_key,

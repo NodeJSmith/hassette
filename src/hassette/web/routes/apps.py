@@ -5,7 +5,7 @@ import typing
 
 from fastapi import APIRouter, HTTPException
 
-from hassette.web.dependencies import DataSyncDep, HassetteDep
+from hassette.web.dependencies import HassetteDep, RuntimeDep
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -17,18 +17,18 @@ router = APIRouter(tags=["apps"])
 
 
 @router.get("/apps", response_model=AppStatusResponse)
-async def get_apps(data_sync: DataSyncDep) -> AppStatusResponse:
-    return data_sync.get_app_status_snapshot()
+async def get_apps(runtime: RuntimeDep) -> AppStatusResponse:
+    return runtime.get_app_status_snapshot()
 
 
 @router.get("/apps/manifests", response_model=AppManifestListResponse)
-async def get_app_manifests(data_sync: DataSyncDep) -> AppManifestListResponse:
-    return data_sync.get_all_manifests_snapshot()
+async def get_app_manifests(runtime: RuntimeDep) -> AppManifestListResponse:
+    return runtime.get_all_manifests_snapshot()
 
 
 @router.get("/apps/{app_key}", response_model=AppInstanceResponse)
-async def get_app(app_key: str, data_sync: DataSyncDep) -> AppInstanceResponse:
-    snapshot = data_sync.get_app_status_snapshot()
+async def get_app(app_key: str, runtime: RuntimeDep) -> AppInstanceResponse:
+    snapshot = runtime.get_app_status_snapshot()
     for app in snapshot.apps:
         if app.app_key == app_key:
             return app
