@@ -15,12 +15,12 @@ from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.database_service import DatabaseService
 from hassette.core.file_watcher import FileWatcherService
+from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
+from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
 from hassette.scheduler import Scheduler

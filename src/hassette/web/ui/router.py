@@ -39,6 +39,7 @@ def _job_to_dict(job: "ScheduledJob", app_key: str | None = None, instance_index
         "trigger_detail": trigger_detail,
     }
 
+
 router = APIRouter()
 
 

@@ -2,7 +2,7 @@
 
 import logging
 import re
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -10,7 +10,6 @@ from httpx import ASGITransport, AsyncClient
 from hassette.core.app_registry import AppInstanceInfo
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
-    make_listener_metric,
     make_manifest,
     make_old_snapshot,
     setup_registry,

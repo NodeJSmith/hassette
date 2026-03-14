@@ -193,6 +193,7 @@ def make_job(
         if trigger_detail is not None:
             # Parse ISO 8601 duration like "PT30S" → 30 seconds
             import re
+
             m = re.search(r"(\d+)S", trigger_detail)
             if m:
                 seconds = int(m.group(1))

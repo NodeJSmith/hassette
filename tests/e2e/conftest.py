@@ -243,10 +243,9 @@ def mock_hassette():
 
     # Wire telemetry mock to return new-format listener dicts for my_app.
     from unittest.mock import AsyncMock
+
     hassette._telemetry_query_service.get_listener_summary = AsyncMock(
-        side_effect=lambda app_key, instance_index, session_id=None: (
-            telemetry_listeners if app_key == "my_app" else []
-        )
+        side_effect=lambda app_key, _idx=0, _sid=None: telemetry_listeners if app_key == "my_app" else []
     )
     hassette.telemetry_query_service = hassette._telemetry_query_service
 

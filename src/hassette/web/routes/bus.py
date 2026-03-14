@@ -22,9 +22,7 @@ async def get_listener_metrics(
 
 
 @router.get("/bus/metrics", response_model=BusMetricsSummaryResponse)
-async def get_bus_metrics_summary(
-    telemetry: TelemetryDep,
-) -> BusMetricsSummaryResponse:
+async def get_bus_metrics_summary() -> BusMetricsSummaryResponse:
     return BusMetricsSummaryResponse(
         total_listeners=0,
         total_invocations=0,

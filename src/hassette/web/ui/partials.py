@@ -36,6 +36,7 @@ def _job_to_dict(job: "ScheduledJob") -> dict:
         "trigger_detail": trigger_detail,
     }
 
+
 router = APIRouter()
 
 
@@ -171,9 +172,7 @@ async def app_detail_listeners_partial(app_key: str, request: Request, telemetry
 
 
 @router.get("/partials/app-detail-jobs/{app_key}", response_class=HTMLResponse)
-async def app_detail_jobs_partial(
-    app_key: str, request: Request, telemetry: TelemetryDep
-) -> HTMLResponse:
+async def app_detail_jobs_partial(app_key: str, request: Request, telemetry: TelemetryDep) -> HTMLResponse:
     jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=0)
     return templates.TemplateResponse(
         request,
@@ -191,8 +190,6 @@ async def instance_listeners_partial(
 
 
 @router.get("/partials/instance-jobs/{app_key}/{index}", response_class=HTMLResponse)
-async def instance_jobs_partial(
-    app_key: str, index: int, request: Request, telemetry: TelemetryDep
-) -> HTMLResponse:
+async def instance_jobs_partial(app_key: str, index: int, request: Request, telemetry: TelemetryDep) -> HTMLResponse:
     jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=index)
     return templates.TemplateResponse(request, "partials/app_detail_jobs.html", {"jobs": jobs})

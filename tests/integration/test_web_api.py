@@ -68,7 +68,6 @@ class TestHealthEndpoints:
         assert "app_count" in data
 
 
-
 class TestAppEndpoints:
     async def test_get_apps(self, client: "AsyncClient") -> None:
         response = await client.get("/api/apps")
@@ -120,7 +119,9 @@ class TestEventsEndpoint:
         assert response.status_code == 200
         assert response.json() == []
 
-    async def test_get_recent_events_with_data(self, client: "AsyncClient", runtime_query_service: RuntimeQueryService) -> None:
+    async def test_get_recent_events_with_data(
+        self, client: "AsyncClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         runtime_query_service._event_buffer.append({"type": "test", "timestamp": 1234567890.0})
         response = await client.get("/api/events/recent")
         assert response.status_code == 200

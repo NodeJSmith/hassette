@@ -31,12 +31,12 @@ from .app_handler import AppHandler
 from .bus_service import BusService
 from .command_executor import CommandExecutor
 from .database_service import DatabaseService
-from .runtime_query_service import RuntimeQueryService
-from .telemetry_query_service import TelemetryQueryService
 from .file_watcher import FileWatcherService
+from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .state_proxy import StateProxy
+from .telemetry_query_service import TelemetryQueryService
 from .web_api_service import WebApiService
 from .web_ui_watcher import WebUiWatcherService
 from .websocket_service import WebsocketService

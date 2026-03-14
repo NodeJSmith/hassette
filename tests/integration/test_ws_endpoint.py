@@ -163,7 +163,9 @@ class TestWebSocketConnection:
             assert msg["type"] == "log"
             assert msg["data"]["level"] == "WARNING"
 
-    def test_subscribe_error_level_passes(self, client: "TestClient", runtime_query_service: RuntimeQueryService) -> None:
+    def test_subscribe_error_level_passes(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "ERROR"}})
@@ -205,7 +207,9 @@ class TestWebSocketConnection:
             assert msg["type"] == "log"
             assert msg["data"]["level"] == "INFO"
 
-    def test_sentinel_causes_graceful_close(self, client: "TestClient", runtime_query_service: RuntimeQueryService) -> None:
+    def test_sentinel_causes_graceful_close(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             assert len(runtime_query_service._ws_clients) == 1
@@ -216,14 +220,18 @@ class TestWebSocketConnection:
         # After close, client should be unregistered
         assert len(runtime_query_service._ws_clients) == 0
 
-    def test_disconnect_unregisters_client(self, client: "TestClient", runtime_query_service: RuntimeQueryService) -> None:
+    def test_disconnect_unregisters_client(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             assert len(runtime_query_service._ws_clients) == 1
         # After disconnect, client should be unregistered
         assert len(runtime_query_service._ws_clients) == 0
 
-    def test_multiple_subscribe_updates_state(self, client: "TestClient", runtime_query_service: RuntimeQueryService) -> None:
+    def test_multiple_subscribe_updates_state(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             # First subscribe with ERROR level

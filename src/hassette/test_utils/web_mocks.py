@@ -49,8 +49,6 @@ def create_hassette_stub(
     manifests: list[AppManifestInfo] | None = None,
     old_snapshot: SimpleNamespace | None = None,
     app_action_mocks: bool = False,
-    # Bus
-    listener_metrics: list[MagicMock] | None = None,
     # Scheduler
     scheduler_jobs: list[Any] | None = None,
     # Config endpoint

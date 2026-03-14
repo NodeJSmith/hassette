@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 def _row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
     """Convert an aiosqlite Row to a plain dict."""
-    return dict(zip(row.keys(), tuple(row)))
+    return dict(zip(row.keys(), tuple(row), strict=False))
 
 
 class TelemetryQueryService(Resource):
@@ -72,7 +72,8 @@ class TelemetryQueryService(Resource):
                 COUNT(hi.rowid) AS total_invocations,
                 SUM(CASE WHEN hi.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS failed,
-                SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError' THEN 1 ELSE 0 END) AS di_failures,
+                SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError'
+                    THEN 1 ELSE 0 END) AS di_failures,
                 SUM(CASE WHEN hi.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
                 SUM(hi.duration_ms) AS total_duration_ms,
                 AVG(hi.duration_ms) AS avg_duration_ms,
@@ -145,7 +146,8 @@ class TelemetryQueryService(Resource):
                     COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
                     COUNT(hi.rowid) AS total_invocations,
                     SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
-                    SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError' THEN 1 ELSE 0 END) AS total_di_failures,
+                    SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError'
+                        THEN 1 ELSE 0 END) AS total_di_failures,
                     AVG(hi.duration_ms) AS avg_duration_ms
                 FROM handler_invocations hi
                 WHERE hi.session_id = ?
@@ -168,7 +170,8 @@ class TelemetryQueryService(Resource):
                     COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
                     COUNT(hi.rowid) AS total_invocations,
                     SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
-                    SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError' THEN 1 ELSE 0 END) AS total_di_failures,
+                    SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError'
+                        THEN 1 ELSE 0 END) AS total_di_failures,
                     AVG(hi.duration_ms) AS avg_duration_ms
                 FROM handler_invocations hi
             """
@@ -367,7 +370,8 @@ class TelemetryQueryService(Resource):
                 s.started_at,
                 s.last_heartbeat_at,
                 (SELECT COUNT(*) FROM handler_invocations WHERE session_id = s.id) AS total_invocations,
-                (SELECT COUNT(*) FROM handler_invocations WHERE session_id = s.id AND status = 'error') AS invocation_errors,
+                (SELECT COUNT(*) FROM handler_invocations
+                    WHERE session_id = s.id AND status = 'error') AS invocation_errors,
                 (SELECT COUNT(*) FROM job_executions WHERE session_id = s.id) AS total_executions,
                 (SELECT COUNT(*) FROM job_executions WHERE session_id = s.id AND status = 'error') AS execution_errors
             FROM sessions s

@@ -4,13 +4,12 @@ import asyncio
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_query_service import TelemetryQueryService
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -56,7 +55,7 @@ async def db(mock_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, i
 
 
 @pytest.fixture
-def svc(mock_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:
+def svc(mock_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
     """Create a TelemetryQueryService with DatabaseService already wired.
 
     Skips on_initialize (which waits on DatabaseService) since the fixture
@@ -184,13 +183,11 @@ class TestGetListenerSummary:
         db_svc, session_id = db
 
         l1 = await _insert_listener(db_svc, handler_method="on_a")
-        l2 = await _insert_listener(db_svc, handler_method="on_b")
+        _l2 = await _insert_listener(db_svc, handler_method="on_b")
 
         await _insert_invocation(db_svc, l1, session_id, status="success", duration_ms=10.0)
         await _insert_invocation(db_svc, l1, session_id, status="success", duration_ms=20.0)
-        await _insert_invocation(
-            db_svc, l1, session_id, status="error", duration_ms=5.0, error_type="ValueError"
-        )
+        await _insert_invocation(db_svc, l1, session_id, status="error", duration_ms=5.0, error_type="ValueError")
 
         rows = await svc.get_listener_summary("test_app", 0)
         assert len(rows) == 2
@@ -335,9 +332,7 @@ class TestGetHandlerInvocations:
 
         base_ts = time.time()
         for i in range(5):
-            await _insert_invocation(
-                db_svc, listener_id, session_id, execution_start_ts=base_ts + i
-            )
+            await _insert_invocation(db_svc, listener_id, session_id, execution_start_ts=base_ts + i)
 
         # limit=3 returns 3 most recent
         rows = await svc.get_handler_invocations(listener_id, limit=3)
@@ -392,21 +387,13 @@ class TestGetRecentErrors:
         since_ts = base_ts + 5.0
 
         # Old error (before since_ts) — should NOT appear
-        await _insert_invocation(
-            db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0
-        )
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
         # Recent success — should NOT appear
-        await _insert_invocation(
-            db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 10.0
-        )
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 10.0)
         # Recent error — SHOULD appear
-        await _insert_invocation(
-            db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 20.0
-        )
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 20.0)
         # Recent job error — SHOULD appear
-        await _insert_execution(
-            db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 15.0
-        )
+        await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 15.0)
 
         rows = await svc.get_recent_errors(since_ts)
         # Both handler error and job error should appear
@@ -434,12 +421,8 @@ class TestGetRecentErrors:
         base_ts = 1_000_000.0
         since_ts = base_ts - 1.0
 
-        await _insert_invocation(
-            db_svc, listener_id, session_a, status="error", execution_start_ts=base_ts + 1.0
-        )
-        await _insert_invocation(
-            db_svc, listener_id, session_b, status="error", execution_start_ts=base_ts + 2.0
-        )
+        await _insert_invocation(db_svc, listener_id, session_a, status="error", execution_start_ts=base_ts + 1.0)
+        await _insert_invocation(db_svc, listener_id, session_b, status="error", execution_start_ts=base_ts + 2.0)
 
         rows = await svc.get_recent_errors(since_ts, session_id=session_a)
         assert len(rows) == 1
@@ -558,9 +541,7 @@ class TestGetCurrentSessionSummary:
         db_svc, session_id = db
 
         # Mark the session as stopped
-        await db_svc.db.execute(
-            "UPDATE sessions SET status = 'stopped' WHERE id = ?", (session_id,)
-        )
+        await db_svc.db.execute("UPDATE sessions SET status = 'stopped' WHERE id = ?", (session_id,))
         await db_svc.db.commit()
 
         result = await svc.get_current_session_summary()
