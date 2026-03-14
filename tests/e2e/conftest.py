@@ -14,7 +14,6 @@ from hassette.core.app_registry import AppInstanceInfo
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
     make_job,
-    make_listener_metric,
     make_manifest,
     make_old_app_instance,
     make_old_snapshot,
@@ -96,27 +95,6 @@ def _build_manifests() -> list:
 def mock_hassette():
     """Create a session-scoped mock Hassette with rich seed data."""
     manifests = _build_manifests()
-    listener_metrics = [
-        make_listener_metric(
-            1,
-            "MyApp.MyApp[0]",
-            "state_changed.light.kitchen",
-            "on_light_change",
-            predicate_description="EntityMatches(entity_id='light.kitchen')",
-            debounce=0.5,
-        ),
-        make_listener_metric(
-            2,
-            "MyApp.MyApp[0]",
-            "state_changed.sensor.temperature",
-            "on_temp_update",
-            20,
-            20,
-            0,
-            predicate_description="EntityMatches(entity_id='sensor.temperature')",
-            throttle=1.0,
-        ),
-    ]
 
     # Listener data in the new TelemetryQueryService dict format (handler_method, app_key, instance_index).
     telemetry_listeners = [
@@ -228,7 +206,6 @@ def mock_hassette():
                 ),
             ],
         ),
-        listener_metrics=listener_metrics,
         scheduler_jobs=[
             make_job(trigger_detail="PT30S"),
             make_job(
