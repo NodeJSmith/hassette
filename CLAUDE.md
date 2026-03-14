@@ -215,3 +215,4 @@ See `design/README.md` for the full guide on what goes where.
 - Google-style docstrings
 - Ruff for linting/formatting, Pyright for type checking
 - Do NOT use `from __future__ import annotations`
+- Do NOT use blanket `# type: ignore` comments — suppress specific Pyright rules inline with `# pyright: ignore[reportXxx]` instead

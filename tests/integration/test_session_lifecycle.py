@@ -66,9 +66,7 @@ async def db_service(mock_hassette: MagicMock) -> AsyncIterator[DatabaseService]
     try:
         yield service
     finally:
-        if service._db is not None:
-            await service._db.close()
-            service._db = None
+        await service.on_shutdown()
 
 
 async def test_create_session(mock_hassette: MagicMock, db_service: DatabaseService) -> None:
@@ -139,6 +137,8 @@ async def test_on_service_crashed_records_failure(mock_hassette: MagicMock, db_s
     )
 
     await Hassette._on_service_crashed(mock_hassette, event)
+    # _on_service_crashed uses enqueue() (fire-and-forget) — drain the queue before asserting
+    await db_service._db_write_queue.join()
 
     cursor = await db_service.db.execute(
         "SELECT status, error_type, error_message, error_traceback FROM sessions WHERE id = ?",
@@ -188,6 +188,8 @@ async def test_finalize_session_preserves_failure(mock_hassette: MagicMock, db_s
 
     event = _make_crashed_event()
     await Hassette._on_service_crashed(mock_hassette, event)
+    # _on_service_crashed uses enqueue() (fire-and-forget) — drain before finalizing
+    await db_service._db_write_queue.join()
 
     db_path = db_service._db_path
     await Hassette._finalize_session(mock_hassette)
@@ -249,6 +251,8 @@ async def test_on_service_crashed_no_session(mock_hassette: MagicMock, db_servic
 
     event = _make_crashed_event()
     await Hassette._on_service_crashed(mock_hassette, event)
+    # Drain queue (no-op here since early return skips enqueue, but keeps test consistent)
+    await db_service._db_write_queue.join()
 
     # No rows should have been written
     cursor = await db_service.db.execute("SELECT count(*) FROM sessions")
@@ -282,12 +286,16 @@ async def test_on_service_crashed_db_error(mock_hassette: MagicMock, db_service:
     mock_hassette._database_service = db_service
     await Hassette._create_session(mock_hassette)
 
-    # Patch execute to raise sqlite3.Error on the crash UPDATE
+    # Patch execute to raise sqlite3.Error on the crash UPDATE.
+    # After migration, the error surfaces inside the worker (_do_on_service_crashed catches it).
     db_service.db.execute = AsyncMock(side_effect=sqlite3.OperationalError("disk I/O error"))
 
     event = _make_crashed_event()
-    # Should not raise — catches sqlite3.Error and logs
+    # _on_service_crashed uses enqueue() — returns without raising
     await Hassette._on_service_crashed(mock_hassette, event)
+    # Drain the queue so the worker processes the item and catches the error internally
+    await db_service._db_write_queue.join()
+    # Should not raise — _do_on_service_crashed catches sqlite3.Error and logs
 
 
 async def test_finalize_session_no_session(mock_hassette: MagicMock, db_service: DatabaseService) -> None:

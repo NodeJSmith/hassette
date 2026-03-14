@@ -1,7 +1,9 @@
 import asyncio
 import time
 import typing
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 
 import aiosqlite
 from alembic import command
@@ -12,6 +14,9 @@ from hassette.resources.base import Service
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.resources.base import Resource
+
+_WriteQueueItem = tuple[Coroutine[Any, Any, Any], asyncio.Future[Any] | None]
+"""Type alias for items placed on the DB write queue."""
 
 # Heartbeat interval: 5 minutes
 _HEARTBEAT_INTERVAL_SECONDS = 300
@@ -39,11 +44,19 @@ class DatabaseService(Service):
     _consecutive_heartbeat_failures: int
     """Counter for consecutive heartbeat failures; triggers RuntimeError after threshold."""
 
+    _db_write_queue: asyncio.Queue[_WriteQueueItem] | None
+    """Queue of pending write coroutines; each paired with an optional Future for result delivery."""
+
+    _db_worker_task: asyncio.Task[None] | None
+    """Background task that drains _db_write_queue sequentially."""
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._db = None
         self._db_path = Path()
         self._consecutive_heartbeat_failures = 0
+        self._db_write_queue = None
+        self._db_worker_task = None
 
     @property
     def config_log_level(self) -> str:
@@ -74,6 +87,9 @@ class DatabaseService(Service):
 
         await self._set_pragmas()
 
+        self._db_write_queue = asyncio.Queue()
+        self._db_worker_task = asyncio.create_task(self._db_write_worker())
+
     async def serve(self) -> None:
         """Run the heartbeat and retention loop until shutdown."""
         self.mark_ready(reason="Database service started")
@@ -100,7 +116,15 @@ class DatabaseService(Service):
                 last_retention_run = time.monotonic()
 
     async def on_shutdown(self) -> None:
-        """Close the database connection."""
+        """Drain the write queue, cancel the worker, then close the database connection."""
+        if self._db_worker_task is not None:
+            queue, self._db_write_queue = self._db_write_queue, None
+            if queue is not None:
+                await queue.join()
+            self._db_worker_task.cancel()
+            await asyncio.gather(self._db_worker_task, return_exceptions=True)
+            self._db_worker_task = None
+
         if self._db is not None:
             try:
                 await self._db.close()
@@ -108,6 +132,69 @@ class DatabaseService(Service):
                 self.logger.exception("Failed to close database connection")
             finally:
                 self._db = None
+
+    async def _db_write_worker(self) -> None:
+        """Drain _db_write_queue sequentially.
+
+        Each item is a (coroutine, future) pair. If future is not None, the
+        coroutine's result (or exception) is delivered through it. If future is
+        None, any exception is logged and the worker continues.
+
+        The loop runs until cancelled by on_shutdown().
+        """
+        if self._db_write_queue is None:
+            raise RuntimeError("_db_write_worker() started before on_initialize() set _db_write_queue")
+        queue = self._db_write_queue
+        while True:
+            coro, future = await queue.get()
+            try:
+                result = await coro
+                if future is not None and not future.done():
+                    future.set_result(result)
+            except Exception as exc:
+                if future is not None and not future.done():
+                    future.set_exception(exc)
+                else:
+                    self.logger.exception("Unhandled error in enqueued DB write")
+            finally:
+                queue.task_done()
+
+    async def submit(self, coro: Coroutine[Any, Any, Any]) -> Any:
+        """Submit a coroutine for serialized execution and await its result.
+
+        The coroutine is placed on the write queue and executed by the single-writer
+        worker. The caller is suspended until the coroutine completes.
+
+        Args:
+            coro: The coroutine to execute.
+
+        Returns:
+            The return value of the coroutine.
+
+        Raises:
+            Exception: Whatever exception the coroutine raises.
+        """
+        if self._db_write_queue is None:
+            coro.close()
+            raise RuntimeError("DatabaseService.submit() called before on_initialize()")
+        future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+        await self._db_write_queue.put((coro, future))
+        return await future
+
+    def enqueue(self, coro: Coroutine[Any, Any, Any]) -> None:
+        """Submit a coroutine for fire-and-forget execution.
+
+        Returns immediately. The coroutine is placed on the write queue and
+        executed by the single-writer worker. Any exception is logged; the worker
+        continues processing subsequent items.
+
+        Args:
+            coro: The coroutine to execute.
+        """
+        if self._db_write_queue is None:
+            coro.close()
+            raise RuntimeError("DatabaseService.enqueue() called before on_initialize()")
+        self._db_write_queue.put_nowait((coro, None))
 
     def _resolve_db_path(self) -> Path:
         """Resolve the database path from config or use default."""
@@ -132,24 +219,31 @@ class DatabaseService(Service):
         await db.execute("PRAGMA foreign_keys = ON")
 
     async def _update_heartbeat(self) -> None:
-        """Update the heartbeat timestamp for the current session.
+        """Await a heartbeat update for the current session.
 
-        Tracks consecutive failures. The caller (serve()) checks the failure
-        count and raises RuntimeError to trigger ServiceWatcher restart.
+        Early-return guards run inline; the DB write is awaited via submit()
+        so that _consecutive_heartbeat_failures is updated before returning.
         """
         if self._db is None:
             return
-        try:
-            session_id = self.hassette.session_id
-        except RuntimeError:
+        if self._db_write_queue is None:
             return
         try:
+            _ = self.hassette.session_id
+        except RuntimeError:
+            return
+        await self.submit(self._do_update_heartbeat())
+
+    async def _do_update_heartbeat(self) -> None:
+        """Execute the heartbeat DB write; called by the write-queue worker."""
+        try:
+            session_id = self.hassette.session_id
             now = time.time()
-            await self._db.execute(
+            await self.db.execute(
                 "UPDATE sessions SET last_heartbeat_at = ? WHERE id = ?",
                 (now, session_id),
             )
-            await self._db.commit()
+            await self.db.commit()
             self.logger.debug("Heartbeat updated for session %d", session_id)
             if self._consecutive_heartbeat_failures > 0:
                 self.logger.info("Heartbeat recovered after %d failure(s)", self._consecutive_heartbeat_failures)
@@ -163,17 +257,19 @@ class DatabaseService(Service):
             )
 
     async def _run_retention_cleanup(self) -> None:
-        """Delete execution records older than the retention window."""
+        """Enqueue a retention cleanup; fire-and-forget via enqueue()."""
         if self._db is None:
             return
+        self.enqueue(self._do_run_retention_cleanup())
+
+    async def _do_run_retention_cleanup(self) -> None:
+        """Execute the retention DELETE queries; called by the write-queue worker."""
         try:
             retention_days = self.hassette.config.db_retention_days
             cutoff = time.time() - (retention_days * 86400)
-            cursor_hi = await self._db.execute(
-                "DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,)
-            )
-            cursor_je = await self._db.execute("DELETE FROM job_executions WHERE execution_start_ts < ?", (cutoff,))
-            await self._db.commit()
+            cursor_hi = await self.db.execute("DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,))
+            cursor_je = await self.db.execute("DELETE FROM job_executions WHERE execution_start_ts < ?", (cutoff,))
+            await self.db.commit()
             hi_deleted = cursor_hi.rowcount or 0
             je_deleted = cursor_je.rowcount or 0
             if hi_deleted or je_deleted:

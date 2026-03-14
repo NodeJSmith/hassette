@@ -59,9 +59,7 @@ async def initialized_db(mock_hassette: MagicMock) -> AsyncIterator[tuple[Databa
         mock_hassette.database_service = db_service
         yield db_service, session_id
     finally:
-        if db_service._db is not None:
-            await db_service._db.close()
-            db_service._db = None
+        await db_service.on_shutdown()
 
 
 @pytest.fixture
@@ -607,3 +605,48 @@ async def test_register_job_blocks_until_database_ready(
     db_ready.set()
     job_id = await asyncio.wait_for(task, timeout=1.0)
     assert job_id > 0
+
+
+@pytest.mark.asyncio
+async def test_concurrent_registrations_do_not_raise(
+    mock_hassette: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """N concurrent register_listener() calls complete without OperationalError.
+
+    Regression: before routing writes through database_service.submit(), concurrent
+    callers each called db.execute() + db.commit() directly on the same aiosqlite
+    connection, causing 'cannot start a transaction within a transaction' OperationalError.
+
+    After the fix, all writes are serialized through the DatabaseService worker, so
+    concurrent callers wait their turn and every call returns a valid positive ID.
+    """
+    mock_hassette.config.data_dir = tmp_path
+    mock_hassette.config.db_path = None
+    mock_hassette.config.db_retention_days = 7
+    mock_hassette.config.database_service_log_level = "INFO"
+    mock_hassette.config.log_level = "INFO"
+    mock_hassette.config.task_bucket_log_level = "INFO"
+    mock_hassette.config.resource_shutdown_timeout_seconds = 5
+    mock_hassette.config.task_cancellation_timeout_seconds = 5
+    mock_hassette.config.command_executor_log_level = "INFO"
+    mock_hassette.ready_event = asyncio.Event()
+
+    db_service = DatabaseService(mock_hassette, parent=mock_hassette)
+    await db_service.on_initialize()
+    mock_hassette.database_service = db_service
+    mock_hassette.wait_for_ready = AsyncMock(return_value=True)
+
+    try:
+        exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+        await exc.on_initialize()
+
+        batch_size = 10
+        regs = [_make_listener_registration(topic=f"test.topic.{i}") for i in range(batch_size)]
+
+        ids = await asyncio.gather(*[exc.register_listener(reg) for reg in regs])
+
+        assert len(ids) == batch_size
+        assert all(isinstance(id_, int) and id_ > 0 for id_ in ids), f"All IDs must be positive ints, got: {ids}"
+    finally:
+        await db_service.on_shutdown()
