@@ -5,12 +5,12 @@
       <code>{{ record.job_name }}</code>
     </td>
     <td>
-      {% if instance_owner_map and record.owner in instance_owner_map %}
-        <a href="/ui/apps/{{ instance_owner_map[record.owner][0] }}/{{ instance_owner_map[record.owner][1] }}"><code>{{ record.owner }}</code></a>
-      {% elif app_owner_map and record.owner in app_owner_map %}
-        <a href="/ui/apps/{{ app_owner_map[record.owner] }}"><code>{{ record.owner }}</code></a>
+      {% if record.app_key and record.instance_index is not none %}
+        <a href="/ui/apps/{{ record.app_key }}/{{ record.instance_index }}"><code>{{ record.app_key }}</code></a>
+      {% elif record.app_key %}
+        <a href="/ui/apps/{{ record.app_key }}"><code>{{ record.app_key }}</code></a>
       {% else %}
-        <code>{{ record.owner }}</code>
+        <code>{{ record.get('app_key', '') }}</code>
       {% endif %}
     </td>
     <td>

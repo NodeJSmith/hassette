@@ -82,12 +82,12 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
-    data_sync = websocket.app.state.hassette.data_sync_service
-    queue = await data_sync.register_ws_client()
+    runtime = websocket.app.state.hassette.runtime_query_service
+    queue = await runtime.register_ws_client()
     ws_state: dict = {"subscribe_logs": False, "min_log_level": "INFO"}
     try:
         # Send initial connection info
-        status = data_sync.get_system_status()
+        status = runtime.get_system_status()
         await websocket.send_json(
             {
                 "type": "connected",
@@ -108,4 +108,4 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         elif not _is_disconnect(exc):
             logger.debug("WebSocket connection error", exc_info=True)
     finally:
-        await data_sync.unregister_ws_client(queue)
+        await runtime.unregister_ws_client(queue)

@@ -120,18 +120,19 @@ class JobExecutionResponse(BaseModel):
 
 class ListenerMetricsResponse(BaseModel):
     listener_id: int
-    owner: str
+    app_key: str
+    instance_index: int = 0
     topic: str
-    handler_name: str
+    handler_method: str
     total_invocations: int
     successful: int
     failed: int
     di_failures: int
     cancelled: int
-    avg_duration_ms: float
-    min_duration_ms: float
-    max_duration_ms: float
-    total_duration_ms: float
+    avg_duration_ms: float = 0.0
+    min_duration_ms: float = 0.0
+    max_duration_ms: float = 0.0
+    total_duration_ms: float = 0.0
     predicate_description: str | None = None
     debounce: float | None = None
     throttle: float | None = None

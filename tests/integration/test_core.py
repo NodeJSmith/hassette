@@ -15,11 +15,12 @@ from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.data_sync_service import DataSyncService
 from hassette.core.database_service import DatabaseService
 from hassette.core.file_watcher import FileWatcherService
+from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
+from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
 from hassette.scheduler import Scheduler
@@ -67,7 +68,8 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
     assert isinstance(hassette_instance._app_handler, AppHandler)
     assert isinstance(hassette_instance._scheduler_service, SchedulerService)
     assert isinstance(hassette_instance._api_service, ApiResource)
-    assert isinstance(hassette_instance._data_sync_service, DataSyncService)
+    assert isinstance(hassette_instance._runtime_query_service, RuntimeQueryService)
+    assert isinstance(hassette_instance._telemetry_query_service, TelemetryQueryService)
     assert isinstance(hassette_instance._web_api_service, WebApiService)
     assert isinstance(hassette_instance._bus, Bus)
     assert isinstance(hassette_instance._scheduler, Scheduler)
@@ -83,7 +85,8 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
         hassette_instance._app_handler,
         hassette_instance._scheduler_service,
         hassette_instance._api_service,
-        hassette_instance._data_sync_service,
+        hassette_instance._runtime_query_service,
+        hassette_instance._telemetry_query_service,
         hassette_instance._web_api_service,
         hassette_instance._bus,
         hassette_instance._scheduler,

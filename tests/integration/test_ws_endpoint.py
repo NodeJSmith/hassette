@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from hassette.core.data_sync_service import DataSyncService
+from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.app import create_fastapi_app
 
@@ -34,11 +34,11 @@ def mock_hassette():
 
 
 @pytest.fixture
-def app(mock_hassette, data_sync_service):
+def app(mock_hassette, runtime_query_service):
     fastapi_app = create_fastapi_app(mock_hassette)
 
     async def _capture_loop():
-        data_sync_service._test_loop = asyncio.get_running_loop()
+        runtime_query_service._test_loop = asyncio.get_running_loop()
 
     fastapi_app.router.on_startup.append(_capture_loop)
     return fastapi_app
@@ -49,7 +49,7 @@ def client(app):
     return TestClient(app)
 
 
-def _put_to_all_queues(data_sync: DataSyncService, message: dict) -> None:
+def _put_to_all_queues(data_sync: RuntimeQueryService, message: dict) -> None:
     """Put a pre-serialized message into all registered WS client queues.
 
     The Starlette TestClient runs the ASGI app in a background thread
@@ -94,14 +94,14 @@ class TestWebSocketConnection:
             assert msg["type"] == "pong"
 
     def test_subscribe_logs_enables_log_forwarding(
-        self, client: "TestClient", data_sync_service: DataSyncService
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True}})
             _sync_via_ping(ws)
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "test"}},
             )
             msg = ws.receive_json()
@@ -109,37 +109,37 @@ class TestWebSocketConnection:
             assert msg["data"]["message"] == "test"
 
     def test_log_messages_blocked_when_not_subscribed(
-        self, client: "TestClient", data_sync_service: DataSyncService
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             # Log should be filtered (subscribe_logs is False by default)
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "should not arrive"}},
             )
             # Non-log message to verify the connection is alive
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "state_changed", "data": {"entity_id": "light.kitchen"}},
             )
             msg = ws.receive_json()
             assert msg["type"] == "state_changed"
 
     def test_non_log_messages_pass_through_without_subscription(
-        self, client: "TestClient", data_sync_service: DataSyncService
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "app_status_changed", "data": {"app_key": "my_app"}},
             )
             msg = ws.receive_json()
             assert msg["type"] == "app_status_changed"
 
     def test_subscribe_min_log_level_filters_below_threshold(
-        self, client: "TestClient", data_sync_service: DataSyncService
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
@@ -147,33 +147,35 @@ class TestWebSocketConnection:
             _sync_via_ping(ws)
             # DEBUG and INFO should be filtered
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "DEBUG", "message": "debug"}},
             )
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "info"}},
             )
             # WARNING should pass
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "WARNING", "message": "warn"}},
             )
             msg = ws.receive_json()
             assert msg["type"] == "log"
             assert msg["data"]["level"] == "WARNING"
 
-    def test_subscribe_error_level_passes(self, client: "TestClient", data_sync_service: DataSyncService) -> None:
+    def test_subscribe_error_level_passes(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "ERROR"}})
             _sync_via_ping(ws)
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "WARNING", "message": "warn"}},
             )
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "ERROR", "message": "err"}},
             )
             # receive_json() blocks until a message arrives.  Since the
@@ -185,7 +187,7 @@ class TestWebSocketConnection:
             assert msg["data"]["level"] == "ERROR"
 
     def test_subscribe_invalid_log_level_defaults_to_info(
-        self, client: "TestClient", data_sync_service: DataSyncService
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
@@ -193,37 +195,43 @@ class TestWebSocketConnection:
             _sync_via_ping(ws)
             # DEBUG should be filtered (below INFO default)
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "DEBUG", "message": "debug"}},
             )
             # INFO should pass
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "info"}},
             )
             msg = ws.receive_json()
             assert msg["type"] == "log"
             assert msg["data"]["level"] == "INFO"
 
-    def test_sentinel_causes_graceful_close(self, client: "TestClient", data_sync_service: DataSyncService) -> None:
+    def test_sentinel_causes_graceful_close(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
-            assert len(data_sync_service._ws_clients) == 1
+            assert len(runtime_query_service._ws_clients) == 1
             # Send None sentinel to trigger graceful queue shutdown
-            for q in list(data_sync_service._ws_clients):
+            for q in list(runtime_query_service._ws_clients):
                 q.put_nowait(None)
             # The send loop will break on None, causing the task group to end.
         # After close, client should be unregistered
-        assert len(data_sync_service._ws_clients) == 0
+        assert len(runtime_query_service._ws_clients) == 0
 
-    def test_disconnect_unregisters_client(self, client: "TestClient", data_sync_service: DataSyncService) -> None:
+    def test_disconnect_unregisters_client(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
-            assert len(data_sync_service._ws_clients) == 1
+            assert len(runtime_query_service._ws_clients) == 1
         # After disconnect, client should be unregistered
-        assert len(data_sync_service._ws_clients) == 0
+        assert len(runtime_query_service._ws_clients) == 0
 
-    def test_multiple_subscribe_updates_state(self, client: "TestClient", data_sync_service: DataSyncService) -> None:
+    def test_multiple_subscribe_updates_state(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             # First subscribe with ERROR level
@@ -234,7 +242,7 @@ class TestWebSocketConnection:
             _sync_via_ping(ws)
             # INFO should now pass through
             _put_to_all_queues(
-                data_sync_service,
+                runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "visible"}},
             )
             msg = ws.receive_json()

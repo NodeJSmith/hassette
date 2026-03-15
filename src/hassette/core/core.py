@@ -30,12 +30,13 @@ from .api_resource import ApiResource
 from .app_handler import AppHandler
 from .bus_service import BusService
 from .command_executor import CommandExecutor
-from .data_sync_service import DataSyncService
 from .database_service import DatabaseService
 from .file_watcher import FileWatcherService
+from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .state_proxy import StateProxy
+from .telemetry_query_service import TelemetryQueryService
 from .web_api_service import WebApiService
 from .web_ui_watcher import WebUiWatcherService
 from .websocket_service import WebsocketService
@@ -109,7 +110,8 @@ class Hassette(Resource):
         self._api_service = self.add_child(ApiResource)
         self._state_proxy = self.add_child(StateProxy)
 
-        self._data_sync_service = self.add_child(DataSyncService)
+        self._runtime_query_service = self.add_child(RuntimeQueryService)
+        self._telemetry_query_service = self.add_child(TelemetryQueryService)
         self._web_api_service = self.add_child(WebApiService)
 
         # internal instances
@@ -201,9 +203,14 @@ class Hassette(Resource):
         return self._database_service
 
     @property
-    def data_sync_service(self) -> DataSyncService:
-        """DataSyncService instance for web UI state aggregation."""
-        return self._data_sync_service
+    def runtime_query_service(self) -> RuntimeQueryService:
+        """RuntimeQueryService instance for live in-memory state queries."""
+        return self._runtime_query_service
+
+    @property
+    def telemetry_query_service(self) -> TelemetryQueryService:
+        """TelemetryQueryService instance for historical DB-backed telemetry queries."""
+        return self._telemetry_query_service
 
     @property
     def app_handler(self) -> AppHandler:

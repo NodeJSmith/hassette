@@ -7,7 +7,10 @@ used by both e2e and integration web tests.
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from whenever import TimeDelta
+
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.scheduler.classes import CronTrigger, IntervalTrigger
 
 
 def make_full_snapshot(
@@ -61,9 +64,10 @@ def make_manifest(
 
 def make_listener_metric(
     listener_id: int,
-    owner: str,
+    app_key: str,
     topic: str,
-    handler_name: str,
+    handler_method: str,
+    instance_index: int = 0,
     invocations: int = 10,
     successful: int = 9,
     failed: int = 1,
@@ -76,9 +80,10 @@ def make_listener_metric(
     """Build a mock listener metric with `.to_dict()` and direct attribute access."""
     d = {
         "listener_id": listener_id,
-        "owner": owner,
+        "app_key": app_key,
+        "instance_index": instance_index,
         "topic": topic,
-        "handler_name": handler_name,
+        "handler_method": handler_method,
         "total_invocations": invocations,
         "successful": successful,
         "failed": failed,
@@ -175,21 +180,35 @@ def make_job(
     cancelled: bool = False,
     trigger_type: str = "interval",
     trigger_detail: str | None = None,
+    db_id: int | None = None,
 ) -> SimpleNamespace:
-    """Build a ``SimpleNamespace`` scheduler job for test fixtures."""
-    trigger_attrs: dict[str, str] = {}
-    if trigger_detail is not None:
-        if trigger_type == "cron":
-            trigger_attrs["cron_expression"] = trigger_detail
-        else:
-            trigger_attrs["interval"] = trigger_detail
-    trigger_cls = type(trigger_type, (), trigger_attrs)()
+    """Build a ``SimpleNamespace`` scheduler job for test fixtures.
+
+    Uses real ``IntervalTrigger``/``CronTrigger`` objects so that ``job_to_dict``
+    isinstance checks work correctly in route handlers.
+    """
+    if trigger_type == "cron":
+        cron_expr = trigger_detail or "0 0 * * *"
+        trigger = CronTrigger(cron_expr)
+    elif trigger_type == "interval":
+        seconds = 30
+        if trigger_detail is not None:
+            # Parse ISO 8601 duration like "PT30S" → 30 seconds
+            import re
+
+            m = re.search(r"(\d+)S", trigger_detail)
+            if m:
+                seconds = int(m.group(1))
+        trigger = IntervalTrigger(TimeDelta(seconds=seconds))
+    else:
+        trigger = SimpleNamespace()  # "once" — no interval or cron attrs
     return SimpleNamespace(
         job_id=job_id,
+        db_id=db_id,
         name=name,
         owner=owner,
         next_run=next_run,
         repeat=repeat,
         cancelled=cancelled,
-        trigger=trigger_cls,
+        trigger=trigger,
     )

@@ -12,7 +12,6 @@ from starlette.responses import HTMLResponse, RedirectResponse
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.bus import router as bus_router
 from hassette.web.routes.config import router as config_router
-from hassette.web.routes.entities import router as entities_router
 from hassette.web.routes.events import router as events_router
 from hassette.web.routes.health import router as health_router
 from hassette.web.routes.logs import router as logs_router
@@ -48,7 +47,6 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
 
     # API routes
     app.include_router(health_router, prefix="/api")
-    app.include_router(entities_router, prefix="/api")
     app.include_router(apps_router, prefix="/api")
     app.include_router(services_router, prefix="/api")
     app.include_router(events_router, prefix="/api")

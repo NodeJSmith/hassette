@@ -18,7 +18,7 @@ class ListenerMetrics:
     listener_id: int
     owner: str
     topic: str
-    handler_name: str
+    handler_method: str
 
     # Counters
     total_invocations: int = 0
@@ -89,7 +89,7 @@ class ListenerMetrics:
             "listener_id": self.listener_id,
             "owner": self.owner,
             "topic": self.topic,
-            "handler_name": self.handler_name,
+            "handler_method": self.handler_method,
             "total_invocations": self.total_invocations,
             "successful": self.successful,
             "failed": self.failed,

@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from hassette.test_utils.web_mocks import create_mock_data_sync_service
+from hassette.test_utils.web_mocks import create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
 
 _BUS_FIXTURES = frozenset(
@@ -81,13 +81,13 @@ async def cleanup_mock_api_fixture(request: pytest.FixtureRequest):
 
 
 @pytest.fixture
-def data_sync_service(mock_hassette):
-    """Create a DataSyncService with mocked Hassette."""
-    return create_mock_data_sync_service(mock_hassette)
+def runtime_query_service(mock_hassette):
+    """Create a RuntimeQueryService with mocked Hassette."""
+    return create_mock_runtime_query_service(mock_hassette)
 
 
 @pytest.fixture
-def app(mock_hassette, data_sync_service):  # noqa: ARG001
+def app(mock_hassette, runtime_query_service):  # noqa: ARG001
     """Create a FastAPI app with mocked dependencies."""
     return create_fastapi_app(mock_hassette)
 

@@ -14,10 +14,10 @@
                 hx-target="#scheduler-jobs"
                 hx-swap="innerHTML"
                 hx-include="#scheduler-owner-filter"
-                name="owner"
-                @change="$nextTick(() => htmx.ajax('GET', '/ui/partials/scheduler-history?' + new URLSearchParams({owner: $el.value}).toString(), {target: '#scheduler-history', swap: 'innerHTML'}))">
+                name="app_key"
+                @change="$nextTick(() => htmx.ajax('GET', '/ui/partials/scheduler-history?' + new URLSearchParams({app_key: $el.value}).toString(), {target: '#scheduler-history', swap: 'innerHTML'}))">
           <option value="">All Apps</option>
-          {% for owner in owners %}<option value="{{ owner }}">{{ owner }}</option>{% endfor %}
+          {% for app_key in app_keys %}<option value="{{ app_key }}">{{ app_key }}</option>{% endfor %}
         </select>
       </div>
     </div>

@@ -44,7 +44,7 @@ from .web_helpers import (
     make_old_snapshot,
     setup_registry,
 )
-from .web_mocks import create_hassette_stub, create_mock_data_sync_service, create_test_fastapi_app
+from .web_mocks import create_hassette_stub, create_mock_runtime_query_service, create_test_fastapi_app
 
 __all__ = [
     "HassetteHarness",
@@ -53,7 +53,7 @@ __all__ = [
     "create_app_manifest",
     "create_call_service_event",
     "create_hassette_stub",
-    "create_mock_data_sync_service",
+    "create_mock_runtime_query_service",
     "create_state_change_event",
     "create_test_fastapi_app",
     "emit_file_change_event",

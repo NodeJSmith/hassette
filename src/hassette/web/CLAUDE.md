@@ -102,15 +102,19 @@ Enforced by `tools/check_template_patterns.py`:
 
 Import from `hassette.web.dependencies` instead of defining locally:
 ```python
-from hassette.web.dependencies import DataSyncDep, HassetteDep, ApiDep
+from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, HassetteDep, ApiDep
 ```
+
+- `RuntimeDep` — live system state (app status, logs, events, WebSocket)
+- `TelemetryDep` — historical telemetry from the database (listeners, jobs, errors)
+- `SchedulerDep` — direct access to the scheduler service (active jobs)
 
 ## How to Add a New Page
 
 1. Create `templates/pages/my_page.html` extending `base.html`.
 2. Import needed macros: `{% from "macros/ui.html" import ... %}`.
 3. Add a route in `web/ui/router.py` returning `TemplateResponse`.
-4. Use `DataSyncDep` from `web/dependencies.py`.
+4. Use `RuntimeDep` (and `TelemetryDep`/`SchedulerDep` as needed) from `web/dependencies.py`.
 5. Add nav link in `templates/components/nav.html`.
 
 ## How to Add a New Partial

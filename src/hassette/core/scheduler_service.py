@@ -284,15 +284,6 @@ class SchedulerService(Service):
         # One-time job, remove it
         await self._remove_job(job)
 
-    def get_execution_history(self, limit: int = 50) -> list:
-        """Return recent job execution records.
-
-        Note: filtering by owner is no longer supported because owner identity now lives
-        on the parent ``scheduled_jobs`` table record, not on ``JobExecutionRecord``.
-        """
-        # TODO(#267): return DB-backed history from TelemetryQueryService
-        return []
-
     async def get_all_jobs(self) -> list["ScheduledJob"]:
         """Return all currently scheduled jobs across all apps."""
         return await self._job_queue.get_all()

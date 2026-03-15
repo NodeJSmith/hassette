@@ -52,8 +52,8 @@ def test_watch_dirs_contains_static_and_templates() -> None:
 def mock_hassette() -> MagicMock:
     hassette = MagicMock()
     hassette.config.web_ui_hot_reload = False
-    hassette.data_sync_service = MagicMock()
-    hassette.data_sync_service.broadcast = AsyncMock()
+    hassette.runtime_query_service = MagicMock()
+    hassette.runtime_query_service.broadcast = AsyncMock()
     return hassette
 
 
@@ -86,7 +86,7 @@ async def test_serve_waits_on_shutdown_when_disabled(watcher: WebUiWatcherServic
     # Set shutdown immediately so serve() returns
     watcher.shutdown_event.set()
     await watcher.serve()
-    watcher.hassette.data_sync_service.broadcast.assert_not_called()
+    watcher.hassette.runtime_query_service.broadcast.assert_not_called()
 
 
 async def test_serve_returns_early_when_no_watch_dirs(watcher: WebUiWatcherService) -> None:
@@ -98,4 +98,4 @@ async def test_serve_returns_early_when_no_watch_dirs(watcher: WebUiWatcherServi
     ):
         await watcher.serve()
     watcher.logger.warning.assert_called_once()
-    watcher.hassette.data_sync_service.broadcast.assert_not_called()
+    watcher.hassette.runtime_query_service.broadcast.assert_not_called()

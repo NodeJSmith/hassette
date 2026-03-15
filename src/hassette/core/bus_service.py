@@ -213,14 +213,6 @@ class BusService(Service):
         if listener.once:
             self.remove_listener(listener)
 
-    def get_all_listener_metrics(self) -> list:
-        # TODO(#267): return DB-backed metrics from TelemetryQueryService
-        return []
-
-    def get_listener_metrics_by_owner(self, owner: str) -> list:
-        # TODO(#267): return DB-backed metrics from TelemetryQueryService
-        return []
-
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()

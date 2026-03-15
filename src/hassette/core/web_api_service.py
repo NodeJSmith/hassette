@@ -40,8 +40,8 @@ class WebApiService(Service):
             self.mark_ready(reason="Web API disabled")
             return
 
-        # Wait for DataSyncService to be ready
-        await self.hassette.wait_for_ready([self.hassette._data_sync_service])
+        # Wait for RuntimeQueryService to be ready
+        await self.hassette.wait_for_ready([self.hassette._runtime_query_service])
 
         self.mark_ready(reason="Web API service initialized")
 

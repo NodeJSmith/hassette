@@ -3,9 +3,27 @@
 from typing import TYPE_CHECKING, Any
 
 from hassette.config.helpers import VERSION
+from hassette.web.utils import resolve_trigger
 
 if TYPE_CHECKING:
-    from hassette.core.data_sync_service import DataSyncService
+    from hassette.core.runtime_query_service import RuntimeQueryService
+    from hassette.scheduler.classes import ScheduledJob
+
+
+def job_to_dict(job: "ScheduledJob", app_key: str | None = None, instance_index: int = 0) -> dict[str, Any]:
+    """Serialize a ScheduledJob to a template-friendly dict."""
+    trigger_type, trigger_detail = resolve_trigger(job)
+    return {
+        "name": job.name,
+        "owner": job.owner,
+        "app_key": app_key,
+        "instance_index": instance_index,
+        "next_run": str(job.next_run),
+        "repeat": job.repeat,
+        "cancelled": job.cancelled,
+        "trigger_type": trigger_type,
+        "trigger_detail": trigger_detail,
+    }
 
 
 def base_context(current_page: str) -> dict:
@@ -16,9 +34,9 @@ def base_context(current_page: str) -> dict:
     }
 
 
-def alert_context(data_sync: "DataSyncService") -> dict[str, Any]:
+def alert_context(runtime: "RuntimeQueryService") -> dict[str, Any]:
     """Build the alert banner context from current system state."""
-    snapshot = data_sync.get_all_manifests_snapshot()
+    snapshot = runtime.get_all_manifests_snapshot()
     failed_apps = [
         {
             "app_key": m.app_key,
