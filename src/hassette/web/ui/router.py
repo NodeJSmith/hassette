@@ -1,6 +1,7 @@
 """Full-page routes for the Hassette Web UI."""
 
 import asyncio
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from starlette.responses import HTMLResponse
@@ -8,6 +9,8 @@ from starlette.responses import HTMLResponse
 from hassette.web.dependencies import RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.ui import templates
 from hassette.web.ui.context import alert_context, base_context, job_to_dict
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -78,7 +81,12 @@ async def bus_page(request: Request, runtime: RuntimeDep, telemetry: TelemetryDe
         for instance in manifest.instances
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    listeners = [row for result in results if isinstance(result, list) for row in result]
+    listeners = []
+    for result in results:
+        if isinstance(result, BaseException):
+            logger.warning("Telemetry query failed for bus page: %s", result)
+        elif isinstance(result, list):
+            listeners.extend(result)
     ctx = {
         **base_context("bus"),
         **alert_context(runtime),

@@ -268,12 +268,16 @@ class TestGetJobSummary:
         assert len(rows) == 2
 
         row1 = next(r for r in rows if r["job_name"] == "job_a")
+        assert row1["job_id"] == j1
+        assert row1["app_key"] == "test_app"
+        assert row1["instance_index"] == 0
         assert row1["total_executions"] == 2
         assert row1["successful"] == 1
         assert row1["failed"] == 1
         assert row1["avg_duration_ms"] == pytest.approx(75.0)
 
         row2 = next(r for r in rows if r["job_name"] == "job_b")
+        assert row2["job_id"] == j2
         assert row2["total_executions"] == 1
         assert row2["successful"] == 1
         assert row2["failed"] == 0

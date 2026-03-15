@@ -114,7 +114,9 @@ class TelemetryQueryService(Resource):
 
         query = f"""
             SELECT
-                sj.id,
+                sj.id AS job_id,
+                sj.app_key,
+                sj.instance_index,
                 sj.job_name,
                 sj.handler_method,
                 sj.trigger_type,
