@@ -5,12 +5,12 @@
       <code>{{ record.job_name }}</code>
     </td>
     <td>
-      {% if record.app_key is defined and record.instance_index is defined %}
+      {% if record.app_key and record.instance_index is not none %}
         <a href="/ui/apps/{{ record.app_key }}/{{ record.instance_index }}"><code>{{ record.app_key }}</code></a>
-      {% elif record.app_key is defined %}
+      {% elif record.app_key %}
         <a href="/ui/apps/{{ record.app_key }}"><code>{{ record.app_key }}</code></a>
       {% else %}
-        <code>{{ record.get('owner', '') }}</code>
+        <code>{{ record.get('app_key', '') }}</code>
       {% endif %}
     </td>
     <td>

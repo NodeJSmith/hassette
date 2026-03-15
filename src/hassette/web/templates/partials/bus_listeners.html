@@ -17,12 +17,12 @@
           <code title="{{ l.handler_method }}">{{ l.handler_method.split(".")[-1] }}</code>
         </td>
         <td>
-          {% if l.app_key is defined and l.instance_index is defined %}
+          {% if l.app_key and l.instance_index is not none %}
             <a href="/ui/apps/{{ l.app_key }}/{{ l.instance_index }}" @click.stop><code>{{ l.app_key }}</code></a>
-          {% elif l.app_key is defined %}
+          {% elif l.app_key %}
             <a href="/ui/apps/{{ l.app_key }}" @click.stop><code>{{ l.app_key }}</code></a>
           {% else %}
-            <code>{{ l.get('owner', '') }}</code>
+            <code>{{ l.get('app_key', '') }}</code>
           {% endif %}
         </td>
         <td>

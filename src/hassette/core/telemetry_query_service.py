@@ -77,10 +77,10 @@ class TelemetryQueryService(Resource):
                 SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError'
                     THEN 1 ELSE 0 END) AS di_failures,
                 SUM(CASE WHEN hi.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
-                SUM(hi.duration_ms) AS total_duration_ms,
-                AVG(hi.duration_ms) AS avg_duration_ms,
-                MIN(hi.duration_ms) AS min_duration_ms,
-                MAX(hi.duration_ms) AS max_duration_ms,
+                COALESCE(SUM(hi.duration_ms), 0.0) AS total_duration_ms,
+                COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
+                COALESCE(MIN(hi.duration_ms), 0.0) AS min_duration_ms,
+                COALESCE(MAX(hi.duration_ms), 0.0) AS max_duration_ms,
                 MAX(hi.execution_start_ts) AS last_invoked_at,
                 last_err.error_type AS last_error_type,
                 last_err.error_message AS last_error_message
@@ -128,7 +128,7 @@ class TelemetryQueryService(Resource):
                 SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS failed,
                 MAX(je.execution_start_ts) AS last_executed_at,
-                AVG(je.duration_ms) AS avg_duration_ms
+                COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
             FROM scheduled_jobs sj
             LEFT JOIN job_executions je ON {join_condition}
             WHERE sj.app_key = ? AND sj.instance_index = ?

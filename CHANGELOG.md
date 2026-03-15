@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+- App detail and instance detail pages now correctly filter scheduled jobs by `owner_id` instead of `app_key`, so jobs appear in the app detail view (#334)
+- Scheduler and bus page app-filter dropdowns now correctly pass `app_key` to HTMX partials (param name was `owner`, never matched the endpoint) (#334)
+- `ListenerMetricsResponse` now uses `app_key`/`instance_index` fields instead of `owner`, matching the data produced by `TelemetryQueryService` (#334)
 - `DatabaseService` now serializes all SQLite writes through a single-writer queue, eliminating `OperationalError: cannot commit transaction - SQL statements in progress` race conditions at startup (#331, #333)
 - `CommandExecutor` startup crash: `register_listener()`/`register_job()` now wait for `DatabaseService` to be ready before accessing `.db`, and `execute()` no longer raises `RuntimeError` when handlers fire before `_create_session()` completes (#330)
 

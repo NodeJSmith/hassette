@@ -64,9 +64,10 @@ def make_manifest(
 
 def make_listener_metric(
     listener_id: int,
-    owner: str,
+    app_key: str,
     topic: str,
     handler_method: str,
+    instance_index: int = 0,
     invocations: int = 10,
     successful: int = 9,
     failed: int = 1,
@@ -79,7 +80,8 @@ def make_listener_metric(
     """Build a mock listener metric with `.to_dict()` and direct attribute access."""
     d = {
         "listener_id": listener_id,
-        "owner": owner,
+        "app_key": app_key,
+        "instance_index": instance_index,
         "topic": topic,
         "handler_method": handler_method,
         "total_invocations": invocations,

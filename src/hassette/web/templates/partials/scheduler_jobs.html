@@ -4,9 +4,9 @@
       <code>{{ job.name }}</code>
     </td>
     <td>
-      {% if job.app_key is defined and job.instance_index is defined %}
+      {% if job.app_key and job.instance_index is not none %}
         <a href="/ui/apps/{{ job.app_key }}/{{ job.instance_index }}"><code>{{ job.owner }}</code></a>
-      {% elif job.app_key is defined %}
+      {% elif job.app_key %}
         <a href="/ui/apps/{{ job.app_key }}"><code>{{ job.owner }}</code></a>
       {% else %}
         <code>{{ job.owner }}</code>

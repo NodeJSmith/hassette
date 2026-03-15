@@ -14,9 +14,9 @@
                 hx-target="#bus-listeners"
                 hx-swap="innerHTML"
                 hx-include="#bus-owner-filter"
-                name="owner">
+                name="app_key">
           <option value="">All Apps</option>
-          {% for owner in owners %}<option value="{{ owner }}">{{ owner }}</option>{% endfor %}
+          {% for app_key in app_keys %}<option value="{{ app_key }}">{{ app_key }}</option>{% endfor %}
         </select>
       </div>
     </div>

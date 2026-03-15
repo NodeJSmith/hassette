@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, Query
 
-from hassette.web.dependencies import SchedulerDep, TelemetryDep
+from hassette.web.dependencies import SchedulerDep
 from hassette.web.models import JobExecutionResponse, ScheduledJobResponse
 from hassette.web.utils import resolve_trigger
 
@@ -47,11 +47,10 @@ async def get_scheduled_jobs(
 
 @router.get("/scheduler/history", response_model=list[JobExecutionResponse])
 async def get_job_history(
-    telemetry: TelemetryDep,
     limit: Annotated[int, Query(ge=1, le=1000)] = 50,  # noqa: ARG001
-    app_key: Annotated[str | None, Query()] = None,
-    instance_index: Annotated[int, Query()] = 0,
+    app_key: Annotated[str | None, Query()] = None,  # noqa: ARG001
+    instance_index: Annotated[int, Query()] = 0,  # noqa: ARG001
 ) -> list[dict]:
-    if app_key is None:
-        return []
-    return await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index)
+    # Stub: get_job_summary returns per-job aggregates, not per-execution records;
+    # wiring to JobExecutionResponse is deferred to the owner_id cleanup follow-up.
+    return []
