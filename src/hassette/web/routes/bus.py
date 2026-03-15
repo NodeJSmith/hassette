@@ -4,20 +4,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from hassette.web.dependencies import TelemetryDep
+from hassette.web.dependencies import RuntimeDep, TelemetryDep
 from hassette.web.models import BusMetricsSummaryResponse, ListenerMetricsResponse
+from hassette.web.utils import gather_all_listeners
 
 router = APIRouter(tags=["bus"])
 
 
 @router.get("/bus/listeners", response_model=list[ListenerMetricsResponse])
 async def get_listener_metrics(
+    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     app_key: Annotated[str | None, Query()] = None,
     instance_index: Annotated[int, Query()] = 0,
 ) -> list[dict]:
-    if app_key is None:
-        return []
+    if not app_key:
+        return await gather_all_listeners(runtime, telemetry)
     return await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
 
 

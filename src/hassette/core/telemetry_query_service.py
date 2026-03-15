@@ -74,7 +74,7 @@ class TelemetryQueryService(Resource):
                 COUNT(hi.rowid) AS total_invocations,
                 SUM(CASE WHEN hi.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS failed,
-                SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError'
+                SUM(CASE WHEN hi.status = 'error' AND hi.error_type LIKE 'Dependency%'
                     THEN 1 ELSE 0 END) AS di_failures,
                 SUM(CASE WHEN hi.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
                 COALESCE(SUM(hi.duration_ms), 0.0) AS total_duration_ms,
@@ -150,7 +150,7 @@ class TelemetryQueryService(Resource):
                     COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
                     COUNT(hi.rowid) AS total_invocations,
                     SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
-                    SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError'
+                    SUM(CASE WHEN hi.status = 'error' AND hi.error_type LIKE 'Dependency%'
                         THEN 1 ELSE 0 END) AS total_di_failures,
                     AVG(hi.duration_ms) AS avg_duration_ms
                 FROM handler_invocations hi
@@ -174,7 +174,7 @@ class TelemetryQueryService(Resource):
                     COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
                     COUNT(hi.rowid) AS total_invocations,
                     SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
-                    SUM(CASE WHEN hi.status = 'error' AND hi.error_type = 'DependencyError'
+                    SUM(CASE WHEN hi.status = 'error' AND hi.error_type LIKE 'Dependency%'
                         THEN 1 ELSE 0 END) AS total_di_failures,
                     AVG(hi.duration_ms) AS avg_duration_ms
                 FROM handler_invocations hi

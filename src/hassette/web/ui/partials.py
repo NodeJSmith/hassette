@@ -6,6 +6,7 @@ from starlette.responses import HTMLResponse
 from hassette.web.dependencies import RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.ui import templates
 from hassette.web.ui.context import alert_context, job_to_dict
+from hassette.web.utils import gather_all_listeners
 
 router = APIRouter()
 
@@ -59,7 +60,7 @@ async def scheduler_jobs_partial(
     instance_index: int = 0,
 ) -> HTMLResponse:
     all_scheduler_jobs = await scheduler.get_all_jobs()
-    if app_key is not None:
+    if app_key:
         # TODO: j.owner stores owner_id (unique_name), not app_key — filter never matches.
         # Deferred to the owner_id cleanup follow-up issue.
         jobs = [
@@ -92,14 +93,15 @@ async def scheduler_history_partial(
 @router.get("/partials/bus-listeners", response_class=HTMLResponse)
 async def bus_listeners_partial(
     request: Request,
+    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     app_key: str | None = None,
     instance_index: int = 0,
 ) -> HTMLResponse:
-    if app_key is not None:
+    if app_key:
         listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
     else:
-        listeners = []
+        listeners = await gather_all_listeners(runtime, telemetry)
     return templates.TemplateResponse(
         request,
         "partials/bus_listeners.html",

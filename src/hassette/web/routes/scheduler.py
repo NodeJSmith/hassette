@@ -40,7 +40,7 @@ async def get_scheduled_jobs(
     instance_index: Annotated[int, Query()] = 0,  # noqa: ARG001 — stub until scheduler exposes instance-aware job listing
 ) -> list[dict]:
     jobs = await scheduler.get_all_jobs()
-    if app_key is not None:
+    if app_key:
         jobs = [j for j in jobs if j.owner == app_key]
     return [_job_to_dict(j) for j in jobs]
 
