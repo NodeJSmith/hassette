@@ -1,4 +1,4 @@
-"""Integration tests for AppFactory and AppLifecycleManager."""
+"""Integration tests for AppFactory and AppLifecycleService."""
 
 from pathlib import Path
 
@@ -7,7 +7,7 @@ import pytest
 from hassette import Hassette
 from hassette.config.classes import AppManifest
 from hassette.core.app_factory import AppFactory
-from hassette.core.app_lifecycle import AppLifecycleManager
+from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppInstanceInfo, AppRegistry
 from hassette.types.enums import ResourceStatus
 from hassette.utils import app_utils
@@ -41,9 +41,9 @@ def app_factory(hassette_with_app_handler: Hassette, app_registry: AppRegistry) 
 
 
 @pytest.fixture
-def app_lifecycle(hassette_with_app_handler: Hassette, app_registry: AppRegistry) -> AppLifecycleManager:
-    """Create an AppLifecycleManager with real Hassette instance."""
-    return AppLifecycleManager(hassette_with_app_handler, app_registry)
+def app_lifecycle(hassette_with_app_handler: Hassette, app_registry: AppRegistry) -> AppLifecycleService:
+    """Create an AppLifecycleService with real Hassette instance."""
+    return AppLifecycleService(hassette_with_app_handler, parent=None, registry=app_registry)
 
 
 def make_manifest(
@@ -219,11 +219,11 @@ class TestAppFactoryIntegration:
         assert first_class is not second_class
 
 
-class TestAppLifecycleManagerIntegration:
-    """Integration tests for AppLifecycleManager with real app instances."""
+class TestAppLifecycleServiceIntegration:
+    """Integration tests for AppLifecycleService with real app instances."""
 
     async def test_lifecycle_initializes_real_app(
-        self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Calls real on_initialize() hook."""
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
@@ -239,7 +239,7 @@ class TestAppLifecycleManagerIntegration:
         assert app_instance.status == ResourceStatus.RUNNING
 
     async def test_lifecycle_marks_app_ready(
-        self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """App status transitions to RUNNING after init."""
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
@@ -258,7 +258,7 @@ class TestAppLifecycleManagerIntegration:
         assert app_instance.status == ResourceStatus.RUNNING
 
     async def test_lifecycle_initializes_multiple_instances(
-        self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """All instances in dict get initialized."""
         manifest = make_manifest(
@@ -282,7 +282,7 @@ class TestAppLifecycleManagerIntegration:
         assert app_registry.apps["multi_instance"][1].status == ResourceStatus.RUNNING
 
     async def test_lifecycle_handles_init_exception(
-        self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """App raising in on_initialize() is caught."""
         manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
@@ -302,7 +302,7 @@ class TestAppLifecycleManagerIntegration:
         )
 
     async def test_lifecycle_records_exception_failure(
-        self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Exception recorded in registry."""
         manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
@@ -325,7 +325,7 @@ class TestAppLifecycleManagerIntegration:
         """Other instances still initialize after one fails."""
         # Create a custom setup with one failing and one succeeding app
         factory = AppFactory(hassette_with_app_handler, app_registry)
-        lifecycle = AppLifecycleManager(hassette_with_app_handler, app_registry)
+        lifecycle = AppLifecycleService(hassette_with_app_handler, parent=None, registry=app_registry)
 
         # Create failing app first
         failing_manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
@@ -354,7 +354,7 @@ class TestAppLifecycleManagerIntegration:
         assert app_registry.get("multi_instance", 0).status == ResourceStatus.RUNNING
 
     async def test_lifecycle_shuts_down_real_app(
-        self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Calls real shutdown() and cleanup() methods."""
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
@@ -371,7 +371,7 @@ class TestAppLifecycleManagerIntegration:
         await app_lifecycle.shutdown_instance(app_instance)
 
     async def test_lifecycle_shutdown_all_clears_registry(
-        self, app_factory: AppFactory, app_lifecycle: AppLifecycleManager, app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """After shutdown_all, registry is empty."""
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
@@ -396,7 +396,7 @@ class TestFullIntegrationFlow:
     ):
         """Factory creates, lifecycle initializes, app runs."""
         factory = AppFactory(hassette_with_app_handler, app_registry)
-        lifecycle = AppLifecycleManager(hassette_with_app_handler, app_registry)
+        lifecycle = AppLifecycleService(hassette_with_app_handler, parent=None, registry=app_registry)
 
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
         app_registry.set_manifests({"multi_instance": manifest})
@@ -417,7 +417,7 @@ class TestFullIntegrationFlow:
     async def test_full_flow_with_registry_state(self, hassette_with_app_handler: Hassette, app_registry: AppRegistry):
         """Verify registry state at each step."""
         factory = AppFactory(hassette_with_app_handler, app_registry)
-        lifecycle = AppLifecycleManager(hassette_with_app_handler, app_registry)
+        lifecycle = AppLifecycleService(hassette_with_app_handler, parent=None, registry=app_registry)
 
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
         app_registry.set_manifests({"multi_instance": manifest})
@@ -443,7 +443,7 @@ class TestFullIntegrationFlow:
     async def test_full_flow_multiple_apps(self, hassette_with_app_handler: Hassette, app_registry: AppRegistry):
         """Multiple app types created and initialized together."""
         factory = AppFactory(hassette_with_app_handler, app_registry)
-        lifecycle = AppLifecycleManager(hassette_with_app_handler, app_registry)
+        lifecycle = AppLifecycleService(hassette_with_app_handler, parent=None, registry=app_registry)
 
         manifest1 = make_manifest(
             "multi1",
@@ -475,7 +475,7 @@ class TestFullIntegrationFlow:
     async def test_snapshot_shows_running_apps(self, hassette_with_app_handler: Hassette, app_registry: AppRegistry):
         """Running apps appear in snapshot.running."""
         factory = AppFactory(hassette_with_app_handler, app_registry)
-        lifecycle = AppLifecycleManager(hassette_with_app_handler, app_registry)
+        lifecycle = AppLifecycleService(hassette_with_app_handler, parent=None, registry=app_registry)
 
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
         app_registry.set_manifests({"multi_instance": manifest})
@@ -491,7 +491,7 @@ class TestFullIntegrationFlow:
     async def test_snapshot_shows_failed_apps(self, hassette_with_app_handler: Hassette, app_registry: AppRegistry):
         """Failed apps appear in snapshot.failed."""
         factory = AppFactory(hassette_with_app_handler, app_registry)
-        lifecycle = AppLifecycleManager(hassette_with_app_handler, app_registry)
+        lifecycle = AppLifecycleService(hassette_with_app_handler, parent=None, registry=app_registry)
 
         manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
         app_registry.set_manifests({"failing": manifest})
