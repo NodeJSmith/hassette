@@ -419,8 +419,9 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
         # db_id should be set by the background task (mock returns 0)
         assert listener.db_id == 0
     finally:
-        # Clean up: remove app_key so other tests using this module-scoped fixture aren't affected
+        # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
         bus.parent.app_key = ""  # type: ignore[union-attr]
+        bus.parent.index = 0  # type: ignore[union-attr]
 
 
 async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hassette") -> None:

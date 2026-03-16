@@ -134,8 +134,9 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) ->
 
         scheduled_job.cancel()
     finally:
-        # Clean up: remove app_key so other tests using this module-scoped fixture aren't affected
+        # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
         scheduler.parent.app_key = ""  # type: ignore[union-attr]
+        scheduler.parent.index = 0  # type: ignore[union-attr]
 
 
 async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> None:
