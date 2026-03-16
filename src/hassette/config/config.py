@@ -248,6 +248,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     service_restart_backoff_multiplier: float = Field(default=2.0)
     """Multiplier applied to the backoff delay after each failed restart attempt."""
 
+    service_restart_readiness_timeout_seconds: float = Field(default=10.0)
+    """Seconds to wait for a restarted service to call mark_ready() after reaching RUNNING."""
+
     default_cache_size: int = Field(default=100 * 1024 * 1024)
     """Default size limit for caches in bytes. Defaults to 100 MiB."""
 

@@ -175,7 +175,7 @@ class ServiceWatcher(Resource):
             raise
 
     async def _on_service_running(self, event: HassetteServiceEvent) -> None:
-        """Reset restart attempt counter when a service transitions to RUNNING."""
+        """Reset restart attempt counter when a service transitions to RUNNING and becomes ready."""
         data = event.payload.data
         name = data.resource_name
         role = data.role
@@ -184,9 +184,31 @@ class ServiceWatcher(Resource):
             return
 
         key = self._service_key(name, role)
-        if key in self._restart_attempts:
-            self.logger.debug("%s '%s' is running, resetting restart counter", role, name)
-            self._restart_attempts.pop(key)
+        if key not in self._restart_attempts:
+            return
+
+        # Find the service to verify it actually becomes ready (not just RUNNING)
+        service = next(
+            (c for c in self.hassette.children if c.class_name == name and c.role == role),
+            None,
+        )
+        if service is None:
+            return
+
+        readiness_timeout = self.hassette.config.service_restart_readiness_timeout_seconds
+        try:
+            await service.wait_ready(timeout=readiness_timeout)
+        except TimeoutError:
+            self.logger.warning(
+                "%s '%s' reached RUNNING but did not become ready within %.1fs",
+                role,
+                name,
+                readiness_timeout,
+            )
+            return
+
+        self.logger.debug("%s '%s' is running and ready, resetting restart counter", role, name)
+        self._restart_attempts.pop(key, None)
 
     def _register_internal_event_listeners(self) -> None:
         """Register internal event listeners for resource lifecycle."""

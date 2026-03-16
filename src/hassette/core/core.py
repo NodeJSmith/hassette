@@ -92,6 +92,7 @@ class Hassette(Resource):
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
+        self._session_lock = asyncio.Lock()
 
         # private background services
         self._database_service = self.add_child(DatabaseService)
@@ -267,7 +268,7 @@ class Hassette(Resource):
         """Send an event to the event bus."""
         await self._send_stream.send((event_name, event))
 
-    async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: int | None = None) -> bool:
+    async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
 
         Args:
@@ -406,21 +407,23 @@ class Hassette(Resource):
 
         Called via Bus subscription when any service reaches CRASHED status.
         Sets ``_session_error`` so ``_finalize_session()`` preserves the failure status.
+        Acquires ``_session_lock`` to coordinate with ``_finalize_session()``.
         """
-        data = event.payload.data
-        if self._session_id is None:
-            self.logger.warning("Cannot record crash — no active session")
-            return
+        async with self._session_lock:
+            data = event.payload.data
+            if self._session_id is None:
+                self.logger.warning("Cannot record crash — no active session")
+                return
 
-        try:
-            _ = self._database_service.db
-        except RuntimeError:
-            self.logger.warning("Cannot record crash — database not initialized")
-            return
+            try:
+                _ = self._database_service.db
+            except RuntimeError:
+                self.logger.warning("Cannot record crash — database not initialized")
+                return
 
-        self._session_error = True
-        self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
-        self._database_service.enqueue(Hassette._do_on_service_crashed(self, event))
+            self._session_error = True
+            self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
+            self._database_service.enqueue(Hassette._do_on_service_crashed(self, event))
 
     async def _do_on_service_crashed(self, event: HassetteServiceEvent) -> None:
         """Execute the crash UPDATE; called by the write-queue worker."""
@@ -441,17 +444,19 @@ class Hassette(Resource):
 
         If ``_session_error`` is True, a CRASHED event already wrote failure
         details — only set timestamps.  Otherwise write ``success``.
+        Acquires ``_session_lock`` to coordinate with ``_on_service_crashed()``.
         """
-        if self._session_id is None:
-            return
+        async with self._session_lock:
+            if self._session_id is None:
+                return
 
-        try:
-            _ = self._database_service.db
-        except RuntimeError:
-            self.logger.warning("Cannot finalize session — database not initialized")
-            return
+            try:
+                _ = self._database_service.db
+            except RuntimeError:
+                self.logger.warning("Cannot finalize session — database not initialized")
+                return
 
-        await self._database_service.submit(Hassette._do_finalize_session(self))
+            await self._database_service.submit(Hassette._do_finalize_session(self))
 
     async def _do_finalize_session(self) -> None:
         """Execute the finalize UPDATE; called by the write-queue worker."""

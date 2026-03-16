@@ -254,3 +254,58 @@ async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hasset
 
     hassette_instance._bus.remove_all_listeners.assert_awaited_once()
     hassette_instance._finalize_session.assert_awaited_once()
+
+
+async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: Hassette) -> None:
+    """_on_service_crashed and _finalize_session coordinate via _session_lock.
+
+    Verifies that concurrent crash recording and session finalization don't
+    interleave — the lock forces one to complete before the other starts.
+    """
+    hassette_instance._session_id = 42
+    hassette_instance._session_error = False
+
+    call_order: list[str] = []
+    crash_holding_lock = asyncio.Event()
+    crash_may_release = asyncio.Event()
+
+    async def slow_crash(_event: typing.Any) -> None:
+        """Simulate crash handler that holds the lock while doing slow work."""
+        async with hassette_instance._session_lock:
+            call_order.append("crash_acquired")
+            crash_holding_lock.set()
+            await crash_may_release.wait()  # hold lock until test says release
+            call_order.append("crash_released")
+
+    hassette_instance._database_service = Mock()
+    hassette_instance._database_service.db = Mock()
+
+    submit_calls: list[str] = []
+
+    async def tracking_submit(coro: typing.Any) -> None:
+        """Track when finalize's submit actually executes, then consume the coroutine."""
+        submit_calls.append("submit")
+        await coro
+
+    hassette_instance._database_service.submit = tracking_submit
+
+    crash_event = Mock()
+
+    # Start crash first, wait for it to hold the lock
+    crash_task = asyncio.create_task(slow_crash(crash_event))
+    await crash_holding_lock.wait()
+
+    # Start finalize — it should block on the lock
+    finalize_task = asyncio.create_task(hassette_instance._finalize_session())
+    await asyncio.sleep(0.01)  # give finalize a chance to acquire lock
+
+    # Finalize should NOT have called submit yet (crash holds the lock)
+    assert submit_calls == [], f"Finalize ran while crash held the lock: {submit_calls}"
+
+    # Release the crash lock
+    crash_may_release.set()
+    await asyncio.gather(crash_task, finalize_task)
+
+    # Now finalize should have completed
+    assert submit_calls == ["submit"], f"Finalize should have called submit after crash released: {submit_calls}"
+    assert call_order == ["crash_acquired", "crash_released"]
