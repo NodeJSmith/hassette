@@ -150,6 +150,7 @@ class TestApiSchedulerJobsFiltersByAppKey:
         names = [j["name"] for j in data]
         assert "my_app_job_i1" in names
         assert "my_app_job_i0" not in names
+        assert "other_job" not in names
 
     async def test_response_uses_owner_id_field(self, client: "AsyncClient") -> None:
         response = await client.get("/api/scheduler/jobs")
