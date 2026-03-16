@@ -6,21 +6,16 @@ AppLifecycleService (a Resource child).
 
 import typing
 from logging import getLogger
-from pathlib import Path
 
-import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry, AppStatusSnapshot
-from hassette.events.hassette import HassetteSimpleEvent
 from hassette.resources.base import Resource
 from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
     from hassette.app.app import App
-    from hassette.config.classes import AppManifest
-    from hassette.core.app_change_detector import AppChangeDetector
 
 LOGGER = getLogger(__name__)
 
@@ -81,7 +76,7 @@ class AppHandler(Resource):
             if self.hassette.config.allow_reload_in_prod:
                 self.logger.warning("Allowing app reloads in production mode due to config")
             self.logger.debug("Watching for app changes...")
-            self.lifecycle.bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=self.handle_change_event)
+            self.lifecycle.bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=self.lifecycle.handle_change_event)
         else:
             self.logger.debug("Not watching for app changes, dev_mode is disabled")
 
@@ -134,55 +129,3 @@ class AppHandler(Resource):
     async def apply_changes(self, changes: ChangeSet) -> None:
         """Apply detected changes — delegates to lifecycle service."""
         await self.lifecycle.apply_changes(changes)
-
-    async def handle_change_event(
-        self,
-        changed_file_paths: typing.Annotated[
-            frozenset[Path] | None, A.get_path("payload.data.changed_file_paths")
-        ] = None,
-    ) -> None:
-        """Handle changes detected by the watcher.
-
-        Kept as a full implementation (not thin delegation) so that test patches
-        on ``self.refresh_config`` and ``self.change_detector`` are honored.
-        """
-        self.logger.debug("Handling app change event for files: %s", changed_file_paths)
-
-        original_apps_config, curr_apps_config = await self.refresh_config()
-        await self.lifecycle.resolve_only_app(changed_file_paths)
-
-        changes = self.change_detector.detect_changes(original_apps_config, curr_apps_config, changed_file_paths)
-
-        # Reconcile blocked apps — start any that were unblocked
-        unblocked = self.lifecycle.reconcile_blocked_apps()
-        to_start = unblocked - set(self.registry.apps.keys()) - changes.new_apps - changes.reimport_apps
-        if to_start:
-            self.logger.debug("Starting previously-blocked apps: %s", to_start)
-            changes = ChangeSet(
-                orphans=changes.orphans,
-                new_apps=changes.new_apps | frozenset(to_start),
-                reimport_apps=changes.reimport_apps,
-                reload_apps=changes.reload_apps - to_start,
-            )
-
-        if not changes.has_changes:
-            self.logger.debug("%s changed but no app changes detected", changed_file_paths)
-            return
-
-        self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)
-
-        await self.apply_changes(changes)
-
-        await self.hassette.send_event(
-            Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-            HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
-        )
-
-    async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
-        """Reload configuration — delegates to lifecycle service."""
-        return await self.lifecycle.refresh_config()
-
-    @property
-    def change_detector(self) -> "AppChangeDetector":
-        """Expose change detector from lifecycle service for backward compatibility."""
-        return self.lifecycle.change_detector

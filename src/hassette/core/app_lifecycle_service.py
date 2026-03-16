@@ -13,6 +13,7 @@ from timeit import default_timer as timer
 
 import anyio
 
+import hassette.event_handling.accessors as A
 from hassette.bus import Bus
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
@@ -373,6 +374,48 @@ class AppLifecycleService(Resource):
         for app_key in changes.new_apps:
             self.logger.debug("Starting new app %s", app_key)
             await self.start_app(app_key)
+
+    async def handle_change_event(
+        self,
+        changed_file_paths: typing.Annotated[
+            frozenset[Path] | None, A.get_path("payload.data.changed_file_paths")
+        ] = None,
+    ) -> None:
+        """Handle changes detected by the file watcher.
+
+        Called as a Bus event handler with DI-injected ``changed_file_paths``.
+        """
+        self.logger.debug("Handling app change event for files: %s", changed_file_paths)
+
+        original_apps_config, curr_apps_config = await self.refresh_config()
+        await self.resolve_only_app(changed_file_paths)
+
+        changes = self.change_detector.detect_changes(original_apps_config, curr_apps_config, changed_file_paths)
+
+        # Reconcile blocked apps — start any that were unblocked
+        unblocked = self.reconcile_blocked_apps()
+        to_start = unblocked - set(self.registry.apps.keys()) - changes.new_apps - changes.reimport_apps
+        if to_start:
+            self.logger.debug("Starting previously-blocked apps: %s", to_start)
+            changes = ChangeSet(
+                orphans=changes.orphans,
+                new_apps=changes.new_apps | frozenset(to_start),
+                reimport_apps=changes.reimport_apps,
+                reload_apps=changes.reload_apps - to_start,
+            )
+
+        if not changes.has_changes:
+            self.logger.debug("%s changed but no app changes detected", changed_file_paths)
+            return
+
+        self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)
+
+        await self.apply_changes(changes)
+
+        await self.hassette.send_event(
+            Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+            HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+        )
 
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
         """Reload the configuration and return (original_apps_config, current_apps_config)."""
