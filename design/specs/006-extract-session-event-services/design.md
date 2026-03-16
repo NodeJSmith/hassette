@@ -75,13 +75,13 @@ self._session_manager = self.add_child(SessionManager, database_service=self._da
 
 ### Phase 2: EventStreamService (`src/hassette/core/event_stream_service.py`)
 
-`EventStreamService` is a `Resource` (no `serve()` loop needed — the streams are synchronously created and the lifecycle is pure `on_shutdown` teardown).
+`EventStreamService` is a `Resource` (no `serve()` loop needed — the streams are synchronously created). Stream teardown is handled by an explicit `close_streams()` method called by `Hassette.on_shutdown()` after all children have stopped (children send STOPPED status events during shutdown, so streams must stay open until then).
 
 **Code extracted from `core.py`:**
 - Stream creation: `create_memory_object_stream[tuple[str, Event[Any]]](buffer_size)` — buffer size now reads from `hassette.config.hassette_event_buffer_size`
 - `send_event(event_name, event)` method
 - `event_streams_closed` property
-- Stream teardown in `on_shutdown()`
+- Stream teardown via `close_streams()` (called by `Hassette.on_shutdown()` after children gather)
 
 **Service shape:**
 ```python
@@ -102,7 +102,8 @@ class EventStreamService(Resource):
     def event_streams_closed(self) -> bool:
         return self._send_stream._closed and self._receive_stream._closed
 
-    async def on_shutdown(self) -> None:
+    async def close_streams(self) -> None:
+        """Called by Hassette.on_shutdown() after all children have stopped."""
         await self._send_stream.aclose()
         await self._receive_stream.aclose()
 ```
@@ -125,7 +126,7 @@ self._bus_service = self.add_child(
 - `_send_stream` and `_receive_stream` instance variables removed
 - `event_streams_closed` delegates: `return self._event_stream_service.event_streams_closed`
 - `send_event()` delegates: `await self._event_stream_service.send_event(event_name, event)`
-- Stream teardown in `on_shutdown()` removed (handled by `EventStreamService.on_shutdown()`)
+- Stream teardown in `on_shutdown()` replaced with `await self._event_stream_service.close_streams()` after the children shutdown gather
 
 **Producer services — no changes.** All 5 producers (`AppHandler`, `WebsocketService`, `FileWatcherService`, `ServiceWatcher`, `AppLifecycleManager`) call `self.hassette.send_event(...)` — the delegating method on Hassette means zero producer changes.
 
