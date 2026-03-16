@@ -348,6 +348,10 @@ class Hassette(Resource):
             else:
                 self.logger.debug("Task completed successfully: %s", result)
 
+        # Close event streams after all children have stopped — children send
+        # STOPPED status events during shutdown, so streams must stay open until then.
+        await self._event_stream_service.close_streams()
+
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""
         try:

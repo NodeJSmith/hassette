@@ -33,6 +33,10 @@ class SessionManager(Resource):
         self._session_error: bool = False
         self._session_lock = asyncio.Lock()
 
+    async def on_initialize(self) -> None:
+        """Signal readiness — session creation happens later in run_forever()."""
+        self.mark_ready(reason="SessionManager initialized")
+
     @property
     def session_id(self) -> int:
         """Return the current session ID.

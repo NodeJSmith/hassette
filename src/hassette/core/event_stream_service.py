@@ -30,6 +30,10 @@ class EventStreamService(Resource):
         buffer_size = hassette.config.hassette_event_buffer_size
         self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event[Any]"]](buffer_size)
 
+    async def on_initialize(self) -> None:
+        """Signal readiness — streams are created synchronously in __init__."""
+        self.mark_ready(reason="EventStreamService initialized")
+
     @property
     def receive_stream(self) -> "MemoryObjectReceiveStream[tuple[str, Event[Any]]]":
         """The receive end of the event stream, for BusService to clone."""
@@ -44,7 +48,7 @@ class EventStreamService(Resource):
         """Check if both streams are closed."""
         return self._send_stream._closed and self._receive_stream._closed  # pyright: ignore[reportPrivateUsage]
 
-    async def on_shutdown(self) -> None:
-        """Close both streams."""
+    async def close_streams(self) -> None:
+        """Close both streams. Called by Hassette.on_shutdown() after all children have stopped."""
         await self._send_stream.aclose()
         await self._receive_stream.aclose()

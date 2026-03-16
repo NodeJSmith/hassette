@@ -34,7 +34,7 @@ async def event_stream_service(mock_hassette: MagicMock) -> AsyncIterator[EventS
         yield service
     finally:
         if not service.event_streams_closed:
-            await service.on_shutdown()
+            await service.close_streams()
 
 
 async def test_send_and_receive(event_stream_service: EventStreamService) -> None:
@@ -54,7 +54,7 @@ async def test_event_streams_closed_is_false_initially(event_stream_service: Eve
 
 async def test_shutdown_closes_streams(event_stream_service: EventStreamService) -> None:
     """on_shutdown closes both streams."""
-    await event_stream_service.on_shutdown()
+    await event_stream_service.close_streams()
     assert event_stream_service.event_streams_closed is True
 
 
@@ -83,7 +83,7 @@ async def test_custom_buffer_size() -> None:
         with pytest.raises(asyncio.CancelledError):
             await task
     finally:
-        await service.on_shutdown()
+        await service.close_streams()
 
 
 async def test_default_buffer_size() -> None:
@@ -96,7 +96,7 @@ async def test_default_buffer_size() -> None:
         for i in range(1000):
             await service.send_event(f"topic.{i}", SimpleNamespace(n=i))  # pyright: ignore[reportArgumentType]
     finally:
-        await service.on_shutdown()
+        await service.close_streams()
 
 
 async def test_receive_stream_returns_correct_end(event_stream_service: EventStreamService) -> None:

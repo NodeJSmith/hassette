@@ -41,7 +41,7 @@ async def hassette_instance(test_config: HassetteConfig):
     finally:
         with suppress(Exception):
             if not instance._event_stream_service.event_streams_closed:
-                await instance._event_stream_service.on_shutdown()
+                await instance._event_stream_service.close_streams()
 
         with suppress(Exception):
             if not instance._bus_service.stream._closed:
@@ -97,7 +97,7 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
 async def test_event_streams_closed_reflects_state(hassette_instance: Hassette) -> None:
     """event_streams_closed mirrors the underlying stream lifecycle."""
     assert hassette_instance.event_streams_closed is False, "Streams should start open"
-    await hassette_instance._event_stream_service.on_shutdown()
+    await hassette_instance._event_stream_service.close_streams()
     await asyncio.sleep(0)  # allow state to propagate
     assert hassette_instance.event_streams_closed is True, "Streams should close after aclose"
 

@@ -8,6 +8,24 @@ if typing.TYPE_CHECKING:
 nox.options.default_venv_backend = "uv|virtualenv"
 
 
+@nox.session(python=False)
+def dev(session: "Session"):
+    """Fast local test run — uses the current interpreter, no reinstall."""
+    session.run(
+        "uv",
+        "run",
+        "pytest",
+        "-m",
+        "not docker and not e2e and not smoke",
+        "-n",
+        "auto",
+        "--dist",
+        "loadscope",
+        "--tb=short",
+        external=True,
+    )
+
+
 @nox.session(python=["3.11", "3.12", "3.13"])
 def tests(session: "Session"):
     session.run(
