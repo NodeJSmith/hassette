@@ -71,6 +71,7 @@ def smoke(session: "Session"):
         "-m",
         "smoke",
         "-v",
+        "-x",
         "-n",
         "0",
         "--tb=short",
