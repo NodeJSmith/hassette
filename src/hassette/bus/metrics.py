@@ -16,7 +16,7 @@ class ListenerMetrics:
 
     # Identity
     listener_id: int
-    owner: str
+    owner_id: str
     topic: str
     handler_method: str
 
@@ -87,7 +87,7 @@ class ListenerMetrics:
     def to_dict(self) -> dict[str, Any]:
         return {
             "listener_id": self.listener_id,
-            "owner": self.owner,
+            "owner_id": self.owner_id,
             "topic": self.topic,
             "handler_method": self.handler_method,
             "total_invocations": self.total_invocations,

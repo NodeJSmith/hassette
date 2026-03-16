@@ -39,7 +39,7 @@ class Listener:
     listener_id: int = field(default_factory=next_id, init=False)
     """Unique identifier for the listener instance."""
 
-    owner: str
+    owner_id: str
     """Unique string identifier for the owner of the listener, e.g., a component or integration name."""
 
     topic: str
@@ -53,6 +53,12 @@ class Listener:
 
     predicate: "Predicate | None"
     """Predicate to filter events before invoking the handler."""
+
+    app_key: str = ""
+    """Configuration-level app key for DB registration (e.g., 'my_app'). Empty for non-App owners."""
+
+    instance_index: int = 0
+    """App instance index for DB registration. 0 for non-App owners."""
 
     kwargs: Mapping[str, Any] | None = None
     """Keyword arguments to pass to the handler."""
@@ -90,13 +96,13 @@ class Listener:
         await self.adapter.call(event, **kwargs)
 
     def __repr__(self) -> str:
-        return f"Listener<{self.owner} - {self.handler_short_name}>"
+        return f"Listener<{self.owner_id} - {self.handler_short_name}>"
 
     @classmethod
     def create(
         cls,
         task_bucket: "TaskBucket",
-        owner: str,
+        owner_id: str,
         topic: str,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
@@ -106,6 +112,8 @@ class Listener:
         throttle: float | None = None,
         priority: int = 0,
         logger: Logger = LOGGER,
+        app_key: str = "",
+        instance_index: int = 0,
     ) -> "Listener":
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
@@ -125,7 +133,9 @@ class Listener:
 
         return cls(
             logger=logger,
-            owner=owner,
+            owner_id=owner_id,
+            app_key=app_key,
+            instance_index=instance_index,
             topic=topic,
             orig_handler=handler,
             adapter=adapter,

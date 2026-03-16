@@ -184,9 +184,12 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
+        app_key = getattr(self.parent, "app_key", "") if self.parent else ""
+        instance_index = getattr(self.parent, "index", 0) if self.parent else 0
+
         listener = Listener.create(
             task_bucket=self.task_bucket,
-            owner=self.owner_id,
+            owner_id=self.owner_id,
             topic=topic,
             handler=handler,
             where=where,
@@ -196,6 +199,8 @@ class Bus(Resource):
             throttle=throttle,
             priority=self.priority,
             logger=self.logger,
+            app_key=app_key,
+            instance_index=instance_index,
         )
 
         def unsubscribe() -> None:

@@ -53,7 +53,7 @@ def test_scheduled_job_copies_args_kwargs() -> None:
     kwargs = {"alpha": 99}
 
     job = ScheduledJob(
-        owner="owner",
+        owner_id="owner",
         next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda *a, **kw: None,  # noqa
         args=args,  # type: ignore
@@ -100,28 +100,43 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
 
 
 async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) -> None:
-    """Adding a job triggers register_job() and sets job.db_id."""
+    """Adding a job triggers register_job() and sets job.db_id.
+
+    The scheduler's parent must have app_key set so the job gets a non-empty
+    app_key and triggers DB registration (empty app_key skips registration).
+    """
     db_id = 99
 
-    scheduler_service = hassette_with_scheduler._scheduler_service
-    assert scheduler_service is not None
-    executor = scheduler_service._executor
-    executor.register_job = AsyncMock(return_value=db_id)
+    scheduler = hassette_with_scheduler._scheduler
+    assert scheduler is not None
+    # Set app_key on the scheduler's parent so the job has a non-empty app_key
+    # and triggers DB registration (without this, the guard skips registration).
+    scheduler.parent.app_key = "test_app"  # type: ignore[union-attr]
+    scheduler.parent.index = 0  # type: ignore[union-attr]
+    try:
+        scheduler_service = hassette_with_scheduler._scheduler_service
+        assert scheduler_service is not None
+        executor = scheduler_service._executor
+        executor.register_job = AsyncMock(return_value=db_id)
 
-    job_executed = asyncio.Event()
+        job_executed = asyncio.Event()
 
-    async def target() -> None:
-        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
+        async def target() -> None:
+            hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
-    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.5)
+        scheduled_job = scheduler.run_in(target, delay=0.5)
 
-    # Give the background registration task time to complete
-    await asyncio.sleep(0.1)
+        # Give the background registration task time to complete
+        await asyncio.sleep(0.1)
 
-    assert scheduled_job.db_id is not None, "job.db_id should be set after registration"
-    assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
+        assert scheduled_job.db_id is not None, "job.db_id should be set after registration"
+        assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
 
-    scheduled_job.cancel()
+        scheduled_job.cancel()
+    finally:
+        # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
+        scheduler.parent.app_key = ""  # type: ignore[union-attr]
+        scheduler.parent.index = 0  # type: ignore[union-attr]
 
 
 async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> None:
@@ -151,3 +166,30 @@ async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> N
     actual = set(execution_order[:2])
     expected = {"early", "late"}
     assert actual == expected, f"Expected {expected}, got {actual}"
+
+
+def test_scheduled_job_has_app_key_and_instance_index() -> None:
+    """Create a ScheduledJob with app_key and instance_index, verify fields are set."""
+    job = ScheduledJob(
+        owner_id="MyApp.MyApp.0",
+        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
+        job=lambda: None,
+        app_key="my_app",
+        instance_index=2,
+    )
+
+    assert job.app_key == "my_app"
+    assert job.instance_index == 2
+    assert job.owner_id == "MyApp.MyApp.0"
+
+
+def test_scheduled_job_defaults_empty_app_key() -> None:
+    """Create a ScheduledJob without app_key, verify it defaults to empty string."""
+    job = ScheduledJob(
+        owner_id="test",
+        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
+        job=lambda: None,
+    )
+
+    assert job.app_key == ""
+    assert job.instance_index == 0

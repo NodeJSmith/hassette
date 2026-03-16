@@ -98,7 +98,7 @@ class LogEntryResponse(BaseModel):
 class ScheduledJobResponse(BaseModel):
     job_id: int
     name: str
-    owner: str
+    owner_id: str
     next_run: str
     repeat: bool
     cancelled: bool
@@ -109,7 +109,7 @@ class ScheduledJobResponse(BaseModel):
 class JobExecutionResponse(BaseModel):
     job_id: int
     job_name: str
-    owner: str
+    owner_id: str
     started_at: float
     duration_ms: float
     status: str

@@ -80,11 +80,17 @@ class BusService(Service):
 
     def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Add a listener to the bus."""
+        if listener.app_key:
+            self._register_listener_to_db(listener)
+        return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
+
+    def _register_listener_to_db(self, listener: "Listener") -> None:
+        """Create a ListenerRegistration and spawn a background task to persist it."""
         now = time.time()
         source_location, registration_source = capture_registration_source()
         reg = ListenerRegistration(
-            app_key=listener.owner,
-            instance_index=0,
+            app_key=listener.app_key,
+            instance_index=listener.instance_index,
             handler_method=listener.handler_name,
             topic=listener.topic,
             debounce=listener.adapter.rate_limiter.debounce if listener.adapter.rate_limiter else None,
@@ -98,7 +104,6 @@ class BusService(Service):
             last_registered_at=now,
         )
         self.task_bucket.spawn(self._register_listener_async(listener, reg))
-        return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
     async def _register_listener_async(self, listener: "Listener", reg: ListenerRegistration) -> None:
         """Background task: register listener in DB and set its db_id."""
@@ -330,7 +335,7 @@ class Router:
             else:
                 self.exact[topic].append(listener)
 
-            self.owners[listener.owner].append(listener)
+            self.owners[listener.owner_id].append(listener)
 
     async def remove_route(self, topic: str, predicate: Callable[["Listener"], bool]) -> None:
         """Remove a listener from the appropriate route based on whether it contains glob characters.
@@ -366,7 +371,7 @@ class Router:
 
             removed_by_owner: dict[str, set[int]] = defaultdict(set)
             for listener in removed:
-                removed_by_owner[listener.owner].add(listener.listener_id)
+                removed_by_owner[listener.owner_id].add(listener.listener_id)
 
             for owner, removed_ids in removed_by_owner.items():
                 owner_listeners = self.owners.get(owner)
@@ -463,7 +468,7 @@ class Router:
                 if not listeners:
                     continue
 
-                remaining = [listener for listener in listeners if listener.owner != owner]
+                remaining = [listener for listener in listeners if listener.owner_id != owner]
                 if remaining:
                     bucket[topic] = remaining
                 else:

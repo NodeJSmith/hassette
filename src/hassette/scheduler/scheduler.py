@@ -226,8 +226,11 @@ class Scheduler(Resource):
             The scheduled job.
         """
 
+        app_key = getattr(self.parent, "app_key", "") if self.parent else ""
+        instance_index = getattr(self.parent, "index", 0) if self.parent else 0
+
         job = ScheduledJob(
-            owner=self.owner_id,
+            owner_id=self.owner_id,
             next_run=run_at,
             job=func,
             trigger=trigger,
@@ -235,6 +238,8 @@ class Scheduler(Resource):
             name=name,
             args=tuple(args) if args else (),
             kwargs=dict(kwargs) if kwargs else {},
+            app_key=app_key,
+            instance_index=instance_index,
         )
         return self.add_job(job, if_exists=if_exists)
 

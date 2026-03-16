@@ -15,7 +15,7 @@ def job_to_dict(job: "ScheduledJob", app_key: str | None = None, instance_index:
     trigger_type, trigger_detail = resolve_trigger(job)
     return {
         "name": job.name,
-        "owner": job.owner,
+        "owner_id": job.owner_id,
         "app_key": app_key,
         "instance_index": instance_index,
         "next_run": str(job.next_run),

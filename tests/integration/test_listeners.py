@@ -272,7 +272,7 @@ class TestListenerIntegration:
 
         listener = Listener.create(
             task_bucket=bucket_fixture,
-            owner="test",
+            owner_id="test",
             topic="test_topic",
             handler=handler,
             debounce=0.1,
@@ -298,7 +298,7 @@ class TestListenerIntegration:
 
         listener = Listener.create(
             task_bucket=bucket_fixture,
-            owner="test",
+            owner_id="test",
             topic="test_topic",
             handler=handler,
             throttle=0.1,
@@ -328,7 +328,7 @@ class TestListenerIntegration:
 
         listener = Listener.create(
             task_bucket=bucket_fixture,
-            owner="test",
+            owner_id="test",
             topic="test_topic",
             handler=handler,
         )
@@ -349,7 +349,7 @@ class TestListenerIntegration:
         with pytest.raises(ValueError, match="Cannot specify both 'debounce' and 'throttle'"):
             Listener.create(
                 task_bucket=bucket_fixture,
-                owner="test",
+                owner_id="test",
                 topic="test_topic",
                 handler=handler,
                 debounce=0.1,
@@ -451,3 +451,42 @@ class TestDependencyValidationErrors:
             await adapter.call(event)
 
         assert len(calls) == 0
+
+
+class TestListenerAppKeyAndInstanceIndex:
+    """Test app_key and instance_index fields on Listener."""
+
+    async def test_listener_has_app_key_and_instance_index(self, bucket_fixture: TaskBucket) -> None:
+        """Create a Listener via Listener.create() with explicit app_key and instance_index."""
+
+        def handler(event: MockEvent) -> None:
+            pass
+
+        listener = Listener.create(
+            task_bucket=bucket_fixture,
+            owner_id="MyApp.MyApp.0",
+            topic="test_topic",
+            handler=handler,
+            app_key="my_app",
+            instance_index=1,
+        )
+
+        assert listener.app_key == "my_app"
+        assert listener.instance_index == 1
+        assert listener.owner_id == "MyApp.MyApp.0"
+
+    async def test_listener_defaults_empty_app_key(self, bucket_fixture: TaskBucket) -> None:
+        """Create a Listener without app_key, verify it defaults to empty string."""
+
+        def handler(event: MockEvent) -> None:
+            pass
+
+        listener = Listener.create(
+            task_bucket=bucket_fixture,
+            owner_id="test",
+            topic="test_topic",
+            handler=handler,
+        )
+
+        assert listener.app_key == ""
+        assert listener.instance_index == 0

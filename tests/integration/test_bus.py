@@ -391,22 +391,37 @@ async def test_attribute_change_handles_globs(
 
 
 async def test_listener_registration_spawns_background_task(hassette_with_bus: "Hassette") -> None:
-    """Listener registration spawns a background task to persist the listener via executor."""
+    """Listener registration spawns a background task to persist the listener via executor.
+
+    The Bus parent must have app_key set so the listener has a non-empty app_key
+    and triggers DB registration (empty app_key skips registration).
+    """
     hassette = hassette_with_bus
 
-    def handler(event: Event) -> None:
-        pass
+    # Set app_key on the Bus's parent so the listener triggers DB registration
+    bus = hassette._bus
+    assert bus is not None
+    bus.parent.app_key = "test_app"  # type: ignore[union-attr]
+    bus.parent.index = 0  # type: ignore[union-attr]
+    try:
 
-    subscription = hassette._bus.on_state_change("sensor.eager_test", handler=handler)
-    listener = subscription.listener
+        def handler(event: Event) -> None:
+            pass
 
-    # Allow the add_listener registration task to complete
-    await asyncio.sleep(0.05)
+        subscription = bus.on_state_change("sensor.eager_test", handler=handler)
+        listener = subscription.listener
 
-    # The mock executor's register_listener should have been called
-    hassette._bus_service._executor.register_listener.assert_called()
-    # db_id should be set by the background task (mock returns 0)
-    assert listener.db_id == 0
+        # Allow the add_listener registration task to complete
+        await asyncio.sleep(0.05)
+
+        # The mock executor's register_listener should have been called
+        hassette._bus_service._executor.register_listener.assert_called()
+        # db_id should be set by the background task (mock returns 0)
+        assert listener.db_id == 0
+    finally:
+        # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
+        bus.parent.app_key = ""  # type: ignore[union-attr]
+        bus.parent.index = 0  # type: ignore[union-attr]
 
 
 async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hassette") -> None:
