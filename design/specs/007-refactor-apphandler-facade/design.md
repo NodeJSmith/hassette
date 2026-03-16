@@ -28,11 +28,13 @@ Additionally, the identity model incident (issues #335-337) demonstrated that ap
 
 Create `AppLifecycleService(Resource)` as a child of AppHandler. It absorbs:
 1. All methods from the current `AppLifecycleManager` class (folded in, not preserved as internal class)
-2. Implementation methods from AppHandler: `bootstrap_apps`, `start_app`, `stop_app`, `reload_app`, `start_apps`, `apply_changes`, `handle_change_event`, `refresh_config`, `_resolve_only_app`, `_update_only_app_filter`, `_reconcile_blocked_apps`
+2. Implementation methods from AppHandler: `bootstrap_apps`, `start_app`, `stop_app`, `reload_app`, `start_apps`, `apply_changes`, `refresh_config`, `set_apps_configs`, `_resolve_only_app`, `_update_only_app_filter`, `_reconcile_blocked_apps`
+
+**Deviation:** `handle_change_event` was retained on AppHandler rather than moved to AppLifecycleService. Integration tests in `test_apps.py` patch `self.app_handler.refresh_config` and `self.app_handler.change_detector` — moving the method would break those patches. AppHandler exposes `change_detector` as a property forwarding to `self.lifecycle.change_detector` and delegates `refresh_config` to the lifecycle service. The file watcher subscription is registered in `AppHandler.on_initialize` via `self.lifecycle.bus.on()` rather than inside AppLifecycleService's constructor.
 3. The Bus child (for file watcher subscription)
 4. A reference to AppFactory (plain utility, not a child)
 
-AppHandler becomes a thin coordinator (~120-150 lines) that:
+AppHandler becomes a thin coordinator (~190 lines) that:
 - Owns AppRegistry (plain class) and AppLifecycleService (Resource child)
 - Exposes public API via delegation (`.get()`, `.all()`, `.apps`, `.get_status_snapshot()`)
 - Delegates start/stop/reload to AppLifecycleService
@@ -70,6 +72,15 @@ class AppHandler(Resource):
     start_app(app_key, force_reload) → lifecycle.start_app(...)
     stop_app(app_key) → lifecycle.stop_app(...)
     reload_app(app_key, force_reload) → lifecycle.reload_app(...)
+    apply_changes(changes) → lifecycle.apply_changes(...)
+    refresh_config() → lifecycle.refresh_config()
+    change_detector (property) → lifecycle.change_detector
+
+    # --- Retained for test backward compat (not delegated) ---
+    handle_change_event(changed_file_paths):
+        - Call refresh_config, resolve_only_app, detect_changes
+        - Reconcile blocked apps, apply changes
+        - Emit APP_LOAD_COMPLETED
 ```
 
 ### AppLifecycleService (new)
@@ -87,8 +98,7 @@ class AppLifecycleService(Resource):
         - Store registry reference
         - Create AppFactory (plain class)
         - Create AppChangeDetector (plain class)
-        - Add Bus as child
-        - Subscribe bus to file watcher events → handle_change_event
+        - Add Bus as child (file watcher subscription registered by AppHandler in on_initialize)
 
     on_initialize:
         - mark_ready()
@@ -129,10 +139,6 @@ class AppLifecycleService(Resource):
         - Parallel initialization of multiple apps
     apply_changes(changes: ChangeSet):
         - Stop orphans, reimport changed, reload config changes, start new
-    handle_change_event(changed_file_paths):  # Bus handler with DI annotations preserved
-        - Call refresh_config
-        - Call change_detector.detect_changes
-        - Call apply_changes
     refresh_config():
         - Reload hassette config
         - Update registry manifests
@@ -247,7 +253,7 @@ None — all resolved during planning interrogation.
 
 | File | Change | Risk |
 |------|--------|------|
-| `src/hassette/core/app_handler.py` | Major refactor: 369 → ~120-150 lines | Medium — must preserve all public API |
+| `src/hassette/core/app_handler.py` | Major refactor: 369 → ~190 lines | Medium — must preserve all public API |
 | `src/hassette/core/app_lifecycle.py` | Deleted (replaced by app_lifecycle_service.py) | Low — clean replacement |
 | `tests/unit/test_app_lifecycle.py` | Deleted (replaced by new test file) | Low — clean replacement |
 | `tests/integration/test_app_factory_lifecycle.py` | Update construction to use AppLifecycleService | Medium — 506 lines, significant test file |
