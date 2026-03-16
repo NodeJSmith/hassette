@@ -102,7 +102,7 @@ async def app_detail_page(
     jobs = [
         job_to_dict(j, app_key=app_key, instance_index=instance_index)
         for j in all_jobs
-        if owner_id and j.owner == owner_id
+        if owner_id and j.owner_id == owner_id
     ]
     logs = runtime.get_recent_logs(app_key=app_key, limit=50)
     ctx = {
@@ -144,7 +144,7 @@ async def app_instance_detail_page(
     jobs = [
         job_to_dict(j, app_key=app_key, instance_index=index)
         for j in all_jobs
-        if instance.owner_id and j.owner == instance.owner_id
+        if instance.owner_id and j.owner_id == instance.owner_id
     ]
     logs = runtime.get_recent_logs(app_key=app_key, limit=50)
     ctx = {

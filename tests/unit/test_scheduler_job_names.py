@@ -29,7 +29,7 @@ def _make_job(
 ) -> ScheduledJob:
     """Create a minimal ScheduledJob."""
     return ScheduledJob(
-        owner="test_owner",
+        owner_id="test_owner",
         next_run=now(),
         job=job or (lambda: None),
         name=name,

@@ -24,7 +24,7 @@ def _job_to_dict(job: "ScheduledJob") -> dict[str, Any]:
     return {
         "job_id": job.db_id or 0,
         "name": job.name,
-        "owner": job.owner,
+        "owner_id": job.owner_id,
         "next_run": str(job.next_run),
         "repeat": job.repeat,
         "cancelled": job.cancelled,
@@ -41,7 +41,7 @@ async def get_scheduled_jobs(
 ) -> list[dict]:
     jobs = await scheduler.get_all_jobs()
     if app_key:
-        jobs = [j for j in jobs if j.owner == app_key]
+        jobs = [j for j in jobs if j.app_key == app_key]
     return [_job_to_dict(j) for j in jobs]
 
 
@@ -51,6 +51,5 @@ async def get_job_history(
     app_key: Annotated[str | None, Query()] = None,  # noqa: ARG001
     instance_index: Annotated[int, Query()] = 0,  # noqa: ARG001
 ) -> list[dict]:
-    # Stub: get_job_summary returns per-job aggregates, not per-execution records;
-    # wiring to JobExecutionResponse is deferred to the owner_id cleanup follow-up.
+    # Stub: get_job_summary returns per-job aggregates, not per-execution records.
     return []

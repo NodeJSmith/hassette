@@ -174,13 +174,15 @@ def make_old_snapshot(
 def make_job(
     job_id: str = "job-1",
     name: str = "check_lights",
-    owner: str = "MyApp.MyApp[0]",
+    owner_id: str = "MyApp.MyApp[0]",
     next_run: str = "2024-01-01T00:05:00",
     repeat: bool = True,
     cancelled: bool = False,
     trigger_type: str = "interval",
     trigger_detail: str | None = None,
     db_id: int | None = None,
+    app_key: str = "",
+    instance_index: int = 0,
 ) -> SimpleNamespace:
     """Build a ``SimpleNamespace`` scheduler job for test fixtures.
 
@@ -206,7 +208,9 @@ def make_job(
         job_id=job_id,
         db_id=db_id,
         name=name,
-        owner=owner,
+        owner_id=owner_id,
+        app_key=app_key,
+        instance_index=instance_index,
         next_run=next_run,
         repeat=repeat,
         cancelled=cancelled,

@@ -5,7 +5,9 @@ from hassette.bus.metrics import ListenerMetrics
 
 class TestListenerMetricsDefaults:
     def test_initial_state(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="my_app", topic="hass.event.state_changed", handler_method="on_light")
+        m = ListenerMetrics(
+            listener_id=1, owner_id="my_app", topic="hass.event.state_changed", handler_method="on_light"
+        )
         assert m.total_invocations == 0
         assert m.successful == 0
         assert m.failed == 0
@@ -21,7 +23,7 @@ class TestListenerMetricsDefaults:
 
 class TestRecordSuccess:
     def test_single_success(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(10.0)
         assert m.total_invocations == 1
         assert m.successful == 1
@@ -31,7 +33,7 @@ class TestRecordSuccess:
         assert m.last_invoked_at is not None
 
     def test_multiple_successes_update_min_max(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(5.0)
         m.record_success(15.0)
         m.record_success(10.0)
@@ -44,7 +46,7 @@ class TestRecordSuccess:
 
 class TestRecordError:
     def test_single_error(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_error(8.0, "boom", "ValueError")
         assert m.total_invocations == 1
         assert m.failed == 1
@@ -54,7 +56,7 @@ class TestRecordError:
         assert m.total_duration_ms == 8.0
 
     def test_error_updates_timing(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(5.0)
         m.record_error(20.0, "fail", "RuntimeError")
         assert m.max_duration_ms == 20.0
@@ -63,7 +65,7 @@ class TestRecordError:
 
 class TestRecordDiFailure:
     def test_di_failure(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_di_failure(3.0, "bad sig", "DependencyInjectionError")
         assert m.total_invocations == 1
         assert m.di_failures == 1
@@ -74,7 +76,7 @@ class TestRecordDiFailure:
 
 class TestRecordCancelled:
     def test_cancelled(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_cancelled(2.0)
         assert m.total_invocations == 1
         assert m.cancelled == 1
@@ -84,17 +86,17 @@ class TestRecordCancelled:
 
 class TestAvgDurationMs:
     def test_zero_invocations(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         assert m.avg_duration_ms == 0.0
 
     def test_computed_average(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(10.0)
         m.record_success(20.0)
         assert m.avg_duration_ms == 15.0
 
     def test_includes_errors_in_average(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(10.0)
         m.record_error(30.0, "err", "E")
         assert m.avg_duration_ms == 20.0
@@ -102,11 +104,13 @@ class TestAvgDurationMs:
 
 class TestToDict:
     def test_serialization(self) -> None:
-        m = ListenerMetrics(listener_id=42, owner="my_app", topic="hass.event.state_changed", handler_method="on_light")
+        m = ListenerMetrics(
+            listener_id=42, owner_id="my_app", topic="hass.event.state_changed", handler_method="on_light"
+        )
         m.record_success(10.0)
         d = m.to_dict()
         assert d["listener_id"] == 42
-        assert d["owner"] == "my_app"
+        assert d["owner_id"] == "my_app"
         assert d["topic"] == "hass.event.state_changed"
         assert d["handler_method"] == "on_light"
         assert d["total_invocations"] == 1
@@ -123,7 +127,7 @@ class TestToDict:
         assert d["last_error_type"] is None
 
     def test_empty_metrics_serialization(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         d = m.to_dict()
         assert d["total_invocations"] == 0
         assert d["avg_duration_ms"] == 0.0
@@ -132,7 +136,7 @@ class TestToDict:
 
 class TestMixedOperations:
     def test_mixed_operations(self) -> None:
-        m = ListenerMetrics(listener_id=1, owner="app", topic="t", handler_method="h")
+        m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(10.0)
         m.record_error(20.0, "err", "ValueError")
         m.record_di_failure(5.0, "bad", "DependencyInjectionError")

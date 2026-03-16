@@ -155,6 +155,12 @@ class SchedulerService(Service):
 
     def add_job(self, job: "ScheduledJob"):
         """Push a job to the queue and register it with the executor."""
+        if job.app_key:
+            self._register_job_to_db(job)
+        return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
+
+    def _register_job_to_db(self, job: "ScheduledJob") -> None:
+        """Create a ScheduledJobRegistration and spawn a background task to persist it."""
         ts = time.time()
         source_location, registration_source = capture_registration_source()
         trigger = job.trigger
@@ -168,8 +174,8 @@ class SchedulerService(Service):
             trigger_type = None
             trigger_value = None
         reg = ScheduledJobRegistration(
-            app_key=job.owner,
-            instance_index=0,
+            app_key=job.app_key,
+            instance_index=job.instance_index,
             job_name=job.name,
             handler_method=getattr(job.job, "__qualname__", str(job.job)),
             trigger_type=trigger_type,
@@ -183,7 +189,6 @@ class SchedulerService(Service):
             last_registered_at=ts,
         )
         self.task_bucket.spawn(self._register_job_async(job, reg))
-        return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
 
     async def _register_job_async(self, job: "ScheduledJob", reg: ScheduledJobRegistration) -> None:
         """Background task: register job in DB and set its db_id."""
@@ -396,7 +401,7 @@ class _ScheduledJobQueue(Resource):
         """Remove all jobs belonging to the given owner."""
 
         async with self._lock:
-            removed = self._queue.remove_where(lambda job: job.owner == owner)
+            removed = self._queue.remove_where(lambda job: job.owner_id == owner)
 
         if removed:
             self.logger.debug("Removed %d jobs for owner '%s'", removed, owner)

@@ -74,7 +74,7 @@ class TestApps:
         self.hassette._bus_service.add_listener(
             Listener.create(
                 self.app_handler.task_bucket,
-                owner="test",
+                owner_id="test",
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 handler=handler,
                 where=None,
@@ -114,7 +114,7 @@ class TestApps:
         self.hassette._bus_service.add_listener(
             Listener.create(
                 self.app_handler.task_bucket,
-                owner="test",
+                owner_id="test",
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 handler=handler,
                 where=None,
@@ -154,7 +154,7 @@ class TestApps:
         self.hassette._bus_service.add_listener(
             Listener.create(
                 self.app_handler.task_bucket,
-                owner="test",
+                owner_id="test",
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 handler=handler,
                 where=None,

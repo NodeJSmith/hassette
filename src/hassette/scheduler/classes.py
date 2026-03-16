@@ -142,7 +142,7 @@ class ScheduledJob:
     sort_index: tuple[int, int] = field(init=False, repr=False)
     """Tuple of (next_run timestamp with nanoseconds, job_id) for ordering in a priority queue."""
 
-    owner: str = field(compare=False)
+    owner_id: str = field(compare=False)
     """Unique string identifier for the owner of the job, e.g., a component or integration name."""
 
     next_run: ZonedDateTime = field(compare=False)
@@ -150,6 +150,12 @@ class ScheduledJob:
 
     job: "JobCallable" = field(compare=False)
     """The callable to execute when the job runs."""
+
+    app_key: str = field(default="", compare=False)
+    """Configuration-level app key for DB registration (e.g., 'my_app'). Empty for non-App owners."""
+
+    instance_index: int = field(default=0, compare=False)
+    """App instance index for DB registration. 0 for non-App owners."""
 
     trigger: "TriggerProtocol | None" = field(compare=False, default=None)
     """The trigger that determines the job's schedule."""
@@ -176,7 +182,7 @@ class ScheduledJob:
     """Database row ID for this job. Set by the executor after persistence; None until then."""
 
     def __repr__(self) -> str:
-        return f"ScheduledJob(name={self.name!r}, owner={self.owner})"
+        return f"ScheduledJob(name={self.name!r}, owner_id={self.owner_id})"
 
     def __post_init__(self):
         self.set_next_run(self.next_run)

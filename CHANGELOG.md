@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+- Scheduler job and listener filters in web UI partials and API now return correct results by fixing `owner_id`/`app_key` mismatch in DB recording and filter comparisons (#335)
 - `get_job_summary` telemetry query now returns `job_id`, `app_key`, and `instance_index` columns, matching the shape of `get_listener_summary` (#334)
 - Bus page telemetry query failures (from `asyncio.gather`) are now logged at WARNING instead of being silently dropped (#334)
 - App detail and instance detail pages now correctly filter scheduled jobs by `owner_id` instead of `app_key`, so jobs appear in the app detail view (#334)
