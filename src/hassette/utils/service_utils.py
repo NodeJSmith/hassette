@@ -22,6 +22,9 @@ async def wait_for_ready(
 
     Returns:
         True if all resources are ready, False if timeout or shutdown.
+
+    Raises:
+        CancelledError: If the calling task is cancelled while waiting.
     """
     resources = resources if isinstance(resources, list) else [resources]
     resources = [r for r in resources if r is not None]
@@ -52,16 +55,13 @@ async def wait_for_ready(
             return_when=asyncio.FIRST_COMPLETED,
         )
         if shutdown_task in done:
-            wait_task.cancel()
             return False
         if wait_task in done:
-            shutdown_task.cancel()
             return wait_task.result()
         # Timeout with neither completing
-        wait_task.cancel()
-        shutdown_task.cancel()
         return False
-    except asyncio.CancelledError:
-        wait_task.cancel()
-        shutdown_task.cancel()
-        raise
+    finally:
+        for task in (wait_task, shutdown_task):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(wait_task, shutdown_task, return_exceptions=True)

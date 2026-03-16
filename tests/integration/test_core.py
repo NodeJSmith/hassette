@@ -278,7 +278,7 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
             call_order.append("crash_released")
 
     hassette_instance._database_service = Mock()
-    hassette_instance._database_service.db = Mock()
+    hassette_instance._database_service.db = AsyncMock()
 
     submit_calls: list[str] = []
 
