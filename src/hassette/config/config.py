@@ -215,6 +215,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     web_api_cors_origins: tuple[str, ...] = Field(default=("http://localhost:3000", "http://localhost:5173"))
     """Allowed CORS origins for the web API, typically the UI dev server."""
 
+    hassette_event_buffer_size: int = Field(default=1000)
+    """Buffer capacity of the internal anyio memory channel used to route events to the bus."""
+
     web_api_event_buffer_size: int = Field(default=500)
     """Maximum number of recent events to keep in the RuntimeQueryService ring buffer."""
 
