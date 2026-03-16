@@ -32,7 +32,7 @@ def _make_job(
 
 
 # Two apps, each with a different owner_id
-JOB_MY_APP = _make_job(owner_id="my_app_0", app_key="my_app", instance_index=0, name="my_app_job")
+JOB_MY_APP = _make_job(owner_id="my_app_0", app_key="my_app", instance_index=0, name="my_app_job_i0")
 JOB_MY_APP_I1 = _make_job(owner_id="my_app_1", app_key="my_app", instance_index=1, name="my_app_job_i1")
 JOB_OTHER = _make_job(owner_id="other_app_0", app_key="other_app", instance_index=0, name="other_job")
 ALL_JOBS = [JOB_MY_APP, JOB_MY_APP_I1, JOB_OTHER]
@@ -56,7 +56,7 @@ class TestSchedulerJobsPartialFiltersByAppKey:
         response = await client.get("/ui/partials/scheduler-jobs", params={"app_key": "my_app"})
         assert response.status_code == 200
         body = response.text
-        assert "my_app_job" in body
+        assert "my_app_job_i0" in body
         assert "my_app_job_i1" in body
         assert "other_job" not in body
 
@@ -64,7 +64,7 @@ class TestSchedulerJobsPartialFiltersByAppKey:
         response = await client.get("/ui/partials/scheduler-jobs")
         assert response.status_code == 200
         body = response.text
-        assert "my_app_job" in body
+        assert "my_app_job_i0" in body
         assert "other_job" in body
 
 
@@ -75,7 +75,7 @@ class TestAppDetailJobsPartialFiltersByAppKey:
         response = await client.get("/ui/partials/app-detail-jobs/my_app")
         assert response.status_code == 200
         body = response.text
-        assert "my_app_job" in body
+        assert "my_app_job_i0" in body
         assert "other_job" not in body
 
     async def test_excludes_other_app(self, client: "AsyncClient") -> None:
@@ -83,7 +83,7 @@ class TestAppDetailJobsPartialFiltersByAppKey:
         assert response.status_code == 200
         body = response.text
         assert "other_job" in body
-        assert "my_app_job" not in body
+        assert "my_app_job_i0" not in body
 
 
 class TestInstanceJobsPartialFiltersByAppKeyAndIndex:
@@ -93,7 +93,7 @@ class TestInstanceJobsPartialFiltersByAppKeyAndIndex:
         response = await client.get("/ui/partials/instance-jobs/my_app/0")
         assert response.status_code == 200
         body = response.text
-        assert "my_app_job" in body
+        assert "my_app_job_i0" in body
         # instance 1 job should NOT appear
         assert "my_app_job_i1" not in body
         assert "other_job" not in body
@@ -103,14 +103,14 @@ class TestInstanceJobsPartialFiltersByAppKeyAndIndex:
         assert response.status_code == 200
         body = response.text
         assert "my_app_job_i1" in body
-        assert "my_app_job" not in body or "my_app_job_i1" in body
+        assert "my_app_job_i0" not in body
         assert "other_job" not in body
 
     async def test_empty_for_nonexistent_instance(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/instance-jobs/my_app/99")
         assert response.status_code == 200
         body = response.text
-        assert "my_app_job" not in body
+        assert "my_app_job_i0" not in body
         assert "other_job" not in body
 
 
@@ -122,7 +122,7 @@ class TestApiSchedulerJobsFiltersByAppKey:
         assert response.status_code == 200
         data = response.json()
         names = [j["name"] for j in data]
-        assert "my_app_job" in names
+        assert "my_app_job_i0" in names
         assert "my_app_job_i1" in names
         assert "other_job" not in names
 
@@ -131,7 +131,7 @@ class TestApiSchedulerJobsFiltersByAppKey:
         assert response.status_code == 200
         data = response.json()
         names = [j["name"] for j in data]
-        assert "my_app_job" in names
+        assert "my_app_job_i0" in names
         assert "other_job" in names
 
     async def test_response_uses_owner_id_field(self, client: "AsyncClient") -> None:
