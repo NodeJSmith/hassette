@@ -132,8 +132,10 @@ async def alert_failed_apps_partial(request: Request, runtime: RuntimeDep) -> HT
 
 
 @router.get("/partials/app-detail-listeners/{app_key}", response_class=HTMLResponse)
-async def app_detail_listeners_partial(app_key: str, request: Request, telemetry: TelemetryDep) -> HTMLResponse:
-    listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=0)
+async def app_detail_listeners_partial(
+    app_key: str, request: Request, telemetry: TelemetryDep, instance_index: int = 0
+) -> HTMLResponse:
+    listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
     return templates.TemplateResponse(
         request,
         "partials/app_detail_listeners.html",
@@ -142,9 +144,15 @@ async def app_detail_listeners_partial(app_key: str, request: Request, telemetry
 
 
 @router.get("/partials/app-detail-jobs/{app_key}", response_class=HTMLResponse)
-async def app_detail_jobs_partial(app_key: str, request: Request, scheduler: SchedulerDep) -> HTMLResponse:
+async def app_detail_jobs_partial(
+    app_key: str, request: Request, scheduler: SchedulerDep, instance_index: int = 0
+) -> HTMLResponse:
     all_scheduler_jobs = await scheduler.get_all_jobs()
-    jobs = [job_to_dict(j, app_key=app_key, instance_index=0) for j in all_scheduler_jobs if j.app_key == app_key]
+    jobs = [
+        job_to_dict(j, app_key=app_key, instance_index=instance_index)
+        for j in all_scheduler_jobs
+        if j.app_key == app_key and j.instance_index == instance_index
+    ]
     return templates.TemplateResponse(
         request,
         "partials/app_detail_jobs.html",

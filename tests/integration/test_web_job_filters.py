@@ -134,6 +134,23 @@ class TestApiSchedulerJobsFiltersByAppKey:
         assert "my_app_job_i0" in names
         assert "other_job" in names
 
+    async def test_filters_by_instance_index(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/scheduler/jobs", params={"app_key": "my_app", "instance_index": 0})
+        assert response.status_code == 200
+        data = response.json()
+        names = [j["name"] for j in data]
+        assert "my_app_job_i0" in names
+        assert "my_app_job_i1" not in names
+        assert "other_job" not in names
+
+    async def test_filters_by_instance_index_1(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/scheduler/jobs", params={"app_key": "my_app", "instance_index": 1})
+        assert response.status_code == 200
+        data = response.json()
+        names = [j["name"] for j in data]
+        assert "my_app_job_i1" in names
+        assert "my_app_job_i0" not in names
+
     async def test_response_uses_owner_id_field(self, client: "AsyncClient") -> None:
         response = await client.get("/api/scheduler/jobs")
         assert response.status_code == 200
