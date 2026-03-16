@@ -106,7 +106,7 @@ def _session_ready(hassette: Hassette) -> bool:
     """Check if Hassette has created a valid session (without accessing private attributes)."""
     try:
         return hassette.session_id > 0
-    except RuntimeError:
+    except Exception:
         return False
 
 
