@@ -1,7 +1,7 @@
 # Design: Refactor AppHandler into Coordinator Facade
 
 **Date:** 2026-03-16
-**Status:** approved
+**Status:** implemented
 **Spec:** design/specs/007-refactor-apphandler-facade/spec.md
 
 ## Problem
