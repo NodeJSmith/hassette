@@ -52,8 +52,8 @@ async def test_event_streams_closed_is_false_initially(event_stream_service: Eve
     assert event_stream_service.event_streams_closed is False
 
 
-async def test_shutdown_closes_streams(event_stream_service: EventStreamService) -> None:
-    """on_shutdown closes both streams."""
+async def test_close_streams_closes_both(event_stream_service: EventStreamService) -> None:
+    """close_streams() closes both send and receive streams."""
     await event_stream_service.close_streams()
     assert event_stream_service.event_streams_closed is True
 
