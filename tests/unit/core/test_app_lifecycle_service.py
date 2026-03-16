@@ -14,12 +14,14 @@ from hassette.types.enums import BlockReason, ResourceStatus
 def _make_spawn_mock() -> AsyncMock:
     """Create a mock for task_bucket.spawn that properly closes passed coroutines.
 
-    spawn() returns an asyncio.Task (awaitable), so the mock must be async.
+    spawn() is synchronous but returns an asyncio.Task which callers ``await``.
+    AsyncMock is used so the return value is awaitable, matching real behavior.
     The side_effect closes the coroutine to prevent 'was never awaited' warnings.
     """
 
-    async def _spawn_side_effect(coro, **_kwargs: object) -> None:
-        coro.close()
+    async def _spawn_side_effect(coro: object, **_kwargs: object) -> None:
+        if hasattr(coro, "close"):
+            coro.close()
 
     return AsyncMock(side_effect=_spawn_side_effect)
 
