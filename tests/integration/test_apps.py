@@ -88,7 +88,7 @@ class TestApps:
         results.clear()
         event.clear()
 
-        await self.app_handler.handle_change_event()
+        await self.app_handler.lifecycle.handle_change_event()
 
         # will timeout, because we dont fire since there are no changes
         with pytest.raises(asyncio.TimeoutError):
@@ -121,7 +121,7 @@ class TestApps:
             )
         )
 
-        with patch.object(self.app_handler.change_detector, "detect_changes") as mock_detect:
+        with patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect:
             mock_detect.return_value = ChangeSet(
                 orphans=frozenset({"my_app"}),
                 new_apps=frozenset(),
@@ -129,7 +129,7 @@ class TestApps:
                 reload_apps=frozenset(),
             )
 
-            await self.app_handler.handle_change_event()
+            await self.app_handler.lifecycle.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
             assert "my_app" not in self.app_handler.apps, "my_app should stop after being disabled"
@@ -162,8 +162,8 @@ class TestApps:
         )
 
         with (
-            patch.object(self.app_handler.change_detector, "detect_changes") as mock_detect,
-            patch.object(self.app_handler, "refresh_config") as mock_refresh_config,
+            patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
+            patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
         ):
             self.app_handler.registry.set_manifests(new_app_config)
             mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
@@ -174,7 +174,7 @@ class TestApps:
                 reload_apps=frozenset(),
             )
 
-            await self.app_handler.handle_change_event()
+            await self.app_handler.lifecycle.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
             assert "disabled_app" in self.app_handler.apps, "disabled_app should start after being enabled"
