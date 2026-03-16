@@ -102,6 +102,14 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> str:
         )
 
 
+def _session_ready(hassette: Hassette) -> bool:
+    """Check if Hassette has created a valid session (without accessing private attributes)."""
+    try:
+        return hassette.session_id > 0
+    except RuntimeError:
+        return False
+
+
 @asynccontextmanager
 async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIterator[Hassette]:
     """Run Hassette.run_forever() in a background task until ready, then yield for assertions.
@@ -121,7 +129,7 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
     try:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
-        while hassette._session_id is None or hassette._session_id <= 0:
+        while not _session_ready(hassette):
             if task.done():
                 await task  # re-raises any startup exception immediately
                 raise RuntimeError("Hassette exited during startup without reaching running state")

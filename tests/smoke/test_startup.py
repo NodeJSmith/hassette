@@ -23,8 +23,8 @@ async def test_startup_completes(ha_container, tmp_path):
     """Hassette reaches the running state and records a positive session ID."""
     config = make_smoke_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
-        assert hassette._session_id is not None
-        assert hassette._session_id > 0
+        assert hassette.session_id is not None
+        assert hassette.session_id > 0
 
 
 async def test_session_created_in_db(ha_container, tmp_path):

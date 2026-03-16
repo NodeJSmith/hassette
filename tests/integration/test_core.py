@@ -40,12 +40,8 @@ async def hassette_instance(test_config: HassetteConfig):
         yield instance
     finally:
         with suppress(Exception):
-            if not instance._send_stream._closed:
-                await instance._send_stream.aclose()
-
-        with suppress(Exception):
-            if not instance._receive_stream._closed:
-                await instance._receive_stream.aclose()
+            if not instance._event_stream_service.event_streams_closed:
+                await instance._event_stream_service.on_shutdown()
 
         with suppress(Exception):
             if not instance._bus_service.stream._closed:
@@ -76,7 +72,9 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
     assert hassette_instance.api is not None
 
     expected_children = [
+        hassette_instance._event_stream_service,
         hassette_instance._database_service,
+        hassette_instance._session_manager,
         hassette_instance._command_executor,
         hassette_instance._bus_service,
         hassette_instance._service_watcher,
@@ -99,8 +97,7 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
 async def test_event_streams_closed_reflects_state(hassette_instance: Hassette) -> None:
     """event_streams_closed mirrors the underlying stream lifecycle."""
     assert hassette_instance.event_streams_closed is False, "Streams should start open"
-    await hassette_instance._send_stream.aclose()
-    await hassette_instance._receive_stream.aclose()
+    await hassette_instance._event_stream_service.on_shutdown()
     await asyncio.sleep(0)  # allow state to propagate
     assert hassette_instance.event_streams_closed is True, "Streams should close after aclose"
 
@@ -141,7 +138,7 @@ async def test_send_event_writes_to_stream(hassette_instance: Hassette) -> None:
     payload = SimpleNamespace(value=123)
     await hassette_instance.send_event("topic.demo", cast("Event", payload))
 
-    received_topic, received_event = await hassette_instance._receive_stream.receive()
+    received_topic, received_event = await hassette_instance._event_stream_service.receive_stream.receive()
     assert received_topic == "topic.demo", "send_event should push correct topic"
     assert received_event is payload, "send_event should push correct payload"
 
@@ -182,8 +179,8 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     hassette_instance._start_resources = start_resources
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    hassette_instance._mark_orphaned_sessions = AsyncMock()
-    hassette_instance._create_session = AsyncMock()
+    hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
+    hassette_instance._session_manager.create_session = AsyncMock()
     bus_subscribe = Mock()
     hassette_instance._bus.on_hassette_service_crashed = bus_subscribe
 
@@ -196,9 +193,9 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     hassette_instance.wait_for_ready.assert_awaited_once_with(
         list(hassette_instance.children), timeout=hassette_instance.config.startup_timeout_seconds
     )
-    hassette_instance._mark_orphaned_sessions.assert_awaited_once()
-    hassette_instance._create_session.assert_awaited_once()
-    bus_subscribe.assert_called_once_with(handler=hassette_instance._on_service_crashed)
+    hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()
+    hassette_instance._session_manager.create_session.assert_awaited_once()
+    bus_subscribe.assert_called_once_with(handler=hassette_instance._session_manager.on_service_crashed)
     hassette_instance.shutdown.assert_awaited()
     assert hassette_instance._loop is asyncio.get_running_loop(), f"Event loop does not match {hassette_instance._loop}"
     assert hassette_instance._loop_thread_id == threading.get_ident(), "Thread ID does not match"
@@ -209,13 +206,13 @@ async def test_run_forever_handles_session_init_failure(hassette_instance: Hasse
     hassette_instance._start_resources = Mock()
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    hassette_instance._mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
-    hassette_instance._create_session = AsyncMock()
+    hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
+    hassette_instance._session_manager.create_session = AsyncMock()
 
     await hassette_instance.run_forever()
 
-    hassette_instance._mark_orphaned_sessions.assert_awaited_once()
-    hassette_instance._create_session.assert_not_awaited()
+    hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()
+    hassette_instance._session_manager.create_session.assert_not_awaited()
     hassette_instance.shutdown.assert_awaited()
 
 
@@ -237,33 +234,34 @@ async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance
     completed_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
     completed_future.set_result(None)
     hassette_instance._bus.remove_all_listeners = Mock(return_value=completed_future)
-    hassette_instance._finalize_session = AsyncMock()
+    hassette_instance._session_manager.finalize_session = AsyncMock()
 
     await hassette_instance.before_shutdown()
 
     hassette_instance._bus.remove_all_listeners.assert_called_once()
-    hassette_instance._finalize_session.assert_awaited_once()
+    hassette_instance._session_manager.finalize_session.assert_awaited_once()
 
 
 async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hassette_instance: Hassette) -> None:
     """before_shutdown still finalizes session when remove_all_listeners raises."""
     hassette_instance._bus.remove_all_listeners = AsyncMock(side_effect=RuntimeError("bus error"))
-    hassette_instance._finalize_session = AsyncMock()
+    hassette_instance._session_manager.finalize_session = AsyncMock()
 
     await hassette_instance.before_shutdown()
 
     hassette_instance._bus.remove_all_listeners.assert_awaited_once()
-    hassette_instance._finalize_session.assert_awaited_once()
+    hassette_instance._session_manager.finalize_session.assert_awaited_once()
 
 
 async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: Hassette) -> None:
-    """_on_service_crashed and _finalize_session coordinate via _session_lock.
+    """on_service_crashed and finalize_session on SessionManager coordinate via _session_lock.
 
     Verifies that concurrent crash recording and session finalization don't
     interleave — the lock forces one to complete before the other starts.
     """
-    hassette_instance._session_id = 42
-    hassette_instance._session_error = False
+    sm = hassette_instance._session_manager
+    sm._session_id = 42
+    sm._session_error = False
 
     call_order: list[str] = []
     crash_holding_lock = asyncio.Event()
@@ -271,14 +269,14 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
 
     async def slow_crash(_event: typing.Any) -> None:
         """Simulate crash handler that holds the lock while doing slow work."""
-        async with hassette_instance._session_lock:
+        async with sm._session_lock:
             call_order.append("crash_acquired")
             crash_holding_lock.set()
             await crash_may_release.wait()  # hold lock until test says release
             call_order.append("crash_released")
 
-    hassette_instance._database_service = Mock()
-    hassette_instance._database_service.db = AsyncMock()
+    sm._database_service = Mock()
+    sm._database_service.db = AsyncMock()
 
     submit_calls: list[str] = []
 
@@ -287,7 +285,7 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
         submit_calls.append("submit")
         await coro
 
-    hassette_instance._database_service.submit = tracking_submit
+    sm._database_service.submit = tracking_submit
 
     crash_event = Mock()
 
@@ -296,7 +294,7 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
     await crash_holding_lock.wait()
 
     # Start finalize — it should block on the lock
-    finalize_task = asyncio.create_task(hassette_instance._finalize_session())
+    finalize_task = asyncio.create_task(sm.finalize_session())
     await asyncio.sleep(0.01)  # give finalize a chance to acquire lock
 
     # Finalize should NOT have called submit yet (crash holds the lock)

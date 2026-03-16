@@ -8,7 +8,6 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 from aiohttp import web
-from anyio import create_memory_object_stream
 from yarl import URL
 
 from hassette import HassetteConfig, context
@@ -18,6 +17,7 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, Ty
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
+from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
@@ -33,8 +33,6 @@ from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 if typing.TYPE_CHECKING:
-    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-
     from hassette import Hassette
 
 
@@ -76,8 +74,7 @@ class _HassetteMock(Resource):
         self.children: list[Resource] = []
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
-        self._send_stream: MemoryObjectSendStream[tuple[str, Event[Any]]] | None = None
-        self._receive_stream: MemoryObjectReceiveStream[tuple[str, Event[Any]]] | None = None
+        self._event_stream_service: EventStreamService | None = None
 
         self._api_service: ApiResource | None = None
         self.api: Api | None = None
@@ -104,11 +101,9 @@ class _HassetteMock(Resource):
         return build_rest_url(self.config)
 
     async def send_event(self, topic: str, event: Event[Any]) -> None:
-        if not self._send_stream:
+        if not self._event_stream_service:
             raise RuntimeError("Bus is not enabled on this harness")
-        if self._send_stream._closed:
-            raise RuntimeError("Event bus send stream is closed")
-        await self._send_stream.send((topic, event))
+        await self._event_stream_service.send_event(topic, event)
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -136,9 +131,9 @@ class _HassetteMock(Resource):
     @property
     def event_streams_closed(self) -> bool:
         """Check if the event streams are closed."""
-        if not self._send_stream or not self._receive_stream:
+        if not self._event_stream_service:
             return True
-        return self._send_stream._closed and self._receive_stream._closed
+        return self._event_stream_service.event_streams_closed
 
 
 @contextlib.contextmanager
@@ -353,9 +348,7 @@ class HassetteHarness:
     async def _start_bus(self) -> None:
         from hassette.core.commands import InvokeHandler
 
-        send_stream, receive_stream = create_memory_object_stream[tuple[str, Event[Any]]](1000)
-        self.hassette._send_stream = send_stream
-        self.hassette._receive_stream = receive_stream
+        self.hassette._event_stream_service = self.hassette.add_child(EventStreamService)
 
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, InvokeHandler):
@@ -365,12 +358,9 @@ class HassetteHarness:
         mock_executor.execute = AsyncMock(side_effect=_stub_execute)
         mock_executor.register_listener = AsyncMock(return_value=0)
         self.hassette._bus_service = self.hassette.add_child(
-            BusService, stream=receive_stream.clone(), executor=mock_executor
+            BusService, stream=self.hassette._event_stream_service.receive_stream.clone(), executor=mock_executor
         )
         self.hassette._bus = self.hassette.add_child(Bus)
-
-        self._exit_stack.push_async_callback(send_stream.aclose)
-        self._exit_stack.push_async_callback(receive_stream.aclose)
 
     async def _start_scheduler(self) -> None:
         from unittest.mock import AsyncMock

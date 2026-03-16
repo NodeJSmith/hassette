@@ -1,10 +1,8 @@
 import asyncio
 import threading
-import time
 import typing
 from typing import Any, ParamSpec, TypeVar
 
-from anyio import create_memory_object_stream
 from dotenv import load_dotenv
 
 from hassette import context
@@ -14,7 +12,6 @@ from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
-from hassette.events import HassetteServiceEvent
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
@@ -31,10 +28,12 @@ from .app_handler import AppHandler
 from .bus_service import BusService
 from .command_executor import CommandExecutor
 from .database_service import DatabaseService
+from .event_stream_service import EventStreamService
 from .file_watcher import FileWatcherService
 from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
+from .session_manager import SessionManager
 from .state_proxy import StateProxy
 from .telemetry_query_service import TelemetryQueryService
 from .web_api_service import WebApiService
@@ -88,17 +87,16 @@ class Hassette(Resource):
 
         self._startup_tasks()
 
-        self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event"]](1000)
-
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
-        self._session_lock = asyncio.Lock()
 
-        # private background services
+        # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
+        self._event_stream_service = self.add_child(EventStreamService)
         self._database_service = self.add_child(DatabaseService)
+        self._session_manager = self.add_child(SessionManager, database_service=self._database_service)
         self._command_executor = self.add_child(CommandExecutor)
         self._bus_service = self.add_child(
-            BusService, stream=self._receive_stream.clone(), executor=self._command_executor
+            BusService, stream=self._event_stream_service.receive_stream.clone(), executor=self._command_executor
         )
 
         self._service_watcher = self.add_child(ServiceWatcher)
@@ -125,9 +123,6 @@ class Hassette(Resource):
         self.state_registry = STATE_REGISTRY
         self.type_registry = TYPE_REGISTRY
 
-        self._session_id: int | None = None
-        self._session_error: bool = False
-
         self.logger.info("All components registered...", stacklevel=2)
 
     @property
@@ -137,9 +132,7 @@ class Hassette(Resource):
         Raises:
             RuntimeError: If no session has been created.
         """
-        if self._session_id is None:
-            raise RuntimeError("Session ID is not initialized")
-        return self._session_id
+        return self._session_manager.session_id
 
     def _startup_tasks(self) -> None:
         """Perform one-time startup tasks.
@@ -184,7 +177,7 @@ class Hassette(Resource):
     @property
     def event_streams_closed(self) -> bool:
         """Check if the event streams are closed."""
-        return self._send_stream._closed and self._receive_stream._closed
+        return self._event_stream_service.event_streams_closed
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -266,7 +259,7 @@ class Hassette(Resource):
 
     async def send_event(self, event_name: str, event: "Event[Any]") -> None:
         """Send an event to the event bus."""
-        await self._send_stream.send((event_name, event))
+        await self._event_stream_service.send_event(event_name, event)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
@@ -307,9 +300,9 @@ class Hassette(Resource):
             return
 
         try:
-            await self._mark_orphaned_sessions()
-            await self._create_session()
-            self._bus.on_hassette_service_crashed(handler=self._on_service_crashed)
+            await self._session_manager.mark_orphaned_sessions()
+            await self._session_manager.create_session()
+            self._bus.on_hassette_service_crashed(handler=self._session_manager.on_service_crashed)
         except Exception:
             self.logger.exception("Failed to initialize session tracking")
             await self.shutdown()
@@ -355,12 +348,6 @@ class Hassette(Resource):
             else:
                 self.logger.debug("Task completed successfully: %s", result)
 
-        # ensure streams are closed
-        if self._send_stream is not None:
-            await self._send_stream.aclose()
-        if self._receive_stream is not None:
-            await self._receive_stream.aclose()
-
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""
         try:
@@ -368,111 +355,4 @@ class Hassette(Resource):
         except Exception:
             self.logger.exception("Failed to remove bus listeners during shutdown")
         finally:
-            await self._finalize_session()
-
-    async def _mark_orphaned_sessions(self) -> None:
-        """Mark any sessions left in 'running' status as 'unknown'."""
-        await self._database_service.submit(Hassette._do_mark_orphaned_sessions(self))
-
-    async def _do_mark_orphaned_sessions(self) -> None:
-        """Execute the orphan-session UPDATE; called by the write-queue worker."""
-        db = self._database_service.db
-        cursor = await db.execute(
-            "UPDATE sessions SET status = 'unknown', stopped_at = last_heartbeat_at WHERE status = 'running'"
-        )
-        if cursor.rowcount and cursor.rowcount > 0:
-            self.logger.warning("Marked %d orphaned session(s) as 'unknown'", cursor.rowcount)
-        await db.commit()
-
-    async def _create_session(self) -> None:
-        """Insert a new session row and store the session ID."""
-        self._session_id = await self._database_service.submit(Hassette._do_create_session(self))
-        self.logger.info("Created session %d", self._session_id)
-
-    async def _do_create_session(self) -> int:
-        """Execute the session INSERT and return the new row ID; called by the write-queue worker."""
-        db = self._database_service.db
-        now = time.time()
-        cursor = await db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (now, now),
-        )
-        await db.commit()
-        if cursor.lastrowid is None:
-            raise RuntimeError("INSERT INTO sessions returned no lastrowid")
-        return cursor.lastrowid
-
-    async def _on_service_crashed(self, event: HassetteServiceEvent) -> None:
-        """Record service crash details in the session row.
-
-        Called via Bus subscription when any service reaches CRASHED status.
-        Sets ``_session_error`` so ``_finalize_session()`` preserves the failure status.
-        Acquires ``_session_lock`` to coordinate with ``_finalize_session()``.
-        """
-        async with self._session_lock:
-            data = event.payload.data
-            if self._session_id is None:
-                self.logger.warning("Cannot record crash — no active session")
-                return
-
-            try:
-                _ = self._database_service.db
-            except RuntimeError:
-                self.logger.warning("Cannot record crash — database not initialized")
-                return
-
-            self._session_error = True
-            self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
-            self._database_service.enqueue(Hassette._do_on_service_crashed(self, event))
-
-    async def _do_on_service_crashed(self, event: HassetteServiceEvent) -> None:
-        """Execute the crash UPDATE; called by the write-queue worker."""
-        data = event.payload.data
-        try:
-            now = time.time()
-            await self._database_service.db.execute(
-                "UPDATE sessions SET status = 'failure', last_heartbeat_at = ?,"
-                " error_type = ?, error_message = ?, error_traceback = ? WHERE id = ?",
-                (now, data.exception_type, data.exception, data.exception_traceback, self._session_id),
-            )
-            await self._database_service.db.commit()
-        except Exception:
-            self.logger.exception("Failed to record service crash for session %d", self._session_id)
-
-    async def _finalize_session(self) -> None:
-        """Write final session status before shutdown.
-
-        If ``_session_error`` is True, a CRASHED event already wrote failure
-        details — only set timestamps.  Otherwise write ``success``.
-        Acquires ``_session_lock`` to coordinate with ``_on_service_crashed()``.
-        """
-        async with self._session_lock:
-            if self._session_id is None:
-                return
-
-            try:
-                _ = self._database_service.db
-            except RuntimeError:
-                self.logger.warning("Cannot finalize session — database not initialized")
-                return
-
-            await self._database_service.submit(Hassette._do_finalize_session(self))
-
-    async def _do_finalize_session(self) -> None:
-        """Execute the finalize UPDATE; called by the write-queue worker."""
-        try:
-            now = time.time()
-            if self._session_error:
-                # CRASHED event already wrote failure details — just set timestamps
-                await self._database_service.db.execute(
-                    "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
-                    (now, now, self._session_id),
-                )
-            else:
-                await self._database_service.db.execute(
-                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
-                    ("success", now, now, self._session_id),
-                )
-            await self._database_service.db.commit()
-        except Exception:
-            self.logger.exception("Failed to finalize session on shutdown")
+            await self._session_manager.finalize_session()
