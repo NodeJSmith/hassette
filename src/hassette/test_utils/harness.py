@@ -325,6 +325,11 @@ class HassetteHarness:
         except Exception:
             self.logger.exception("Error shutting down resources")
 
+        # Close event streams after all children have stopped — children send
+        # STOPPED status events during shutdown, so streams must stay open until then.
+        if self.hassette._event_stream_service and not self.hassette._event_stream_service.event_streams_closed:
+            await self.hassette._event_stream_service.close_streams()
+
         try:
             for _, task in reversed(self._tasks):
                 task.cancel()
