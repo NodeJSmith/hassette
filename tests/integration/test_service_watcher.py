@@ -278,10 +278,11 @@ async def test_max_backoff_caps_delay(get_service_watcher_mock: ServiceWatcher):
     assert sleep_calls == [10.0, 30.0, 30.0]
 
 
-async def test_restart_counter_resets_on_service_running(get_service_watcher_mock: ServiceWatcher):
-    """Restart attempt counter resets when a service transitions to RUNNING."""
+async def test_restart_counter_resets_on_service_running_and_ready(get_service_watcher_mock: ServiceWatcher):
+    """Restart attempt counter resets only when a service transitions to RUNNING *and* becomes ready."""
     watcher = get_service_watcher_mock
     watcher.hassette.config.service_restart_max_attempts = 3
+    watcher.hassette.config.service_restart_readiness_timeout_seconds = 1.0
 
     call_counts = {"cancel": 0, "start": 0}
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
@@ -298,7 +299,8 @@ async def test_restart_counter_resets_on_service_running(get_service_watcher_moc
 
     assert watcher._restart_attempts[key] == 2
 
-    # Fire a RUNNING event — counter should reset
+    # Mark the service ready, then fire RUNNING event — counter should reset
+    dummy_service.mark_ready(reason="test")
     await watcher._on_service_running(make_service_running_event(dummy_service))
 
     assert key not in watcher._restart_attempts
@@ -311,6 +313,33 @@ async def test_restart_counter_resets_on_service_running(get_service_watcher_moc
         await watcher.restart_service(event)
 
     assert watcher._restart_attempts[key] == 1  # fresh counter, not 3
+
+
+async def test_restart_counter_not_reset_when_service_never_ready(get_service_watcher_mock: ServiceWatcher):
+    """Counter is NOT reset when a service reaches RUNNING but never calls mark_ready()."""
+    watcher = get_service_watcher_mock
+    watcher.hassette.config.service_restart_max_attempts = 5
+    watcher.hassette.config.service_restart_readiness_timeout_seconds = 0.1  # short timeout for test
+
+    call_counts = {"cancel": 0, "start": 0}
+    dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True)
+    watcher.hassette.children.append(dummy_service)
+
+    event = make_service_failed_event(dummy_service)
+    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+
+    # Accumulate 2 restart attempts
+    with patch("hassette.core.service_watcher.asyncio.sleep", return_value=None):
+        for _ in range(2):
+            with pytest.raises(RuntimeError, match="always fails"):
+                await watcher.restart_service(event)
+
+    assert watcher._restart_attempts[key] == 2
+
+    # Fire RUNNING event WITHOUT marking ready — counter should NOT reset
+    await watcher._on_service_running(make_service_running_event(dummy_service))
+
+    assert watcher._restart_attempts[key] == 2  # unchanged
 
 
 async def test_bus_driven_failed_events_trigger_shutdown_after_max_attempts(

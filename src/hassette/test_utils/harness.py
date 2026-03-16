@@ -116,23 +116,17 @@ class _HassetteMock(Resource):
             raise RuntimeError("Event loop is not running")
         return self._loop
 
-    async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: int | None = None) -> bool:
-        """Block until all dependent resources are ready or shutdown is requested.
+    async def wait_for_ready(self, resources: "list[Resource] | Resource", timeout: float | None = None) -> bool:
+        """Immediately return True.
 
-        Args:
-            resources: The resource(s) to wait for.
-            timeout: The timeout for the wait operation.
-
-        Returns:
-            True if all resources are ready, False if shutdown is requested.
+        In the test harness, services call ``self.hassette.wait_for_ready()``
+        during ``on_initialize()``.  The harness controls the lifecycle
+        explicitly (``HassetteHarness.start()`` waits on real children via
+        the utility function), so dependency waits inside individual services
+        should be no-ops.  The old polling implementation returned True
+        accidentally (Mock.is_ready() is truthy); this makes it explicit.
         """
-        timeout = timeout or self.config.startup_timeout_seconds
-        resources = resources if isinstance(resources, list) else [resources]
-
-        if any(r is None for r in resources):
-            raise RuntimeError("Cannot wait for None resource")
-
-        return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
+        return True
 
     def get_app(self, name: str, index: int = 0) -> Any:
         if not self._app_handler:

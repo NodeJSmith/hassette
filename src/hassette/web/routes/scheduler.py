@@ -37,11 +37,15 @@ def _job_to_dict(job: "ScheduledJob") -> dict[str, Any]:
 async def get_scheduled_jobs(
     scheduler: SchedulerDep,
     app_key: Annotated[str | None, Query()] = None,
-    instance_index: Annotated[int, Query()] = 0,  # noqa: ARG001 — stub until scheduler exposes instance-aware job listing
+    instance_index: Annotated[
+        int | None, Query()
+    ] = None,  # None = all instances (unlike UI partials which default to 0)
 ) -> list[dict]:
     jobs = await scheduler.get_all_jobs()
     if app_key:
         jobs = [j for j in jobs if j.app_key == app_key]
+    if instance_index is not None:
+        jobs = [j for j in jobs if j.instance_index == instance_index]
     return [_job_to_dict(j) for j in jobs]
 
 
