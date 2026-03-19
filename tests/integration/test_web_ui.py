@@ -119,8 +119,6 @@ class TestDashboardPage:
         assert "Dashboard" in body
         assert "Apps" in body
         assert "Logs" in body
-        assert "Scheduler" in body
-        assert "Event Bus" in body
 
     @pytest.mark.parametrize(
         "expected_text",
@@ -147,9 +145,9 @@ class TestDashboardPage:
         response = await client.get("/ui/")
         assert "data-live-refresh" not in response.text
 
-    async def test_dashboard_shows_bus_view_all_link(self, client: "AsyncClient") -> None:
+    async def test_dashboard_shows_logs_view_all_link(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
-        assert '/ui/bus"' in response.text or "/ui/bus" in response.text
+        assert '/ui/logs"' in response.text or "/ui/logs" in response.text
 
 
 class TestAppsPage:
@@ -1055,7 +1053,6 @@ class TestSidebarStructure:
         assert 'class="ht-brand-link"' in html
         assert 'href="/ui/"' in html
         assert "<img" in html
-        assert 'class="ht-brand-text"' in html
 
     async def test_sidebar_no_close_button(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
@@ -1063,31 +1060,32 @@ class TestSidebarStructure:
         assert not re.search(r"\bht-sidebar-close\b", html)
         assert "fa-xmark" not in html
 
-    async def test_sidebar_toggle_button_exists(self, client: "AsyncClient") -> None:
+    async def test_sidebar_nav_items_exist(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         html = response.text
-        assert "ht-sidebar-toggle" in html
-        assert "fa-bars" in html
+        assert "ht-nav-item" in html
+        assert 'data-testid="nav-dashboard"' in html
+        assert 'data-testid="nav-apps"' in html
+        assert 'data-testid="nav-logs"' in html
 
     async def test_nav_links_no_individual_click_handlers(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         html = response.text
         # Extract nav link <a> tags — they should not have @click attributes
-        nav_links = re.findall(r'<a\s+href="/ui/[^"]*"[^>]*>', html)
-        assert len(nav_links) >= 5, f"Expected at least 5 nav links, found {len(nav_links)}"
+        nav_links = re.findall(r'class="ht-nav-item[^"]*"[^>]*>', html)
+        assert len(nav_links) >= 3, f"Expected at least 3 nav items, found {len(nav_links)}"
         for link in nav_links:
             assert "@click" not in link, f"Nav link should not have @click: {link}"
 
-    async def test_status_bar_has_menu_toggle(self, client: "AsyncClient") -> None:
+    async def test_status_bar_exists(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         html = response.text
-        assert "ht-menu-toggle" in html
         assert "ht-status-bar" in html
 
-    async def test_sidebar_resize_handler(self, client: "AsyncClient") -> None:
+    async def test_theme_toggle_exists(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         html = response.text
-        assert "@resize.window" in html
+        assert 'data-testid="theme-toggle"' in html
 
 
 class TestErrorPages:

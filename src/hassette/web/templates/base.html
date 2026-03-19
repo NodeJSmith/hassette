@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,16 +9,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap">
     <link rel="icon" type="image/png" href="/ui/static/img/hassette-logo.png">
     <link rel="stylesheet" href="/ui/static/css/tokens.css">
     <link rel="stylesheet" href="/ui/static/css/style.css">
     <script>
-      if (localStorage.getItem('ht-sidebar') === 'closed') {
-        document.documentElement.classList.add('ht-sidebar-closed');
-      }
+      (function() {
+        var theme = localStorage.getItem('ht-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
     </script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="https://unpkg.com/idiomorph@0.3.0/dist/idiomorph-ext.min.js"></script>
@@ -33,16 +32,8 @@
          hx-boost="true"
          hx-target="#page-content"
          hx-select="#page-content"
-         hx-swap="outerHTML show:window:top"
-         x-data="{ sidebarOpen: (() => { const saved = localStorage.getItem('ht-sidebar'); return saved !== null ? saved === 'open' : window.innerWidth >= 769; })() }"
-         x-effect="localStorage.setItem('ht-sidebar', sidebarOpen ? 'open' : 'closed')"
-         @keydown.escape.window="sidebarOpen = false"
-         @resize.window="if (window.innerWidth < 769) sidebarOpen = false">
+         hx-swap="outerHTML show:window:top">
       {% include "components/nav.html" %}
-      <div class="ht-sidebar-backdrop"
-           x-show="sidebarOpen"
-           x-transition.opacity
-           @click="sidebarOpen = false"></div>
       <main class="ht-main">
         {% include "components/status_bar.html" %}
         {% include "components/alert_banner.html" %}
@@ -51,5 +42,43 @@
         </section>
       </main>
     </div>
+    <!-- Theme toggle -->
+    <button class="ht-theme-toggle"
+            data-testid="theme-toggle"
+            aria-label="Toggle theme"
+            onclick="(function(){var h=document.documentElement;var t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('ht-theme',t);})()">
+      <!-- Sun icon (shown in dark mode) -->
+      <svg data-theme-icon="sun" style="display:none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+      <!-- Moon icon (shown in light mode) -->
+      <svg data-theme-icon="moon" style="display:none" viewBox="0 0 24 24">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    </button>
+    <script>
+      (function() {
+        function updateIcons() {
+          var theme = document.documentElement.getAttribute('data-theme');
+          var sun = document.querySelector('[data-theme-icon="sun"]');
+          var moon = document.querySelector('[data-theme-icon="moon"]');
+          if (sun) sun.style.display = theme === 'dark' ? 'block' : 'none';
+          if (moon) moon.style.display = theme === 'light' ? 'block' : 'none';
+        }
+        updateIcons();
+        new MutationObserver(updateIcons).observe(
+          document.documentElement,
+          { attributes: true, attributeFilter: ['data-theme'] }
+        );
+      })();
+    </script>
   </body>
 </html>
