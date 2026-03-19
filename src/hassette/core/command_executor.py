@@ -319,11 +319,14 @@ class CommandExecutor(Service):
             INSERT INTO listeners (
                 app_key, instance_index, handler_method, topic,
                 debounce, throttle, once, priority,
-                predicate_description, source_location, registration_source,
+                predicate_description, human_description,
+                source_location, registration_source,
                 first_registered_at, last_registered_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (app_key, instance_index, handler_method, topic)
-            DO UPDATE SET last_registered_at = excluded.last_registered_at
+            DO UPDATE SET
+                last_registered_at = excluded.last_registered_at,
+                human_description = excluded.human_description
             RETURNING id
             """,
             (
@@ -336,6 +339,7 @@ class CommandExecutor(Service):
                 1 if registration.once else 0,
                 registration.priority,
                 registration.predicate_description,
+                registration.human_description,
                 registration.source_location,
                 registration.registration_source,
                 registration.first_registered_at,

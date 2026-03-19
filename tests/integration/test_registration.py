@@ -160,6 +160,7 @@ async def test_listener_registration_persists_correct_app_key(
         once=False,
         priority=0,
         predicate_description=None,
+        human_description=None,
         source_location="test_registration.py:1",
         registration_source=None,
         first_registered_at=ts,

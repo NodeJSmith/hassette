@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from hassette.core.database_service import DatabaseService
+from hassette.core.telemetry_models import HandlerInvocation, JobExecution, JobSummary, ListenerSummary
 from hassette.core.telemetry_query_service import TelemetryQueryService
 
 # ---------------------------------------------------------------------------
@@ -192,11 +193,12 @@ class TestGetListenerSummary:
         rows = await svc.get_listener_summary("test_app", 0)
         assert len(rows) == 2
 
-        row = next(r for r in rows if r["handler_method"] == "on_a")
-        assert row["total_invocations"] == 3
-        assert row["successful"] == 2
-        assert row["failed"] == 1
-        assert row["avg_duration_ms"] == pytest.approx((10.0 + 20.0 + 5.0) / 3)
+        assert all(isinstance(r, ListenerSummary) for r in rows)
+        row = next(r for r in rows if r.handler_method == "on_a")
+        assert row.total_invocations == 3
+        assert row.successful == 2
+        assert row.failed == 1
+        assert row.avg_duration_ms == pytest.approx((10.0 + 20.0 + 5.0) / 3)
 
     async def test_get_listener_summary_empty(
         self,
@@ -210,9 +212,9 @@ class TestGetListenerSummary:
         rows = await svc.get_listener_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
-        assert row["total_invocations"] == 0
-        assert row["successful"] == 0
-        assert row["failed"] == 0
+        assert row.total_invocations == 0
+        assert row.successful == 0
+        assert row.failed == 0
 
     async def test_get_listener_summary_session_scoped(
         self,
@@ -238,9 +240,9 @@ class TestGetListenerSummary:
         rows = await svc.get_listener_summary("test_app", 0, session_id=session_a)
         assert len(rows) == 1
         row = rows[0]
-        assert row["total_invocations"] == 2
-        assert row["successful"] == 2
-        assert row["failed"] == 0
+        assert row.total_invocations == 2
+        assert row.successful == 2
+        assert row.failed == 0
 
 
 # ---------------------------------------------------------------------------
@@ -267,20 +269,21 @@ class TestGetJobSummary:
         rows = await svc.get_job_summary("test_app", 0)
         assert len(rows) == 2
 
-        row1 = next(r for r in rows if r["job_name"] == "job_a")
-        assert row1["job_id"] == j1
-        assert row1["app_key"] == "test_app"
-        assert row1["instance_index"] == 0
-        assert row1["total_executions"] == 2
-        assert row1["successful"] == 1
-        assert row1["failed"] == 1
-        assert row1["avg_duration_ms"] == pytest.approx(75.0)
+        assert all(isinstance(r, JobSummary) for r in rows)
+        row1 = next(r for r in rows if r.job_name == "job_a")
+        assert row1.job_id == j1
+        assert row1.app_key == "test_app"
+        assert row1.instance_index == 0
+        assert row1.total_executions == 2
+        assert row1.successful == 1
+        assert row1.failed == 1
+        assert row1.avg_duration_ms == pytest.approx(75.0)
 
-        row2 = next(r for r in rows if r["job_name"] == "job_b")
-        assert row2["job_id"] == j2
-        assert row2["total_executions"] == 1
-        assert row2["successful"] == 1
-        assert row2["failed"] == 0
+        row2 = next(r for r in rows if r.job_name == "job_b")
+        assert row2.job_id == j2
+        assert row2.total_executions == 1
+        assert row2.successful == 1
+        assert row2.failed == 0
 
 
 # ---------------------------------------------------------------------------
@@ -341,9 +344,10 @@ class TestGetHandlerInvocations:
         # limit=3 returns 3 most recent
         rows = await svc.get_handler_invocations(listener_id, limit=3)
         assert len(rows) == 3
-        assert rows[0]["execution_start_ts"] == pytest.approx(base_ts + 4)
-        assert rows[1]["execution_start_ts"] == pytest.approx(base_ts + 3)
-        assert rows[2]["execution_start_ts"] == pytest.approx(base_ts + 2)
+        assert all(isinstance(r, HandlerInvocation) for r in rows)
+        assert rows[0].execution_start_ts == pytest.approx(base_ts + 4)
+        assert rows[1].execution_start_ts == pytest.approx(base_ts + 3)
+        assert rows[2].execution_start_ts == pytest.approx(base_ts + 2)
 
 
 # ---------------------------------------------------------------------------
@@ -367,8 +371,9 @@ class TestGetJobExecutions:
 
         rows = await svc.get_job_executions(job_id, limit=2)
         assert len(rows) == 2
-        assert rows[0]["execution_start_ts"] == pytest.approx(base_ts + 2)
-        assert rows[1]["execution_start_ts"] == pytest.approx(base_ts + 1)
+        assert all(isinstance(r, JobExecution) for r in rows)
+        assert rows[0].execution_start_ts == pytest.approx(base_ts + 2)
+        assert rows[1].execution_start_ts == pytest.approx(base_ts + 1)
 
 
 # ---------------------------------------------------------------------------

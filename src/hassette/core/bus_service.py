@@ -88,6 +88,9 @@ class BusService(Service):
         """Create a ListenerRegistration and spawn a background task to persist it."""
         now = time.time()
         source_location, registration_source = capture_registration_source()
+        human_description: str | None = None
+        if listener.predicate is not None and hasattr(listener.predicate, "summarize"):
+            human_description = listener.predicate.summarize()
         reg = ListenerRegistration(
             app_key=listener.app_key,
             instance_index=listener.instance_index,
@@ -98,6 +101,7 @@ class BusService(Service):
             once=listener.once,
             priority=listener.priority,
             predicate_description=repr(listener.predicate) if listener.predicate else None,
+            human_description=human_description,
             source_location=source_location,
             registration_source=registration_source,
             first_registered_at=now,

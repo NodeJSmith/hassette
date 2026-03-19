@@ -4,6 +4,12 @@ from typing import TYPE_CHECKING, Any
 
 import aiosqlite
 
+from hassette.core.telemetry_models import (
+    HandlerInvocation,
+    JobExecution,
+    JobSummary,
+    ListenerSummary,
+)
 from hassette.resources.base import Resource
 
 if TYPE_CHECKING:
@@ -46,7 +52,7 @@ class TelemetryQueryService(Resource):
         app_key: str,
         instance_index: int,
         session_id: int | None = None,
-    ) -> list[dict]:
+    ) -> list[ListenerSummary]:
         """Return per-listener summary for a specific app instance."""
         if session_id is not None:
             join_condition = "hi.listener_id = l.id AND hi.session_id = ?"
@@ -69,6 +75,7 @@ class TelemetryQueryService(Resource):
                 l.once,
                 l.priority,
                 l.predicate_description,
+                l.human_description,
                 l.source_location,
                 l.registration_source,
                 COUNT(hi.rowid) AS total_invocations,
@@ -96,14 +103,14 @@ class TelemetryQueryService(Resource):
         """
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-        return [_row_to_dict(row) for row in rows]
+        return [ListenerSummary.model_validate(_row_to_dict(row)) for row in rows]
 
     async def get_job_summary(
         self,
         app_key: str,
         instance_index: int,
         session_id: int | None = None,
-    ) -> list[dict]:
+    ) -> list[JobSummary]:
         """Return per-job summary for a specific app instance."""
         if session_id is not None:
             join_condition = "je.job_id = sj.id AND je.session_id = ?"
@@ -138,7 +145,7 @@ class TelemetryQueryService(Resource):
         """
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-        return [_row_to_dict(row) for row in rows]
+        return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
 
     async def get_global_summary(self, session_id: int | None = None) -> dict | None:
         """Return aggregate telemetry summary across all apps."""
@@ -203,7 +210,7 @@ class TelemetryQueryService(Resource):
             "jobs": job_data,
         }
 
-    async def get_handler_invocations(self, listener_id: int, limit: int = 50) -> list[dict]:
+    async def get_handler_invocations(self, listener_id: int, limit: int = 50) -> list[HandlerInvocation]:
         """Return recent invocation records for a specific listener."""
         query = """
             SELECT
@@ -220,9 +227,9 @@ class TelemetryQueryService(Resource):
         """
         async with self._db.execute(query, (listener_id, limit)) as cursor:
             rows = await cursor.fetchall()
-        return [_row_to_dict(row) for row in rows]
+        return [HandlerInvocation.model_validate(_row_to_dict(row)) for row in rows]
 
-    async def get_job_executions(self, job_id: int, limit: int = 50) -> list[dict]:
+    async def get_job_executions(self, job_id: int, limit: int = 50) -> list[JobExecution]:
         """Return recent execution records for a specific scheduled job."""
         query = """
             SELECT
@@ -238,7 +245,7 @@ class TelemetryQueryService(Resource):
         """
         async with self._db.execute(query, (job_id, limit)) as cursor:
             rows = await cursor.fetchall()
-        return [_row_to_dict(row) for row in rows]
+        return [JobExecution.model_validate(_row_to_dict(row)) for row in rows]
 
     async def get_recent_errors(
         self,

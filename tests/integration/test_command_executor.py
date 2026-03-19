@@ -87,6 +87,7 @@ def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> L
         once=False,
         priority=0,
         predicate_description=None,
+        human_description=None,
         source_location="test_command_executor.py:1",
         registration_source=None,
         first_registered_at=now,
