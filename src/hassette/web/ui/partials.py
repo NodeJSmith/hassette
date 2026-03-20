@@ -47,7 +47,8 @@ async def manifest_list_partial(
 @router.get("/partials/dashboard-app-grid", response_class=HTMLResponse)
 async def dashboard_app_grid_partial(request: Request, runtime: RuntimeDep, telemetry: TelemetryDep) -> HTMLResponse:
     snapshot = runtime.get_all_manifests_snapshot()
-    app_health = await compute_app_grid_health(snapshot.manifests, telemetry)
+    session_id = safe_session_id(runtime)
+    app_health = await compute_app_grid_health(snapshot.manifests, telemetry, session_id=session_id)
     return templates.TemplateResponse(
         request,
         "partials/dashboard_app_grid.html",

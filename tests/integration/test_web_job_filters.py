@@ -58,6 +58,7 @@ def _make_job_summary(
         successful=0,
         failed=0,
         last_executed_at=None,
+        total_duration_ms=0.0,
         avg_duration_ms=0.0,
     )
 

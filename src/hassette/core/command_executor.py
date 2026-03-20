@@ -52,9 +52,15 @@ class CommandExecutor(Service):
         """Return the current session ID.
 
         With phased startup, the session is always created before any service
-        can fire a handler. A missing session is a bug, not an expected race.
+        can fire a handler. Falls back to 0 on error to avoid crash cascades
+        inside exception handlers (the persist layer's regression guard will
+        drop and log the record).
         """
-        return self.hassette.session_id
+        try:
+            return self.hassette.session_id
+        except RuntimeError:
+            self.logger.error("Session ID unavailable — record will be dropped by persist guard")
+            return 0
 
     async def serve(self) -> None:
         """Drain the write queue in batches until shutdown, then flush remaining records."""

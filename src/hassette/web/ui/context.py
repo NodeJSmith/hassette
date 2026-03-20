@@ -100,10 +100,11 @@ def compute_health_metrics(
     total_invocations = sum(ls.total_invocations for ls in listeners)
     total_errors = sum(ls.failed for ls in listeners)
     error_rate = (total_errors / total_invocations * 100) if total_invocations > 0 else 0.0
-    handler_avgs = [ls.avg_duration_ms for ls in listeners if ls.avg_duration_ms > 0]
-    handler_avg_duration = sum(handler_avgs) / len(handler_avgs) if handler_avgs else 0.0
-    job_avgs = [j.avg_duration_ms for j in jobs if j.avg_duration_ms > 0]
-    job_avg_duration = sum(job_avgs) / len(job_avgs) if job_avgs else 0.0
+    total_handler_duration = sum(ls.total_duration_ms for ls in listeners)
+    handler_avg_duration = (total_handler_duration / total_invocations) if total_invocations > 0 else 0.0
+    total_job_executions = sum(j.total_executions for j in jobs)
+    total_job_duration = sum(j.total_duration_ms for j in jobs)
+    job_avg_duration = (total_job_duration / total_job_executions) if total_job_executions > 0 else 0.0
     last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at is not None]
     last_times.extend(j.last_executed_at for j in jobs if j.last_executed_at is not None)
     last_activity_ts = max(last_times) if last_times else None
@@ -146,6 +147,7 @@ def safe_session_id(runtime: "RuntimeQueryService") -> int | None:
 async def compute_app_grid_health(
     manifests: Sequence[Any],
     telemetry: "TelemetryQueryService",
+    session_id: int | None = None,
 ) -> dict[str, AppHealthSummary]:
     """Compute per-app health metrics for the dashboard grid.
 
@@ -153,7 +155,7 @@ async def compute_app_grid_health(
     Returns a dict keyed by app_key with ``AppHealthSummary`` models.
     """
     try:
-        summaries = await telemetry.get_all_app_summaries()
+        summaries = await telemetry.get_all_app_summaries(session_id=session_id)
     except Exception:
         logger.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}

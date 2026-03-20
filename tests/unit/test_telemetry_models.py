@@ -154,11 +154,13 @@ class TestJobSummary:
             "successful": 2,
             "failed": 1,
             "last_executed_at": 1700000000.0,
+            "total_duration_ms": 75.0,
             "avg_duration_ms": 25.0,
         }
         model = JobSummary.model_validate(data)
         assert model.job_id == 5
         assert model.total_executions == 3
+        assert model.total_duration_ms == 75.0
 
 
 class TestJobExecution:

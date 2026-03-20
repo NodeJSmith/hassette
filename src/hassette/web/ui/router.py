@@ -29,7 +29,7 @@ async def dashboard_page(request: Request, runtime: RuntimeDep, telemetry: Telem
     session_summary = await telemetry.get_current_session_summary()
 
     # Compute per-app health metrics for the grid.
-    app_health = await compute_app_grid_health(manifest_snapshot.manifests, telemetry)
+    app_health = await compute_app_grid_health(manifest_snapshot.manifests, telemetry, session_id=session_id)
 
     ctx = {
         **base_context("dashboard"),

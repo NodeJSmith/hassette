@@ -81,21 +81,23 @@ class BusService(Service):
     def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Add a listener to the bus.
 
-        When the listener belongs to an app (has app_key), the route is added
-        first (so events are received immediately), then DB registration runs
-        in the same task. Until ``db_id`` is set, the dispatch path uses
-        direct invocation (no telemetry record).
+        When the listener belongs to an app (has app_key), both route-add and
+        DB registration happen in a single task. For ``once=True`` listeners,
+        registration completes first to prevent orphan DB rows. For regular
+        listeners, the route is added first for immediate event delivery.
         """
         if listener.app_key:
             return self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
     async def _register_then_add_route(self, listener: "Listener") -> None:
-        """Add the listener route, then register in DB.
+        """Register a listener in the DB and add its route.
 
-        The route is added first so the listener receives events immediately.
-        ``db_id`` is set once DB registration completes; until then, dispatch
-        uses the direct-invoke path (no telemetry record).
+        For ``once=True`` listeners, DB registration completes before the route
+        is added to prevent orphan rows (the listener could fire and be removed
+        before registration finishes). For regular listeners, the route is added
+        first so events are received immediately; ``db_id`` is set once DB
+        registration completes, and dispatch uses the direct-invoke path until then.
         """
         now = time.time()
         source_location, registration_source = capture_registration_source()
@@ -118,8 +120,12 @@ class BusService(Service):
             first_registered_at=now,
             last_registered_at=now,
         )
-        await self.router.add_route(listener.topic, listener)
-        listener.db_id = await self._executor.register_listener(reg)
+        if listener.once:
+            listener.db_id = await self._executor.register_listener(reg)
+            await self.router.add_route(listener.topic, listener)
+        else:
+            await self.router.add_route(listener.topic, listener)
+            listener.db_id = await self._executor.register_listener(reg)
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus."""

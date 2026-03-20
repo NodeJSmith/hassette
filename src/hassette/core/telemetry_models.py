@@ -94,6 +94,7 @@ class JobSummary(BaseModel):
     successful: int
     failed: int
     last_executed_at: float | None
+    total_duration_ms: float
     avg_duration_ms: float
 
 

@@ -219,6 +219,7 @@ def mock_hassette():
             successful=14,
             failed=1,
             last_executed_at=1704067200.0,
+            total_duration_ms=52.5,
             avg_duration_ms=3.5,
         ),
         JobSummary(
@@ -238,6 +239,7 @@ def mock_hassette():
             successful=5,
             failed=0,
             last_executed_at=1704067100.0,
+            total_duration_ms=60.0,
             avg_duration_ms=12.0,
         ),
     ]
@@ -260,6 +262,7 @@ def mock_hassette():
             successful=3,
             failed=5,
             last_executed_at=1704067050.0,
+            total_duration_ms=64.0,
             avg_duration_ms=8.0,
         ),
     ]

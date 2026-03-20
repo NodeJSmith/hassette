@@ -142,6 +142,7 @@ class TelemetryQueryService(Resource):
                 SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS failed,
                 MAX(je.execution_start_ts) AS last_executed_at,
+                COALESCE(SUM(je.duration_ms), 0.0) AS total_duration_ms,
                 COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
             FROM scheduled_jobs sj
             LEFT JOIN job_executions je ON {join_condition}
@@ -454,7 +455,9 @@ class TelemetryQueryService(Resource):
 
         handler_errors = [dict(_row_to_dict(r), kind="handler") for r in handler_rows]
         job_errors = [dict(_row_to_dict(r), kind="job") for r in job_rows]
-        return handler_errors + job_errors
+        merged = handler_errors + job_errors
+        merged.sort(key=lambda e: e.get("execution_start_ts", 0), reverse=True)
+        return merged[:limit]
 
     async def get_slow_handlers(self, threshold_ms: float, limit: int = 50) -> list[dict]:
         """Return handler invocations whose duration exceeds threshold_ms."""

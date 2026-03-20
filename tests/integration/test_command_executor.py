@@ -450,11 +450,11 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_safe_session_id_raises_when_no_session(mock_hassette: MagicMock) -> None:
-    """_safe_session_id() raises when no session exists.
+def test_safe_session_id_returns_zero_and_logs_on_missing_session(mock_hassette: MagicMock) -> None:
+    """_safe_session_id() falls back to 0 when no session exists.
 
-    With phased startup, the session is always created before any handler fires.
-    A missing session is a bug, not an expected race condition.
+    Returns 0 (sentinel) so exception handlers don't crash cascade.
+    The persist guard drops the record and logs at ERROR.
     """
 
     class _NoSession:
@@ -464,16 +464,14 @@ def test_safe_session_id_raises_when_no_session(mock_hassette: MagicMock) -> Non
 
     exc = CommandExecutor(mock_hassette, parent=mock_hassette)
     exc.hassette = _NoSession()  # type: ignore[assignment]
-    with pytest.raises(RuntimeError, match="No active session"):
-        exc._safe_session_id()
+    assert exc._safe_session_id() == 0
 
 
 @pytest.mark.asyncio
-async def test_execute_raises_when_no_session(executor: CommandExecutor) -> None:
-    """execute() propagates RuntimeError when session_id is unavailable.
+async def test_execute_queues_sentinel_record_when_no_session(executor: CommandExecutor) -> None:
+    """execute() queues a record with session_id=0 when session is unavailable.
 
-    With phased startup, the session always exists before handlers fire.
-    A missing session is a bug that should surface immediately.
+    Does not crash — the persist guard drops the record at write time.
     """
 
     class _NoSession:
@@ -486,8 +484,12 @@ async def test_execute_raises_when_no_session(executor: CommandExecutor) -> None
     listener = _make_mock_listener()
     cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
 
-    with pytest.raises(RuntimeError, match="No active session"):
-        await executor.execute(cmd)
+    await executor.execute(cmd)
+
+    assert not executor._write_queue.empty()
+    record = executor._write_queue.get_nowait()
+    assert isinstance(record, HandlerInvocationRecord)
+    assert record.session_id == 0
 
 
 @pytest.mark.asyncio
