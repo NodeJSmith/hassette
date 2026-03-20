@@ -7,6 +7,33 @@ These typed models replace raw ``dict`` returns, preventing the
 from pydantic import BaseModel
 
 
+class AppHealthSummary(BaseModel):
+    """Per-app health summary returned by ``get_all_app_summaries()``."""
+
+    handler_count: int
+    job_count: int
+    total_invocations: int
+    total_errors: int
+    total_executions: int
+    total_job_errors: int
+    avg_duration_ms: float
+    last_activity_ts: float | None
+
+    @property
+    def error_rate(self) -> float:
+        """Handler error rate as a percentage (0.0-100.0)."""
+        if self.total_invocations == 0:
+            return 0.0
+        return self.total_errors / self.total_invocations * 100
+
+    @property
+    def success_rate(self) -> float:
+        """Handler success rate as a percentage (0.0-100.0)."""
+        if self.total_invocations == 0:
+            return 100.0
+        return 100.0 - self.error_rate
+
+
 class ListenerSummary(BaseModel):
     """Per-listener summary returned by ``get_listener_summary()``."""
 

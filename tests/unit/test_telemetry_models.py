@@ -1,6 +1,7 @@
 """Tests for Pydantic telemetry models."""
 
 from hassette.core.telemetry_models import (
+    AppHealthSummary,
     GlobalSummary,
     HandlerInvocation,
     JobExecution,
@@ -8,6 +9,44 @@ from hassette.core.telemetry_models import (
     ListenerSummary,
     SessionSummary,
 )
+
+
+class TestAppHealthSummary:
+    def test_app_health_summary_from_dict(self) -> None:
+        data = {
+            "handler_count": 3,
+            "job_count": 2,
+            "total_invocations": 100,
+            "total_errors": 5,
+            "total_executions": 50,
+            "total_job_errors": 2,
+            "avg_duration_ms": 12.5,
+            "last_activity_ts": 1700000000.0,
+        }
+        model = AppHealthSummary.model_validate(data)
+        assert model.handler_count == 3
+        assert model.job_count == 2
+        assert model.total_invocations == 100
+        assert model.total_errors == 5
+        assert model.total_executions == 50
+        assert model.total_job_errors == 2
+        assert model.avg_duration_ms == 12.5
+        assert model.last_activity_ts == 1700000000.0
+
+    def test_app_health_summary_nullable_last_activity(self) -> None:
+        data = {
+            "handler_count": 0,
+            "job_count": 0,
+            "total_invocations": 0,
+            "total_errors": 0,
+            "total_executions": 0,
+            "total_job_errors": 0,
+            "avg_duration_ms": 0.0,
+            "last_activity_ts": None,
+        }
+        model = AppHealthSummary.model_validate(data)
+        assert model.last_activity_ts is None
+        assert model.handler_count == 0
 
 
 class TestListenerSummary:

@@ -9,7 +9,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from hassette.core.database_service import DatabaseService
-from hassette.core.telemetry_models import HandlerInvocation, JobExecution, JobSummary, ListenerSummary
+from hassette.core.telemetry_models import (
+    AppHealthSummary,
+    GlobalSummary,
+    HandlerInvocation,
+    JobExecution,
+    JobSummary,
+    ListenerSummary,
+    SessionSummary,
+)
 from hassette.core.telemetry_query_service import TelemetryQueryService
 
 # ---------------------------------------------------------------------------
@@ -309,17 +317,15 @@ class TestGetGlobalSummary:
         await _insert_execution(db_svc, j1, session_id, status="error")
 
         result = await svc.get_global_summary()
-        assert result is not None
+        assert isinstance(result, GlobalSummary)
 
-        listeners = result["listeners"]
-        assert listeners["total_listeners"] == 1
-        assert listeners["total_invocations"] == 2
-        assert listeners["total_errors"] == 1
+        assert result.listeners.total_listeners == 1
+        assert result.listeners.total_invocations == 2
+        assert result.listeners.total_errors == 1
 
-        jobs = result["jobs"]
-        assert jobs["total_jobs"] == 1
-        assert jobs["total_executions"] == 2
-        assert jobs["total_errors"] == 1
+        assert result.jobs.total_jobs == 1
+        assert result.jobs.total_executions == 2
+        assert result.jobs.total_errors == 1
 
 
 # ---------------------------------------------------------------------------
@@ -535,11 +541,11 @@ class TestGetCurrentSessionSummary:
         await _insert_execution(db_svc, job_id, session_id, status="error")
 
         result = await svc.get_current_session_summary()
-        assert result is not None
-        assert result["total_invocations"] == 2
-        assert result["invocation_errors"] == 1
-        assert result["total_executions"] == 2
-        assert result["execution_errors"] == 1
+        assert isinstance(result, SessionSummary)
+        assert result.total_invocations == 2
+        assert result.invocation_errors == 1
+        assert result.total_executions == 2
+        assert result.execution_errors == 1
 
     async def test_get_current_session_summary_no_session(
         self,
@@ -555,3 +561,169 @@ class TestGetCurrentSessionSummary:
 
         result = await svc.get_current_session_summary()
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_all_app_summaries
+# ---------------------------------------------------------------------------
+
+
+class TestGetAllAppSummaries:
+    async def test_get_all_app_summaries_returns_dict(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Two apps with listeners and jobs — returns dict[str, AppHealthSummary]."""
+        db_svc, session_id = db
+
+        # App A: 2 listeners, 1 job
+        l1 = await _insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        l2 = await _insert_listener(db_svc, app_key="app_a", handler_method="on_b")
+        j1 = await _insert_job(db_svc, app_key="app_a", job_name="job_a")
+
+        await _insert_invocation(db_svc, l1, session_id, status="success", duration_ms=10.0)
+        await _insert_invocation(db_svc, l1, session_id, status="error", duration_ms=20.0)
+        await _insert_invocation(db_svc, l2, session_id, status="success", duration_ms=30.0)
+        await _insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
+        await _insert_execution(db_svc, j1, session_id, status="error", duration_ms=50.0)
+
+        # App B: 1 listener, 0 jobs
+        l3 = await _insert_listener(db_svc, app_key="app_b", handler_method="on_c")
+        await _insert_invocation(db_svc, l3, session_id, status="success", duration_ms=5.0)
+
+        result = await svc.get_all_app_summaries()
+        assert isinstance(result, dict)
+        assert set(result.keys()) == {"app_a", "app_b"}
+
+        a = result["app_a"]
+        assert isinstance(a, AppHealthSummary)
+        assert a.handler_count == 2
+        assert a.job_count == 1
+        assert a.total_invocations == 3
+        assert a.total_errors == 1
+        assert a.total_executions == 2
+        assert a.total_job_errors == 1
+        assert a.avg_duration_ms == pytest.approx(20.0)  # (10+20+30)/3
+        assert a.last_activity_ts is not None
+
+        b = result["app_b"]
+        assert isinstance(b, AppHealthSummary)
+        assert b.handler_count == 1
+        assert b.job_count == 0
+        assert b.total_invocations == 1
+        assert b.total_errors == 0
+        assert b.total_executions == 0
+        assert b.total_job_errors == 0
+
+    async def test_get_all_app_summaries_empty_db(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """No listeners or jobs — returns empty dict."""
+        result = await svc.get_all_app_summaries()
+        assert result == {}
+
+    async def test_get_all_app_summaries_session_scoped(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Session filter restricts invocation/execution counts."""
+        db_svc, session_a = db
+
+        cursor = await db_svc.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
+            (time.time(), time.time()),
+        )
+        session_b = cursor.lastrowid
+        await db_svc.db.commit()
+
+        l1 = await _insert_listener(db_svc, app_key="app_x", handler_method="on_a")
+        j1 = await _insert_job(db_svc, app_key="app_x", job_name="job_a")
+
+        # Session A: 2 invocations (1 error), 1 execution
+        await _insert_invocation(db_svc, l1, session_a, status="success")
+        await _insert_invocation(db_svc, l1, session_a, status="error")
+        await _insert_execution(db_svc, j1, session_a, status="success")
+
+        # Session B: 1 invocation, 1 execution (error)
+        await _insert_invocation(db_svc, l1, session_b, status="success")
+        await _insert_execution(db_svc, j1, session_b, status="error")
+
+        result = await svc.get_all_app_summaries(session_id=session_a)
+        assert "app_x" in result
+        x = result["app_x"]
+        assert x.total_invocations == 2
+        assert x.total_errors == 1
+        assert x.total_executions == 1
+        assert x.total_job_errors == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_global_summary returns typed model
+# ---------------------------------------------------------------------------
+
+
+class TestGetGlobalSummaryTyped:
+    async def test_get_global_summary_returns_typed_model(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_global_summary returns GlobalSummary, not dict."""
+        db_svc, session_id = db
+
+        l1 = await _insert_listener(db_svc, handler_method="on_a")
+        j1 = await _insert_job(db_svc, job_name="job_a")
+        await _insert_invocation(db_svc, l1, session_id, status="success")
+        await _insert_execution(db_svc, j1, session_id, status="success")
+
+        result = await svc.get_global_summary()
+        assert isinstance(result, GlobalSummary)
+        assert result.listeners.total_listeners == 1
+        assert result.listeners.total_invocations == 1
+        assert result.jobs.total_jobs == 1
+        assert result.jobs.total_executions == 1
+
+    async def test_get_global_summary_fresh_install(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Fresh install with no telemetry data — returns zero-value GlobalSummary."""
+        result = await svc.get_global_summary()
+        assert isinstance(result, GlobalSummary)
+        assert result.listeners.total_listeners == 0
+        assert result.listeners.total_invocations == 0
+        assert result.listeners.avg_duration_ms is None
+        assert result.jobs.total_jobs == 0
+        assert result.jobs.total_executions == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_current_session_summary returns typed model
+# ---------------------------------------------------------------------------
+
+
+class TestGetCurrentSessionSummaryTyped:
+    async def test_get_current_session_summary_returns_typed_model(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_current_session_summary returns SessionSummary, not dict."""
+        db_svc, session_id = db
+
+        l1 = await _insert_listener(db_svc)
+        j1 = await _insert_job(db_svc)
+        await _insert_invocation(db_svc, l1, session_id, status="success")
+        await _insert_execution(db_svc, j1, session_id, status="error")
+
+        result = await svc.get_current_session_summary()
+        assert isinstance(result, SessionSummary)
+        assert result.total_invocations == 1
+        assert result.invocation_errors == 0
+        assert result.total_executions == 1
+        assert result.execution_errors == 1

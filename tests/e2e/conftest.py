@@ -11,7 +11,16 @@ import pytest
 import uvicorn
 
 from hassette.core.app_registry import AppInstanceInfo
-from hassette.core.telemetry_models import HandlerInvocation, JobExecution, JobSummary, ListenerSummary
+from hassette.core.telemetry_models import (
+    GlobalSummary,
+    HandlerInvocation,
+    JobExecution,
+    JobGlobalStats,
+    JobSummary,
+    ListenerGlobalStats,
+    ListenerSummary,
+    SessionSummary,
+)
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
     make_job,
@@ -385,36 +394,36 @@ def mock_hassette():
         return_value=job_executions,
     )
 
-    # Global summary for KPI strip (returned as raw dict) — includes all apps.
+    # Global summary for KPI strip — typed model.
     hassette._telemetry_query_service.get_global_summary = AsyncMock(
-        return_value={
-            "listeners": {
-                "total_listeners": 3,
-                "invoked_listeners": 3,
-                "total_invocations": 33,
-                "total_errors": 3,
-                "total_di_failures": 0,
-                "avg_duration_ms": 2.5,
-            },
-            "jobs": {
-                "total_jobs": 3,
-                "executed_jobs": 3,
-                "total_executions": 28,
-                "total_errors": 6,
-            },
-        }
+        return_value=GlobalSummary(
+            listeners=ListenerGlobalStats(
+                total_listeners=3,
+                invoked_listeners=3,
+                total_invocations=33,
+                total_errors=3,
+                total_di_failures=0,
+                avg_duration_ms=2.5,
+            ),
+            jobs=JobGlobalStats(
+                total_jobs=3,
+                executed_jobs=3,
+                total_executions=28,
+                total_errors=6,
+            ),
+        )
     )
 
-    # Current session summary for the session bar.
+    # Current session summary for the session bar — typed model.
     hassette._telemetry_query_service.get_current_session_summary = AsyncMock(
-        return_value={
-            "started_at": 1704067200.0,
-            "last_heartbeat_at": 1704070800.0,
-            "total_invocations": 33,
-            "invocation_errors": 3,
-            "total_executions": 28,
-            "execution_errors": 6,
-        }
+        return_value=SessionSummary(
+            started_at=1704067200.0,
+            last_heartbeat_at=1704070800.0,
+            total_invocations=33,
+            invocation_errors=3,
+            total_executions=28,
+            execution_errors=6,
+        )
     )
 
     # Recent errors for the error feed — includes errors from multiple apps.

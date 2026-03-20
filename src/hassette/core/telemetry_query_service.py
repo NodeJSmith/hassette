@@ -5,10 +5,15 @@ from typing import TYPE_CHECKING, Any
 import aiosqlite
 
 from hassette.core.telemetry_models import (
+    AppHealthSummary,
+    GlobalSummary,
     HandlerInvocation,
     JobExecution,
+    JobGlobalStats,
     JobSummary,
+    ListenerGlobalStats,
     ListenerSummary,
+    SessionSummary,
 )
 from hassette.resources.base import Resource
 
@@ -147,9 +152,112 @@ class TelemetryQueryService(Resource):
             rows = await cursor.fetchall()
         return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
 
-    async def get_global_summary(self, session_id: int | None = None) -> dict | None:
-        """Return aggregate telemetry summary across all apps."""
+    async def get_all_app_summaries(self, session_id: int | None = None) -> dict[str, AppHealthSummary]:
+        """Return per-app health summaries via 2 batch SQL queries (not 2N).
 
+        Groups by ``app_key`` with ``instance_index = 0``.  Returns an empty
+        dict when no listeners or jobs exist.
+        """
+        if session_id is not None:
+            listener_query = """
+                SELECT
+                    l.app_key,
+                    COUNT(DISTINCT l.id) AS handler_count,
+                    COUNT(hi.rowid) AS total_invocations,
+                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
+                    MAX(hi.execution_start_ts) AS last_listener_activity_ts
+                FROM listeners l
+                LEFT JOIN handler_invocations hi ON hi.listener_id = l.id AND hi.session_id = ?
+                WHERE l.instance_index = 0
+                GROUP BY l.app_key
+            """
+            job_query = """
+                SELECT
+                    sj.app_key,
+                    COUNT(DISTINCT sj.id) AS job_count,
+                    COUNT(je.rowid) AS total_executions,
+                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
+                    MAX(je.execution_start_ts) AS last_job_activity_ts
+                FROM scheduled_jobs sj
+                LEFT JOIN job_executions je ON je.job_id = sj.id AND je.session_id = ?
+                WHERE sj.instance_index = 0
+                GROUP BY sj.app_key
+            """
+            listener_params: tuple[int, ...] = (session_id,)
+            job_params: tuple[int, ...] = (session_id,)
+        else:
+            listener_query = """
+                SELECT
+                    l.app_key,
+                    COUNT(DISTINCT l.id) AS handler_count,
+                    COUNT(hi.rowid) AS total_invocations,
+                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
+                    MAX(hi.execution_start_ts) AS last_listener_activity_ts
+                FROM listeners l
+                LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
+                WHERE l.instance_index = 0
+                GROUP BY l.app_key
+            """
+            job_query = """
+                SELECT
+                    sj.app_key,
+                    COUNT(DISTINCT sj.id) AS job_count,
+                    COUNT(je.rowid) AS total_executions,
+                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
+                    MAX(je.execution_start_ts) AS last_job_activity_ts
+                FROM scheduled_jobs sj
+                LEFT JOIN job_executions je ON je.job_id = sj.id
+                WHERE sj.instance_index = 0
+                GROUP BY sj.app_key
+            """
+            listener_params = ()
+            job_params = ()
+
+        async with self._db.execute(listener_query, listener_params) as cursor:
+            listener_rows = await cursor.fetchall()
+        async with self._db.execute(job_query, job_params) as cursor:
+            job_rows = await cursor.fetchall()
+
+        # Build per-app listener data
+        listener_data: dict[str, dict[str, Any]] = {}
+        for row in listener_rows:
+            d = _row_to_dict(row)
+            listener_data[d["app_key"]] = d
+
+        # Build per-app job data
+        job_data: dict[str, dict[str, Any]] = {}
+        for row in job_rows:
+            d = _row_to_dict(row)
+            job_data[d["app_key"]] = d
+
+        # Merge into AppHealthSummary per app_key
+        all_keys = set(listener_data.keys()) | set(job_data.keys())
+        result: dict[str, AppHealthSummary] = {}
+        for app_key in all_keys:
+            ld = listener_data.get(app_key, {})
+            jd = job_data.get(app_key, {})
+            last_listener_ts = ld.get("last_listener_activity_ts")
+            last_job_ts = jd.get("last_job_activity_ts")
+            last_times = [t for t in (last_listener_ts, last_job_ts) if t is not None]
+            result[app_key] = AppHealthSummary(
+                handler_count=ld.get("handler_count", 0),
+                job_count=jd.get("job_count", 0),
+                total_invocations=ld.get("total_invocations", 0),
+                total_errors=ld.get("total_errors", 0),
+                total_executions=jd.get("total_executions", 0),
+                total_job_errors=jd.get("total_job_errors", 0),
+                avg_duration_ms=ld.get("avg_duration_ms", 0.0),
+                last_activity_ts=max(last_times) if last_times else None,
+            )
+        return result
+
+    async def get_global_summary(self, session_id: int | None = None) -> GlobalSummary:
+        """Return aggregate telemetry summary across all apps.
+
+        Returns a zero-value ``GlobalSummary`` on fresh installs (no telemetry data).
+        """
         if session_id is not None:
             listener_query = """
                 SELECT
@@ -205,10 +313,22 @@ class TelemetryQueryService(Resource):
         listener_data = _row_to_dict(listener_row) if listener_row else {}
         job_data = _row_to_dict(job_row) if job_row else {}
 
-        return {
-            "listeners": listener_data,
-            "jobs": job_data,
-        }
+        return GlobalSummary(
+            listeners=ListenerGlobalStats(
+                total_listeners=listener_data.get("total_listeners", 0),
+                invoked_listeners=listener_data.get("invoked_listeners", 0),
+                total_invocations=listener_data.get("total_invocations", 0),
+                total_errors=listener_data.get("total_errors", 0) or 0,
+                total_di_failures=listener_data.get("total_di_failures", 0) or 0,
+                avg_duration_ms=listener_data.get("avg_duration_ms"),
+            ),
+            jobs=JobGlobalStats(
+                total_jobs=job_data.get("total_jobs", 0),
+                executed_jobs=job_data.get("executed_jobs", 0),
+                total_executions=job_data.get("total_executions", 0),
+                total_errors=job_data.get("total_errors", 0) or 0,
+            ),
+        )
 
     async def get_handler_invocations(self, listener_id: int, limit: int = 50) -> list[HandlerInvocation]:
         """Return recent invocation records for a specific listener."""
@@ -374,7 +494,7 @@ class TelemetryQueryService(Resource):
             rows = await cursor.fetchall()
         return [_row_to_dict(row) for row in rows]
 
-    async def get_current_session_summary(self) -> dict | None:
+    async def get_current_session_summary(self) -> SessionSummary | None:
         """Return a summary of the current running session, or None if no session is running."""
         query = """
             SELECT
@@ -392,4 +512,4 @@ class TelemetryQueryService(Resource):
             row = await cursor.fetchone()
         if row is None:
             return None
-        return _row_to_dict(row)
+        return SessionSummary.model_validate(_row_to_dict(row))
