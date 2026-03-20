@@ -1,8 +1,12 @@
 {% from "macros/ui.html" import health_card %}
-{{ health_card(label="Status",
-value=init_status|capitalize,
-status_class="good" if init_status == "running" else ("bad" if init_status == "failed" else "")
-) }}
+{% if init_status == "running" %}
+  {% set _sc = "good" %}
+{% elif init_status == "failed" %}
+  {% set _sc = "bad" %}
+{% else %}
+  {% set _sc = "" %}
+{% endif %}
+{{ health_card(label="Status", value=init_status|capitalize, status_class=_sc) }}
 {{ health_card(label="Error Rate",
 value="%.1f%%"|format(error_rate) ,
 status_class=classify_error_rate(error_rate)
