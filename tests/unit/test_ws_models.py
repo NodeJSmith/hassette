@@ -171,5 +171,5 @@ class TestWsServerMessageDiscriminates:
 
     def test_invalid_type_raises(self) -> None:
         raw = {"type": "unknown_type", "data": {}, "timestamp": 1234567890.0}
-        with pytest.raises(ValueError, match="no match"):
+        with pytest.raises(ValueError, match="does not match any of the expected tags"):
             self.adapter.validate_python(raw)

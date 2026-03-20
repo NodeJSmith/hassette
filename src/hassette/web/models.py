@@ -280,3 +280,93 @@ class JobErrorEntry(BaseModel):
 
 
 RecentErrorEntry = Annotated[HandlerErrorEntry | JobErrorEntry, Field(discriminator="kind")]
+
+
+# ---------------------------------------------------------------------------
+# Telemetry endpoint response models
+# ---------------------------------------------------------------------------
+
+
+class AppHealthResponse(BaseModel):
+    """Health metrics for a single app instance."""
+
+    error_rate: float
+    error_rate_class: str
+    handler_avg_duration: float
+    job_avg_duration: float
+    last_activity_ts: float | None
+    health_status: str
+
+
+class ListenerWithSummary(BaseModel):
+    """Listener metrics enriched with human-readable handler summary."""
+
+    listener_id: int
+    app_key: str
+    instance_index: int = 0
+    topic: str
+    handler_method: str
+    total_invocations: int
+    successful: int
+    failed: int
+    di_failures: int
+    cancelled: int
+    avg_duration_ms: float = 0.0
+    min_duration_ms: float = 0.0
+    max_duration_ms: float = 0.0
+    total_duration_ms: float = 0.0
+    predicate_description: str | None = None
+    human_description: str | None = None
+    debounce: float | None = None
+    throttle: float | None = None
+    once: int = 0
+    priority: int = 0
+    last_invoked_at: float | None = None
+    last_error_message: str | None = None
+    last_error_type: str | None = None
+    handler_summary: str = ""
+
+
+class DashboardKpisResponse(BaseModel):
+    """Global KPI metrics for the dashboard strip."""
+
+    total_handlers: int
+    total_jobs: int
+    total_invocations: int
+    total_executions: int
+    total_errors: int
+    total_job_errors: int
+    avg_handler_duration_ms: float
+    avg_job_duration_ms: float
+    error_rate: float
+    error_rate_class: str
+    uptime_seconds: float | None = None
+
+
+class DashboardAppGridEntry(BaseModel):
+    """Per-app health entry for the dashboard grid."""
+
+    app_key: str
+    status: str
+    display_name: str
+    handler_count: int
+    job_count: int
+    total_invocations: int
+    total_errors: int
+    total_executions: int
+    total_job_errors: int
+    avg_duration_ms: float
+    last_activity_ts: float | None
+    health_status: str
+
+
+class DashboardAppGridResponse(BaseModel):
+    """Dashboard app grid with per-app health data."""
+
+    apps: list[DashboardAppGridEntry]
+
+
+class DashboardErrorsResponse(BaseModel):
+    """Recent errors for the dashboard error feed."""
+
+    errors: list[HandlerErrorEntry | JobErrorEntry]
