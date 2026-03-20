@@ -55,6 +55,19 @@ async def dashboard_app_grid_partial(request: Request, runtime: RuntimeDep, tele
     )
 
 
+@router.get("/partials/dashboard-kpi-strip", response_class=HTMLResponse)
+async def dashboard_kpi_strip_partial(request: Request, runtime: RuntimeDep, telemetry: TelemetryDep) -> HTMLResponse:
+    manifest_snapshot = runtime.get_all_manifests_snapshot()
+    system_status = runtime.get_system_status()
+    session_id = safe_session_id(runtime)
+    global_summary = await telemetry.get_global_summary(session_id=session_id)
+    return templates.TemplateResponse(
+        request,
+        "partials/dashboard_kpi_strip.html",
+        {"manifests": manifest_snapshot.manifests, "system_status": system_status, "global_summary": global_summary},
+    )
+
+
 @router.get("/partials/dashboard-errors", response_class=HTMLResponse)
 async def dashboard_errors_partial(request: Request, runtime: RuntimeDep, telemetry: TelemetryDep) -> HTMLResponse:
     session_id = safe_session_id(runtime)

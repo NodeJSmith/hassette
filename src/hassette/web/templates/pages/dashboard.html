@@ -2,54 +2,9 @@
 {% block title %}Dashboard — Hassette{% endblock %}
 {% block content %}
   {# ── KPI Strip ───────────────────────────────────────────────── #}
-  <div class="ht-kpi-strip" data-testid="kpi-strip">
-    <div class="ht-health-card">
-      <span class="ht-health-card__label">Apps</span>
-      <span class="ht-health-card__value">{{ manifests | length }}</span>
-      {% if system_status %}<span class="ht-health-card__detail">{{ system_status.app_count }} total</span>{% endif %}
-    </div>
-    <div class="ht-health-card">
-      <span class="ht-health-card__label">Error Rate</span>
-      {% if global_summary and global_summary.listeners.total_invocations > 0 %}
-        {% set total_inv = global_summary.listeners.total_invocations %}
-        {% set total_err = global_summary.listeners.total_errors %}
-        {% set err_pct = (total_err / total_inv * 100) %}
-        <span class="ht-health-card__value {{ classify_error_rate(err_pct) }}">{{ "%.1f" | format(err_pct) }}%</span>
-        <span class="ht-health-card__detail">{{ total_err }} / {{ total_inv }} invocations</span>
-      {% else %}
-        <span class="ht-health-card__value good">0.0%</span>
-        <span class="ht-health-card__detail">No data</span>
-      {% endif %}
-    </div>
-    <div class="ht-health-card">
-      <span class="ht-health-card__label">Handlers</span>
-      {% if global_summary %}
-        <span class="ht-health-card__value">{{ global_summary.listeners.total_listeners }}</span>
-        <span class="ht-health-card__detail">{{ global_summary.listeners.invoked_listeners }} active</span>
-      {% else %}
-        <span class="ht-health-card__value">0</span>
-      {% endif %}
-    </div>
-    <div class="ht-health-card">
-      <span class="ht-health-card__label">Jobs</span>
-      {% if global_summary %}
-        <span class="ht-health-card__value">{{ global_summary.jobs.total_jobs }}</span>
-        <span class="ht-health-card__detail">{{ global_summary.jobs.total_executions }} executions</span>
-      {% else %}
-        <span class="ht-health-card__value">0</span>
-      {% endif %}
-    </div>
-    <div class="ht-health-card">
-      <span class="ht-health-card__label">Uptime</span>
-      {% if system_status and system_status.uptime_seconds %}
-        {% set hours = (system_status.uptime_seconds / 3600) | int %}
-        {% set minutes = ((system_status.uptime_seconds % 3600) / 60) | int %}
-        <span class="ht-health-card__value">{{ hours }}h {{ minutes }}m</span>
-      {% else %}
-        <span class="ht-health-card__value">—</span>
-      {% endif %}
-    </div>
-  </div>
+  <div class="ht-kpi-strip" data-testid="kpi-strip"
+       id="dashboard-kpi-strip"
+       data-live-on-app="/ui/partials/dashboard-kpi-strip">{% include "partials/dashboard_kpi_strip.html" %}</div>
   {# ── App Health Grid ─────────────────────────────────────────── #}
   <div class="ht-card ht-mb-4">
     <h2 class="ht-heading-5">
@@ -98,10 +53,6 @@
       <span class="ht-text-xs">v{{ hassette_version }}</span>
     </span>
     {% if session_summary %}
-      <span class="ht-session-bar__item">
-        <span class="ht-text-xs ht-text-muted">Session</span>
-        <span class="ht-text-xs">{{ session_summary.total_invocations }} invocations</span>
-      </span>
       <span class="ht-session-bar__item">
         <span class="ht-text-xs ht-text-muted">Started</span>
         <time class="ht-text-xs"

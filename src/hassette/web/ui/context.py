@@ -91,19 +91,23 @@ def compute_health_metrics(
 ) -> dict[str, Any]:
     """Compute health strip metrics from listener and job summaries.
 
-    Returns a dict with ``error_rate``, ``avg_duration``, and ``last_activity_ts``.
+    Returns a dict with ``error_rate``, ``handler_avg_duration``,
+    ``job_avg_duration``, and ``last_activity_ts``.
     """
     total_invocations = sum(ls.total_invocations for ls in listeners)
     total_errors = sum(ls.failed for ls in listeners)
     error_rate = (total_errors / total_invocations * 100) if total_invocations > 0 else 0.0
-    all_avg = [ls.avg_duration_ms for ls in listeners if ls.avg_duration_ms > 0]
-    avg_duration = sum(all_avg) / len(all_avg) if all_avg else 0.0
+    handler_avgs = [ls.avg_duration_ms for ls in listeners if ls.avg_duration_ms > 0]
+    handler_avg_duration = sum(handler_avgs) / len(handler_avgs) if handler_avgs else 0.0
+    job_avgs = [j.avg_duration_ms for j in jobs if j.avg_duration_ms > 0]
+    job_avg_duration = sum(job_avgs) / len(job_avgs) if job_avgs else 0.0
     last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at]
     last_times.extend(j.last_executed_at for j in jobs if j.last_executed_at)
     last_activity_ts = max(last_times) if last_times else None
     return {
         "error_rate": error_rate,
-        "avg_duration": avg_duration,
+        "handler_avg_duration": handler_avg_duration,
+        "job_avg_duration": job_avg_duration,
         "last_activity_ts": last_activity_ts,
     }
 
