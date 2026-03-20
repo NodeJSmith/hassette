@@ -264,18 +264,15 @@ strong {
 
 /* — Theme Toggle ——————————————————————————————————————— */
 .ht-theme-toggle {
-  position: fixed;
-  top: var(--ht-sp-4);
-  right: var(--ht-sp-4);
-  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
   border: 1px solid var(--ht-border);
   border-radius: var(--ht-radius-md);
-  background: var(--ht-surface);
+  background: transparent;
   color: var(--ht-text-secondary);
   cursor: pointer;
   transition: background var(--ht-motion-micro), color var(--ht-motion-micro), border-color var(--ht-motion-micro);
@@ -312,6 +309,27 @@ strong {
   display: flex;
   align-items: center;
   gap: var(--ht-sp-2);
+}
+
+/* — HTMX Page Transition Indicator ————————————————————— */
+.ht-main::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 56px;
+  right: 0;
+  height: 2px;
+  background: var(--ht-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: none;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.ht-layout.htmx-request .ht-main::before {
+  transform: scaleX(0.7);
+  transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* — Cards —————————————————————————————————————————————— */
