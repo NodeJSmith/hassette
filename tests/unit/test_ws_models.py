@@ -80,7 +80,7 @@ class TestStateChangedNormalizedEnvelope:
     def test_state_changed_has_data_wrapper(self) -> None:
         msg = StateChangedWsMessage(
             type="state_changed",
-            data=StateChangedPayload(entity_id="light.kitchen", new_state="on", old_state="off"),
+            data=StateChangedPayload(entity_id="light.kitchen", new_state={"state": "on"}, old_state={"state": "off"}),
             timestamp=1234567890.0,
         )
         dumped = msg.model_dump()
@@ -153,7 +153,7 @@ class TestWsServerMessageDiscriminates:
     def test_state_changed(self) -> None:
         raw = {
             "type": "state_changed",
-            "data": {"entity_id": "light.kitchen", "new_state": "on", "old_state": "off"},
+            "data": {"entity_id": "light.kitchen", "new_state": {"state": "on"}, "old_state": {"state": "off"}},
             "timestamp": 1234567890.0,
         }
         msg = self.adapter.validate_python(raw)

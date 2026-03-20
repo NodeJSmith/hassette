@@ -128,8 +128,8 @@ class RuntimeQueryService(Resource):
     async def _on_state_change(self, event: RawStateChangeEvent) -> None:
         payload = StateChangedPayload(
             entity_id=event.payload.data.entity_id,
-            new_state=event.payload.data.new_state,
-            old_state=event.payload.data.old_state,
+            new_state=dict(event.payload.data.new_state) if event.payload.data.new_state else None,
+            old_state=dict(event.payload.data.old_state) if event.payload.data.old_state else None,
         )
         entry = {"type": "state_changed", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)

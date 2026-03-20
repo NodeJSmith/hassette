@@ -15,7 +15,6 @@ Usage::
 """
 
 import json
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -60,4 +59,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    main()

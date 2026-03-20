@@ -190,8 +190,8 @@ class ConnectivityPayload(BaseModel):
 
 class StateChangedPayload(BaseModel):
     entity_id: str
-    new_state: Any
-    old_state: Any
+    new_state: dict[str, Any] | None = None
+    old_state: dict[str, Any] | None = None
 
 
 class WsServiceStatusPayload(BaseModel):
