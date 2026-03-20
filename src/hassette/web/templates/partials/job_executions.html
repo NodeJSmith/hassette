@@ -22,7 +22,7 @@
               <span class="ht-badge ht-badge--neutral ht-badge--sm">{{ ex.status }}</span>
             {% endif %}
           </td>
-          <td>{{ ex.execution_start_ts }}</td>
+          <td>{{ ex.execution_start_ts | timestamp }}</td>
           <td>{{ "%.1f"|format(ex.duration_ms) }}ms</td>
           <td>
             {% if ex.error_message %}

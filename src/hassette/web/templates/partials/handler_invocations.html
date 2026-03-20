@@ -22,7 +22,7 @@
               <span class="ht-badge ht-badge--neutral ht-badge--sm">{{ inv.status }}</span>
             {% endif %}
           </td>
-          <td>{{ inv.execution_start_ts }}</td>
+          <td>{{ inv.execution_start_ts | timestamp }}</td>
           <td>{{ "%.1f"|format(inv.duration_ms) }}ms</td>
           <td>
             {% if inv.error_message %}
