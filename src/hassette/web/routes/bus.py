@@ -1,12 +1,15 @@
 """Bus listener metrics endpoints."""
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Query
 
 from hassette.web.dependencies import RuntimeDep, TelemetryDep
 from hassette.web.models import BusMetricsSummaryResponse, ListenerMetricsResponse
 from hassette.web.utils import gather_all_listeners
+
+if TYPE_CHECKING:
+    from hassette.core.telemetry_models import ListenerSummary
 
 router = APIRouter(tags=["bus"])
 
@@ -17,10 +20,10 @@ async def get_listener_metrics(
     telemetry: TelemetryDep,
     app_key: Annotated[str | None, Query()] = None,
     instance_index: Annotated[int, Query()] = 0,
-) -> list[ListenerMetricsResponse]:
+) -> "list[ListenerSummary]":
     if not app_key:
-        return await gather_all_listeners(runtime, telemetry)  # pyright: ignore[reportReturnType]
-    return await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)  # pyright: ignore[reportReturnType]
+        return await gather_all_listeners(runtime, telemetry)
+    return await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
 
 
 @router.get("/bus/metrics", response_model=BusMetricsSummaryResponse)

@@ -1,10 +1,13 @@
 """Template context helpers for the Hassette Web UI."""
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Protocol
 
 from hassette.config.helpers import VERSION
 from hassette.core.telemetry_models import AppHealthSummary, JobSummary, ListenerSummary
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from hassette.core.runtime_query_service import RuntimeQueryService
@@ -152,6 +155,7 @@ async def compute_app_grid_health(
     try:
         summaries = await telemetry.get_all_app_summaries()
     except Exception:
+        logger.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
     # Only include apps that appear in the manifest list.

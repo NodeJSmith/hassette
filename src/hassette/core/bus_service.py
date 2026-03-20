@@ -81,9 +81,10 @@ class BusService(Service):
     def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Add a listener to the bus.
 
-        When the listener belongs to an app (has app_key), DB registration
-        completes before the route is added so that ``db_id`` is guaranteed
-        to be set before any event can fire.
+        When the listener belongs to an app (has app_key), the route is added
+        first (so events are received immediately), then DB registration runs
+        in the same task. Until ``db_id`` is set, the dispatch path uses
+        direct invocation (no telemetry record).
         """
         if listener.app_key:
             return self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")

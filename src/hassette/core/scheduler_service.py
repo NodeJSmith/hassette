@@ -156,9 +156,10 @@ class SchedulerService(Service):
     def add_job(self, job: "ScheduledJob"):
         """Push a job to the queue and register it with the executor.
 
-        When the job belongs to an app (has app_key), DB registration
-        completes before the job is enqueued so that ``db_id`` is guaranteed
-        to be set before any execution can fire.
+        When the job belongs to an app (has app_key), the job is enqueued
+        first (so it can be dispatched immediately), then DB registration
+        runs in the same task. Until ``db_id`` is set, the dispatch path
+        uses direct invocation (no telemetry record).
         """
         if job.app_key:
             return self.task_bucket.spawn(self._register_then_enqueue(job), name="scheduler:add_job")
