@@ -3,7 +3,17 @@
 {% block title %}Apps — Hassette{% endblock %}
 {% block content %}
   <h1 class="ht-heading-4">
-    <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-9 5-9-5"/><path d="m21 12-9 5-9-5"/><path d="m3 8 9-5 9 5-9 5Z"/></svg>
+    <svg class="ht-icon-svg"
+         viewBox="0 0 24 24"
+         fill="none"
+         stroke="currentColor"
+         stroke-width="2"
+         stroke-linecap="round"
+         stroke-linejoin="round">
+      <path d="m21 16-9 5-9-5" />
+      <path d="m21 12-9 5-9-5" />
+      <path d="m3 8 9-5 9 5-9 5Z" />
+    </svg>
     <span>App Management</span>
   </h1>
   {% if manifest_snapshot.total == 0 %}
@@ -17,21 +27,15 @@
         ("failed", "Failed", manifest_snapshot.failed),
         ("stopped", "Stopped", manifest_snapshot.stopped),
         ("disabled", "Disabled", manifest_snapshot.disabled),
-    ] -%}
-    <div class="ht-card"
-         x-data="{ activeTab: 'all', expanded: {} }">
+        ] -%}
+    <div class="ht-card" x-data="{ activeTab: 'all', expanded: {} }">
       {# -- Status filter tabs -- #}
       <div class="ht-tabs ht-mb-3">
         <ul>
           {% for key, label, count in filter_tabs %}
             <li :class="{ 'is-active': activeTab === '{{ key }}' }"
                 data-testid="tab-{{ key }}">
-              <a @click.prevent="
-                   activeTab = '{{ key }}';
-                   htmx.ajax('GET',
-                     '/ui/partials/manifest-list' + (activeTab === 'all' ? '' : '?status=' + activeTab),
-                     { target: '#manifest-list', swap: 'morph:innerHTML' }
-                   )"
+              <a @click.prevent=" activeTab = '{{ key }}'; htmx.ajax('GET', '/ui/partials/manifest-list' + (activeTab === 'all' ? '' : '?status=' + activeTab), { target: '#manifest-list', swap: 'morph:innerHTML' } )"
                  href="#">{{ label }} ({{ count }})</a>
             </li>
           {% endfor %}

@@ -2,7 +2,7 @@
 {% if listeners %}
   <div class="ht-item-list">
     {% for listener in listeners %}
-      {{ handler_row(listener, app_key, summary=handler_summaries.get(listener.listener_id, "")) }}
+      {{ handler_row(listener, app_key, summary=handler_summaries.get(listener.listener_id, "") ) }}
     {% endfor %}
   </div>
 {% else %}

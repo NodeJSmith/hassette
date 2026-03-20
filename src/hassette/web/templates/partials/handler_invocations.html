@@ -1,6 +1,7 @@
 {# Invocation history for a single handler — loaded on-demand via htmx.ajax(). #}
 {% if invocations %}
-  <table class="ht-table ht-table--dense ht-text-xs" data-testid="invocation-table-{{ listener_id }}">
+  <table class="ht-table ht-table--dense ht-text-xs"
+         data-testid="invocation-table-{{ listener_id }}">
     <thead>
       <tr>
         <th style="width: 60px">Status</th>
@@ -42,7 +43,9 @@
     </tbody>
   </table>
   {# Event payload placeholder — future endpoint #}
-  <div class="invocation__payload" style="display: none" data-testid="invocation-payload-placeholder"></div>
+  <div class="invocation__payload"
+       style="display: none"
+       data-testid="invocation-payload-placeholder"></div>
 {% else %}
   <p class="ht-text-muted ht-text-xs">No invocation history.</p>
 {% endif %}

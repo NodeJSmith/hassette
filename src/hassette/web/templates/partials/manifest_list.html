@@ -10,8 +10,27 @@
               style="cursor: pointer"
               @click="expanded['{{ manifest.app_key }}'] = !(expanded['{{ manifest.app_key }}'] ?? true)"
               x-bind:title="(expanded['{{ manifest.app_key }}'] ?? true) ? 'Collapse' : 'Expand'">
-          <svg x-show="expanded['{{ manifest.app_key }}'] ?? true" class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          <svg x-show="!(expanded['{{ manifest.app_key }}'] ?? true)" x-cloak class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <svg x-show="expanded['{{ manifest.app_key }}'] ?? true"
+               class="ht-icon-svg"
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="2"
+               stroke-linecap="round"
+               stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+          <svg x-show="!(expanded['{{ manifest.app_key }}'] ?? true)"
+               x-cloak
+               class="ht-icon-svg"
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="2"
+               stroke-linecap="round"
+               stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </span>
         <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
       {% else %}
@@ -33,9 +52,7 @@
         —
       {% endif %}
     </td>
-    <td>
-      {{ action_buttons(manifest.app_key, manifest.status, after_action="location.reload()", show_labels=false) }}
-    </td>
+    <td>{{ action_buttons(manifest.app_key, manifest.status, after_action="location.reload()", show_labels=false) }}</td>
   </tr>
   {# -- Instance rows (multi-instance apps) -- #}
   {% if manifest.instance_count > 1 %}
@@ -56,9 +73,7 @@
             —
           {% endif %}
         </td>
-        <td>
-          {{ action_buttons(manifest.app_key, inst.status, after_action="location.reload()", show_labels=false) }}
-        </td>
+        <td>{{ action_buttons(manifest.app_key, inst.status, after_action="location.reload()", show_labels=false) }}</td>
       </tr>
     {% endfor %}
   {% endif %}

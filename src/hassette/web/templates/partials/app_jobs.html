@@ -1,9 +1,7 @@
 {% from "macros/ui.html" import job_row %}
 {% if jobs %}
   <div class="ht-item-list">
-    {% for job in jobs %}
-      {{ job_row(job, app_key) }}
-    {% endfor %}
+    {% for job in jobs %}{{ job_row(job, app_key) }}{% endfor %}
   </div>
 {% else %}
   <p class="ht-text-muted ht-text-xs">No scheduled jobs.</p>

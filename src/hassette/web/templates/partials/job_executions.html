@@ -1,6 +1,7 @@
 {# Execution history for a single job — loaded on-demand via htmx.ajax(). #}
 {% if executions %}
-  <table class="ht-table ht-table--dense ht-text-xs" data-testid="execution-table-{{ job_id }}">
+  <table class="ht-table ht-table--dense ht-text-xs"
+         data-testid="execution-table-{{ job_id }}">
     <thead>
       <tr>
         <th style="width: 60px">Status</th>
@@ -41,7 +42,12 @@
             hx-post="/ui/partials/run-job/{{ app_key }}/{{ job_id }}"
             hx-swap="none"
             title="Run this job now (coming soon)">
-      <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6,4 20,12 6,20"/></svg>
+      <svg class="ht-icon-svg"
+           viewBox="0 0 24 24"
+           fill="currentColor"
+           stroke="none">
+        <polygon points="6,4 20,12 6,20" />
+      </svg>
       <span>Run Now</span>
     </button>
   </div>
