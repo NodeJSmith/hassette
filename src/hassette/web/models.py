@@ -1,6 +1,6 @@
 """Pydantic response models for the Hassette Web API."""
 
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -157,3 +157,126 @@ class SchedulerSummaryResponse(BaseModel):
     active: int
     cancelled: int
     repeating: int
+
+
+# ---------------------------------------------------------------------------
+# Typed WebSocket message models
+# ---------------------------------------------------------------------------
+
+
+class AppStatusChangedPayload(BaseModel):
+    """Mirrors ``events.hassette.AppStateChangePayload`` exactly."""
+
+    app_key: str
+    index: int
+    status: str
+    previous_status: str | None = None
+    instance_name: str | None = None
+    class_name: str | None = None
+    exception: str | None = None
+    exception_type: str | None = None
+    exception_traceback: str | None = None
+
+
+class ConnectedPayload(BaseModel):
+    session_id: int | None = None
+    entity_count: int
+    app_count: int
+
+
+class ConnectivityPayload(BaseModel):
+    connected: bool
+
+
+class StateChangedPayload(BaseModel):
+    entity_id: str
+    new_state: Any
+    old_state: Any
+
+
+class WsServiceStatusPayload(BaseModel):
+    """Mirrors ``events.hassette.ServiceStatusPayload``."""
+
+    resource_name: str
+    role: str
+    status: str
+    previous_status: str | None = None
+    exception: str | None = None
+    exception_type: str | None = None
+    exception_traceback: str | None = None
+
+
+class AppStatusChangedWsMessage(BaseModel):
+    type: Literal["app_status_changed"]
+    data: AppStatusChangedPayload
+    timestamp: float
+
+
+class LogWsMessage(BaseModel):
+    type: Literal["log"]
+    data: LogEntryResponse
+    timestamp: float
+
+
+class ConnectedWsMessage(BaseModel):
+    type: Literal["connected"]
+    data: ConnectedPayload
+    timestamp: float
+
+
+class ConnectivityWsMessage(BaseModel):
+    type: Literal["connectivity"]
+    data: ConnectivityPayload
+    timestamp: float
+
+
+class StateChangedWsMessage(BaseModel):
+    type: Literal["state_changed"]
+    data: StateChangedPayload
+    timestamp: float
+
+
+class ServiceStatusWsMessage(BaseModel):
+    type: Literal["service_status"]
+    data: WsServiceStatusPayload
+    timestamp: float
+
+
+WsServerMessage = Annotated[
+    AppStatusChangedWsMessage
+    | LogWsMessage
+    | ConnectedWsMessage
+    | ConnectivityWsMessage
+    | StateChangedWsMessage
+    | ServiceStatusWsMessage,
+    Field(discriminator="type"),
+]
+
+
+# ---------------------------------------------------------------------------
+# Typed error entry models (for get_recent_errors)
+# ---------------------------------------------------------------------------
+
+
+class HandlerErrorEntry(BaseModel):
+    kind: Literal["handler"] = "handler"
+    listener_id: int
+    topic: str
+    handler_method: str
+    error_message: str
+    error_type: str
+    timestamp: float
+    app_key: str
+
+
+class JobErrorEntry(BaseModel):
+    kind: Literal["job"] = "job"
+    job_id: int
+    job_name: str
+    error_message: str
+    error_type: str
+    timestamp: float
+    app_key: str
+
+
+RecentErrorEntry = Annotated[HandlerErrorEntry | JobErrorEntry, Field(discriminator="kind")]

@@ -17,8 +17,12 @@ from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
+    AppStatusChangedPayload,
     AppStatusResponse,
+    ConnectivityPayload,
+    StateChangedPayload,
     SystemStatusResponse,
+    WsServiceStatusPayload,
 )
 
 if TYPE_CHECKING:
@@ -122,39 +126,40 @@ class RuntimeQueryService(Resource):
     # --- Event handlers ---
 
     async def _on_state_change(self, event: RawStateChangeEvent) -> None:
-        entry = {
-            "type": "state_changed",
-            "entity_id": event.payload.data.entity_id,
-            "new_state": event.payload.data.new_state,
-            "old_state": event.payload.data.old_state,
-            "timestamp": time.time(),
-        }
+        payload = StateChangedPayload(
+            entity_id=event.payload.data.entity_id,
+            new_state=event.payload.data.new_state,
+            old_state=event.payload.data.old_state,
+        )
+        entry = {"type": "state_changed", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_app_state_changed(self, event: Event) -> None:
         raw = event.payload.data if hasattr(event, "payload") else {}
-        entry = {
-            "type": "app_status_changed",
-            "data": _serialize_payload(raw),
-            "timestamp": time.time(),
-        }
+        serialized = _serialize_payload(raw)
+        payload = AppStatusChangedPayload.model_validate(serialized)
+        entry = {"type": "app_status_changed", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_service_status(self, event: Event[Any]) -> None:
         raw = event.payload.data if hasattr(event, "payload") else {}
-        entry = {"type": "service_status", "data": _serialize_payload(raw), "timestamp": time.time()}
+        serialized = _serialize_payload(raw)
+        payload = WsServiceStatusPayload.model_validate(serialized)
+        entry = {"type": "service_status", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_ws_connected(self) -> None:
-        entry = {"type": "connectivity", "data": {"connected": True}, "timestamp": time.time()}
+        payload = ConnectivityPayload(connected=True)
+        entry = {"type": "connectivity", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_ws_disconnected(self) -> None:
-        entry = {"type": "connectivity", "data": {"connected": False}, "timestamp": time.time()}
+        payload = ConnectivityPayload(connected=False)
+        entry = {"type": "connectivity", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
