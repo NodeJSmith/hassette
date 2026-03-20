@@ -13,5 +13,3 @@ value="%.1f ms"|format(handler_avg_duration) if handler_avg_duration > 0 else "�
 {{ health_card(label="Job Avg",
 value="%.1f ms"|format(job_avg_duration) if job_avg_duration > 0 else "—"
 ) }}
-{{ health_card(label="Last Activity",
-value="—" if not last_activity_ts else "Active") }}

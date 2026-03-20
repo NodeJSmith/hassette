@@ -4,6 +4,9 @@
   {# ── KPI Strip ───────────────────────────────────────────────── #}
   <div class="ht-kpi-strip" data-testid="kpi-strip"
        id="dashboard-kpi-strip"
+       hx-get="/ui/partials/dashboard-kpi-strip"
+       hx-trigger="every 30s"
+       hx-swap="morph:innerHTML"
        data-live-on-app="/ui/partials/dashboard-kpi-strip">{% include "partials/dashboard_kpi_strip.html" %}</div>
   {# ── App Health Grid ─────────────────────────────────────────── #}
   <div class="ht-card ht-mb-4">
