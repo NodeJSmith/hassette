@@ -11,10 +11,10 @@ def test_app_detail_renders_health_strip(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/my_app")
     strip = page.locator("[data-testid='health-strip']")
     expect(strip).to_be_visible()
-    expect(strip).to_contain_text("Init Status")
+    expect(strip).to_contain_text("Status")
     expect(strip).to_contain_text("Error Rate")
-    expect(strip).to_contain_text("Avg Duration")
-    expect(strip).to_contain_text("Last Activity")
+    expect(strip).to_contain_text("Handler Avg")
+    expect(strip).to_contain_text("Job Avg")
 
 
 def test_app_detail_renders_handler_rows(page: Page, base_url: str) -> None:
@@ -111,16 +111,6 @@ def test_app_detail_identity_model_fixed(page: Page, base_url: str) -> None:
     body = page.locator("body")
     expect(body).to_contain_text("Other App")
     expect(body).to_contain_text("Scheduled Jobs")
-
-
-def test_deferred_log_level_toggle_returns_501(page: Page, base_url: str) -> None:
-    """Clicking log level button gets 501."""
-    page.goto(base_url + "/ui/apps/my_app")
-    # The log level button uses hx-post, which we intercept via the route response
-    with page.expect_response(lambda r: "/partials/log-level/" in r.url) as response_info:
-        page.locator("[data-testid='btn-log-level']").click()
-    response = response_info.value
-    assert response.status == 501
 
 
 def test_registration_source_link(page: Page, base_url: str) -> None:

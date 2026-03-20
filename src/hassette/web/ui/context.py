@@ -34,8 +34,8 @@ def classify_error_rate(rate: float) -> str:
 def classify_health_bar(success_rate: float) -> str:
     """Map a success-rate percentage to a CSS class name.
 
-    Thresholds: 100% = "excellent", >95% = "good" (including 95),
-    >90% = "warning" (including 90), <=90% = "critical".
+    Thresholds: 100% = "excellent", >=95% = "good",
+    >=90% = "warning", <90% = "critical".
     """
     if success_rate == 100:
         return "excellent"
@@ -101,8 +101,8 @@ def compute_health_metrics(
     handler_avg_duration = sum(handler_avgs) / len(handler_avgs) if handler_avgs else 0.0
     job_avgs = [j.avg_duration_ms for j in jobs if j.avg_duration_ms > 0]
     job_avg_duration = sum(job_avgs) / len(job_avgs) if job_avgs else 0.0
-    last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at]
-    last_times.extend(j.last_executed_at for j in jobs if j.last_executed_at)
+    last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at is not None]
+    last_times.extend(j.last_executed_at for j in jobs if j.last_executed_at is not None)
     last_activity_ts = max(last_times) if last_times else None
     return {
         "error_rate": error_rate,

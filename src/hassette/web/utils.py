@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 async def gather_all_listeners(
     runtime: "RuntimeQueryService",
     telemetry: "TelemetryQueryService",
-) -> list[dict]:
+) -> list:  # pyright: ignore[reportReturnType]
     """Enumerate all app instances and gather listener summaries."""
     snapshot = runtime.get_all_manifests_snapshot()
     tasks = [
@@ -26,7 +26,7 @@ async def gather_all_listeners(
         for instance in manifest.instances
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    listeners: list[dict] = []
+    listeners: list = []
     for result in results:
         if isinstance(result, BaseException):
             logger.warning("Telemetry query failed gathering all listeners: %s", result)

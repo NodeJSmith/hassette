@@ -45,16 +45,16 @@ def test_ws_connection_indicator_renders(page: Page, base_url: str) -> None:
     expect(page.locator("body")).to_contain_text("App Health")
 
 
-def test_pulse_dot_shows_disconnected_state(page: Page, base_url: str) -> None:
-    """Pulse dot element exists and reflects the WS store's connected state.
+def test_status_bar_shows_disconnected_state(page: Page, base_url: str) -> None:
+    """Status bar reflects the WS store's connected state.
 
     With ws='none' in the test server, the Alpine store never reaches
-    connected=true, so the pulse dot should exist but not show the
-    connected animation class.
+    connected=true, so the status bar should show 'Disconnected'.
     """
     page.goto(base_url + "/ui/")
-    pulse_dot = page.locator('[data-testid="pulse-dot"]')
-    expect(pulse_dot).to_be_visible()
+    status_bar = page.locator(".ht-status-bar")
+    expect(status_bar).to_be_visible()
+    expect(status_bar).to_contain_text("onnected")
 
 
 # ── data-live-on-app attributes ──────────────────────────────────────

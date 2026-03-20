@@ -92,6 +92,7 @@
     if (!refreshTimer) {
       refreshTimer = setTimeout(function () {
         pendingRefresh.forEach(function (attrName, target) {
+          if (!visibleElements.has(target)) return;
           var refreshUrl = target.getAttribute(attrName);
           if (refreshUrl) htmx.ajax("GET", refreshUrl, { target: target, swap: "morph:innerHTML" });
         });

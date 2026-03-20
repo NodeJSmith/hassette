@@ -11,18 +11,20 @@ pytestmark = pytest.mark.e2e
 # ── Connection bar ──────────────────────────────────────────────────
 
 
-def test_dashboard_renders_connection_bar(page: Page, base_url: str) -> None:
-    """Connection bar is visible with connection state text.
+def test_dashboard_renders_status_bar(page: Page, base_url: str) -> None:
+    """Status bar is visible with connection state text and theme toggle.
 
     Note: The e2e test server disables WebSocket (ws='none'), so Alpine.js
     $store.ws.connected will be false and the bar shows 'Disconnected'.
     In production with a real WS connection it would show 'Connected'.
     """
     page.goto(base_url + "/ui/")
-    connection_bar = page.locator("[data-testid='connection-bar']")
-    expect(connection_bar).to_be_visible()
+    status_bar = page.locator(".ht-status-bar")
+    expect(status_bar).to_be_visible()
     # Bar should show either Connected or Disconnected (Alpine-driven)
-    expect(connection_bar).to_contain_text("onnected")
+    expect(status_bar).to_contain_text("onnected")
+    # Theme toggle should be present
+    expect(page.locator("[data-testid='theme-toggle']")).to_be_visible()
 
 
 # ── KPI strip ───────────────────────────────────────────────────────
