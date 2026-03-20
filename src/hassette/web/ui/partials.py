@@ -1,27 +1,19 @@
 """HTMX partial fragment routes for the Hassette Web UI."""
 
 from fastapi import APIRouter, Query, Request
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, Response
 
-from hassette.web.dependencies import RuntimeDep, SchedulerDep, TelemetryDep
+from hassette.web.dependencies import RuntimeDep, TelemetryDep
 from hassette.web.ui import templates
-from hassette.web.ui.context import alert_context, job_to_dict
-from hassette.web.utils import gather_all_listeners
+from hassette.web.ui.context import (
+    alert_context,
+    compute_app_grid_health,
+    compute_health_metrics,
+    format_handler_summary,
+    safe_session_id,
+)
 
 router = APIRouter()
-
-
-@router.get("/partials/app-list", response_class=HTMLResponse)
-async def app_list_partial(request: Request, runtime: RuntimeDep) -> HTMLResponse:
-    app_status = runtime.get_app_status_snapshot()
-    return templates.TemplateResponse(request, "partials/app_list.html", {"app_status": app_status})
-
-
-@router.get("/partials/app-row/{app_key}", response_class=HTMLResponse)
-async def app_row_partial(app_key: str, request: Request, runtime: RuntimeDep) -> HTMLResponse:
-    app_status = runtime.get_app_status_snapshot()
-    app = next((a for a in app_status.apps if a.app_key == app_key), None)
-    return templates.TemplateResponse(request, "partials/app_row.html", {"app": app})
 
 
 @router.get("/partials/log-entries", response_class=HTMLResponse)
@@ -52,77 +44,22 @@ async def manifest_list_partial(
     return templates.TemplateResponse(request, "partials/manifest_list.html", {"manifests": manifests})
 
 
-@router.get("/partials/scheduler-jobs", response_class=HTMLResponse)
-async def scheduler_jobs_partial(
-    request: Request,
-    scheduler: SchedulerDep,
-    app_key: str | None = None,
-    instance_index: int = 0,
-) -> HTMLResponse:
-    all_scheduler_jobs = await scheduler.get_all_jobs()
-    if app_key:
-        jobs = [
-            job_to_dict(j, app_key=app_key, instance_index=instance_index)
-            for j in all_scheduler_jobs
-            if j.app_key == app_key
-        ]
-    else:
-        jobs = [job_to_dict(j) for j in all_scheduler_jobs]
-    return templates.TemplateResponse(
-        request,
-        "partials/scheduler_jobs.html",
-        {"jobs": jobs},
-    )
-
-
-@router.get("/partials/scheduler-history", response_class=HTMLResponse)
-async def scheduler_history_partial(
-    request: Request,
-    app_key: str | None = None,  # noqa: ARG001 — stub until get_job_executions is wired
-    instance_index: int = 0,  # noqa: ARG001 — stub until get_job_executions is wired
-) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request,
-        "partials/scheduler_history.html",
-        {"history": []},
-    )
-
-
-@router.get("/partials/bus-listeners", response_class=HTMLResponse)
-async def bus_listeners_partial(
-    request: Request,
-    runtime: RuntimeDep,
-    telemetry: TelemetryDep,
-    app_key: str | None = None,
-    instance_index: int = 0,
-) -> HTMLResponse:
-    if app_key:
-        listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
-    else:
-        listeners = await gather_all_listeners(runtime, telemetry)
-    return templates.TemplateResponse(
-        request,
-        "partials/bus_listeners.html",
-        {"listeners": listeners},
-    )
-
-
 @router.get("/partials/dashboard-app-grid", response_class=HTMLResponse)
-async def dashboard_app_grid_partial(request: Request, runtime: RuntimeDep) -> HTMLResponse:
+async def dashboard_app_grid_partial(request: Request, runtime: RuntimeDep, telemetry: TelemetryDep) -> HTMLResponse:
     snapshot = runtime.get_all_manifests_snapshot()
-    return templates.TemplateResponse(request, "partials/dashboard_app_grid.html", {"manifests": snapshot.manifests})
+    app_health = await compute_app_grid_health(snapshot.manifests, telemetry)
+    return templates.TemplateResponse(
+        request,
+        "partials/dashboard_app_grid.html",
+        {"manifests": snapshot.manifests, "app_health": app_health},
+    )
 
 
-@router.get("/partials/dashboard-timeline", response_class=HTMLResponse)
-async def dashboard_timeline_partial(request: Request, runtime: RuntimeDep) -> HTMLResponse:
-    events = runtime.get_recent_events(limit=20)
-    return templates.TemplateResponse(request, "partials/dashboard_timeline.html", {"events": events})
-
-
-@router.get("/partials/dashboard-logs", response_class=HTMLResponse)
-async def dashboard_logs_partial(request: Request, runtime: RuntimeDep) -> HTMLResponse:
-    logs = runtime.get_recent_logs(limit=30)
-    return templates.TemplateResponse(request, "partials/dashboard_logs.html", {"logs": logs})
+@router.get("/partials/dashboard-errors", response_class=HTMLResponse)
+async def dashboard_errors_partial(request: Request, runtime: RuntimeDep, telemetry: TelemetryDep) -> HTMLResponse:
+    session_id = safe_session_id(runtime)
+    recent_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
+    return templates.TemplateResponse(request, "partials/dashboard_errors.html", {"recent_errors": recent_errors})
 
 
 @router.get("/partials/alert-failed-apps", response_class=HTMLResponse)
@@ -145,14 +82,9 @@ async def app_detail_listeners_partial(
 
 @router.get("/partials/app-detail-jobs/{app_key}", response_class=HTMLResponse)
 async def app_detail_jobs_partial(
-    app_key: str, request: Request, scheduler: SchedulerDep, instance_index: int = 0
+    app_key: str, request: Request, telemetry: TelemetryDep, instance_index: int = 0
 ) -> HTMLResponse:
-    all_scheduler_jobs = await scheduler.get_all_jobs()
-    jobs = [
-        job_to_dict(j, app_key=app_key, instance_index=instance_index)
-        for j in all_scheduler_jobs
-        if j.app_key == app_key and j.instance_index == instance_index
-    ]
+    jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index)
     return templates.TemplateResponse(
         request,
         "partials/app_detail_jobs.html",
@@ -169,11 +101,176 @@ async def instance_listeners_partial(
 
 
 @router.get("/partials/instance-jobs/{app_key}/{index}", response_class=HTMLResponse)
-async def instance_jobs_partial(app_key: str, index: int, request: Request, scheduler: SchedulerDep) -> HTMLResponse:
-    all_scheduler_jobs = await scheduler.get_all_jobs()
-    jobs = [
-        job_to_dict(j, app_key=app_key, instance_index=index)
-        for j in all_scheduler_jobs
-        if j.app_key == app_key and j.instance_index == index
-    ]
+async def instance_jobs_partial(app_key: str, index: int, request: Request, telemetry: TelemetryDep) -> HTMLResponse:
+    jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=index)
     return templates.TemplateResponse(request, "partials/app_detail_jobs.html", {"jobs": jobs})
+
+
+# ──────────────────────────────────────────────────────────────────────
+# App Detail partials (handler invocations, job executions, health, etc.)
+# ──────────────────────────────────────────────────────────────────────
+
+
+@router.get("/partials/handler-invocations/{app_key}/{listener_id}", response_class=HTMLResponse)
+async def handler_invocations_partial(
+    app_key: str,  # noqa: ARG001 — path segment for URL consistency
+    listener_id: int,
+    request: Request,
+    telemetry: TelemetryDep,
+    limit: int = 50,
+) -> HTMLResponse:
+    invocations = await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit)
+    return templates.TemplateResponse(
+        request,
+        "partials/handler_invocations.html",
+        {"invocations": invocations, "listener_id": listener_id},
+    )
+
+
+@router.get("/partials/job-executions/{app_key}/{job_id}", response_class=HTMLResponse)
+async def job_executions_partial(
+    app_key: str,
+    job_id: int,
+    request: Request,
+    telemetry: TelemetryDep,
+    limit: int = 50,
+) -> HTMLResponse:
+    executions = await telemetry.get_job_executions(job_id=job_id, limit=limit)
+    return templates.TemplateResponse(
+        request,
+        "partials/job_executions.html",
+        {"executions": executions, "job_id": job_id, "app_key": app_key},
+    )
+
+
+@router.get("/partials/app-handler-stats/{app_key}", response_class=HTMLResponse)
+async def app_handler_stats_partial(
+    app_key: str, request: Request, telemetry: TelemetryDep, instance_index: int = 0
+) -> HTMLResponse:
+    """Stats-only partial for 5s polling. Returns just invocation counts and last-fired."""
+    listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
+    return templates.TemplateResponse(
+        request,
+        "partials/app_handler_stats.html",
+        {"listeners": listeners},
+    )
+
+
+@router.get("/partials/app-health-strip/{app_key}", response_class=HTMLResponse)
+async def app_health_strip_partial(
+    app_key: str, request: Request, runtime: RuntimeDep, telemetry: TelemetryDep, instance_index: int = 0
+) -> HTMLResponse:
+    manifest_snapshot = runtime.get_all_manifests_snapshot()
+    manifest = next((m for m in manifest_snapshot.manifests if m.app_key == app_key), None)
+    instance = None
+    if manifest:
+        instance = next((i for i in manifest.instances if i.index == instance_index), None)
+
+    listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
+    jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index)
+    health = compute_health_metrics(listeners, jobs)
+
+    ctx = {
+        "init_status": str(instance.status) if instance else (manifest.status if manifest else "unknown"),
+        **health,
+    }
+    return templates.TemplateResponse(request, "partials/app_health_strip.html", ctx)
+
+
+@router.get("/partials/app-handlers/{app_key}", response_class=HTMLResponse)
+async def app_handlers_partial(
+    app_key: str, request: Request, telemetry: TelemetryDep, instance_index: int = 0
+) -> HTMLResponse:
+    listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=instance_index)
+    handler_summaries = {ls.listener_id: format_handler_summary(ls) for ls in listeners}
+    return templates.TemplateResponse(
+        request,
+        "partials/app_handlers.html",
+        {"listeners": listeners, "handler_summaries": handler_summaries, "app_key": app_key},
+    )
+
+
+@router.get("/partials/app-handlers/{app_key}/{index}", response_class=HTMLResponse)
+async def app_handlers_instance_partial(
+    app_key: str, index: int, request: Request, telemetry: TelemetryDep
+) -> HTMLResponse:
+    listeners = await telemetry.get_listener_summary(app_key=app_key, instance_index=index)
+    handler_summaries = {ls.listener_id: format_handler_summary(ls) for ls in listeners}
+    return templates.TemplateResponse(
+        request,
+        "partials/app_handlers.html",
+        {"listeners": listeners, "handler_summaries": handler_summaries, "app_key": app_key},
+    )
+
+
+@router.get("/partials/app-jobs/{app_key}", response_class=HTMLResponse)
+async def app_jobs_partial(
+    app_key: str, request: Request, telemetry: TelemetryDep, instance_index: int = 0
+) -> HTMLResponse:
+    jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index)
+    return templates.TemplateResponse(
+        request,
+        "partials/app_jobs.html",
+        {"jobs": jobs, "app_key": app_key},
+    )
+
+
+@router.get("/partials/app-jobs/{app_key}/{index}", response_class=HTMLResponse)
+async def app_jobs_instance_partial(
+    app_key: str, index: int, request: Request, telemetry: TelemetryDep
+) -> HTMLResponse:
+    jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=index)
+    return templates.TemplateResponse(
+        request,
+        "partials/app_jobs.html",
+        {"jobs": jobs, "app_key": app_key},
+    )
+
+
+@router.get("/partials/app-logs/{app_key}", response_class=HTMLResponse)
+async def app_logs_partial(app_key: str, request: Request, runtime: RuntimeDep, limit: int = 50) -> HTMLResponse:
+    logs = runtime.get_recent_logs(app_key=app_key, limit=limit)
+    return templates.TemplateResponse(
+        request,
+        "partials/app_logs.html",
+        {"logs": logs, "app_key": app_key},
+    )
+
+
+@router.get("/partials/app-logs/{app_key}/{index}", response_class=HTMLResponse)
+async def app_logs_instance_partial(
+    app_key: str,
+    index: int,  # noqa: ARG001 — instance index for URL consistency; logs are app-scoped
+    request: Request,
+    runtime: RuntimeDep,
+    limit: int = 50,
+) -> HTMLResponse:
+    logs = runtime.get_recent_logs(app_key=app_key, limit=limit)
+    return templates.TemplateResponse(
+        request,
+        "partials/app_logs.html",
+        {"logs": logs, "app_key": app_key},
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Deferred feature placeholders (return 501 Not Implemented)
+# ──────────────────────────────────────────────────────────────────────
+
+
+@router.post("/partials/log-level/{app_key}")
+async def set_log_level_placeholder(app_key: str) -> Response:  # noqa: ARG001
+    """Placeholder for log level toggle. Returns 501 until implemented."""
+    return Response(content="Log level toggle not yet implemented", status_code=501)
+
+
+@router.post("/partials/app-enable/{app_key}")
+async def toggle_app_enable_placeholder(app_key: str) -> Response:  # noqa: ARG001
+    """Placeholder for enable/disable toggle. Returns 501 until implemented."""
+    return Response(content="Enable/disable toggle not yet implemented", status_code=501)
+
+
+@router.post("/partials/run-job/{app_key}/{job_id}")
+async def run_job_placeholder(app_key: str, job_id: int) -> Response:  # noqa: ARG001
+    """Placeholder for run-now button. Returns 501 until implemented."""
+    return Response(content="Run-now not yet implemented", status_code=501)

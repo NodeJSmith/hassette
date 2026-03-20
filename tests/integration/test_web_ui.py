@@ -124,11 +124,11 @@ class TestDashboardPage:
         "expected_text",
         [
             pytest.param("htmx.org", id="contains_htmx"),
-            pytest.param("Apps", id="contains_apps_panel"),
-            pytest.param("Activity", id="contains_activity_panel"),
+            pytest.param("App Health", id="contains_app_health_panel"),
+            pytest.param("Recent Errors", id="contains_errors_panel"),
             pytest.param("idiomorph", id="includes_idiomorph_script"),
             pytest.param("live-updates.js", id="includes_live_updates_js"),
-            pytest.param("Recent Logs", id="shows_recent_logs_panel"),
+            pytest.param("kpi-strip", id="contains_kpi_strip"),
         ],
     )
     async def test_dashboard_contains(self, client: "AsyncClient", expected_text: str) -> None:
@@ -138,16 +138,15 @@ class TestDashboardPage:
     async def test_dashboard_has_live_update_attributes(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         body = response.text
-        assert "data-live-on-state" in body
         assert "data-live-on-app" in body
 
     async def test_dashboard_has_no_live_refresh_attribute(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
         assert "data-live-refresh" not in response.text
 
-    async def test_dashboard_shows_logs_view_all_link(self, client: "AsyncClient") -> None:
+    async def test_dashboard_shows_apps_manage_link(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/")
-        assert '/ui/logs"' in response.text or "/ui/logs" in response.text
+        assert "/ui/apps" in response.text
 
 
 class TestAppsPage:
@@ -199,7 +198,7 @@ class TestAppsPage:
         response = await client.get("/ui/apps")
         body = response.text
         assert "stopped_app" in body
-        assert "ht-status-stopped" in body
+        assert "ht-status-badge--stopped" in body
 
     async def test_apps_page_shows_disabled_app(self, client: "AsyncClient", mock_hassette) -> None:
         setup_registry(
@@ -215,7 +214,7 @@ class TestAppsPage:
             ],
         )
         response = await client.get("/ui/apps")
-        assert "ht-status-disabled" in response.text
+        assert "ht-status-badge--disabled" in response.text
 
     async def test_apps_page_links_to_detail(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/apps")
@@ -243,36 +242,16 @@ class TestLogsPage:
         assert "CRITICAL" in body
 
 
-class TestSchedulerPage:
-    async def test_scheduler_page_returns_html(self, client: "AsyncClient") -> None:
+class TestSchedulerPageRemoved:
+    """Scheduler and Bus standalone pages removed in WP04 — routes return 404."""
+
+    async def test_scheduler_page_returns_404(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/scheduler")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
+        assert response.status_code == 404
 
-    async def test_scheduler_page_contains_sections(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/scheduler")
-        body = response.text
-        assert "Scheduled Jobs" in body
-        assert "Execution History" in body
-
-    async def test_scheduler_page_empty_state(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/scheduler")
-        assert "No scheduled jobs" in response.text
-
-    async def test_scheduler_page_has_live_on_app_attributes(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/scheduler")
-        body = response.text
-        assert "data-live-on-app" in body
-        assert "data-live-refresh" not in body
-
-
-class TestBusPage:
-    async def test_bus_page_has_live_on_app_attributes(self, client: "AsyncClient") -> None:
+    async def test_bus_page_returns_404(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/bus")
-        assert response.status_code == 200
-        body = response.text
-        assert "data-live-on-app" in body
-        assert "data-live-refresh" not in body
+        assert response.status_code == 404
 
 
 class TestAppDetailPage:
@@ -285,16 +264,15 @@ class TestAppDetailPage:
         response = await client.get("/ui/apps/my_app")
         body = response.text
         assert "My App" in body
-        assert "MyApp" in body
-        assert "my_app.py" in body
+        assert "Event Handlers" in body
+        assert "Scheduled Jobs" in body
 
     async def test_app_detail_contains_sections(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/apps/my_app")
         body = response.text
-        assert "App Key" in body
-        assert "Bus Listeners" in body
+        assert "Event Handlers" in body
         assert "Scheduled Jobs" in body
-        assert "Recent Logs" in body
+        assert "Logs" in body
 
     async def test_app_detail_404_for_unknown(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/apps/nonexistent")
@@ -316,21 +294,13 @@ class TestAppDetailPage:
 class TestPartials:
     """Partial endpoints return HTML fragments, not full pages."""
 
-    async def test_app_list_partial(self, client: "AsyncClient") -> None:
+    async def test_app_list_partial_removed(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/app-list")
-        assert response.status_code == 200
-        assert "<html" not in response.text
-        assert "my_app" in response.text
+        assert response.status_code == 404
 
-    async def test_app_row_partial(self, client: "AsyncClient") -> None:
+    async def test_app_row_partial_removed(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/app-row/my_app")
-        assert response.status_code == 200
-        assert "<html" not in response.text
-        assert "my_app" in response.text
-
-    async def test_app_row_partial_unknown_app(self, client: "AsyncClient") -> None:
-        response = await client.get("/ui/partials/app-row/nonexistent")
-        assert response.status_code == 200
+        assert response.status_code == 404
 
     async def test_log_entries_partial(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/log-entries")
@@ -360,15 +330,13 @@ class TestPartials:
         assert "running_app" in response.text
         assert "stopped_app" not in response.text
 
-    async def test_scheduler_jobs_partial(self, client: "AsyncClient") -> None:
+    async def test_scheduler_jobs_partial_removed(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/scheduler-jobs")
-        assert response.status_code == 200
-        assert "No scheduled jobs" in response.text
+        assert response.status_code == 404
 
-    async def test_scheduler_history_partial(self, client: "AsyncClient") -> None:
+    async def test_scheduler_history_partial_removed(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/scheduler-history")
-        assert response.status_code == 200
-        assert "No execution history" in response.text
+        assert response.status_code == 404
 
     async def test_dashboard_app_grid_partial(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/dashboard-app-grid")
@@ -376,40 +344,13 @@ class TestPartials:
         assert "<html" not in response.text
         assert "my_app" in response.text
 
-    async def test_dashboard_timeline_partial(self, client: "AsyncClient") -> None:
+    async def test_dashboard_timeline_partial_removed(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/dashboard-timeline")
-        assert response.status_code == 200
-        assert "<html" not in response.text
+        assert response.status_code == 404
 
-    async def test_dashboard_logs_partial(self, client: "AsyncClient") -> None:
+    async def test_dashboard_logs_partial_removed(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/dashboard-logs")
-        assert response.status_code == 200
-        assert "<html" not in response.text
-
-    async def test_dashboard_logs_partial_empty(self, client: "AsyncClient") -> None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=None):
-            response = await client.get("/ui/partials/dashboard-logs")
-        assert response.status_code == 200
-        assert "No recent logs" in response.text
-        assert "/ui/logs" in response.text
-
-    async def test_dashboard_logs_partial_with_entries(self, client: "AsyncClient") -> None:
-        handler = LogCaptureHandler(buffer_size=100)
-        record = logging.LogRecord(
-            name="hassette.test",
-            level=logging.INFO,
-            pathname="test.py",
-            lineno=1,
-            msg="Test log message",
-            args=(),
-            exc_info=None,
-        )
-        handler.emit(record)
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=handler):
-            response = await client.get("/ui/partials/dashboard-logs")
-        assert response.status_code == 200
-        assert "Test log message" in response.text
-        assert "/ui/logs" in response.text
+        assert response.status_code == 404
 
     async def test_app_detail_listeners_partial(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/app-detail-listeners/my_app")
@@ -518,10 +459,9 @@ class TestInstanceDetail:
         assert response.status_code == 200
         body = response.text
         # Instance detail template should show instance-specific info
-        assert "App Key" in body
-        assert "Bus Listeners" in body
+        assert "Event Handlers" in body
         assert "Scheduled Jobs" in body
-        assert "instance-listeners" in body  # instance-scoped partial URL
+        assert "data-live-on-app" in body  # live-update attributes present
 
     async def test_multi_instance_renders_instance_detail_with_switcher(
         self, client: "AsyncClient", mock_hassette
@@ -559,8 +499,7 @@ class TestInstanceDetail:
         assert response.status_code == 200
         body = response.text
         # Should show instance detail with switcher dropdown
-        assert "App Key" in body
-        assert "Bus Listeners" in body
+        assert "Event Handlers" in body
         # Instance switcher contains links to both instances
         assert "/ui/apps/multi_app/0" in body
         assert "/ui/apps/multi_app/1" in body
@@ -638,7 +577,7 @@ class TestInstanceDetail:
         body = response.text
         assert "Multi App" in body
         assert "MultiApp[1]" in body
-        assert "instance-listeners/multi_app/1" in body
+        assert "app-handler-stats/multi_app" in body
 
     async def test_instance_detail_404_bad_index(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /apps/{app_key}/{bad_index} should return 404."""
@@ -692,11 +631,9 @@ class TestInstanceDetail:
         response = await client.get("/ui/apps/offset_app")
         assert response.status_code == 200
         body = response.text
-        # Partial URLs must reference the real instance index (3), not hardcoded 0
-        assert "instance-listeners/offset_app/3" in body
-        assert "instance-jobs/offset_app/3" in body
-        assert "instance-listeners/offset_app/0" not in body
-        assert "instance-jobs/offset_app/0" not in body
+        # Health strip partial must reference the real instance index (3), not hardcoded 0
+        assert "instance_index=3" in body
+        assert "instance_index=0" not in body
 
     async def test_instance_listeners_partial(self, client: "AsyncClient") -> None:
         """Instance-scoped listeners partial returns HTML."""
@@ -728,7 +665,7 @@ class TestInstanceDetail:
         assert response.status_code == 200
         body = response.text
         assert "Stopped App" in body
-        assert "App Key" in body
+        assert "Event Handlers" in body
 
     async def test_multi_instance_detail_no_instance_column_in_listeners(
         self, client: "AsyncClient", mock_hassette
@@ -889,35 +826,12 @@ class TestInstanceDetail:
         assert "MultiApp[1]" in body
 
 
-class TestBusListenersPartial:
-    """Tests for the /partials/bus-listeners HTMX endpoint."""
+class TestBusListenersPartialRemoved:
+    """Bus listeners partial has been removed (bus page deleted in UI rebuild)."""
 
-    async def test_bus_listeners_partial_empty(self, client: "AsyncClient") -> None:
-        """Empty listener list renders the empty-state message."""
+    async def test_bus_listeners_partial_returns_404(self, client: "AsyncClient") -> None:
         response = await client.get("/ui/partials/bus-listeners")
-        assert response.status_code == 200
-        assert "<html" not in response.text
-        assert "No bus listeners registered" in response.text
-
-    async def test_bus_listeners_partial_no_app_key_returns_empty(self, client: "AsyncClient") -> None:
-        """Without app_key param, the partial returns empty data (TelemetryDep stubs return [])."""
-        response = await client.get("/ui/partials/bus-listeners")
-        assert response.status_code == 200
-        assert "No bus listeners registered" in response.text
-
-    async def test_bus_listeners_partial_with_app_key_returns_empty_stub(self, client: "AsyncClient") -> None:
-        """With app_key param, TelemetryQueryService stubs return [] — empty table."""
-        response = await client.get("/ui/partials/bus-listeners?app_key=my_app")
-        assert response.status_code == 200
-        assert "No bus listeners registered" in response.text
-
-    async def test_bus_listeners_partial_shows_table_structure(self, client: "AsyncClient") -> None:
-        """The table structure (headers) is always present in the response."""
-        response = await client.get("/ui/partials/bus-listeners")
-        assert response.status_code == 200
-        body = response.text
-        for header in ("Handler", "App", "Topic", "Invocations", "Success", "Failed", "Avg Duration"):
-            assert header in body
+        assert response.status_code == 404
 
 
 class TestAlertFailedAppsPartial:

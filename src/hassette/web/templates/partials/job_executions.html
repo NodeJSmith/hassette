@@ -1,0 +1,50 @@
+{# Execution history for a single job — loaded on-demand via htmx.ajax(). #}
+{% if executions %}
+  <table class="ht-table ht-table--dense ht-text-xs" data-testid="execution-table-{{ job_id }}">
+    <thead>
+      <tr>
+        <th style="width: 60px">Status</th>
+        <th style="width: 160px">Timestamp</th>
+        <th style="width: 100px">Duration</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ex in executions %}
+        <tr data-testid="execution-row">
+          <td>
+            {% if ex.status == "success" %}
+              <span class="ht-badge ht-badge--success ht-badge--sm">success</span>
+            {% elif ex.status == "error" %}
+              <span class="ht-badge ht-badge--danger ht-badge--sm">error</span>
+            {% else %}
+              <span class="ht-badge ht-badge--neutral ht-badge--sm">{{ ex.status }}</span>
+            {% endif %}
+          </td>
+          <td>{{ ex.execution_start_ts }}</td>
+          <td>{{ "%.1f"|format(ex.duration_ms) }}ms</td>
+          <td>
+            {% if ex.error_message %}
+              <span class="ht-text-danger">{{ ex.error_message }}</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {# Run now button placeholder — deferred (501) #}
+  <div class="ht-mt-3">
+    <button class="ht-btn ht-btn--sm"
+            data-testid="btn-run-now-{{ job_id }}"
+            hx-post="/ui/partials/run-job/{{ app_key }}/{{ job_id }}"
+            hx-swap="none"
+            title="Run this job now (coming soon)">
+      <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6,4 20,12 6,20"/></svg>
+      <span>Run Now</span>
+    </button>
+  </div>
+{% else %}
+  <p class="ht-text-muted ht-text-xs">No execution history.</p>
+{% endif %}

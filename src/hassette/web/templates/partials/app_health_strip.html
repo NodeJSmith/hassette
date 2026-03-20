@@ -1,0 +1,19 @@
+{% from "macros/ui.html" import health_card %}
+{{ health_card(
+    label="Init Status",
+    value=init_status|capitalize,
+    status_class="good" if init_status == "running" else ("bad" if init_status == "failed" else "")
+) }}
+{{ health_card(
+    label="Error Rate",
+    value="%.1f%%"|format(error_rate),
+    status_class=classify_error_rate(error_rate)
+) }}
+{{ health_card(
+    label="Avg Duration",
+    value="%.1f ms"|format(avg_duration) if avg_duration > 0 else "—"
+) }}
+{{ health_card(
+    label="Last Activity",
+    value="—" if not last_activity_ts else "Active"
+) }}

@@ -13,6 +13,7 @@
   --ht-bg: #111113;
   --ht-surface: #1a1a1e;
   --ht-surface-recessed: #222226;
+  --ht-surface-sticky: #1a1a1e;
 
   /* Borders */
   --ht-border: rgba(255, 255, 255, 0.06);
@@ -51,6 +52,7 @@
   --ht-bg: #f7f7f8;
   --ht-surface: #ffffff;
   --ht-surface-recessed: #f0f0f2;
+  --ht-surface-sticky: #ffffff;
 
   /* Borders */
   --ht-border: rgba(0, 0, 0, 0.06);

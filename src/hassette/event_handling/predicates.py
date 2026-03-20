@@ -101,6 +101,17 @@ class Guard(typing.Generic[EventT]):
         return "custom condition"
 
 
+def _summarize_predicate(predicate: "Predicate") -> str:
+    """Return a human-readable summary of a predicate.
+
+    Delegates to the predicate's ``summarize()`` method when available,
+    otherwise falls back to ``"custom condition"``.
+    """
+    if hasattr(predicate, "summarize"):
+        return predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]
+    return "custom condition"
+
+
 @dataclass(frozen=True)
 class AllOf:
     """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
@@ -457,17 +468,6 @@ class ServiceDataWhere:
         >>> ServiceDataWhere.from_kwargs(entity_id="light.*", brightness=200)
         """
         return cls(spec=spec, auto_glob=auto_glob)
-
-
-def _summarize_predicate(predicate: "Predicate") -> str:
-    """Return a human-readable summary of a predicate.
-
-    Delegates to the predicate's ``summarize()`` method when available,
-    otherwise falls back to ``"custom condition"``.
-    """
-    if hasattr(predicate, "summarize"):
-        return predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]
-    return "custom condition"
 
 
 def compare_value(actual: Any, condition: "ChangeType") -> bool:

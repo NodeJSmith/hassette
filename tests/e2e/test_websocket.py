@@ -74,20 +74,23 @@ def test_dashboard_has_live_update_targets(page: Page, base_url: str) -> None:
 
 
 def test_app_detail_has_live_update_targets(page: Page, base_url: str) -> None:
-    """App detail page panels carry data-live-on-app attributes."""
+    """App detail page: health strip has data-live-on-app; handler/job lists do not.
+
+    Handler and job lists no longer morph on WS events (WP02). Stats are
+    updated in-place by JS reading the 5s polling partial.
+    """
     page.goto(base_url + "/ui/apps/my_app")
 
+    # Handler and job lists should NOT have data-live-on-app
     handler_list = page.locator("[data-testid='handler-list']")
-    expect(handler_list).to_have_attribute(
-        "data-live-on-app",
-        "/ui/partials/app-handlers/my_app",
-    )
+    assert handler_list.get_attribute("data-live-on-app") is None
 
     job_list = page.locator("[data-testid='job-list']")
-    expect(job_list).to_have_attribute(
-        "data-live-on-app",
-        "/ui/partials/app-jobs/my_app",
-    )
+    assert job_list.get_attribute("data-live-on-app") is None
+
+    # Health strip SHOULD still have it
+    health_strip = page.locator("[data-testid='health-strip']")
+    assert health_strip.get_attribute("data-live-on-app") is not None
 
 
 # ── Live refresh via simulated WS message ────────────────────────────
@@ -127,20 +130,19 @@ def test_live_update_refreshes_on_app_status_event(page: Page, base_url: str) ->
 
 
 def test_expanded_handler_row_survives_htmx_morph(page: Page, base_url: str) -> None:
-    """Expand a handler row, trigger an HTMX morph refresh on the handler
-    list, and verify the row remains expanded.
+    """Expand a handler row, simulate a stats poll, and verify the row
+    remains expanded.
 
-    This validates that idiomorph + stable DOM ids preserve Alpine.js
-    x-data state (open: true) across content morphing — the CRITICAL
-    interaction model assumption from the design.
-
-    Implementation note: idiomorph matches DOM nodes by id. Each handler
-    row has a stable id (handler-{id}). When morph:innerHTML is used,
-    idiomorph should preserve existing nodes (and their Alpine state)
-    rather than replacing them. If this test fails, the morph strategy
-    or Alpine integration is broken.
+    The handler list is no longer a morph target (data-live-on-app was
+    removed in WP02). Instead, a hidden #app-handler-stats div polls
+    every 5s and JS updates text/classes in-place. This test verifies
+    that expand state survives the stats-only poll approach.
     """
     page.goto(base_url + "/ui/apps/my_app")
+
+    # Confirm handler list is NOT a morph target
+    handler_list = page.locator("[data-testid='handler-list']")
+    assert handler_list.get_attribute("data-live-on-app") is None
 
     # Expand handler row 1
     handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
@@ -153,48 +155,25 @@ def test_expanded_handler_row_survives_htmx_morph(page: Page, base_url: str) -> 
     # Verify expanded state via aria-expanded
     expect(handler_main).to_have_attribute("aria-expanded", "true")
 
-    # Tag the DOM node so we can verify it's the SAME node after morph
-    # (not a fresh replacement)
+    # Simulate a stats poll swap (the same mechanism that fires every 5s)
     page.evaluate("""() => {
-        document.querySelector('#handler-1').__morph_marker = true;
-    }""")
-
-    # Trigger an HTMX morph refresh on the handler list container
-    # and wait for the htmx:afterSettle event to confirm completion
-    page.evaluate("""() => {
-        return new Promise((resolve) => {
-            var target = document.querySelector("[data-testid='handler-list']");
-            var url = target.getAttribute("data-live-on-app");
-            document.addEventListener('htmx:afterSettle', function handler() {
-                document.removeEventListener('htmx:afterSettle', handler);
-                resolve();
-            });
-            htmx.ajax("GET", url, { target: target, swap: "morph:innerHTML" });
+        var statsDiv = document.getElementById('app-handler-stats');
+        statsDiv.innerHTML =
+            '<span data-listener-id="1" data-total-invocations="12" ' +
+            'data-failed="1" data-avg-duration-ms="2.5" data-last-invoked="1704070800.0"></span>' +
+            '<span data-listener-id="2" data-total-invocations="22" ' +
+            'data-failed="0" data-avg-duration-ms="2.0" data-last-invoked="1704070700.0"></span>';
+        var event = new CustomEvent('htmx:afterSwap', {
+            bubbles: true,
+            detail: { target: statsDiv }
         });
+        document.body.dispatchEvent(event);
     }""")
 
-    # Verify the DOM node was preserved (not replaced) by idiomorph
-    preserved = page.evaluate("!!document.querySelector('#handler-1').__morph_marker")
+    # Alpine state must be preserved — row still expanded
+    expect(handler_main).to_have_attribute("aria-expanded", "true")
+    expect(detail).to_be_visible()
 
-    if preserved:
-        # Idiomorph preserved the node — Alpine state should survive
-        handler_main_after = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
-        expect(handler_main_after).to_have_attribute("aria-expanded", "true")
-        detail_after = page.locator("#handler-1-detail")
-        expect(detail_after).to_be_visible()
-    else:
-        # Idiomorph replaced the node — Alpine state is lost.
-        # This means the morph:innerHTML strategy does NOT preserve expand
-        # state. Document this as a known limitation and verify the page
-        # at least renders correctly after the morph (no crash).
-        handler_main_after = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
-        expect(handler_main_after).to_be_visible()
-        # The row should be in its default (collapsed) state
-        expect(handler_main_after).to_have_attribute("aria-expanded", "false")
-        # Mark test as expected failure with explanation
-        pytest.skip(
-            "Idiomorph replaced the handler row node during morph:innerHTML, "
-            "losing Alpine.js x-data state. This is a known limitation — "
-            "the app uses stats-only polling to avoid full handler list morphs "
-            "during normal operation. See app_detail.html #app-handler-stats."
-        )
+    # Stats text should be updated
+    calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
+    expect(calls_el).to_have_text("12 calls")

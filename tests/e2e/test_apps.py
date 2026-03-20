@@ -19,14 +19,14 @@ def test_apps_table_shows_manifests(page: Page, base_url: str) -> None:
 
 def test_filter_by_status_tab(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps")
-    # Click the "Running" filter tab (Alpine.js client-side filtering)
+    # Click the "Running" filter tab (triggers htmx.ajax server-side filter)
     page.locator("[data-testid='tab-running'] a").click()
-    # Wait for Alpine reactivity
-    page.wait_for_timeout(200)
-    # Running app should be visible, others hidden
+    # Wait for the HTMX swap to complete
+    page.wait_for_load_state("networkidle")
+    # Running app should be visible; filtered-out apps removed from DOM
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
-    expect(page.locator("[data-testid='app-row-other_app']")).to_be_hidden()
-    expect(page.locator("[data-testid='app-row-disabled_app']")).to_be_hidden()
+    expect(page.locator("[data-testid='app-row-other_app']")).to_have_count(0)
+    expect(page.locator("[data-testid='app-row-disabled_app']")).to_have_count(0)
 
 
 def test_app_detail_navigation(page: Page, base_url: str) -> None:

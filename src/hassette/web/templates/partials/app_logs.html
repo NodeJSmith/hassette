@@ -1,0 +1,29 @@
+{% if logs %}
+  <table class="ht-table ht-table--dense ht-text-xs">
+    <thead>
+      <tr>
+        <th style="width: 80px">Level</th>
+        <th style="width: 160px">Timestamp</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+        <tr>
+          <td>
+            <span class="ht-badge ht-badge--sm
+              {%- if log.level == 'ERROR' or log.level == 'CRITICAL' %} ht-badge--danger
+              {%- elif log.level == 'WARNING' %} ht-badge--warning
+              {%- elif log.level == 'DEBUG' %} ht-badge--neutral
+              {%- else %} ht-badge--info
+              {%- endif %}">{{ log.level }}</span>
+          </td>
+          <td>{{ log.timestamp }}</td>
+          <td>{{ log.message }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="ht-text-muted ht-text-xs">No log entries.</p>
+{% endif %}

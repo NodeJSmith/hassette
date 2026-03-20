@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% from "macros/ui.html" import status_badge, action_buttons, health_card, handler_row, job_row, log_table %}
+{% block title %}{{ manifest.display_name }} — Hassette{% endblock %}
+{% block content %}
+  {# ── Breadcrumb ───────────────────────────────────────────── #}
+  <nav class="ht-breadcrumb ht-mb-3" aria-label="Breadcrumb">
+    <a href="/ui/apps">Apps</a>
+    <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
+    <span class="ht-breadcrumb__current" aria-current="page">{{ manifest.display_name }}</span>
+  </nav>
+
+  {# ── App Header ───────────────────────────────────────────── #}
+  <div class="ht-level ht-mb-4">
+    <div class="ht-level-start">
+      <div class="ht-level-item">
+        <h1 class="ht-heading-4" data-testid="app-title">
+          <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-9 5-9-5"/><path d="m21 12-9 5-9-5"/><path d="M12 2l9 5-9 5-9-5 9-5Z"/></svg>
+          <span>{{ manifest.display_name }}</span>
+          {% set inst_status = instance.status if instance else manifest.status %}
+          {{ status_badge(inst_status) }}
+        </h1>
+      </div>
+    </div>
+    <div class="ht-level-end">
+      <div class="ht-level-item ht-btn-group">
+        {# Log level toggle — deferred (501) #}
+        <button class="ht-btn ht-btn--sm"
+                data-testid="btn-log-level"
+                hx-post="/ui/partials/log-level/{{ app_key }}"
+                hx-swap="none"
+                title="Toggle log level (coming soon)">
+          <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          <span>Log Level</span>
+        </button>
+        {{ action_buttons(app_key, manifest.status) }}
+      </div>
+    </div>
+  </div>
+
+  {# ── Instance metadata ────────────────────────────────────── #}
+  {% if instance %}
+    <p class="ht-text-muted ht-text-sm ht-mb-3" data-testid="instance-meta">
+      Instance {{ instance_index }}
+      {% if instance.owner_id %} &middot; PID {{ instance.owner_id }}{% endif %}
+    </p>
+  {% endif %}
+
+  {# ── Instance switcher (multi-instance only) ──────────────── #}
+  {% if is_multi_instance and manifest.instances %}
+    <div class="ht-mb-4" x-data>
+      <label class="ht-detail-label ht-mr-2">Instance</label>
+      <div class="ht-select ht-select--sm">
+        <select @change="window.location.href = $el.value">
+          {% for inst in manifest.instances %}
+            <option value="/ui/apps/{{ app_key }}/{{ inst.index }}"
+                    {% if inst.index == instance_index %}selected{% endif %}>
+              {{ inst.instance_name }} ({{ inst.status }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ── Error display ────────────────────────────────────────── #}
+  {% if instance and instance.error_message %}
+    <div class="ht-card ht-mb-4" data-testid="error-display">
+      <p class="ht-text-danger">
+        <strong>Error:</strong> {{ instance.error_message }}
+      </p>
+      {% if instance.error_traceback %}
+        <div x-data="{ tbOpen: false }">
+          <button class="ht-btn ht-btn--sm ht-mt-3"
+                  @click="tbOpen = !tbOpen"
+                  :aria-expanded="tbOpen"
+                  x-text="tbOpen ? 'Hide traceback' : 'Show traceback'">Show traceback</button>
+          <pre class="ht-traceback" x-cloak x-show="tbOpen" x-transition>{{ instance.error_traceback }}</pre>
+        </div>
+      {% endif %}
+    </div>
+  {% elif manifest.error_message %}
+    <div class="ht-card ht-mb-4" data-testid="error-display">
+      <p class="ht-text-danger">
+        <strong>Error:</strong> {{ manifest.error_message }}
+      </p>
+      {% if manifest.error_traceback %}
+        <div x-data="{ tbOpen: false }">
+          <button class="ht-btn ht-btn--sm ht-mt-3"
+                  @click="tbOpen = !tbOpen"
+                  :aria-expanded="tbOpen"
+                  x-text="tbOpen ? 'Hide traceback' : 'Show traceback'">Show traceback</button>
+          <pre class="ht-traceback" x-cloak x-show="tbOpen" x-transition>{{ manifest.error_traceback }}</pre>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {# ── Health Strip ─────────────────────────────────────────── #}
+  <div class="ht-health-strip ht-mb-4"
+       data-testid="health-strip"
+       data-live-on-app="/ui/partials/app-health-strip/{{ app_key }}?instance_index={{ instance_index }}">
+    {% include "partials/app_health_strip.html" %}
+  </div>
+
+  {# ── Event Handlers ───────────────────────────────────────── #}
+  <div class="ht-card ht-mb-4">
+    <h2 class="ht-heading-5" data-testid="handlers-heading">
+      <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Event Handlers ({{ listeners|length }} registered)
+    </h2>
+    <div id="app-handlers"
+         data-testid="handler-list">
+      {% include "partials/app_handlers.html" %}
+    </div>
+    {# Stats-only polling partial — keeps invocation counts fresh without morphing expanded rows #}
+    <div id="app-handler-stats"
+         hx-get="/ui/partials/app-handler-stats/{{ app_key }}?instance_index={{ instance_index }}"
+         hx-trigger="every 5s"
+         hx-swap="innerHTML"
+         hx-sync="this:replace"
+         style="display: none">
+    </div>
+  </div>
+
+  {# ── Scheduled Jobs ───────────────────────────────────────── #}
+  <div class="ht-card ht-mb-4">
+    <h2 class="ht-heading-5" data-testid="jobs-heading">
+      <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Scheduled Jobs ({{ jobs|length }} active)
+    </h2>
+    <div id="app-jobs"
+         data-testid="job-list">
+      {% include "partials/app_jobs.html" %}
+    </div>
+  </div>
+
+  {# ── Recent Logs ──────────────────────────────────────────── #}
+  <div class="ht-card" data-testid="logs-section">
+    <h2 class="ht-heading-5">
+      <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2"/></svg> Logs
+    </h2>
+    {{ log_table(show_app_column=false, app_key=app_key, max_height="600px") }}
+  </div>
+{% endblock %}

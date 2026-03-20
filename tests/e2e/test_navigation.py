@@ -102,52 +102,6 @@ def test_brand_link_navigates_to_dashboard(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Pulse dot
-# ──────────────────────────────────────────────────────────────────────
-
-
-def test_pulse_dot_visible(page: Page, base_url: str) -> None:
-    """Pulse dot element is visible in the sidebar."""
-    page.goto(base_url + "/ui/")
-    pulse_dot = page.locator('[data-testid="pulse-dot"]')
-    expect(pulse_dot).to_be_visible()
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Theme toggle
-# ──────────────────────────────────────────────────────────────────────
-
-
-def test_theme_toggle_switches_mode(page: Page, base_url: str) -> None:
-    """Clicking the theme toggle changes the data-theme attribute."""
-    page.goto(base_url + "/ui/")
-    html = page.locator("html")
-    # Default is dark
-    expect(html).to_have_attribute("data-theme", "dark")
-    # Click toggle to switch to light
-    page.locator('[data-testid="theme-toggle"]').click()
-    expect(html).to_have_attribute("data-theme", "light")
-    # Click again to switch back to dark
-    page.locator('[data-testid="theme-toggle"]').click()
-    expect(html).to_have_attribute("data-theme", "dark")
-
-
-def test_theme_persists_across_reload(page: Page, base_url: str) -> None:
-    """Theme preference persists in localStorage across page reloads."""
-    page.goto(base_url + "/ui/")
-    # Switch to light mode
-    page.locator('[data-testid="theme-toggle"]').click()
-    expect(page.locator("html")).to_have_attribute("data-theme", "light")
-    # Reload the page
-    page.reload()
-    # Should still be light
-    expect(page.locator("html")).to_have_attribute("data-theme", "light")
-    # Clean up: switch back to dark
-    page.locator('[data-testid="theme-toggle"]').click()
-    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
-
-
-# ──────────────────────────────────────────────────────────────────────
 # Responsive: sidebar hidden below 768px
 # ──────────────────────────────────────────────────────────────────────
 

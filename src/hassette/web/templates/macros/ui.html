@@ -1,176 +1,296 @@
 {# Shared Jinja2 macros for the Hassette Web UI #}
-{# Status badge for apps/instances #}
+{# All classes use --ht-* design tokens. No raw hex values. #}
+
+{# ── Status Badge ─────────────────────────────────────────── #}
+{# Renders a dot + label badge. Variant determined by status. #}
 {% macro status_badge(status, size="", block_reason="") %}
-  {% if status == "running" %}
-    <span class="ht-badge ht-badge--success{{ ' ht-badge--sm' if size == 'small' else '' }}{{ ' ht-ml-2' if size != 'small' else '' }}">running</span>
-  {% elif status == "failed" %}
-    <span class="ht-badge ht-badge--danger{{ ' ht-badge--sm' if size == 'small' else '' }}{{ ' ht-ml-2' if size != 'small' else '' }}">failed</span>
-  {% elif status == "stopped" %}
-    <span class="ht-badge ht-status-stopped{{ ' ht-badge--sm' if size == 'small' else '' }}{{ ' ht-ml-2' if size != 'small' else '' }}">stopped</span>
-  {% elif status == "disabled" %}
-    <span class="ht-badge ht-status-disabled{{ ' ht-badge--sm' if size == 'small' else '' }}{{ ' ht-ml-2' if size != 'small' else '' }}">disabled</span>
-  {% elif status == "blocked" %}
-    <span class="ht-badge ht-status-blocked{{ ' ht-badge--sm' if size == 'small' else '' }}{{ ' ht-ml-2' if size != 'small' else '' }}"
-          {% if block_reason %}title="{{ block_reason }}"{% endif %}>blocked</span>
+  {% set variant_map = {
+    "running": "running",
+    "failed": "failed",
+    "stopped": "stopped",
+    "disabled": "disabled",
+    "blocked": "disabled"
+  } %}
+  {% set variant = variant_map.get(status, "neutral") %}
+  {% if size == "small" %}
+    <span class="ht-badge ht-badge--sm ht-badge--{{ 'success' if status == 'running' else ('danger' if status == 'failed' else ('warning' if status in ['stopped', 'blocked'] else 'neutral')) }}"
+          {% if block_reason %}title="{{ block_reason }}"{% endif %}>{{ status }}</span>
   {% else %}
-    <span class="ht-badge ht-badge--neutral{{ ' ht-badge--sm' if size == 'small' else '' }}{{ ' ht-ml-2' if size != 'small' else '' }}">{{ status }}</span>
+    <span class="ht-status-badge ht-status-badge--{{ variant }}"
+          {% if block_reason %}title="{{ block_reason }}"{% endif %}>
+      <span class="ht-status-badge__dot"></span>
+      <span class="ht-status-badge__label">{{ status }}</span>
+    </span>
   {% endif %}
 {% endmacro %}
-{# Action buttons for starting/stopping/reloading apps #}
+
+{# ── Job Status Badge ─────────────────────────────────────── #}
+{# Badge for job execution results (success/error/cancelled). #}
+{% macro job_status_badge(status) %}
+  {% if status == "success" %}
+    <span class="ht-badge ht-badge--success ht-badge--sm">success</span>
+  {% elif status == "error" %}
+    <span class="ht-badge ht-badge--danger ht-badge--sm">error</span>
+  {% else %}
+    <span class="ht-badge ht-badge--neutral ht-badge--sm">{{ status }}</span>
+  {% endif %}
+{% endmacro %}
+
+{# ── Health Card ──────────────────────────────────────────── #}
+{# Single metric card: label, value, optional detail.         #}
+{# status_class: "good", "warn", or "bad" for value coloring. #}
+{% macro health_card(label, value, detail="", status_class="") %}
+  <div class="ht-health-card">
+    <span class="ht-health-card__label">{{ label }}</span>
+    <span class="ht-health-card__value {{ status_class }}">{{ value }}</span>
+    {% if detail %}
+      <span class="ht-health-card__detail">{{ detail }}</span>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# ── Handler Row ──────────────────────────────────────────── #}
+{# Expandable row for an event listener with on-demand detail #}
+{# loading via htmx.ajax(). Requires Alpine.js for expand.   #}
+{% macro handler_row(listener, app_key, summary="") %}
+  {% set dot_class = "success" if listener.failed == 0 and listener.total_invocations > 0
+                else "danger" if listener.failed > 0
+                else "neutral" %}
+  <div id="handler-{{ listener.listener_id }}"
+       class="ht-item-row"
+       data-testid="handler-row-{{ listener.listener_id }}"
+       x-data="{ open: false, loaded: false }">
+    <div class="ht-item-row__main"
+         role="button"
+         tabindex="0"
+         aria-expanded="false"
+         :aria-expanded="open.toString()"
+         @click="open = !open; if (open && !loaded) { htmx.ajax('GET', '/ui/partials/handler-invocations/{{ app_key }}/{{ listener.listener_id }}', { target: '#handler-{{ listener.listener_id }}-detail', swap: 'innerHTML' }); loaded = true; }"
+         @keydown.enter="$el.click()"
+         @keydown.space.prevent="$el.click()">
+      <span class="ht-item-row__dot ht-item-row__dot--{{ dot_class }}"></span>
+      <div class="ht-item-row__content">
+        <span class="ht-item-row__title">{{ summary if summary else listener.handler_method }}</span>
+        <span class="ht-item-row__subtitle">{{ listener.handler_method }}{% if summary %} · {{ listener.topic }}{% endif %}</span>
+      </div>
+      <div class="ht-item-row__stats">
+        <span class="ht-meta-item" title="Total invocations">{{ listener.total_invocations }} calls</span>
+        {% if listener.failed > 0 %}
+          <span class="ht-meta-item--strong ht-text-danger">{{ listener.failed }} failed</span>
+        {% endif %}
+        {% if listener.avg_duration_ms > 0 %}
+          <span class="ht-meta-item">{{ "%.1f"|format(listener.avg_duration_ms) }}ms avg</span>
+        {% endif %}
+        <span class="ht-item-row__chevron" :class="{ 'is-open': open }">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 2 8 6 4 10"/>
+          </svg>
+        </span>
+      </div>
+    </div>
+    <div id="handler-{{ listener.listener_id }}-detail"
+         class="ht-item-detail"
+         x-show="open"
+         x-cloak>
+      <div class="ht-item-detail__loading">Loading invocations...</div>
+    </div>
+  </div>
+{% endmacro %}
+
+{# ── Job Row ──────────────────────────────────────────────── #}
+{# Expandable row for a scheduled job with on-demand detail.  #}
+{% macro job_row(job, app_key) %}
+  {% set dot_class = "success" if job.failed == 0 and job.total_executions > 0
+                else "danger" if job.failed > 0
+                else "neutral" %}
+  <div id="job-{{ job.job_id }}"
+       class="ht-item-row"
+       data-testid="job-row-{{ job.job_id }}"
+       x-data="{ open: false, loaded: false }">
+    <div class="ht-item-row__main"
+         role="button"
+         tabindex="0"
+         aria-expanded="false"
+         :aria-expanded="open.toString()"
+         @click="open = !open; if (open && !loaded) { htmx.ajax('GET', '/ui/partials/job-executions/{{ app_key }}/{{ job.job_id }}', { target: '#job-{{ job.job_id }}-detail', swap: 'innerHTML' }); loaded = true; }"
+         @keydown.enter="$el.click()"
+         @keydown.space.prevent="$el.click()">
+      <span class="ht-item-row__dot ht-item-row__dot--{{ dot_class }}"></span>
+      <div class="ht-item-row__content">
+        <span class="ht-item-row__title">{{ job.job_name }}</span>
+        <span class="ht-item-row__subtitle">
+          {% if job.trigger_type %}{{ job.trigger_type }}: {{ job.trigger_value }}{% else %}{{ job.handler_method }}{% endif %}
+        </span>
+      </div>
+      <div class="ht-item-row__stats">
+        <span class="ht-meta-item" title="Total executions">{{ job.total_executions }} runs</span>
+        {% if job.failed > 0 %}
+          <span class="ht-meta-item--strong ht-text-danger">{{ job.failed }} failed</span>
+        {% endif %}
+        {% if job.avg_duration_ms > 0 %}
+          <span class="ht-meta-item">{{ "%.1f"|format(job.avg_duration_ms) }}ms avg</span>
+        {% endif %}
+        <span class="ht-item-row__chevron" :class="{ 'is-open': open }">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 2 8 6 4 10"/>
+          </svg>
+        </span>
+      </div>
+    </div>
+    <div id="job-{{ job.job_id }}-detail"
+         class="ht-item-detail"
+         x-show="open"
+         x-cloak>
+      <div class="ht-item-detail__loading">Loading executions...</div>
+    </div>
+  </div>
+{% endmacro %}
+
+{# ── Action Buttons ───────────────────────────────────────── #}
+{# Start/stop/reload buttons with HTMX post actions.          #}
 {% macro action_buttons(app_key, status, after_action="location.reload()", show_labels=true) %}
   <div class="ht-btn-group">
     {% if status == "running" %}
       <button class="ht-btn ht-btn--sm ht-btn--warning"
+              data-testid="btn-stop-{{ app_key }}"
               hx-post="/api/apps/{{ app_key }}/stop"
               hx-swap="none"
               hx-on::after-request="{{ after_action }}">
-        <span class="ht-icon{% if not show_labels %} ht-icon--sm{% endif %}"><i class="fas fa-stop"></i></span>
+        <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="12" height="16" rx="1"/></svg>
         {% if show_labels %}<span>Stop</span>{% endif %}
       </button>
       <button class="ht-btn ht-btn--sm ht-btn--info"
+              data-testid="btn-reload-{{ app_key }}"
               hx-post="/api/apps/{{ app_key }}/reload"
               hx-swap="none"
               hx-on::after-request="{{ after_action }}">
-        <span class="ht-icon{% if not show_labels %} ht-icon--sm{% endif %}"><i class="fas fa-rotate"></i></span>
+        <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
         {% if show_labels %}<span>Reload</span>{% endif %}
       </button>
     {% elif status in ["failed", "stopped"] %}
       <button class="ht-btn ht-btn--sm ht-btn--success"
+              data-testid="btn-start-{{ app_key }}"
               hx-post="/api/apps/{{ app_key }}/start"
               hx-swap="none"
               hx-on::after-request="{{ after_action }}">
-        <span class="ht-icon{% if not show_labels %} ht-icon--sm{% endif %}"><i class="fas fa-play"></i></span>
+        <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6,4 20,12 6,20"/></svg>
         {% if show_labels %}<span>Start</span>{% endif %}
       </button>
     {% endif %}
   </div>
 {% endmacro %}
-{# Log table Alpine.js component #}
+
+{# ── Log Table ────────────────────────────────────────────── #}
+{# Full Alpine.js log viewer with filters, sorting, streaming.#}
 {% macro log_table(show_app_column, app_key="", max_height="600px", app_keys=None) %}
   {% if app_key %}
     <div x-data="logTable({ showAppColumn: {{ 'true' if show_app_column else 'false' }}, appKey: '{{ app_key }}' })">
-    {% else %}
-      <div x-data="logTable({ showAppColumn: {{ 'true' if show_app_column else 'false' }}, appKey: null })">
-      {% endif %}
-      <div class="ht-field-group ht-mb-3">
+  {% else %}
+    <div x-data="logTable({ showAppColumn: {{ 'true' if show_app_column else 'false' }}, appKey: null })">
+  {% endif %}
+    <div class="ht-log-toolbar">
+      <div class="ht-control">
+        <div class="ht-select ht-select--sm">
+          <select x-model="filters.level">
+            <option value="">All Levels</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO">INFO</option>
+            <option value="WARNING">WARNING</option>
+            <option value="ERROR">ERROR</option>
+            <option value="CRITICAL">CRITICAL</option>
+          </select>
+        </div>
+      </div>
+      {% if show_app_column and app_keys is not none %}
         <div class="ht-control">
           <div class="ht-select ht-select--sm">
-            <select x-model="filters.level">
-              <option value="">All Levels</option>
-              <option value="DEBUG">DEBUG</option>
-              <option value="INFO">INFO</option>
-              <option value="WARNING">WARNING</option>
-              <option value="ERROR">ERROR</option>
-              <option value="CRITICAL">CRITICAL</option>
+            <select x-model="filters.app">
+              <option value="">All Apps</option>
+              {% for key in app_keys %}<option value="{{ key }}">{{ key }}</option>{% endfor %}
             </select>
           </div>
         </div>
-        {% if show_app_column and app_keys is not none %}
-          <div class="ht-control">
-            <div class="ht-select ht-select--sm">
-              <select x-model="filters.app">
-                <option value="">All Apps</option>
-                {% for key in app_keys %}<option value="{{ key }}">{{ key }}</option>{% endfor %}
-              </select>
-            </div>
-          </div>
-        {% endif %}
-        <div class="ht-control">
-          <input class="ht-input ht-input--sm"
-                 type="text"
-                 placeholder="Search..."
-                 x-model.debounce.200ms="filters.search">
-        </div>
-        <div class="ht-control">
-          <span class="ht-badge ht-badge--neutral ht-badge--sm"
-                x-show="!loading"
-                x-text="filteredEntries.length + ' entries'"></span>
-          {% if show_app_column %}
-            <span class="ht-badge ht-badge--neutral ht-badge--sm" x-show="loading">Loading...</span>
-          {% endif %}
-        </div>
+      {% endif %}
+      <div class="ht-control">
+        <input class="ht-input ht-input--sm"
+               type="text"
+               placeholder="Search..."
+               x-model.debounce.200ms="filters.search">
       </div>
-      <div class="ht-log-container"
-           style="max-height: {{ max_height }};
-                  overflow-y: auto">
-        <table class="ht-table ht-table--dense ht-text-xs">
-          <thead style="position: sticky;
-                        top: 0;
-                        background: var(--ht-surface-sticky);
-                        z-index: 1">
-            <tr>
-              <th style="width: 80px; cursor: pointer;" @click="toggleSort('level')">
-                Level <i class="fas" :class="sortIcon('level')"></i>
-              </th>
-              <th style="width: 160px;
-                         cursor: pointer"
-                  @click="toggleSort('timestamp')">
-                Timestamp <i class="fas" :class="sortIcon('timestamp')"></i>
-              </th>
-              {% if show_app_column %}
-                <th style="width: 120px; cursor: pointer;" @click="toggleSort('app_key')">
-                  App <i class="fas" :class="sortIcon('app_key')"></i>
-                </th>
-              {% endif %}
-              <th style="cursor: pointer;" @click="toggleSort('message')">
-                Message <i class="fas" :class="sortIcon('message')"></i>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-if="loading">
-              <tr>
-                <td colspan="{{ 4 if show_app_column else 3 }}"
-                    class="ht-text-center ht-text-muted">Loading...</td>
-              </tr>
-            </template>
-            <template x-if="error">
-              <tr>
-                <td colspan="{{ 4 if show_app_column else 3 }}"
-                    class="ht-text-center ht-text-danger"
-                    x-text="error"></td>
-              </tr>
-            </template>
-            <template x-if="!loading && !error && filteredEntries.length === 0">
-              <tr>
-                <td colspan="{{ 4 if show_app_column else 3 }}"
-                    class="ht-text-center ht-text-muted">No log entries.</td>
-              </tr>
-            </template>
-            <template x-for="(entry, index) in filteredEntries"
-                      :key="entry.timestamp + '-' + index">
-              <tr>
-                <td>
-                  <span class="ht-badge ht-badge--sm"
-                        :class="levelClass(entry.level)"
-                        x-text="entry.level"></span>
-                </td>
-                <td x-text="formatTime(entry.timestamp)"></td>
-                {% if show_app_column %}
-                  <td>
-                    <template x-if="entry.app_key">
-                      <a :href="'/ui/apps/' + encodeURIComponent(entry.app_key)"><code x-text="entry.app_key"></code></a>
-                    </template>
-                    <template x-if="!entry.app_key">
-                      <code>&mdash;</code>
-                    </template>
-                  </td>
-                {% endif %}
-                <td x-text="entry.message"></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+      <div class="ht-control">
+        <span class="ht-badge ht-badge--neutral ht-badge--sm"
+              x-show="!loading"
+              x-text="filteredEntries.length + ' entries'"></span>
+        {% if show_app_column %}
+          <span class="ht-badge ht-badge--neutral ht-badge--sm" x-show="loading">Loading...</span>
+        {% endif %}
       </div>
     </div>
-  {% endmacro %}
-  {# Job execution status badge #}
-  {% macro job_status_badge(status) %}
-    {% if status == "success" %}
-      <span class="ht-badge ht-badge--success ht-badge--sm">success</span>
-    {% elif status == "error" %}
-      <span class="ht-badge ht-badge--danger ht-badge--sm">error</span>
-    {% else %}
-      <span class="ht-badge ht-badge--neutral ht-badge--sm">{{ status }}</span>
-    {% endif %}
-  {% endmacro %}
+    <div class="ht-log-container"
+         style="max-height: {{ max_height }}; overflow-y: auto">
+      <table class="ht-table ht-table--dense ht-text-xs">
+        <thead style="position: sticky; top: 0; background: var(--ht-surface-sticky); z-index: 1">
+          <tr>
+            <th style="width: 80px; cursor: pointer;" @click="toggleSort('level')">
+              Level <span class="ht-sort-indicator" x-text="sortIndicator('level')"></span>
+            </th>
+            <th style="width: 160px; cursor: pointer" @click="toggleSort('timestamp')">
+              Timestamp <span class="ht-sort-indicator" x-text="sortIndicator('timestamp')"></span>
+            </th>
+            {% if show_app_column %}
+              <th style="width: 120px; cursor: pointer;" @click="toggleSort('app_key')">
+                App <span class="ht-sort-indicator" x-text="sortIndicator('app_key')"></span>
+              </th>
+            {% endif %}
+            <th style="cursor: pointer;" @click="toggleSort('message')">
+              Message <span class="ht-sort-indicator" x-text="sortIndicator('message')"></span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-if="loading">
+            <tr>
+              <td colspan="{{ 4 if show_app_column else 3 }}"
+                  class="ht-text-center ht-text-muted">Loading...</td>
+            </tr>
+          </template>
+          <template x-if="error">
+            <tr>
+              <td colspan="{{ 4 if show_app_column else 3 }}"
+                  class="ht-text-center ht-text-danger"
+                  x-text="error"></td>
+            </tr>
+          </template>
+          <template x-if="!loading && !error && filteredEntries.length === 0">
+            <tr>
+              <td colspan="{{ 4 if show_app_column else 3 }}"
+                  class="ht-text-center ht-text-muted">No log entries.</td>
+            </tr>
+          </template>
+          <template x-for="(entry, index) in filteredEntries"
+                    :key="entry.timestamp + '-' + index">
+            <tr>
+              <td>
+                <span class="ht-badge ht-badge--sm"
+                      :class="levelClass(entry.level)"
+                      x-text="entry.level"></span>
+              </td>
+              <td x-text="formatTime(entry.timestamp)"></td>
+              {% if show_app_column %}
+                <td>
+                  <template x-if="entry.app_key">
+                    <a :href="'/ui/apps/' + encodeURIComponent(entry.app_key)"><code x-text="entry.app_key"></code></a>
+                  </template>
+                  <template x-if="!entry.app_key">
+                    <code>&mdash;</code>
+                  </template>
+                </td>
+              {% endif %}
+              <td x-text="entry.message"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endmacro %}

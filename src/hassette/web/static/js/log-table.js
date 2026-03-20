@@ -109,14 +109,14 @@ document.addEventListener("alpine:init", function () {
       },
 
       /**
-       * Return the Font Awesome sort icon class for the given column.
+       * Return a Unicode arrow indicating sort direction for a column.
        *
-       * @param {string} field - Column key.
-       * @returns {string} CSS class name (`"fa-sort"`, `"fa-sort-up"`, or `"fa-sort-down"`).
+       * @param {string} field - Column field name.
+       * @returns {string} `"↕"` (unsorted), `"↑"` (asc), or `"↓"` (desc).
        */
-      sortIcon(field) {
-        if (this.sort.field !== field) return "fa-sort";
-        return this.sort.dir === "asc" ? "fa-sort-up" : "fa-sort-down";
+      sortIndicator(field) {
+        if (this.sort.field !== field) return "↕";
+        return this.sort.dir === "asc" ? "↑" : "↓";
       },
 
       /**

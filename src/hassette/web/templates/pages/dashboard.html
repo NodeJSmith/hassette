@@ -19,7 +19,7 @@
         {% set total_inv = global_summary.listeners.total_invocations %}
         {% set total_err = global_summary.listeners.total_errors %}
         {% set err_pct = (total_err / total_inv * 100) %}
-        <span class="ht-health-card__value {{ 'good' if err_pct < 5 else ('warn' if err_pct < 10 else 'bad') }}">
+        <span class="ht-health-card__value {{ classify_error_rate(err_pct) }}">
           {{ "%.1f" | format(err_pct) }}%
         </span>
         <span class="ht-health-card__detail">{{ total_err }} / {{ total_inv }} invocations</span>

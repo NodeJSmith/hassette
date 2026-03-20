@@ -1,13 +1,70 @@
+{% from "macros/ui.html" import status_badge, action_buttons %}
 {% for manifest in manifests %}
-  {% include "partials/manifest_row.html" %}
+  {# -- Manifest row -- #}
+  <tr id="manifest-row-{{ manifest.app_key }}"
+      data-testid="app-row-{{ manifest.app_key }}"
+      {% if manifest.instance_count > 1 %}class="ht-group-header"{% endif %}>
+    <td>
+      {% if manifest.instance_count > 1 %}
+        <span class="ht-icon ht-icon--sm ht-mr-2"
+              style="cursor: pointer"
+              @click="expanded['{{ manifest.app_key }}'] = !(expanded['{{ manifest.app_key }}'] ?? true)"
+              x-bind:title="(expanded['{{ manifest.app_key }}'] ?? true) ? 'Collapse' : 'Expand'">
+          <svg x-show="expanded['{{ manifest.app_key }}'] ?? true" class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <svg x-show="!(expanded['{{ manifest.app_key }}'] ?? true)" x-cloak class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </span>
+        <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
+      {% else %}
+        <a href="/ui/apps/{{ manifest.app_key }}"><code>{{ manifest.app_key }}</code></a>
+      {% endif %}
+    </td>
+    <td>{{ manifest.display_name }}</td>
+    <td>{{ manifest.class_name }}</td>
+    <td>
+      {{ status_badge(manifest.status, block_reason=manifest.block_reason or '') }}
+      {% if manifest.instance_count > 1 %}
+        <span class="ht-badge ht-badge--info ht-badge--sm">{{ manifest.instance_count }} instances</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if manifest.error_message %}
+        <span class="ht-text-danger ht-text-xs">{{ manifest.error_message }}</span>
+      {% else %}
+        —
+      {% endif %}
+    </td>
+    <td>
+      {{ action_buttons(manifest.app_key, manifest.status, after_action="location.reload()", show_labels=false) }}
+    </td>
+  </tr>
+  {# -- Instance rows (multi-instance apps) -- #}
   {% if manifest.instance_count > 1 %}
     {% for inst in manifest.instances %}
-      {% include "partials/instance_row.html" %}
+      <tr class="ht-instance-row"
+          x-show="expanded['{{ manifest.app_key }}'] ?? true"
+          x-transition>
+        <td class="ht-pl-6">
+          <a href="/ui/apps/{{ manifest.app_key }}/{{ inst.index }}"><code>{{ inst.instance_name }}</code></a>
+        </td>
+        <td></td>
+        <td></td>
+        <td>{{ status_badge(inst.status, size="small") }}</td>
+        <td>
+          {% if inst.error_message %}
+            <span class="ht-text-danger ht-text-xs">{{ inst.error_message }}</span>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td>
+          {{ action_buttons(manifest.app_key, inst.status, after_action="location.reload()", show_labels=false) }}
+        </td>
+      </tr>
     {% endfor %}
   {% endif %}
 {% endfor %}
 {% if manifests | length == 0 %}
   <tr>
-    <td colspan="6" class="ht-text-center ht-text-muted">No apps match this filter.</td>
+    <td colspan="6" class="ht-text-center ht-text-muted">No matching apps.</td>
   </tr>
 {% endif %}

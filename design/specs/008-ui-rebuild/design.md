@@ -1,7 +1,7 @@
 # Design: UI Rebuild
 
 **Date:** 2026-03-19
-**Status:** approved
+**Status:** implemented
 **Spec:** design/specs/008-ui-rebuild/spec.md
 **Research:** design/research/2026-03-19-ui-redesign/
 **Direction:** design/direction.md

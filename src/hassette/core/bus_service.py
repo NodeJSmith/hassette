@@ -90,7 +90,7 @@ class BusService(Service):
         source_location, registration_source = capture_registration_source()
         human_description: str | None = None
         if listener.predicate is not None and hasattr(listener.predicate, "summarize"):
-            human_description = listener.predicate.summarize()
+            human_description = listener.predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]
         reg = ListenerRegistration(
             app_key=listener.app_key,
             instance_index=listener.instance_index,

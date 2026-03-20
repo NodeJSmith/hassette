@@ -1,0 +1,48 @@
+{# Invocation history for a single handler — loaded on-demand via htmx.ajax(). #}
+{% if invocations %}
+  <table class="ht-table ht-table--dense ht-text-xs" data-testid="invocation-table-{{ listener_id }}">
+    <thead>
+      <tr>
+        <th style="width: 60px">Status</th>
+        <th style="width: 160px">Timestamp</th>
+        <th style="width: 100px">Duration</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invocations %}
+        <tr data-testid="invocation-row">
+          <td>
+            {% if inv.status == "success" %}
+              <span class="ht-badge ht-badge--success ht-badge--sm">success</span>
+            {% elif inv.status == "error" %}
+              <span class="ht-badge ht-badge--danger ht-badge--sm">error</span>
+            {% else %}
+              <span class="ht-badge ht-badge--neutral ht-badge--sm">{{ inv.status }}</span>
+            {% endif %}
+          </td>
+          <td>{{ inv.execution_start_ts }}</td>
+          <td>{{ "%.1f"|format(inv.duration_ms) }}ms</td>
+          <td>
+            {% if inv.error_message %}
+              <span class="ht-text-danger">{{ inv.error_message }}</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% if inv.error_traceback %}
+          <tr data-testid="invocation-traceback">
+            <td colspan="4">
+              <pre class="ht-traceback ht-text-xs">{{ inv.error_traceback }}</pre>
+            </td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {# Event payload placeholder — future endpoint #}
+  <div class="invocation__payload" style="display: none" data-testid="invocation-payload-placeholder"></div>
+{% else %}
+  <p class="ht-text-muted ht-text-xs">No invocation history.</p>
+{% endif %}

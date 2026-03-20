@@ -19,6 +19,33 @@ class _ListenerLike(Protocol):
     predicate_description: str | None
 
 
+def classify_error_rate(rate: float) -> str:
+    """Map an error-rate percentage to a CSS class name.
+
+    Thresholds: <5% = "good", 5-10% = "warn", >=10% = "bad".
+    """
+    if rate < 5:
+        return "good"
+    if rate < 10:
+        return "warn"
+    return "bad"
+
+
+def classify_health_bar(success_rate: float) -> str:
+    """Map a success-rate percentage to a CSS class name.
+
+    Thresholds: 100% = "excellent", >95% = "good" (including 95),
+    >90% = "warning" (including 90), <=90% = "critical".
+    """
+    if success_rate == 100:
+        return "excellent"
+    if success_rate >= 95:
+        return "good"
+    if success_rate >= 90:
+        return "warning"
+    return "critical"
+
+
 def base_context(current_page: str) -> dict:
     """Build the common template context shared by all pages."""
     return {

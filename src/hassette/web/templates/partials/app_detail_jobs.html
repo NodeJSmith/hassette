@@ -4,29 +4,28 @@
       <tr>
         <th>Name</th>
         <th>Trigger</th>
-        <th>Next Run</th>
-        <th>Repeat</th>
-        <th>Status</th>
+        <th>Executions</th>
+        <th>Failed</th>
+        <th>Avg Duration</th>
       </tr>
     </thead>
     <tbody>
       {% for job in jobs %}
         <tr>
           <td>
-            <code>{{ job.name }}</code>
+            <code>{{ job.job_name }}</code>
           </td>
           <td>
-            <span class="ht-badge ht-badge--info ht-badge--sm">{{ job.trigger_type }}</span>
-          </td>
-          <td>{{ job.next_run }}</td>
-          <td>{{ "Yes" if job.repeat else "No" }}</td>
-          <td>
-            {% if job.cancelled %}
-              <span class="ht-badge ht-badge--warning ht-badge--sm">cancelled</span>
+            {% if job.trigger_type %}
+              <span class="ht-badge ht-badge--info ht-badge--sm">{{ job.trigger_type }}</span>
+              {% if job.trigger_value %}<code>{{ job.trigger_value }}</code>{% endif %}
             {% else %}
-              <span class="ht-badge ht-badge--success ht-badge--sm">active</span>
+              <span class="ht-badge ht-badge--neutral ht-badge--sm">once</span>
             {% endif %}
           </td>
+          <td>{{ job.total_executions }}</td>
+          <td class="{% if job.failed > 0 %}ht-text-danger{% endif %}">{{ job.failed }}</td>
+          <td>{{ "%.1f" | format(job.avg_duration_ms) }}ms</td>
         </tr>
       {% endfor %}
     </tbody>

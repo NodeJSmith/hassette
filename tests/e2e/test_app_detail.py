@@ -136,3 +136,104 @@ def test_registration_source_link(page: Page, base_url: str) -> None:
     # The handler row subtitle shows the topic; the summary is computed.
     detail = page.locator("#handler-1-detail")
     expect(detail).to_be_visible(timeout=5000)
+
+
+# ── 5s polling stats updater (WP02) ─────────────────────────────────
+
+
+def test_handler_stats_poll_updates_counts(page: Page, base_url: str) -> None:
+    """Load app detail, simulate a stats poll swap, verify invocation count
+    text is updated by the JS updater without a full page reload."""
+    page.goto(base_url + "/ui/apps/my_app")
+
+    # Confirm initial state: listener 1 shows "10 calls"
+    calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
+    expect(calls_el).to_have_text("10 calls")
+
+    # Simulate a stats poll by injecting updated data into #app-handler-stats
+    # and dispatching the htmx:afterSwap event that the JS listens for.
+    page.evaluate("""() => {
+        var statsDiv = document.getElementById('app-handler-stats');
+        statsDiv.innerHTML =
+            '<span data-listener-id="1" data-total-invocations="42" ' +
+            'data-failed="3" data-avg-duration-ms="5.5" data-last-invoked="1704070800.0"></span>' +
+            '<span data-listener-id="2" data-total-invocations="30" ' +
+            'data-failed="0" data-avg-duration-ms="1.2" data-last-invoked="1704070700.0"></span>';
+        // Dispatch the htmx:afterSwap event that the updater listens for
+        var event = new CustomEvent('htmx:afterSwap', {
+            bubbles: true,
+            detail: { target: statsDiv }
+        });
+        document.body.dispatchEvent(event);
+    }""")
+
+    # Verify counts updated
+    expect(calls_el).to_have_text("42 calls")
+
+    # Verify failed count appeared for listener 1 (was 1, now 3)
+    failed_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item--strong.ht-text-danger")
+    expect(failed_el).to_have_text("3 failed")
+
+    # Verify listener 2 count updated
+    calls_el_2 = page.locator("[data-testid='handler-row-2'] .ht-meta-item[title='Total invocations']")
+    expect(calls_el_2).to_have_text("30 calls")
+
+    # Verify dot color: listener 1 has failures -> danger
+    dot_1 = page.locator("[data-testid='handler-row-1'] .ht-item-row__dot")
+    expect(dot_1).to_have_class("ht-item-row__dot ht-item-row__dot--danger")
+
+    # Verify dot color: listener 2 has no failures, has invocations -> success
+    dot_2 = page.locator("[data-testid='handler-row-2'] .ht-item-row__dot")
+    expect(dot_2).to_have_class("ht-item-row__dot ht-item-row__dot--success")
+
+
+def test_expanded_row_survives_poll(page: Page, base_url: str) -> None:
+    """Expand a handler row, simulate a stats poll, verify the row
+    stays expanded and detail panel remains visible. This confirms
+    the JS updater only touches text/classes, not DOM structure."""
+    page.goto(base_url + "/ui/apps/my_app")
+
+    # Expand handler row 1
+    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
+    handler_main.click()
+    detail = page.locator("#handler-1-detail")
+    expect(detail).to_be_visible(timeout=5000)
+    expect(handler_main).to_have_attribute("aria-expanded", "true")
+
+    # Simulate a stats poll (same mechanism as above)
+    page.evaluate("""() => {
+        var statsDiv = document.getElementById('app-handler-stats');
+        statsDiv.innerHTML =
+            '<span data-listener-id="1" data-total-invocations="15" ' +
+            'data-failed="2" data-avg-duration-ms="3.0" data-last-invoked="1704070800.0"></span>' +
+            '<span data-listener-id="2" data-total-invocations="25" ' +
+            'data-failed="0" data-avg-duration-ms="2.0" data-last-invoked="1704070700.0"></span>';
+        var event = new CustomEvent('htmx:afterSwap', {
+            bubbles: true,
+            detail: { target: statsDiv }
+        });
+        document.body.dispatchEvent(event);
+    }""")
+
+    # Row must still be expanded — Alpine state preserved
+    expect(handler_main).to_have_attribute("aria-expanded", "true")
+    expect(detail).to_be_visible()
+
+    # Counts should be updated
+    calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
+    expect(calls_el).to_have_text("15 calls")
+
+
+def test_handler_list_not_morphed_on_app_status(page: Page, base_url: str) -> None:
+    """Verify handler list no longer has data-live-on-app attribute,
+    meaning it won't be morphed by WebSocket app_status_changed events."""
+    page.goto(base_url + "/ui/apps/my_app")
+    handler_list = page.locator("[data-testid='handler-list']")
+    # Should NOT have data-live-on-app
+    assert handler_list.get_attribute("data-live-on-app") is None
+    # Job list also should not have it
+    job_list = page.locator("[data-testid='job-list']")
+    assert job_list.get_attribute("data-live-on-app") is None
+    # Health strip SHOULD still have it
+    health_strip = page.locator("[data-testid='health-strip']")
+    assert health_strip.get_attribute("data-live-on-app") is not None
