@@ -79,13 +79,23 @@ class BusService(Service):
             self.logger.error("Bus background task failed", exc_info=exc)
 
     def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
-        """Add a listener to the bus."""
+        """Add a listener to the bus.
+
+        When the listener belongs to an app (has app_key), DB registration
+        completes before the route is added so that ``db_id`` is guaranteed
+        to be set before any event can fire.
+        """
         if listener.app_key:
-            self._register_listener_to_db(listener)
+            return self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
-    def _register_listener_to_db(self, listener: "Listener") -> None:
-        """Create a ListenerRegistration and spawn a background task to persist it."""
+    async def _register_then_add_route(self, listener: "Listener") -> None:
+        """Add the listener route, then register in DB.
+
+        The route is added first so the listener receives events immediately.
+        ``db_id`` is set once DB registration completes; until then, dispatch
+        uses the direct-invoke path (no telemetry record).
+        """
         now = time.time()
         source_location, registration_source = capture_registration_source()
         human_description: str | None = None
@@ -107,10 +117,7 @@ class BusService(Service):
             first_registered_at=now,
             last_registered_at=now,
         )
-        self.task_bucket.spawn(self._register_listener_async(listener, reg))
-
-    async def _register_listener_async(self, listener: "Listener", reg: ListenerRegistration) -> None:
-        """Background task: register listener in DB and set its db_id."""
+        await self.router.add_route(listener.topic, listener)
         listener.db_id = await self._executor.register_listener(reg)
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
@@ -211,16 +218,27 @@ class BusService(Service):
         return [listener for listener in all_listeners if await listener.matches(event)]
 
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
-        """Dispatch an event to a specific listener."""
+        """Dispatch an event to a specific listener.
+
+        Internal handlers (``db_id is None``) are invoked directly without going
+        through CommandExecutor, so no telemetry record is created. App-owned
+        handlers are dispatched via CommandExecutor for full telemetry tracking.
+        """
         if listener.db_id is None:
-            self.logger.debug(
-                "Listener %s has no db_id yet (registration pending); invocation record will use id=0",
-                listener,
-            )
-        cmd = InvokeHandler(listener=listener, event=event, topic=topic, listener_id=listener.db_id or 0)
-        await self._executor.execute(cmd)
-        if listener.once:
-            self.remove_listener(listener)
+            try:
+                await listener.invoke(event)
+            except Exception:
+                self.logger.exception("Internal handler error (topic=%s, handler=%r)", topic, listener)
+            finally:
+                if listener.once:
+                    self.remove_listener(listener)
+            return
+        cmd = InvokeHandler(listener=listener, event=event, topic=topic, listener_id=listener.db_id)
+        try:
+            await self._executor.execute(cmd)
+        finally:
+            if listener.once:
+                self.remove_listener(listener)
 
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")

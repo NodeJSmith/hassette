@@ -450,12 +450,11 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_safe_session_id_returns_zero_when_no_session(mock_hassette: MagicMock) -> None:
-    """_safe_session_id() returns 0 instead of raising when no session exists yet.
+def test_safe_session_id_raises_when_no_session(mock_hassette: MagicMock) -> None:
+    """_safe_session_id() raises when no session exists.
 
-    Regression: before the fix, all execute() paths called self.hassette.session_id
-    directly, crashing with RuntimeError during the startup window before
-    _create_session() runs.
+    With phased startup, the session is always created before any handler fires.
+    A missing session is a bug, not an expected race condition.
     """
 
     class _NoSession:
@@ -465,15 +464,16 @@ def test_safe_session_id_returns_zero_when_no_session(mock_hassette: MagicMock) 
 
     exc = CommandExecutor(mock_hassette, parent=mock_hassette)
     exc.hassette = _NoSession()  # type: ignore[assignment]
-    assert exc._safe_session_id() == 0
+    with pytest.raises(RuntimeError, match="No active session"):
+        exc._safe_session_id()
 
 
 @pytest.mark.asyncio
-async def test_execute_does_not_crash_when_no_session(executor: CommandExecutor) -> None:
-    """execute() must not raise when session_id is unavailable (pre-session startup race).
+async def test_execute_raises_when_no_session(executor: CommandExecutor) -> None:
+    """execute() propagates RuntimeError when session_id is unavailable.
 
-    Regression: TaskBucket tasks crashed with RuntimeError("No active session") when
-    handlers fired before run_forever() called _create_session().
+    With phased startup, the session always exists before handlers fire.
+    A missing session is a bug that should surface immediately.
     """
 
     class _NoSession:
@@ -486,14 +486,8 @@ async def test_execute_does_not_crash_when_no_session(executor: CommandExecutor)
     listener = _make_mock_listener()
     cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
 
-    # Must not raise
-    await executor.execute(cmd)
-
-    # Record should be queued with session_id=0 sentinel
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
-    assert record.session_id == 0
+    with pytest.raises(RuntimeError, match="No active session"):
+        await executor.execute(cmd)
 
 
 @pytest.mark.asyncio

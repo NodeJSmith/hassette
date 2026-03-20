@@ -174,9 +174,11 @@ async def test_wait_for_ready_accepts_explicit_timeout(
 
 
 async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) -> None:
-    """run_forever starts resources, waits for readiness, and shuts down when signalled."""
-    start_resources = Mock()
-    hassette_instance._start_resources = start_resources
+    """run_forever uses phased startup: DB first, session, then remaining services."""
+    start_db = Mock()
+    start_remaining = Mock()
+    hassette_instance._start_database = start_db
+    hassette_instance._start_remaining_resources = start_remaining
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
@@ -186,13 +188,22 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
     task = asyncio.create_task(hassette_instance.run_forever())
     asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
-    await wait_for(lambda: start_resources.called, desc="run_forever started")
+    await wait_for(lambda: start_db.called, desc="run_forever started")
     await task
 
-    start_resources.assert_called_once()
-    hassette_instance.wait_for_ready.assert_awaited_once_with(
+    # Phase 1: DB started first
+    start_db.assert_called_once()
+    # Phase 2: remaining resources started after session creation
+    start_remaining.assert_called_once()
+    # wait_for_ready called twice: DB first, then all children
+    assert hassette_instance.wait_for_ready.await_count == 2
+    hassette_instance.wait_for_ready.assert_any_await(
+        [hassette_instance.database_service], timeout=hassette_instance.config.startup_timeout_seconds
+    )
+    hassette_instance.wait_for_ready.assert_any_await(
         list(hassette_instance.children), timeout=hassette_instance.config.startup_timeout_seconds
     )
+    # Session created between phase 1 and phase 2
     hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()
     hassette_instance._session_manager.create_session.assert_awaited_once()
     bus_subscribe.assert_called_once_with(handler=hassette_instance._session_manager.on_service_crashed)
@@ -203,7 +214,7 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown when session initialization raises."""
-    hassette_instance._start_resources = Mock()
+    hassette_instance._start_database = Mock()
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
@@ -217,14 +228,18 @@ async def test_run_forever_handles_session_init_failure(hassette_instance: Hasse
 
 
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
-    """run_forever triggers shutdown when resources fail to become ready."""
-    hassette_instance._start_resources = Mock()
-    hassette_instance.wait_for_ready = AsyncMock(return_value=False)
+    """run_forever triggers shutdown when remaining resources fail to become ready."""
+    hassette_instance._start_database = Mock()
+    hassette_instance._start_remaining_resources = Mock()
+    # DB wait succeeds (True), all-children wait fails (False)
+    hassette_instance.wait_for_ready = AsyncMock(side_effect=[True, False])
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
+    hassette_instance._session_manager.create_session = AsyncMock()
 
     await hassette_instance.run_forever()
 
-    hassette_instance.wait_for_ready.assert_awaited_once()
+    assert hassette_instance.wait_for_ready.await_count == 2
     hassette_instance.shutdown.assert_awaited_once()
     assert hassette_instance.ready_event.is_set(), "Ready event was not set"
 

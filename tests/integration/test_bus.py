@@ -461,7 +461,7 @@ async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hass
 
 
 async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
-    """_dispatch() delegates to the executor with an InvokeHandler command."""
+    """_dispatch() delegates to the executor for app-owned listeners (db_id set)."""
     from hassette.core.commands import InvokeHandler
     from hassette.events.base import Event
 
@@ -473,14 +473,76 @@ async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
 
     hassette._bus.on(topic="custom.exec_test", handler=handler)
 
+    # Simulate an app-owned listener by setting db_id (internal listeners have db_id=None)
+    # Wait for the listener to be added to the router
+    await asyncio.sleep(0.05)
+    all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.exec_test")
+    for listener in all_listeners:
+        if listener.db_id is None:
+            listener.db_id = 99
+
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
     payload_event = Event(topic="custom.exec_test", payload="test-payload")
     await hassette.send_event("custom.exec_test", payload_event)
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
 
-    executor = hassette._bus_service._executor
     executor.execute.assert_called()
     call_args = executor.execute.call_args_list
     assert len(call_args) >= 1
     cmd = call_args[-1].args[0]
     assert isinstance(cmd, InvokeHandler), f"Expected InvokeHandler, got {type(cmd)}"
+
+
+async def test_dispatch_internal_handler_bypasses_executor(hassette_with_bus: "Hassette") -> None:
+    """Internal listeners (db_id=None) invoke directly, bypassing CommandExecutor."""
+    from hassette.events.base import Event
+
+    hassette = hassette_with_bus
+    event_handled = asyncio.Event()
+
+    def handler(_event: Event) -> None:
+        hassette.task_bucket.post_to_loop(event_handled.set)
+
+    # Internal bus (no app_key) — listener gets db_id=None
+    hassette._bus.on(topic="custom.internal_test", handler=handler)
+
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
+    payload_event = Event(topic="custom.internal_test", payload="test-payload")
+    await hassette.send_event("custom.internal_test", payload_event)
+
+    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
+
+    # Executor should NOT have been called for internal handlers
+    executor.execute.assert_not_called()
+
+
+async def test_dispatch_internal_handler_logs_error_on_exception(hassette_with_bus: "Hassette") -> None:
+    """Internal handler exceptions are logged, not propagated or sent to CommandExecutor."""
+    from hassette.events.base import Event
+
+    hassette = hassette_with_bus
+    error_raised = asyncio.Event()
+
+    def failing_handler(_event: Event) -> None:
+        hassette.task_bucket.post_to_loop(error_raised.set)
+        raise ValueError("test error from internal handler")
+
+    hassette._bus.on(topic="custom.error_test", handler=failing_handler)
+
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
+    payload_event = Event(topic="custom.error_test", payload="test-payload")
+    await hassette.send_event("custom.error_test", payload_event)
+
+    await asyncio.wait_for(error_raised.wait(), timeout=1.0)
+    # Allow the exception to propagate through the dispatch path
+    await asyncio.sleep(0.05)
+
+    # Executor should NOT have been called
+    executor.execute.assert_not_called()

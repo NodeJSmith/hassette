@@ -216,12 +216,12 @@ async def test_job_registration_persists_correct_app_key(
 
 
 # ---------------------------------------------------------------------------
-# BusService._register_listener_to_db builds registration from listener fields
+# BusService._register_then_add_route registers listener then adds route
 # ---------------------------------------------------------------------------
 
 
-def test_register_listener_to_db_reads_app_key_from_listener(mock_hassette: MagicMock) -> None:
-    """_register_listener_to_db creates a ListenerRegistration with listener.app_key."""
+def test_listener_with_app_key_spawns_combined_task(mock_hassette: MagicMock) -> None:
+    """add_listener with app_key spawns a single _register_then_add_route task."""
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
@@ -229,26 +229,26 @@ def test_register_listener_to_db_reads_app_key_from_listener(mock_hassette: Magi
 
     listener = _make_mock_listener(owner_id="bus:MyApp:0", app_key="my_app", instance_index=2)
 
-    bus_service._register_listener_to_db(listener)
+    bus_service.add_listener(listener)
 
-    # task_bucket.spawn was called with the _register_listener_async coroutine
+    # Single combined spawn: _register_then_add_route
     assert bus_service.task_bucket.spawn.call_count == 1
 
 
 # ---------------------------------------------------------------------------
-# SchedulerService._register_job_to_db builds registration from job fields
+# SchedulerService._register_then_enqueue registers job then enqueues
 # ---------------------------------------------------------------------------
 
 
-def test_register_job_to_db_reads_app_key_from_job(mock_hassette: MagicMock) -> None:
-    """_register_job_to_db creates a ScheduledJobRegistration with job.app_key."""
+def test_job_with_app_key_spawns_combined_task(mock_hassette: MagicMock) -> None:
+    """add_job with app_key spawns a single _register_then_enqueue task."""
     executor_mock = MagicMock()
     scheduler_service = SchedulerService(mock_hassette, executor=executor_mock, parent=mock_hassette)
     scheduler_service.task_bucket = _stub_task_bucket()
 
     job = _make_mock_job(owner_id="scheduler:MyApp:0", app_key="my_app", instance_index=3)
 
-    scheduler_service._register_job_to_db(job)
+    scheduler_service.add_job(job)
 
     assert scheduler_service.task_bucket.spawn.call_count == 1
 
@@ -259,7 +259,7 @@ def test_register_job_to_db_reads_app_key_from_job(mock_hassette: MagicMock) -> 
 
 
 def test_listener_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> None:
-    """Listeners with empty app_key (non-App owners) must not call _register_listener_to_db."""
+    """Listeners with empty app_key (non-App owners) skip DB registration."""
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
@@ -278,7 +278,7 @@ def test_listener_with_empty_app_key_skips_registration(mock_hassette: MagicMock
 
 
 def test_listener_with_app_key_triggers_registration(mock_hassette: MagicMock) -> None:
-    """Listeners with non-empty app_key trigger DB registration + router add (2 spawns)."""
+    """Listeners with non-empty app_key use a single combined register-then-route task."""
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
@@ -288,12 +288,12 @@ def test_listener_with_app_key_triggers_registration(mock_hassette: MagicMock) -
 
     bus_service.add_listener(listener)
 
-    # Two spawn calls: _register_listener_async + router.add_route
-    assert bus_service.task_bucket.spawn.call_count == 2
+    # Single spawn: _register_then_add_route (DB registration + router add in sequence)
+    assert bus_service.task_bucket.spawn.call_count == 1
 
 
 def test_job_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> None:
-    """Jobs with empty app_key (non-App owners) must not call _register_job_to_db."""
+    """Jobs with empty app_key (non-App owners) skip DB registration."""
     executor_mock = MagicMock()
     scheduler_service = SchedulerService(mock_hassette, executor=executor_mock, parent=mock_hassette)
     scheduler_service.task_bucket = _stub_task_bucket()
@@ -309,7 +309,7 @@ def test_job_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> 
 
 
 def test_job_with_app_key_triggers_registration(mock_hassette: MagicMock) -> None:
-    """Jobs with non-empty app_key trigger DB registration + enqueue (2 spawns)."""
+    """Jobs with non-empty app_key use a single combined register-then-enqueue task."""
     executor_mock = MagicMock()
     scheduler_service = SchedulerService(mock_hassette, executor=executor_mock, parent=mock_hassette)
     scheduler_service.task_bucket = _stub_task_bucket()
@@ -318,5 +318,5 @@ def test_job_with_app_key_triggers_registration(mock_hassette: MagicMock) -> Non
 
     scheduler_service.add_job(job)
 
-    # Two spawn calls: _register_job_async + _enqueue_job
-    assert scheduler_service.task_bucket.spawn.call_count == 2
+    # Single spawn: _register_then_enqueue (DB registration + enqueue in sequence)
+    assert scheduler_service.task_bucket.spawn.call_count == 1
