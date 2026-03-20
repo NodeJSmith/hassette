@@ -8,18 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Changed
-- Complete web UI rebuild: 4 pages (Dashboard, Apps, App Detail, Logs), Graphite + Emerald design token system, handler/job drill-down with invocation history, plain-language handler summaries, and session-scoped error feed
-- Dashboard queries optimized from 2N sequential SQL calls to 2 batch queries via `get_all_app_summaries()`
-- Handler/job row live counts update via 5s polling without destroying Alpine.js expand state (replaced full-section morph with targeted DOM text updates)
-- Health thresholds centralized as Jinja2 globals (`classify_error_rate`, `classify_health_bar`)
-- Apps list page filter tabs use server-side filtering via `?status=` param instead of client-side Alpine `x-show`
+- Complete web UI rebuild: 4 pages (Dashboard, Apps, App Detail, Logs), Graphite + Emerald design token system, handler/job drill-down with invocation history, plain-language handler summaries, and session-scoped error feed (#343)
+- Dashboard queries optimized from 2N sequential SQL calls to 2 batch queries via `get_all_app_summaries()` (#343)
+- Handler/job row live counts update via 5s polling without destroying Alpine.js expand state (replaced full-section morph with targeted DOM text updates) (#343)
+- Health thresholds centralized as Jinja2 globals (`classify_error_rate`, `classify_health_bar`) (#343)
+- Apps list page filter tabs use server-side filtering via `?status=` param instead of client-side Alpine `x-show` (#343)
 
 ### Added
-- `predicate.summarize()` method on all event predicate classes for stable, human-readable handler descriptions
-- `human_description` column on `listeners` table (Alembic migration) populated at registration time
-- Typed Pydantic models (`ListenerSummary`, `JobSummary`, `HandlerInvocation`, `JobExecution`, `GlobalSummary`, `SessionSummary`, `AppHealthSummary`) for all telemetry query returns
-- Design token CSS system (`tokens.css`) with light/dark mode via `[data-theme]` selector and localStorage persistence
-- E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability
+- `predicate.summarize()` method on all event predicate classes for stable, human-readable handler descriptions (#343)
+- `human_description` column on `listeners` table (Alembic migration) populated at registration time (#343)
+- Typed Pydantic models (`ListenerSummary`, `JobSummary`, `HandlerInvocation`, `JobExecution`, `GlobalSummary`, `SessionSummary`, `AppHealthSummary`) for all telemetry query returns (#343)
+- Design token CSS system (`tokens.css`) with light/dark mode via `[data-theme]` selector and localStorage persistence (#343)
+- E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability (#343)
 
 ### Fixed
 - Scheduler job and listener filters in web UI partials and API now return correct results by fixing `owner_id`/`app_key` mismatch in DB recording and filter comparisons (#335) (#336)
