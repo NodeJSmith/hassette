@@ -30,8 +30,9 @@ def test_sort_column_headers_clickable(page: Page, base_url: str) -> None:
     expect(level_header).to_be_visible()
     # Click to toggle sort - should not error
     level_header.click()
-    # The sort icon should be present
-    expect(level_header.locator("i.fas")).to_be_visible()
+    # The sort indicator span should be present
+    sort_indicator = level_header.locator(".ht-sort-indicator")
+    expect(sort_indicator).to_be_visible()
 
 
 def test_search_input_present(page: Page, base_url: str) -> None:

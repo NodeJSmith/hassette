@@ -19,13 +19,14 @@ def test_apps_table_shows_manifests(page: Page, base_url: str) -> None:
 
 def test_filter_by_status_tab(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps")
-    # Click the "Running" filter tab
-    page.locator("#tab-running a").click()
-    # Wait for HTMX swap to complete (expect auto-retries until content updates)
-    manifest_list = page.locator("#manifest-list")
-    expect(manifest_list).to_contain_text("my_app")
-    expect(manifest_list).not_to_contain_text("other_app")
-    expect(manifest_list).not_to_contain_text("disabled_app")
+    # Click the "Running" filter tab (Alpine.js client-side filtering)
+    page.locator("[data-testid='tab-running'] a").click()
+    # Wait for Alpine reactivity
+    page.wait_for_timeout(200)
+    # Running app should be visible, others hidden
+    expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
+    expect(page.locator("[data-testid='app-row-other_app']")).to_be_hidden()
+    expect(page.locator("[data-testid='app-row-disabled_app']")).to_be_hidden()
 
 
 def test_app_detail_navigation(page: Page, base_url: str) -> None:
@@ -39,15 +40,14 @@ def test_app_detail_navigation(page: Page, base_url: str) -> None:
 def test_app_detail_shows_sections(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/my_app")
     body = page.locator("body")
-    expect(body).to_contain_text("App Key")
-    expect(body).to_contain_text("Bus Listeners")
+    expect(body).to_contain_text("Event Handlers")
     expect(body).to_contain_text("Scheduled Jobs")
-    expect(body).to_contain_text("Recent Logs")
+    expect(body).to_contain_text("Logs")
 
 
 def test_running_app_has_success_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/my_app")
-    badge = page.locator(".ht-badge.ht-badge--success:has-text('running')").first
+    badge = page.locator(".ht-status-badge--running:has-text('running')").first
     expect(badge).to_be_visible()
 
 
@@ -65,7 +65,7 @@ def test_failed_app_shows_error_message(page: Page, base_url: str) -> None:
 
 def test_failed_app_has_danger_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/broken_app")
-    badge = page.locator(".ht-badge.ht-badge--danger:has-text('failed')").first
+    badge = page.locator(".ht-status-badge--failed:has-text('failed')").first
     expect(badge).to_be_visible()
 
 
@@ -76,13 +76,13 @@ def test_failed_app_shows_start_button(page: Page, base_url: str) -> None:
 
 def test_stopped_app_has_stopped_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/other_app")
-    badge = page.locator(".ht-badge.ht-status-stopped:has-text('stopped')").first
+    badge = page.locator(".ht-status-badge--stopped:has-text('stopped')").first
     expect(badge).to_be_visible()
 
 
 def test_disabled_app_has_disabled_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/disabled_app")
-    badge = page.locator(".ht-badge.ht-status-disabled:has-text('disabled')").first
+    badge = page.locator(".ht-status-badge--disabled:has-text('disabled')").first
     expect(badge).to_be_visible()
 
 
@@ -102,8 +102,7 @@ def test_app_detail_log_entries_show_app_logs(page: Page, base_url: str) -> None
     expect(body).not_to_contain_text("WebSocket heartbeat sent")
 
 
-def test_app_detail_shows_config_metadata(page: Page, base_url: str) -> None:
+def test_app_detail_shows_display_name(page: Page, base_url: str) -> None:
     page.goto(base_url + "/ui/apps/my_app")
     body = page.locator("body")
-    expect(body).to_contain_text("MyApp")  # class name
-    expect(body).to_contain_text("my_app.py")  # filename
+    expect(body).to_contain_text("My App")  # display name in header

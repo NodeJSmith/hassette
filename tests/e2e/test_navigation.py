@@ -11,7 +11,7 @@ DESKTOP_VIEWPORT = {"width": 1280, "height": 720}
 MOBILE_VIEWPORT = {"width": 375, "height": 667}
 
 PAGES = [
-    ("/ui/", "Dashboard"),
+    ("/ui/", "App Health"),
     ("/ui/apps", "App Management"),
     ("/ui/logs", "Log Viewer"),
 ]
@@ -35,7 +35,7 @@ def test_all_pages_load(page: Page, base_url: str, path: str, heading: str) -> N
 
 # Sidebar navigation entries: (link text via data-testid, expected URL path suffix, expected content)
 SIDEBAR_LINKS = [
-    ("nav-dashboard", "/ui/", "Dashboard"),
+    ("nav-dashboard", "/ui/", "App Health"),
     ("nav-apps", "/ui/apps", "App Management"),
     ("nav-logs", "/ui/logs", "Log Viewer"),
 ]
