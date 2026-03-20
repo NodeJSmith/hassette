@@ -35,22 +35,6 @@
       {% endfor %}
     </tbody>
   </table>
-  {# Run now button placeholder — deferred (501) #}
-  <div class="ht-mt-3">
-    <button class="ht-btn ht-btn--sm"
-            data-testid="btn-run-now-{{ job_id }}"
-            hx-post="/ui/partials/run-job/{{ app_key }}/{{ job_id }}"
-            hx-swap="none"
-            title="Run this job now (coming soon)">
-      <svg class="ht-icon-svg"
-           viewBox="0 0 24 24"
-           fill="currentColor"
-           stroke="none">
-        <polygon points="6,4 20,12 6,20" />
-      </svg>
-      <span>Run Now</span>
-    </button>
-  </div>
 {% else %}
   <p class="ht-text-muted ht-text-xs">No execution history.</p>
 {% endif %}
