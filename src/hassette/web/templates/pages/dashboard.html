@@ -6,6 +6,8 @@
        id="dashboard-kpi-strip"
        hx-get="/ui/partials/dashboard-kpi-strip"
        hx-trigger="every 30s"
+       hx-target="this"
+       hx-select="unset"
        hx-swap="morph:innerHTML"
        data-live-on-app="/ui/partials/dashboard-kpi-strip">{% include "partials/dashboard_kpi_strip.html" %}</div>
   {# ── App Health Grid ─────────────────────────────────────────── #}

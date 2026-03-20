@@ -124,11 +124,13 @@
     }
   });
 
-  /* Add pulse animation after HTMX swap for live-updated elements */
+  /* Add pulse animation after HTMX swap for live-updated elements.
+     Skip for self-polling elements (hx-trigger) — periodic refreshes should be silent. */
   document.body.addEventListener("htmx:afterSwap", function (e) {
     var target = /** @type {CustomEvent} */ (e).detail.target;
     if (
       target &&
+      !target.hasAttribute("hx-trigger") &&
       (target.hasAttribute("data-live-refresh") ||
         target.hasAttribute("data-live-on-app") ||
         target.hasAttribute("data-live-on-state"))
