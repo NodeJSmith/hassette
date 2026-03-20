@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability (#343)
 
 ### Fixed
+- Startup race condition: phased startup ensures session exists before services fire handlers, eliminating "Dropping N handler invocation record(s)" warnings on every boot (#343)
+- Internal handlers (ServiceWatcher, StateProxy) now dispatch directly without CommandExecutor, preventing listener_id=0 sentinel records (#343)
+- App-owned listeners route-first then register in DB, preventing silent event loss during registration window (#343)
+- Dashboard KPI strip now live-updates via 30s polling + WebSocket events (#343)
+- Removed duplicate connection bar on dashboard, redundant sidebar pulse dot (#343)
+- Split single "Avg Duration" health card into separate "Handler Avg" and "Job Avg" on app detail page (#343)
+- Renamed misleading "Init Status" to "Status" on app detail page (#343)
+- Removed dead Log Level button (#345) and Run Now button (#346) from UI (#343)
 - Scheduler job and listener filters in web UI partials and API now return correct results by fixing `owner_id`/`app_key` mismatch in DB recording and filter comparisons (#335) (#336)
 - `get_job_summary` telemetry query now returns `job_id`, `app_key`, and `instance_index` columns, matching the shape of `get_listener_summary` (#334)
 - Bus page telemetry query failures (from `asyncio.gather`) are now logged at WARNING instead of being silently dropped (#334)
