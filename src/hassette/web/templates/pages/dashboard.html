@@ -2,7 +2,8 @@
 {% block title %}Dashboard — Hassette{% endblock %}
 {% block content %}
   {# ── KPI Strip ───────────────────────────────────────────────── #}
-  <div class="ht-kpi-strip" data-testid="kpi-strip"
+  <div class="ht-kpi-strip"
+       data-testid="kpi-strip"
        id="dashboard-kpi-strip"
        hx-get="/ui/partials/dashboard-kpi-strip"
        hx-trigger="every 30s"

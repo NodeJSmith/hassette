@@ -1,7 +1,7 @@
 <div class="ht-health-card">
   <span class="ht-health-card__label">Apps</span>
   <span class="ht-health-card__value">{{ manifests | length }}</span>
-  <span class="ht-health-card__detail">{{ manifests | selectattr("status", "equalto", "running") | list | length }} running</span>
+  <span class="ht-health-card__detail">{{ manifests | selectattr('status', 'equalto', 'running') | list | length }} running</span>
 </div>
 <div class="ht-health-card">
   <span class="ht-health-card__label">Error Rate</span>
