@@ -99,13 +99,13 @@
   --ht-weight-bold: 700;
 
   /* Type scale */
-  --ht-text-xs: 10px;
-  --ht-text-sm: 11px;
-  --ht-text-base: 13px;
-  --ht-text-md: 14px;
-  --ht-text-lg: 15px;
-  --ht-text-xl: 19px;
-  --ht-text-2xl: 22px;
+  --ht-text-xs: 11px;
+  --ht-text-sm: 12px;
+  --ht-text-base: 14px;
+  --ht-text-md: 15px;
+  --ht-text-lg: 16px;
+  --ht-text-xl: 20px;
+  --ht-text-2xl: 24px;
 }
 
 /* — Spacing (4px grid) ————————————————————————————— */

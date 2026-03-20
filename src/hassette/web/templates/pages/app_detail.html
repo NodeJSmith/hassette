@@ -135,6 +135,8 @@
     <div id="app-handler-stats"
          hx-get="/ui/partials/app-handler-stats/{{ app_key }}?instance_index={{ instance_index }}"
          hx-trigger="every 5s"
+         hx-target="this"
+         hx-select="unset"
          hx-swap="innerHTML"
          hx-sync="this:replace"
          style="display: none"></div>
