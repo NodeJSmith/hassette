@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "types": "openapi-typescript openapi.json -o src/api/types.ts"
+    "types": "openapi-typescript openapi.json -o src/api/types.ts",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
   },
   "dependencies": {
     "@preact/signals": "^2.8.2",
@@ -17,11 +19,14 @@
     "wouter": "^3.9.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@preact/preset-vite": "^2.10.5",
     "@testing-library/preact": "^3.2.4",
+    "eslint": "^10.1.0",
     "jsdom": "^29.0.1",
     "openapi-typescript": "^7.13.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.1",
     "vite": "^8.0.1",
     "vitest": "^4.1.0"
   }

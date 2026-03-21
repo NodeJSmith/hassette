@@ -82,7 +82,7 @@ export function DashboardPage() {
         <span class="ht-session-bar__item">
           <span class="ht-text-xs ht-text-muted">Hassette</span>
         </span>
-        {kpis.data.value?.uptime_seconds != null && (
+        {kpis.data.value?.uptime_seconds !== null && kpis.data.value?.uptime_seconds !== undefined && (
           <span class="ht-session-bar__item">
             <span class="ht-text-xs ht-text-muted">Started</span>
             <span class="ht-text-xs">
