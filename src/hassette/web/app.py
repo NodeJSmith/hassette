@@ -78,7 +78,7 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
             app.mount("/fonts", StaticFiles(directory=str(_SPA_DIR / "fonts")), name="spa-fonts")
 
         @app.get("/{path:path}")
-        async def spa_catch_all(path: str) -> FileResponse:
+        async def spa_catch_all(path: str) -> FileResponse:  # pyright: ignore[reportUnusedFunction]
             """Serve index.html for SPA client-side routing.
 
             Static files in the SPA build output (e.g., hassette-logo.png) are
