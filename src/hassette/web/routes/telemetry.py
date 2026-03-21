@@ -4,9 +4,11 @@ All endpoints resolve ``session_id`` server-side via ``safe_session_id()`` —
 the SPA never needs to know or pass a session ID.
 """
 
+import logging
+
 from fastapi import APIRouter, Query
 
-from hassette.core.telemetry_models import AppHealthSummary
+from hassette.core.telemetry_models import AppHealthSummary, HandlerInvocation, JobExecution, JobSummary
 from hassette.web.dependencies import RuntimeDep, TelemetryDep
 from hassette.web.models import (
     AppHealthResponse,
@@ -21,10 +23,11 @@ from hassette.web.models import (
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
-    compute_health_metrics,
     format_handler_summary,
     safe_session_id,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -52,20 +55,28 @@ async def app_health(
         app_key=app_key, instance_index=instance_index, session_id=session_id
     )
     jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index, session_id=session_id)
-    metrics = compute_health_metrics(listeners, jobs)
 
-    total_invocations = sum(ls.total_invocations for ls in listeners)
-    total_errors = sum(ls.failed for ls in listeners)
-    total = total_invocations + sum(j.total_executions for j in jobs)
-    errors = total_errors + sum(j.failed for j in jobs)
+    # Compute combined error rate (handlers + jobs) for consistency
+    total = sum(ls.total_invocations for ls in listeners) + sum(j.total_executions for j in jobs)
+    errors = sum(ls.failed for ls in listeners) + sum(j.failed for j in jobs)
+    error_rate = (errors / total * 100) if total > 0 else 0.0
     success_rate = ((total - errors) / total * 100) if total > 0 else 100.0
 
+    # Compute handler/job-specific averages
+    total_handler_inv = sum(ls.total_invocations for ls in listeners)
+    handler_avg = (sum(ls.total_duration_ms for ls in listeners) / total_handler_inv) if total_handler_inv > 0 else 0.0
+    total_job_exec = sum(j.total_executions for j in jobs)
+    job_avg = (sum(j.total_duration_ms for j in jobs) / total_job_exec) if total_job_exec > 0 else 0.0
+
+    last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at is not None]
+    last_times.extend(j.last_executed_at for j in jobs if j.last_executed_at is not None)
+
     return AppHealthResponse(
-        error_rate=metrics["error_rate"],
-        error_rate_class=classify_error_rate(metrics["error_rate"]),
-        handler_avg_duration=metrics["handler_avg_duration"],
-        job_avg_duration=metrics["job_avg_duration"],
-        last_activity_ts=metrics["last_activity_ts"],
+        error_rate=error_rate,
+        error_rate_class=classify_error_rate(error_rate),
+        handler_avg_duration=handler_avg,
+        job_avg_duration=job_avg,
+        last_activity_ts=max(last_times) if last_times else None,
         health_status=classify_health_bar(success_rate),
     )
 
@@ -113,39 +124,36 @@ async def app_listeners(
     ]
 
 
-@router.get("/app/{app_key}/jobs")
+@router.get("/app/{app_key}/jobs", response_model=list[JobSummary])
 async def app_jobs(
     app_key: str,
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
     instance_index: int = 0,
-) -> list:
+) -> list[JobSummary]:
     """Job summaries for a single app instance."""
     session_id = safe_session_id(runtime)
-    jobs = await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index, session_id=session_id)
-    return [j.model_dump() for j in jobs]
+    return list(await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index, session_id=session_id))
 
 
-@router.get("/handler/{listener_id}/invocations")
+@router.get("/handler/{listener_id}/invocations", response_model=list[HandlerInvocation])
 async def handler_invocations(
     listener_id: int,
     telemetry: TelemetryDep,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
-) -> list:
+) -> list[HandlerInvocation]:
     """Invocation history for a specific handler."""
-    invocations = await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit)
-    return [inv.model_dump() for inv in invocations]
+    return list(await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit))
 
 
-@router.get("/job/{job_id}/executions")
+@router.get("/job/{job_id}/executions", response_model=list[JobExecution])
 async def job_executions(
     job_id: int,
     telemetry: TelemetryDep,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
-) -> list:
+) -> list[JobExecution]:
     """Execution history for a specific job."""
-    executions = await telemetry.get_job_executions(job_id=job_id, limit=limit)
-    return [ex.model_dump() for ex in executions]
+    return list(await telemetry.get_job_executions(job_id=job_id, limit=limit))
 
 
 @router.get("/dashboard/kpis", response_model=DashboardKpisResponse)
@@ -170,7 +178,7 @@ async def dashboard_kpis(
         total_errors=summary.listeners.total_errors,
         total_job_errors=summary.jobs.total_errors,
         avg_handler_duration_ms=summary.listeners.avg_duration_ms or 0.0,
-        avg_job_duration_ms=0.0,  # JobGlobalStats doesn't have avg_duration_ms
+        avg_job_duration_ms=0.0,
         error_rate=error_rate,
         error_rate_class=classify_error_rate(error_rate),
         uptime_seconds=status.uptime_seconds,
@@ -188,6 +196,7 @@ async def dashboard_app_grid(
     try:
         summaries = await telemetry.get_all_app_summaries(session_id=session_id)
     except Exception:
+        logger.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
     empty = AppHealthSummary(
