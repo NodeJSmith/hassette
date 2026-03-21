@@ -13,13 +13,20 @@ export function ManifestRow({ manifest, liveStatus }: Props) {
   return (
     <tr class="ht-item-row">
       <td>
-        <a href={`/apps/${manifest.app_key}`} class="ht-item-row-link">
-          {manifest.display_name}
+        <a href={`/apps/${manifest.app_key}`}>
+          <code>{manifest.app_key}</code>
         </a>
       </td>
-      <td><StatusBadge status={status} size="small" /></td>
+      <td>{manifest.display_name}</td>
       <td class="ht-text-secondary">{manifest.class_name}</td>
-      <td class="ht-text-secondary">{manifest.instance_count}</td>
+      <td><StatusBadge status={status} size="small" /></td>
+      <td class="ht-text-secondary">
+        {manifest.error_message ? (
+          <span class="ht-text-danger">{manifest.error_message}</span>
+        ) : (
+          "—"
+        )}
+      </td>
       <td><ActionButtons appKey={manifest.app_key} status={status} /></td>
     </tr>
   );

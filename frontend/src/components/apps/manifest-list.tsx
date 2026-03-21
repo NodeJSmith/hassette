@@ -27,13 +27,14 @@ export function ManifestList({ manifests, filter }: Props) {
   }
 
   return (
-    <table class="ht-table">
+    <table class="ht-table ht-table--dense">
       <thead>
         <tr>
+          <th>App Key</th>
           <th>Name</th>
-          <th>Status</th>
           <th>Class</th>
-          <th>Instances</th>
+          <th>Status</th>
+          <th>Error</th>
           <th>Actions</th>
         </tr>
       </thead>

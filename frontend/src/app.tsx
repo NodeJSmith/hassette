@@ -1,8 +1,11 @@
 import { useMemo } from "preact/hooks";
 import { Route, Switch } from "wouter";
+import { getManifests } from "./api/endpoints";
+import { AlertBanner } from "./components/layout/alert-banner";
 import { ErrorBoundary } from "./components/layout/error-boundary";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
+import { useApi } from "./hooks/use-api";
 import { useWebSocket } from "./hooks/use-websocket";
 import { AppDetailPage } from "./pages/app-detail";
 import { AppsPage } from "./pages/apps";
@@ -22,6 +25,7 @@ export function App() {
         <Sidebar />
         <main class="ht-main">
           <StatusBar />
+          <FailedAppsAlert />
           <ErrorBoundary>
             <Switch>
               <Route path="/" component={DashboardPage} />
@@ -41,4 +45,18 @@ export function App() {
 function WebSocketProvider({ state }: { state: ReturnType<typeof createAppState> }) {
   useWebSocket(state);
   return null;
+}
+
+/** Renders the alert banner when apps have failed. */
+function FailedAppsAlert() {
+  const manifests = useApi(getManifests);
+  const failedApps =
+    manifests.data.value?.manifests
+      .filter((m) => m.status === "failed")
+      .map((m) => ({
+        app_key: m.app_key,
+        error_message: m.error_message,
+      })) ?? [];
+
+  return <AlertBanner failedApps={failedApps} />;
 }

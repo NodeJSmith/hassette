@@ -10,11 +10,14 @@ const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 interface Props {
   showAppColumn?: boolean;
   appKey?: string;
+  /** List of app keys for the app filter dropdown (global logs page) */
+  appKeys?: string[];
 }
 
-export function LogTable({ showAppColumn = true, appKey }: Props) {
+export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const { logs } = useAppState();
-  const minLevel = useRef(signal("INFO")).current;
+  const minLevel = useRef(signal("")).current; // "" = All Levels
+  const appFilter = useRef(signal("")).current; // "" = All Apps
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
   const sortAsc = useRef(signal(false)).current;
@@ -26,11 +29,7 @@ export function LogTable({ showAppColumn = true, appKey }: Props) {
     });
   }, [appKey]);
 
-  // Send WS subscribe on mount and when level changes
-  // This is handled by the parent page or a dedicated hook
-  // For now, WS logs come through the global ring buffer
-
-  // Read version to subscribe to updates
+  // Read version to subscribe to WS updates
   const _version = logs.version.value;
 
   // Combine initial entries + ring buffer entries
@@ -42,19 +41,27 @@ export function LogTable({ showAppColumn = true, appKey }: Props) {
   const allEntries = [...initialEntries.value, ...wsEntries];
 
   // Apply level filter
-  const levelIndex = LEVELS.indexOf(minLevel.value as typeof LEVELS[number]);
-  const levelFiltered = allEntries.filter((e) => {
-    const entryIndex = LEVELS.indexOf(e.level as typeof LEVELS[number]);
-    return entryIndex >= levelIndex;
-  });
+  const levelFiltered = minLevel.value
+    ? allEntries.filter((e) => {
+        const levelIndex = LEVELS.indexOf(minLevel.value as (typeof LEVELS)[number]);
+        const entryIndex = LEVELS.indexOf(e.level as (typeof LEVELS)[number]);
+        return entryIndex >= levelIndex;
+      })
+    : allEntries; // "" = All Levels — show everything
+
+  // Apply app filter (only for global logs)
+  const appFiltered = appFilter.value
+    ? levelFiltered.filter((e) => e.app_key === appFilter.value)
+    : levelFiltered;
 
   // Apply search filter
   const filtered = search.value
-    ? levelFiltered.filter((e) =>
-        e.message.toLowerCase().includes(search.value.toLowerCase()) ||
-        e.logger_name.toLowerCase().includes(search.value.toLowerCase())
+    ? appFiltered.filter(
+        (e) =>
+          e.message.toLowerCase().includes(search.value.toLowerCase()) ||
+          e.logger_name.toLowerCase().includes(search.value.toLowerCase()),
       )
-    : levelFiltered;
+    : appFiltered;
 
   // Sort
   const sorted = sortAsc.value ? [...filtered] : [...filtered].reverse();
@@ -65,32 +72,52 @@ export function LogTable({ showAppColumn = true, appKey }: Props) {
         <select
           class="ht-select ht-select-sm"
           value={minLevel.value}
-          onChange={(e) => { minLevel.value = (e.target as HTMLSelectElement).value; }}
+          onChange={(e) => {
+            minLevel.value = (e.target as HTMLSelectElement).value;
+          }}
         >
+          <option value="">All Levels</option>
           {LEVELS.map((level) => (
-            <option key={level} value={level}>{level}</option>
+            <option key={level} value={level}>
+              {level}
+            </option>
           ))}
         </select>
+        {showAppColumn && appKeys && appKeys.length > 0 && (
+          <select
+            class="ht-select ht-select-sm"
+            value={appFilter.value}
+            onChange={(e) => {
+              appFilter.value = (e.target as HTMLSelectElement).value;
+            }}
+          >
+            <option value="">All Apps</option>
+            {appKeys.map((key) => (
+              <option key={key} value={key}>
+                {key}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           class="ht-input ht-input-sm"
           type="text"
-          placeholder="Search logs..."
+          placeholder="Search..."
           value={search.value}
-          onInput={(e) => { search.value = (e.target as HTMLInputElement).value; }}
+          onInput={(e) => {
+            search.value = (e.target as HTMLInputElement).value;
+          }}
         />
         <span class="ht-text-secondary ht-text-xs">{filtered.length} entries</span>
       </div>
       <div class="ht-log-table-scroll" style={{ maxHeight: "600px", overflow: "auto" }}>
         <table class="ht-table ht-table-compact ht-table-log">
-          <thead>
+          <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
             <tr>
-              <th
-                class="ht-sortable"
-                onClick={() => { sortAsc.value = !sortAsc.value; }}
-              >
-                Time {sortAsc.value ? "▲" : "▼"}
-              </th>
               <th>Level</th>
+              <th class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
+                Timestamp {sortAsc.value ? "↑" : "↓"}
+              </th>
               {showAppColumn && <th>App</th>}
               <th>Message</th>
             </tr>
@@ -98,9 +125,23 @@ export function LogTable({ showAppColumn = true, appKey }: Props) {
           <tbody>
             {sorted.slice(0, 500).map((entry, i) => (
               <tr key={i} class={`ht-log-row ht-log-${entry.level.toLowerCase()}`}>
+                <td>
+                  <span class={`ht-badge ht-badge--sm ht-badge--${entry.level === "ERROR" || entry.level === "CRITICAL" ? "danger" : entry.level === "WARNING" ? "warning" : entry.level === "DEBUG" ? "neutral" : "success"}`}>
+                    {entry.level}
+                  </span>
+                </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(entry.timestamp)}</td>
-                <td><span class={`ht-log-level ht-log-level-${entry.level.toLowerCase()}`}>{entry.level}</span></td>
-                {showAppColumn && <td class="ht-text-secondary ht-text-xs">{entry.app_key ?? "—"}</td>}
+                {showAppColumn && (
+                  <td class="ht-text-xs">
+                    {entry.app_key ? (
+                      <a href={`/apps/${entry.app_key}`}>
+                        <code>{entry.app_key}</code>
+                      </a>
+                    ) : (
+                      <code class="ht-text-muted">—</code>
+                    )}
+                  </td>
+                )}
                 <td class="ht-log-message">{entry.message}</td>
               </tr>
             ))}

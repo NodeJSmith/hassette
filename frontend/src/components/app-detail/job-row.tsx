@@ -9,6 +9,7 @@ interface JobData {
   job_name: string;
   handler_method: string;
   trigger_type: string | null;
+  trigger_value: string | null;
   total_executions: number;
   failed: number;
   avg_duration_ms: number;
@@ -54,8 +55,12 @@ export function JobRow({ job }: Props) {
         <span class={`ht-item-row__dot ht-item-row__dot--${dotClass}`} />
         <div class="ht-item-row__content">
           <span class="ht-item-row__title">{job.job_name}</span>
-          {job.trigger_type && (
-            <span class="ht-item-row__subtitle">{job.trigger_type}</span>
+          {(job.trigger_type || job.handler_method) && (
+            <span class="ht-item-row__subtitle">
+              {job.trigger_type
+                ? `${job.trigger_type}${job.trigger_value ? `: ${job.trigger_value}` : ""}`
+                : job.handler_method}
+            </span>
           )}
         </div>
         <div class="ht-item-row__stats">

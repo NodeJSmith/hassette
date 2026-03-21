@@ -1,4 +1,5 @@
 import { getAppHealth, getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
+import { ErrorDisplay } from "../components/app-detail/error-display";
 import { ActionButtons } from "../components/apps/action-buttons";
 import { HandlerList } from "../components/app-detail/handler-list";
 import { HealthStrip } from "../components/app-detail/health-strip";
@@ -88,6 +89,14 @@ export function AppDetailPage({ params }: Props) {
           Instance 0
           {manifest.class_name && <> &middot; PID {manifest.class_name}.{appKey}</>}
         </p>
+      )}
+
+      {/* Error display for failed apps */}
+      {manifest?.error_message && (
+        <ErrorDisplay
+          errorMessage={manifest.error_message}
+          errorTraceback={manifest.error_traceback ?? null}
+        />
       )}
 
       {/* Health strip */}

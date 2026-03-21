@@ -76,6 +76,13 @@ export function DashboardPage() {
         )}
         <ErrorFeed errors={errors.data.value} />
       </div>
+
+      {/* Session info bar */}
+      <div class="ht-session-bar" data-testid="session-info">
+        <span class="ht-session-bar__item">
+          <span class="ht-text-xs ht-text-muted">Hassette</span>
+        </span>
+      </div>
     </div>
   );
 }

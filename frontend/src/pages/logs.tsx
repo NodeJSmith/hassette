@@ -1,6 +1,11 @@
+import { getManifests } from "../api/endpoints";
 import { LogTable } from "../components/shared/log-table";
+import { useApi } from "../hooks/use-api";
 
 export function LogsPage() {
+  const manifests = useApi(getManifests);
+  const appKeys = manifests.data.value?.manifests.map((m) => m.app_key).sort() ?? [];
+
   return (
     <div>
       <h1 class="ht-heading-4">
@@ -10,7 +15,9 @@ export function LogsPage() {
         </svg>
         <span>Log Viewer</span>
       </h1>
-      <LogTable showAppColumn={true} />
+      <div class="ht-card">
+        <LogTable showAppColumn={true} appKeys={appKeys} />
+      </div>
     </div>
   );
 }

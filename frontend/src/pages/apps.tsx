@@ -32,8 +32,10 @@ export function AppsPage() {
         <span>App Management</span>
       </h1>
       {error.value && <p class="ht-text-danger">{error.value}</p>}
-      <StatusFilter active={filter} counts={counts} />
-      <ManifestList manifests={manifests?.manifests ?? null} filter={filter} />
+      <div class="ht-card">
+        <StatusFilter active={filter} counts={counts} />
+        <ManifestList manifests={manifests?.manifests ?? null} filter={filter} />
+      </div>
     </div>
   );
 }

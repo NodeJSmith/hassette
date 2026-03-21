@@ -19,7 +19,7 @@ export function StatusFilter({ active, counts }: Props) {
             class={`ht-tab${active.value === f ? " active" : ""}`}
             onClick={() => { active.value = f; }}
           >
-            {f} <span class="ht-tab-count">{count}</span>
+            {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
           </button>
         );
       })}

@@ -7,7 +7,7 @@ interface Props {
 
 export function ErrorFeed({ errors }: Props) {
   if (!errors || errors.length === 0) {
-    return <p class="ht-text-secondary ht-text-sm">No recent errors.</p>;
+    return <p class="ht-text-muted ht-text-xs">No recent errors. All systems healthy.</p>;
   }
 
   return (

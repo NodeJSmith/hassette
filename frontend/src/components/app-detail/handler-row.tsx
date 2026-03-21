@@ -59,7 +59,7 @@ export function HandlerRow({ listener }: Props) {
         <div class="ht-item-row__content">
           <span class="ht-item-row__title">{listener.handler_summary || shortName}</span>
           <span class="ht-item-row__subtitle">
-            {listener.handler_method}
+            {listener.handler_method} · {listener.topic}
           </span>
         </div>
         <div class="ht-item-row__stats">

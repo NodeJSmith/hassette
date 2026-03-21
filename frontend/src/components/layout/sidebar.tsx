@@ -60,7 +60,7 @@ export function Sidebar() {
     <aside class="ht-sidebar">
       <div class="ht-sidebar-brand">
         <a href="/" class="ht-brand-link" aria-label="Hassette home">
-          <span class="ht-pulse-dot" />
+          <img src="/hassette-logo.png" alt="Hassette" style={{ height: "24px", width: "auto" }} />
         </a>
       </div>
       <nav aria-label="Main navigation">
