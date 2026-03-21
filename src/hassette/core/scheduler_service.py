@@ -162,10 +162,10 @@ class SchedulerService(Service):
         uses direct invocation (no telemetry record).
         """
         if job.app_key:
-            return self.task_bucket.spawn(self._register_then_enqueue(job), name="scheduler:add_job")
+            return self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
         return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
 
-    async def _register_then_enqueue(self, job: "ScheduledJob") -> None:
+    async def _enqueue_then_register(self, job: "ScheduledJob") -> None:
         """Enqueue the job, then register in DB.
 
         The job is enqueued first so it can be dispatched immediately.
