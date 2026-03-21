@@ -32,7 +32,7 @@ export function JobExecutions({ executions }: Props) {
           <tr key={i}>
             <td>{formatTimestamp(ex.execution_start_ts)}</td>
             <td>{formatDuration(ex.duration_ms)}</td>
-            <td><span class={`ht-tag ht-tag-${ex.status}`}>{ex.status}</span></td>
+            <td><span class={`ht-badge ht-badge--sm ht-badge--${ex.status === "success" ? "success" : "danger"}`}>{ex.status}</span></td>
             <td class="ht-text-secondary ht-text-sm">{ex.error_message ?? "—"}</td>
           </tr>
         ))}

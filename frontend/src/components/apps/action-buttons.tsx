@@ -24,10 +24,11 @@ export function ActionButtons({ appKey, status }: Props) {
   const canReload = status === "running";
 
   return (
-    <div class="ht-action-buttons">
+    <div class="ht-btn-group">
       {canStart && (
         <button
-          class="ht-btn ht-btn-sm ht-btn-success"
+          class="ht-btn ht-btn--sm ht-btn--success"
+          data-testid={`btn-start-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(startApp)}
         >
@@ -36,7 +37,8 @@ export function ActionButtons({ appKey, status }: Props) {
       )}
       {canStop && (
         <button
-          class="ht-btn ht-btn-sm ht-btn-danger"
+          class="ht-btn ht-btn--sm ht-btn--warning"
+          data-testid={`btn-stop-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(stopApp)}
         >
@@ -45,7 +47,8 @@ export function ActionButtons({ appKey, status }: Props) {
       )}
       {canReload && (
         <button
-          class="ht-btn ht-btn-sm ht-btn-ghost"
+          class="ht-btn ht-btn--sm ht-btn--ghost"
+          data-testid={`btn-reload-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(reloadApp)}
         >

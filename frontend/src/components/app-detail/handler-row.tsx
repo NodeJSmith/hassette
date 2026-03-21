@@ -17,11 +17,13 @@ interface Props {
  * reset these signals — the row stays expanded with its cached data.
  */
 export function HandlerRow({ listener }: Props) {
-  // Local signals — survive parent re-renders
   const expanded = useRef(signal(false)).current;
   const loaded = useRef(signal(false)).current;
   const invocations = useRef(signal<unknown[]>([])).current;
   const loading = useRef(signal(false)).current;
+
+  const dotClass =
+    listener.failed > 0 ? "danger" : listener.total_invocations > 0 ? "success" : "neutral";
 
   const toggle = async () => {
     expanded.value = !expanded.value;
@@ -36,36 +38,57 @@ export function HandlerRow({ listener }: Props) {
     }
   };
 
+  // Extract short method name from fully-qualified path
+  const parts = listener.handler_method.split(".");
+  const shortName = parts[parts.length - 1];
+
   return (
-    <>
-      <tr
-        class={`ht-item-row ht-item-row-expandable${expanded.value ? " expanded" : ""}`}
+    <div
+      class="ht-item-row"
+      data-testid={`handler-row-${listener.listener_id}`}
+    >
+      <div
+        class="ht-item-row__main"
+        role="button"
+        tabindex={0}
+        aria-expanded={expanded.value}
         onClick={() => void toggle()}
-        data-testid={`handler-row-${listener.listener_id}`}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void toggle(); } }}
       >
-        <td class="ht-item-row-toggle">{expanded.value ? "▾" : "▸"}</td>
-        <td>
-          <code class="ht-text-sm">{listener.handler_method}</code>
-          <div class="ht-text-secondary ht-text-xs">{listener.handler_summary}</div>
-        </td>
-        <td class="ht-text-mono">{listener.total_invocations}</td>
-        <td class="ht-text-mono">{listener.failed}</td>
-        <td>{formatDuration(listener.avg_duration_ms)}</td>
-        <td class="ht-text-secondary">
-          {listener.last_invoked_at ? formatRelativeTime(listener.last_invoked_at) : "—"}
-        </td>
-      </tr>
+        <span class={`ht-item-row__dot ht-item-row__dot--${dotClass}`} />
+        <div class="ht-item-row__content">
+          <span class="ht-item-row__title">{listener.handler_summary || shortName}</span>
+          <span class="ht-item-row__subtitle">
+            {listener.handler_method}
+          </span>
+        </div>
+        <div class="ht-item-row__stats">
+          <span class="ht-meta-item" title="Total invocations">
+            {listener.total_invocations} calls
+          </span>
+          {listener.failed > 0 && (
+            <span class="ht-meta-item--strong ht-text-danger">{listener.failed} failed</span>
+          )}
+          {listener.avg_duration_ms > 0 && (
+            <span class="ht-meta-item">{formatDuration(listener.avg_duration_ms)} avg</span>
+          )}
+          {listener.last_invoked_at && (
+            <span class="ht-meta-item ht-text-muted">
+              {formatRelativeTime(listener.last_invoked_at)}
+            </span>
+          )}
+        </div>
+        <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`} />
+      </div>
       {expanded.value && (
-        <tr class="ht-item-row-detail">
-          <td colSpan={6}>
-            {loading.value ? (
-              <p class="ht-text-secondary">Loading invocations...</p>
-            ) : (
-              <HandlerInvocations invocations={invocations.value as never[]} />
-            )}
-          </td>
-        </tr>
+        <div class="ht-item-row__detail" id={`handler-${listener.listener_id}-detail`}>
+          {loading.value ? (
+            <p class="ht-text-muted ht-text-xs">Loading invocations...</p>
+          ) : (
+            <HandlerInvocations invocations={invocations.value as never[]} />
+          )}
+        </div>
       )}
-    </>
+    </div>
   );
 }

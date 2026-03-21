@@ -18,14 +18,12 @@ export function DashboardPage() {
   const appGrid = useApi(() => getDashboardAppGrid().then((r) => r.apps));
   const errors = useApi(() => getDashboardErrors().then((r) => r.errors));
 
-  // Refetch app grid when an app status changes via WS
   const lastStatus = appStatus.value;
   const refetchAppGrid = useCallback(() => {
     void appGrid.refetch();
   }, [appGrid.refetch]);
 
   useEffect(() => {
-    // Skip initial render — only refetch on subsequent status changes
     if (Object.keys(lastStatus).length > 0) {
       refetchAppGrid();
     }
@@ -39,28 +37,29 @@ export function DashboardPage() {
 
   return (
     <div>
-      <h1>Dashboard</h1>
-
       {kpis.error.value && (
         <p class="ht-text-danger">Failed to load KPIs: {kpis.error.value}</p>
       )}
       <KpiStrip data={kpis.data.value} />
 
-      <section style={{ marginTop: "var(--ht-sp-6)" }}>
-        <h2>Apps</h2>
+      <div class="ht-card ht-mb-4">
+        <h2 class="ht-heading-5">App Health</h2>
         {appGrid.error.value && (
           <p class="ht-text-danger">Failed to load app grid: {appGrid.error.value}</p>
         )}
         <AppGrid apps={appGrid.data.value} />
-      </section>
+        <div class="ht-mt-3">
+          <a href="/apps" class="ht-btn ht-btn--sm ht-btn--link">Manage Apps</a>
+        </div>
+      </div>
 
-      <section style={{ marginTop: "var(--ht-sp-6)" }}>
-        <h2>Recent Errors</h2>
+      <div class="ht-card ht-mb-4">
+        <h2 class="ht-heading-5">Recent Errors</h2>
         {errors.error.value && (
           <p class="ht-text-danger">Failed to load errors: {errors.error.value}</p>
         )}
         <ErrorFeed errors={errors.data.value} />
-      </section>
+      </div>
     </div>
   );
 }

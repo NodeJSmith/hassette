@@ -33,7 +33,7 @@ export function HandlerInvocations({ invocations }: Props) {
             <td>{formatTimestamp(inv.execution_start_ts)}</td>
             <td>{formatDuration(inv.duration_ms)}</td>
             <td>
-              <span class={`ht-tag ht-tag-${inv.status}`}>{inv.status}</span>
+              <span class={`ht-badge ht-badge--sm ht-badge--${inv.status === "success" ? "success" : "danger"}`}>{inv.status}</span>
             </td>
             <td class="ht-text-secondary ht-text-sm">
               {inv.error_message ?? "—"}

@@ -29,9 +29,9 @@ export function AppDetailPage({ params }: Props) {
 
   return (
     <div>
-      <div class="ht-level" style={{ marginBottom: "var(--ht-sp-4)" }}>
+      <div class="ht-level ht-mb-4">
         <div class="ht-level-start">
-          <h1>{manifest?.display_name ?? appKey}</h1>
+          <h1 class="ht-heading-4">{manifest?.display_name ?? appKey}</h1>
           <StatusBadge status={liveStatus} />
         </div>
         <div class="ht-level-end">
@@ -41,17 +41,17 @@ export function AppDetailPage({ params }: Props) {
 
       <HealthStrip health={health.data.value} status={liveStatus} />
 
-      <section style={{ marginTop: "var(--ht-sp-6)" }}>
-        <h2>Handlers</h2>
+      <div class="ht-card ht-mb-4">
+        <h2 class="ht-heading-5">Handlers</h2>
         {listeners.error.value && <p class="ht-text-danger">{listeners.error.value}</p>}
         <HandlerList listeners={listeners.data.value} />
-      </section>
+      </div>
 
-      <section style={{ marginTop: "var(--ht-sp-6)" }}>
-        <h2>Scheduled Jobs</h2>
+      <div class="ht-card ht-mb-4">
+        <h2 class="ht-heading-5">Scheduled Jobs</h2>
         {jobs.error.value && <p class="ht-text-danger">{jobs.error.value}</p>}
         <JobList jobs={jobs.data.value} />
-      </section>
+      </div>
     </div>
   );
 }
