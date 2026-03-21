@@ -14,15 +14,15 @@ pytestmark = pytest.mark.e2e
 def test_dashboard_renders_status_bar(page: Page, base_url: str) -> None:
     """Status bar is visible with connection state text and theme toggle.
 
-    Note: The e2e test server disables WebSocket (ws='none'), so Alpine.js
-    $store.ws.connected will be false and the bar shows 'Disconnected'.
+    Note: The e2e test server disables WebSocket (ws='none'), so the Preact
+    WS hook will not connect and the bar shows 'Disconnected'.
     In production with a real WS connection it would show 'Connected'.
     """
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     status_bar = page.locator(".ht-status-bar")
     expect(status_bar).to_be_visible()
-    # Bar should show either Connected or Disconnected (Alpine-driven)
-    expect(status_bar).to_contain_text("onnected")
+    # Bar should show a connection status (Connected, Disconnected, or Reconnecting)
+    expect(status_bar).to_contain_text("onnect")
     # Theme toggle should be present
     expect(page.locator("[data-testid='theme-toggle']")).to_be_visible()
 
@@ -32,7 +32,7 @@ def test_dashboard_renders_status_bar(page: Page, base_url: str) -> None:
 
 def test_dashboard_renders_kpi_strip(page: Page, base_url: str) -> None:
     """5 KPI cards visible with labels."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     kpi_strip = page.locator("[data-testid='kpi-strip']")
     expect(kpi_strip).to_be_visible()
 
@@ -46,7 +46,7 @@ def test_dashboard_renders_kpi_strip(page: Page, base_url: str) -> None:
 
 def test_dashboard_renders_app_grid(page: Page, base_url: str) -> None:
     """App cards visible with names and status badges."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     grid = page.locator("#dashboard-app-grid")
     expect(grid).to_be_visible()
 
@@ -59,16 +59,16 @@ def test_dashboard_renders_app_grid(page: Page, base_url: str) -> None:
 
 def test_app_card_links_to_detail(page: Page, base_url: str) -> None:
     """Clicking app card navigates to App Detail."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     card = page.locator("[data-testid='app-card-my_app'] a")
     expect(card).to_be_visible()
     card.click()
-    expect(page).to_have_url(re.compile(r"/ui/apps/my_app"))
+    expect(page).to_have_url(re.compile(r"/apps/my_app"))
 
 
 def test_app_card_shows_status_badge(page: Page, base_url: str) -> None:
     """App cards display status badges."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     # Running app should have running badge
     running_card = page.locator("[data-testid='app-card-my_app']")
     expect(running_card.locator(".ht-status-badge--running")).to_be_visible()
@@ -83,7 +83,7 @@ def test_app_card_shows_status_badge(page: Page, base_url: str) -> None:
 
 def test_dashboard_renders_error_feed(page: Page, base_url: str) -> None:
     """Error items visible with app name and message."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     error_feed = page.locator("[data-testid='dashboard-errors']")
     expect(error_feed).to_be_visible()
 
@@ -104,7 +104,7 @@ def test_dashboard_renders_error_feed(page: Page, base_url: str) -> None:
 
 def test_dashboard_renders_session_info(page: Page, base_url: str) -> None:
     """Session bar shows session number and uptime."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     session_bar = page.locator("[data-testid='session-info']")
     expect(session_bar).to_be_visible()
     # Should show Hassette version
@@ -121,14 +121,14 @@ PANEL_HEADINGS = [
 
 def test_dashboard_panels_visible(page: Page, base_url: str) -> None:
     """Verify key panel headings are visible on the dashboard."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     body = page.locator("body")
     for heading in PANEL_HEADINGS:
         expect(body).to_contain_text(heading)
 
 
 VIEW_ALL_LINKS = [
-    ("App Health", "/ui/apps"),
+    ("App Health", "/apps"),
 ]
 
 
@@ -139,7 +139,7 @@ VIEW_ALL_LINKS = [
 )
 def test_dashboard_view_all_links(page: Page, base_url: str, panel_heading: str, target_path: str) -> None:
     """'View All' / 'Manage Apps' links navigate to the correct full page."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     panel = page.locator(f".ht-card:has(h2:has-text('{panel_heading}'))")
     link = panel.locator("a.ht-btn")
     expect(link).to_be_visible()

@@ -11,7 +11,7 @@ export function JobList({ jobs }: Props) {
   }
 
   return (
-    <div class="ht-item-list">
+    <div class="ht-item-list" data-testid="job-list">
       {(jobs as Array<Record<string, unknown>>).map((j) => (
         <JobRow key={j.job_id as number} job={j as never} />
       ))}

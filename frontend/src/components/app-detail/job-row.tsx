@@ -90,7 +90,7 @@ export function JobRow({ job }: Props) {
           {loading.value ? (
             <p class="ht-text-muted ht-text-xs">Loading executions...</p>
           ) : (
-            <JobExecutions executions={executions.value as never[]} />
+            <JobExecutions executions={executions.value as never[]} jobId={job.job_id} />
           )}
         </div>
       )}

@@ -1,79 +1,59 @@
-"""E2E tests for the dev_reload WebSocket handler in ws-handler.js.
+"""E2E tests for SPA behavior: verifies the Preact SPA loads and renders
+correctly, handling the absence of a WebSocket connection gracefully.
 
-Verifies that CSS dev_reload messages hot-swap stylesheets without a page
-reload, while JS and template dev_reload messages trigger a full reload.
-
-These tests dispatch a synthetic ``MessageEvent`` on the Alpine WS store's
-``_socket`` to simulate a server-pushed dev_reload message.
+The old htmx-based hot-reload tests (Alpine WS store, dev_reload messages)
+are no longer applicable — the Preact SPA uses Vite HMR during development
+and does not implement a custom dev_reload protocol.
 """
 
 import pytest
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
 
 pytestmark = pytest.mark.e2e
 
-_DISPATCH_DEV_RELOAD = """(kind) => {
-    var socket = Alpine.store('ws')._socket;
-    if (!socket) throw new Error('No WS socket found');
-    socket.dispatchEvent(new MessageEvent('message', {
-        data: JSON.stringify({ type: "dev_reload", data: { kind: kind, path: "test" } })
-    }));
-}"""
 
-_WAIT_FOR_WS_STORE = "() => typeof Alpine !== 'undefined' && Alpine.store('ws') && Alpine.store('ws')._socket"
+def test_spa_loads_without_ws(page: Page, base_url: str) -> None:
+    """SPA loads and renders the dashboard even without a WebSocket connection.
+
+    The e2e test server starts with ws='none'. The Preact app's useWebSocket
+    hook will fail silently and the app renders from REST API data.
+    """
+    page.goto(base_url + "/")
+
+    # Core dashboard content should be visible
+    expect(page.locator("body")).to_contain_text("App Health")
+    expect(page.locator("[data-testid='kpi-strip']")).to_be_visible()
+    expect(page.locator("#dashboard-app-grid")).to_be_visible()
 
 
-def _wait_for_alpine_ws(page: Page) -> None:
-    """Block until the Alpine WS store and its underlying socket are ready."""
-    page.wait_for_function(_WAIT_FOR_WS_STORE, timeout=5000)
-
-
-def test_css_dev_reload_swaps_stylesheet_without_page_reload(page: Page, base_url: str) -> None:
-    """CSS dev_reload should update stylesheet href (cache bust) without a full page reload."""
-    page.goto(base_url + "/ui/")
-    _wait_for_alpine_ws(page)
+def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:
+    """Client-side navigation between pages does not trigger a full page reload."""
+    page.goto(base_url + "/")
 
     # Set a marker to detect full reload
     page.evaluate("window.__test_marker = true")
 
-    # Dispatch CSS dev_reload
-    page.evaluate(_DISPATCH_DEV_RELOAD, "css")
-
-    # Stylesheet href should now contain the cache-busting _r= param
-    page.wait_for_function(
-        """() => {
-            var link = document.querySelector('link[rel="stylesheet"][href*="/ui/static/"]');
-            return link && link.href.includes("_r=");
-        }""",
-        timeout=3000,
-    )
+    # Navigate to Apps page via sidebar
+    page.locator("[data-testid='nav-apps']").click()
+    expect(page.locator("body")).to_contain_text("App Management")
 
     # Page was NOT reloaded — marker survives
     assert page.evaluate("window.__test_marker") is True
 
+    # Navigate back to Dashboard
+    page.locator("[data-testid='nav-dashboard']").click()
+    expect(page.locator("body")).to_contain_text("App Health")
 
-def test_js_dev_reload_triggers_full_page_reload(page: Page, base_url: str) -> None:
-    """JS dev_reload should trigger location.reload(), destroying transient page state."""
-    page.goto(base_url + "/ui/")
-    _wait_for_alpine_ws(page)
-
-    page.evaluate("window.__test_marker = true")
-
-    # Dispatch JS dev_reload — triggers location.reload()
-    page.evaluate(_DISPATCH_DEV_RELOAD, "js")
-
-    # After reload, __test_marker should be gone
-    page.wait_for_function("typeof window.__test_marker === 'undefined'", timeout=5000)
+    # Still no full reload
+    assert page.evaluate("window.__test_marker") is True
 
 
-def test_template_dev_reload_triggers_full_page_reload(page: Page, base_url: str) -> None:
-    """Template dev_reload should trigger location.reload(), same as JS."""
-    page.goto(base_url + "/ui/")
-    _wait_for_alpine_ws(page)
+def test_spa_handles_direct_deep_link(page: Page, base_url: str) -> None:
+    """Direct navigation to a deep link (e.g., /apps/my_app) works.
 
-    page.evaluate("window.__test_marker = true")
-
-    # Dispatch template dev_reload — triggers location.reload()
-    page.evaluate(_DISPATCH_DEV_RELOAD, "template")
-
-    page.wait_for_function("typeof window.__test_marker === 'undefined'", timeout=5000)
+    The server serves index.html for all non-API paths, so the SPA
+    handles routing client-side via wouter.
+    """
+    page.goto(base_url + "/apps/my_app")
+    expect(page.locator("body")).to_contain_text("My App")
+    expect(page.locator("[data-testid='health-strip']")).to_be_visible()

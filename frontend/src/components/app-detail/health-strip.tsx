@@ -21,7 +21,7 @@ export function HealthStrip({ health, status }: Props) {
   if (!health) return null;
 
   return (
-    <div class="ht-kpi-strip">
+    <div class="ht-kpi-strip" data-testid="health-strip">
       <div class="ht-health-card">
         <span class="ht-health-card__label">Status</span>
         <span class={`ht-health-card__value ${STATUS_COLOR_MAP[status] ?? ""}`}>{capitalize(status)}</span>

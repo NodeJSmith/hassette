@@ -10,15 +10,16 @@ interface Execution {
 
 interface Props {
   executions: Execution[];
+  jobId: number;
 }
 
-export function JobExecutions({ executions }: Props) {
+export function JobExecutions({ executions, jobId }: Props) {
   if (executions.length === 0) {
     return <p class="ht-text-muted ht-text-xs">No executions recorded.</p>;
   }
 
   return (
-    <table class="ht-table ht-table--compact">
+    <table class="ht-table ht-table--compact" data-testid={`execution-table-${jobId}`}>
       <thead>
         <tr>
           <th>Status</th>

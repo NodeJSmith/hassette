@@ -16,7 +16,7 @@ export function ManifestRow({ manifest, liveStatus }: Props) {
 
   return (
     <>
-      <tr class="ht-item-row">
+      <tr class="ht-item-row" data-testid={`app-row-${manifest.app_key}`}>
         <td>
           {isMultiInstance && (
             <span

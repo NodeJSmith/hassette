@@ -12,7 +12,7 @@ export function HandlerList({ listeners }: Props) {
   }
 
   return (
-    <div class="ht-item-list">
+    <div class="ht-item-list" data-testid="handler-list">
       {listeners.map((ls) => (
         <HandlerRow key={ls.listener_id} listener={ls} />
       ))}

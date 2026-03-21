@@ -9,7 +9,7 @@ pytestmark = pytest.mark.e2e
 def test_dark_mode_is_default(page: Page, base_url: str) -> None:
     """Page loads with data-theme='dark' without any prior interaction."""
     # Clear any stored preference from prior tests.
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     page.evaluate("localStorage.removeItem('ht-theme')")
     page.reload()
     expect(page.locator("html")).to_have_attribute("data-theme", "dark")
@@ -17,7 +17,7 @@ def test_dark_mode_is_default(page: Page, base_url: str) -> None:
 
 def test_light_mode_toggle_applies_tokens(page: Page, base_url: str) -> None:
     """Switching to light mode changes CSS custom property values."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     page.evaluate("localStorage.removeItem('ht-theme')")
     page.reload()
 
@@ -39,7 +39,7 @@ def test_light_mode_toggle_applies_tokens(page: Page, base_url: str) -> None:
 
 def test_theme_persistence_survives_reload(page: Page, base_url: str) -> None:
     """Light mode set via toggle persists across a full page reload."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     page.evaluate("localStorage.removeItem('ht-theme')")
     page.reload()
 
@@ -66,7 +66,7 @@ def test_both_modes_render_without_layout_breakage(page: Page, base_url: str) ->
     visible after switching modes — catches missing token definitions or broken
     selectors that would hide content.
     """
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     page.evaluate("localStorage.removeItem('ht-theme')")
     page.reload()
 
@@ -93,7 +93,7 @@ def test_both_modes_render_without_layout_breakage(page: Page, base_url: str) ->
 
 def test_theme_toggle_icon_changes(page: Page, base_url: str) -> None:
     """Toggle button shows different icon in dark vs light mode."""
-    page.goto(base_url + "/ui/")
+    page.goto(base_url + "/")
     page.evaluate("localStorage.removeItem('ht-theme')")
     page.reload()
 

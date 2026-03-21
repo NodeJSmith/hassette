@@ -15,7 +15,7 @@ export function StatusFilter({ active, counts }: Props) {
         {FILTERS.map((f) => {
           const count = f === "all" ? Object.values(counts).reduce((a, b) => a + b, 0) : (counts[f] ?? 0);
           return (
-            <li key={f} class={active.value === f ? "is-active" : ""}>
+            <li key={f} class={active.value === f ? "is-active" : ""} data-testid={`tab-${f}`}>
               <a
                 href="#"
                 onClick={(e) => { e.preventDefault(); active.value = f; }}

@@ -12,7 +12,7 @@ export function AppGrid({ apps }: Props) {
   }
 
   return (
-    <div class="ht-app-grid">
+    <div class="ht-app-grid" id="dashboard-app-grid">
       {apps.map((app) => (
         <AppCard key={app.app_key} app={app} />
       ))}

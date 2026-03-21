@@ -1,4 +1,4 @@
-"""E2E tests for the App Detail page (WP04)."""
+"""E2E tests for the App Detail page."""
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -8,7 +8,7 @@ pytestmark = pytest.mark.e2e
 
 def test_app_detail_renders_health_strip(page: Page, base_url: str) -> None:
     """4 health cards visible with correct labels."""
-    page.goto(base_url + "/ui/apps/my_app")
+    page.goto(base_url + "/apps/my_app")
     strip = page.locator("[data-testid='health-strip']")
     expect(strip).to_be_visible()
     expect(strip).to_contain_text("Status")
@@ -19,7 +19,7 @@ def test_app_detail_renders_health_strip(page: Page, base_url: str) -> None:
 
 def test_app_detail_renders_handler_rows(page: Page, base_url: str) -> None:
     """Handler rows visible with method names and invocation counts."""
-    page.goto(base_url + "/ui/apps/my_app")
+    page.goto(base_url + "/apps/my_app")
     handler_list = page.locator("[data-testid='handler-list']")
     expect(handler_list).to_be_visible()
     # Handler method names from seed data
@@ -32,7 +32,7 @@ def test_app_detail_renders_handler_rows(page: Page, base_url: str) -> None:
 
 def test_handler_row_expand_loads_invocations(page: Page, base_url: str) -> None:
     """Click handler row, invocation history appears."""
-    page.goto(base_url + "/ui/apps/my_app")
+    page.goto(base_url + "/apps/my_app")
     # Click the first handler row
     handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
     handler_main.click()
@@ -45,7 +45,7 @@ def test_handler_row_expand_loads_invocations(page: Page, base_url: str) -> None
 
 def test_handler_invocation_shows_error_trace(page: Page, base_url: str) -> None:
     """Expanded row with error shows traceback."""
-    page.goto(base_url + "/ui/apps/my_app")
+    page.goto(base_url + "/apps/my_app")
     # Click the first handler row to expand
     handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
     handler_main.click()
@@ -61,7 +61,7 @@ def test_handler_invocation_shows_error_trace(page: Page, base_url: str) -> None
 
 def test_app_detail_renders_job_rows(page: Page, base_url: str) -> None:
     """Job rows visible with run counts."""
-    page.goto(base_url + "/ui/apps/my_app")
+    page.goto(base_url + "/apps/my_app")
     job_list = page.locator("[data-testid='job-list']")
     expect(job_list).to_be_visible()
     # Job names from seed data
@@ -74,7 +74,7 @@ def test_app_detail_renders_job_rows(page: Page, base_url: str) -> None:
 
 def test_job_row_expand_loads_executions(page: Page, base_url: str) -> None:
     """Click job row, execution history appears."""
-    page.goto(base_url + "/ui/apps/my_app")
+    page.goto(base_url + "/apps/my_app")
     # Click the first job row
     job_main = page.locator("[data-testid='job-row-1'] .ht-item-row__main")
     job_main.click()
@@ -86,10 +86,10 @@ def test_job_row_expand_loads_executions(page: Page, base_url: str) -> None:
 
 def test_app_detail_logs_section(page: Page, base_url: str) -> None:
     """Log entries visible, filtered to app."""
-    page.goto(base_url + "/ui/apps/my_app")
+    page.goto(base_url + "/apps/my_app")
     logs_section = page.locator("[data-testid='logs-section']")
     expect(logs_section).to_be_visible()
-    # Wait for Alpine logTable to finish loading
+    # Wait for log entries to load
     entries_badge = page.locator("text=/\\d+ entries/")
     expect(entries_badge).to_be_visible(timeout=5000)
     body = page.locator("body")
@@ -105,7 +105,7 @@ def test_app_detail_identity_model_fixed(page: Page, base_url: str) -> None:
     The old code filtered jobs by owner_id, which is None for stopped apps.
     The fix uses app_key + instance_index from the telemetry database.
     """
-    page.goto(base_url + "/ui/apps/other_app")
+    page.goto(base_url + "/apps/other_app")
     # other_app is stopped (no instances, owner_id=None)
     # The page should render without error (the old code would break)
     body = page.locator("body")
@@ -115,58 +115,37 @@ def test_app_detail_identity_model_fixed(page: Page, base_url: str) -> None:
 
 def test_registration_source_link(page: Page, base_url: str) -> None:
     """Source link visible in handler row or expanded handler details."""
-    page.goto(base_url + "/ui/apps/my_app")
+    page.goto(base_url + "/apps/my_app")
     # The handler row itself shows the handler method and topic.
-    # Registration source is shown in the seed data as "on_initialize".
-    # The source_location is "my_app.py:15" — visible in expanded details.
     handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
     handler_main.click()
-    # After expanding, the invocation table loads. The registration source
-    # is part of the listener metadata, not the invocation table itself.
-    # The handler row subtitle shows the topic; the summary is computed.
+    # After expanding, the detail panel loads.
     detail = page.locator("#handler-1-detail")
     expect(detail).to_be_visible(timeout=5000)
 
 
-# ── 5s polling stats updater (WP02) ─────────────────────────────────
+# ── Expand/collapse state ────────────────────────────────────────────
 
 
-def test_handler_stats_poll_updates_counts(page: Page, base_url: str) -> None:
-    """Load app detail, simulate a stats poll swap, verify invocation count
-    text is updated by the JS updater without a full page reload."""
-    page.goto(base_url + "/ui/apps/my_app")
+def test_expanded_row_preserves_state_across_signals(page: Page, base_url: str) -> None:
+    """Expand a handler row, verify it stays expanded.
 
-    # Confirm initial state: listener 1 shows "10 calls"
+    In the Preact SPA, expand/collapse state is managed by local signals
+    inside HandlerRow. Since there's no DOM replacement (unlike htmx morphing),
+    expand state naturally survives parent re-renders.
+    """
+    page.goto(base_url + "/apps/my_app")
+
+    # Expand handler row 1
+    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
+    handler_main.click()
+    detail = page.locator("#handler-1-detail")
+    expect(detail).to_be_visible(timeout=5000)
+    expect(handler_main).to_have_attribute("aria-expanded", "true")
+
+    # Verify counts are correct
     calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
     expect(calls_el).to_have_text("10 calls")
-
-    # Simulate a stats poll by injecting updated data into #app-handler-stats
-    # and dispatching the htmx:afterSwap event that the JS listens for.
-    page.evaluate("""() => {
-        var statsDiv = document.getElementById('app-handler-stats');
-        statsDiv.innerHTML =
-            '<span data-listener-id="1" data-total-invocations="42" ' +
-            'data-failed="3" data-avg-duration-ms="5.5" data-last-invoked="1704070800.0"></span>' +
-            '<span data-listener-id="2" data-total-invocations="30" ' +
-            'data-failed="0" data-avg-duration-ms="1.2" data-last-invoked="1704070700.0"></span>';
-        // Dispatch the htmx:afterSwap event that the updater listens for
-        var event = new CustomEvent('htmx:afterSwap', {
-            bubbles: true,
-            detail: { target: statsDiv }
-        });
-        document.body.dispatchEvent(event);
-    }""")
-
-    # Verify counts updated
-    expect(calls_el).to_have_text("42 calls")
-
-    # Verify failed count appeared for listener 1 (was 1, now 3)
-    failed_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item--strong.ht-text-danger")
-    expect(failed_el).to_have_text("3 failed")
-
-    # Verify listener 2 count updated
-    calls_el_2 = page.locator("[data-testid='handler-row-2'] .ht-meta-item[title='Total invocations']")
-    expect(calls_el_2).to_have_text("30 calls")
 
     # Verify dot color: listener 1 has failures -> danger
     dot_1 = page.locator("[data-testid='handler-row-1'] .ht-item-row__dot")
@@ -177,53 +156,17 @@ def test_handler_stats_poll_updates_counts(page: Page, base_url: str) -> None:
     expect(dot_2).to_have_class("ht-item-row__dot ht-item-row__dot--success")
 
 
-def test_expanded_row_survives_poll(page: Page, base_url: str) -> None:
-    """Expand a handler row, simulate a stats poll, verify the row
-    stays expanded and detail panel remains visible. This confirms
-    the JS updater only touches text/classes, not DOM structure."""
-    page.goto(base_url + "/ui/apps/my_app")
+def test_handler_list_is_not_live_morph_target(page: Page, base_url: str) -> None:
+    """Verify handler and job lists don't have data-live-on-app attribute.
 
-    # Expand handler row 1
-    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
-    handler_main.click()
-    detail = page.locator("#handler-1-detail")
-    expect(detail).to_be_visible(timeout=5000)
-    expect(handler_main).to_have_attribute("aria-expanded", "true")
-
-    # Simulate a stats poll (same mechanism as above)
-    page.evaluate("""() => {
-        var statsDiv = document.getElementById('app-handler-stats');
-        statsDiv.innerHTML =
-            '<span data-listener-id="1" data-total-invocations="15" ' +
-            'data-failed="2" data-avg-duration-ms="3.0" data-last-invoked="1704070800.0"></span>' +
-            '<span data-listener-id="2" data-total-invocations="25" ' +
-            'data-failed="0" data-avg-duration-ms="2.0" data-last-invoked="1704070700.0"></span>';
-        var event = new CustomEvent('htmx:afterSwap', {
-            bubbles: true,
-            detail: { target: statsDiv }
-        });
-        document.body.dispatchEvent(event);
-    }""")
-
-    # Row must still be expanded — Alpine state preserved
-    expect(handler_main).to_have_attribute("aria-expanded", "true")
-    expect(detail).to_be_visible()
-
-    # Counts should be updated
-    calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
-    expect(calls_el).to_have_text("15 calls")
-
-
-def test_handler_list_not_morphed_on_app_status(page: Page, base_url: str) -> None:
-    """Verify handler list no longer has data-live-on-app attribute,
-    meaning it won't be morphed by WebSocket app_status_changed events."""
-    page.goto(base_url + "/ui/apps/my_app")
+    In the SPA, lists are managed by Preact component state, not HTMX morphing.
+    The health strip gets its own data from the API.
+    """
+    page.goto(base_url + "/apps/my_app")
     handler_list = page.locator("[data-testid='handler-list']")
-    # Should NOT have data-live-on-app
+    expect(handler_list).to_be_visible()
+    # Should NOT have data-live-on-app (SPA doesn't use HTMX morphing)
     assert handler_list.get_attribute("data-live-on-app") is None
     # Job list also should not have it
     job_list = page.locator("[data-testid='job-list']")
     assert job_list.get_attribute("data-live-on-app") is None
-    # Health strip SHOULD still have it
-    health_strip = page.locator("[data-testid='health-strip']")
-    assert health_strip.get_attribute("data-live-on-app") is not None

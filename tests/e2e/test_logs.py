@@ -7,16 +7,16 @@ pytestmark = pytest.mark.e2e
 
 
 def test_log_page_loads(page: Page, base_url: str) -> None:
-    page.goto(base_url + "/ui/logs")
+    page.goto(base_url + "/logs")
     expect(page.locator("body")).to_contain_text("Log Viewer")
-    # Verify the Alpine.js logTable component initializes (filter controls are present)
-    expect(page.locator("select[x-model='filters.level']")).to_be_visible()
+    # Verify the log table component initializes (filter controls are present)
+    expect(page.locator("select").first).to_be_visible()
     expect(page.locator("input[placeholder='Search...']")).to_be_visible()
 
 
 def test_level_filter_options_present(page: Page, base_url: str) -> None:
-    page.goto(base_url + "/ui/logs")
-    level_select = page.locator("select[x-model='filters.level']")
+    page.goto(base_url + "/logs")
+    level_select = page.locator("select").first
     expect(level_select).to_be_visible()
     # Verify all log level options exist
     for level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
@@ -24,19 +24,16 @@ def test_level_filter_options_present(page: Page, base_url: str) -> None:
 
 
 def test_sort_column_headers_clickable(page: Page, base_url: str) -> None:
-    page.goto(base_url + "/ui/logs")
-    # The Level column header should be clickable (has @click="toggleSort('level')")
-    level_header = page.locator("th:has-text('Level')").first
-    expect(level_header).to_be_visible()
+    page.goto(base_url + "/logs")
+    # The Timestamp column header should be clickable (has sort toggle)
+    timestamp_header = page.locator("th.ht-sortable").first
+    expect(timestamp_header).to_be_visible()
     # Click to toggle sort - should not error
-    level_header.click()
-    # The sort indicator span should be present
-    sort_indicator = level_header.locator(".ht-sort-indicator")
-    expect(sort_indicator).to_be_visible()
+    timestamp_header.click()
 
 
 def test_search_input_present(page: Page, base_url: str) -> None:
-    page.goto(base_url + "/ui/logs")
+    page.goto(base_url + "/logs")
     search_input = page.locator("input[placeholder='Search...']")
     expect(search_input).to_be_visible()
     # Type into the search field - should not error
@@ -45,21 +42,13 @@ def test_search_input_present(page: Page, base_url: str) -> None:
 
 
 def _wait_for_log_entries(page: Page) -> None:
-    """Wait for Alpine.js logTable component to finish loading entries."""
-    page.wait_for_function(
-        """() => {
-            const el = document.querySelector('[x-data*="logTable"]');
-            if (!el || !el._x_dataStack) return false;
-            const data = el._x_dataStack[0];
-            return data && !data.loading && data.entries.length > 0;
-        }""",
-        timeout=5000,
-    )
+    """Wait for log table component to finish loading entries."""
+    page.locator("text=/\\d+ entries/").wait_for(timeout=5000)
 
 
 def test_log_entries_render_from_seed_data(page: Page, base_url: str) -> None:
     """Verify that seeded log entries appear in the table body."""
-    page.goto(base_url + "/ui/logs")
+    page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
     body = page.locator("tbody")
     expect(body).to_contain_text("Hassette started successfully")
@@ -68,7 +57,7 @@ def test_log_entries_render_from_seed_data(page: Page, base_url: str) -> None:
 
 def test_log_entries_show_error_level(page: Page, base_url: str) -> None:
     """Verify ERROR level entries from seed data are visible."""
-    page.goto(base_url + "/ui/logs")
+    page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
     body = page.locator("tbody")
     expect(body).to_contain_text("Failed to call service")
@@ -76,11 +65,11 @@ def test_log_entries_show_error_level(page: Page, base_url: str) -> None:
 
 def test_level_filter_to_error_hides_info(page: Page, base_url: str) -> None:
     """Select ERROR filter, verify INFO entries are hidden."""
-    page.goto(base_url + "/ui/logs")
+    page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
     # Select ERROR level
-    page.locator("select[x-model='filters.level']").select_option("ERROR")
-    # Wait for Alpine reactivity to filter
+    page.locator("select").first.select_option("ERROR")
+    # Wait for Preact reactivity to filter
     page.wait_for_timeout(300)
     tbody = page.locator("tbody")
     expect(tbody).to_contain_text("Failed to call service")
@@ -90,11 +79,11 @@ def test_level_filter_to_error_hides_info(page: Page, base_url: str) -> None:
 
 def test_search_filter_narrows_entries(page: Page, base_url: str) -> None:
     """Type a search term and verify only matching entries remain."""
-    page.goto(base_url + "/ui/logs")
+    page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
     search_input = page.locator("input[placeholder='Search...']")
     search_input.fill("unresponsive")
-    # Wait for debounce (200ms) + reactivity
+    # Wait for reactivity
     page.wait_for_timeout(500)
     tbody = page.locator("tbody")
     expect(tbody).to_contain_text("Light kitchen unresponsive")

@@ -11,9 +11,9 @@ export function ErrorFeed({ errors }: Props) {
   }
 
   return (
-    <div class="ht-error-feed">
+    <div class="ht-error-feed" data-testid="dashboard-errors">
       {errors.map((err, i) => (
-        <div key={i} class="ht-error-entry">
+        <div key={i} class="ht-error-entry" data-testid="error-item">
           <div class="ht-error-entry-header">
             <span class={`ht-tag ht-tag-${err.kind}`}>{err.kind}</span>
             <a href={`/apps/${err.app_key}`} class="ht-text-sm">

@@ -89,7 +89,7 @@ export function HandlerRow({ listener }: Props) {
           {loading.value ? (
             <p class="ht-text-muted ht-text-xs">Loading invocations...</p>
           ) : (
-            <HandlerInvocations invocations={invocations.value as never[]} />
+            <HandlerInvocations invocations={invocations.value as never[]} listenerId={listener.listener_id} />
           )}
         </div>
       )}
