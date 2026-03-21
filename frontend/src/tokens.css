@@ -1,0 +1,137 @@
+/* =====================================================
+   Hassette Design Tokens — Graphite + Emerald
+   Light mode: [data-theme="light"]  (Chalk + Emerald)
+   Dark mode:  [data-theme="dark"]   (Graphite + Emerald)
+
+   Default: dark. Toggle persisted in localStorage.
+   ===================================================== */
+
+/* — Dark Mode (default) —————————————————————————————— */
+:root,
+[data-theme="dark"] {
+  /* Surfaces */
+  --ht-bg: #111113;
+  --ht-surface: #1a1a1e;
+  --ht-surface-recessed: #222226;
+  --ht-surface-sticky: #1a1a1e;
+
+  /* Borders */
+  --ht-border: rgba(255, 255, 255, 0.06);
+  --ht-border-strong: rgba(255, 255, 255, 0.10);
+
+  /* Text */
+  --ht-text: #ececef;
+  --ht-text-secondary: #9898a0;
+  --ht-text-dim: #5c5c66;
+
+  /* Accent (Emerald) */
+  --ht-accent: #34d399;
+  --ht-accent-light: rgba(52, 211, 153, 0.10);
+
+  /* Value */
+  --ht-value: #fbbf24;
+
+  /* Semantic */
+  --ht-success: #34d399;
+  --ht-success-light: rgba(52, 211, 153, 0.10);
+
+  --ht-danger: #f87171;
+  --ht-danger-light: rgba(248, 113, 113, 0.10);
+
+  --ht-warning: #fbbf24;
+  --ht-warning-light: rgba(251, 191, 36, 0.08);
+
+  /* Depth */
+  --ht-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --ht-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* — Light Mode ——————————————————————————————————————— */
+[data-theme="light"] {
+  /* Surfaces */
+  --ht-bg: #f7f7f8;
+  --ht-surface: #ffffff;
+  --ht-surface-recessed: #f0f0f2;
+  --ht-surface-sticky: #ffffff;
+
+  /* Borders */
+  --ht-border: rgba(0, 0, 0, 0.06);
+  --ht-border-strong: rgba(0, 0, 0, 0.10);
+
+  /* Text */
+  --ht-text: #111113;
+  --ht-text-secondary: #55555e;
+  --ht-text-dim: #9898a0;
+
+  /* Accent (Emerald) */
+  --ht-accent: #059669;
+  --ht-accent-light: rgba(5, 150, 105, 0.07);
+
+  /* Value */
+  --ht-value: #b45309;
+
+  /* Semantic */
+  --ht-success: #059669;
+  --ht-success-light: rgba(5, 150, 105, 0.07);
+
+  --ht-danger: #dc2626;
+  --ht-danger-light: rgba(220, 38, 38, 0.07);
+
+  --ht-warning: #a16207;
+  --ht-warning-light: rgba(161, 98, 7, 0.06);
+
+  /* Depth */
+  --ht-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --ht-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+/* — Typography —————————————————————————————————————— */
+:root {
+  /* Font families */
+  --ht-font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --ht-font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ht-font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+
+  /* Font weights */
+  --ht-weight-regular: 400;
+  --ht-weight-medium: 500;
+  --ht-weight-semibold: 600;
+  --ht-weight-bold: 700;
+
+  /* Type scale */
+  --ht-text-xs: 12px;
+  --ht-text-sm: 13px;
+  --ht-text-base: 15px;
+  --ht-text-md: 16px;
+  --ht-text-lg: 18px;
+  --ht-text-xl: 22px;
+  --ht-text-2xl: 26px;
+}
+
+/* — Spacing (4px grid) ————————————————————————————— */
+:root {
+  --ht-sp-1: 4px;
+  --ht-sp-2: 8px;
+  --ht-sp-3: 12px;
+  --ht-sp-4: 16px;
+  --ht-sp-5: 20px;
+  --ht-sp-6: 24px;
+  --ht-sp-8: 32px;
+  --ht-sp-10: 40px;
+}
+
+/* — Border Radius —————————————————————————————————— */
+:root {
+  --ht-radius-sm: 6px;
+  --ht-radius-md: 9px;
+  --ht-radius-lg: 10px;
+  --ht-radius-full: 9999px;
+}
+
+/* — Motion ————————————————————————————————————————— */
+:root {
+  --ht-motion-micro: 120ms ease-out;
+  --ht-motion-transition: 200ms ease-out;
+  --ht-motion-signature: 2.5s ease-in-out infinite;
+  --ht-motion-reduced: 0.01ms;
+}

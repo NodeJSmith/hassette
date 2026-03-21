@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.bus import router as bus_router
@@ -28,6 +28,23 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 _STATIC_DIR = Path(__file__).parent / "static"
+_SPA_DIR = _STATIC_DIR / "spa"
+
+_STATIC_EXTENSIONS = frozenset(
+    {
+        ".js",
+        ".css",
+        ".ico",
+        ".png",
+        ".svg",
+        ".map",
+        ".json",
+        ".woff",
+        ".woff2",
+        ".txt",
+        ".webmanifest",
+    }
+)
 
 
 def create_fastapi_app(hassette: "Hassette") -> FastAPI:
@@ -58,12 +75,30 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
     app.include_router(ws_router, prefix="/api")
     app.include_router(telemetry_router, prefix="/api")
 
-    # Web UI
+    # Web UI (legacy Jinja2 — removed in WP07)
     if hassette.config.run_web_ui:
         app.mount("/ui/static", StaticFiles(directory=str(_STATIC_DIR)), name="ui-static")
         app.include_router(ui_router, prefix="/ui")
         app.include_router(partials_router, prefix="/ui")
-        app.add_api_route("/", _root_redirect, methods=["GET"])
+
+        # SPA serving (Preact) — serves index.html for client-side routing
+        if _SPA_DIR.exists():
+            app.mount("/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
+            if (_SPA_DIR / "fonts").exists():
+                app.mount("/fonts", StaticFiles(directory=str(_SPA_DIR / "fonts")), name="spa-fonts")
+
+            @app.get("/{path:path}")
+            async def spa_catch_all(path: str) -> FileResponse:
+                """Serve index.html for SPA client-side routing."""
+                last_segment = path.rsplit("/", 1)[-1]
+                is_static = any(last_segment.endswith(ext) for ext in _STATIC_EXTENSIONS)
+                if path.startswith("api/") or path.startswith("ui/") or is_static:
+                    raise HTTPException(status_code=404, detail=f"/{path} not found")
+                return FileResponse(str(_SPA_DIR / "index.html"))
+        else:
+            # No SPA built — fall back to legacy UI redirect
+            app.add_api_route("/", _root_redirect, methods=["GET"])
+
         app.add_exception_handler(HTTPException, _ui_http_exception_handler)  # type: ignore[arg-type]
 
     return app
