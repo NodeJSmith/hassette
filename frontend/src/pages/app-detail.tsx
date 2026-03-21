@@ -5,7 +5,6 @@ import { HandlerList } from "../components/app-detail/handler-list";
 import { HealthStrip } from "../components/app-detail/health-strip";
 import { JobList } from "../components/app-detail/job-list";
 import { LogTable } from "../components/shared/log-table";
-import { StatusBadge } from "../components/shared/status-badge";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 import { useAppState } from "../state/context";
@@ -75,7 +74,6 @@ export function AppDetailPage({ params }: Props) {
             <h1 class="ht-heading-4" data-testid="app-title">
               <IconLayers />
               <span>{manifest?.display_name ?? appKey}</span>
-              <StatusBadge status={liveStatus} />
             </h1>
           </div>
         </div>

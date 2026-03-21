@@ -10,6 +10,13 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+const STATUS_COLOR_MAP: Record<string, string> = {
+  running: "good",
+  failed: "bad",
+  stopped: "warn",
+  blocked: "warn",
+};
+
 export function HealthStrip({ health, status }: Props) {
   if (!health) return null;
 
@@ -17,7 +24,7 @@ export function HealthStrip({ health, status }: Props) {
     <div class="ht-kpi-strip">
       <div class="ht-health-card">
         <span class="ht-health-card__label">Status</span>
-        <span class={`ht-health-card__value ht-status-text--${status}`}>{capitalize(status)}</span>
+        <span class={`ht-health-card__value ${STATUS_COLOR_MAP[status] ?? ""}`}>{capitalize(status)}</span>
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Error Rate</span>

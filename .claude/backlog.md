@@ -86,11 +86,11 @@ The entire UI looks like flat text in boxes. The CSS in `global.css` (copied fro
 
 ### HIGH
 
-### 3. Dashboard refetch storm on WS events — HIGH
-Every `app_status_changed` creates new `appStatus` object → triggers `refetchAppGrid()`. 10 apps starting = 10 concurrent requests. Fix: debounce 200-300ms + `AbortController`.
+### 3. Dashboard refetch storm on WS events — CRITICAL (upgraded from HIGH)
+Every `app_status_changed` creates new `appStatus` object → triggers `refetchAppGrid()`. 20 apps × 2 transitions = 40+ undebounced requests on startup. No AbortController anywhere. Confirmed by 3 independent critics. Fix: debounce 500ms + AbortController, or patch grid entries from WS payload directly.
 
-### 4. Log table duplicates entries (REST + WS overlap) — HIGH
-`[...initialEntries, ...wsEntries]` concatenates without dedup. Fix: seed ring buffer from REST, show only buffer.
+### 4. Log table duplicates entries (REST + WS overlap) — CRITICAL (upgraded from HIGH)
+`[...initialEntries, ...wsEntries]` concatenates without dedup. No unique ID in LogEntry or WsLogPayload. Activates the moment WS log subscribe is fixed (#23). Confirmed by 3 critics. Fix: use REST response's latest timestamp as watermark, or skip REST and backfill via WS.
 
 ### 5. `unknown[]` and `as never` casts defeat type safety — HIGH
 `getAppJobs`, `getHandlerInvocations`, `getJobExecutions` return `unknown[]`. Components cast with `as never`. Fix: type with proper interfaces.
@@ -115,14 +115,14 @@ Summaries session-scoped, drill-down all-time. No label distinguishes them. Fix:
 ### 11. `ErrorBoundary` wraps router, not individual pages — MEDIUM
 One crash blanks the entire app. Design doc says "wraps each page". Fix: wrap each `<Route>` child.
 
-### 12. Action buttons swallow API errors silently — MEDIUM
-Start/stop/reload errors caught with no feedback. Fix: add error signal + display.
+### 12. Action buttons fire-and-forget — no feedback — CRITICAL (upgraded from MEDIUM)
+Start/stop/reload: no catch, no post-action state change, no optimistic UI, no refetch. Error silently swallowed. Between API response and WS event, UI in limbo. Confirmed by 3 critics. Fix: optimistic status ("stopping...") + catch errors + refetch on success.
 
-### 13. `AlertBanner` defined but never rendered — MEDIUM
-Component exists but not used. Failed apps show no alert.
+### 13. `AlertBanner` defined but never rendered — HIGH (upgraded from MEDIUM)
+Component exists but not used. Primary safety mechanism for failed apps disconnected. Data available in `appStatus` signal. Confirmed by 3 critics. Fix: wire into `app.tsx` between StatusBar and Switch.
 
-### 14. Theme toggle dual source of truth — MEDIUM
-Signal + DOM attribute are independent. No localStorage persistence. Fix: `useSignalEffect` sync.
+### 14. Theme not persisted from localStorage — HIGH (upgraded from MEDIUM)
+`create-app-state.ts:31` hardcodes `signal("dark")`. `status-bar.tsx` writes localStorage on toggle but never reads on init. Theme resets every load. Confirmed by 2 critics. Fix: initialize from `localStorage.getItem("ht-theme")` in `createAppState()`.
 
 ### 15. Handler names show raw Python paths — MEDIUM
 70+ char fully-qualified paths. Fix: show method name only, full path on hover.
@@ -149,3 +149,26 @@ ERRORS column truncates. Adjust column widths.
 
 ### 22. "1 entries" pluralization bug — LOW
 Fix: conditional pluralization in log-table.tsx.
+
+## Architecture Challenge (3-critic adversarial review) — 2026-03-21
+
+### 23. WS log streaming never sends subscribe message — CRITICAL
+Frontend WS never calls `socket.send()`. Server starts with `subscribe_logs: False` (`ws.py:91`) and only enables on `{"type":"subscribe","data":{"logs":true}}` (`ws.py:51-55`). All log messages silently dropped (`ws.py:72`). `log-table.tsx:29` comment admits unimplemented. Real-time log streaming — primary SPA justification — does not function. Fix: expose `send()` from WS hook, send subscribe on LogTable mount.
+
+### 24. AppDetailPage fetches ALL manifests for ONE app — CRITICAL
+`app-detail.tsx:43` calls `getManifests()` (full list), `.find()` on line 48. O(N) for O(1). Not shared with apps page. Confirmed by 3 critics. Fix: add `GET /api/apps/{key}/manifest` or lift manifests to shared state.
+
+### 25. REST/WS data consistency has no reconciliation layer — CRITICAL
+Dashboard refetches app grid on WS events but NOT KPIs or errors. App detail never refreshes after mount. Manifest list patches status from WS but all other fields stale. Confirmed by 3 critics. Fix: WS-driven invalidation (mark domains as stale) or server-pushed snapshots.
+
+### 26. Loading gate uses `&&` instead of `||` — HIGH
+`app-detail.tsx:53`: `health.loading.value && listeners.loading.value` — spinner disappears when FIRST request finishes, not last. Same bug in `dashboard.tsx:32`. Content jumps as remaining data arrives. Fix: change to `||`.
+
+### 27. Unguarded JSON.parse in WS handler — HIGH
+`use-websocket.ts:36` — no try/catch. Malformed message throws → onerror → socket.close() → reconnect cycle. Schema drift between frontend/backend versions becomes crash vector. Confirmed by 2 critics. Fix: wrap onmessage body in try/catch, log and drop bad messages.
+
+### 28. Stale relative timestamps never update — HIGH
+`formatRelativeTime` computes against `Date.now()` at render time. No timer forces re-render. "2m ago" stays "2m ago" forever. Dangerous for monitoring dashboard — can't distinguish idle from dead. Fix: global "tick" signal that increments every 30-60s.
+
+### 29. Handler/job invocations cached forever on expand — MEDIUM
+`handler-row.tsx:30` / `job-row.tsx:33` — `loaded` signal prevents refetch after first expand. Re-expanding shows stale data. Comment calls this "THE KEY ARCHITECTURAL WIN" but it's a data freshness bug for a monitoring tool. Fix: always refetch on expand, or add staleness timer.

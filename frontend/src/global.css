@@ -299,6 +299,7 @@ strong {
   background: var(--ht-surface);
   border-bottom: 1px solid var(--ht-border);
   gap: var(--ht-sp-3);
+  margin-bottom: var(--ht-sp-4);
 }
 
 .ht-ws-indicator {
@@ -1081,14 +1082,14 @@ strong {
   border-top: 1px solid var(--ht-border);
 }
 
-/* — Item Row (grid: indicator dot | content | stats) — */
+/* — Item Row (grid: dot | content | stats | chevron) — */
 .ht-item-row {
   background: var(--ht-surface);
 }
 
 .ht-item-row__main {
   display: grid;
-  grid-template-columns: var(--ht-sp-4) 1fr auto;
+  grid-template-columns: var(--ht-sp-4) 1fr auto var(--ht-sp-4);
   align-items: center;
   gap: var(--ht-sp-3);
   padding: var(--ht-sp-3) var(--ht-sp-4);
@@ -1161,7 +1162,6 @@ strong {
 
 /* — Item Detail (expanded panel) —————————————————————— */
 .ht-item-detail {
-  background: var(--ht-surface-recessed);
   padding: var(--ht-sp-4);
   border-top: 1px solid var(--ht-border);
 }

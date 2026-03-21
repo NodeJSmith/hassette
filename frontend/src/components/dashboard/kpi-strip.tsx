@@ -25,15 +25,15 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
           {data.error_rate.toFixed(1)}%
         </span>
         <span class="ht-health-card__detail">
-          {(data.total_invocations + data.total_executions) > 0
-            ? `${data.total_errors + data.total_job_errors} / ${data.total_invocations + data.total_executions}`
+          {data.total_invocations > 0
+            ? `${data.total_errors} / ${data.total_invocations} invocations`
             : "No data"}
         </span>
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Handlers</span>
         <span class="ht-health-card__value">{data.total_handlers}</span>
-        <span class="ht-health-card__detail">{data.total_invocations} invoked</span>
+        <span class="ht-health-card__detail">{data.total_invocations} invocations</span>
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Jobs</span>
