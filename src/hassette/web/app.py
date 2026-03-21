@@ -81,9 +81,14 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
         async def spa_catch_all(path: str) -> FileResponse:
             """Serve index.html for SPA client-side routing.
 
-            Returns 404 for API paths and static asset requests to prevent
-            the catch-all from swallowing legitimate 404s.
+            Static files in the SPA build output (e.g., hassette-logo.png) are
+            served directly.  Other static-looking paths and API paths get a 404.
             """
+            # Serve root-level SPA static files (logo, favicon, etc.)
+            candidate = _SPA_DIR / path
+            if candidate.is_file() and _SPA_DIR in candidate.resolve().parents:
+                return FileResponse(str(candidate))
+
             last_segment = path.rsplit("/", 1)[-1]
             is_static = any(last_segment.endswith(ext) for ext in _STATIC_EXTENSIONS)
             if path.startswith("api/") or is_static:

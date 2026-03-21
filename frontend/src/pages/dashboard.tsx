@@ -82,6 +82,14 @@ export function DashboardPage() {
         <span class="ht-session-bar__item">
           <span class="ht-text-xs ht-text-muted">Hassette</span>
         </span>
+        {kpis.data.value?.uptime_seconds != null && (
+          <span class="ht-session-bar__item">
+            <span class="ht-text-xs ht-text-muted">Started</span>
+            <span class="ht-text-xs">
+              {new Date(Date.now() - (kpis.data.value.uptime_seconds * 1000)).toLocaleString()}
+            </span>
+          </span>
+        )}
       </div>
     </div>
   );
