@@ -30,7 +30,8 @@ export function App() {
             <Switch>
               <Route path="/" component={DashboardPage} />
               <Route path="/apps" component={AppsPage} />
-              <Route path="/apps/:key">{(params) => <AppDetailPage params={params} />}</Route>
+              <Route path="/apps/:key/:index">{(params: { key: string; index: string }) => <AppDetailPage params={params} />}</Route>
+              <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/logs" component={LogsPage} />
               <Route component={NotFoundPage} />
             </Switch>

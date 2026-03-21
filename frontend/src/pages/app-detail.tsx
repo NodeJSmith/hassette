@@ -11,7 +11,7 @@ import { useApi } from "../hooks/use-api";
 import { useAppState } from "../state/context";
 
 interface Props {
-  params: { key: string };
+  params: { key: string; index?: string };
 }
 
 // Lucide SVG icons
@@ -39,15 +39,18 @@ const IconScroll = () => (
 
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
+  const instanceIndex = params.index ? parseInt(params.index, 10) : 0;
   const { appStatus } = useAppState();
 
   const manifests = useApi(getManifests);
-  const health = useApi(() => getAppHealth(appKey));
-  const listeners = useApi(() => getAppListeners(appKey));
-  const jobs = useApi(() => getAppJobs(appKey));
+  const health = useApi(() => getAppHealth(appKey, instanceIndex));
+  const listeners = useApi(() => getAppListeners(appKey, instanceIndex));
+  const jobs = useApi(() => getAppJobs(appKey, instanceIndex));
 
   const manifest = manifests.data.value?.manifests.find((m) => m.app_key === appKey);
-  const liveStatus = appStatus.value[appKey]?.status ?? manifest?.status ?? "unknown";
+  const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
+  const currentInstance = manifest?.instances.find((i) => i.index === instanceIndex);
+  const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   const listenerCount = listeners.data.value?.length ?? 0;
   const jobCount = (jobs.data.value as unknown[] | null)?.length ?? 0;
 
@@ -86,9 +89,31 @@ export function AppDetailPage({ params }: Props) {
       {/* Instance metadata */}
       {manifest && (
         <p class="ht-text-muted ht-text-sm ht-mb-3" data-testid="instance-meta">
-          Instance 0
-          {manifest.class_name && <> &middot; PID {manifest.class_name}.{appKey}</>}
+          Instance {instanceIndex}
+          {currentInstance?.instance_name && <> &middot; PID {currentInstance.instance_name}</>}
         </p>
+      )}
+
+      {/* Instance switcher (multi-instance only) */}
+      {isMultiInstance && manifest?.instances && (
+        <div class="ht-mb-4">
+          <label class="ht-detail-label ht-mr-2">Instance</label>
+          <div class="ht-select ht-select--sm" style={{ display: "inline-block" }}>
+            <select
+              value={instanceIndex}
+              onChange={(e) => {
+                const idx = (e.target as HTMLSelectElement).value;
+                window.location.href = `/apps/${appKey}/${idx}`;
+              }}
+            >
+              {manifest.instances.map((inst) => (
+                <option key={inst.index} value={inst.index}>
+                  {inst.instance_name} ({inst.status})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       )}
 
       {/* Error display for failed apps */}
