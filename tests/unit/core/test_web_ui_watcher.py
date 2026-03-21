@@ -36,13 +36,10 @@ def test_change_kind(path: str, expected: str) -> None:
 def test_web_dir_points_to_web_package() -> None:
     assert _WEB_DIR.name == "web"
     assert (_WEB_DIR / "static").exists()
-    assert (_WEB_DIR / "templates").exists()
 
 
-def test_watch_dirs_contains_static_and_templates() -> None:
-    assert len(_WATCH_DIRS) == 2
+def test_watch_dirs_contains_static() -> None:
     assert _WEB_DIR / "static" in _WATCH_DIRS
-    assert _WEB_DIR / "templates" in _WATCH_DIRS
 
 
 # --- Service lifecycle ---

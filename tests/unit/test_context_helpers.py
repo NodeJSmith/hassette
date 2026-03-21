@@ -1,6 +1,6 @@
 """Unit tests for web UI context helpers."""
 
-from hassette.web.ui.context import (
+from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
     extract_entity_from_topic,

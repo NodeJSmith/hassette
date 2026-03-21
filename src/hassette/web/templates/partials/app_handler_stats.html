@@ -1,8 +1,0 @@
-{# Stats-only partial for 5s polling. Hidden div; values read by JS if needed. #}
-{% for listener in listeners %}
-  <span data-listener-id="{{ listener.listener_id }}"
-        data-total-invocations="{{ listener.total_invocations }}"
-        data-failed="{{ listener.failed }}"
-        data-avg-duration-ms="{{ listener.avg_duration_ms }}"
-        data-last-invoked="{{ listener.last_invoked_at or '' }}"></span>
-{% endfor %}
