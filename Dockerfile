@@ -22,7 +22,8 @@ WORKDIR /app
 
 # Copy lock + manifest for dependency resolution
 ADD ./src /app/src
-COPY --from=frontend /app/frontend/dist/ /app/src/hassette/web/static/spa/
+# Copy SPA build output from frontend stage (vite outputs to ../src/hassette/web/static/spa relative to WORKDIR)
+COPY --from=frontend /app/src/hassette/web/static/spa/ /app/src/hassette/web/static/spa/
 ADD ./scripts /app/scripts
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./uv.lock /app/uv.lock

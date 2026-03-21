@@ -62,3 +62,7 @@ docker-compose*.yml
 # /config/
 # /data/
 # /apps/
+
+# Frontend build (node_modules sent separately via COPY)
+frontend/node_modules/
+frontend/dist/
