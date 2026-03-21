@@ -27,7 +27,7 @@ export function ManifestList({ manifests, filter }: Props) {
   }
 
   return (
-    <table class="ht-table ht-table--dense">
+    <table class="ht-table">
       <thead>
         <tr>
           <th>App Key</th>
