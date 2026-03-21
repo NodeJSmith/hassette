@@ -33,7 +33,12 @@ export function useWebSocket(state: AppState, options?: UseWebSocketOptions): vo
       };
 
       socket.onmessage = (e: MessageEvent) => {
-        const msg = JSON.parse(e.data as string) as WsServerMessage;
+        let msg: WsServerMessage;
+        try {
+          msg = JSON.parse(e.data as string) as WsServerMessage;
+        } catch {
+          return; // Ignore non-JSON frames
+        }
 
         batch(() => {
           switch (msg.type) {

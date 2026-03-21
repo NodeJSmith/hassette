@@ -3,7 +3,7 @@ export function formatTimestamp(ts: number): string {
   const d = new Date(ts * 1000);
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  const time = d.toLocaleTimeString();
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
   return `${month}/${day} ${time}`;
 }
 

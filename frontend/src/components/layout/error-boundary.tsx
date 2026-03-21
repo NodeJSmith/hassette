@@ -22,7 +22,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <h2>Something went wrong</h2>
           <p class="ht-text-secondary">{this.state.error.message}</p>
           <button
-            class="ht-btn ht-btn-primary"
+            class="ht-btn ht-btn--primary"
             onClick={() => this.setState({ error: null })}
           >
             Retry

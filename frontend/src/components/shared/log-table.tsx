@@ -30,7 +30,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   }, [appKey]);
 
   // Read version to subscribe to WS updates
-  const _version = logs.version.value;
+  void logs.version.value;
 
   // Combine initial entries + ring buffer entries
   const wsEntries = logs.buffer.toArray().filter((e) => {
