@@ -23,3 +23,129 @@ Bug #318 — CommandExecutor correctly flushes in normal path, but abnormal shut
 
 ### 8. Inconsistent `mark_ready` timing across services — MEDIUM
 Some services mark ready in `on_initialize()` (early), others in `serve()` (late). No documented pattern for when to use which.
+
+## Design Challenge (ui-rebuild PR) — 2026-03-20
+
+### 1. SQL query duplication is a schema-drift time bomb — CRITICAL
+Every query method in `TelemetryQueryService` has two full independent SQL copies (session-filtered vs all-time). 5 methods × 2 variants. Fix: `_session_clause()` helper.
+
+### 2. Stats poll DOM mutation is architectural debt — CRITICAL
+`live-updates.js:146-218` does 70 lines of manual DOM patching, finds elements by text content substring ("avg") and CSS class names. Fix: `data-stat` attributes, then push via WebSocket.
+
+### 3. `get_recent_errors` returns `list[dict]` — typed model system incomplete — CRITICAL
+Three methods bypass the typed model protection the PR introduced. Merged handler+job errors use a `kind` string key. Fix: discriminated union models.
+
+### 4. `context.py` is a god module — HIGH
+176 lines mixing CSS classification, string formatting, async data fetching, template context building, and session ID access. Fix: split into classifiers/formatters/context.
+
+### 5. Phased startup is a symptom fix — three defense layers for one invariant — HIGH
+`_safe_session_id()` returns 0, `_do_persist_batch()` drops id=0 records. Fix: inject session_id as a value or buffer records until available.
+
+### 6. `db_id is None` dispatch bifurcation — hidden protocol in two services — HIGH
+Both BusService._dispatch and SchedulerService.run_job branch on db_id. TOCTOU race for regular listeners. Fix: make CommandExecutor own the decision.
+
+### 7. Dashboard 5 sequential async DB calls — MEDIUM
+`router.py:27-32` — independent queries run sequentially. Fix: `asyncio.gather`.
+
+### 8. `_execute_handler`/`_execute_job` identical 80-line methods — MEDIUM
+Same timing/exception/queue pattern, different record type. Fix: Template Method with record factory.
+
+### 9. WebSocket delivers status instantly, stats poll lags 5s — MEDIUM
+Consistency violation: status dot goes green before counts update. Fix: push stats through existing WS channel.
+
+### 10. `TelemetryQueryService` reads from write connection — MEDIUM
+Same aiosqlite connection for reads and writes. Fix: separate read-only connection for WAL mode.
+
+### 11. 501 placeholder routes ship as API surface — MEDIUM
+Three POST routes return 501. Premature URL commitment. Fix: remove routes, render disabled buttons.
+
+### 12. `reschedule_job` bare `assert` on time source — MEDIUM
+`scheduler_service.py:287` — crashes or silently drops job on DST transition. Fix: runtime guard with fallback.
+
+### 13. Paired route duplication in partials.py — MEDIUM
+6 endpoint pairs doing identical work, differing only in path vs query param. Fix: collapse into single routes.
+
+### 14. Health strip over-fetches full summaries for 4 scalars — MEDIUM
+Fetches all listener/job fields, reduces to 4 values in Python. Fix: dedicated aggregate query.
+
+### 15. `safe_session_id` catches `AttributeError` — MEDIUM
+Masks misconfiguration bugs. `command_executor.py` equivalent catches only `RuntimeError`. Fix: catch only `RuntimeError`.
+
+## Preact SPA (Visual QA + Code Challenge) — 2026-03-20
+
+### CRITICAL
+
+### 0. Preact components don't match the CSS design system's expected HTML structure — CRITICAL
+The entire UI looks like flat text in boxes. The CSS in `global.css` (copied from `style.css`) was written for the Jinja2 templates' specific DOM structure — nested `<div>` hierarchies, specific element types, SVG icons, etc. The Preact components use simpler/different markup that doesn't match the CSS selectors, so styles silently don't apply. Affects EVERY page. The sidebar uses Unicode characters (⊞ ⬡ ≡) instead of SVGs and is collapsed into a tiny horizontal row instead of a vertical icon rail. Stat cards lack internal structure. App cards are flat text with a border. Health bars, pulse dot animation, card depth — all missing. Fix: audit every component against the old Jinja2 templates and match the HTML structure the CSS expects, or rewrite the CSS to match the new markup. This is the single highest-priority item — nothing else matters visually until this is fixed.
+
+### 1. `useWebSocket` reconnect loop on unstable `options` reference — CRITICAL
+`useEffect` depends on `[state, options]`. Passing `onReconnect` creates new object every render → infinite reconnect. Currently masked because `WebSocketProvider` passes no options. Fix: accept `onReconnect` as standalone param, store in `useRef`.
+
+### 2. `useApi` never refetches when route params change — CRITICAL
+`refetch` is a `useRef` constant — fires once on mount. Navigating between `/apps/a` and `/apps/b` shows stale data. Fix: accept dependency array, include in `useEffect` deps.
+
+### HIGH
+
+### 3. Dashboard refetch storm on WS events — HIGH
+Every `app_status_changed` creates new `appStatus` object → triggers `refetchAppGrid()`. 10 apps starting = 10 concurrent requests. Fix: debounce 200-300ms + `AbortController`.
+
+### 4. Log table duplicates entries (REST + WS overlap) — HIGH
+`[...initialEntries, ...wsEntries]` concatenates without dedup. Fix: seed ring buffer from REST, show only buffer.
+
+### 5. `unknown[]` and `as never` casts defeat type safety — HIGH
+`getAppJobs`, `getHandlerInvocations`, `getJobExecutions` return `unknown[]`. Components cast with `as never`. Fix: type with proper interfaces.
+
+### 6. `onReconnect` not wired — stale data after WS reconnection — HIGH
+Design doc requires reconnection to trigger page-level data refresh. Implementation ignores it. Fix: wire after fixing #1.
+
+### 7. `useRef(signal(...))` reinvents `useSignal()` — HIGH
+Pattern appears 17 times. `@preact/signals` provides `useSignal()`. Fix: replace all instances.
+
+### 8. No CSS Modules — design doc deviation — HIGH
+Zero `.module.css` files. All 1,691 lines in `global.css`. Design doc mandates dual strategy.
+
+### 9. Dashboard card text concatenation bug — HIGH
+App cards show "0 handlers2 jobs2m ago" with no spacing. Fix AppCard component flex layout.
+
+### 10. Handler/job count mismatch (session vs all-time) — HIGH
+Summaries session-scoped, drill-down all-time. No label distinguishes them. Fix: add "(this session)" or scope drill-down.
+
+### MEDIUM
+
+### 11. `ErrorBoundary` wraps router, not individual pages — MEDIUM
+One crash blanks the entire app. Design doc says "wraps each page". Fix: wrap each `<Route>` child.
+
+### 12. Action buttons swallow API errors silently — MEDIUM
+Start/stop/reload errors caught with no feedback. Fix: add error signal + display.
+
+### 13. `AlertBanner` defined but never rendered — MEDIUM
+Component exists but not used. Failed apps show no alert.
+
+### 14. Theme toggle dual source of truth — MEDIUM
+Signal + DOM attribute are independent. No localStorage persistence. Fix: `useSignalEffect` sync.
+
+### 15. Handler names show raw Python paths — MEDIUM
+70+ char fully-qualified paths. Fix: show method name only, full path on hover.
+
+### 16. No Enable button for disabled apps — MEDIUM
+Dead end for users. Needs new API endpoint + button.
+
+### 17. Single accent color overloaded — MEDIUM
+Mint green marks everything. Fix: semantic color differentiation.
+
+### 18. Dashboard card hover nearly invisible — MEDIUM
+No visual feedback on clickable cards. Fix: visible hover state.
+
+### LOW
+
+### 19. Page headings oversized — LOW
+"Dashboard" / "Apps" are largest text but least useful. Reduce 30-40%.
+
+### 20. Stat card inconsistent structure — LOW
+Varying line counts, no hierarchy. Standardize internal layout.
+
+### 21. Horizontal overflow on expanded rows — LOW
+ERRORS column truncates. Adjust column widths.
+
+### 22. "1 entries" pluralization bug — LOW
+Fix: conditional pluralization in log-table.tsx.
