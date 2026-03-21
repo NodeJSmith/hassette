@@ -97,6 +97,20 @@ class Guard(typing.Generic[EventT]):
     def __call__(self, value: "EventT") -> bool:
         return self.fn(value)
 
+    def summarize(self) -> str:
+        return "custom condition"
+
+
+def _summarize_predicate(predicate: "Predicate") -> str:
+    """Return a human-readable summary of a predicate.
+
+    Delegates to the predicate's ``summarize()`` method when available,
+    otherwise falls back to ``"custom condition"``.
+    """
+    if hasattr(predicate, "summarize"):
+        return predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]
+    return "custom condition"
+
 
 @dataclass(frozen=True)
 class AllOf:
@@ -107,6 +121,9 @@ class AllOf:
 
     def __call__(self, value: "Event") -> bool:
         return all(p(value) for p in self.predicates)
+
+    def summarize(self) -> str:
+        return " and ".join(_summarize_predicate(p) for p in self.predicates)
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate] | list[Predicate]") -> "AllOf":
@@ -123,6 +140,9 @@ class AnyOf:
     def __call__(self, event: "Event") -> bool:
         return any(p(event) for p in self.predicates)
 
+    def summarize(self) -> str:
+        return " or ".join(_summarize_predicate(p) for p in self.predicates)
+
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate]") -> "AnyOf":
         return cls(ensure_tuple(where))
@@ -136,6 +156,9 @@ class Not:
 
     def __call__(self, value: "Event", /) -> bool:
         return not self.predicate(value)
+
+    def summarize(self) -> str:
+        return "not " + _summarize_predicate(self.predicate)
 
 
 @dataclass(frozen=True)
@@ -156,6 +179,9 @@ class ValueIs(Generic[EventT, V]):
         extracted = self.source(value)
         return compare_value(extracted, self.condition)
 
+    def summarize(self) -> str:
+        return "custom condition"
+
 
 @dataclass(frozen=True)
 class DidChange(Generic[EventT]):
@@ -169,6 +195,9 @@ class DidChange(Generic[EventT]):
     def __call__(self, value: EventT, /) -> bool:
         old_v, new_v = self.source(value)
         return old_v != new_v
+
+    def summarize(self) -> str:
+        return "changed"
 
 
 @dataclass(frozen=True)
@@ -184,6 +213,9 @@ class IsPresent:
     def __call__(self, value: Any, /) -> bool:
         return self.source(value) is not MISSING_VALUE
 
+    def summarize(self) -> str:
+        return "is present"
+
 
 @dataclass(frozen=True)
 class IsMissing:
@@ -198,6 +230,9 @@ class IsMissing:
     def __call__(self, value: Any, /) -> bool:
         return self.source(value) is MISSING_VALUE
 
+    def summarize(self) -> str:
+        return "is missing"
+
 
 @dataclass(frozen=True)
 class StateFrom:
@@ -208,6 +243,9 @@ class StateFrom:
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         return ValueIs(source=get_state_value_old, condition=self.condition)(value)
 
+    def summarize(self) -> str:
+        return f"from {self.condition}"
+
 
 @dataclass(frozen=True)
 class StateTo:
@@ -217,6 +255,9 @@ class StateTo:
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         return ValueIs(source=get_state_value_new, condition=self.condition)(value)
+
+    def summarize(self) -> str:
+        return f"\u2192 {self.condition}"
 
 
 @dataclass(frozen=True)
@@ -233,6 +274,9 @@ class StateComparison:
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         return self.condition(get_state_value_old(value), get_state_value_new(value))
 
+    def summarize(self) -> str:
+        return f"state {self.condition!r}"
+
 
 @dataclass(frozen=True)
 class AttrFrom:
@@ -244,6 +288,9 @@ class AttrFrom:
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(value)
 
+    def summarize(self) -> str:
+        return f"attr {self.attr_name} from {self.condition}"
+
 
 @dataclass(frozen=True)
 class AttrTo:
@@ -254,6 +301,9 @@ class AttrTo:
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(value)
+
+    def summarize(self) -> str:
+        return f"attr {self.attr_name} \u2192 {self.condition}"
 
 
 @dataclass(frozen=True)
@@ -273,6 +323,9 @@ class AttrComparison:
         new_attr = get_attr_new(self.attr_name)(value)
         return self.condition(old_attr, new_attr)
 
+    def summarize(self) -> str:
+        return f"attr {self.attr_name} {self.condition!r}"
+
 
 @dataclass(frozen=True)
 class StateDidChange:
@@ -280,6 +333,9 @@ class StateDidChange:
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         return DidChange(get_state_value_old_new)(value)
+
+    def summarize(self) -> str:
+        return "state changed"
 
 
 @dataclass(frozen=True)
@@ -291,6 +347,9 @@ class AttrDidChange:
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         return DidChange(get_attr_old_new(self.attr_name))(value)
 
+    def summarize(self) -> str:
+        return f"attr {self.attr_name} changed"
+
 
 @dataclass(frozen=True)
 class DomainMatches:
@@ -301,6 +360,9 @@ class DomainMatches:
     def __call__(self, value: "HassEvent", /) -> bool:
         cond = Glob(self.domain) if is_glob(self.domain) else self.domain
         return ValueIs(source=get_domain, condition=cond)(value)
+
+    def summarize(self) -> str:
+        return f"domain {self.domain}"
 
     def __repr__(self) -> str:
         return f"DomainMatches(domain={self.domain!r})"
@@ -316,6 +378,9 @@ class EntityMatches:
         cond = Glob(self.entity_id) if is_glob(self.entity_id) else self.entity_id
         return ValueIs(source=get_entity_id, condition=cond)(value)
 
+    def summarize(self) -> str:
+        return f"entity {self.entity_id}"
+
     def __repr__(self) -> str:
         return f"EntityMatches(entity_id={self.entity_id!r})"
 
@@ -329,6 +394,9 @@ class ServiceMatches:
     def __call__(self, value: "HassEvent", /) -> bool:
         cond = Glob(self.service) if is_glob(self.service) else self.service
         return ValueIs(source=get_path("payload.data.service"), condition=cond)(value)
+
+    def summarize(self) -> str:
+        return f"service {self.service}"
 
     def __repr__(self) -> str:
         return f"ServiceMatches(service={self.service!r})"
@@ -386,6 +454,10 @@ class ServiceDataWhere:
 
     def __call__(self, value: "CallServiceEvent", /) -> bool:
         return all(p(value) for p in self._predicates)
+
+    def summarize(self) -> str:
+        parts = [f"{k} = {v}" for k, v in self.spec.items()]
+        return "service data where " + ", ".join(parts)
 
     @classmethod
     def from_kwargs(cls, *, auto_glob: bool = True, **spec: "ChangeType") -> "ServiceDataWhere":

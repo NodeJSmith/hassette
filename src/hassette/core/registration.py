@@ -34,6 +34,9 @@ class ListenerRegistration:
     predicate_description: str | None
     """Human-readable description of the predicate, or None."""
 
+    human_description: str | None
+    """Stable, human-readable summary from predicate.summarize(), or None."""
+
     source_location: str
     """File and line number where the listener was registered (e.g. 'app.py:42')."""
 

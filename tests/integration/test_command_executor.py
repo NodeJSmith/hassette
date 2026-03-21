@@ -87,6 +87,7 @@ def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> L
         once=False,
         priority=0,
         predicate_description=None,
+        human_description=None,
         source_location="test_command_executor.py:1",
         registration_source=None,
         first_registered_at=now,
@@ -449,12 +450,11 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_safe_session_id_returns_zero_when_no_session(mock_hassette: MagicMock) -> None:
-    """_safe_session_id() returns 0 instead of raising when no session exists yet.
+def test_safe_session_id_returns_zero_and_logs_on_missing_session(mock_hassette: MagicMock) -> None:
+    """_safe_session_id() falls back to 0 when no session exists.
 
-    Regression: before the fix, all execute() paths called self.hassette.session_id
-    directly, crashing with RuntimeError during the startup window before
-    _create_session() runs.
+    Returns 0 (sentinel) so exception handlers don't crash cascade.
+    The persist guard drops the record and logs at ERROR.
     """
 
     class _NoSession:
@@ -468,11 +468,10 @@ def test_safe_session_id_returns_zero_when_no_session(mock_hassette: MagicMock) 
 
 
 @pytest.mark.asyncio
-async def test_execute_does_not_crash_when_no_session(executor: CommandExecutor) -> None:
-    """execute() must not raise when session_id is unavailable (pre-session startup race).
+async def test_execute_queues_sentinel_record_when_no_session(executor: CommandExecutor) -> None:
+    """execute() queues a record with session_id=0 when session is unavailable.
 
-    Regression: TaskBucket tasks crashed with RuntimeError("No active session") when
-    handlers fired before run_forever() called _create_session().
+    Does not crash — the persist guard drops the record at write time.
     """
 
     class _NoSession:
@@ -485,10 +484,8 @@ async def test_execute_does_not_crash_when_no_session(executor: CommandExecutor)
     listener = _make_mock_listener()
     cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
 
-    # Must not raise
     await executor.execute(cmd)
 
-    # Record should be queued with session_id=0 sentinel
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
     assert isinstance(record, HandlerInvocationRecord)

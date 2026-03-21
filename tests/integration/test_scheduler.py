@@ -89,7 +89,9 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
     executor.execute.side_effect = _capturing_execute
     executor.execute.reset_mock()
 
-    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01)
+    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.05)
+    # Simulate an app-owned job by setting db_id (internal jobs have db_id=None and bypass executor)
+    scheduled_job.db_id = 99
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
@@ -97,6 +99,27 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
     assert len(executed_cmds) == 1, f"Expected executor.execute() called once, got {len(executed_cmds)} calls"
     assert isinstance(executed_cmds[0], ExecuteJob), "Expected ExecuteJob command"
     assert executed_cmds[0].job is scheduled_job, "ExecuteJob.job should be the scheduled job"
+
+
+async def test_run_job_internal_bypasses_executor(hassette_with_scheduler: Hassette) -> None:
+    """Internal jobs (db_id=None) run directly, bypassing CommandExecutor."""
+    job_executed = asyncio.Event()
+
+    async def target() -> None:
+        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
+
+    scheduler_service = hassette_with_scheduler._scheduler_service
+    executor = scheduler_service._executor
+    executor.execute.reset_mock()
+
+    # Use the internal scheduler (no app_key) — job gets db_id=None
+    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01)
+
+    await asyncio.wait_for(job_executed.wait(), timeout=1)
+    scheduled_job.cancel()
+
+    # Executor should NOT have been called for internal jobs
+    executor.execute.assert_not_called()
 
 
 async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) -> None:

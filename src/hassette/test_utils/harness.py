@@ -361,7 +361,7 @@ class HassetteHarness:
 
         mock_executor = AsyncMock()
         mock_executor.execute = AsyncMock(side_effect=_stub_execute)
-        mock_executor.register_listener = AsyncMock(return_value=0)
+        mock_executor.register_listener = AsyncMock(return_value=42)
         self.hassette._bus_service = self.hassette.add_child(
             BusService, stream=self.hassette._event_stream_service.receive_stream.clone(), executor=mock_executor
         )

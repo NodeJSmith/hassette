@@ -8,6 +8,7 @@ from hassette.scheduler.classes import CronTrigger, IntervalTrigger
 
 if TYPE_CHECKING:
     from hassette.core.runtime_query_service import RuntimeQueryService
+    from hassette.core.telemetry_models import ListenerSummary
     from hassette.core.telemetry_query_service import TelemetryQueryService
     from hassette.scheduler.classes import ScheduledJob
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def gather_all_listeners(
     runtime: "RuntimeQueryService",
     telemetry: "TelemetryQueryService",
-) -> list[dict]:
+) -> "list[ListenerSummary]":
     """Enumerate all app instances and gather listener summaries."""
     snapshot = runtime.get_all_manifests_snapshot()
     tasks = [
@@ -26,7 +27,7 @@ async def gather_all_listeners(
         for instance in manifest.instances
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    listeners: list[dict] = []
+    listeners: list[ListenerSummary] = []
     for result in results:
         if isinstance(result, BaseException):
             logger.warning("Telemetry query failed gathering all listeners: %s", result)
@@ -40,13 +41,12 @@ def resolve_trigger(job: "ScheduledJob") -> tuple[str, str | None]:
 
     Returns:
         A tuple of (trigger_type, trigger_detail) where trigger_type is one of
-        "interval", "cron", or "once". trigger_detail is None for once-triggers,
-        the interval duration string for interval triggers, and the cron
-        expression string for cron triggers.
+        "interval", "cron", or "one-shot", and trigger_detail is a human-readable
+        description (e.g. "every 30s", "*/5 * * * *", or None for one-shot jobs).
     """
     trigger = job.trigger
     if isinstance(trigger, IntervalTrigger):
-        return "interval", str(trigger.interval)
+        return "interval", f"every {trigger.interval}"
     if isinstance(trigger, CronTrigger):
         return "cron", str(trigger.cron_expression)
-    return "once", None
+    return "one-shot", None

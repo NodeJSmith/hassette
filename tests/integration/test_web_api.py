@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.core.telemetry_models import ListenerSummary
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -326,3 +327,214 @@ class TestOpenApiDocs:
         assert response.status_code == 200
         data = response.json()
         assert data["info"]["title"] == "Hassette Web API"
+
+
+# ---------------------------------------------------------------------------
+# Telemetry endpoints (WP02)
+# ---------------------------------------------------------------------------
+
+
+class TestTelemetryAppHealth:
+    async def test_returns_metrics_with_classification(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
+            return_value=[
+                ListenerSummary(
+                    listener_id=1,
+                    app_key="my_app",
+                    instance_index=0,
+                    handler_method="on_light",
+                    topic="state_changed.light.kitchen",
+                    debounce=None,
+                    throttle=None,
+                    once=0,
+                    priority=0,
+                    predicate_description=None,
+                    human_description=None,
+                    source_location="my_app.py:10",
+                    registration_source=None,
+                    total_invocations=100,
+                    successful=95,
+                    failed=5,
+                    di_failures=0,
+                    cancelled=0,
+                    total_duration_ms=5000.0,
+                    avg_duration_ms=50.0,
+                    min_duration_ms=10.0,
+                    max_duration_ms=200.0,
+                    last_invoked_at=1234567890.0,
+                    last_error_type=None,
+                    last_error_message=None,
+                )
+            ]
+        )
+        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[])
+
+        response = await client.get("/api/telemetry/app/my_app/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert "error_rate" in data
+        assert "error_rate_class" in data
+        assert "health_status" in data
+        assert data["error_rate"] == pytest.approx(5.0)
+        assert data["error_rate_class"] == "warn"
+
+    async def test_unknown_app_returns_empty_health(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/telemetry/app/nonexistent/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["error_rate"] == 0.0
+        assert data["health_status"] == "excellent"
+
+    async def test_instance_index_param(self, client: "AsyncClient", mock_hassette) -> None:
+        response = await client.get("/api/telemetry/app/my_app/health?instance_index=1")
+        assert response.status_code == 200
+        mock_hassette.telemetry_query_service.get_listener_summary.assert_called_once()
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args
+        assert call_kwargs.kwargs.get("instance_index") == 1 or call_kwargs[1].get("instance_index") == 1
+
+
+class TestTelemetryListeners:
+    async def test_returns_summaries_with_handler_descriptions(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
+            return_value=[
+                ListenerSummary(
+                    listener_id=1,
+                    app_key="my_app",
+                    instance_index=0,
+                    handler_method="on_light",
+                    topic="state_changed.light.kitchen",
+                    debounce=None,
+                    throttle=None,
+                    once=0,
+                    priority=0,
+                    predicate_description=None,
+                    human_description=None,
+                    source_location="my_app.py:10",
+                    registration_source=None,
+                    total_invocations=50,
+                    successful=50,
+                    failed=0,
+                    di_failures=0,
+                    cancelled=0,
+                    total_duration_ms=2500.0,
+                    avg_duration_ms=50.0,
+                    min_duration_ms=10.0,
+                    max_duration_ms=200.0,
+                    last_invoked_at=1234567890.0,
+                    last_error_type=None,
+                    last_error_message=None,
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/app/my_app/listeners")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["handler_summary"] == "Fires when light.kitchen"
+        assert data[0]["listener_id"] == 1
+
+
+class TestTelemetryDashboard:
+    async def test_kpis_returns_global_summary(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/telemetry/dashboard/kpis")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_handlers" in data
+        assert "total_jobs" in data
+        assert "error_rate" in data
+        assert "error_rate_class" in data
+
+    async def test_app_grid_returns_per_app_health(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/telemetry/dashboard/app-grid")
+        assert response.status_code == 200
+        data = response.json()
+        assert "apps" in data
+        assert isinstance(data["apps"], list)
+        # Default mock has apps from the manifest snapshot
+        for app_entry in data["apps"]:
+            assert "app_key" in app_entry
+            assert "health_status" in app_entry
+            assert "status" in app_entry
+
+    async def test_errors_returns_typed_entries(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
+            return_value=[
+                {
+                    "kind": "handler",
+                    "listener_id": 1,
+                    "topic": "state_changed.light.kitchen",
+                    "handler_method": "on_light",
+                    "error_message": "test error",
+                    "error_type": "RuntimeError",
+                    "timestamp": 1234567890.0,
+                    "app_key": "my_app",
+                },
+                {
+                    "kind": "job",
+                    "job_id": 1,
+                    "job_name": "check_sensors",
+                    "error_message": "timeout",
+                    "error_type": "TimeoutError",
+                    "timestamp": 1234567891.0,
+                    "app_key": "sensor_app",
+                },
+            ]
+        )
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["errors"]) == 2
+        assert data["errors"][0]["kind"] == "handler"
+        assert data["errors"][1]["kind"] == "job"
+
+
+class TestTelemetryHandlerInvocations:
+    async def test_returns_invocations(self, client: "AsyncClient", mock_hassette) -> None:
+        from hassette.core.telemetry_models import HandlerInvocation
+
+        mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(
+            return_value=[
+                HandlerInvocation(
+                    execution_start_ts=1234567890.0,
+                    duration_ms=42.5,
+                    status="success",
+                    error_type=None,
+                    error_message=None,
+                    error_traceback=None,
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/handler/1/invocations")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["duration_ms"] == 42.5
+
+
+class TestTelemetryJobExecutions:
+    async def test_returns_executions(self, client: "AsyncClient", mock_hassette) -> None:
+        from hassette.core.telemetry_models import JobExecution
+
+        mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(
+            return_value=[
+                JobExecution(
+                    execution_start_ts=1234567890.0,
+                    duration_ms=100.0,
+                    status="success",
+                    error_type=None,
+                    error_message=None,
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/job/1/executions")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["status"] == "success"
+
+
+class TestTelemetryAvailableWithoutUI:
+    async def test_telemetry_endpoints_work_when_run_web_ui_false(self, client: "AsyncClient") -> None:
+        """The mock_hassette has run_web_ui=False — telemetry should still work."""
+        response = await client.get("/api/telemetry/dashboard/kpis")
+        assert response.status_code == 200

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.9.8,<0.10.0"]
+requires = ["uv_build>=0.10.0,<0.11.0"]
 build-backend = "uv_build"
 
 [project]
@@ -39,7 +39,6 @@ dependencies = [
     "anyio>=4.10.0",
     "coloredlogs>=15.0.1",
     "fastapi>=0.128.6",
-    "jinja2>=3.1.0",
     "croniter>=6.0.0",
     "deepdiff>=8.6.1",
     "diskcache>=5.6.3",
@@ -70,7 +69,6 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 [dependency-groups]
 dev = [
     "bcrypt>=4.0",
-    "djlint>=1.36.4",
     "pyright>=1.1.408",
     "tomli-w>=1.2.0",
 ]
@@ -144,12 +142,6 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
-
-[tool.djlint]
-profile = "jinja"
-indent = 2
-max_line_length = 120
-ignore = "H006,H030,H031,T002"
 
 [tool.coverage.html]
 directory = "htmlcov"

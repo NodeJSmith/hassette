@@ -154,13 +154,24 @@ class SchedulerService(Service):
         return TimeDelta(seconds=delay)
 
     def add_job(self, job: "ScheduledJob"):
-        """Push a job to the queue and register it with the executor."""
+        """Push a job to the queue and register it with the executor.
+
+        When the job belongs to an app (has app_key), the job is enqueued
+        first (so it can be dispatched immediately), then DB registration
+        runs in the same task. Until ``db_id`` is set, the dispatch path
+        uses direct invocation (no telemetry record).
+        """
         if job.app_key:
-            self._register_job_to_db(job)
+            return self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
         return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
 
-    def _register_job_to_db(self, job: "ScheduledJob") -> None:
-        """Create a ScheduledJobRegistration and spawn a background task to persist it."""
+    async def _enqueue_then_register(self, job: "ScheduledJob") -> None:
+        """Enqueue the job, then register in DB.
+
+        The job is enqueued first so it can be dispatched immediately.
+        ``db_id`` is set once DB registration completes; until then, dispatch
+        uses the direct-invoke path (no telemetry record).
+        """
         ts = time.time()
         source_location, registration_source = capture_registration_source()
         trigger = job.trigger
@@ -188,10 +199,7 @@ class SchedulerService(Service):
             first_registered_at=ts,
             last_registered_at=ts,
         )
-        self.task_bucket.spawn(self._register_job_async(job, reg))
-
-    async def _register_job_async(self, job: "ScheduledJob", reg: ScheduledJobRegistration) -> None:
-        """Background task: register job in DB and set its db_id."""
+        await self._enqueue_job(job)
         job.db_id = await self._executor.register_job(reg)
 
     async def _dispatch_and_log(self, job: "ScheduledJob"):
@@ -245,14 +253,16 @@ class SchedulerService(Service):
             await async_fn(*job.args, **job.kwargs)
 
         if job.db_id is None:
-            self.logger.debug(
-                "Job %s has no db_id yet (registration pending); execution record will use id=0",
-                job,
-            )
+            # Internal job — run directly without telemetry record
+            try:
+                await _bound_callable()
+            except Exception:
+                self.logger.exception("Internal job error (job=%r)", job)
+            return
         cmd = ExecuteJob(
             job=job,
             callable=_bound_callable,
-            job_db_id=job.db_id or 0,
+            job_db_id=job.db_id,
         )
         await self._executor.execute(cmd)
 

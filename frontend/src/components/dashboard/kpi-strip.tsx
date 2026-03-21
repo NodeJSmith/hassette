@@ -1,0 +1,51 @@
+import type { DashboardKpis } from "../../api/endpoints";
+
+interface Props {
+  data: DashboardKpis | null;
+  appCount?: number;
+  runningCount?: number;
+}
+
+export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
+  if (!data) return null;
+
+  const uptimeH = data.uptime_seconds ? Math.floor(data.uptime_seconds / 3600) : 0;
+  const uptimeM = data.uptime_seconds ? Math.floor((data.uptime_seconds % 3600) / 60) : 0;
+
+  return (
+    <div class="ht-kpi-strip" data-testid="kpi-strip">
+      <div class="ht-health-card">
+        <span class="ht-health-card__label">Apps</span>
+        <span class="ht-health-card__value">{appCount}</span>
+        <span class="ht-health-card__detail">{runningCount} running</span>
+      </div>
+      <div class="ht-health-card">
+        <span class="ht-health-card__label">Error Rate</span>
+        <span class={`ht-health-card__value ${data.error_rate_class}`}>
+          {data.error_rate.toFixed(1)}%
+        </span>
+        <span class="ht-health-card__detail">
+          {data.total_invocations > 0
+            ? `${data.total_errors} / ${data.total_invocations} invocations`
+            : "No data"}
+        </span>
+      </div>
+      <div class="ht-health-card">
+        <span class="ht-health-card__label">Handlers</span>
+        <span class="ht-health-card__value">{data.total_handlers}</span>
+        <span class="ht-health-card__detail">{data.total_invocations} invocations</span>
+      </div>
+      <div class="ht-health-card">
+        <span class="ht-health-card__label">Jobs</span>
+        <span class="ht-health-card__value">{data.total_jobs}</span>
+        <span class="ht-health-card__detail">{data.total_executions} executions</span>
+      </div>
+      <div class="ht-health-card">
+        <span class="ht-health-card__label">Uptime</span>
+        <span class="ht-health-card__value">
+          {data.uptime_seconds ? `${uptimeH}h ${uptimeM}m` : "—"}
+        </span>
+      </div>
+    </div>
+  );
+}

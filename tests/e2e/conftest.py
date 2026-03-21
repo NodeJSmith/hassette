@@ -11,6 +11,16 @@ import pytest
 import uvicorn
 
 from hassette.core.app_registry import AppInstanceInfo
+from hassette.core.telemetry_models import (
+    GlobalSummary,
+    HandlerInvocation,
+    JobExecution,
+    JobGlobalStats,
+    JobSummary,
+    ListenerGlobalStats,
+    ListenerSummary,
+    SessionSummary,
+)
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
     make_job,
@@ -96,60 +106,211 @@ def mock_hassette():
     """Create a session-scoped mock Hassette with rich seed data."""
     manifests = _build_manifests()
 
-    # Listener data in the new TelemetryQueryService dict format (handler_method, app_key, instance_index).
-    telemetry_listeners = [
-        {
-            "id": 1,
-            "handler_method": "on_light_change",
-            "topic": "state_changed.light.kitchen",
-            "app_key": "my_app",
-            "instance_index": 0,
-            "debounce": 0.5,
-            "throttle": None,
-            "once": False,
-            "priority": 0,
-            "predicate_description": "EntityMatches(entity_id='light.kitchen')",
-            "source_location": None,
-            "registration_source": None,
-            "total_invocations": 10,
-            "successful": 9,
-            "failed": 1,
-            "di_failures": 0,
-            "cancelled": 0,
-            "total_duration_ms": 20.0,
-            "avg_duration_ms": 2.0,
-            "min_duration_ms": 1.0,
-            "max_duration_ms": 5.0,
-            "last_invoked_at": None,
-            "last_error_type": None,
-            "last_error_message": None,
-        },
-        {
-            "id": 2,
-            "handler_method": "on_temp_update",
-            "topic": "state_changed.sensor.temperature",
-            "app_key": "my_app",
-            "instance_index": 0,
-            "debounce": None,
-            "throttle": 1.0,
-            "once": False,
-            "priority": 0,
-            "predicate_description": "EntityMatches(entity_id='sensor.temperature')",
-            "source_location": None,
-            "registration_source": None,
-            "total_invocations": 20,
-            "successful": 20,
-            "failed": 0,
-            "di_failures": 0,
-            "cancelled": 0,
-            "total_duration_ms": 40.0,
-            "avg_duration_ms": 2.0,
-            "min_duration_ms": 1.0,
-            "max_duration_ms": 5.0,
-            "last_invoked_at": None,
-            "last_error_type": None,
-            "last_error_message": None,
-        },
+    # Listener summaries as proper Pydantic models (returned by TelemetryQueryService).
+    telemetry_listeners_my_app = [
+        ListenerSummary(
+            listener_id=1,
+            handler_method="on_light_change",
+            topic="state_changed.light.kitchen",
+            app_key="my_app",
+            instance_index=0,
+            debounce=0.5,
+            throttle=None,
+            once=0,
+            priority=0,
+            predicate_description="EntityMatches(entity_id='light.kitchen')",
+            human_description=None,
+            source_location="my_app.py:15",
+            registration_source="on_initialize",
+            total_invocations=10,
+            successful=9,
+            failed=1,
+            di_failures=0,
+            cancelled=0,
+            total_duration_ms=20.0,
+            avg_duration_ms=2.0,
+            min_duration_ms=1.0,
+            max_duration_ms=5.0,
+            last_invoked_at=1704067200.0,
+            last_error_type="ValueError",
+            last_error_message="Bad state value",
+        ),
+        ListenerSummary(
+            listener_id=2,
+            handler_method="on_temp_update",
+            topic="state_changed.sensor.temperature",
+            app_key="my_app",
+            instance_index=0,
+            debounce=None,
+            throttle=1.0,
+            once=0,
+            priority=0,
+            predicate_description="EntityMatches(entity_id='sensor.temperature')",
+            human_description="React to temperature sensor changes above threshold",
+            source_location="my_app.py:22",
+            registration_source="on_initialize",
+            total_invocations=20,
+            successful=20,
+            failed=0,
+            di_failures=0,
+            cancelled=0,
+            total_duration_ms=40.0,
+            avg_duration_ms=2.0,
+            min_duration_ms=1.0,
+            max_duration_ms=5.0,
+            last_invoked_at=1704067100.0,
+            last_error_type=None,
+            last_error_message=None,
+        ),
+    ]
+
+    # broken_app listeners — registered before the app failed during init.
+    telemetry_listeners_broken_app = [
+        ListenerSummary(
+            listener_id=3,
+            handler_method="on_door_open",
+            topic="state_changed.binary_sensor.door",
+            app_key="broken_app",
+            instance_index=0,
+            debounce=None,
+            throttle=None,
+            once=0,
+            priority=0,
+            predicate_description="EntityMatches(entity_id='binary_sensor.door')",
+            human_description="Lock door after 5 minutes of being open",
+            source_location="broken_app.py:8",
+            registration_source="on_initialize",
+            total_invocations=3,
+            successful=1,
+            failed=2,
+            di_failures=0,
+            cancelled=0,
+            total_duration_ms=15.0,
+            avg_duration_ms=5.0,
+            min_duration_ms=2.0,
+            max_duration_ms=10.0,
+            last_invoked_at=1704067050.0,
+            last_error_type="RuntimeError",
+            last_error_message="Lock service timed out",
+        ),
+    ]
+
+    telemetry_listeners_by_app = {
+        "my_app": telemetry_listeners_my_app,
+        "broken_app": telemetry_listeners_broken_app,
+    }
+
+    # Job summaries as proper Pydantic models.
+    telemetry_jobs_my_app = [
+        JobSummary(
+            job_id=1,
+            app_key="my_app",
+            instance_index=0,
+            job_name="check_lights",
+            handler_method="check_lights",
+            trigger_type="interval",
+            trigger_value="PT30S",
+            repeat=1,
+            args_json="[]",
+            kwargs_json="{}",
+            source_location="my_app.py:30",
+            registration_source="on_initialize",
+            total_executions=15,
+            successful=14,
+            failed=1,
+            last_executed_at=1704067200.0,
+            total_duration_ms=52.5,
+            avg_duration_ms=3.5,
+        ),
+        JobSummary(
+            job_id=2,
+            app_key="my_app",
+            instance_index=0,
+            job_name="morning_routine",
+            handler_method="morning_routine",
+            trigger_type="cron",
+            trigger_value="0 7 * * * 0",
+            repeat=1,
+            args_json="[]",
+            kwargs_json="{}",
+            source_location="my_app.py:45",
+            registration_source="on_initialize",
+            total_executions=5,
+            successful=5,
+            failed=0,
+            last_executed_at=1704067100.0,
+            total_duration_ms=60.0,
+            avg_duration_ms=12.0,
+        ),
+    ]
+
+    telemetry_jobs_broken_app = [
+        JobSummary(
+            job_id=3,
+            app_key="broken_app",
+            instance_index=0,
+            job_name="retry_connection",
+            handler_method="retry_connection",
+            trigger_type="interval",
+            trigger_value="PT60S",
+            repeat=1,
+            args_json="[]",
+            kwargs_json="{}",
+            source_location="broken_app.py:20",
+            registration_source="on_initialize",
+            total_executions=8,
+            successful=3,
+            failed=5,
+            last_executed_at=1704067050.0,
+            total_duration_ms=64.0,
+            avg_duration_ms=8.0,
+        ),
+    ]
+
+    telemetry_jobs_by_app = {
+        "my_app": telemetry_jobs_my_app,
+        "broken_app": telemetry_jobs_broken_app,
+    }
+
+    # Handler invocation records (for drill-down).
+    handler_invocations = [
+        HandlerInvocation(
+            execution_start_ts=1704067200.0,
+            duration_ms=2.5,
+            status="success",
+            error_type=None,
+            error_message=None,
+            error_traceback=None,
+        ),
+        HandlerInvocation(
+            execution_start_ts=1704067100.0,
+            duration_ms=3.1,
+            status="error",
+            error_type="ValueError",
+            error_message="Bad state value",
+            error_traceback=(
+                'Traceback (most recent call last):\n  File "my_app.py", line 18, in '
+                'on_light_change\n    raise ValueError("Bad state value")\nValueError: Bad state value\n'
+            ),
+        ),
+    ]
+
+    # Job execution records (for drill-down).
+    job_executions = [
+        JobExecution(
+            execution_start_ts=1704067200.0,
+            duration_ms=3.0,
+            status="success",
+            error_type=None,
+            error_message=None,
+        ),
+        JobExecution(
+            execution_start_ts=1704067100.0,
+            duration_ms=4.2,
+            status="error",
+            error_type="TimeoutError",
+            error_message="Light service unavailable",
+        ),
     ]
 
     hassette = create_hassette_stub(
@@ -207,24 +368,107 @@ def mock_hassette():
             ],
         ),
         scheduler_jobs=[
-            make_job(trigger_detail="PT30S"),
+            make_job(trigger_detail="PT30S", app_key="my_app", instance_index=0),
             make_job(
                 job_id="job-2",
                 name="morning_routine",
                 next_run="2024-01-01T07:00:00",
                 trigger_type="cron",
                 trigger_detail="0 7 * * * 0",
+                app_key="my_app",
+                instance_index=0,
             ),
         ],
     )
 
-    # Wire telemetry mock to return new-format listener dicts for my_app.
+    # Wire telemetry mock to return typed models per app_key.
     from unittest.mock import AsyncMock
 
     hassette._telemetry_query_service.get_listener_summary = AsyncMock(
-        side_effect=lambda app_key, **_: telemetry_listeners if app_key == "my_app" else []
+        side_effect=lambda app_key, **_: telemetry_listeners_by_app.get(app_key, [])
     )
+    hassette._telemetry_query_service.get_job_summary = AsyncMock(
+        side_effect=lambda app_key, **_: telemetry_jobs_by_app.get(app_key, [])
+    )
+    hassette._telemetry_query_service.get_handler_invocations = AsyncMock(
+        return_value=handler_invocations,
+    )
+    hassette._telemetry_query_service.get_job_executions = AsyncMock(
+        return_value=job_executions,
+    )
+
+    # Global summary for KPI strip — typed model.
+    hassette._telemetry_query_service.get_global_summary = AsyncMock(
+        return_value=GlobalSummary(
+            listeners=ListenerGlobalStats(
+                total_listeners=3,
+                invoked_listeners=3,
+                total_invocations=33,
+                total_errors=3,
+                total_di_failures=0,
+                avg_duration_ms=2.5,
+            ),
+            jobs=JobGlobalStats(
+                total_jobs=3,
+                executed_jobs=3,
+                total_executions=28,
+                total_errors=6,
+            ),
+        )
+    )
+
+    # Current session summary for the session bar — typed model.
+    hassette._telemetry_query_service.get_current_session_summary = AsyncMock(
+        return_value=SessionSummary(
+            started_at=1704067200.0,
+            last_heartbeat_at=1704070800.0,
+            total_invocations=33,
+            invocation_errors=3,
+            total_executions=28,
+            execution_errors=6,
+        )
+    )
+
+    # Recent errors for the error feed — includes errors from multiple apps.
+    hassette._telemetry_query_service.get_recent_errors = AsyncMock(
+        return_value=[
+            {
+                "app_key": "my_app",
+                "handler_method": "on_light_change",
+                "topic": "state_changed.light.kitchen",
+                "execution_start_ts": 1704067100.0,
+                "duration_ms": 3.1,
+                "error_type": "ValueError",
+                "error_message": "Bad state value",
+                "kind": "handler",
+            },
+            {
+                "app_key": "my_app",
+                "handler_method": "check_lights",
+                "job_name": "check_lights",
+                "execution_start_ts": 1704067000.0,
+                "duration_ms": 4.2,
+                "error_type": "TimeoutError",
+                "error_message": "Light service unavailable",
+                "kind": "job",
+            },
+            {
+                "app_key": "broken_app",
+                "handler_method": "on_door_open",
+                "topic": "state_changed.binary_sensor.door",
+                "execution_start_ts": 1704067050.0,
+                "duration_ms": 10.0,
+                "error_type": "RuntimeError",
+                "error_message": "Lock service timed out",
+                "kind": "handler",
+            },
+        ]
+    )
+
     hassette.telemetry_query_service = hassette._telemetry_query_service
+
+    # --- Session ID for error feed session scoping ---
+    hassette.session_id = 1
 
     # --- e2e-specific: owner resolution wiring ---
     app_instances = {

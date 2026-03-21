@@ -3,6 +3,14 @@
 ARG PYTHON_VERSION=3.13
 ARG UV_VERSION=0.9.8
 
+# ---- Frontend stage (Node.js — builds the Preact SPA) ----
+FROM node:22-slim AS frontend
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 # ---- uv stage ----
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
@@ -14,6 +22,8 @@ WORKDIR /app
 
 # Copy lock + manifest for dependency resolution
 ADD ./src /app/src
+# Copy SPA build output from frontend stage (vite outputs to ../src/hassette/web/static/spa relative to WORKDIR)
+COPY --from=frontend /app/src/hassette/web/static/spa/ /app/src/hassette/web/static/spa/
 ADD ./scripts /app/scripts
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./uv.lock /app/uv.lock

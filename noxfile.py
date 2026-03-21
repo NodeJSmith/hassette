@@ -1,4 +1,5 @@
 import typing
+from pathlib import Path
 
 import nox
 
@@ -7,10 +8,21 @@ if typing.TYPE_CHECKING:
 
 nox.options.default_venv_backend = "uv|virtualenv"
 
+_SPA_INDEX = Path("src/hassette/web/static/spa/index.html")
+
+
+@nox.session(python=False)
+def frontend(session: "Session"):
+    """Build the Preact SPA."""
+    session.run("npm", "ci", "--prefix", "frontend", external=True)
+    session.run("npm", "run", "build", "--prefix", "frontend", external=True)
+
 
 @nox.session(python=False)
 def dev(session: "Session"):
     """Fast local test run — uses the current interpreter, no reinstall."""
+    if not _SPA_INDEX.exists():
+        session.warn("SPA not built — run `nox -s frontend` first (e2e tests will fail)")
     session.run(
         "uv",
         "run",
@@ -50,6 +62,10 @@ def tests(session: "Session"):
 
 @nox.session(python=["3.13"])
 def e2e(session: "Session"):
+    # Build frontend if not already built
+    if not _SPA_INDEX.exists():
+        session.run("npm", "ci", "--prefix", "frontend", external=True)
+        session.run("npm", "run", "build", "--prefix", "frontend", external=True)
     session.run("uv", "run", "--active", "playwright", "install", "--with-deps", "chromium", external=True)
     session.run(
         "uv",

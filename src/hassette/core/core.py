@@ -284,7 +284,21 @@ class Hassette(Resource):
         # pyright ignore is to handle what seems like another 3.11 bug/type issue
         self.loop.set_task_factory(make_task_factory(self.task_bucket))  # pyright: ignore[reportArgumentType]
 
-        self._start_resources()
+        # Phase 1: Start database and create session before anything else.
+        # This guarantees a valid session_id exists before any handler can fire.
+        self._start_database()
+
+        try:
+            await self.wait_for_ready([self.database_service], timeout=self.config.startup_timeout_seconds)
+            await self._session_manager.mark_orphaned_sessions()
+            await self._session_manager.create_session()
+        except Exception:
+            self.logger.exception("Failed to initialize session tracking")
+            await self.shutdown()
+            return
+
+        # Phase 2: Start all remaining services now that the session exists.
+        self._start_remaining_resources()
 
         self.logger.info("Waiting for resources to initialize...")
 
@@ -300,8 +314,6 @@ class Hassette(Resource):
             return
 
         try:
-            await self._session_manager.mark_orphaned_sessions()
-            await self._session_manager.create_session()
             self._bus.on_hassette_service_crashed(handler=self._session_manager.on_service_crashed)
         except Exception:
             self.logger.exception("Failed to initialize session tracking")
@@ -327,11 +339,15 @@ class Hassette(Resource):
 
         self.logger.info("Hassette stopped.")
 
-    def _start_resources(self) -> None:
-        """Start background services like websocket, event bus, and scheduler."""
+    def _start_database(self) -> None:
+        """Start only the DatabaseService (phase 1 of startup)."""
+        self._database_service.start()
 
+    def _start_remaining_resources(self) -> None:
+        """Start all children except DatabaseService (phase 2 of startup)."""
         for service in self.children:
-            service.start()
+            if service is not self._database_service:
+                service.start()
 
     async def on_shutdown(self) -> None:
         """Shutdown all services gracefully and gather any results."""

@@ -49,16 +49,17 @@ class CommandExecutor(Service):
         await self.hassette.wait_for_ready([self.hassette.database_service])
 
     def _safe_session_id(self) -> int:
-        """Return the current session ID, or 0 if no session has been created yet.
+        """Return the current session ID.
 
-        Sessions are created in run_forever() after all resources start. During the
-        startup window, handlers may fire before the session exists. Using 0 as a
-        sentinel lets _persist_batch() filter these pre-session records rather than
-        crashing with RuntimeError or violating the FK constraint.
+        With phased startup, the session is always created before any service
+        can fire a handler. Falls back to 0 on error to avoid crash cascades
+        inside exception handlers (the persist layer's regression guard will
+        drop and log the record).
         """
         try:
             return self.hassette.session_id
         except RuntimeError:
+            self.logger.error("Session ID unavailable — record will be dropped by persist guard")
             return 0
 
     async def serve(self) -> None:
@@ -319,11 +320,14 @@ class CommandExecutor(Service):
             INSERT INTO listeners (
                 app_key, instance_index, handler_method, topic,
                 debounce, throttle, once, priority,
-                predicate_description, source_location, registration_source,
+                predicate_description, human_description,
+                source_location, registration_source,
                 first_registered_at, last_registered_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (app_key, instance_index, handler_method, topic)
-            DO UPDATE SET last_registered_at = excluded.last_registered_at
+            DO UPDATE SET
+                last_registered_at = excluded.last_registered_at,
+                human_description = excluded.human_description
             RETURNING id
             """,
             (
@@ -336,6 +340,7 @@ class CommandExecutor(Service):
                 1 if registration.once else 0,
                 registration.priority,
                 registration.predicate_description,
+                registration.human_description,
                 registration.source_location,
                 registration.registration_source,
                 registration.first_registered_at,
@@ -495,23 +500,20 @@ class CommandExecutor(Service):
             invocations: Handler invocation records to insert into handler_invocations.
             job_executions: Job execution records to insert into job_executions.
         """
-        # Filter out records with unregistered IDs (id=0 sentinel means the handler fired before
-        # register_listener/register_job completed — a startup race). Log and drop rather than
-        # violate the FK constraint.
-        # Also filter session_id=0 (handler fired before _create_session() ran — a second startup
-        # race). Both 0-sentinels would violate FK constraints on their respective parent tables.
+        # Defense-in-depth: with phased startup and direct dispatch for internal handlers,
+        # no code path should produce id=0 sentinel records. If they appear, it's a regression.
         unregistered_invocations = [r for r in invocations if r.listener_id == 0 or r.session_id == 0]
         unregistered_jobs = [r for r in job_executions if r.job_id == 0 or r.session_id == 0]
         if unregistered_invocations:
-            self.logger.warning(
-                "Dropping %d handler invocation record(s) with listener_id=0 or session_id=0 "
-                "(fired before registration or session creation completed)",
+            self.logger.error(
+                "REGRESSION: Dropping %d handler invocation record(s) with listener_id=0 or session_id=0 "
+                "— this should not happen after phased startup",
                 len(unregistered_invocations),
             )
         if unregistered_jobs:
-            self.logger.warning(
-                "Dropping %d job execution record(s) with job_id=0 or session_id=0 "
-                "(fired before registration or session creation completed)",
+            self.logger.error(
+                "REGRESSION: Dropping %d job execution record(s) with job_id=0 or session_id=0 "
+                "— this should not happen after phased startup",
                 len(unregistered_jobs),
             )
         invocations = [r for r in invocations if r.listener_id != 0 and r.session_id != 0]

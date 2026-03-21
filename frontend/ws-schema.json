@@ -1,0 +1,462 @@
+{
+  "$defs": {
+    "AppStatusChangedPayload": {
+      "description": "Mirrors ``events.hassette.AppStateChangePayload`` exactly.",
+      "properties": {
+        "app_key": {
+          "title": "App Key",
+          "type": "string"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "previous_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Status"
+        },
+        "instance_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instance Name"
+        },
+        "class_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Class Name"
+        },
+        "exception": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exception"
+        },
+        "exception_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exception Type"
+        },
+        "exception_traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exception Traceback"
+        }
+      },
+      "required": [
+        "app_key",
+        "index",
+        "status"
+      ],
+      "title": "AppStatusChangedPayload",
+      "type": "object"
+    },
+    "AppStatusChangedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "app_status_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppStatusChangedPayload"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "AppStatusChangedWsMessage",
+      "type": "object"
+    },
+    "ConnectedPayload": {
+      "properties": {
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "entity_count": {
+          "title": "Entity Count",
+          "type": "integer"
+        },
+        "app_count": {
+          "title": "App Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entity_count",
+        "app_count"
+      ],
+      "title": "ConnectedPayload",
+      "type": "object"
+    },
+    "ConnectedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "connected",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ConnectedPayload"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "title": "ConnectedWsMessage",
+      "type": "object"
+    },
+    "ConnectivityPayload": {
+      "properties": {
+        "connected": {
+          "title": "Connected",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "connected"
+      ],
+      "title": "ConnectivityPayload",
+      "type": "object"
+    },
+    "ConnectivityWsMessage": {
+      "properties": {
+        "type": {
+          "const": "connectivity",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ConnectivityPayload"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "ConnectivityWsMessage",
+      "type": "object"
+    },
+    "LogEntryResponse": {
+      "properties": {
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        },
+        "level": {
+          "title": "Level",
+          "type": "string"
+        },
+        "logger_name": {
+          "title": "Logger Name",
+          "type": "string"
+        },
+        "func_name": {
+          "title": "Func Name",
+          "type": "string"
+        },
+        "lineno": {
+          "title": "Lineno",
+          "type": "integer"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "exc_info": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exc Info"
+        },
+        "app_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "App Key"
+        }
+      },
+      "required": [
+        "timestamp",
+        "level",
+        "logger_name",
+        "func_name",
+        "lineno",
+        "message"
+      ],
+      "title": "LogEntryResponse",
+      "type": "object"
+    },
+    "LogWsMessage": {
+      "properties": {
+        "type": {
+          "const": "log",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/LogEntryResponse"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "LogWsMessage",
+      "type": "object"
+    },
+    "ServiceStatusPayloadModel": {
+      "description": "Mirrors ``events.hassette.ServiceStatusPayload``.",
+      "properties": {
+        "resource_name": {
+          "title": "Resource Name",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "previous_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Status"
+        },
+        "exception": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exception"
+        },
+        "exception_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exception Type"
+        },
+        "exception_traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exception Traceback"
+        }
+      },
+      "required": [
+        "resource_name",
+        "role",
+        "status"
+      ],
+      "title": "ServiceStatusPayloadModel",
+      "type": "object"
+    },
+    "ServiceStatusWsMessage": {
+      "properties": {
+        "type": {
+          "const": "service_status",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ServiceStatusPayloadModel"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "ServiceStatusWsMessage",
+      "type": "object"
+    },
+    "StateChangedPayload": {
+      "properties": {
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "string"
+        },
+        "new_state": {
+          "title": "New State"
+        },
+        "old_state": {
+          "title": "Old State"
+        }
+      },
+      "required": [
+        "entity_id",
+        "new_state",
+        "old_state"
+      ],
+      "title": "StateChangedPayload",
+      "type": "object"
+    },
+    "StateChangedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "state_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/StateChangedPayload"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "StateChangedWsMessage",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "app_status_changed": "#/$defs/AppStatusChangedWsMessage",
+      "connected": "#/$defs/ConnectedWsMessage",
+      "connectivity": "#/$defs/ConnectivityWsMessage",
+      "log": "#/$defs/LogWsMessage",
+      "service_status": "#/$defs/ServiceStatusWsMessage",
+      "state_changed": "#/$defs/StateChangedWsMessage"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/AppStatusChangedWsMessage"
+    },
+    {
+      "$ref": "#/$defs/LogWsMessage"
+    },
+    {
+      "$ref": "#/$defs/ConnectedWsMessage"
+    },
+    {
+      "$ref": "#/$defs/ConnectivityWsMessage"
+    },
+    {
+      "$ref": "#/$defs/StateChangedWsMessage"
+    },
+    {
+      "$ref": "#/$defs/ServiceStatusWsMessage"
+    }
+  ]
+}
