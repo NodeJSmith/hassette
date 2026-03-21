@@ -172,3 +172,26 @@ Dashboard refetches app grid on WS events but NOT KPIs or errors. App detail nev
 
 ### 29. Handler/job invocations cached forever on expand — MEDIUM
 `handler-row.tsx:30` / `job-row.tsx:33` — `loaded` signal prevents refetch after first expand. Re-expanding shows stale data. Comment calls this "THE KEY ARCHITECTURAL WIN" but it's a data freshness bug for a monitoring tool. Fix: always refetch on expand, or add staleness timer.
+
+## Code Quality Challenge (3-critic review, code focus) — 2026-03-21
+
+### 30. Dead CSS ~40% of global.css + 8 missing CSS classes used in TSX — HIGH
+~650 lines of htmx-era CSS unreferenced. Simultaneously, `.ht-spinner`, `.ht-text-mono`, `.ht-btn-primary`, `.ht-btn--link`, `.ht-alert-danger`, `.ht-alert-list`, `.ht-sortable`, `.ht-error-entry*` used in TSX but not defined in CSS. Silent visual bugs. Fix: strip dead CSS, fix BEM names.
+
+### 31. Instance switcher uses window.location.href — full page reload in SPA — MEDIUM
+`app-detail.tsx:104` — navigates via `window.location.href`, abandoning all client state (WS, logs, expanded rows). Fix: use wouter's `useLocation` for client-side navigation.
+
+### 32. ErrorBoundary traps navigation — user stuck on error screen — MEDIUM
+`error-boundary.tsx:19` — error state blocks all children, no route-change detection. Sidebar clicks invisible. Fix: reset error state on route change.
+
+### 33. SVG icons duplicated across 5+ files (~60 lines) — MEDIUM
+Same Lucide icons inlined verbatim in `app-detail.tsx`, `logs.tsx`, `apps.tsx`, `sidebar.tsx`, `dashboard.tsx`. Fix: shared `icons.tsx` module.
+
+### 34. Status-to-variant mapping duplicated 3x with different naming — MEDIUM
+`status-badge.tsx`, `app-card.tsx`, `health-strip.tsx` each independently map status to CSS variant. Adding a new status requires finding all three. Fix: single `status-variant.ts` utility.
+
+### 35. RingBuffer mutation + version signal is fragile implicit contract — MEDIUM
+`create-app-state.ts:25-28` — mutable buffer paired with manual `version++` notification. Forgetting to increment = silent render bug. Fix: encapsulate in a single `push()` that atomically updates both.
+
+### 36. Backend dictates CSS class names via error_rate_class/health_status — LOW
+`endpoints.ts:53` — server string used directly as CSS class. Backend rename = silent style breakage. Fix: map server values to typed frontend enum at API boundary.
