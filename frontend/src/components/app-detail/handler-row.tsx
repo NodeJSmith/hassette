@@ -78,7 +78,11 @@ export function HandlerRow({ listener }: Props) {
             </span>
           )}
         </div>
-        <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`}>›</span>
+        <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 2 8 6 4 10" />
+          </svg>
+        </span>
       </div>
       {expanded.value && (
         <div class="ht-item-detail" id={`handler-${listener.listener_id}-detail`}>
