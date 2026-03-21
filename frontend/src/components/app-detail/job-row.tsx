@@ -47,7 +47,7 @@ export function JobRow({ job }: Props) {
       <div
         class="ht-item-row__main"
         role="button"
-        tabindex={0}
+        tabIndex={0}
         aria-expanded={expanded.value}
         onClick={() => void toggle()}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void toggle(); } }}

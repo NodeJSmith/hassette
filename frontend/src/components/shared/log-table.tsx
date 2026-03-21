@@ -24,9 +24,9 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
 
   // Fetch initial entries on mount
   useEffect(() => {
-    getRecentLogs({ app_key: appKey, limit: 200 }).then((entries) => {
-      initialEntries.value = entries;
-    });
+    getRecentLogs({ app_key: appKey, limit: 200 })
+      .then((entries) => { initialEntries.value = entries; })
+      .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
   }, [appKey]);
 
   // Read version to subscribe to WS updates

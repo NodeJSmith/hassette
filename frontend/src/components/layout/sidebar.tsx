@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 
 const NAV_ITEMS = [
   {
@@ -59,9 +59,9 @@ export function Sidebar() {
   return (
     <aside class="ht-sidebar">
       <div class="ht-sidebar-brand">
-        <a href="/" class="ht-brand-link" aria-label="Hassette home">
+        <Link href="/" class="ht-brand-link" aria-label="Hassette home">
           <img src="/hassette-logo.png" alt="Hassette" style={{ height: "24px", width: "auto" }} />
-        </a>
+        </Link>
       </div>
       <nav aria-label="Main navigation">
         <ul class="ht-nav-list">
@@ -72,14 +72,14 @@ export function Sidebar() {
                 : location.startsWith(item.path);
             return (
               <li key={item.path}>
-                <a
+                <Link
                   href={item.path}
                   class={`ht-nav-item${isActive ? " is-active" : ""}`}
                   data-testid={item.testId}
                   aria-label={item.label}
                 >
                   {item.icon}
-                </a>
+                </Link>
               </li>
             );
           })}
