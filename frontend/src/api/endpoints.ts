@@ -93,6 +93,9 @@ export interface DashboardAppGridEntry {
   job_count: number;
   total_invocations: number;
   total_errors: number;
+  total_executions: number;
+  total_job_errors: number;
+  avg_duration_ms: number;
   health_status: string;
   last_activity_ts: number | null;
 }
