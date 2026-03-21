@@ -331,9 +331,12 @@ class TelemetryQueryService(Resource):
             ),
         )
 
-    async def get_handler_invocations(self, listener_id: int, limit: int = 50) -> list[HandlerInvocation]:
+    async def get_handler_invocations(
+        self, listener_id: int, limit: int = 50, session_id: int | None = None
+    ) -> list[HandlerInvocation]:
         """Return recent invocation records for a specific listener."""
-        query = """
+        session_clause = "AND hi.session_id = ?" if session_id is not None else ""
+        query = f"""
             SELECT
                 hi.execution_start_ts,
                 hi.duration_ms,
@@ -342,17 +345,21 @@ class TelemetryQueryService(Resource):
                 hi.error_message,
                 hi.error_traceback
             FROM handler_invocations hi
-            WHERE hi.listener_id = ?
+            WHERE hi.listener_id = ? {session_clause}
             ORDER BY hi.execution_start_ts DESC
             LIMIT ?
         """
-        async with self._db.execute(query, (listener_id, limit)) as cursor:
+        params = (listener_id, session_id, limit) if session_id is not None else (listener_id, limit)
+        async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [HandlerInvocation.model_validate(_row_to_dict(row)) for row in rows]
 
-    async def get_job_executions(self, job_id: int, limit: int = 50) -> list[JobExecution]:
+    async def get_job_executions(
+        self, job_id: int, limit: int = 50, session_id: int | None = None
+    ) -> list[JobExecution]:
         """Return recent execution records for a specific scheduled job."""
-        query = """
+        session_clause = "AND je.session_id = ?" if session_id is not None else ""
+        query = f"""
             SELECT
                 je.execution_start_ts,
                 je.duration_ms,
@@ -360,11 +367,12 @@ class TelemetryQueryService(Resource):
                 je.error_type,
                 je.error_message
             FROM job_executions je
-            WHERE je.job_id = ?
+            WHERE je.job_id = ? {session_clause}
             ORDER BY je.execution_start_ts DESC
             LIMIT ?
         """
-        async with self._db.execute(query, (job_id, limit)) as cursor:
+        params = (job_id, session_id, limit) if session_id is not None else (job_id, limit)
+        async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [JobExecution.model_validate(_row_to_dict(row)) for row in rows]
 

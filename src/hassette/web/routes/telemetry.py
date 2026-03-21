@@ -139,21 +139,25 @@ async def app_jobs(
 @router.get("/handler/{listener_id}/invocations", response_model=list[HandlerInvocation])
 async def handler_invocations(
     listener_id: int,
+    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[HandlerInvocation]:
-    """Invocation history for a specific handler."""
-    return list(await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit))
+    """Invocation history for a specific handler (session-scoped)."""
+    session_id = safe_session_id(runtime)
+    return list(await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit, session_id=session_id))
 
 
 @router.get("/job/{job_id}/executions", response_model=list[JobExecution])
 async def job_executions(
     job_id: int,
+    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[JobExecution]:
-    """Execution history for a specific job."""
-    return list(await telemetry.get_job_executions(job_id=job_id, limit=limit))
+    """Execution history for a specific job (session-scoped)."""
+    session_id = safe_session_id(runtime)
+    return list(await telemetry.get_job_executions(job_id=job_id, limit=limit, session_id=session_id))
 
 
 @router.get("/dashboard/kpis", response_model=DashboardKpisResponse)

@@ -369,6 +369,21 @@ strong {
   background: var(--ht-surface-recessed);
 }
 
+.ht-table--dense td {
+  font-size: var(--ht-text-sm);
+  padding: var(--ht-sp-1) var(--ht-sp-3);
+}
+
+.ht-table--compact td {
+  font-size: var(--ht-text-sm);
+  padding: var(--ht-sp-1) var(--ht-sp-2);
+}
+
+.ht-log-message {
+  font-size: var(--ht-text-sm);
+  word-break: break-word;
+}
+
 .ht-table--dense th,
 .ht-table--dense td {
   padding: 0.3em 0.5em;
