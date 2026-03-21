@@ -68,36 +68,38 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
 
   return (
     <div class="ht-log-table-container">
-      <div class="ht-log-filters">
-        <select
-          class="ht-select ht-select--sm"
-          value={minLevel.value}
-          onChange={(e) => {
-            minLevel.value = (e.target as HTMLSelectElement).value;
-          }}
-        >
-          <option value="">All Levels</option>
-          {LEVELS.map((level) => (
-            <option key={level} value={level}>
-              {level}
-            </option>
-          ))}
-        </select>
-        {showAppColumn && appKeys && appKeys.length > 0 && (
+      <div class="ht-field-group">
+        <div class="ht-select ht-select--sm">
           <select
-            class="ht-select ht-select--sm"
-            value={appFilter.value}
+            value={minLevel.value}
             onChange={(e) => {
-              appFilter.value = (e.target as HTMLSelectElement).value;
+              minLevel.value = (e.target as HTMLSelectElement).value;
             }}
           >
-            <option value="">All Apps</option>
-            {appKeys.map((key) => (
-              <option key={key} value={key}>
-                {key}
+            <option value="">All Levels</option>
+            {LEVELS.map((level) => (
+              <option key={level} value={level}>
+                {level}
               </option>
             ))}
           </select>
+        </div>
+        {showAppColumn && appKeys && appKeys.length > 0 && (
+          <div class="ht-select ht-select--sm">
+            <select
+              value={appFilter.value}
+              onChange={(e) => {
+                appFilter.value = (e.target as HTMLSelectElement).value;
+              }}
+            >
+              <option value="">All Apps</option>
+              {appKeys.map((key) => (
+                <option key={key} value={key}>
+                  {key}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
         <input
           class="ht-input ht-input--sm"
