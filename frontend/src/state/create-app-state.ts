@@ -29,7 +29,7 @@ export function createAppState() {
 
     /** Dark/light theme (initialized from localStorage if available). */
     theme: signal<"dark" | "light">(
-      (typeof localStorage !== "undefined" && localStorage.getItem("ht-theme") === "light") ? "light" : "dark"
+      (typeof globalThis.localStorage?.getItem === "function" && localStorage.getItem("ht-theme") === "light") ? "light" : "dark"
     ),
 
     /** Current Hassette session ID (from WS connected message). */
