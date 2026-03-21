@@ -131,7 +131,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
               </tr>
             )}
             {sorted.slice(0, 500).map((entry, i) => (
-              <tr key={i} class={`ht-log-row ht-log-${entry.level.toLowerCase()}`}>
+              <tr key={i}>
                 <td>
                   <span class={`ht-badge ht-badge--sm ht-badge--${entry.level === "ERROR" || entry.level === "CRITICAL" ? "danger" : entry.level === "WARNING" ? "warning" : entry.level === "DEBUG" ? "neutral" : "success"}`}>
                     {entry.level}
