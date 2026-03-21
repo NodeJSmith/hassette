@@ -8,7 +8,7 @@ interface Props {
 export function HandlerList({ listeners }: Props) {
   if (!listeners) return null;
   if (listeners.length === 0) {
-    return <p class="ht-text-muted ht-text-xs">No handlers registered.</p>;
+    return <p class="ht-text-muted ht-text-xs">No event handlers registered.</p>;
   }
 
   return (

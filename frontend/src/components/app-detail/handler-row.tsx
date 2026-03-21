@@ -78,10 +78,10 @@ export function HandlerRow({ listener }: Props) {
             </span>
           )}
         </div>
-        <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`} />
+        <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`}>›</span>
       </div>
       {expanded.value && (
-        <div class="ht-item-row__detail" id={`handler-${listener.listener_id}-detail`}>
+        <div class="ht-item-detail" id={`handler-${listener.listener_id}-detail`}>
           {loading.value ? (
             <p class="ht-text-muted ht-text-xs">Loading invocations...</p>
           ) : (

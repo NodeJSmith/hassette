@@ -1,12 +1,16 @@
-/** Format a Unix timestamp as a locale-appropriate time string. */
+/** Format a Unix timestamp as "MM/DD HH:MM:SS AM/PM" to match old UI. */
 export function formatTimestamp(ts: number): string {
-  return new Date(ts * 1000).toLocaleTimeString();
+  const d = new Date(ts * 1000);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const time = d.toLocaleTimeString();
+  return `${month}/${day} ${time}`;
 }
 
-/** Format a duration in milliseconds as a human-readable string. */
+/** Format a duration in milliseconds with one decimal (e.g., "158.0ms"). */
 export function formatDuration(ms: number): string {
   if (ms < 1) return "<1ms";
-  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 1000) return `${ms.toFixed(1)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
 

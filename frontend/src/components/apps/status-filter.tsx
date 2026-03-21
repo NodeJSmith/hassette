@@ -1,6 +1,6 @@
 import type { Signal } from "@preact/signals";
 
-const FILTERS = ["all", "running", "failed", "stopped", "disabled", "blocked"] as const;
+const FILTERS = ["all", "running", "failed", "stopped", "disabled"] as const;
 type FilterValue = (typeof FILTERS)[number];
 
 interface Props {
@@ -10,20 +10,23 @@ interface Props {
 
 export function StatusFilter({ active, counts }: Props) {
   return (
-    <div class="ht-tab-bar">
-      {FILTERS.map((f) => {
-        const count = f === "all" ? Object.values(counts).reduce((a, b) => a + b, 0) : (counts[f] ?? 0);
-        return (
-          <button
-            key={f}
-            class={`ht-tab${active.value === f ? " active" : ""}`}
-            onClick={() => { active.value = f; }}
-          >
-            {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
-          </button>
-        );
-      })}
-    </div>
+    <nav class="ht-tabs">
+      <ul>
+        {FILTERS.map((f) => {
+          const count = f === "all" ? Object.values(counts).reduce((a, b) => a + b, 0) : (counts[f] ?? 0);
+          return (
+            <li key={f} class={active.value === f ? "is-active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); active.value = f; }}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 

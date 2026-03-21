@@ -70,7 +70,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
     <div class="ht-log-table-container">
       <div class="ht-log-filters">
         <select
-          class="ht-select ht-select-sm"
+          class="ht-select ht-select--sm"
           value={minLevel.value}
           onChange={(e) => {
             minLevel.value = (e.target as HTMLSelectElement).value;
@@ -85,7 +85,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         </select>
         {showAppColumn && appKeys && appKeys.length > 0 && (
           <select
-            class="ht-select ht-select-sm"
+            class="ht-select ht-select--sm"
             value={appFilter.value}
             onChange={(e) => {
               appFilter.value = (e.target as HTMLSelectElement).value;
@@ -100,7 +100,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           </select>
         )}
         <input
-          class="ht-input ht-input-sm"
+          class="ht-input ht-input--sm"
           type="text"
           placeholder="Search..."
           value={search.value}
@@ -111,7 +111,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         <span class="ht-text-secondary ht-text-xs">{filtered.length} entries</span>
       </div>
       <div class="ht-log-table-scroll" style={{ maxHeight: "600px", overflow: "auto" }}>
-        <table class="ht-table ht-table-compact ht-table-log">
+        <table class="ht-table ht-table--compact ht-table-log">
           <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
             <tr>
               <th>Level</th>
@@ -123,6 +123,13 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
             </tr>
           </thead>
           <tbody>
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={showAppColumn ? 4 : 3} style={{ textAlign: "center" }} class="ht-text-muted">
+                  No log entries.
+                </td>
+              </tr>
+            )}
             {sorted.slice(0, 500).map((entry, i) => (
               <tr key={i} class={`ht-log-row ht-log-${entry.level.toLowerCase()}`}>
                 <td>

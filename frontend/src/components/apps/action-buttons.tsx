@@ -69,7 +69,7 @@ export function ActionButtons({ appKey, status }: Props) {
       )}
       {canReload && (
         <button
-          class="ht-btn ht-btn--sm ht-btn--ghost"
+          class="ht-btn ht-btn--sm ht-btn--info"
           data-testid={`btn-reload-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(reloadApp)}
