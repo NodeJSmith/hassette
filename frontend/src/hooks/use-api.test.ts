@@ -79,3 +79,99 @@ describe("useApi reconnect awareness", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("useApi lazy mode", () => {
+  it("does not fetch on mount when lazy is true", async () => {
+    const state = createAppState();
+    const fetcher = vi.fn().mockResolvedValue("lazy-data");
+
+    const { result } = renderHook(() => useApi(fetcher, [], { lazy: true }), {
+      wrapper: createWrapper(state),
+    });
+
+    // Wait a tick to ensure any async effects have settled
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Fetcher should NOT have been called
+    expect(fetcher).toHaveBeenCalledTimes(0);
+
+    // Initial state should be loading=false, data=null
+    expect(result.current.loading.value).toBe(false);
+    expect(result.current.data.value).toBeNull();
+
+    // Manual refetch should work
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.current.data.value).toBe("lazy-data");
+    expect(result.current.loading.value).toBe(false);
+  });
+
+  it("reconnect refetch works for lazy instances after first manual fetch", async () => {
+    const state = createAppState();
+    const fetcher = vi.fn().mockResolvedValue("lazy-data");
+
+    const { result } = renderHook(() => useApi(fetcher, [], { lazy: true }), {
+      wrapper: createWrapper(state),
+    });
+
+    // Wait to confirm no initial fetch
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetcher).toHaveBeenCalledTimes(0);
+
+    // Manual refetch
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Simulate reconnect
+    act(() => {
+      state.reconnectVersion.value = 1;
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("does not clear data on refetch (stale-while-revalidate)", async () => {
+    const state = createAppState();
+    let callCount = 0;
+    const fetcher = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          callCount++;
+          // Second call takes longer to verify stale data stays visible
+          const delay = callCount === 1 ? 0 : 100;
+          setTimeout(() => resolve(`data-${callCount}`), delay);
+        }),
+    );
+
+    const { result } = renderHook(() => useApi(fetcher, [], { lazy: true }), {
+      wrapper: createWrapper(state),
+    });
+
+    // First fetch
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(result.current.data.value).toBe("data-1");
+
+    // Start second fetch — data should NOT be cleared
+    act(() => {
+      void result.current.refetch();
+    });
+
+    // While loading, stale data should remain
+    expect(result.current.loading.value).toBe(true);
+    expect(result.current.data.value).toBe("data-1");
+
+    // Wait for second fetch to complete
+    await vi.waitFor(() => {
+      expect(result.current.data.value).toBe("data-2");
+    });
+  });
+});

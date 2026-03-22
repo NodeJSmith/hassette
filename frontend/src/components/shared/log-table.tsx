@@ -33,7 +33,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   void logs.version.value;
 
   // Combine initial entries + ring buffer entries
-  const wsEntries = logs.buffer.toArray().filter((e) => {
+  const wsEntries = logs.toArray().filter((e) => {
     if (appKey && e.app_key !== appKey) return false;
     return true;
   });

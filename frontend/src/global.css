@@ -308,27 +308,6 @@ strong {
   gap: var(--ht-sp-2);
 }
 
-/* — HTMX Page Transition Indicator ————————————————————— */
-.ht-main::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 56px;
-  right: 0;
-  height: 2px;
-  background: var(--ht-accent);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: none;
-  z-index: 50;
-  pointer-events: none;
-}
-
-.ht-layout.htmx-request .ht-main::before {
-  transform: scaleX(0.7);
-  transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 /* — Cards —————————————————————————————————————————————— */
 .ht-card {
   background: var(--ht-surface);
@@ -449,45 +428,6 @@ strong {
   color: var(--ht-text-secondary);
   background: var(--ht-surface-recessed);
 }
-
-/* App status badges */
-.ht-status-stopped {
-  color: var(--ht-warning);
-  background: var(--ht-warning-light);
-}
-
-.ht-status-disabled {
-  color: var(--ht-text-secondary);
-  background: var(--ht-surface-recessed);
-}
-
-.ht-status-blocked {
-  color: var(--ht-accent);
-  background: var(--ht-accent-light);
-}
-
-/* Entity state badges */
-.ht-entity-on {
-  color: var(--ht-bg);
-  background: var(--ht-success);
-}
-
-.ht-entity-off {
-  color: var(--ht-text-secondary);
-  background: var(--ht-surface-recessed);
-}
-
-.ht-entity-unavailable {
-  color: var(--ht-bg);
-  background: var(--ht-danger);
-}
-
-/* Log level badges */
-.ht-log-debug    { color: var(--ht-text-secondary); }
-.ht-log-info     { color: var(--ht-accent); }
-.ht-log-warning  { color: var(--ht-bg); background: var(--ht-warning); }
-.ht-log-error    { color: var(--ht-bg); background: var(--ht-danger); }
-.ht-log-critical { color: var(--ht-bg); background: var(--ht-danger); font-weight: var(--ht-weight-bold); }
 
 /* — Buttons ———————————————————————————————————————————— */
 .ht-btn {
@@ -657,15 +597,6 @@ strong {
   font-weight: var(--ht-weight-semibold);
 }
 
-/* — Notices ———————————————————————————————————————————— */
-.ht-notice--info {
-  background: var(--ht-accent-light);
-  color: var(--ht-accent);
-  border: 1px solid var(--ht-accent-light);
-  border-radius: var(--ht-radius-md);
-  padding: var(--ht-sp-4);
-}
-
 /* — Headings ——————————————————————————————————————————— */
 .ht-heading-1 {
   font-family: var(--ht-font-heading);
@@ -778,40 +709,12 @@ strong {
   animation: ht-pulse 0.6s ease-in-out;
 }
 
-/* — Log container —————————————————————————————————————— */
-.ht-log-container {
-  overflow-y: auto;
-}
-
 /* — Group / instance rows —————————————————————————————— */
-.ht-group-header {
-  background: var(--ht-surface-recessed);
-}
-
 .ht-instance-row td:first-child {
   padding-left: var(--ht-sp-6);
 }
 
-/* Event list (event feed partial) */
-.ht-event-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.ht-event-list li {
-  padding: 0.2em 0;
-}
-
-/* — Alert Banner ———————————————————————————————————————— */
-.ht-alert-banner {
-  padding: 0 var(--ht-sp-4);
-}
-
-.ht-alert-banner:empty {
-  display: none;
-}
-
+/* — Alerts ————————————————————————————————————————————— */
 .ht-alert {
   display: flex;
   align-items: center;
@@ -836,38 +739,6 @@ strong {
   align-items: stretch;
 }
 
-.ht-alert-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ht-sp-2);
-}
-
-.ht-alert-details {
-  margin-top: var(--ht-sp-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--ht-sp-2);
-}
-
-.ht-alert-item {
-  padding: var(--ht-sp-2);
-  background: var(--ht-surface-recessed);
-  border-radius: var(--ht-radius-sm);
-}
-
-.ht-alert-item-header {
-  display: flex;
-  align-items: center;
-  gap: var(--ht-sp-2);
-  flex-wrap: wrap;
-}
-
-.ht-alert-item-header a {
-  color: inherit;
-  text-decoration: underline;
-}
-
 .ht-traceback {
   margin: var(--ht-sp-2) 0 0;
   padding: var(--ht-sp-2) var(--ht-sp-3);
@@ -881,112 +752,13 @@ strong {
   line-height: 1.6;
 }
 
-/* — App Chips (dashboard) ————————————————————————————— */
-.ht-app-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ht-sp-2);
-}
-
-.ht-app-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25em 0.6em;
-  font-size: var(--ht-text-sm);
-  font-weight: var(--ht-weight-medium);
-  border-radius: var(--ht-radius-full);
-  background: var(--ht-surface-recessed);
-  color: var(--ht-text-secondary);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: opacity var(--ht-motion-micro);
-}
-
-.ht-app-chip:hover {
-  opacity: 0.8;
-  text-decoration: none;
-}
-
-.ht-app-chip--running  { background: var(--ht-success-light); color: var(--ht-success); }
-.ht-app-chip--failed   { background: var(--ht-danger-light);  color: var(--ht-danger); }
-.ht-app-chip--stopped  { background: var(--ht-warning-light); color: var(--ht-warning); }
-.ht-app-chip--disabled { background: var(--ht-surface-recessed); color: var(--ht-text-secondary); opacity: 0.6; }
-
-/* — Timeline (dashboard) ————————————————————————————— */
-.ht-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ht-sp-2);
-  max-height: 300px;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.ht-timeline-entry {
-  display: flex;
-  align-items: center;
-  gap: var(--ht-sp-2);
-  padding: var(--ht-sp-1) 0;
-  border-bottom: 1px solid var(--ht-border);
-  min-width: 0;
-}
-
-.ht-timeline-entry code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1;
-}
-
-.ht-timeline-entry:last-child {
-  border-bottom: none;
-}
-
-/* — Detail Row / Panel (expandable table rows) ————————— */
-.ht-detail-row:hover {
-  background: var(--ht-surface-recessed);
-}
-
-.ht-detail-panel-row > td {
-  padding: 0;
-  border-top: none;
-  border-bottom: none;
-}
-
-.ht-detail-panel {
-  padding: var(--ht-sp-2) var(--ht-sp-4);
-  background: var(--ht-surface-recessed);
-  color: var(--ht-text);
-  border-radius: var(--ht-radius-sm);
-  margin: 0 var(--ht-sp-2) var(--ht-sp-2);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ht-sp-3) var(--ht-sp-6);
-}
-
-.ht-detail-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ht-sp-3) var(--ht-sp-6);
-}
-
-.ht-detail-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ht-sp-1);
-}
-
+/* — Detail Label ——————————————————————————————————————— */
 .ht-detail-label {
   font-size: var(--ht-text-xs);
   color: var(--ht-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: var(--ht-weight-medium);
-}
-
-.ht-detail-panel .ht-detail-label {
-  color: var(--ht-text-dim);
 }
 
 /* — Status Badge (dot + label) ———————————————————————— */
@@ -1172,66 +944,6 @@ strong {
   padding: var(--ht-sp-3);
 }
 
-/* — Invocation row (within item detail) ——————————————— */
-.ht-invocation {
-  display: grid;
-  grid-template-columns: 8px 1fr auto auto auto;
-  align-items: center;
-  gap: var(--ht-sp-3);
-  padding: var(--ht-sp-2) var(--ht-sp-3);
-  font-size: var(--ht-text-xs);
-  color: var(--ht-text-secondary);
-  border-bottom: 1px solid var(--ht-border);
-}
-
-.ht-invocation:last-child {
-  border-bottom: none;
-}
-
-.ht-invocation__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--ht-radius-full);
-}
-
-.ht-invocation__dot--success { background: var(--ht-success); }
-.ht-invocation__dot--error   { background: var(--ht-danger); }
-
-.ht-invocation__time {
-  font-family: var(--ht-font-mono);
-  color: var(--ht-text-dim);
-}
-
-.ht-invocation__duration {
-  font-family: var(--ht-font-mono);
-  color: var(--ht-text-secondary);
-}
-
-.ht-invocation__status {
-  font-weight: var(--ht-weight-medium);
-}
-
-.ht-invocation__status--success { color: var(--ht-success); }
-.ht-invocation__status--error   { color: var(--ht-danger); }
-
-.ht-invocation__trigger {
-  color: var(--ht-text-dim);
-}
-
-/* — Error Trace (danger-tinted mono block) ———————————— */
-.ht-error-trace {
-  background: var(--ht-danger-light);
-  color: var(--ht-danger);
-  font-family: var(--ht-font-mono);
-  font-size: var(--ht-text-xs);
-  padding: var(--ht-sp-3);
-  border-radius: var(--ht-radius-sm);
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.6;
-  overflow-x: auto;
-}
-
 /* — Button: danger variant ———————————————————————————— */
 .ht-btn--danger {
   border-color: var(--ht-danger);
@@ -1248,125 +960,6 @@ strong {
   height: 14px;
   vertical-align: middle;
   flex-shrink: 0;
-}
-
-/* — Sort indicators ——————————————————————————————————— */
-.ht-sort-indicator {
-  font-size: var(--ht-text-xs);
-  color: var(--ht-text-dim);
-  margin-left: var(--ht-sp-1);
-}
-
-/* — Log Level Toggle (segmented button group) ————————— */
-.ht-log-level-toggle {
-  display: inline-flex;
-  border: 1px solid var(--ht-border-strong);
-  border-radius: var(--ht-radius-md);
-  overflow: hidden;
-}
-
-.ht-log-level-toggle__btn {
-  font-family: var(--ht-font-body);
-  font-size: var(--ht-text-xs);
-  font-weight: var(--ht-weight-medium);
-  padding: var(--ht-sp-1) var(--ht-sp-3);
-  border: none;
-  background: transparent;
-  color: var(--ht-text-secondary);
-  cursor: pointer;
-  transition: background var(--ht-motion-micro), color var(--ht-motion-micro);
-}
-
-.ht-log-level-toggle__btn:not(:last-child) {
-  border-right: 1px solid var(--ht-border-strong);
-}
-
-.ht-log-level-toggle__btn:hover {
-  background: var(--ht-surface-recessed);
-}
-
-.ht-log-level-toggle__btn.is-active {
-  background: var(--ht-accent-light);
-  color: var(--ht-accent);
-  font-weight: var(--ht-weight-semibold);
-}
-
-/* — Log Toolbar ——————————————————————————————————————— */
-.ht-log-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--ht-sp-3);
-  padding: var(--ht-sp-2) var(--ht-sp-3);
-  border-bottom: 1px solid var(--ht-border);
-  flex-wrap: wrap;
-}
-
-/* — Log Entries container ————————————————————————————— */
-.ht-log-entries {
-  overflow-y: auto;
-  font-family: var(--ht-font-mono);
-  font-size: var(--ht-text-xs);
-  line-height: 1.6;
-}
-
-/* — Log Line —————————————————————————————————————————— */
-.ht-log-line {
-  display: flex;
-  align-items: baseline;
-  gap: var(--ht-sp-3);
-  padding: var(--ht-sp-1) var(--ht-sp-3);
-  border-bottom: 1px solid var(--ht-border);
-}
-
-.ht-log-line:hover {
-  background: var(--ht-surface-recessed);
-}
-
-.ht-log-line__level {
-  flex-shrink: 0;
-  font-weight: var(--ht-weight-medium);
-  width: 5em;
-  text-align: right;
-}
-
-.ht-log-line__time {
-  flex-shrink: 0;
-  color: var(--ht-text-dim);
-}
-
-.ht-log-line__message {
-  min-width: 0;
-  word-break: break-word;
-}
-
-/* — Section Head with count pill —————————————————————— */
-.ht-section-head {
-  display: flex;
-  align-items: center;
-  gap: var(--ht-sp-3);
-  margin-bottom: var(--ht-sp-4);
-}
-
-.ht-section-head__title {
-  font-family: var(--ht-font-heading);
-  font-size: var(--ht-text-lg);
-  font-weight: var(--ht-weight-semibold);
-  color: var(--ht-text);
-}
-
-.ht-section-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5em;
-  height: 1.5em;
-  padding: 0 var(--ht-sp-2);
-  font-size: var(--ht-text-xs);
-  font-weight: var(--ht-weight-semibold);
-  color: var(--ht-text-secondary);
-  background: var(--ht-surface-recessed);
-  border-radius: var(--ht-radius-full);
-  line-height: 1;
 }
 
 /* — Breadcrumb ———————————————————————————————————————— */
@@ -1408,22 +1001,6 @@ strong {
 .ht-meta-item--strong {
   color: var(--ht-text-secondary);
   font-weight: var(--ht-weight-medium);
-}
-
-/* — Source Link ——————————————————————————————————————— */
-.ht-source-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ht-sp-1);
-  font-family: var(--ht-font-mono);
-  font-size: var(--ht-text-xs);
-  color: var(--ht-text-dim);
-  text-decoration: none;
-}
-
-.ht-source-link:hover {
-  color: var(--ht-accent);
-  text-decoration: underline;
 }
 
 /* — Responsive: sidebar hidden below 768px ————————————— */
@@ -1512,28 +1089,6 @@ strong {
   .ht-card {
     padding: var(--ht-sp-3);
   }
-}
-
-/* — Connection Bar ————————————————————————————————————— */
-.ht-connection-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--ht-sp-3);
-  padding: var(--ht-sp-2) var(--ht-sp-4);
-  border-radius: var(--ht-radius-md);
-  margin-bottom: var(--ht-sp-4);
-  font-weight: var(--ht-weight-medium);
-  transition: background var(--ht-motion-micro), color var(--ht-motion-micro);
-}
-
-.ht-connection-bar--connected {
-  background: var(--ht-success-light);
-  color: var(--ht-success);
-}
-
-.ht-connection-bar--disconnected {
-  background: var(--ht-danger-light);
-  color: var(--ht-danger);
 }
 
 /* — KPI Strip (5-column grid of health cards) ————————— */
@@ -1644,30 +1199,6 @@ strong {
   overflow-y: auto;
 }
 
-.ht-error-feed__item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ht-sp-1);
-  padding: var(--ht-sp-2) var(--ht-sp-3);
-  border-bottom: 1px solid var(--ht-border);
-}
-
-.ht-error-feed__item:last-child {
-  border-bottom: none;
-}
-
-.ht-error-feed__header {
-  display: flex;
-  align-items: center;
-  gap: var(--ht-sp-2);
-  flex-wrap: wrap;
-}
-
-.ht-error-feed__message {
-  color: var(--ht-text-secondary);
-  word-break: break-word;
-}
-
 /* — Session Bar ———————————————————————————————————————— */
 .ht-session-bar {
   display: flex;
@@ -1685,13 +1216,134 @@ strong {
   gap: var(--ht-sp-2);
 }
 
-/* — Text helpers ——————————————————————————————————————— */
-.ht-text-danger {
-  color: var(--ht-danger);
+/* — Spinner ———————————————————————————————————————————— */
+@keyframes ht-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
-.ht-text-warning {
+.ht-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--ht-border-strong);
+  border-top-color: var(--ht-accent);
+  border-radius: var(--ht-radius-full);
+  animation: ht-spin 0.8s linear infinite;
+  margin: var(--ht-sp-4) auto;
+}
+
+/* — Mono Text —————————————————————————————————————————— */
+.ht-text-mono {
+  font-family: var(--ht-font-mono, monospace);
+}
+
+/* — Tags (error feed badges) —————————————————————————— */
+.ht-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--ht-text-xs);
+  font-weight: var(--ht-weight-medium);
+  padding: 0.1em 0.45em;
+  border-radius: var(--ht-radius-sm);
+  line-height: 1.6;
+  white-space: nowrap;
+  text-transform: lowercase;
+}
+
+.ht-tag--handler {
+  color: var(--ht-accent);
+  background: var(--ht-accent-light);
+}
+
+.ht-tag--job {
   color: var(--ht-warning);
+  background: var(--ht-warning-light);
+}
+
+/* — Alert List ————————————————————————————————————————— */
+.ht-alert-list {
+  list-style: none;
+  margin: var(--ht-sp-2) 0 0;
+  padding: 0;
+  font-size: var(--ht-text-sm);
+}
+
+.ht-alert-list li {
+  padding: var(--ht-sp-1) 0;
+}
+
+/* — Error Entry (error feed items) ————————————————————— */
+.ht-error-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-1);
+  padding: var(--ht-sp-2) var(--ht-sp-3);
+  border-bottom: 1px solid var(--ht-border);
+}
+
+.ht-error-entry:last-child {
+  border-bottom: none;
+}
+
+.ht-error-entry__header {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-2);
+  flex-wrap: wrap;
+}
+
+.ht-error-entry__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-1);
+  color: var(--ht-text-secondary);
+  word-break: break-word;
+}
+
+/* — Log Table ————————————————————————————————————————— */
+.ht-log-table-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-3);
+}
+
+.ht-log-table-scroll {
+  overflow-y: auto;
+}
+
+.ht-table-log td {
+  font-size: var(--ht-text-xs);
+}
+
+/* — Sortable Column Header ————————————————————————————— */
+.ht-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.ht-sortable:hover {
+  color: var(--ht-text);
+}
+
+/* — Chevron Inline (manifest table) ——————————————————— */
+.ht-item-row__chevron-inline {
+  display: inline;
+  font-size: var(--ht-text-sm);
+  color: var(--ht-text-dim);
+  user-select: none;
+}
+
+/* — Button: link variant ————————————————————————————— */
+.ht-btn--link {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ht-accent);
+  padding: 0;
+}
+
+.ht-btn--link:hover {
+  background: transparent;
+  text-decoration: underline;
 }
 
 /* — Reduced Motion ————————————————————————————————————— */

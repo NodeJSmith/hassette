@@ -1,15 +1,8 @@
+import type { JobExecutionData } from "../../api/endpoints";
 import { formatDuration, formatTimestamp } from "../../utils/format";
 
-interface Execution {
-  execution_start_ts: number;
-  duration_ms: number;
-  status: string;
-  error_type: string | null;
-  error_message: string | null;
-}
-
 interface Props {
-  executions: Execution[];
+  executions: JobExecutionData[];
   jobId: number;
 }
 

@@ -2,7 +2,9 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import { getHandlerInvocations } from "../../api/endpoints";
 import type { ListenerData } from "../../api/endpoints";
-import { formatDuration, formatRelativeTime } from "../../utils/format";
+import { useApi } from "../../hooks/use-api";
+import { useRelativeTime } from "../../hooks/use-relative-time";
+import { formatDuration } from "../../utils/format";
 import { HandlerInvocations } from "./handler-invocations";
 
 interface Props {
@@ -12,29 +14,27 @@ interface Props {
 /**
  * Expandable handler row with lazy-loaded invocation history.
  *
- * THE KEY ARCHITECTURAL WIN: `expanded` and `loaded` are LOCAL signals,
- * not props from the parent. A parent re-render (from WS update) does NOT
- * reset these signals — the row stays expanded with its cached data.
+ * Uses `useApi` with `lazy: true` so no API call is made until the row is
+ * expanded. On re-expand, `refetch()` is called again — stale data stays
+ * visible during the refresh (stale-while-revalidate).
  */
 export function HandlerRow({ listener }: Props) {
+  const lastInvoked = useRelativeTime(listener.last_invoked_at);
   const expanded = useRef(signal(false)).current;
-  const loaded = useRef(signal(false)).current;
-  const invocations = useRef(signal<unknown[]>([])).current;
-  const loading = useRef(signal(false)).current;
+
+  const { data: invocations, loading, refetch } = useApi(
+    () => getHandlerInvocations(listener.listener_id),
+    [listener.listener_id],
+    { lazy: true },
+  );
 
   const dotClass =
     listener.failed > 0 ? "danger" : listener.total_invocations > 0 ? "success" : "neutral";
 
-  const toggle = async () => {
+  const toggle = () => {
     expanded.value = !expanded.value;
-    if (expanded.value && !loaded.value) {
-      loading.value = true;
-      try {
-        invocations.value = await getHandlerInvocations(listener.listener_id);
-        loaded.value = true;
-      } finally {
-        loading.value = false;
-      }
+    if (expanded.value) {
+      void refetch();
     }
   };
 
@@ -52,8 +52,8 @@ export function HandlerRow({ listener }: Props) {
         role="button"
         tabIndex={0}
         aria-expanded={expanded.value}
-        onClick={() => void toggle()}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void toggle(); } }}
+        onClick={toggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
       >
         <span class={`ht-item-row__dot ht-item-row__dot--${dotClass}`} />
         <div class="ht-item-row__content">
@@ -72,9 +72,9 @@ export function HandlerRow({ listener }: Props) {
           {listener.avg_duration_ms > 0 && (
             <span class="ht-meta-item">{formatDuration(listener.avg_duration_ms)} avg</span>
           )}
-          {listener.last_invoked_at && (
+          {lastInvoked && (
             <span class="ht-meta-item ht-text-muted">
-              {formatRelativeTime(listener.last_invoked_at)}
+              {lastInvoked}
             </span>
           )}
         </div>
@@ -86,11 +86,11 @@ export function HandlerRow({ listener }: Props) {
       </div>
       {expanded.value && (
         <div class="ht-item-detail" id={`handler-${listener.listener_id}-detail`}>
-          {loading.value ? (
+          {loading.value && !invocations.value ? (
             <p class="ht-text-muted ht-text-xs">Loading invocations...</p>
-          ) : (
-            <HandlerInvocations invocations={invocations.value as never[]} listenerId={listener.listener_id} />
-          )}
+          ) : invocations.value ? (
+            <HandlerInvocations invocations={invocations.value} listenerId={listener.listener_id} />
+          ) : null}
         </div>
       )}
     </div>
