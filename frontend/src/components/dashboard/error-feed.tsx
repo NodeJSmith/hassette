@@ -24,8 +24,8 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
 
   return (
     <div class="ht-error-entry" data-testid="error-item">
-      <div class="ht-error-entry-header">
-        <span class={`ht-tag ht-tag-${err.kind}`}>{err.kind}</span>
+      <div class="ht-error-entry__header">
+        <span class={`ht-tag ht-tag--${err.kind}`}>{err.kind}</span>
         <a href={`/apps/${err.app_key}`} class="ht-text-sm">
           {err.app_key}
         </a>
@@ -33,7 +33,7 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
           {relativeTime}
         </span>
       </div>
-      <div class="ht-error-entry-body">
+      <div class="ht-error-entry__body">
         <code class="ht-text-sm">{err.error_type}</code>
         <span class="ht-text-sm">{err.error_message}</span>
       </div>
