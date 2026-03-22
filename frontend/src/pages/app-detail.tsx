@@ -9,6 +9,7 @@ import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 import { useAppState } from "../state/context";
+import { useLocation } from "wouter";
 
 interface Props {
   params: { key: string; index?: string };
@@ -41,11 +42,12 @@ export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const instanceIndex = params.index ? parseInt(params.index, 10) : 0;
   const { appStatus } = useAppState();
+  const [, navigate] = useLocation();
 
   const manifests = useApi(getManifests);
-  const health = useApi(() => getAppHealth(appKey, instanceIndex));
-  const listeners = useApi(() => getAppListeners(appKey, instanceIndex));
-  const jobs = useApi(() => getAppJobs(appKey, instanceIndex));
+  const health = useApi(() => getAppHealth(appKey, instanceIndex), [appKey, instanceIndex]);
+  const listeners = useApi(() => getAppListeners(appKey, instanceIndex), [appKey, instanceIndex]);
+  const jobs = useApi(() => getAppJobs(appKey, instanceIndex), [appKey, instanceIndex]);
 
   const manifest = manifests.data.value?.manifests.find((m) => m.app_key === appKey);
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
@@ -54,7 +56,7 @@ export function AppDetailPage({ params }: Props) {
   const listenerCount = listeners.data.value?.length ?? 0;
   const jobCount = (jobs.data.value as unknown[] | null)?.length ?? 0;
 
-  const isLoading = health.loading.value && listeners.loading.value;
+  const isLoading = health.loading.value || listeners.loading.value || jobs.loading.value || manifests.loading.value;
   if (isLoading) return <Spinner />;
 
   return (
@@ -103,7 +105,7 @@ export function AppDetailPage({ params }: Props) {
               value={instanceIndex}
               onChange={(e) => {
                 const idx = (e.target as HTMLSelectElement).value;
-                window.location.href = `/apps/${appKey}/${idx}`;
+                navigate(`/apps/${appKey}/${idx}`);
               }}
             >
               {manifest.instances.map((inst) => (

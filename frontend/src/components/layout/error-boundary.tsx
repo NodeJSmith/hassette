@@ -1,35 +1,31 @@
-import { Component, type ComponentChildren } from "preact";
+import type { ComponentChildren } from "preact";
+import { useEffect, useErrorBoundary } from "preact/hooks";
 
 interface Props {
   children: ComponentChildren;
+  resetKey?: string;
 }
 
-interface State {
-  error: Error | null;
-}
+export function ErrorBoundary({ children, resetKey }: Props) {
+  const [error, resetError] = useErrorBoundary();
 
-export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  useEffect(() => {
+    if (error) resetError();
+  }, [resetKey, resetError]);
 
-  static getDerivedStateFromError(error: Error): State {
-    return { error };
+  if (error) {
+    return (
+      <div class="ht-card" style={{ padding: "var(--ht-sp-6)", textAlign: "center" }}>
+        <h2>Something went wrong</h2>
+        <p class="ht-text-secondary">{error instanceof Error ? error.message : String(error)}</p>
+        <button
+          class="ht-btn ht-btn--primary"
+          onClick={resetError}
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
-
-  render() {
-    if (this.state.error) {
-      return (
-        <div class="ht-card" style={{ padding: "var(--ht-sp-6)", textAlign: "center" }}>
-          <h2>Something went wrong</h2>
-          <p class="ht-text-secondary">{this.state.error.message}</p>
-          <button
-            class="ht-btn ht-btn--primary"
-            onClick={() => this.setState({ error: null })}
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
+  return <>{children}</>;
 }

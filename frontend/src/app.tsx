@@ -1,5 +1,5 @@
 import { useMemo } from "preact/hooks";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
 import { AlertBanner } from "./components/layout/alert-banner";
 import { ErrorBoundary } from "./components/layout/error-boundary";
@@ -17,6 +17,7 @@ import { createAppState } from "./state/create-app-state";
 
 export function App() {
   const state = useMemo(() => createAppState(), []);
+  const [location] = useLocation();
 
   return (
     <AppStateContext.Provider value={state}>
@@ -26,7 +27,7 @@ export function App() {
         <main class="ht-main">
           <StatusBar />
           <FailedAppsAlert />
-          <ErrorBoundary>
+          <ErrorBoundary resetKey={location}>
             <Switch>
               <Route path="/" component={DashboardPage} />
               <Route path="/apps" component={AppsPage} />

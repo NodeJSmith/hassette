@@ -8,11 +8,23 @@ export interface UseApiResult<T> {
   refetch: () => Promise<void>;
 }
 
+/** Shallow-compare two arrays using Object.is (matches React/Preact hook semantics). */
+function depsChanged(prev: unknown[], next: unknown[]): boolean {
+  if (prev.length !== next.length) return true;
+  for (let i = 0; i < prev.length; i++) {
+    if (!Object.is(prev[i], next[i])) return true;
+  }
+  return false;
+}
+
 /**
  * Data-fetching hook with signal-based state.
  * Returns signals so only the subscribing components re-render on updates.
+ *
+ * Pass a `deps` array when the fetcher closes over values that change
+ * (e.g., route params). The hook refetches whenever deps change.
  */
-export function useApi<T>(fetcher: () => Promise<T>): UseApiResult<T> {
+export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseApiResult<T> {
   const data = useRef(signal<T | null>(null)).current;
   const loading = useRef(signal(true)).current;
   const error = useRef(signal<string | null>(null)).current;
@@ -20,21 +32,46 @@ export function useApi<T>(fetcher: () => Promise<T>): UseApiResult<T> {
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
+  const requestIdRef = useRef(0);
+
   const refetch = useRef(async () => {
+    const id = ++requestIdRef.current;
     loading.value = true;
     error.value = null;
     try {
-      data.value = await fetcherRef.current();
+      const result = await fetcherRef.current();
+      if (requestIdRef.current === id) {
+        data.value = result;
+      }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : "Unknown error";
+      if (requestIdRef.current === id) {
+        error.value = e instanceof Error ? e.message : "Unknown error";
+      }
     } finally {
-      loading.value = false;
+      if (requestIdRef.current === id) {
+        loading.value = false;
+      }
     }
   }).current;
 
+  const prevDeps = useRef(deps);
+  const depsVersion = useRef(0);
+
+  // Synchronously reset signals and invalidate in-flight requests when deps change
+  if (depsChanged(prevDeps.current, deps)) {
+    prevDeps.current = deps;
+    depsVersion.current++;
+    requestIdRef.current++;
+    data.value = null;
+    loading.value = true;
+    error.value = null;
+  }
+
+  const version = depsVersion.current;
+
   useEffect(() => {
     void refetch();
-  }, [refetch]);
+  }, [refetch, version]);
 
   return { data, loading, error, refetch };
 }

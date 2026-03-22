@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability (#343)
 
 ### Fixed
+- Instance switcher uses client-side navigation instead of full page reload (#378)
+- ErrorBoundary resets on route change without destroying child component state (#378)
+- Loading spinners wait for all API requests to complete instead of disappearing after the first (#378)
+- `useApi` hook refetches when route params change and discards stale responses from superseded requests (#378)
 - Startup race condition: phased startup ensures session exists before services fire handlers, eliminating "Dropping N handler invocation record(s)" warnings on every boot (#343)
 - Internal handlers (ServiceWatcher, StateProxy) now dispatch directly without CommandExecutor, preventing listener_id=0 sentinel records (#343)
 - App-owned listeners route-first then register in DB, preventing silent event loss during registration window (#343)
