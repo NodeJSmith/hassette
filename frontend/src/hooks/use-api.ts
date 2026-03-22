@@ -11,8 +11,11 @@ export interface UseApiResult<T> {
 /**
  * Data-fetching hook with signal-based state.
  * Returns signals so only the subscribing components re-render on updates.
+ *
+ * Pass a `deps` array when the fetcher closes over values that change
+ * (e.g., route params). The hook refetches whenever deps change.
  */
-export function useApi<T>(fetcher: () => Promise<T>): UseApiResult<T> {
+export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseApiResult<T> {
   const data = useRef(signal<T | null>(null)).current;
   const loading = useRef(signal(true)).current;
   const error = useRef(signal<string | null>(null)).current;
@@ -20,21 +23,42 @@ export function useApi<T>(fetcher: () => Promise<T>): UseApiResult<T> {
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
+  const requestIdRef = useRef(0);
+
   const refetch = useRef(async () => {
+    const id = ++requestIdRef.current;
     loading.value = true;
     error.value = null;
     try {
-      data.value = await fetcherRef.current();
+      const result = await fetcherRef.current();
+      if (requestIdRef.current === id) {
+        data.value = result;
+      }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : "Unknown error";
+      if (requestIdRef.current === id) {
+        error.value = e instanceof Error ? e.message : "Unknown error";
+      }
     } finally {
-      loading.value = false;
+      if (requestIdRef.current === id) {
+        loading.value = false;
+      }
     }
   }).current;
 
+  const depsKey = JSON.stringify(deps);
+  const prevDepsKey = useRef(depsKey);
+
+  // Synchronously reset signals when deps change to prevent stale data flash
+  if (prevDepsKey.current !== depsKey) {
+    prevDepsKey.current = depsKey;
+    data.value = null;
+    loading.value = true;
+    error.value = null;
+  }
+
   useEffect(() => {
     void refetch();
-  }, [refetch]);
+  }, [refetch, depsKey]);
 
   return { data, loading, error, refetch };
 }

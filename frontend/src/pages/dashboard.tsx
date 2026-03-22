@@ -29,7 +29,7 @@ export function DashboardPage() {
     }
   }, [lastStatus, refetchAppGrid]);
 
-  const isLoading = kpis.loading.value && appGrid.loading.value && errors.loading.value;
+  const isLoading = kpis.loading.value || appGrid.loading.value || errors.loading.value;
 
   if (isLoading) {
     return <Spinner />;
