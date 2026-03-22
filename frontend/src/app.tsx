@@ -20,7 +20,7 @@ export function App() {
   const [location] = useLocation();
 
   useEffect(() => {
-    const id = setInterval(() => { state.tick.value++; }, 30_000);
+    const id = setInterval(() => { if (!document.hidden) state.tick.value++; }, 30_000);
     return () => clearInterval(id);
   }, [state]);
 

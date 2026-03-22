@@ -57,6 +57,7 @@ export function useApi<T>(
 
   const refetch = useRef(async () => {
     hasFetchedRef.current = true;
+    lazyRef.current = false; // After first fetch, allow deps-driven refetches
     const id = ++requestIdRef.current;
     loading.value = true;
     error.value = null;

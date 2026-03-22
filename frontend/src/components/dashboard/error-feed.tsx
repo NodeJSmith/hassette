@@ -12,8 +12,8 @@ export function ErrorFeed({ errors }: Props) {
 
   return (
     <div class="ht-error-feed" data-testid="dashboard-errors">
-      {errors.map((err, i) => (
-        <ErrorEntry key={i} err={err} />
+      {errors.map((err) => (
+        <ErrorEntry key={`${err.timestamp}-${err.app_key}`} err={err} />
       ))}
     </div>
   );

@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { useRef } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { IconPlay, IconRefresh, IconSquare } from "../shared/icons";
 
@@ -24,6 +24,9 @@ export function ActionButtons({ appKey, status }: Props) {
       loading.value = false;
     }
   };
+
+  // Clear stale error when app status changes (e.g., WS event arrives after failed action)
+  useEffect(() => { error.value = null; }, [status]);
 
   const canStart = status === "stopped" || status === "failed";
   const canStop = status === "running";
