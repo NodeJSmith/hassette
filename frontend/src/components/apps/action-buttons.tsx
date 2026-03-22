@@ -10,11 +10,16 @@ interface Props {
 
 export function ActionButtons({ appKey, status }: Props) {
   const loading = useRef(signal(false)).current;
+  const error = useRef(signal<string | null>(null)).current;
 
   const exec = async (action: (key: string) => Promise<unknown>) => {
+    error.value = null;
     loading.value = true;
     try {
       await action(appKey);
+    } catch (err) {
+      error.value =
+        err instanceof Error ? err.message : String(err);
     } finally {
       loading.value = false;
     }
@@ -24,7 +29,7 @@ export function ActionButtons({ appKey, status }: Props) {
   const canStop = status === "running";
   const canReload = status === "running";
 
-  return (
+  return (<>
     <div class="ht-btn-group">
       {canStart && (
         <button
@@ -60,5 +65,7 @@ export function ActionButtons({ appKey, status }: Props) {
         </button>
       )}
     </div>
+    {error.value && <p class="ht-text-danger ht-text-sm">{error.value}</p>}
+  </>
   );
 }
