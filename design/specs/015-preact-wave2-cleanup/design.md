@@ -1,7 +1,7 @@
 # Design: Preact Wave 2 Cleanup
 
 **Date:** 2026-03-22
-**Status:** approved
+**Status:** implemented
 
 ## Problem
 

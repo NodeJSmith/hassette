@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability (#343)
 
 ### Fixed
+- Typed API returns for telemetry endpoints, handler/job rows refactored to useApi with lazy fetch and stale-while-revalidate
+- Relative timestamps now auto-refresh every 30 seconds
+- Action button errors are displayed instead of silently swallowed
+- Spinner, alert banner, and error feed badges now have visible CSS styles (were previously unstyled)
+- ~340 lines of dead CSS from the old htmx/Alpine UI removed
 - WebSocket reconnection automatically refreshes all REST-fetched data without page reload (#379)
 - WebSocket hook no longer causes infinite reconnect loop when options are passed (#379)
 - Instance switcher uses client-side navigation instead of full page reload (#378)
