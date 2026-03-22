@@ -1,5 +1,6 @@
-import { signal, type Signal } from "@preact/signals";
+import { signal, useSignalEffect, type Signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import { useAppState } from "../state/context";
 
 export interface UseApiResult<T> {
   data: Signal<T | null>;
@@ -23,6 +24,9 @@ function depsChanged(prev: unknown[], next: unknown[]): boolean {
  *
  * Pass a `deps` array when the fetcher closes over values that change
  * (e.g., route params). The hook refetches whenever deps change.
+ *
+ * Automatically refetches on WebSocket reconnection via the shared
+ * `reconnectVersion` signal. Must be used within AppStateContext.Provider.
  */
 export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseApiResult<T> {
   const data = useRef(signal<T | null>(null)).current;
@@ -72,6 +76,17 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseA
   useEffect(() => {
     void refetch();
   }, [refetch, version]);
+
+  // Auto-refetch on WebSocket reconnection (signal-tracked, no component re-render)
+  const { reconnectVersion } = useAppState();
+  const mountReconnectVersion = useRef(reconnectVersion.peek());
+
+  useSignalEffect(() => {
+    const v = reconnectVersion.value;
+    if (v > 0 && v !== mountReconnectVersion.current) {
+      void refetch();
+    }
+  });
 
   return { data, loading, error, refetch };
 }

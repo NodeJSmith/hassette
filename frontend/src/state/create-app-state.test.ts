@@ -11,6 +11,9 @@ describe("createAppState", () => {
 
     a.sessionId.value = 42;
     expect(b.sessionId.value).toBeNull();
+
+    a.reconnectVersion.value = 3;
+    expect(b.reconnectVersion.value).toBe(0);
   });
 
   it("log buffer and version signal are independent", () => {

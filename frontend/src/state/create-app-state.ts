@@ -34,6 +34,9 @@ export function createAppState() {
 
     /** Current Hassette session ID (from WS connected message). */
     sessionId: signal<number | null>(null),
+
+    /** Incremented on WS reconnection (not first connect). useApi reads this to auto-refetch. */
+    reconnectVersion: signal(0),
   };
 }
 
