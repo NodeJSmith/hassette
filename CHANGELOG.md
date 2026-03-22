@@ -22,8 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability (#343)
 
 ### Fixed
-- WebSocket reconnection automatically refreshes all REST-fetched data without page reload
-- WebSocket hook no longer causes infinite reconnect loop when options are passed
+- WebSocket reconnection automatically refreshes all REST-fetched data without page reload (#379)
+- WebSocket hook no longer causes infinite reconnect loop when options are passed (#379)
 - Instance switcher uses client-side navigation instead of full page reload (#378)
 - ErrorBoundary resets on route change without destroying child component state (#378)
 - Loading spinners wait for all API requests to complete instead of disappearing after the first (#378)
