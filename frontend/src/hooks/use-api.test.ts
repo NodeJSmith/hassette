@@ -1,23 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { signal } from "@preact/signals";
 import { renderHook, act } from "@testing-library/preact";
 import { h } from "preact";
 import type { ComponentChildren } from "preact";
 import { useApi } from "./use-api";
 import { AppStateContext } from "../state/context";
-import { RingBuffer } from "../utils/ring-buffer";
-import type { AppState } from "../state/create-app-state";
-
-function createMockState(): AppState {
-  return {
-    appStatus: signal({}),
-    connection: signal("disconnected" as const),
-    logs: { buffer: new RingBuffer(1000), version: signal(0) },
-    theme: signal("dark" as const),
-    sessionId: signal(null),
-    reconnectVersion: signal(0),
-  };
-}
+import { createAppState, type AppState } from "../state/create-app-state";
 
 function createWrapper(state: AppState) {
   return function Wrapper({ children }: { children: ComponentChildren }) {
@@ -27,7 +14,7 @@ function createWrapper(state: AppState) {
 
 describe("useApi reconnect awareness", () => {
   it("refetches when reconnectVersion increments", async () => {
-    const state = createMockState();
+    const state = createAppState();
     const fetcher = vi.fn().mockResolvedValue("data");
 
     const { result } = renderHook(() => useApi(fetcher), {
@@ -51,7 +38,7 @@ describe("useApi reconnect awareness", () => {
   });
 
   it("does not refetch when reconnectVersion stays at 0", async () => {
-    const state = createMockState();
+    const state = createAppState();
     const fetcher = vi.fn().mockResolvedValue("data");
 
     renderHook(() => useApi(fetcher), {
@@ -73,7 +60,7 @@ describe("useApi reconnect awareness", () => {
   });
 
   it("does not double-fetch when mounted after reconnect already occurred", async () => {
-    const state = createMockState();
+    const state = createAppState();
     // Simulate a reconnect that already happened before mount
     state.reconnectVersion.value = 3;
 

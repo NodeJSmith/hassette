@@ -1,9 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { signal } from "@preact/signals";
 import { renderHook, act } from "@testing-library/preact";
 import { useWebSocket } from "./use-websocket";
-import type { AppState } from "../state/create-app-state";
-import { RingBuffer } from "../utils/ring-buffer";
+import { createAppState } from "../state/create-app-state";
 
 /** Minimal mock WebSocket that tracks construction and allows simulating messages. */
 class MockWebSocket {
@@ -31,17 +29,6 @@ class MockWebSocket {
   }
 }
 
-function createMockState(): AppState {
-  return {
-    appStatus: signal({}),
-    connection: signal("disconnected" as const),
-    logs: { buffer: new RingBuffer(1000), version: signal(0) },
-    theme: signal("dark" as const),
-    sessionId: signal(null),
-    reconnectVersion: signal(0),
-  };
-}
-
 describe("useWebSocket", () => {
   const OriginalWebSocket = globalThis.WebSocket;
 
@@ -52,10 +39,11 @@ describe("useWebSocket", () => {
 
   afterEach(() => {
     globalThis.WebSocket = OriginalWebSocket;
+    vi.useRealTimers();
   });
 
   it("creates only one WebSocket connection across re-renders", () => {
-    const state = createMockState();
+    const state = createAppState();
 
     const { rerender } = renderHook(() => useWebSocket(state));
 
@@ -70,7 +58,7 @@ describe("useWebSocket", () => {
   });
 
   it("does not increment reconnectVersion on first connect", () => {
-    const state = createMockState();
+    const state = createAppState();
 
     renderHook(() => useWebSocket(state));
 
@@ -86,7 +74,7 @@ describe("useWebSocket", () => {
 
   it("increments reconnectVersion on reconnect but not first connect", () => {
     vi.useFakeTimers();
-    const state = createMockState();
+    const state = createAppState();
 
     renderHook(() => useWebSocket(state));
 
@@ -120,7 +108,5 @@ describe("useWebSocket", () => {
 
     expect(state.reconnectVersion.value).toBe(1);
     expect(state.sessionId.value).toBe(2);
-
-    vi.useRealTimers();
   });
 });
