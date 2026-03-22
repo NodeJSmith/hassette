@@ -16,6 +16,8 @@ export function useWebSocket(state: AppState, options?: UseWebSocketOptions): vo
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   useEffect(() => {
     let unmounted = false;
@@ -45,7 +47,7 @@ export function useWebSocket(state: AppState, options?: UseWebSocketOptions): vo
             case "connected":
               state.sessionId.value = msg.data.session_id;
               // Trigger data refresh on (re)connect
-              options?.onReconnect?.();
+              optionsRef.current?.onReconnect?.();
               break;
 
             case "app_status_changed":
@@ -106,5 +108,5 @@ export function useWebSocket(state: AppState, options?: UseWebSocketOptions): vo
       wsRef.current?.close();
       state.connection.value = "disconnected";
     };
-  }, [state, options]);
+  }, [state]);
 }
