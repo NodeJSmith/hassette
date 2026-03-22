@@ -3,7 +3,8 @@ import { useRef } from "preact/hooks";
 import { getHandlerInvocations } from "../../api/endpoints";
 import type { ListenerData } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
-import { formatDuration, formatRelativeTime } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
+import { formatDuration } from "../../utils/format";
 import { HandlerInvocations } from "./handler-invocations";
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
  * visible during the refresh (stale-while-revalidate).
  */
 export function HandlerRow({ listener }: Props) {
+  const lastInvoked = useRelativeTime(listener.last_invoked_at);
   const expanded = useRef(signal(false)).current;
 
   const { data: invocations, loading, refetch } = useApi(
@@ -70,9 +72,9 @@ export function HandlerRow({ listener }: Props) {
           {listener.avg_duration_ms > 0 && (
             <span class="ht-meta-item">{formatDuration(listener.avg_duration_ms)} avg</span>
           )}
-          {listener.last_invoked_at && (
+          {lastInvoked && (
             <span class="ht-meta-item ht-text-muted">
-              {formatRelativeTime(listener.last_invoked_at)}
+              {lastInvoked}
             </span>
           )}
         </div>

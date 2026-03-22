@@ -3,7 +3,8 @@ import { useRef } from "preact/hooks";
 import { getJobExecutions } from "../../api/endpoints";
 import type { JobData } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
-import { formatDuration, formatRelativeTime } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
+import { formatDuration } from "../../utils/format";
 import { JobExecutions } from "./job-executions";
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
  * visible during the refresh (stale-while-revalidate).
  */
 export function JobRow({ job }: Props) {
+  const lastExecuted = useRelativeTime(job.last_executed_at);
   const expanded = useRef(signal(false)).current;
 
   const { data: executions, loading, refetch } = useApi(
@@ -67,9 +69,9 @@ export function JobRow({ job }: Props) {
           {job.avg_duration_ms > 0 && (
             <span class="ht-meta-item">{formatDuration(job.avg_duration_ms)} avg</span>
           )}
-          {job.last_executed_at && (
+          {lastExecuted && (
             <span class="ht-meta-item ht-text-muted">
-              {formatRelativeTime(job.last_executed_at)}
+              {lastExecuted}
             </span>
           )}
         </div>

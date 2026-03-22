@@ -58,6 +58,9 @@ export function createAppState() {
 
     /** Incremented on WS reconnection (not first connect). useApi reads this to auto-refetch. */
     reconnectVersion: signal(0),
+
+    /** Monotonic counter incremented every 30s to trigger relative-time re-renders. */
+    tick: signal(0),
   };
 }
 

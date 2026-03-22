@@ -14,6 +14,9 @@ describe("createAppState", () => {
 
     a.reconnectVersion.value = 3;
     expect(b.reconnectVersion.value).toBe(0);
+
+    a.tick.value = 5;
+    expect(b.tick.value).toBe(0);
   });
 
   it("log store push/toArray are independent across instances", () => {

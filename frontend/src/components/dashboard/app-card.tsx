@@ -1,6 +1,6 @@
 import type { DashboardAppGridEntry } from "../../api/endpoints";
 import { HealthBar } from "../shared/health-bar";
-import { formatRelativeTime } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 
 interface Props {
   app: DashboardAppGridEntry;
@@ -15,6 +15,7 @@ const VARIANT_MAP: Record<string, string> = {
 };
 
 export function AppCard({ app }: Props) {
+  const lastActivity = useRelativeTime(app.last_activity_ts);
   const variant = VARIANT_MAP[app.status] ?? "neutral";
   const total = app.total_invocations + app.total_executions;
   const errors = app.total_errors + app.total_job_errors;
@@ -38,10 +39,10 @@ export function AppCard({ app }: Props) {
           total={total}
           errors={errors}
         />
-        {app.last_activity_ts && (
+        {lastActivity && (
           <div class="ht-app-card__footer">
             <span class="ht-text-xs ht-text-muted">
-              Last: {formatRelativeTime(app.last_activity_ts)}
+              Last: {lastActivity}
             </span>
           </div>
         )}
