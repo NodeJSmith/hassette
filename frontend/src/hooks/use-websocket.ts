@@ -7,17 +7,11 @@ const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;
 const BACKOFF_MULTIPLIER = 1.5;
 
-export interface UseWebSocketOptions {
-  /** Called after reconnection — pages should refetch their data. */
-  onReconnect?: () => void;
-}
-
-export function useWebSocket(state: AppState, options?: UseWebSocketOptions): void {
+export function useWebSocket(state: AppState): void {
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const hasConnectedRef = useRef(false);
 
   useEffect(() => {
     let unmounted = false;
@@ -46,8 +40,12 @@ export function useWebSocket(state: AppState, options?: UseWebSocketOptions): vo
           switch (msg.type) {
             case "connected":
               state.sessionId.value = msg.data.session_id;
-              // Trigger data refresh on (re)connect
-              optionsRef.current?.onReconnect?.();
+              if (hasConnectedRef.current) {
+                // Reconnection — signal all useApi instances to refetch
+                state.reconnectVersion.value = state.reconnectVersion.value + 1;
+              } else {
+                hasConnectedRef.current = true;
+              }
               break;
 
             case "app_status_changed":
