@@ -8,6 +8,15 @@ export interface UseApiResult<T> {
   refetch: () => Promise<void>;
 }
 
+/** Shallow-compare two arrays using Object.is (matches React/Preact hook semantics). */
+function depsChanged(prev: unknown[], next: unknown[]): boolean {
+  if (prev.length !== next.length) return true;
+  for (let i = 0; i < prev.length; i++) {
+    if (!Object.is(prev[i], next[i])) return true;
+  }
+  return false;
+}
+
 /**
  * Data-fetching hook with signal-based state.
  * Returns signals so only the subscribing components re-render on updates.
@@ -45,20 +54,24 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseA
     }
   }).current;
 
-  const depsKey = JSON.stringify(deps);
-  const prevDepsKey = useRef(depsKey);
+  const prevDeps = useRef(deps);
+  const depsVersion = useRef(0);
 
-  // Synchronously reset signals when deps change to prevent stale data flash
-  if (prevDepsKey.current !== depsKey) {
-    prevDepsKey.current = depsKey;
+  // Synchronously reset signals and invalidate in-flight requests when deps change
+  if (depsChanged(prevDeps.current, deps)) {
+    prevDeps.current = deps;
+    depsVersion.current++;
+    requestIdRef.current++;
     data.value = null;
     loading.value = true;
     error.value = null;
   }
 
+  const version = depsVersion.current;
+
   useEffect(() => {
     void refetch();
-  }, [refetch, depsKey]);
+  }, [refetch, version]);
 
   return { data, loading, error, refetch };
 }
