@@ -54,7 +54,7 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = manifest?.instances.find((i) => i.index === instanceIndex);
   const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   const listenerCount = listeners.data.value?.length ?? 0;
-  const jobCount = (jobs.data.value as unknown[] | null)?.length ?? 0;
+  const jobCount = jobs.data.value?.length ?? 0;
 
   const isLoading = health.loading.value || listeners.loading.value || jobs.loading.value || manifests.loading.value;
   if (isLoading) return <Spinner />;

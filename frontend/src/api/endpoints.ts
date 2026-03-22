@@ -119,14 +119,55 @@ export const getAppHealth = (appKey: string, instanceIndex = 0) =>
 export const getAppListeners = (appKey: string, instanceIndex = 0) =>
   apiFetch<ListenerData[]>(`/telemetry/app/${appKey}/listeners?instance_index=${instanceIndex}`);
 
+/** Matches backend `JobSummary` Pydantic model from `telemetry_models.py`. */
+export interface JobData {
+  job_id: number;
+  app_key: string;
+  instance_index: number;
+  job_name: string;
+  handler_method: string;
+  trigger_type: string | null;
+  trigger_value: string | null;
+  repeat: number;
+  args_json: string;
+  kwargs_json: string;
+  source_location: string;
+  registration_source: string | null;
+  total_executions: number;
+  successful: number;
+  failed: number;
+  last_executed_at: number | null;
+  total_duration_ms: number;
+  avg_duration_ms: number;
+}
+
+/** Matches backend `HandlerInvocation` Pydantic model from `telemetry_models.py`. */
+export interface HandlerInvocationData {
+  execution_start_ts: number;
+  duration_ms: number;
+  status: string;
+  error_type: string | null;
+  error_message: string | null;
+  error_traceback: string | null;
+}
+
+/** Matches backend `JobExecution` Pydantic model from `telemetry_models.py`. */
+export interface JobExecutionData {
+  execution_start_ts: number;
+  duration_ms: number;
+  status: string;
+  error_type: string | null;
+  error_message: string | null;
+}
+
 export const getAppJobs = (appKey: string, instanceIndex = 0) =>
-  apiFetch<unknown[]>(`/telemetry/app/${appKey}/jobs?instance_index=${instanceIndex}`);
+  apiFetch<JobData[]>(`/telemetry/app/${appKey}/jobs?instance_index=${instanceIndex}`);
 
 export const getHandlerInvocations = (listenerId: number, limit = 50) =>
-  apiFetch<unknown[]>(`/telemetry/handler/${listenerId}/invocations?limit=${limit}`);
+  apiFetch<HandlerInvocationData[]>(`/telemetry/handler/${listenerId}/invocations?limit=${limit}`);
 
 export const getJobExecutions = (jobId: number, limit = 50) =>
-  apiFetch<unknown[]>(`/telemetry/job/${jobId}/executions?limit=${limit}`);
+  apiFetch<JobExecutionData[]>(`/telemetry/job/${jobId}/executions?limit=${limit}`);
 
 export const getDashboardKpis = () => apiFetch<DashboardKpis>("/telemetry/dashboard/kpis");
 
