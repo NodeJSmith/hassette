@@ -107,7 +107,7 @@ None — all issues are well-scoped with clear solutions.
 | WP | Files changed | New files |
 |----|--------------|-----------|
 | #373+#360 | endpoints.ts, handler-row.tsx, job-row.tsx, job-list.tsx, handler-invocations.tsx, job-executions.tsx, use-api.ts | use-api.ts (lazy option) |
-| #356 | app-detail.tsx, logs.tsx, sidebar.tsx, apps.tsx, action-buttons.tsx | icons.tsx |
+| #356 | app-detail.tsx, logs.tsx, sidebar.tsx, apps.tsx, action-buttons.tsx, dashboard.tsx | icons.tsx |
 | #365 | action-buttons.tsx | — |
 | #358 | create-app-state.ts, use-websocket.ts, log-table.tsx | — |
 | #372 | create-app-state.ts, app.tsx, handler-row.tsx, job-row.tsx, app-card.tsx, error-feed.tsx | use-relative-time.ts |
