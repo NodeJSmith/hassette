@@ -248,6 +248,11 @@ strong {
   animation: ht-breathe var(--ht-motion-signature);
 }
 
+.ht-pulse-dot.connecting {
+  background: var(--ht-text-dim);
+  animation: none;
+}
+
 .ht-pulse-dot.disconnected {
   background: var(--ht-danger);
   animation: none;
@@ -368,6 +373,7 @@ strong {
   line-height: 1.5;
   max-height: calc(1.5em * 2); /* 2 lines */
   overflow: hidden;
+  word-break: break-all;
 }
 
 .ht-log-message__text.is-expanded {
@@ -404,7 +410,7 @@ strong {
 }
 
 .ht-badge--sm {
-  font-size: var(--ht-text-sm);
+  font-size: var(--ht-text-xs);
   padding: 0.1em 0.45em;
 }
 

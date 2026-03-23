@@ -414,6 +414,31 @@ class CommandExecutor(Service):
         return row[0]
 
     # ------------------------------------------------------------------
+    # Registration cleanup
+    # ------------------------------------------------------------------
+
+    async def clear_registrations(self, app_key: str) -> None:
+        """Delete all listener and scheduled job registrations for an app.
+
+        Called at start_app() time before re-registration so that stale rows
+        from previous sessions (or removed handlers/jobs) are cleaned up.
+        History rows (handler_invocations, job_executions) are preserved with
+        NULL parent references via ON DELETE SET NULL.
+
+        Args:
+            app_key: The app key whose registrations to delete.
+        """
+        await self.hassette.wait_for_ready([self.hassette.database_service])
+        await self.hassette.database_service.submit(self._do_clear_registrations(app_key))
+
+    async def _do_clear_registrations(self, app_key: str) -> None:
+        """Execute the DELETE SQL for clearing registrations; called by DB write-queue worker."""
+        db = self.hassette.database_service.db
+        await db.execute("DELETE FROM listeners WHERE app_key = ?", (app_key,))
+        await db.execute("DELETE FROM scheduled_jobs WHERE app_key = ?", (app_key,))
+        await db.commit()
+
+    # ------------------------------------------------------------------
     # Queue persistence
     # ------------------------------------------------------------------
 

@@ -84,11 +84,17 @@ class _HassetteMock(Resource):
         self._scheduler: Scheduler | None = None
         self._file_watcher: FileWatcherService | None = None
         self._app_handler: AppHandler | None = None
+        self._command_executor: Any | None = None
         self._websocket_service: WebsocketService | None = None
         self._state_proxy: StateProxy | None = None
         self._states: StateManager | None = None
         self.state_registry: StateRegistry | None = None
         self.type_registry: TypeRegistry | None = None
+
+    @property
+    def command_executor(self) -> Any:
+        """Mock command executor for telemetry recording."""
+        return self._command_executor
 
     @property
     def ws_url(self) -> str:
@@ -389,6 +395,8 @@ class HassetteHarness:
         self.hassette._file_watcher = self.hassette.add_child(FileWatcherService)
 
     async def _start_app_handler(self) -> None:
+        self.hassette._command_executor = Mock()
+        self.hassette._command_executor.clear_registrations = AsyncMock()
         self.hassette._app_handler = self.hassette.add_child(AppHandler)
         self.hassette._websocket_service = Mock()
         self.hassette._websocket_service.status = ResourceStatus.RUNNING

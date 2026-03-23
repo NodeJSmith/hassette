@@ -2,7 +2,7 @@ import { batch, signal, type Signal } from "@preact/signals";
 import { RingBuffer } from "../utils/ring-buffer";
 import type { WsLogPayload } from "../api/ws-types";
 
-export type ConnectionStatus = "connected" | "reconnecting" | "disconnected";
+export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
 export interface AppStatusEntry {
   status: string;
@@ -43,7 +43,7 @@ export function createAppState() {
     appStatus: signal<Record<string, AppStatusEntry>>({}),
 
     /** WebSocket connection state machine. */
-    connection: signal<ConnectionStatus>("disconnected"),
+    connection: signal<ConnectionStatus>("connecting"),
 
     /** Log entries in a ring buffer with a version signal for efficient rendering. */
     logs: createLogStore(),

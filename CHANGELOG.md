@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability (#343)
 
 ### Fixed
+- Stale listener and job registrations cleaned up on app startup; telemetry no longer shows removed handlers/jobs
+- Connection status bar no longer flashes "Disconnected" on page refresh; shows "Connecting..." until WebSocket handshake completes
+- App start/stop/reload endpoints work in production mode without `dev_mode` or `allow_reload_in_prod`
+- Throttle timing test no longer flaky under CI load (mocked `time.monotonic` instead of real sleeps)
+- Log table expand/collapse is keyboard-accessible and uses stable row keys
 - Typed API returns for telemetry endpoints, handler/job rows refactored to useApi with lazy fetch and stale-while-revalidate (#381)
 - Relative timestamps now auto-refresh every 30 seconds (#381)
 - Action button errors are displayed instead of silently swallowed (#381)

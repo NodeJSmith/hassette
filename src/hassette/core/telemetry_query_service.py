@@ -394,7 +394,7 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
-                JOIN listeners l ON l.id = hi.listener_id
+                LEFT JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
                     AND hi.execution_start_ts > ?
                     AND hi.session_id = ?
@@ -411,7 +411,7 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
-                JOIN scheduled_jobs sj ON sj.id = je.job_id
+                LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
                     AND je.execution_start_ts > ?
                     AND je.session_id = ?
@@ -431,8 +431,9 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
-                JOIN listeners l ON l.id = hi.listener_id
+                LEFT JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
+                    AND hi.listener_id IS NOT NULL
                     AND hi.execution_start_ts > ?
                 ORDER BY hi.execution_start_ts DESC
                 LIMIT ?
@@ -447,8 +448,9 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
-                JOIN scheduled_jobs sj ON sj.id = je.job_id
+                LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
+                    AND je.job_id IS NOT NULL
                     AND je.execution_start_ts > ?
                 ORDER BY je.execution_start_ts DESC
                 LIMIT ?
@@ -477,8 +479,9 @@ class TelemetryQueryService(Resource):
                 hi.execution_start_ts,
                 hi.duration_ms
             FROM handler_invocations hi
-            JOIN listeners l ON l.id = hi.listener_id
+            LEFT JOIN listeners l ON l.id = hi.listener_id
             WHERE hi.duration_ms > ?
+                AND hi.listener_id IS NOT NULL
             ORDER BY hi.duration_ms DESC
             LIMIT ?
         """

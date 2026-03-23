@@ -41,6 +41,8 @@ def mock_hassette() -> MagicMock:
     hassette.config.data_dir = Path("/tmp/hassette-test")
     hassette.send_event = AsyncMock()
     hassette.wait_for_ready = AsyncMock(return_value=True)
+    hassette.command_executor = MagicMock()
+    hassette.command_executor.clear_registrations = AsyncMock()
     return hassette
 
 
@@ -535,6 +537,25 @@ class TestStartApp:
             and call[0][1].payload.data.status == ResourceStatus.NOT_STARTED
         ]
         assert len(not_started_calls) == 1
+
+    async def test_clears_registrations_before_init(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """Clears stale listener/job registrations before re-registering."""
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
+        lifecycle_service.task_bucket = Mock()
+        lifecycle_service.task_bucket.spawn = _make_spawn_mock()
+
+        with patch("hassette.core.app_lifecycle_service.get_log_capture_handler", return_value=None):
+            await lifecycle_service.start_app("test_app")
+
+        mock_hassette.command_executor.clear_registrations.assert_awaited_once_with("test_app")
 
     async def test_skips_disabled_app(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_factory: MagicMock

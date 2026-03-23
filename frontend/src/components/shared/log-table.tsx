@@ -21,7 +21,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
   const sortAsc = useRef(signal(false)).current;
-  const expandedRows = useRef(signal<Set<number>>(new Set())).current;
+  const expandedRows = useRef(signal<Set<string>>(new Set())).current;
 
   // Fetch initial entries on mount
   useEffect(() => {
@@ -133,8 +133,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 </td>
               </tr>
             )}
-            {sorted.slice(0, 500).map((entry, i) => (
-              <tr key={i}>
+            {sorted.slice(0, 500).map((entry) => {
+              const rowKey = `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
+              return (
+              <tr key={rowKey}>
                 <td>
                   <span class={`ht-badge ht-badge--sm ht-badge--${entry.level === "ERROR" || entry.level === "CRITICAL" ? "danger" : entry.level === "WARNING" ? "warning" : entry.level === "DEBUG" ? "neutral" : "success"}`}>
                     {entry.level}
@@ -152,15 +154,30 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     )}
                   </td>
                 )}
-                <td class="ht-log-message" onClick={() => {
-                  const next = new Set(expandedRows.value);
-                  if (next.has(i)) next.delete(i); else next.add(i);
-                  expandedRows.value = next;
-                }}>
-                  <div class={`ht-log-message__text${expandedRows.value.has(i) ? " is-expanded" : ""}`}>{entry.message}</div>
+                <td
+                  class="ht-log-message"
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={expandedRows.value.has(rowKey)}
+                  onClick={() => {
+                    const next = new Set(expandedRows.value);
+                    if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
+                    expandedRows.value = next;
+                  }}
+                  onKeyDown={(e: KeyboardEvent) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      const next = new Set(expandedRows.value);
+                      if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
+                      expandedRows.value = next;
+                    }
+                  }}
+                >
+                  <div class={`ht-log-message__text${expandedRows.value.has(rowKey) ? " is-expanded" : ""}`}>{entry.message}</div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

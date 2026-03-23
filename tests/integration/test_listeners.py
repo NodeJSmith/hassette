@@ -239,25 +239,33 @@ class TestThrottleLogic:
         assert calls == ["called", "called after throttle"], "Second call should be executed after throttle period"
 
     async def test_throttle_tracks_time_correctly(self, bucket_fixture: TaskBucket):
-        """Test that throttle timing works correctly."""
-        calls = []
+        """Test that throttle timing works correctly using mocked time."""
+        from unittest.mock import patch
+
+        calls: list[str] = []
 
         async def handler(event: MockEvent):
             calls.append(event.data)
 
-        adapter = create_adapter(handler, bucket_fixture, throttle=0.05)
+        with patch("hassette.bus.rate_limiter.time.monotonic") as mock_time:
+            # Start at 1000.0 so the first call passes the throttle check
+            # (now - _throttle_last_time(0.0) = 1000.0 >= 0.05)
+            mock_time.return_value = 1000.0
+            adapter = create_adapter(handler, bucket_fixture, throttle=0.05)
 
-        # Series of calls with different timing
-        await adapter.call(mock_event("1"))
-        assert calls == ["1"]
+            # t=1000.0: first call executes (1000.0 - 0.0 >= 0.05)
+            await adapter.call(mock_event("1"))
+            assert calls == ["1"]
 
-        await asyncio.sleep(0.03)  # 30ms - should be throttled
-        await adapter.call(mock_event("2"))
-        assert calls == ["1"]
+            # t=1000.03: within throttle window (0.03s < 0.05s), should be dropped
+            mock_time.return_value = 1000.03
+            await adapter.call(mock_event("2"))
+            assert calls == ["1"]
 
-        await asyncio.sleep(0.03)  # Total 60ms - should work now
-        await adapter.call(mock_event("3"))
-        assert calls == ["1", "3"]
+            # t=1000.06: past throttle window (0.06s >= 0.05s), should execute
+            mock_time.return_value = 1000.06
+            await adapter.call(mock_event("3"))
+            assert calls == ["1", "3"]
 
 
 class TestListenerIntegration:
