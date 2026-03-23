@@ -7,9 +7,7 @@ interface Props {
 
 export function JobList({ jobs }: Props) {
   if (!jobs) return null;
-  if (jobs.length === 0) {
-    return <p class="ht-text-muted ht-text-xs">No scheduled jobs.</p>;
-  }
+  if (jobs.length === 0) return null;
 
   return (
     <div class="ht-item-list" data-testid="job-list">

@@ -22,9 +22,9 @@ export function StatusBar() {
 
   return (
     <div class="ht-status-bar">
-      <span class={`ht-ws-indicator ${className}`}>
+      <span class={`ht-ws-indicator ${className}`} aria-label={label}>
         <span class={dotClass} />
-        <span class="ht-text-xs">{label}</span>
+        {status !== "connected" && <span class="ht-text-xs">{label}</span>}
       </span>
       <button
         class="ht-theme-toggle"

@@ -117,11 +117,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         <table class="ht-table ht-table--compact ht-table-log">
           <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
             <tr>
-              <th style={{ width: "80px" }}>Level</th>
-              <th style={{ width: "160px" }} class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
+              <th style={{ width: "90px" }}>Level</th>
+              <th style={{ width: "180px" }} class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
                 Timestamp {sortAsc.value ? "↑" : "↓"}
               </th>
-              {showAppColumn && <th style={{ width: "150px" }}>App</th>}
+              {showAppColumn && <th style={{ width: "170px" }}>App</th>}
               <th>Message</th>
             </tr>
           </thead>
@@ -142,7 +142,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     {entry.level}
                   </span>
                 </td>
-                <td class="ht-text-mono ht-text-xs">{formatTimestamp(entry.timestamp)}</td>
+                <td class="ht-text-mono">{formatTimestamp(entry.timestamp)}</td>
                 {showAppColumn && (
                   <td>
                     {entry.app_key ? (

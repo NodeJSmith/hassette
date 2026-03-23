@@ -1,5 +1,6 @@
 import type { DashboardAppGridEntry } from "../../api/endpoints";
 import { HealthBar } from "../shared/health-bar";
+import { StatusBadge } from "../shared/status-badge";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { pluralize } from "../../utils/format";
 
@@ -7,17 +8,8 @@ interface Props {
   app: DashboardAppGridEntry;
 }
 
-const VARIANT_MAP: Record<string, string> = {
-  running: "running",
-  failed: "failed",
-  stopped: "stopped",
-  disabled: "disabled",
-  blocked: "disabled",
-};
-
 export function AppCard({ app }: Props) {
   const lastActivity = useRelativeTime(app.last_activity_ts);
-  const variant = VARIANT_MAP[app.status] ?? "neutral";
   const total = app.total_invocations + app.total_executions;
   const errors = app.total_errors + app.total_job_errors;
 
@@ -26,10 +18,7 @@ export function AppCard({ app }: Props) {
       <a href={`/apps/${app.app_key}`} class="ht-app-card__link">
         <div class="ht-app-card__header">
           <span class="ht-app-card__name">{app.display_name}</span>
-          <span class={`ht-status-badge ht-status-badge--${variant}`}>
-            <span class="ht-status-badge__dot" />
-            <span class="ht-status-badge__label">{app.status}</span>
-          </span>
+          <StatusBadge status={app.status} size="small" />
         </div>
         <div class="ht-app-card__stats">
           <span class="ht-text-xs ht-text-muted">{pluralize(app.handler_count, "handler")}</span>
