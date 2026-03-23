@@ -86,7 +86,7 @@ export function useApi<T>(
     depsVersion.current++;
     requestIdRef.current++;
     data.value = null;
-    loading.value = true;
+    loading.value = !lazyRef.current; // Don't set loading if lazy and never fetched
     error.value = null;
   }
 

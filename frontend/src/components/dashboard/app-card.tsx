@@ -42,7 +42,7 @@ export function AppCard({ app }: Props) {
         />
         <div class="ht-app-card__footer">
           <span class="ht-text-xs ht-text-muted">
-            Last: {lastActivity ?? "—"}
+            Last: {lastActivity || "—"}
           </span>
         </div>
       </a>

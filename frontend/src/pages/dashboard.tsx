@@ -61,15 +61,17 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {errors.data.value && errors.data.value.length > 0 ? (
+      {errors.error.value ? (
+        <div class="ht-empty-section ht-mb-4">
+          <IconWarning />
+          <span class="ht-text-danger ht-text-xs">Failed to load errors: {errors.error.value}</span>
+        </div>
+      ) : errors.data.value && errors.data.value.length > 0 ? (
         <div class="ht-card ht-mb-4">
           <h2 class="ht-heading-5">
             <IconWarning />
             <span>Recent Errors</span>
           </h2>
-          {errors.error.value && (
-            <p class="ht-text-danger">Failed to load errors: {errors.error.value}</p>
-          )}
           <ErrorFeed errors={errors.data.value} />
         </div>
       ) : (

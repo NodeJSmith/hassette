@@ -21,6 +21,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
   const sortAsc = useRef(signal(false)).current;
+  const expandedRows = useRef(signal<Set<number>>(new Set())).current;
 
   // Fetch initial entries on mount
   useEffect(() => {
@@ -151,11 +152,12 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     )}
                   </td>
                 )}
-                <td class="ht-log-message" onClick={(e) => {
-                  const wrap = e.currentTarget.querySelector(".ht-log-message__text");
-                  if (wrap) wrap.classList.toggle("is-expanded");
+                <td class="ht-log-message" onClick={() => {
+                  const next = new Set(expandedRows.value);
+                  if (next.has(i)) next.delete(i); else next.add(i);
+                  expandedRows.value = next;
                 }}>
-                  <div class="ht-log-message__text">{entry.message}</div>
+                  <div class={`ht-log-message__text${expandedRows.value.has(i) ? " is-expanded" : ""}`}>{entry.message}</div>
                 </td>
               </tr>
             ))}
