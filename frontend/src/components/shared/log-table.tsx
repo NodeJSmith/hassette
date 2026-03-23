@@ -3,7 +3,7 @@ import { useEffect, useRef } from "preact/hooks";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
 import { useAppState } from "../../state/context";
-import { formatTimestamp } from "../../utils/format";
+import { formatTimestamp, pluralize } from "../../utils/format";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -110,7 +110,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
             search.value = (e.target as HTMLInputElement).value;
           }}
         />
-        <span class="ht-text-secondary ht-text-xs">{filtered.length} entries</span>
+        <span class="ht-text-secondary ht-text-xs">{pluralize(filtered.length, "entry", "entries")}</span>
       </div>
       <div class="ht-log-table-scroll" style={{ maxHeight: "600px", overflow: "auto" }}>
         <table class="ht-table ht-table--compact ht-table-log">
@@ -141,17 +141,20 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(entry.timestamp)}</td>
                 {showAppColumn && (
-                  <td class="ht-text-xs">
+                  <td>
                     {entry.app_key ? (
-                      <a href={`/apps/${entry.app_key}`}>
-                        <code>{entry.app_key}</code>
+                      <a href={`/apps/${entry.app_key}`} class="ht-text-mono">
+                        {entry.app_key}
                       </a>
                     ) : (
-                      <code class="ht-text-muted">—</code>
+                      <span class="ht-text-muted">—</span>
                     )}
                   </td>
                 )}
-                <td class="ht-log-message">{entry.message}</td>
+                <td
+                  class="ht-log-message"
+                  onClick={(e) => { e.currentTarget.classList.toggle("is-expanded"); }}
+                >{entry.message}</td>
               </tr>
             ))}
           </tbody>

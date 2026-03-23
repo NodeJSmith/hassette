@@ -4,7 +4,7 @@ import { getJobExecutions } from "../../api/endpoints";
 import type { JobData } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { formatDuration } from "../../utils/format";
+import { formatDuration, pluralize } from "../../utils/format";
 import { JobExecutions } from "./job-executions";
 
 interface Props {
@@ -61,7 +61,7 @@ export function JobRow({ job }: Props) {
         </div>
         <div class="ht-item-row__stats">
           <span class="ht-meta-item" title="Total executions">
-            {job.total_executions} runs
+            {pluralize(job.total_executions, "run")}
           </span>
           {job.failed > 0 && (
             <span class="ht-meta-item--strong ht-text-danger">{job.failed} failed</span>

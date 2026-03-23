@@ -1,7 +1,6 @@
 import { getAppHealth, getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
 import { ErrorDisplay } from "../components/app-detail/error-display";
 import { ActionButtons } from "../components/apps/action-buttons";
-import { StatusBadge } from "../components/shared/status-badge";
 import { HandlerList } from "../components/app-detail/handler-list";
 import { HealthStrip } from "../components/app-detail/health-strip";
 import { IconBell, IconClock, IconLayers, IconScroll } from "../components/shared/icons";
@@ -56,7 +55,6 @@ export function AppDetailPage({ params }: Props) {
               <IconLayers />
               <span>{manifest?.display_name ?? appKey}</span>
             </h1>
-            <StatusBadge status={liveStatus} />
           </div>
         </div>
         <div class="ht-level-end">

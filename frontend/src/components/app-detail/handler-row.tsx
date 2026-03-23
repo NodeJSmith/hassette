@@ -4,7 +4,7 @@ import { getHandlerInvocations } from "../../api/endpoints";
 import type { ListenerData } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { formatDuration } from "../../utils/format";
+import { formatDuration, pluralize } from "../../utils/format";
 import { HandlerInvocations } from "./handler-invocations";
 
 interface Props {
@@ -64,7 +64,7 @@ export function HandlerRow({ listener }: Props) {
         </div>
         <div class="ht-item-row__stats">
           <span class="ht-meta-item" title="Total invocations">
-            {listener.total_invocations} calls
+            {pluralize(listener.total_invocations, "call")}
           </span>
           {listener.failed > 0 && (
             <span class="ht-meta-item--strong ht-text-danger">{listener.failed} failed</span>

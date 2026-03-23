@@ -2,6 +2,7 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import type { AppManifest } from "../../api/endpoints";
 import { StatusBadge } from "../shared/status-badge";
+import { pluralize } from "../../utils/format";
 import { ActionButtons } from "./action-buttons";
 
 interface Props {
@@ -28,17 +29,21 @@ export function ManifestRow({ manifest, liveStatus }: Props) {
               {expanded.value ? "▾" : "▸"}
             </span>
           )}
-          <a href={`/apps/${manifest.app_key}`}>
-            <code>{manifest.app_key}</code>
+          <a href={`/apps/${manifest.app_key}`} class="ht-text-mono">
+            {manifest.app_key}
           </a>
         </td>
-        <td>{manifest.display_name}</td>
-        <td class="ht-text-secondary">{manifest.class_name}</td>
+        <td>
+          {manifest.display_name}
+          {manifest.class_name !== manifest.display_name && (
+            <div class="ht-text-secondary ht-text-xs">{manifest.class_name}</div>
+          )}
+        </td>
         <td>
           <StatusBadge status={status} size="small" />
           {isMultiInstance && (
             <span class="ht-badge ht-badge--sm ht-badge--neutral" style={{ marginLeft: "4px" }}>
-              {manifest.instance_count} instances
+              {pluralize(manifest.instance_count, "instance")}
             </span>
           )}
         </td>
@@ -54,11 +59,10 @@ export function ManifestRow({ manifest, liveStatus }: Props) {
       {isMultiInstance && expanded.value && manifest.instances.map((inst) => (
         <tr key={`${manifest.app_key}-${inst.index}`} class="ht-instance-row">
           <td style={{ paddingLeft: "2rem" }}>
-            <a href={`/apps/${manifest.app_key}/${inst.index}`}>
-              <code>{inst.instance_name}</code>
+            <a href={`/apps/${manifest.app_key}/${inst.index}`} class="ht-text-mono">
+              {inst.instance_name}
             </a>
           </td>
-          <td />
           <td />
           <td><StatusBadge status={inst.status} size="small" /></td>
           <td class="ht-text-secondary">

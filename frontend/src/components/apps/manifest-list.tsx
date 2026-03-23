@@ -32,7 +32,6 @@ export function ManifestList({ manifests, filter }: Props) {
         <tr>
           <th>App Key</th>
           <th>Name</th>
-          <th>Class</th>
           <th>Status</th>
           <th>Error</th>
           <th>Actions</th>

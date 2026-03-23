@@ -1,6 +1,7 @@
 import type { DashboardAppGridEntry } from "../../api/endpoints";
 import { HealthBar } from "../shared/health-bar";
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import { pluralize } from "../../utils/format";
 
 interface Props {
   app: DashboardAppGridEntry;
@@ -31,21 +32,19 @@ export function AppCard({ app }: Props) {
           </span>
         </div>
         <div class="ht-app-card__stats">
-          <span class="ht-text-xs ht-text-muted">{app.handler_count} handlers</span>
-          <span class="ht-text-xs ht-text-muted">{app.job_count} jobs</span>
+          <span class="ht-text-xs ht-text-muted">{pluralize(app.handler_count, "handler")}</span>
+          <span class="ht-text-xs ht-text-muted">{pluralize(app.job_count, "job")}</span>
         </div>
         <HealthBar
           healthStatus={app.health_status}
           total={total}
           errors={errors}
         />
-        {lastActivity && (
-          <div class="ht-app-card__footer">
-            <span class="ht-text-xs ht-text-muted">
-              Last: {lastActivity}
-            </span>
-          </div>
-        )}
+        <div class="ht-app-card__footer">
+          <span class="ht-text-xs ht-text-muted">
+            Last: {lastActivity ?? "—"}
+          </span>
+        </div>
       </a>
     </div>
   );

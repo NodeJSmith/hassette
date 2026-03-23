@@ -314,7 +314,7 @@ strong {
   border: 1px solid var(--ht-border);
   border-radius: var(--ht-radius-md);
   box-shadow: var(--ht-shadow-sm);
-  padding: var(--ht-sp-6);
+  padding: var(--ht-sp-5);
 }
 
 .ht-card--full-height {
@@ -361,7 +361,16 @@ strong {
 
 .ht-log-message {
   font-size: var(--ht-text-sm);
-  word-break: break-word;
+  max-width: 600px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ht-log-message.is-expanded {
+  white-space: normal;
+  max-width: none;
 }
 
 .ht-table--dense th,
@@ -1312,7 +1321,11 @@ strong {
 }
 
 .ht-table-log td {
-  font-size: var(--ht-text-xs);
+  font-size: var(--ht-text-sm);
+}
+
+.ht-table-log .ht-text-mono {
+  white-space: nowrap;
 }
 
 /* — Sortable Column Header ————————————————————————————— */
@@ -1344,6 +1357,22 @@ strong {
 .ht-btn--link:hover {
   background: transparent;
   text-decoration: underline;
+}
+
+/* — Empty Section (compact no-data placeholder) ————————— */
+.ht-empty-section {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-2);
+  padding: var(--ht-sp-3) var(--ht-sp-4);
+  border: 1px dashed var(--ht-border);
+  border-radius: var(--ht-radius-md);
+}
+
+/* — Light Mode Overrides ——————————————————————————————— */
+[data-theme="light"] .ht-card {
+  border: 1px solid var(--ht-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 /* — Reduced Motion ————————————————————————————————————— */

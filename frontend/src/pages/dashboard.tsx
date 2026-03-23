@@ -61,16 +61,23 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div class="ht-card ht-mb-4">
-        <h2 class="ht-heading-5">
+      {errors.data.value && errors.data.value.length > 0 ? (
+        <div class="ht-card ht-mb-4">
+          <h2 class="ht-heading-5">
+            <IconWarning />
+            <span>Recent Errors</span>
+          </h2>
+          {errors.error.value && (
+            <p class="ht-text-danger">Failed to load errors: {errors.error.value}</p>
+          )}
+          <ErrorFeed errors={errors.data.value} />
+        </div>
+      ) : (
+        <div class="ht-empty-section ht-mb-4">
           <IconWarning />
-          <span>Recent Errors</span>
-        </h2>
-        {errors.error.value && (
-          <p class="ht-text-danger">Failed to load errors: {errors.error.value}</p>
-        )}
-        <ErrorFeed errors={errors.data.value} />
-      </div>
+          <span class="ht-text-muted ht-text-xs">No recent errors. All systems healthy.</span>
+        </div>
+      )}
 
       {/* Session info bar */}
       <div class="ht-session-bar" data-testid="session-info">
