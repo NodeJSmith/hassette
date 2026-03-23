@@ -1,5 +1,5 @@
 import type { DashboardErrorEntry } from "../../api/endpoints";
-import { formatRelativeTime } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 
 interface Props {
   errors: DashboardErrorEntry[] | null;
@@ -13,22 +13,30 @@ export function ErrorFeed({ errors }: Props) {
   return (
     <div class="ht-error-feed" data-testid="dashboard-errors">
       {errors.map((err, i) => (
-        <div key={i} class="ht-error-entry" data-testid="error-item">
-          <div class="ht-error-entry-header">
-            <span class={`ht-tag ht-tag-${err.kind}`}>{err.kind}</span>
-            <a href={`/apps/${err.app_key}`} class="ht-text-sm">
-              {err.app_key}
-            </a>
-            <span class="ht-text-secondary ht-text-xs">
-              {formatRelativeTime(err.timestamp)}
-            </span>
-          </div>
-          <div class="ht-error-entry-body">
-            <code class="ht-text-sm">{err.error_type}</code>
-            <span class="ht-text-sm">{err.error_message}</span>
-          </div>
-        </div>
+        <ErrorEntry key={`${err.timestamp}-${err.app_key}-${i}`} err={err} />
       ))}
+    </div>
+  );
+}
+
+function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
+  const relativeTime = useRelativeTime(err.timestamp);
+
+  return (
+    <div class="ht-error-entry" data-testid="error-item">
+      <div class="ht-error-entry__header">
+        <span class={`ht-tag ht-tag--${err.kind}`}>{err.kind}</span>
+        <a href={`/apps/${err.app_key}`} class="ht-text-sm">
+          {err.app_key}
+        </a>
+        <span class="ht-text-secondary ht-text-xs">
+          {relativeTime}
+        </span>
+      </div>
+      <div class="ht-error-entry__body">
+        <code class="ht-text-sm">{err.error_type}</code>
+        <span class="ht-text-sm">{err.error_message}</span>
+      </div>
     </div>
   );
 }

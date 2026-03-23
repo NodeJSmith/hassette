@@ -1,16 +1,8 @@
+import type { HandlerInvocationData } from "../../api/endpoints";
 import { formatDuration, formatTimestamp } from "../../utils/format";
 
-interface Invocation {
-  execution_start_ts: number;
-  duration_ms: number;
-  status: string;
-  error_type: string | null;
-  error_message: string | null;
-  error_traceback: string | null;
-}
-
 interface Props {
-  invocations: Invocation[];
+  invocations: HandlerInvocationData[];
   listenerId: number;
 }
 

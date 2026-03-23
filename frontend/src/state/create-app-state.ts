@@ -1,4 +1,4 @@
-import { signal } from "@preact/signals";
+import { batch, signal, type Signal } from "@preact/signals";
 import { RingBuffer } from "../utils/ring-buffer";
 import type { WsLogPayload } from "../api/ws-types";
 
@@ -13,6 +13,30 @@ export interface AppStatusEntry {
   exception?: string | null;
 }
 
+export interface LogStore {
+  push(entry: WsLogPayload): void;
+  toArray(): WsLogPayload[];
+  version: Signal<number>;
+}
+
+export function createLogStore(): LogStore {
+  const buffer = new RingBuffer<WsLogPayload>(1000);
+  const version = signal(0);
+
+  return {
+    push(entry: WsLogPayload): void {
+      batch(() => {
+        buffer.push(entry);
+        version.value++;
+      });
+    },
+    toArray(): WsLogPayload[] {
+      return buffer.toArray();
+    },
+    version,
+  };
+}
+
 export function createAppState() {
   return {
     /** Per-app status keyed by app_key, updated via WS. */
@@ -22,10 +46,7 @@ export function createAppState() {
     connection: signal<ConnectionStatus>("disconnected"),
 
     /** Log entries in a ring buffer with a version signal for efficient rendering. */
-    logs: {
-      buffer: new RingBuffer<WsLogPayload>(1000),
-      version: signal(0),
-    },
+    logs: createLogStore(),
 
     /** Dark/light theme (initialized from localStorage if available). */
     theme: signal<"dark" | "light">(
@@ -37,6 +58,9 @@ export function createAppState() {
 
     /** Incremented on WS reconnection (not first connect). useApi reads this to auto-refetch. */
     reconnectVersion: signal(0),
+
+    /** Monotonic counter incremented every 30s to trigger relative-time re-renders. */
+    tick: signal(0),
   };
 }
 

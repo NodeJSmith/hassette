@@ -1,9 +1,9 @@
 import { getAppHealth, getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
 import { ErrorDisplay } from "../components/app-detail/error-display";
 import { ActionButtons } from "../components/apps/action-buttons";
-import { StatusBadge } from "../components/shared/status-badge";
 import { HandlerList } from "../components/app-detail/handler-list";
 import { HealthStrip } from "../components/app-detail/health-strip";
+import { IconBell, IconClock, IconLayers, IconScroll } from "../components/shared/icons";
 import { JobList } from "../components/app-detail/job-list";
 import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
@@ -14,29 +14,6 @@ import { useLocation } from "wouter";
 interface Props {
   params: { key: string; index?: string };
 }
-
-// Lucide SVG icons
-const IconLayers = () => (
-  <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="m21 16-9 5-9-5" /><path d="m21 12-9 5-9-5" /><path d="M12 2l9 5-9 5-9-5 9-5Z" />
-  </svg>
-);
-const IconBell = () => (
-  <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-  </svg>
-);
-const IconClock = () => (
-  <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-  </svg>
-);
-const IconScroll = () => (
-  <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M15 12h-5" /><path d="M15 8h-5" /><path d="M19 17V5a2 2 0 0 0-2-2H4" />
-    <path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2" />
-  </svg>
-);
 
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
@@ -54,7 +31,7 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = manifest?.instances.find((i) => i.index === instanceIndex);
   const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   const listenerCount = listeners.data.value?.length ?? 0;
-  const jobCount = (jobs.data.value as unknown[] | null)?.length ?? 0;
+  const jobCount = jobs.data.value?.length ?? 0;
 
   const isLoading = health.loading.value || listeners.loading.value || jobs.loading.value || manifests.loading.value;
   if (isLoading) return <Spinner />;
@@ -78,7 +55,6 @@ export function AppDetailPage({ params }: Props) {
               <IconLayers />
               <span>{manifest?.display_name ?? appKey}</span>
             </h1>
-            <StatusBadge status={liveStatus} />
           </div>
         </div>
         <div class="ht-level-end">

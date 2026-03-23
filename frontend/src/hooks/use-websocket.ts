@@ -63,8 +63,7 @@ export function useWebSocket(state: AppState): void {
               break;
 
             case "log":
-              state.logs.buffer.push(msg.data);
-              state.logs.version.value++;
+              state.logs.push(msg.data);
               break;
 
             case "connectivity":

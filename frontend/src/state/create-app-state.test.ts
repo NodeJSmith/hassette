@@ -14,13 +14,16 @@ describe("createAppState", () => {
 
     a.reconnectVersion.value = 3;
     expect(b.reconnectVersion.value).toBe(0);
+
+    a.tick.value = 5;
+    expect(b.tick.value).toBe(0);
   });
 
-  it("log buffer and version signal are independent", () => {
+  it("log store push/toArray are independent across instances", () => {
     const a = createAppState();
     const b = createAppState();
 
-    a.logs.buffer.push({
+    a.logs.push({
       timestamp: 0,
       level: "INFO",
       logger_name: "",
@@ -30,11 +33,10 @@ describe("createAppState", () => {
       exc_info: null,
       app_key: null,
     });
-    a.logs.version.value++;
 
-    expect(a.logs.buffer.length).toBe(1);
-    expect(b.logs.buffer.length).toBe(0);
+    expect(a.logs.toArray()).toHaveLength(1);
     expect(a.logs.version.value).toBe(1);
+    expect(b.logs.toArray()).toHaveLength(0);
     expect(b.logs.version.value).toBe(0);
   });
 });

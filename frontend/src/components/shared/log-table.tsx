@@ -3,7 +3,7 @@ import { useEffect, useRef } from "preact/hooks";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
 import { useAppState } from "../../state/context";
-import { formatTimestamp } from "../../utils/format";
+import { formatTimestamp, pluralize } from "../../utils/format";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -21,6 +21,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
   const sortAsc = useRef(signal(false)).current;
+  const expandedRows = useRef(signal<Set<number>>(new Set())).current;
 
   // Fetch initial entries on mount
   useEffect(() => {
@@ -33,7 +34,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   void logs.version.value;
 
   // Combine initial entries + ring buffer entries
-  const wsEntries = logs.buffer.toArray().filter((e) => {
+  const wsEntries = logs.toArray().filter((e) => {
     if (appKey && e.app_key !== appKey) return false;
     return true;
   });
@@ -110,17 +111,17 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
             search.value = (e.target as HTMLInputElement).value;
           }}
         />
-        <span class="ht-text-secondary ht-text-xs">{filtered.length} entries</span>
+        <span class="ht-text-secondary ht-text-xs">{pluralize(filtered.length, "entry", "entries")}</span>
       </div>
       <div class="ht-log-table-scroll" style={{ maxHeight: "600px", overflow: "auto" }}>
         <table class="ht-table ht-table--compact ht-table-log">
           <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
             <tr>
-              <th>Level</th>
-              <th class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
+              <th style={{ width: "80px" }}>Level</th>
+              <th style={{ width: "160px" }} class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
                 Timestamp {sortAsc.value ? "↑" : "↓"}
               </th>
-              {showAppColumn && <th>App</th>}
+              {showAppColumn && <th style={{ width: "150px" }}>App</th>}
               <th>Message</th>
             </tr>
           </thead>
@@ -141,17 +142,23 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(entry.timestamp)}</td>
                 {showAppColumn && (
-                  <td class="ht-text-xs">
+                  <td>
                     {entry.app_key ? (
-                      <a href={`/apps/${entry.app_key}`}>
-                        <code>{entry.app_key}</code>
+                      <a href={`/apps/${entry.app_key}`} class="ht-text-mono">
+                        {entry.app_key}
                       </a>
                     ) : (
-                      <code class="ht-text-muted">—</code>
+                      <span class="ht-text-muted">—</span>
                     )}
                   </td>
                 )}
-                <td class="ht-log-message">{entry.message}</td>
+                <td class="ht-log-message" onClick={() => {
+                  const next = new Set(expandedRows.value);
+                  if (next.has(i)) next.delete(i); else next.add(i);
+                  expandedRows.value = next;
+                }}>
+                  <div class={`ht-log-message__text${expandedRows.value.has(i) ? " is-expanded" : ""}`}>{entry.message}</div>
+                </td>
               </tr>
             ))}
           </tbody>

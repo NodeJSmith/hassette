@@ -1,4 +1,4 @@
-import { useMemo } from "preact/hooks";
+import { useEffect, useMemo } from "preact/hooks";
 import { Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
 import { AlertBanner } from "./components/layout/alert-banner";
@@ -18,6 +18,11 @@ import { createAppState } from "./state/create-app-state";
 export function App() {
   const state = useMemo(() => createAppState(), []);
   const [location] = useLocation();
+
+  useEffect(() => {
+    const id = setInterval(() => { if (!document.hidden) state.tick.value++; }, 30_000);
+    return () => clearInterval(id);
+  }, [state]);
 
   return (
     <AppStateContext.Provider value={state}>

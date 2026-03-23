@@ -1,7 +1,8 @@
+import type { JobData } from "../../api/endpoints";
 import { JobRow } from "./job-row";
 
 interface Props {
-  jobs: unknown[] | null;
+  jobs: JobData[] | null;
 }
 
 export function JobList({ jobs }: Props) {
@@ -12,8 +13,8 @@ export function JobList({ jobs }: Props) {
 
   return (
     <div class="ht-item-list" data-testid="job-list">
-      {(jobs as Array<Record<string, unknown>>).map((j) => (
-        <JobRow key={j.job_id as number} job={j as never} />
+      {jobs.map((j) => (
+        <JobRow key={j.job_id} job={j} />
       ))}
     </div>
   );

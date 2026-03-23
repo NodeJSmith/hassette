@@ -18,6 +18,11 @@ function depsChanged(prev: unknown[], next: unknown[]): boolean {
   return false;
 }
 
+export interface UseApiOptions {
+  /** When true, skip the initial fetch on mount. Call `refetch()` manually to load data. */
+  lazy?: boolean;
+}
+
 /**
  * Data-fetching hook with signal-based state.
  * Returns signals so only the subscribing components re-render on updates.
@@ -25,20 +30,35 @@ function depsChanged(prev: unknown[], next: unknown[]): boolean {
  * Pass a `deps` array when the fetcher closes over values that change
  * (e.g., route params). The hook refetches whenever deps change.
  *
+ * Pass `{ lazy: true }` to skip the initial mount fetch — useful for
+ * expand-on-click patterns where the API call should wait until the
+ * user interacts.
+ *
  * Automatically refetches on WebSocket reconnection via the shared
  * `reconnectVersion` signal. Must be used within AppStateContext.Provider.
  */
-export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseApiResult<T> {
+export function useApi<T>(
+  fetcher: () => Promise<T>,
+  deps: unknown[] = [],
+  options: UseApiOptions = {},
+): UseApiResult<T> {
+  const { lazy = false } = options;
+
   const data = useRef(signal<T | null>(null)).current;
-  const loading = useRef(signal(true)).current;
+  const loading = useRef(signal(!lazy)).current;
   const error = useRef(signal<string | null>(null)).current;
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
   const requestIdRef = useRef(0);
+  /** Tracks whether at least one fetch has been initiated (for reconnect guard). */
+  const hasFetchedRef = useRef(false);
+  const lazyRef = useRef(lazy);
 
   const refetch = useRef(async () => {
+    hasFetchedRef.current = true;
+    lazyRef.current = false; // After first fetch, allow deps-driven refetches
     const id = ++requestIdRef.current;
     loading.value = true;
     error.value = null;
@@ -57,7 +77,6 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseA
       }
     }
   }).current;
-
   const prevDeps = useRef(deps);
   const depsVersion = useRef(0);
 
@@ -67,13 +86,14 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseA
     depsVersion.current++;
     requestIdRef.current++;
     data.value = null;
-    loading.value = true;
+    loading.value = !lazyRef.current; // Don't set loading if lazy and never fetched
     error.value = null;
   }
 
   const version = depsVersion.current;
 
   useEffect(() => {
+    if (lazyRef.current) return;
     void refetch();
   }, [refetch, version]);
 
@@ -84,6 +104,8 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseA
   useSignalEffect(() => {
     const v = reconnectVersion.value;
     if (v > 0 && v !== mountReconnectVersion.current) {
+      // For lazy instances, only reconnect-refetch if at least one fetch has happened
+      if (lazyRef.current && !hasFetchedRef.current) return;
       void refetch();
     }
   });

@@ -14,6 +14,12 @@ export function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/** Pluralize a label based on count (e.g., pluralize(1, "entry", "entries") → "1 entry"). */
+export function pluralize(count: number, singular: string, plural?: string): string {
+  const label = count === 1 ? singular : (plural ?? `${singular}s`);
+  return `${count} ${label}`;
+}
+
 /** Format a Unix timestamp as a relative time string (e.g., "2m ago"). */
 export function formatRelativeTime(ts: number): string {
   const now = Date.now() / 1000;

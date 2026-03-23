@@ -1,4 +1,5 @@
 import type { DashboardKpis } from "../../api/endpoints";
+import { pluralize } from "../../utils/format";
 
 interface Props {
   data: DashboardKpis | null;
@@ -26,19 +27,19 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
         </span>
         <span class="ht-health-card__detail">
           {data.total_invocations > 0
-            ? `${data.total_errors} / ${data.total_invocations} invocations`
+            ? `${data.total_errors} / ${pluralize(data.total_invocations, "invocation")}`
             : "No data"}
         </span>
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Handlers</span>
         <span class="ht-health-card__value">{data.total_handlers}</span>
-        <span class="ht-health-card__detail">{data.total_invocations} invocations</span>
+        <span class="ht-health-card__detail">{pluralize(data.total_invocations, "invocation")}</span>
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Jobs</span>
         <span class="ht-health-card__value">{data.total_jobs}</span>
-        <span class="ht-health-card__detail">{data.total_executions} executions</span>
+        <span class="ht-health-card__detail">{pluralize(data.total_executions, "execution")}</span>
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Uptime</span>

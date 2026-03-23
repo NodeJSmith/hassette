@@ -1,44 +1,40 @@
 import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import { getJobExecutions } from "../../api/endpoints";
-import { formatDuration, formatRelativeTime } from "../../utils/format";
+import type { JobData } from "../../api/endpoints";
+import { useApi } from "../../hooks/use-api";
+import { useRelativeTime } from "../../hooks/use-relative-time";
+import { formatDuration, pluralize } from "../../utils/format";
 import { JobExecutions } from "./job-executions";
-
-interface JobData {
-  job_id: number;
-  job_name: string;
-  handler_method: string;
-  trigger_type: string | null;
-  trigger_value: string | null;
-  total_executions: number;
-  failed: number;
-  avg_duration_ms: number;
-  last_executed_at: number | null;
-}
 
 interface Props {
   job: JobData;
 }
 
+/**
+ * Expandable job row with lazy-loaded execution history.
+ *
+ * Uses `useApi` with `lazy: true` so no API call is made until the row is
+ * expanded. On re-expand, `refetch()` is called again — stale data stays
+ * visible during the refresh (stale-while-revalidate).
+ */
 export function JobRow({ job }: Props) {
+  const lastExecuted = useRelativeTime(job.last_executed_at);
   const expanded = useRef(signal(false)).current;
-  const loaded = useRef(signal(false)).current;
-  const executions = useRef(signal<unknown[]>([])).current;
-  const loading = useRef(signal(false)).current;
+
+  const { data: executions, loading, refetch } = useApi(
+    () => getJobExecutions(job.job_id),
+    [job.job_id],
+    { lazy: true },
+  );
 
   const dotClass =
     job.failed > 0 ? "danger" : job.total_executions > 0 ? "success" : "neutral";
 
-  const toggle = async () => {
+  const toggle = () => {
     expanded.value = !expanded.value;
-    if (expanded.value && !loaded.value) {
-      loading.value = true;
-      try {
-        executions.value = await getJobExecutions(job.job_id);
-        loaded.value = true;
-      } finally {
-        loading.value = false;
-      }
+    if (expanded.value) {
+      void refetch();
     }
   };
 
@@ -49,8 +45,8 @@ export function JobRow({ job }: Props) {
         role="button"
         tabIndex={0}
         aria-expanded={expanded.value}
-        onClick={() => void toggle()}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void toggle(); } }}
+        onClick={toggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
       >
         <span class={`ht-item-row__dot ht-item-row__dot--${dotClass}`} />
         <div class="ht-item-row__content">
@@ -65,7 +61,7 @@ export function JobRow({ job }: Props) {
         </div>
         <div class="ht-item-row__stats">
           <span class="ht-meta-item" title="Total executions">
-            {job.total_executions} runs
+            {pluralize(job.total_executions, "run")}
           </span>
           {job.failed > 0 && (
             <span class="ht-meta-item--strong ht-text-danger">{job.failed} failed</span>
@@ -73,9 +69,9 @@ export function JobRow({ job }: Props) {
           {job.avg_duration_ms > 0 && (
             <span class="ht-meta-item">{formatDuration(job.avg_duration_ms)} avg</span>
           )}
-          {job.last_executed_at && (
+          {lastExecuted && (
             <span class="ht-meta-item ht-text-muted">
-              {formatRelativeTime(job.last_executed_at)}
+              {lastExecuted}
             </span>
           )}
         </div>
@@ -87,11 +83,11 @@ export function JobRow({ job }: Props) {
       </div>
       {expanded.value && (
         <div class="ht-item-detail" id={`job-${job.job_id}-detail`}>
-          {loading.value ? (
+          {loading.value && !executions.value ? (
             <p class="ht-text-muted ht-text-xs">Loading executions...</p>
-          ) : (
-            <JobExecutions executions={executions.value as never[]} jobId={job.job_id} />
-          )}
+          ) : executions.value ? (
+            <JobExecutions executions={executions.value} jobId={job.job_id} />
+          ) : null}
         </div>
       )}
     </div>

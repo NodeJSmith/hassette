@@ -3,6 +3,7 @@ import { useRef } from "preact/hooks";
 import { getManifests } from "../api/endpoints";
 import { ManifestList } from "../components/apps/manifest-list";
 import { StatusFilter, type FilterValue } from "../components/apps/status-filter";
+import { IconGrid } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 
@@ -23,12 +24,7 @@ export function AppsPage() {
   return (
     <div>
       <h1 class="ht-heading-4 ht-mb-4">
-        <svg class="ht-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect width="7" height="7" x="3" y="3" rx="1" />
-          <rect width="7" height="7" x="14" y="3" rx="1" />
-          <rect width="7" height="7" x="14" y="14" rx="1" />
-          <rect width="7" height="7" x="3" y="14" rx="1" />
-        </svg>
+        <IconGrid />
         <span>App Management</span>
       </h1>
       {error.value && <p class="ht-text-danger">{error.value}</p>}
