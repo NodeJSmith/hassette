@@ -69,13 +69,13 @@ def test_app_card_links_to_detail(page: Page, base_url: str) -> None:
 def test_app_card_shows_status_badge(page: Page, base_url: str) -> None:
     """App cards display status badges."""
     page.goto(base_url + "/")
-    # Running app should have running badge
+    # Running app should have success badge (pill badge via StatusBadge)
     running_card = page.locator("[data-testid='app-card-my_app']")
-    expect(running_card.locator(".ht-status-badge--running")).to_be_visible()
+    expect(running_card.locator(".ht-badge--success")).to_be_visible()
 
-    # Failed app should have failed badge
+    # Failed app should have danger badge
     failed_card = page.locator("[data-testid='app-card-broken_app']")
-    expect(failed_card.locator(".ht-status-badge--failed")).to_be_visible()
+    expect(failed_card.locator(".ht-badge--danger")).to_be_visible()
 
 
 # ── Error feed ──────────────────────────────────────────────────────
