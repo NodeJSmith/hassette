@@ -110,7 +110,8 @@ def test_app_detail_identity_model_fixed(page: Page, base_url: str) -> None:
     # The page should render without error (the old code would break)
     body = page.locator("body")
     expect(body).to_contain_text("Other App")
-    expect(body).to_contain_text("Scheduled Jobs")
+    # Logs section is always visible (handlers/jobs sections hidden when empty)
+    expect(page.locator("[data-testid='logs-section']")).to_be_visible()
 
 
 def test_registration_source_link(page: Page, base_url: str) -> None:

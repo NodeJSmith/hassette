@@ -28,7 +28,7 @@ export function ActionButtons({ appKey, status }: Props) {
   // Clear stale error when app status changes (e.g., WS event arrives after failed action)
   useEffect(() => { error.value = null; }, [status]);
 
-  const canStart = status === "stopped" || status === "failed";
+  const canStart = status === "stopped" || status === "failed" || status === "disabled";
   const canStop = status === "running";
   const canReload = status === "running";
 
@@ -36,10 +36,11 @@ export function ActionButtons({ appKey, status }: Props) {
     <div class="ht-btn-group">
       {canStart && (
         <button
-          class="ht-btn ht-btn--sm ht-btn--success"
+          class="ht-btn ht-btn--xs ht-btn--ghost ht-btn--success"
           data-testid={`btn-start-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(startApp)}
+          title="Start app"
         >
           <IconPlay />
           <span>Start</span>
@@ -47,10 +48,11 @@ export function ActionButtons({ appKey, status }: Props) {
       )}
       {canStop && (
         <button
-          class="ht-btn ht-btn--sm ht-btn--warning"
+          class="ht-btn ht-btn--xs ht-btn--ghost ht-btn--warning"
           data-testid={`btn-stop-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(stopApp)}
+          title="Stop app"
         >
           <IconSquare />
           <span>Stop</span>
@@ -58,10 +60,11 @@ export function ActionButtons({ appKey, status }: Props) {
       )}
       {canReload && (
         <button
-          class="ht-btn ht-btn--sm ht-btn--info"
+          class="ht-btn ht-btn--xs ht-btn--ghost ht-btn--info"
           data-testid={`btn-reload-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(reloadApp)}
+          title="Reload app"
         >
           <IconRefresh />
           <span>Reload</span>

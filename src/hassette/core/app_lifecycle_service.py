@@ -300,6 +300,10 @@ class AppLifecycleService(Resource):
 
         instances = self.registry.get_apps_by_key(app_key)
         if instances:
+            # Clear stale listener/job registrations from previous sessions before
+            # re-registration. History rows are preserved via ON DELETE SET NULL.
+            await self.hassette.command_executor.clear_registrations(app_key)
+
             handler = get_log_capture_handler()
             for inst in instances.values():
                 if handler:

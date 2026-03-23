@@ -106,24 +106,28 @@ export function AppDetailPage({ params }: Props) {
       <HealthStrip health={health.data.value} status={liveStatus} />
 
       {/* Event Handlers */}
-      <div class="ht-card ht-mb-4">
-        <h2 class="ht-heading-5" data-testid="handlers-heading">
-          <IconBell />
-          Event Handlers ({listenerCount} registered)
-        </h2>
-        {listeners.error.value && <p class="ht-text-danger">{listeners.error.value}</p>}
-        <HandlerList listeners={listeners.data.value} />
-      </div>
+      {(listenerCount > 0 || listeners.error.value) && (
+        <div class="ht-card ht-mb-8">
+          <h2 class="ht-heading-5" data-testid="handlers-heading">
+            <IconBell />
+            Event Handlers ({listenerCount} registered)
+          </h2>
+          {listeners.error.value && <p class="ht-text-danger">{listeners.error.value}</p>}
+          <HandlerList listeners={listeners.data.value} />
+        </div>
+      )}
 
       {/* Scheduled Jobs */}
-      <div class="ht-card ht-mb-4">
-        <h2 class="ht-heading-5" data-testid="jobs-heading">
-          <IconClock />
-          Scheduled Jobs ({jobCount} active)
-        </h2>
-        {jobs.error.value && <p class="ht-text-danger">{jobs.error.value}</p>}
-        <JobList jobs={jobs.data.value} />
-      </div>
+      {(jobCount > 0 || jobs.error.value) && (
+        <div class="ht-card ht-mb-8">
+          <h2 class="ht-heading-5" data-testid="jobs-heading">
+            <IconClock />
+            Scheduled Jobs ({jobCount} active)
+          </h2>
+          {jobs.error.value && <p class="ht-text-danger">{jobs.error.value}</p>}
+          <JobList jobs={jobs.data.value} />
+        </div>
+      )}
 
       {/* Logs */}
       <div class="ht-card" data-testid="logs-section">

@@ -72,6 +72,98 @@ describe("useWebSocket", () => {
     expect(state.sessionId.value).toBe(1);
   });
 
+  it("initializes with 'connecting' state", () => {
+    const state = createAppState();
+    expect(state.connection.value).toBe("connecting");
+
+    renderHook(() => useWebSocket(state));
+
+    // Before onopen/onmessage, state should remain "connecting"
+    expect(state.connection.value).toBe("connecting");
+  });
+
+  it("transitions to 'connected' on application-level connected message, not on onopen", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+
+    // TCP connect (onopen) should NOT set "connected"
+    act(() => {
+      ws.simulateOpen();
+    });
+    expect(state.connection.value).toBe("connecting");
+
+    // Application-level "connected" message should set "connected"
+    act(() => {
+      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+    expect(state.connection.value).toBe("connected");
+  });
+
+  it("transitions to 'disconnected' on first-connection failure", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+
+    // Close without ever receiving "connected" message
+    act(() => {
+      ws.onclose?.();
+    });
+
+    // Should be "disconnected" (not "reconnecting") since never connected
+    expect(state.connection.value).toBe("disconnected");
+  });
+
+  it("closes socket on handshake timeout when server never sends connected message", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+
+    // TCP connect succeeds but server never sends "connected" message
+    act(() => {
+      ws.simulateOpen();
+    });
+    expect(state.connection.value).toBe("connecting");
+
+    // Advance past handshake timeout (10s)
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    // Socket should have been closed by the timeout, triggering onclose
+    // which sets "disconnected" since hasConnectedRef is still false
+    expect(state.connection.value).toBe("disconnected");
+  });
+
+  it("clears handshake timer when connected message arrives", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+    expect(state.connection.value).toBe("connected");
+
+    // Advancing past timeout should NOT close the socket
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(state.connection.value).toBe("connected");
+  });
+
   it("increments reconnectVersion on reconnect but not first connect", () => {
     vi.useFakeTimers();
     const state = createAppState();

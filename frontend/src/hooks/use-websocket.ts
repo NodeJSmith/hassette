@@ -6,6 +6,7 @@ import type { WsServerMessage } from "../api/ws-types";
 const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;
 const BACKOFF_MULTIPLIER = 1.5;
+const HANDSHAKE_TIMEOUT_MS = 10_000;
 
 export function useWebSocket(state: AppState): void {
   const wsRef = useRef<WebSocket | null>(null);
@@ -19,13 +20,25 @@ export function useWebSocket(state: AppState): void {
     function connect() {
       if (unmounted) return;
 
+      // When retrying after a first-connection failure, show "Connecting..." instead of "Disconnected"
+      if (!hasConnectedRef.current && state.connection.value === "disconnected") {
+        state.connection.value = "connecting";
+      }
+
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const socket = new WebSocket(`${proto}//${location.host}/api/ws`);
       wsRef.current = socket;
 
+      let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
+
       socket.onopen = () => {
-        state.connection.value = "connected";
         backoffRef.current = INITIAL_BACKOFF_MS;
+        // If server doesn't send "connected" message within timeout, close and retry
+        handshakeTimer = setTimeout(() => {
+          if (!hasConnectedRef.current || state.connection.value !== "connected") {
+            socket.close();
+          }
+        }, HANDSHAKE_TIMEOUT_MS);
       };
 
       socket.onmessage = (e: MessageEvent) => {
@@ -39,6 +52,11 @@ export function useWebSocket(state: AppState): void {
         batch(() => {
           switch (msg.type) {
             case "connected":
+              if (handshakeTimer) {
+                clearTimeout(handshakeTimer);
+                handshakeTimer = null;
+              }
+              state.connection.value = "connected";
               state.sessionId.value = msg.data.session_id;
               if (hasConnectedRef.current) {
                 // Reconnection — signal all useApi instances to refetch
@@ -79,8 +97,12 @@ export function useWebSocket(state: AppState): void {
       };
 
       socket.onclose = () => {
+        if (handshakeTimer) {
+          clearTimeout(handshakeTimer);
+          handshakeTimer = null;
+        }
         if (unmounted) return;
-        state.connection.value = "reconnecting";
+        state.connection.value = hasConnectedRef.current ? "reconnecting" : "disconnected";
         scheduleReconnect();
       };
 

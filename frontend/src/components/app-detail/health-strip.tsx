@@ -34,7 +34,9 @@ export function HealthStrip({ health, status }: Props) {
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Handler Avg</span>
-        <span class="ht-health-card__value">{formatDuration(health.handler_avg_duration)}</span>
+        <span class="ht-health-card__value">
+          {health.handler_avg_duration > 0 ? formatDuration(health.handler_avg_duration) : "—"}
+        </span>
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Job Avg</span>

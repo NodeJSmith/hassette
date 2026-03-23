@@ -11,13 +11,20 @@ export function StatusBar() {
     localStorage.setItem("ht-theme", next);
   };
 
+  const statusConfig: Record<typeof status, { className: string; dotClass: string; label: string }> = {
+    connecting: { className: "is-connecting", dotClass: "ht-pulse-dot connecting", label: "Connecting..." },
+    connected: { className: "is-connected", dotClass: "ht-pulse-dot", label: "Connected" },
+    reconnecting: { className: "is-disconnected", dotClass: "ht-pulse-dot disconnected", label: "Reconnecting..." },
+    disconnected: { className: "is-disconnected", dotClass: "ht-pulse-dot disconnected", label: "Disconnected" },
+  };
+
+  const { className, dotClass, label } = statusConfig[status];
+
   return (
     <div class="ht-status-bar">
-      <span class={`ht-ws-indicator ${status === "connected" ? "is-connected" : "is-disconnected"}`}>
-        <span class={`ht-pulse-dot${status !== "connected" ? " disconnected" : ""}`} />
-        <span class="ht-text-xs">
-          {status === "connected" ? "Connected" : status === "reconnecting" ? "Reconnecting..." : "Disconnected"}
-        </span>
+      <span class={`ht-ws-indicator ${className}`} aria-label={label}>
+        <span class={dotClass} />
+        {status !== "connected" && <span class="ht-text-xs">{label}</span>}
       </span>
       <button
         class="ht-theme-toggle"

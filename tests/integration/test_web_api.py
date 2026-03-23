@@ -105,11 +105,12 @@ class TestAppEndpoints:
         data = response.json()
         assert data["action"] == "reload"
 
-    async def test_app_management_forbidden_in_prod(self, client: "AsyncClient", mock_hassette) -> None:
+    async def test_app_management_works_without_dev_mode(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.config.dev_mode = False
         mock_hassette.config.allow_reload_in_prod = False
-        response = await client.post("/api/apps/my_app/start")
-        assert response.status_code == 403
+        assert (await client.post("/api/apps/my_app/start")).status_code == 202
+        assert (await client.post("/api/apps/my_app/stop")).status_code == 202
+        assert (await client.post("/api/apps/my_app/reload")).status_code == 202
         # Restore
         mock_hassette.config.dev_mode = True
 

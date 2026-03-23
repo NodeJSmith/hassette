@@ -335,7 +335,12 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     # production mode settings
 
     allow_reload_in_prod: bool = Field(default=False)
-    """Whether to allow reloading apps in production mode. Defaults to False."""
+    """Whether to enable the file watcher for automatic app reloads in production mode.
+
+    When True, file changes trigger automatic app reloads (same as dev_mode).
+    Manual app management (start/stop/reload via API) is always available
+    regardless of this setting. Defaults to False.
+    """
 
     allow_only_app_in_prod: bool = Field(default=False)
     """Whether to allow the `only_app` decorator in production mode. Defaults to False."""
