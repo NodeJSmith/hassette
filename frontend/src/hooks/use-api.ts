@@ -54,6 +54,7 @@ export function useApi<T>(
   const requestIdRef = useRef(0);
   /** Tracks whether at least one fetch has been initiated (for reconnect guard). */
   const hasFetchedRef = useRef(false);
+  const lazyRef = useRef(lazy);
 
   const refetch = useRef(async () => {
     hasFetchedRef.current = true;
@@ -76,8 +77,6 @@ export function useApi<T>(
       }
     }
   }).current;
-
-  const lazyRef = useRef(lazy);
   const prevDeps = useRef(deps);
   const depsVersion = useRef(0);
 
