@@ -116,11 +116,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         <table class="ht-table ht-table--compact ht-table-log">
           <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
             <tr>
-              <th>Level</th>
-              <th class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
+              <th style={{ width: "80px" }}>Level</th>
+              <th style={{ width: "160px" }} class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
                 Timestamp {sortAsc.value ? "↑" : "↓"}
               </th>
-              {showAppColumn && <th>App</th>}
+              {showAppColumn && <th style={{ width: "150px" }}>App</th>}
               <th>Message</th>
             </tr>
           </thead>
@@ -151,10 +151,12 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     )}
                   </td>
                 )}
-                <td
-                  class="ht-log-message"
-                  onClick={(e) => { e.currentTarget.classList.toggle("is-expanded"); }}
-                >{entry.message}</td>
+                <td class="ht-log-message" onClick={(e) => {
+                  const wrap = e.currentTarget.querySelector(".ht-log-message__text");
+                  if (wrap) wrap.classList.toggle("is-expanded");
+                }}>
+                  <div class="ht-log-message__text">{entry.message}</div>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -361,16 +361,17 @@ strong {
 
 .ht-log-message {
   font-size: var(--ht-text-sm);
-  max-width: 600px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
 }
 
-.ht-log-message.is-expanded {
-  white-space: normal;
-  max-width: none;
+.ht-log-message__text {
+  line-height: 1.5;
+  max-height: calc(1.5em * 2); /* 2 lines */
+  overflow: hidden;
+}
+
+.ht-log-message__text.is-expanded {
+  max-height: none;
 }
 
 .ht-table--dense th,
@@ -403,7 +404,7 @@ strong {
 }
 
 .ht-badge--sm {
-  font-size: var(--ht-text-xs);
+  font-size: var(--ht-text-sm);
   padding: 0.1em 0.45em;
 }
 
@@ -1320,6 +1321,10 @@ strong {
   overflow-y: auto;
 }
 
+.ht-table-log {
+  table-layout: fixed;
+}
+
 .ht-table-log td {
   font-size: var(--ht-text-sm);
 }
@@ -1327,6 +1332,7 @@ strong {
 .ht-table-log .ht-text-mono {
   white-space: nowrap;
 }
+
 
 /* — Sortable Column Header ————————————————————————————— */
 .ht-sortable {
