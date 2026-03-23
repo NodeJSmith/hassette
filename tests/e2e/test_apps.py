@@ -47,7 +47,7 @@ def test_app_detail_shows_sections(page: Page, base_url: str) -> None:
 
 def test_running_app_has_success_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/my_app")
-    badge = page.locator(".ht-status-badge--running:has-text('running')").first
+    badge = page.locator(".ht-health-card__value:has-text('Running')").first
     expect(badge).to_be_visible()
 
 
@@ -65,7 +65,7 @@ def test_failed_app_shows_error_message(page: Page, base_url: str) -> None:
 
 def test_failed_app_has_danger_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/broken_app")
-    badge = page.locator(".ht-status-badge--failed:has-text('failed')").first
+    badge = page.locator(".ht-health-card__value:has-text('Failed')").first
     expect(badge).to_be_visible()
 
 
@@ -76,13 +76,13 @@ def test_failed_app_shows_start_button(page: Page, base_url: str) -> None:
 
 def test_stopped_app_has_stopped_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/other_app")
-    badge = page.locator(".ht-status-badge--stopped:has-text('stopped')").first
+    badge = page.locator(".ht-health-card__value:has-text('Stopped')").first
     expect(badge).to_be_visible()
 
 
 def test_disabled_app_has_disabled_badge(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/disabled_app")
-    badge = page.locator(".ht-status-badge--disabled:has-text('disabled')").first
+    badge = page.locator(".ht-health-card__value:has-text('Disabled')").first
     expect(badge).to_be_visible()
 
 
