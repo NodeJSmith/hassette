@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Action button errors are displayed instead of silently swallowed (#381)
 - Spinner, alert banner, and error feed badges now have visible CSS styles (were previously unstyled) (#381)
 - ~340 lines of dead CSS from the old htmx/Alpine UI removed (#381)
+- Long log messages truncate to 2 lines with click-to-expand
+- Dashboard errors section shows API failure instead of false "all healthy"
 - WebSocket reconnection automatically refreshes all REST-fetched data without page reload (#379)
 - WebSocket hook no longer causes infinite reconnect loop when options are passed (#379)
 - Instance switcher uses client-side navigation instead of full page reload (#378)
