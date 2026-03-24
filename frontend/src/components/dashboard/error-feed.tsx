@@ -17,9 +17,10 @@ function kindClass(kind: string): string {
   return KNOWN_KINDS.has(kind) ? kind : "neutral";
 }
 
-function errorEntryKey(err: DashboardErrorEntry): string {
-  const id = err.listener_id ?? err.job_id ?? err.timestamp;
-  return `${err.kind}-${id}-${err.app_key}-${err.error_type}`;
+function errorEntryKey(err: DashboardErrorEntry, index: number): string {
+  // listener_id/job_id can be 0 (sentinel for unregistered) — treat as missing
+  const id = (err.listener_id || err.job_id) || `${err.timestamp}-${index}`;
+  return `${err.kind}-${id}-${err.app_key}`;
 }
 
 export function ErrorFeed({ errors }: Props) {
@@ -29,8 +30,8 @@ export function ErrorFeed({ errors }: Props) {
 
   return (
     <div class="ht-error-feed" data-testid="dashboard-errors">
-      {errors.map((err) => (
-        <ErrorEntry key={errorEntryKey(err)} err={err} />
+      {errors.map((err, i) => (
+        <ErrorEntry key={errorEntryKey(err, i)} err={err} />
       ))}
     </div>
   );

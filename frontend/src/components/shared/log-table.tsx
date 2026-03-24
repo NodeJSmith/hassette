@@ -33,8 +33,13 @@ export function sortEntries(entries: readonly LogEntry[], column: SortColumn, as
       case "level":
         return ((LEVEL_INDEX[a.level] ?? -1) - (LEVEL_INDEX[b.level] ?? -1)) * direction;
       case "app": {
-        const aKey = a.app_key ?? "\uffff";
-        const bKey = b.app_key ?? "\uffff";
+        const aKey = a.app_key;
+        const bKey = b.app_key;
+        const aMissing = aKey == null || aKey === "";
+        const bMissing = bKey == null || bKey === "";
+        if (aMissing && bMissing) return 0;
+        if (aMissing) return 1;  // nulls always last
+        if (bMissing) return -1; // nulls always last
         return aKey.localeCompare(bKey) * direction;
       }
       case "message":
