@@ -24,22 +24,19 @@ export function DashboardPage() {
   // round of API calls. maxWait caps staleness during bulk startup. Reconnection
   // refetches bypass this — they go through useApi's reconnectVersion signal.
   //
-  // The seenInitialRef prevents a phantom refetch when initial load completes.
-  // Without it, getValue transitions from undefined → appStatus.value on the first
-  // post-load render, which the hook interprets as a change. The ref latches true
-  // one render AFTER load completes, so the hook seeds its prevValue with the
-  // current appStatus before seeing any real changes.
+  // To prevent a phantom refetch when initial load completes, we track a version
+  // counter that only increments on real WS-driven appStatus changes AFTER load.
+  // The hook sees numeric changes (0→1→2...) instead of object reference changes,
+  // avoiding the undefined→object transition that would trigger a false refetch.
   const initialLoadDone = !kpis.loading.value && !appGrid.loading.value && !errors.loading.value;
-  const seenInitialRef = useRef(false);
-  // Latch one render behind: on the render where initialLoadDone first becomes
-  // true, getValue still returns undefined. On the NEXT render, it returns
-  // appStatus.value — but by then prevValueRef is already seeded with it.
-  const ready = seenInitialRef.current;
-  if (initialLoadDone) {
-    seenInitialRef.current = true;
+  const statusVersionRef = useRef(0);
+  const prevStatusRef = useRef(appStatus.value);
+  if (initialLoadDone && appStatus.value !== prevStatusRef.current) {
+    prevStatusRef.current = appStatus.value;
+    statusVersionRef.current += 1;
   }
   useDebouncedEffect(
-    () => (ready ? appStatus.value : undefined),
+    () => statusVersionRef.current,
     500,
     () => {
       void Promise.allSettled([kpis.refetch(), appGrid.refetch(), errors.refetch()]);

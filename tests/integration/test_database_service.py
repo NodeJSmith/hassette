@@ -528,8 +528,7 @@ def test_sequential_upgrade_from_each_revision(tmp_path: Path) -> None:
         db_path = tmp_path / f"test_{i}_{rev.revision}.db"
         rev_config = _make_alembic_config(db_path)
 
-        # Stamp the empty DB at this revision (creates alembic_version without running migrations)
-        # First, run migrations up to this revision to create the actual schema
+        # Run migrations up to this revision to create the schema at that point
         command.upgrade(rev_config, rev.revision)
 
         # Then upgrade from this revision to head

@@ -15,7 +15,8 @@ export function getStoredSet(key: string): Set<string> {
     if (raw === null) return new Set();
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed as string[]);
+    const strings = parsed.filter((item): item is string => typeof item === "string");
+    return new Set(strings);
   } catch {
     return new Set();
   }
