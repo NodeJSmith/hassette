@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
-  const { logs, updateLogSubscription } = useAppState();
+  const { logs, updateLogSubscription, reconnectVersion } = useAppState();
   const minLevel = useRef(signal("")).current; // "" = All Levels
   const appFilter = useRef(signal("")).current; // "" = All Apps
   const search = useRef(signal("")).current;
@@ -25,15 +25,17 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
 
   const watermarkRef = useRef(0);
 
-  // Fetch initial entries on mount
+  // Fetch initial entries on mount and after reconnect
+  const rv = reconnectVersion.value;
   useEffect(() => {
+    watermarkRef.current = 0;
     getRecentLogs({ app_key: appKey, limit: 200 })
       .then((entries) => {
         initialEntries.value = entries;
         watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.seq), 0);
       })
       .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
-  }, [appKey]);
+  }, [appKey, rv]);
 
   // Read version to subscribe to WS updates
   void logs.version.value;
@@ -149,7 +151,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
               </tr>
             )}
             {sorted.slice(0, 500).map((entry) => {
-              const rowKey = `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
+              const rowKey = entry.seq ? String(entry.seq) : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
               return (
               <tr key={rowKey}>
                 <td>

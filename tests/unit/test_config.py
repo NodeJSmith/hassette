@@ -468,3 +468,22 @@ def test_service_specific_override_takes_precedence(monkeypatch):
             continue
         actual = getattr(config, field)
         assert actual == "DEBUG", f"Expected {field}='DEBUG', got {actual!r}"
+
+
+def test_bundled_toml_files_have_no_log_level_entries():
+    """Regression guard: bundled TOML defaults must not contain *_log_level keys.
+
+    Adding them back silently re-introduces the model_post_init overwrite bug (#237).
+    """
+    import tomllib
+    from importlib.resources import files
+
+    for filename in ("hassette.prod.toml", "hassette.dev.toml"):
+        toml_path = files("hassette.config").joinpath(filename)
+        with toml_path.open("rb") as f:
+            data = tomllib.load(f)
+        hassette_section = data.get("hassette", {})
+        log_level_keys = [k for k in hassette_section if k.endswith("_log_level")]
+        assert log_level_keys == [], (
+            f"{filename} contains log_level entries that will be overwritten by model_post_init: {log_level_keys}"
+        )

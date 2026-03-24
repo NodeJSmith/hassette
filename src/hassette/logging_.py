@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import logging
 import sys
 import threading
@@ -62,7 +63,7 @@ class LogCaptureHandler(logging.Handler):
         self._broadcast_fn = None
         self._loop = None
         self._logger_to_app_key = {}
-        self._seq: int = 0
+        self._seq = itertools.count(1)
 
     def register_app_logger(self, logger_prefix: str, app_key: str) -> None:
         """Register a logger name prefix to an app_key for log attribution."""
@@ -100,9 +101,8 @@ class LogCaptureHandler(logging.Handler):
         return None
 
     def emit(self, record: logging.LogRecord) -> None:
-        self._seq += 1
         entry = LogEntry(
-            seq=self._seq,
+            seq=next(self._seq),
             timestamp=record.created,
             level=record.levelname,
             logger_name=record.name,

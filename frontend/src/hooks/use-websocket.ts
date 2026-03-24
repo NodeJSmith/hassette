@@ -24,6 +24,7 @@ export function useWebSocket(state: AppState): void {
 
   useEffect(() => {
     let unmounted = false;
+    let currentLogLevel = DEFAULT_LOG_LEVEL;
 
     function connect() {
       if (unmounted) return;
@@ -68,10 +69,11 @@ export function useWebSocket(state: AppState): void {
               state.sessionId.value = msg.data.session_id;
 
               // Subscribe to log streaming on every connect/reconnect
-              socket.send(buildSubscribePayload(DEFAULT_LOG_LEVEL));
+              socket.send(buildSubscribePayload(currentLogLevel));
 
               // Wire the targeted callback so LogTable can update the level
               state.setUpdateLogSubscription((level: string) => {
+                currentLogLevel = level;
                 if (socket.readyState === WebSocket.OPEN) {
                   socket.send(buildSubscribePayload(level));
                 }
