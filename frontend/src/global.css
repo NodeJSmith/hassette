@@ -1344,6 +1344,11 @@ strong {
   white-space: nowrap;
 }
 
+@media screen and (max-width: 1024px) {
+  .ht-table-log .ht-col-source {
+    display: none;
+  }
+}
 
 /* — Sortable Column Header ————————————————————————————— */
 .ht-sortable {

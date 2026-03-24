@@ -1176,6 +1176,7 @@
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
+            "description": "Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
             "default": 0
           },
           "instances": {
@@ -1442,6 +1443,12 @@
           "display_name": {
             "type": "string",
             "title": "Display Name"
+          },
+          "instance_count": {
+            "type": "integer",
+            "title": "Instance Count",
+            "description": "Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+            "default": 0
           },
           "handler_count": {
             "type": "integer",

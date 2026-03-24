@@ -194,6 +194,7 @@ async def dashboard_app_grid(
                 app_key=manifest.app_key,
                 status=manifest.status,
                 display_name=manifest.display_name,
+                instance_count=manifest.instance_count,
                 handler_count=health.handler_count,
                 job_count=health.job_count,
                 total_invocations=health.total_invocations,

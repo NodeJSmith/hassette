@@ -233,7 +233,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 raise
             except Exception as e:
                 if continue_on_error:
-                    self.logger.exception("Error during shutdown: %s %s", type(e).__name__, e)
+                    self.logger.error("Error during shutdown: %s %s", type(e).__name__, e)
                     with suppress(Exception):
                         await self.handle_failed(e)
                 else:
@@ -420,7 +420,7 @@ class Service(Resource):
             await self.handle_crash(e)
 
         except Exception as e:
-            self.logger.exception("Serve() task failed: %s %s", type(e).__name__, e)
+            self.logger.error("Serve() task failed: %s %s", type(e).__name__, e)
             # Crash/failure path
             await self.handle_failed(e)
 

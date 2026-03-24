@@ -182,7 +182,7 @@ class LifecycleMixin(_LifecycleHostStubs):
             self.logger.debug("%s already in failed state", self.unique_name, stacklevel=2)
             return
 
-        self.logger.error("%s failed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
+        self.logger.exception("%s failed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
         self.status = ResourceStatus.FAILED
         event = self._create_service_status_event(ResourceStatus.FAILED, exception)
         await self.hassette.send_event(event.topic, event)

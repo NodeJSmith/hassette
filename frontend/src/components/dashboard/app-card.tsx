@@ -17,7 +17,14 @@ export function AppCard({ app }: Props) {
     <div class="ht-app-card" data-testid={`app-card-${app.app_key}`}>
       <a href={`/apps/${app.app_key}`} class="ht-app-card__link">
         <div class="ht-app-card__header">
-          <span class="ht-app-card__name">{app.display_name}</span>
+          <span class="ht-app-card__name">
+            {app.display_name}
+            {app.instance_count > 1 && (
+              <span class="ht-badge ht-badge--sm ht-badge--neutral" title={`${app.instance_count} instances`}>
+                {" "}&times;{app.instance_count}
+              </span>
+            )}
+          </span>
           <StatusBadge status={app.status} size="small" />
         </div>
         <div class="ht-app-card__stats">

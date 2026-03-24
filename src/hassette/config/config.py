@@ -379,13 +379,15 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def headers(self) -> dict[str, str]:
         """Return the headers for API requests."""
-        headers = self.auth_headers.copy()
-        headers["Content-Type"] = "application/json"
-        return headers
+        return {**self.auth_headers, "Content-Type": "application/json"}
 
     @property
     def truncated_token(self) -> str:
         """Return a truncated version of the token for display purposes."""
+        if len(self.token) < 8:
+            return "***"
+        if len(self.token) <= 12:
+            return f"{self.token[:3]}***"
         return f"{self.token[:6]}...{self.token[-6:]}"
 
     @field_validator("apps", mode="before")

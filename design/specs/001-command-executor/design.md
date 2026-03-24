@@ -380,9 +380,8 @@ Methods that currently read from `_listener_metrics` or `_execution_log` return 
 def get_bus_metrics_summary(self) -> BusMetricsSummaryResponse:
     return BusMetricsSummaryResponse(listeners=[])
 
-# Stub — returns empty until #267
-def get_scheduler_summary(self) -> SchedulerSummaryResponse:
-    return SchedulerSummaryResponse(jobs=[], recent_executions=[])
+# Removed — SchedulerSummaryResponse was replaced by
+# TelemetryQueryService per-app job queries (#267, wave 4).
 ```
 
 Add a `# TODO(#267)` comment on each stub so they're easy to find during #267.

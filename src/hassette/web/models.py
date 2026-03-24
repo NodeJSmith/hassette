@@ -55,7 +55,10 @@ class AppManifestResponse(BaseModel):
     auto_loaded: bool
     status: str
     block_reason: str | None = None
-    instance_count: int = 0
+    instance_count: int = Field(
+        default=0,
+        description="Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+    )
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
@@ -114,13 +117,6 @@ class BusMetricsSummaryResponse(BaseModel):
     total_failed: int
     total_di_failures: int
     total_cancelled: int
-
-
-class SchedulerSummaryResponse(BaseModel):
-    total_jobs: int
-    active: int
-    cancelled: int
-    repeating: int
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +311,10 @@ class DashboardAppGridEntry(BaseModel):
     app_key: str
     status: str
     display_name: str
+    instance_count: int = Field(
+        default=0,
+        description="Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+    )
     handler_count: int
     job_count: int
     total_invocations: int

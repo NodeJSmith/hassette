@@ -86,6 +86,7 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
         hassette_instance._runtime_query_service,
         hassette_instance._telemetry_query_service,
         hassette_instance._web_api_service,
+        hassette_instance._web_ui_watcher,
         hassette_instance._bus,
         hassette_instance._scheduler,
         hassette_instance.api,
