@@ -25,11 +25,11 @@ def test_level_filter_options_present(page: Page, base_url: str) -> None:
 
 def test_sort_column_headers_clickable(page: Page, base_url: str) -> None:
     page.goto(base_url + "/logs")
-    # The Timestamp column header should be clickable (has sort toggle)
-    timestamp_header = page.locator("th.ht-sortable").first
-    expect(timestamp_header).to_be_visible()
+    # The Timestamp column header has a sort button inside it
+    sort_button = page.locator("[data-testid='sort-timestamp'] button").first
+    expect(sort_button).to_be_visible()
     # Click to toggle sort - should not error
-    timestamp_header.click()
+    sort_button.click()
 
 
 def test_search_input_present(page: Page, base_url: str) -> None:

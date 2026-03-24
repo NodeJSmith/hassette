@@ -23,3 +23,47 @@ Destructive action shows no visible change on hover. No confirmation dialog eith
 
 ### 8. Status badge uses three different treatments for "running" — LOW
 Dashboard cards: green text + dot. Apps list: green pill badge. App detail KPI: large green text. Unify to one treatment.
+
+## Web Stack Audit — 2026-03-24
+
+### 1. Hardcoded zero in dashboard KPI: avg_job_duration_ms always shows 0 — CRITICAL
+`src/hassette/web/routes/telemetry.py:185` — Job duration KPI hardcoded to `0.0` instead of computed from job executions. Misleading metric on dashboard.
+
+### 2. API contract drift: frontend ListenerData missing ~16 backend fields — CRITICAL
+`frontend/src/api/endpoints.ts:60-72` vs `src/hassette/web/models.py:301-327` — Backend returns 27 fields, frontend declares 11. Advanced handler metrics silently discarded.
+
+### 3. ConnectedWsMessage missing timestamp field — CRITICAL
+`src/hassette/web/models.py:221-224`, `frontend/ws-schema.json:152-169` — Only WS message type without `timestamp`. Frontend code assuming `msg.timestamp` gets `undefined` on reconnect.
+
+### 4. Dead code: compute_app_grid_health() never called + duplicate logic — HIGH
+`src/hassette/web/telemetry_helpers.py:153-181` — Duplicates logic inlined in `routes/telemetry.py:192-237`. Never imported. Maintenance hazard.
+
+### 5. Stub endpoint /scheduler/history returns empty array — HIGH
+`src/hassette/web/routes/scheduler.py:52-59` — Exposed in OpenAPI, accepts params, always returns `[]`.
+
+### 6. Frontend error responses never parsed — HIGH
+`frontend/src/api/client.ts:16-30` — Backend `HTTPException(detail=...)` wraps as `{"detail": "..."}` but frontend only captures HTTP status text, not the detail field.
+
+### 7. No schema validation tests in CI — HIGH
+`frontend/openapi.json` and `frontend/ws-schema.json` have no CI test validating they match backend models. Schema drift happens silently.
+
+### 8. Broad except Exception in telemetry: silent dashboard failures — HIGH
+`src/hassette/web/routes/telemetry.py:202` — Database errors, timeouts, coding mistakes all silently return empty summaries. No user-visible error.
+
+### 9. Component test coverage: 0/25 frontend components tested — HIGH
+Hooks/utils at 100% but no component tests for LogTable, ManifestList, ActionButtons, or any page.
+
+### 10. Silent WebSocket message drops for slow clients — HIGH
+`src/hassette/core/runtime_query_service.py:318-328` — Queue saturation logged at DEBUG only, no metrics, no backpressure.
+
+### 11. Naming drift: "listeners" (backend) vs "handlers" (frontend) — LOW
+Same concept, different names across the stack. Creates confusion during cross-stack debugging.
+
+### 12. Type mismatch in bus.py: response_model vs return type — LOW
+`src/hassette/web/routes/bus.py:15-24` — `response_model=list[ListenerMetricsResponse]` but return type is `list[ListenerSummary]`.
+
+### 13. Missing response_model on mutation endpoints — LOW
+`routes/apps.py`, `routes/services.py`, `routes/config.py` return bare dicts. OpenAPI shows `object` instead of specific fields.
+
+### 14. WebSocket nesting depth 4 — LOW
+`src/hassette/web/routes/ws.py:42-60` — Message handling could be extracted for readability.
