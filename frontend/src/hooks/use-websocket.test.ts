@@ -318,4 +318,46 @@ describe("useWebSocket", () => {
     state.updateLogSubscription("ERROR");
     expect(ws.sent).toHaveLength(0);
   });
+
+  it("clears log store on reconnect", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+
+    // Push some entries into the log store before connecting
+    state.logs.push({
+      seq: 1, timestamp: 1000, level: "INFO", logger_name: "test",
+      func_name: "f", lineno: 1, message: "stale", exc_info: null, app_key: null,
+    });
+
+    renderHook(() => useWebSocket(state));
+
+    // First connect
+    const ws1 = MockWebSocket.instances[0];
+    act(() => {
+      ws1.simulateOpen();
+      ws1.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+
+    // Log store still has the entry from before connect (first connect does not clear)
+    expect(state.logs.toArray()).toHaveLength(1);
+
+    // Disconnect
+    act(() => {
+      ws1.onclose?.();
+    });
+
+    // Advance past backoff to trigger reconnect
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    const ws2 = MockWebSocket.instances[1];
+    act(() => {
+      ws2.simulateOpen();
+      ws2.simulateMessage({ type: "connected", data: { session_id: 2 } });
+    });
+
+    // Log store should be cleared on reconnect
+    expect(state.logs.toArray()).toHaveLength(0);
+  });
 });

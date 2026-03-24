@@ -18,6 +18,7 @@ export interface AppStatusEntry {
 export interface LogStore {
   push(entry: WsLogPayload): void;
   toArray(): WsLogPayload[];
+  clear(): void;
   version: Signal<number>;
 }
 
@@ -34,6 +35,12 @@ export function createLogStore(): LogStore {
     },
     toArray(): WsLogPayload[] {
       return buffer.toArray();
+    },
+    clear(): void {
+      batch(() => {
+        buffer.clear();
+        version.value++;
+      });
     },
     version,
   };

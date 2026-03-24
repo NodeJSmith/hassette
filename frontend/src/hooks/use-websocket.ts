@@ -78,7 +78,9 @@ export function useWebSocket(state: AppState): void {
               });
 
               if (hasConnectedRef.current) {
-                // Reconnection — signal all useApi instances to refetch
+                // Reconnection — clear stale log buffer before re-subscribe populates fresh data
+                state.logs.clear();
+                // Signal all useApi instances to refetch
                 state.reconnectVersion.value = state.reconnectVersion.value + 1;
               } else {
                 hasConnectedRef.current = true;

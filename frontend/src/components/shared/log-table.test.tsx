@@ -341,6 +341,60 @@ describe("LogTable", () => {
   });
 });
 
+describe("Dedup via seq watermark (#364)", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    entrySeq = 0;
+  });
+
+  it("filters WS entries at or below the REST watermark", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+
+    // REST returns entries with seq 1-5
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ seq: 1, timestamp: 1000, message: "rest-1" }),
+      createLogEntry({ seq: 2, timestamp: 2000, message: "rest-2" }),
+      createLogEntry({ seq: 3, timestamp: 3000, message: "rest-3" }),
+      createLogEntry({ seq: 4, timestamp: 4000, message: "rest-4" }),
+      createLogEntry({ seq: 5, timestamp: 5000, message: "rest-5" }),
+    ]);
+
+    // WS buffer has overlapping entries (seq 3-8)
+    state.logs.push(createLogEntry({ seq: 3, timestamp: 3000, message: "ws-3" }));
+    state.logs.push(createLogEntry({ seq: 4, timestamp: 4000, message: "ws-4" }));
+    state.logs.push(createLogEntry({ seq: 5, timestamp: 5000, message: "ws-5" }));
+    state.logs.push(createLogEntry({ seq: 6, timestamp: 6000, message: "ws-6" }));
+    state.logs.push(createLogEntry({ seq: 7, timestamp: 7000, message: "ws-7" }));
+    state.logs.push(createLogEntry({ seq: 8, timestamp: 8000, message: "ws-8" }));
+
+    const { findByText, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Wait for REST entries to load (sets watermark = 5)
+    await findByText("rest-1");
+
+    // REST entries should all be visible
+    expect(queryByText("rest-1")).not.toBeNull();
+    expect(queryByText("rest-5")).not.toBeNull();
+
+    // WS entries at or below watermark (seq 3, 4, 5) should be filtered out
+    expect(queryByText("ws-3")).toBeNull();
+    expect(queryByText("ws-4")).toBeNull();
+    expect(queryByText("ws-5")).toBeNull();
+
+    // WS entries above watermark (seq 6, 7, 8) should be visible
+    expect(queryByText("ws-6")).not.toBeNull();
+    expect(queryByText("ws-7")).not.toBeNull();
+    expect(queryByText("ws-8")).not.toBeNull();
+  });
+});
+
 describe("REST + WS entry merging (#403)", () => {
   let state: AppState;
 

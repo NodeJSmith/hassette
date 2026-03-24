@@ -23,18 +23,24 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const sortAsc = useRef(signal(false)).current;
   const expandedRows = useRef(signal<Set<string>>(new Set())).current;
 
+  const watermarkRef = useRef(0);
+
   // Fetch initial entries on mount
   useEffect(() => {
     getRecentLogs({ app_key: appKey, limit: 200 })
-      .then((entries) => { initialEntries.value = entries; })
+      .then((entries) => {
+        initialEntries.value = entries;
+        watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.seq), 0);
+      })
       .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
   }, [appKey]);
 
   // Read version to subscribe to WS updates
   void logs.version.value;
 
-  // Combine initial entries + ring buffer entries
+  // Combine initial entries + ring buffer entries, deduplicating by seq watermark
   const wsEntries = logs.toArray().filter((e) => {
+    if (e.seq <= watermarkRef.current) return false;
     if (appKey && e.app_key !== appKey) return false;
     return true;
   });
