@@ -1443,6 +1443,11 @@
             "type": "string",
             "title": "Display Name"
           },
+          "instance_count": {
+            "type": "integer",
+            "title": "Instance Count",
+            "default": 0
+          },
           "handler_count": {
             "type": "integer",
             "title": "Handler Count"

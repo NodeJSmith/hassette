@@ -470,6 +470,50 @@ def test_service_specific_override_takes_precedence(monkeypatch):
         assert actual == "DEBUG", f"Expected {field}='DEBUG', got {actual!r}"
 
 
+# ---------------------------------------------------------------------------
+# Security-critical config property tests (#322)
+# ---------------------------------------------------------------------------
+
+
+class TestAuthHeaders:
+    """Test authentication header construction."""
+
+    def test_auth_headers_builds_bearer_token(self) -> None:
+        config = _LogLevelTestConfig()
+        assert config.auth_headers == {"Authorization": "Bearer test-token"}
+
+    def test_auth_headers_returns_new_dict_each_call(self) -> None:
+        config = _LogLevelTestConfig()
+        h1 = config.auth_headers
+        h2 = config.auth_headers
+        assert h1 == h2
+        assert h1 is not h2
+
+    def test_headers_merges_auth_and_content_type(self) -> None:
+        config = _LogLevelTestConfig()
+        headers = config.headers
+        assert headers == {
+            "Authorization": "Bearer test-token",
+            "Content-Type": "application/json",
+        }
+
+    def test_headers_does_not_mutate_auth_headers(self) -> None:
+        config = _LogLevelTestConfig()
+        _ = config.headers
+        assert "Content-Type" not in config.auth_headers
+
+    def test_truncated_token_shows_prefix_and_suffix(self) -> None:
+        config = _LogLevelTestConfig(token="abcdef1234567890ghijkl")
+        assert config.truncated_token == "abcdef...ghijkl"
+
+    def test_truncated_token_preserves_six_chars_each_end(self) -> None:
+        config = _LogLevelTestConfig(token="123456__middle__789012")
+        result = config.truncated_token
+        assert result.startswith("123456")
+        assert result.endswith("789012")
+        assert "..." in result
+
+
 def test_bundled_toml_files_have_no_log_level_entries():
     """Regression guard: bundled TOML defaults must not contain *_log_level keys.
 

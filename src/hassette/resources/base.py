@@ -269,6 +269,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         try:
             await self._run_hooks([self.before_initialize, self.on_initialize, self.after_initialize])
             await self.handle_running()
+        except Exception:
+            self.logger.exception("%s %s failed to start", self.role, self.unique_name)
+            raise
         finally:
             self._initializing = False
 
@@ -381,6 +384,9 @@ class Service(Resource):
             await self._run_hooks([self.before_initialize, self.on_initialize])
             self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
             await self._run_hooks([self.after_initialize])
+        except Exception:
+            self.logger.exception("%s %s failed to start", self.role, self.unique_name)
+            raise
         finally:
             self._initializing = False
 

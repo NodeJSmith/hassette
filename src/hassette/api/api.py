@@ -52,14 +52,14 @@ Examples:
     await self.api.toggle_service("switch.fan")
     ```
 
-    Setting and updating states
+    Setting states
 
     ```python
-    # Set entity state
+    # Set entity state with attributes
     await self.api.set_state("sensor.custom", "active", {"last_update": "now"})
 
-    # Update existing state attributes
-    await self.api.update_state("sensor.custom", {"battery": 85})
+    # Set state with updated attributes
+    await self.api.set_state("sensor.custom", "active", {"battery": 85})
     ```
 
     Firing custom events

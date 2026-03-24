@@ -104,6 +104,7 @@ export interface DashboardAppGridEntry {
   app_key: string;
   status: string;
   display_name: string;
+  instance_count: number;
   handler_count: number;
   job_count: number;
   total_invocations: number;

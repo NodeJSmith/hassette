@@ -32,7 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Status-to-color mappings consolidated into single `status.ts` utility with runtime validation; unknown backend values fallback to neutral with `console.warn` (#392)
 - Multi-instance app expand state in the apps list now persists across page navigation via localStorage (#392)
 
+### Added
+- Source location column in log table showing `func_name:lineno` with full logger path on hover
+- Instance count badge on dashboard app cards for multi-instance apps (hidden for single-instance)
+
 ### Fixed
+- Phantom `update_state` method removed from API docstring — only `set_state` exists
+- Resource and Service startup failures now log full traceback instead of silently re-raising
+- WebSocket message drops rate-limited to one warning per 10s with cumulative drop counter
+- `WebUiWatcherService` missing from Hassette children assertion in test_core.py
+- Dead `SchedulerSummaryResponse` model removed (obsolete after Preact migration)
 - Bus endpoint (`/bus/listeners`) now returns `ListenerWithSummary` with correct `once: int` type; `ListenerMetricsResponse` retired (#409)
 - Real-time log streaming works: WebSocket auto-subscribes on connect/reconnect with server-side level filtering (#409)
 - Log entries deduplicated at REST/WS boundary via monotonic sequence counter (#409)

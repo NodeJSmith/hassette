@@ -139,13 +139,14 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 </button>
               </th>
               {showAppColumn && <th style={{ width: "170px" }}>App</th>}
+              <th style={{ width: "220px" }}>Source</th>
               <th>Message</th>
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={showAppColumn ? 4 : 3} style={{ textAlign: "center" }} class="ht-text-muted">
+                <td colSpan={showAppColumn ? 5 : 4} style={{ textAlign: "center" }} class="ht-text-muted">
                   No log entries.
                 </td>
               </tr>
@@ -171,6 +172,9 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     )}
                   </td>
                 )}
+                <td class="ht-text-mono ht-text-xs ht-text-muted" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
+                  {entry.func_name}:{entry.lineno}
+                </td>
                 <td
                   class="ht-log-message"
                   role="button"

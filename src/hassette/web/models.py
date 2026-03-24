@@ -116,13 +116,6 @@ class BusMetricsSummaryResponse(BaseModel):
     total_cancelled: int
 
 
-class SchedulerSummaryResponse(BaseModel):
-    total_jobs: int
-    active: int
-    cancelled: int
-    repeating: int
-
-
 # ---------------------------------------------------------------------------
 # Typed WebSocket message models
 # ---------------------------------------------------------------------------
@@ -315,6 +308,7 @@ class DashboardAppGridEntry(BaseModel):
     app_key: str
     status: str
     display_name: str
+    instance_count: int = 0
     handler_count: int
     job_count: int
     total_invocations: int
