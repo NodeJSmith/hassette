@@ -105,7 +105,13 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    // All visible initially
+    // Default is INFO — debug not visible initially
+    expect(queryByText("debug msg")).toBeNull();
+    expect(getByText("info msg")).toBeDefined();
+    expect(getByText("error msg")).toBeDefined();
+
+    // Select "All Levels" to show everything including DEBUG
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
     expect(getByText("debug msg")).toBeDefined();
     expect(getByText("error msg")).toBeDefined();
 
