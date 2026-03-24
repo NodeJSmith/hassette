@@ -68,6 +68,15 @@ export function useWebSocket(state: AppState): void {
               state.connection.value = "connected";
               state.sessionId.value = msg.data.session_id;
 
+              if (hasConnectedRef.current) {
+                // Reconnection — clear stale log buffer before re-subscribing
+                state.logs.clear();
+                // Signal all useApi instances to refetch
+                state.reconnectVersion.value = state.reconnectVersion.value + 1;
+              } else {
+                hasConnectedRef.current = true;
+              }
+
               // Subscribe to log streaming on every connect/reconnect
               socket.send(buildSubscribePayload(currentLogLevel));
 
@@ -78,15 +87,6 @@ export function useWebSocket(state: AppState): void {
                   socket.send(buildSubscribePayload(level));
                 }
               });
-
-              if (hasConnectedRef.current) {
-                // Reconnection — clear stale log buffer before re-subscribe populates fresh data
-                state.logs.clear();
-                // Signal all useApi instances to refetch
-                state.reconnectVersion.value = state.reconnectVersion.value + 1;
-              } else {
-                hasConnectedRef.current = true;
-              }
               break;
 
             case "app_status_changed":

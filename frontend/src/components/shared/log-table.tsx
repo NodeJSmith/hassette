@@ -16,7 +16,7 @@ interface Props {
 
 export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const { logs, updateLogSubscription, reconnectVersion } = useAppState();
-  const minLevel = useRef(signal("")).current; // "" = All Levels
+  const minLevel = useRef(signal("INFO")).current; // default = INFO (matches WS subscription)
   const appFilter = useRef(signal("")).current; // "" = All Apps
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
