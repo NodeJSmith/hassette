@@ -7,6 +7,14 @@ const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;
 const BACKOFF_MULTIPLIER = 1.5;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
+const DEFAULT_LOG_LEVEL = "INFO";
+
+function buildSubscribePayload(level: string): string {
+  return JSON.stringify({
+    type: "subscribe",
+    data: { logs: true, min_log_level: level },
+  });
+}
 
 export function useWebSocket(state: AppState): void {
   const wsRef = useRef<WebSocket | null>(null);
@@ -58,6 +66,17 @@ export function useWebSocket(state: AppState): void {
               }
               state.connection.value = "connected";
               state.sessionId.value = msg.data.session_id;
+
+              // Subscribe to log streaming on every connect/reconnect
+              socket.send(buildSubscribePayload(DEFAULT_LOG_LEVEL));
+
+              // Wire the targeted callback so LogTable can update the level
+              state.setUpdateLogSubscription((level: string) => {
+                if (socket.readyState === WebSocket.OPEN) {
+                  socket.send(buildSubscribePayload(level));
+                }
+              });
+
               if (hasConnectedRef.current) {
                 // Reconnection — signal all useApi instances to refetch
                 state.reconnectVersion.value = state.reconnectVersion.value + 1;
@@ -101,6 +120,8 @@ export function useWebSocket(state: AppState): void {
           clearTimeout(handshakeTimer);
           handshakeTimer = null;
         }
+        // Clear the callback so stale socket references aren't used
+        state.setUpdateLogSubscription(() => {});
         if (unmounted) return;
         state.connection.value = hasConnectedRef.current ? "reconnecting" : "disconnected";
         scheduleReconnect();

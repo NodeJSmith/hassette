@@ -107,31 +107,6 @@ class ScheduledJobResponse(BaseModel):
     trigger_detail: str | None = None
 
 
-class ListenerMetricsResponse(BaseModel):
-    listener_id: int
-    app_key: str
-    instance_index: int = 0
-    topic: str
-    handler_method: str
-    total_invocations: int
-    successful: int
-    failed: int
-    di_failures: int
-    cancelled: int
-    avg_duration_ms: float = 0.0
-    min_duration_ms: float = 0.0
-    max_duration_ms: float = 0.0
-    total_duration_ms: float = 0.0
-    predicate_description: str | None = None
-    debounce: float | None = None
-    throttle: float | None = None
-    once: bool = False
-    priority: int = 0
-    last_invoked_at: float | None = None
-    last_error_message: str | None = None
-    last_error_type: str | None = None
-
-
 class BusMetricsSummaryResponse(BaseModel):
     total_listeners: int
     total_invocations: int

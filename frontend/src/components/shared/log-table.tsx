@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
-  const { logs } = useAppState();
+  const { logs, updateLogSubscription } = useAppState();
   const minLevel = useRef(signal("")).current; // "" = All Levels
   const appFilter = useRef(signal("")).current; // "" = All Apps
   const search = useRef(signal("")).current;
@@ -77,7 +77,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
             data-testid="filter-level"
             value={minLevel.value}
             onChange={(e) => {
-              minLevel.value = (e.target as HTMLSelectElement).value;
+              const newLevel = (e.target as HTMLSelectElement).value;
+              minLevel.value = newLevel;
+              // Update server-side filtering — "" (All Levels) maps to DEBUG
+              updateLogSubscription(newLevel || "DEBUG");
             }}
           >
             <option value="">All Levels</option>
