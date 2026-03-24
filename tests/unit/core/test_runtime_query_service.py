@@ -1,6 +1,7 @@
 """Unit tests for RuntimeQueryService."""
 
 import asyncio
+import itertools
 from collections import deque
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,6 +11,12 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.logging_ import LogCaptureHandler, LogEntry
 from hassette.test_utils.web_helpers import make_old_snapshot
 from hassette.web.models import AppStatusResponse, SystemStatusResponse
+
+_test_seq = itertools.count(1)
+
+
+def _next_seq() -> int:
+    return next(_test_seq)
 
 
 @pytest.fixture
@@ -121,6 +128,7 @@ class TestLogAccess:
         handler = LogCaptureHandler(buffer_size=100)
         for i in range(5):
             entry = LogEntry(
+                seq=_next_seq(),
                 timestamp=float(i),
                 level="INFO",
                 logger_name="hassette.test",
@@ -141,6 +149,7 @@ class TestLogAccess:
         handler = LogCaptureHandler(buffer_size=100)
         for level in ["DEBUG", "INFO", "WARNING", "ERROR"]:
             entry = LogEntry(
+                seq=_next_seq(),
                 timestamp=1.0,
                 level=level,
                 logger_name="hassette.test",
@@ -160,8 +169,17 @@ class TestLogAccess:
     def test_get_recent_logs_filtered_by_app_key(self, runtime: RuntimeQueryService) -> None:
         handler = LogCaptureHandler(buffer_size=100)
         entries = [
-            LogEntry(timestamp=1.0, level="INFO", logger_name="t", func_name="f", lineno=1, message="core msg"),
             LogEntry(
+                seq=_next_seq(),
+                timestamp=1.0,
+                level="INFO",
+                logger_name="t",
+                func_name="f",
+                lineno=1,
+                message="core msg",
+            ),
+            LogEntry(
+                seq=_next_seq(),
                 timestamp=2.0,
                 level="INFO",
                 logger_name="t",
@@ -171,6 +189,7 @@ class TestLogAccess:
                 app_key="my_app",
             ),
             LogEntry(
+                seq=_next_seq(),
                 timestamp=3.0,
                 level="WARNING",
                 logger_name="t",
@@ -193,7 +212,15 @@ class TestLogAccess:
         handler = LogCaptureHandler(buffer_size=100)
         for i in range(3):
             handler._buffer.append(
-                LogEntry(timestamp=float(i), level="INFO", logger_name="t", func_name="f", lineno=1, message=f"m{i}")
+                LogEntry(
+                    seq=_next_seq(),
+                    timestamp=float(i),
+                    level="INFO",
+                    logger_name="t",
+                    func_name="f",
+                    lineno=1,
+                    message=f"m{i}",
+                )
             )
 
         with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=handler):
@@ -205,6 +232,7 @@ class TestLogAccess:
         handler = LogCaptureHandler(buffer_size=100)
         entries = [
             LogEntry(
+                seq=_next_seq(),
                 timestamp=1.0,
                 level="INFO",
                 logger_name="t",
@@ -214,15 +242,38 @@ class TestLogAccess:
                 app_key="my_app",
             ),
             LogEntry(
-                timestamp=2.0, level="WARNING", logger_name="t", func_name="f", lineno=1, message="b", app_key="my_app"
+                seq=_next_seq(),
+                timestamp=2.0,
+                level="WARNING",
+                logger_name="t",
+                func_name="f",
+                lineno=1,
+                message="b",
+                app_key="my_app",
             ),
             LogEntry(
-                timestamp=3.0, level="ERROR", logger_name="t", func_name="f", lineno=1, message="c", app_key="my_app"
+                seq=_next_seq(),
+                timestamp=3.0,
+                level="ERROR",
+                logger_name="t",
+                func_name="f",
+                lineno=1,
+                message="c",
+                app_key="my_app",
             ),
             LogEntry(
-                timestamp=4.0, level="ERROR", logger_name="t", func_name="f", lineno=1, message="d", app_key="other_app"
+                seq=_next_seq(),
+                timestamp=4.0,
+                level="ERROR",
+                logger_name="t",
+                func_name="f",
+                lineno=1,
+                message="d",
+                app_key="other_app",
             ),
-            LogEntry(timestamp=5.0, level="DEBUG", logger_name="t", func_name="f", lineno=1, message="e"),
+            LogEntry(
+                seq=_next_seq(), timestamp=5.0, level="DEBUG", logger_name="t", func_name="f", lineno=1, message="e"
+            ),
         ]
         handler._buffer.extend(entries)
 
@@ -239,6 +290,7 @@ class TestLogAccess:
         for i in range(10):
             handler._buffer.append(
                 LogEntry(
+                    seq=_next_seq(),
                     timestamp=float(i),
                     level="ERROR",
                     logger_name="t",

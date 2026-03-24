@@ -6,21 +6,30 @@ import { createAppState } from "../state/create-app-state";
 /** Minimal mock WebSocket that tracks construction and allows simulating messages. */
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
+  static OPEN = 1;
 
   onopen: (() => void) | null = null;
   onmessage: ((e: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
+  readyState = 1; // OPEN
+  sent: string[] = [];
 
   constructor() {
     MockWebSocket.instances.push(this);
   }
 
+  send(data: string) {
+    this.sent.push(data);
+  }
+
   close() {
+    this.readyState = 3; // CLOSED
     this.onclose?.();
   }
 
   simulateOpen() {
+    this.readyState = 1; // OPEN
     this.onopen?.();
   }
 
@@ -200,5 +209,155 @@ describe("useWebSocket", () => {
 
     expect(state.reconnectVersion.value).toBe(1);
     expect(state.sessionId.value).toBe(2);
+  });
+
+  it("sends log subscribe on connect", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+
+    const subscribeMsgs = ws.sent.map((s) => JSON.parse(s));
+    expect(subscribeMsgs).toHaveLength(1);
+    expect(subscribeMsgs[0]).toEqual({
+      type: "subscribe",
+      data: { logs: true, min_log_level: "INFO" },
+    });
+  });
+
+  it("resubscribes on reconnect", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    // First connect
+    const ws1 = MockWebSocket.instances[0];
+    act(() => {
+      ws1.simulateOpen();
+      ws1.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+    expect(ws1.sent).toHaveLength(1);
+
+    // Disconnect
+    act(() => {
+      ws1.onclose?.();
+    });
+
+    // Advance past backoff
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    const ws2 = MockWebSocket.instances[1];
+    act(() => {
+      ws2.simulateOpen();
+      ws2.simulateMessage({ type: "connected", data: { session_id: 2 } });
+    });
+
+    // Second socket should also have sent subscribe
+    const subscribeMsgs = ws2.sent.map((s) => JSON.parse(s));
+    expect(subscribeMsgs).toHaveLength(1);
+    expect(subscribeMsgs[0]).toEqual({
+      type: "subscribe",
+      data: { logs: true, min_log_level: "INFO" },
+    });
+  });
+
+  it("wires updateLogSubscription to send level updates", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+
+    // Clear the initial subscribe message
+    ws.sent.length = 0;
+
+    // Call the targeted callback
+    state.updateLogSubscription("WARNING");
+
+    const msgs = ws.sent.map((s) => JSON.parse(s));
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]).toEqual({
+      type: "subscribe",
+      data: { logs: true, min_log_level: "WARNING" },
+    });
+  });
+
+  it("updateLogSubscription is no-op after disconnect", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+
+    // Disconnect
+    act(() => {
+      ws.onclose?.();
+    });
+
+    // Clear sent from before disconnect
+    ws.sent.length = 0;
+
+    // Should not throw or send anything
+    state.updateLogSubscription("ERROR");
+    expect(ws.sent).toHaveLength(0);
+  });
+
+  it("clears log store on reconnect", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+
+    // Push some entries into the log store before connecting
+    state.logs.push({
+      seq: 1, timestamp: 1000, level: "INFO", logger_name: "test",
+      func_name: "f", lineno: 1, message: "stale", exc_info: null, app_key: null,
+    });
+
+    renderHook(() => useWebSocket(state));
+
+    // First connect
+    const ws1 = MockWebSocket.instances[0];
+    act(() => {
+      ws1.simulateOpen();
+      ws1.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+
+    // Log store still has the entry from before connect (first connect does not clear)
+    expect(state.logs.toArray()).toHaveLength(1);
+
+    // Disconnect
+    act(() => {
+      ws1.onclose?.();
+    });
+
+    // Advance past backoff to trigger reconnect
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    const ws2 = MockWebSocket.instances[1];
+    act(() => {
+      ws2.simulateOpen();
+      ws2.simulateMessage({ type: "connected", data: { session_id: 2 } });
+    });
+
+    // Log store should be cleared on reconnect
+    expect(state.logs.toArray()).toHaveLength(0);
   });
 });

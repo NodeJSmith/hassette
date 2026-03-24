@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-instance app expand state in the apps list now persists across page navigation via localStorage (#392)
 
 ### Fixed
+- Bus endpoint (`/bus/listeners`) now returns `ListenerWithSummary` with correct `once: int` type; `ListenerMetricsResponse` retired (#409)
+- Real-time log streaming works: WebSocket auto-subscribes on connect/reconnect with server-side level filtering (#409)
+- Log entries deduplicated at REST/WS boundary via monotonic sequence counter (#409)
+- Service log levels now inherit global `log_level` setting (redundant TOML defaults removed) (#409)
 - Stale listener and job registrations cleaned up on app startup; telemetry no longer shows removed handlers/jobs (#390)
 - Connection status bar no longer flashes "Disconnected" on page refresh; shows "Connecting..." until WebSocket handshake completes (#390)
 - App start/stop/reload endpoints work in production mode without `dev_mode` or `allow_reload_in_prod` (#390)

@@ -23,8 +23,8 @@ from hassette.web.models import (
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
-    format_handler_summary,
     safe_session_id,
+    to_listener_with_summary,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,37 +93,7 @@ async def app_listeners(
     listeners = await telemetry.get_listener_summary(
         app_key=app_key, instance_index=instance_index, session_id=session_id
     )
-    return [
-        ListenerWithSummary(
-            listener_id=ls.listener_id,
-            app_key=ls.app_key,
-            instance_index=ls.instance_index,
-            topic=ls.topic,
-            handler_method=ls.handler_method,
-            total_invocations=ls.total_invocations,
-            successful=ls.successful,
-            failed=ls.failed,
-            di_failures=ls.di_failures,
-            cancelled=ls.cancelled,
-            avg_duration_ms=ls.avg_duration_ms,
-            min_duration_ms=ls.min_duration_ms,
-            max_duration_ms=ls.max_duration_ms,
-            total_duration_ms=ls.total_duration_ms,
-            predicate_description=ls.predicate_description,
-            human_description=ls.human_description,
-            debounce=ls.debounce,
-            throttle=ls.throttle,
-            once=ls.once,
-            priority=ls.priority,
-            last_invoked_at=ls.last_invoked_at,
-            last_error_message=ls.last_error_message,
-            last_error_type=ls.last_error_type,
-            source_location=ls.source_location,
-            registration_source=ls.registration_source,
-            handler_summary=format_handler_summary(ls),
-        )
-        for ls in listeners
-    ]
+    return [to_listener_with_summary(ls) for ls in listeners]
 
 
 @router.get("/app/{app_key}/jobs", response_model=list[JobSummary])

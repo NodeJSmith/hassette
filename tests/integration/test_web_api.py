@@ -170,6 +170,61 @@ class TestBusEndpoints:
         assert data["total_di_failures"] == 0
         assert data["total_cancelled"] == 0
 
+    async def test_get_listener_metrics_returns_listener_with_summary(
+        self, mock_hassette: MagicMock, client: "AsyncClient"
+    ) -> None:
+        """Endpoint returns ListenerWithSummary schema with once as int and handler_summary populated."""
+        sample = ListenerSummary(
+            listener_id=1,
+            app_key="test_app",
+            instance_index=0,
+            handler_method="on_light_change",
+            topic="state_changed.light.kitchen",
+            debounce=None,
+            throttle=None,
+            once=1,
+            priority=0,
+            predicate_description=None,
+            human_description=None,
+            source_location="test_app.py:10",
+            registration_source=None,
+            total_invocations=5,
+            successful=4,
+            failed=1,
+            di_failures=0,
+            cancelled=0,
+            total_duration_ms=100.0,
+            avg_duration_ms=20.0,
+            min_duration_ms=10.0,
+            max_duration_ms=30.0,
+            last_invoked_at=1700000000.0,
+            last_error_type="ValueError",
+            last_error_message="bad value",
+        )
+        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(return_value=[sample])
+
+        response = await client.get("/api/bus/listeners?app_key=test_app")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+
+        entry = data[0]
+        # once must be int, not bool
+        assert entry["once"] == 1
+        assert isinstance(entry["once"], int)
+        # handler_summary must be populated by to_listener_with_summary
+        assert "handler_summary" in entry
+        assert entry["handler_summary"] != ""
+        # ListenerWithSummary-specific fields present
+        assert "source_location" in entry
+        assert "human_description" in entry
+        # ListenerMetricsResponse-only fields absent (that class is deleted)
+        # Verify key fields are correct
+        assert entry["listener_id"] == 1
+        assert entry["app_key"] == "test_app"
+        assert entry["topic"] == "state_changed.light.kitchen"
+        assert entry["total_invocations"] == 5
+
 
 class TestLogsEndpoints:
     @pytest.fixture

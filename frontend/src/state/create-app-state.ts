@@ -18,6 +18,7 @@ export interface AppStatusEntry {
 export interface LogStore {
   push(entry: WsLogPayload): void;
   toArray(): WsLogPayload[];
+  clear(): void;
   version: Signal<number>;
 }
 
@@ -35,11 +36,20 @@ export function createLogStore(): LogStore {
     toArray(): WsLogPayload[] {
       return buffer.toArray();
     },
+    clear(): void {
+      batch(() => {
+        buffer.clear();
+        version.value++;
+      });
+    },
     version,
   };
 }
 
 export function createAppState() {
+  /** Server-side log level update callback; wired by useWebSocket after connect. */
+  let _updateLogSubscription: (level: string) => void = () => {};
+
   return {
     /**
      * Per-app status keyed by app_key, updated via WS.
@@ -78,6 +88,22 @@ export function createAppState() {
 
     /** Monotonic counter incremented every 30s to trigger relative-time re-renders. */
     tick: signal(0),
+
+    /**
+     * Request the server to update the minimum log level for WS log streaming.
+     * Wired by useWebSocket once the socket is ready; no-op before that.
+     */
+    updateLogSubscription(level: string): void {
+      _updateLogSubscription(level);
+    },
+
+    /**
+     * Called by useWebSocket to wire the real implementation.
+     * @internal — only for use-websocket.ts
+     */
+    setUpdateLogSubscription(fn: (level: string) => void): void {
+      _updateLogSubscription = fn;
+    },
   };
 }
 

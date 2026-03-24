@@ -18,11 +18,13 @@ logger = logging.getLogger(__name__)
 async def gather_all_listeners(
     runtime: "RuntimeQueryService",
     telemetry: "TelemetryQueryService",
+    *,
+    session_id: int | None = None,
 ) -> "list[ListenerSummary]":
     """Enumerate all app instances and gather listener summaries."""
     snapshot = runtime.get_all_manifests_snapshot()
     tasks = [
-        telemetry.get_listener_summary(app_key=manifest.app_key, instance_index=instance.index)
+        telemetry.get_listener_summary(app_key=manifest.app_key, instance_index=instance.index, session_id=session_id)
         for manifest in snapshot.manifests
         for instance in manifest.instances
     ]
