@@ -81,6 +81,9 @@ def runtime(mock_hassette):
     svc._event_buffer = deque(maxlen=100)
     svc._ws_clients = set()
     svc._lock = asyncio.Lock()
+    svc._ws_drops = 0
+    svc._ws_drops_since_last_log = 0
+    svc._ws_drops_last_logged = 0.0
     svc._start_time = 1704067200.0  # 2024-01-01 00:00:00
     svc._subscriptions = []
     svc.logger = MagicMock()

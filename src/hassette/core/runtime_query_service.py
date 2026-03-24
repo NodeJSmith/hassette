@@ -332,7 +332,7 @@ class RuntimeQueryService(Resource):
                 except asyncio.QueueFull:
                     self._ws_drops += 1
                     self._ws_drops_since_last_log += 1
-                    now = time.time()
+                    now = time.monotonic()
                     if now - self._ws_drops_last_logged >= 10.0:
                         self.logger.warning(
                             "Dropped %d messages in last 10s (total: %d, clients: %d)",
