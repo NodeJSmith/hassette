@@ -66,8 +66,8 @@ Timestamp-based watermark was considered but rejected: strict `>` on `time.time(
 **Approach:** Remove all values from the TOML defaults that are identical between prod and dev. These are redundant with the `Field(default=...)` declarations and only serve to interfere with the factory resolution. Keep only the 18 values that actually differ between environments (timeouts, delays, `dev_mode`, `allow_startup_if_app_precheck_fails`).
 
 **Changes:**
-- `hassette.prod.toml`: Strip to 18 fields that differ from dev
-- `hassette.dev.toml`: Strip to 18 fields that differ from prod
+- `hassette.prod.toml`: Strip to 19 fields that differ from dev
+- `hassette.dev.toml`: Strip to 19 fields that differ from prod
 - No changes to `model_post_init`, `log_level_default_factory`, or `config.py`
 
 **Fields to keep (all that differ between prod/dev):**
