@@ -83,6 +83,7 @@ class AppManifestInfo:
     status: str  # "running", "failed", "stopped", "disabled", "blocked"
     block_reason: str | None = None
     instance_count: int = 0
+    """Number of configured instances. 0 means stopped or disabled."""
     instances: list[AppInstanceInfo] = field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None

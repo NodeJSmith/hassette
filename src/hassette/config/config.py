@@ -386,6 +386,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def truncated_token(self) -> str:
         """Return a truncated version of the token for display purposes."""
+        if len(self.token) <= 12:
+            return f"{self.token[:3]}***"
         return f"{self.token[:6]}...{self.token[-6:]}"
 
     @field_validator("apps", mode="before")

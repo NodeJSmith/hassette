@@ -139,7 +139,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 </button>
               </th>
               {showAppColumn && <th style={{ width: "170px" }}>App</th>}
-              <th style={{ width: "220px" }}>Source</th>
+              <th style={{ width: "220px" }} class="ht-col-source">Source</th>
               <th>Message</th>
             </tr>
           </thead>
@@ -172,7 +172,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     )}
                   </td>
                 )}
-                <td class="ht-text-mono ht-text-xs ht-text-muted" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
+                <td class="ht-col-source ht-text-mono ht-text-xs ht-text-muted" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
                   {entry.func_name}:{entry.lineno}
                 </td>
                 <td

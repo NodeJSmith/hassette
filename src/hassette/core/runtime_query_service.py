@@ -60,6 +60,7 @@ class RuntimeQueryService(Resource):
         self._ws_clients: set[asyncio.Queue] = set()
         self._lock = asyncio.Lock()
         self._ws_drops: int = 0
+        self._ws_drops_since_last_log: int = 0
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
@@ -327,11 +328,14 @@ class RuntimeQueryService(Resource):
                     queue.put_nowait(safe_message)
                 except asyncio.QueueFull:
                     self._ws_drops += 1
+                    self._ws_drops_since_last_log += 1
                     now = time.time()
                     if now - self._ws_drops_last_logged >= 10.0:
                         self.logger.warning(
-                            "Dropping messages for slow WebSocket client (total drops: %d, clients: %d)",
+                            "Dropped %d messages in last 10s (total: %d, clients: %d)",
+                            self._ws_drops_since_last_log,
                             self._ws_drops,
                             len(self._ws_clients),
                         )
+                        self._ws_drops_since_last_log = 0
                         self._ws_drops_last_logged = now

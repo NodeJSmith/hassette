@@ -318,6 +318,44 @@ describe("LogTable", () => {
     expect(headerTexts).toContain("App");
   });
 
+  // -- Source column --
+
+  it("renders Source column header", () => {
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent);
+    expect(headerTexts).toContain("Source");
+  });
+
+  it("renders source location with func_name and lineno", () => {
+    state.logs.push(createLogEntry({ func_name: "on_initialize", lineno: 99 }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const sourceCells = container.querySelectorAll("td.ht-col-source");
+    expect(sourceCells.length).toBe(1);
+    expect(sourceCells[0].textContent).toBe("on_initialize:99");
+  });
+
+  it("renders full logger path in source column title attribute", () => {
+    state.logs.push(createLogEntry({ logger_name: "hassette.bus", func_name: "dispatch", lineno: 42 }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const sourceCell = container.querySelector("td.ht-col-source") as HTMLElement;
+    expect(sourceCell.getAttribute("title")).toBe("hassette.bus:dispatch:42");
+  });
+
   // -- Level badge variants --
 
   it("renders danger badge for error level", () => {
