@@ -78,6 +78,35 @@ def test_app_card_shows_status_badge(page: Page, base_url: str) -> None:
     expect(failed_card.locator(".ht-badge--danger")).to_be_visible()
 
 
+def test_app_card_shows_invocation_and_execution_counts(page: Page, base_url: str) -> None:
+    """App cards with activity display invocation and execution counts."""
+    page.goto(base_url + "/")
+
+    # my_app has seed data: 30 invocations, 20 executions
+    my_app_card = page.locator("[data-testid='app-card-my_app']")
+    counts = my_app_card.locator("[data-testid='app-card-counts']")
+    expect(counts).to_be_visible()
+    expect(counts).to_contain_text("30 inv")
+    expect(counts).to_contain_text("20 exec")
+
+    # broken_app has seed data: 3 invocations, 8 executions
+    broken_card = page.locator("[data-testid='app-card-broken_app']")
+    broken_counts = broken_card.locator("[data-testid='app-card-counts']")
+    expect(broken_counts).to_be_visible()
+    expect(broken_counts).to_contain_text("3 inv")
+    expect(broken_counts).to_contain_text("8 exec")
+
+    # other_app has zero invocations and executions — no count row
+    other_card = page.locator("[data-testid='app-card-other_app']")
+    expect(other_card).to_be_visible()
+    expect(other_card.locator("[data-testid='app-card-counts']")).to_have_count(0)
+
+    # disabled_app has zero invocations and executions — no count row
+    disabled_card = page.locator("[data-testid='app-card-disabled_app']")
+    expect(disabled_card).to_be_visible()
+    expect(disabled_card.locator("[data-testid='app-card-counts']")).to_have_count(0)
+
+
 # ── Error feed ──────────────────────────────────────────────────────
 
 

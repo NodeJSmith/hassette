@@ -797,14 +797,14 @@ strong {
   flex-shrink: 0;
 }
 
-.ht-status-badge--running .ht-status-badge__dot  { background: var(--ht-success); }
-.ht-status-badge--running .ht-status-badge__label { color: var(--ht-success); }
-.ht-status-badge--failed .ht-status-badge__dot    { background: var(--ht-danger); }
-.ht-status-badge--failed .ht-status-badge__label   { color: var(--ht-danger); }
-.ht-status-badge--stopped .ht-status-badge__dot   { background: var(--ht-warning); }
-.ht-status-badge--stopped .ht-status-badge__label  { color: var(--ht-warning); }
-.ht-status-badge--disabled .ht-status-badge__dot  { background: var(--ht-text-dim); }
-.ht-status-badge--disabled .ht-status-badge__label { color: var(--ht-text-dim); }
+.ht-status-badge--success .ht-status-badge__dot  { background: var(--ht-success); }
+.ht-status-badge--success .ht-status-badge__label { color: var(--ht-success); }
+.ht-status-badge--danger .ht-status-badge__dot    { background: var(--ht-danger); }
+.ht-status-badge--danger .ht-status-badge__label   { color: var(--ht-danger); }
+.ht-status-badge--warning .ht-status-badge__dot   { background: var(--ht-warning); }
+.ht-status-badge--warning .ht-status-badge__label  { color: var(--ht-warning); }
+.ht-status-badge--neutral .ht-status-badge__dot   { background: var(--ht-text-dim); }
+.ht-status-badge--neutral .ht-status-badge__label  { color: var(--ht-text-dim); }
 
 /* — Health Card ——————————————————————————————————————— */
 .ht-health-card {
@@ -833,9 +833,10 @@ strong {
   line-height: 1.2;
 }
 
-.ht-health-card__value.good { color: var(--ht-success); }
-.ht-health-card__value.warn { color: var(--ht-warning); }
-.ht-health-card__value.bad  { color: var(--ht-danger); }
+.ht-health-card__value--success { color: var(--ht-success); }
+.ht-health-card__value--warning { color: var(--ht-warning); }
+.ht-health-card__value--danger  { color: var(--ht-danger); }
+.ht-health-card__value--neutral { color: var(--ht-text-dim); }
 
 .ht-health-card__detail {
   font-size: var(--ht-text-xs);
@@ -1185,6 +1186,11 @@ strong {
   flex-wrap: wrap;
 }
 
+.ht-app-card__counts {
+  display: flex;
+  gap: var(--ht-sp-2);
+}
+
 .ht-app-card__footer {
   margin-top: var(--ht-sp-1);
 }
@@ -1204,10 +1210,10 @@ strong {
   transition: width var(--ht-motion-micro);
 }
 
-.ht-health-bar__fill.excellent { background: var(--ht-success); }
-.ht-health-bar__fill.good      { background: var(--ht-success); }
-.ht-health-bar__fill.warning   { background: var(--ht-warning); }
-.ht-health-bar__fill.critical  { background: var(--ht-danger); }
+.ht-health-bar__fill--success { background: var(--ht-success); }
+.ht-health-bar__fill--warning { background: var(--ht-warning); }
+.ht-health-bar__fill--danger  { background: var(--ht-danger); }
+.ht-health-bar__fill--neutral { background: var(--ht-text-dim); }
 
 /* — Error Feed ————————————————————————————————————————— */
 .ht-error-feed {

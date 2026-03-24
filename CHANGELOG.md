@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Design token CSS system (`tokens.css`) with light/dark mode via `[data-theme]` selector and localStorage persistence (#343)
 - E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability (#343)
 
+### Added
+- Invocation and execution counts on dashboard app cards — hidden when zero
+- Alembic migration chain integrity tests (revision chain, fresh-to-head, sequential upgrade, schema drift)
+- `useDebouncedEffect` hook with `maxWaitMs` to prevent debounce starvation during rapid updates
+- Centralized `localStorage` utility with `hassette:` prefix, runtime validators, and key migration
+
+### Changed
+- Dashboard refetches all three panels (KPIs, app grid, errors) on status changes with 500ms debounce + 2s max-wait, instead of only refetching the app grid immediately
+- Status-to-color mappings consolidated into single `status.ts` utility with runtime validation; unknown backend values fallback to neutral with `console.warn`
+- Multi-instance app expand state in the apps list now persists across page navigation via localStorage
+
 ### Fixed
 - Stale listener and job registrations cleaned up on app startup; telemetry no longer shows removed handlers/jobs (#390)
 - Connection status bar no longer flashes "Disconnected" on page refresh; shows "Connecting..." until WebSocket handshake completes (#390)

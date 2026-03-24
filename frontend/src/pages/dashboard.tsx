@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "preact/hooks";
+import { useRef } from "preact/hooks";
 import {
   getDashboardAppGrid,
   getDashboardErrors,
@@ -10,6 +10,7 @@ import { KpiStrip } from "../components/dashboard/kpi-strip";
 import { IconHeart, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
+import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 
 export function DashboardPage() {
@@ -19,16 +20,32 @@ export function DashboardPage() {
   const appGrid = useApi(() => getDashboardAppGrid().then((r) => r.apps));
   const errors = useApi(() => getDashboardErrors().then((r) => r.errors));
 
-  const lastStatus = appStatus.value;
-  const refetchAppGrid = useCallback(() => {
-    void appGrid.refetch();
-  }, [appGrid.refetch]);
-
-  useEffect(() => {
-    if (Object.keys(lastStatus).length > 0) {
-      refetchAppGrid();
-    }
-  }, [lastStatus, refetchAppGrid]);
+  // Debounce appStatus-driven refetches so rapid WS updates coalesce into one
+  // round of API calls. maxWait caps staleness during bulk startup. Reconnection
+  // refetches bypass this — they go through useApi's reconnectVersion signal.
+  //
+  // The seenInitialRef prevents a phantom refetch when initial load completes.
+  // Without it, getValue transitions from undefined → appStatus.value on the first
+  // post-load render, which the hook interprets as a change. The ref latches true
+  // one render AFTER load completes, so the hook seeds its prevValue with the
+  // current appStatus before seeing any real changes.
+  const initialLoadDone = !kpis.loading.value && !appGrid.loading.value && !errors.loading.value;
+  const seenInitialRef = useRef(false);
+  // Latch one render behind: on the render where initialLoadDone first becomes
+  // true, getValue still returns undefined. On the NEXT render, it returns
+  // appStatus.value — but by then prevValueRef is already seeded with it.
+  const ready = seenInitialRef.current;
+  if (initialLoadDone) {
+    seenInitialRef.current = true;
+  }
+  useDebouncedEffect(
+    () => (ready ? appStatus.value : undefined),
+    500,
+    () => {
+      void Promise.allSettled([kpis.refetch(), appGrid.refetch(), errors.refetch()]);
+    },
+    2000,
+  );
 
   const isLoading = kpis.loading.value || appGrid.loading.value || errors.loading.value;
 

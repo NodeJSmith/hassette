@@ -57,3 +57,37 @@ def test_app_row_links_to_detail(page: Page, base_url: str) -> None:
     page.locator("a[href='/apps/my_app']").first.click()
     expect(page).to_have_url(re.compile(r"/apps/my_app"))
     expect(page.locator("body")).to_contain_text("My App")
+
+
+def test_multi_instance_expand_persists_across_navigation(page: Page, base_url: str) -> None:
+    """Expanding a multi-instance app should persist across page navigation."""
+    page.goto(base_url + "/apps")
+
+    # Verify multi_app is visible and has expand toggle
+    expand_toggle = page.locator("[data-testid='expand-toggle-multi_app']")
+    expect(expand_toggle).to_be_visible()
+
+    # Instance rows should not be visible initially
+    expect(page.locator("text=MultiApp[0]")).to_have_count(0)
+
+    # Click to expand
+    expand_toggle.click()
+    page.wait_for_timeout(300)
+
+    # Instance rows should now be visible
+    expect(page.locator("text=MultiApp[0]")).to_be_visible()
+    expect(page.locator("text=MultiApp[1]")).to_be_visible()
+    expect(page.locator("text=MultiApp[2]")).to_be_visible()
+
+    # Navigate away (to dashboard)
+    page.goto(base_url + "/")
+    page.wait_for_timeout(300)
+
+    # Navigate back to apps list
+    page.goto(base_url + "/apps")
+    page.wait_for_timeout(300)
+
+    # Instance rows should still be expanded (persisted via localStorage)
+    expect(page.locator("text=MultiApp[0]")).to_be_visible()
+    expect(page.locator("text=MultiApp[1]")).to_be_visible()
+    expect(page.locator("text=MultiApp[2]")).to_be_visible()

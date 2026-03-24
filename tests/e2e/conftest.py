@@ -12,6 +12,7 @@ import uvicorn
 
 from hassette.core.app_registry import AppInstanceInfo
 from hassette.core.telemetry_models import (
+    AppHealthSummary,
     GlobalSummary,
     HandlerInvocation,
     JobExecution,
@@ -97,6 +98,40 @@ def _build_manifests() -> list:
             enabled=False,
             status="disabled",
             instance_count=0,
+        ),
+        make_manifest(
+            app_key="multi_app",
+            class_name="MultiApp",
+            display_name="Multi App",
+            filename="multi_app.py",
+            status="running",
+            instance_count=3,
+            instances=[
+                AppInstanceInfo(
+                    app_key="multi_app",
+                    index=0,
+                    instance_name="MultiApp[0]",
+                    class_name="MultiApp",
+                    status=ResourceStatus.RUNNING,
+                    owner_id="MultiApp.MultiApp[0]",
+                ),
+                AppInstanceInfo(
+                    app_key="multi_app",
+                    index=1,
+                    instance_name="MultiApp[1]",
+                    class_name="MultiApp",
+                    status=ResourceStatus.RUNNING,
+                    owner_id="MultiApp.MultiApp[1]",
+                ),
+                AppInstanceInfo(
+                    app_key="multi_app",
+                    index=2,
+                    instance_name="MultiApp[2]",
+                    class_name="MultiApp",
+                    status=ResourceStatus.RUNNING,
+                    owner_id="MultiApp.MultiApp[2]",
+                ),
+            ],
         ),
     ]
 
@@ -395,6 +430,32 @@ def mock_hassette():
     )
     hassette._telemetry_query_service.get_job_executions = AsyncMock(
         return_value=job_executions,
+    )
+
+    # Per-app health summaries for the dashboard app grid.
+    hassette._telemetry_query_service.get_all_app_summaries = AsyncMock(
+        return_value={
+            "my_app": AppHealthSummary(
+                handler_count=2,
+                job_count=2,
+                total_invocations=30,
+                total_errors=1,
+                total_executions=20,
+                total_job_errors=1,
+                avg_duration_ms=2.0,
+                last_activity_ts=1704067200.0,
+            ),
+            "broken_app": AppHealthSummary(
+                handler_count=1,
+                job_count=1,
+                total_invocations=3,
+                total_errors=2,
+                total_executions=8,
+                total_job_errors=5,
+                avg_duration_ms=5.0,
+                last_activity_ts=1704067050.0,
+            ),
+        },
     )
 
     # Global summary for KPI strip — typed model.

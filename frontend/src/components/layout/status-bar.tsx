@@ -1,4 +1,5 @@
 import { useAppState } from "../../state/context";
+import { setStoredValue } from "../../utils/local-storage";
 
 export function StatusBar() {
   const { connection, theme } = useAppState();
@@ -8,7 +9,7 @@ export function StatusBar() {
     const next = theme.value === "dark" ? "light" : "dark";
     theme.value = next;
     document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("ht-theme", next);
+    setStoredValue("theme", next);
   };
 
   const statusConfig: Record<typeof status, { className: string; dotClass: string; label: string }> = {

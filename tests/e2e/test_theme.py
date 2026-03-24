@@ -10,7 +10,7 @@ def test_dark_mode_is_default(page: Page, base_url: str) -> None:
     """Page loads with data-theme='dark' without any prior interaction."""
     # Clear any stored preference from prior tests.
     page.goto(base_url + "/")
-    page.evaluate("localStorage.removeItem('ht-theme')")
+    page.evaluate("localStorage.removeItem('hassette:theme'); localStorage.removeItem('ht-theme')")
     page.reload()
     expect(page.locator("html")).to_have_attribute("data-theme", "dark")
 
@@ -18,7 +18,7 @@ def test_dark_mode_is_default(page: Page, base_url: str) -> None:
 def test_light_mode_toggle_applies_tokens(page: Page, base_url: str) -> None:
     """Switching to light mode changes CSS custom property values."""
     page.goto(base_url + "/")
-    page.evaluate("localStorage.removeItem('ht-theme')")
+    page.evaluate("localStorage.removeItem('hassette:theme'); localStorage.removeItem('ht-theme')")
     page.reload()
 
     # Capture a dark-mode background color token
@@ -40,7 +40,7 @@ def test_light_mode_toggle_applies_tokens(page: Page, base_url: str) -> None:
 def test_theme_persistence_survives_reload(page: Page, base_url: str) -> None:
     """Light mode set via toggle persists across a full page reload."""
     page.goto(base_url + "/")
-    page.evaluate("localStorage.removeItem('ht-theme')")
+    page.evaluate("localStorage.removeItem('hassette:theme'); localStorage.removeItem('ht-theme')")
     page.reload()
 
     # Switch to light
@@ -52,8 +52,8 @@ def test_theme_persistence_survives_reload(page: Page, base_url: str) -> None:
     expect(page.locator("html")).to_have_attribute("data-theme", "light")
 
     # Verify localStorage was set
-    stored = page.evaluate("localStorage.getItem('ht-theme')")
-    assert stored == "light"
+    stored = page.evaluate("localStorage.getItem('hassette:theme')")
+    assert stored == '"light"'  # JSON-encoded by setStoredValue
 
     # Clean up
     page.locator('[data-testid="theme-toggle"]').click()
@@ -67,7 +67,7 @@ def test_both_modes_render_without_layout_breakage(page: Page, base_url: str) ->
     selectors that would hide content.
     """
     page.goto(base_url + "/")
-    page.evaluate("localStorage.removeItem('ht-theme')")
+    page.evaluate("localStorage.removeItem('hassette:theme'); localStorage.removeItem('ht-theme')")
     page.reload()
 
     structural_selectors = [
@@ -94,7 +94,7 @@ def test_both_modes_render_without_layout_breakage(page: Page, base_url: str) ->
 def test_theme_toggle_icon_changes(page: Page, base_url: str) -> None:
     """Toggle button shows different icon in dark vs light mode."""
     page.goto(base_url + "/")
-    page.evaluate("localStorage.removeItem('ht-theme')")
+    page.evaluate("localStorage.removeItem('hassette:theme'); localStorage.removeItem('ht-theme')")
     page.reload()
 
     toggle = page.locator('[data-testid="theme-toggle"]')
