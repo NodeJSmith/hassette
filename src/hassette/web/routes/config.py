@@ -1,10 +1,9 @@
 """Configuration endpoint."""
 
-from typing import Any
-
 from fastapi import APIRouter
 
 from hassette.web.dependencies import HassetteDep
+from hassette.web.models import ConfigResponse
 
 router = APIRouter(tags=["config"])
 
@@ -36,7 +35,8 @@ _CONFIG_SAFE_FIELDS: set[str] = {
 }
 
 
-@router.get("/config")
-async def get_config(hassette: HassetteDep) -> dict[str, Any]:
+@router.get("/config", response_model=ConfigResponse)
+async def get_config(hassette: HassetteDep) -> ConfigResponse:
     """Return sanitized hassette configuration (allowlisted fields only)."""
-    return hassette.config.model_dump(include=_CONFIG_SAFE_FIELDS)
+    raw = hassette.config.model_dump(include=_CONFIG_SAFE_FIELDS)
+    return ConfigResponse.model_validate(raw)

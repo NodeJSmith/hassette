@@ -118,6 +118,8 @@ async def app_listeners(
             last_invoked_at=ls.last_invoked_at,
             last_error_message=ls.last_error_message,
             last_error_type=ls.last_error_type,
+            source_location=ls.source_location,
+            registration_source=ls.registration_source,
             handler_summary=format_handler_summary(ls),
         )
         for ls in listeners
@@ -182,7 +184,7 @@ async def dashboard_kpis(
         total_errors=summary.listeners.total_errors,
         total_job_errors=summary.jobs.total_errors,
         avg_handler_duration_ms=summary.listeners.avg_duration_ms or 0.0,
-        avg_job_duration_ms=0.0,
+        avg_job_duration_ms=summary.jobs.avg_duration_ms or 0.0,
         error_rate=error_rate,
         error_rate_class=classify_error_rate(error_rate),
         uptime_seconds=status.uptime_seconds,

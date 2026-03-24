@@ -7,17 +7,15 @@ not the consumer.
 """
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Protocol
 
 from hassette.config.helpers import VERSION
-from hassette.core.telemetry_models import AppHealthSummary, JobSummary, ListenerSummary
+from hassette.core.telemetry_models import JobSummary, ListenerSummary
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from hassette.core.runtime_query_service import RuntimeQueryService
-    from hassette.core.telemetry_query_service import TelemetryQueryService
 
 
 class _ListenerLike(Protocol):
@@ -148,34 +146,3 @@ def safe_session_id(runtime: "RuntimeQueryService") -> int | None:
         return runtime.hassette.session_id
     except (AttributeError, RuntimeError):
         return None
-
-
-async def compute_app_grid_health(
-    manifests: Sequence[Any],
-    telemetry: "TelemetryQueryService",
-    session_id: int | None = None,
-) -> dict[str, AppHealthSummary]:
-    """Compute per-app health metrics for the dashboard grid.
-
-    Uses a single batch query (2 SQL statements) instead of 2N per-app queries.
-    Returns a dict keyed by app_key with ``AppHealthSummary`` models.
-    """
-    try:
-        summaries = await telemetry.get_all_app_summaries(session_id=session_id)
-    except Exception:
-        logger.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
-        summaries = {}
-
-    # Only include apps that appear in the manifest list.
-    manifest_keys = {m.app_key for m in manifests}
-    empty = AppHealthSummary(
-        handler_count=0,
-        job_count=0,
-        total_invocations=0,
-        total_errors=0,
-        total_executions=0,
-        total_job_errors=0,
-        avg_duration_ms=0.0,
-        last_activity_ts=None,
-    )
-    return {key: summaries.get(key, empty) for key in manifest_keys}
