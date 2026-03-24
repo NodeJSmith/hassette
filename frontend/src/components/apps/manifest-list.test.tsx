@@ -6,7 +6,7 @@ import type { ComponentChildren } from "preact";
 import { ManifestList, EXPANDED_KEY } from "./manifest-list";
 import { AppStateContext } from "../../state/context";
 import { createAppState, type AppState } from "../../state/create-app-state";
-import type { AppManifest } from "../../api/endpoints";
+import type { AppManifest, AppInstance } from "../../api/endpoints";
 import type { FilterValue } from "./status-filter";
 
 // Mock localStorage utilities — must include all exports used by createAppState
@@ -30,6 +30,19 @@ const localStorage = await import("../../utils/local-storage");
 const getStoredSet = localStorage.getStoredSet as ReturnType<typeof vi.fn>;
 const setStoredSet = localStorage.setStoredSet as ReturnType<typeof vi.fn>;
 
+function createInstance(overrides: Partial<AppInstance> = {}): AppInstance {
+  return {
+    app_key: "test_app",
+    index: 0,
+    instance_name: "inst_0",
+    class_name: "TestApp",
+    status: "running",
+    error_message: null,
+    error_traceback: null,
+    ...overrides,
+  };
+}
+
 function createManifest(overrides: Partial<AppManifest> = {}): AppManifest {
   return {
     app_key: "test_app",
@@ -46,6 +59,17 @@ function createManifest(overrides: Partial<AppManifest> = {}): AppManifest {
     error_traceback: null,
     ...overrides,
   };
+}
+
+function createMultiInstanceManifest(appKey = "multi"): AppManifest {
+  return createManifest({
+    app_key: appKey,
+    instance_count: 2,
+    instances: [
+      createInstance({ app_key: appKey, index: 0, instance_name: "inst_0" }),
+      createInstance({ app_key: appKey, index: 1, instance_name: "inst_1" }),
+    ],
+  });
 }
 
 function createWrapper(state: AppState) {
@@ -152,15 +176,7 @@ describe("ManifestList", () => {
   });
 
   it("shows expand toggle for multi-instance apps", () => {
-    const manifests = [
-      createManifest({
-        instance_count: 2,
-        instances: [
-          { app_key: "test_app", index: 0, instance_name: "inst_0", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-          { app_key: "test_app", index: 1, instance_name: "inst_1", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-        ],
-      }),
-    ];
+    const manifests = [createMultiInstanceManifest("test_app")];
     const filter = signal<FilterValue>("all");
 
     const { getByTestId } = render(
@@ -172,16 +188,7 @@ describe("ManifestList", () => {
   });
 
   it("expands and collapses multi-instance app rows", () => {
-    const manifests = [
-      createManifest({
-        app_key: "multi",
-        instance_count: 2,
-        instances: [
-          { app_key: "multi", index: 0, instance_name: "inst_0", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-          { app_key: "multi", index: 1, instance_name: "inst_1", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-        ],
-      }),
-    ];
+    const manifests = [createMultiInstanceManifest()];
     const filter = signal<FilterValue>("all");
 
     const { getByTestId, getByText, queryByText } = render(
@@ -205,16 +212,7 @@ describe("ManifestList", () => {
   // -- LocalStorage persistence --
 
   it("persists expanded state to localStorage on toggle", () => {
-    const manifests = [
-      createManifest({
-        app_key: "multi",
-        instance_count: 2,
-        instances: [
-          { app_key: "multi", index: 0, instance_name: "inst_0", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-          { app_key: "multi", index: 1, instance_name: "inst_1", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-        ],
-      }),
-    ];
+    const manifests = [createMultiInstanceManifest()];
     const filter = signal<FilterValue>("all");
 
     const { getByTestId } = render(
@@ -230,16 +228,7 @@ describe("ManifestList", () => {
   it("restores expanded state from localStorage on mount", () => {
     getStoredSet.mockReturnValue(new Set(["multi"]));
 
-    const manifests = [
-      createManifest({
-        app_key: "multi",
-        instance_count: 2,
-        instances: [
-          { app_key: "multi", index: 0, instance_name: "inst_0", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-          { app_key: "multi", index: 1, instance_name: "inst_1", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-        ],
-      }),
-    ];
+    const manifests = [createMultiInstanceManifest()];
     const filter = signal<FilterValue>("all");
 
     const { getByText } = render(
@@ -255,12 +244,7 @@ describe("ManifestList", () => {
     // localStorage has "old_app" and "new_app" but manifests only have "new_app"
     getStoredSet.mockReturnValue(new Set(["old_app", "new_app"]));
 
-    const manifests = [
-      createManifest({ app_key: "new_app", instance_count: 2, instances: [
-        { app_key: "new_app", index: 0, instance_name: "inst_0", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-        { app_key: "new_app", index: 1, instance_name: "inst_1", class_name: "TestApp", status: "running", error_message: null, error_traceback: null },
-      ]}),
-    ];
+    const manifests = [createMultiInstanceManifest("new_app")];
     const filter = signal<FilterValue>("all");
 
     const { getByTestId, getByText } = render(

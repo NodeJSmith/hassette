@@ -72,6 +72,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       <div class="ht-field-group">
         <div class="ht-select ht-select--sm">
           <select
+            data-testid="filter-level"
             value={minLevel.value}
             onChange={(e) => {
               minLevel.value = (e.target as HTMLSelectElement).value;
@@ -88,6 +89,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         {showAppColumn && appKeys && appKeys.length > 0 && (
           <div class="ht-select ht-select--sm">
             <select
+              data-testid="filter-app"
               value={appFilter.value}
               onChange={(e) => {
                 appFilter.value = (e.target as HTMLSelectElement).value;
@@ -118,7 +120,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
             <tr>
               <th style={{ width: "90px" }}>Level</th>
-              <th style={{ width: "180px" }} class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
+              <th style={{ width: "180px" }} class="ht-sortable" data-testid="sort-timestamp" onClick={() => { sortAsc.value = !sortAsc.value; }}>
                 Timestamp {sortAsc.value ? "↑" : "↓"}
               </th>
               {showAppColumn && <th style={{ width: "170px" }}>App</th>}

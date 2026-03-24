@@ -18,9 +18,11 @@ function createWrapper(state: AppState) {
   };
 }
 
+let entrySeq = 0;
+
 function createLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
   return {
-    timestamp: Date.now() / 1000,
+    timestamp: ++entrySeq,
     level: "INFO",
     logger_name: "hassette.test",
     func_name: "test_func",
@@ -38,6 +40,7 @@ describe("LogTable", () => {
   beforeEach(() => {
     state = createAppState();
     vi.clearAllMocks();
+    entrySeq = 0;
   });
 
   // -- Empty state --
@@ -95,7 +98,7 @@ describe("LogTable", () => {
     state.logs.push(createLogEntry({ level: "WARNING", message: "warn msg" }));
     state.logs.push(createLogEntry({ level: "ERROR", message: "error msg" }));
 
-    const { getByText, queryByText, container } = render(
+    const { getByText, queryByText, getByTestId } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
@@ -105,8 +108,7 @@ describe("LogTable", () => {
     expect(getByText("error msg")).toBeDefined();
 
     // Filter to WARNING+
-    const levelSelect = container.querySelector("select") as HTMLSelectElement;
-    fireEvent.change(levelSelect, { target: { value: "WARNING" } });
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "WARNING" } });
 
     expect(queryByText("debug msg")).toBeNull();
     expect(queryByText("info msg")).toBeNull();
@@ -120,7 +122,7 @@ describe("LogTable", () => {
     state.logs.push(createLogEntry({ app_key: "app_a", message: "from A" }));
     state.logs.push(createLogEntry({ app_key: "app_b", message: "from B" }));
 
-    const { getByText, queryByText, container } = render(
+    const { getByText, queryByText, getByTestId } = render(
       <LogTable showAppColumn appKeys={["app_a", "app_b"]} />,
       { wrapper: createWrapper(state) },
     );
@@ -129,23 +131,20 @@ describe("LogTable", () => {
     expect(getByText("from A")).toBeDefined();
     expect(getByText("from B")).toBeDefined();
 
-    // Find the select that contains app options (not the level filter)
-    const appSelect = Array.from(container.querySelectorAll("select"))
-      .find((s) => Array.from(s.options).some((o) => o.value === "app_a")) as HTMLSelectElement;
-    fireEvent.change(appSelect, { target: { value: "app_a" } });
+    fireEvent.change(getByTestId("filter-app"), { target: { value: "app_a" } });
 
     expect(getByText("from A")).toBeDefined();
     expect(queryByText("from B")).toBeNull();
   });
 
   it("does not show app filter when appKeys is not provided", () => {
-    const { container } = render(
+    const { queryByTestId, getByTestId } = render(
       <LogTable showAppColumn />,
       { wrapper: createWrapper(state) },
     );
 
-    // Only one select (level filter)
-    expect(container.querySelectorAll("select").length).toBe(1);
+    expect(getByTestId("filter-level")).toBeDefined();
+    expect(queryByTestId("filter-app")).toBeNull();
   });
 
   it("filters by appKey prop (app-scoped log table)", () => {
@@ -213,7 +212,7 @@ describe("LogTable", () => {
     state.logs.push(createLogEntry({ timestamp: 1000, message: "older" }));
     state.logs.push(createLogEntry({ timestamp: 2000, message: "newer" }));
 
-    const { container } = render(
+    const { container, getByTestId } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
@@ -223,8 +222,7 @@ describe("LogTable", () => {
     expect(rows[0]?.textContent).toContain("newer");
 
     // Click timestamp header to toggle to ascending
-    const timestampHeader = container.querySelector(".ht-sortable") as HTMLElement;
-    fireEvent.click(timestampHeader);
+    fireEvent.click(getByTestId("sort-timestamp"));
 
     const rowsAfter = container.querySelectorAll("tbody tr");
     expect(rowsAfter[0]?.textContent).toContain("older");
@@ -240,7 +238,7 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const messageCell = container.querySelector(".ht-log-message") as HTMLElement;
+    const messageCell = container.querySelector("[role='button'][aria-expanded]") as HTMLElement;
     expect(messageCell.getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(messageCell);
@@ -259,7 +257,7 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const messageCell = container.querySelector(".ht-log-message") as HTMLElement;
+    const messageCell = container.querySelector("[role='button'][aria-expanded]") as HTMLElement;
     fireEvent.keyDown(messageCell, { key: "Enter" });
     expect(messageCell.getAttribute("aria-expanded")).toBe("true");
   });
@@ -292,7 +290,7 @@ describe("LogTable", () => {
 
   // -- Level badge variants --
 
-  it("renders correct badge variant for error level", () => {
+  it("renders danger badge for error level", () => {
     state.logs.push(createLogEntry({ level: "ERROR" }));
 
     const { container } = render(
@@ -301,11 +299,11 @@ describe("LogTable", () => {
     );
 
     const badge = container.querySelector(".ht-badge--danger");
-    expect(badge).toBeDefined();
-    expect(badge?.textContent).toBe("ERROR");
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("ERROR");
   });
 
-  it("renders correct badge variant for warning level", () => {
+  it("renders warning badge for warning level", () => {
     state.logs.push(createLogEntry({ level: "WARNING" }));
 
     const { container } = render(
@@ -314,6 +312,7 @@ describe("LogTable", () => {
     );
 
     const badge = container.querySelector(".ht-badge--warning");
-    expect(badge).toBeDefined();
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("WARNING");
   });
 });
