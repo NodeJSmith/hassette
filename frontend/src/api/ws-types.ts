@@ -47,6 +47,7 @@ export interface WsServiceStatusPayload {
 }
 
 export interface WsLogPayload {
+  seq: number;
   timestamp: number;
   level: string;
   logger_name: string;

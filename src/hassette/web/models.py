@@ -85,6 +85,7 @@ class WsMessage(BaseModel):
 
 
 class LogEntryResponse(BaseModel):
+    seq: int
     timestamp: float
     level: str
     logger_name: str

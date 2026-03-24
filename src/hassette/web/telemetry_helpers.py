@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from hassette.config.helpers import VERSION
 from hassette.core.telemetry_models import JobSummary, ListenerSummary
+from hassette.web.models import ListenerWithSummary
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,42 @@ def format_handler_summary(listener: _ListenerLike) -> str:
     if condition:
         parts.append(condition)
     return " ".join(parts)
+
+
+def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
+    """Convert a ``ListenerSummary`` to a ``ListenerWithSummary`` response model.
+
+    Copies every field from the summary and appends a computed
+    ``handler_summary`` string via :func:`format_handler_summary`.
+    """
+    return ListenerWithSummary(
+        listener_id=ls.listener_id,
+        app_key=ls.app_key,
+        instance_index=ls.instance_index,
+        topic=ls.topic,
+        handler_method=ls.handler_method,
+        total_invocations=ls.total_invocations,
+        successful=ls.successful,
+        failed=ls.failed,
+        di_failures=ls.di_failures,
+        cancelled=ls.cancelled,
+        avg_duration_ms=ls.avg_duration_ms,
+        min_duration_ms=ls.min_duration_ms,
+        max_duration_ms=ls.max_duration_ms,
+        total_duration_ms=ls.total_duration_ms,
+        predicate_description=ls.predicate_description,
+        human_description=ls.human_description,
+        debounce=ls.debounce,
+        throttle=ls.throttle,
+        once=ls.once,
+        priority=ls.priority,
+        last_invoked_at=ls.last_invoked_at,
+        last_error_message=ls.last_error_message,
+        last_error_type=ls.last_error_type,
+        source_location=ls.source_location,
+        registration_source=ls.registration_source,
+        handler_summary=format_handler_summary(ls),
+    )
 
 
 def safe_session_id(runtime: "RuntimeQueryService") -> int | None:

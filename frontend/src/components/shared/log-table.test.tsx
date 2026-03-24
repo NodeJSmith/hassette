@@ -21,8 +21,10 @@ function createWrapper(state: AppState) {
 let entrySeq = 0;
 
 function createLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
+  ++entrySeq;
   return {
-    timestamp: ++entrySeq,
+    seq: entrySeq,
+    timestamp: entrySeq,
     level: "INFO",
     logger_name: "hassette.test",
     func_name: "test_func",

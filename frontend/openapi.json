@@ -2300,6 +2300,10 @@
       },
       "LogEntryResponse": {
         "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
           "timestamp": {
             "type": "number",
             "title": "Timestamp"
@@ -2349,6 +2353,7 @@
         },
         "type": "object",
         "required": [
+          "seq",
           "timestamp",
           "level",
           "logger_name",

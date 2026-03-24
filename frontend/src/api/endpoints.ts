@@ -195,6 +195,7 @@ export const getDashboardErrors = () =>
 // ---- Logs ----
 
 export interface LogEntry {
+  seq: number;
   timestamp: number;
   level: string;
   logger_name: string;

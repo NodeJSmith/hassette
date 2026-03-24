@@ -120,6 +120,7 @@ class TestWsServerMessageDiscriminates:
         raw = {
             "type": "log",
             "data": {
+                "seq": 1,
                 "timestamp": 1234567890.0,
                 "level": "INFO",
                 "logger_name": "test",

@@ -391,3 +391,80 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
     assert mod is not None, "Expected app module to be imported during precheck"
     assert mod.READ_AT_IMPORT == "from_dotenv"  # type: ignore[attr-defined]
     _cleanup_env("HASSETTE_TEST_APP_IMPORT")
+
+
+# ---------------------------------------------------------------------------
+# Service log level inheritance tests
+# ---------------------------------------------------------------------------
+
+SERVICE_LOG_LEVEL_FIELDS = (
+    "database_service_log_level",
+    "bus_service_log_level",
+    "scheduler_service_log_level",
+    "app_handler_log_level",
+    "web_api_log_level",
+    "websocket_log_level",
+    "service_watcher_log_level",
+    "file_watcher_log_level",
+    "task_bucket_log_level",
+    "command_executor_log_level",
+    "apps_log_level",
+    "state_proxy_log_level",
+)
+
+
+class _LogLevelTestConfig(HassetteConfig):
+    """Isolated config subclass for log-level inheritance tests.
+
+    Disables CLI parsing and TOML/env file loading so the only sources are
+    init kwargs and environment variables set via monkeypatch.
+    """
+
+    model_config = HassetteConfig.model_config.copy() | {
+        "cli_parse_args": False,
+        "toml_file": [],
+        "env_file": [],
+    }
+
+    token: str = "test-token"
+    run_app_precheck: bool = False
+
+
+def test_service_log_levels_inherit_global_debug(monkeypatch):
+    """Setting HASSETTE__LOG_LEVEL=DEBUG propagates to all 12 service log level fields."""
+    monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
+
+    config = _LogLevelTestConfig()
+
+    assert config.log_level == "DEBUG", f"Expected global log_level='DEBUG', got {config.log_level!r}"
+    for field in SERVICE_LOG_LEVEL_FIELDS:
+        actual = getattr(config, field)
+        assert actual == "DEBUG", f"Expected {field}='DEBUG', got {actual!r}"
+
+
+def test_service_log_levels_default_to_info_when_global_unset():
+    """With no log_level override all 12 service log level fields default to INFO."""
+    config = _LogLevelTestConfig()
+
+    assert config.log_level == "INFO", f"Expected global log_level='INFO', got {config.log_level!r}"
+    for field in SERVICE_LOG_LEVEL_FIELDS:
+        actual = getattr(config, field)
+        assert actual == "INFO", f"Expected {field}='INFO', got {actual!r}"
+
+
+def test_service_specific_override_takes_precedence(monkeypatch):
+    """A service-specific env var wins over the global log_level."""
+    monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("HASSETTE__WEBSOCKET_LOG_LEVEL", "WARNING")
+
+    config = _LogLevelTestConfig()
+
+    assert config.websocket_log_level == "WARNING", (
+        f"Expected websocket_log_level='WARNING', got {config.websocket_log_level!r}"
+    )
+    # All other fields should still inherit DEBUG
+    for field in SERVICE_LOG_LEVEL_FIELDS:
+        if field == "websocket_log_level":
+            continue
+        actual = getattr(config, field)
+        assert actual == "DEBUG", f"Expected {field}='DEBUG', got {actual!r}"
