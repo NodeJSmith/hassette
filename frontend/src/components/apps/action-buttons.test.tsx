@@ -119,18 +119,22 @@ describe("ActionButtons", () => {
 
   // -- Error handling --
 
-  it("shows error message when action fails", async () => {
+  it("shows error message when action fails and re-enables button", async () => {
     startApp.mockRejectedValue(new Error("Connection refused"));
 
     const { getByTestId, getByText } = render(
       <ActionButtons appKey="my_app" status="stopped" />,
     );
 
-    fireEvent.click(getByTestId("btn-start-my_app"));
+    const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
+    fireEvent.click(btn);
 
     await waitFor(() => {
       expect(getByText("Connection refused")).toBeDefined();
     });
+
+    // Button must re-enable after error (finally block)
+    expect(btn.disabled).toBe(false);
   });
 
   it("shows stringified error for non-Error throws", async () => {
@@ -140,11 +144,14 @@ describe("ActionButtons", () => {
       <ActionButtons appKey="my_app" status="stopped" />,
     );
 
-    fireEvent.click(getByTestId("btn-start-my_app"));
+    const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
+    fireEvent.click(btn);
 
     await waitFor(() => {
       expect(getByText("raw string error")).toBeDefined();
     });
+
+    expect(btn.disabled).toBe(false);
   });
 
   it("clears error when status changes", async () => {

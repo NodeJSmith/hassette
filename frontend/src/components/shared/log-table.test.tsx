@@ -316,3 +316,8 @@ describe("LogTable", () => {
     expect(badge!.textContent).toBe("WARNING");
   });
 });
+
+// Tests for REST+WS entry merging deferred until the sort bug (#403) is fixed.
+// The component concatenates initialEntries (REST) + wsEntries (ring buffer)
+// without sorting or deduplicating — these tests need the sort fix first.
+describe.todo("REST + WS entry merging (#403)");
