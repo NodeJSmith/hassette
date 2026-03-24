@@ -95,7 +95,7 @@ describe("ManifestList", () => {
       <ManifestList manifests={null} filter={filter} />,
       { wrapper: createWrapper(state) },
     );
-    expect(container.innerHTML).toBe("");
+    expect(container.firstChild).toBeNull();
   });
 
   it("renders table with app rows", () => {

@@ -219,13 +219,16 @@ describe("LogTable", () => {
 
     const rows = container.querySelectorAll("tbody tr");
     // Default sort is descending (newest first)
-    expect(rows[0]?.textContent).toContain("newer");
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0].textContent).toContain("newer");
 
-    // Click timestamp header to toggle to ascending
-    fireEvent.click(getByTestId("sort-timestamp"));
+    // Click sort button inside timestamp header to toggle to ascending
+    const sortBtn = getByTestId("sort-timestamp").querySelector("button") as HTMLElement;
+    fireEvent.click(sortBtn);
 
     const rowsAfter = container.querySelectorAll("tbody tr");
-    expect(rowsAfter[0]?.textContent).toContain("older");
+    expect(rowsAfter.length).toBeGreaterThan(0);
+    expect(rowsAfter[0].textContent).toContain("older");
   });
 
   // -- Row expand/collapse --

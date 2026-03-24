@@ -120,8 +120,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
             <tr>
               <th style={{ width: "90px" }}>Level</th>
-              <th style={{ width: "180px" }} class="ht-sortable" data-testid="sort-timestamp" onClick={() => { sortAsc.value = !sortAsc.value; }}>
-                Timestamp {sortAsc.value ? "↑" : "↓"}
+              <th style={{ width: "180px" }} aria-sort={sortAsc.value ? "ascending" : "descending"} data-testid="sort-timestamp">
+                <button type="button" class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
+                  <span>Timestamp</span>{" "}<span aria-hidden="true">{sortAsc.value ? "↑" : "↓"}</span>
+                </button>
               </th>
               {showAppColumn && <th style={{ width: "170px" }}>App</th>}
               <th>Message</th>
