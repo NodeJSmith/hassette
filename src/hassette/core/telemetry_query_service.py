@@ -277,7 +277,8 @@ class TelemetryQueryService(Resource):
                     (SELECT COUNT(*) FROM scheduled_jobs) AS total_jobs,
                     COUNT(DISTINCT je.job_id) AS executed_jobs,
                     COUNT(je.rowid) AS total_executions,
-                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors
+                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
                 FROM job_executions je
                 WHERE je.session_id = ?
             """
@@ -300,7 +301,8 @@ class TelemetryQueryService(Resource):
                     (SELECT COUNT(*) FROM scheduled_jobs) AS total_jobs,
                     COUNT(DISTINCT je.job_id) AS executed_jobs,
                     COUNT(je.rowid) AS total_executions,
-                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors
+                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
                 FROM job_executions je
             """
             listener_params = ()
@@ -328,6 +330,7 @@ class TelemetryQueryService(Resource):
                 executed_jobs=job_data.get("executed_jobs", 0),
                 total_executions=job_data.get("total_executions", 0),
                 total_errors=job_data.get("total_errors", 0) or 0,
+                avg_duration_ms=job_data.get("avg_duration_ms", 0.0) or 0.0,
             ),
         )
 

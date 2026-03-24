@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from hassette.web.dependencies import HassetteDep, RuntimeDep
-from hassette.web.models import AppInstanceResponse, AppManifestListResponse, AppStatusResponse
+from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse, AppStatusResponse
 
 logger = logging.getLogger(__name__)
 
@@ -31,31 +31,31 @@ async def get_app(app_key: str, runtime: RuntimeDep) -> AppInstanceResponse:
     raise HTTPException(status_code=404, detail=f"App {app_key} not found")
 
 
-@router.post("/apps/{app_key}/start", status_code=202)
-async def start_app(app_key: str, hassette: HassetteDep) -> dict[str, str]:
+@router.post("/apps/{app_key}/start", status_code=202, response_model=ActionResponse)
+async def start_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     try:
         await hassette.app_handler.start_app(app_key)
     except Exception as exc:
         logger.warning("Failed to start app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to start app") from exc
-    return {"status": "accepted", "app_key": app_key, "action": "start"}
+    return ActionResponse(status="accepted", app_key=app_key, action="start")
 
 
-@router.post("/apps/{app_key}/stop", status_code=202)
-async def stop_app(app_key: str, hassette: HassetteDep) -> dict[str, str]:
+@router.post("/apps/{app_key}/stop", status_code=202, response_model=ActionResponse)
+async def stop_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     try:
         await hassette.app_handler.stop_app(app_key)
     except Exception as exc:
         logger.warning("Failed to stop app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to stop app") from exc
-    return {"status": "accepted", "app_key": app_key, "action": "stop"}
+    return ActionResponse(status="accepted", app_key=app_key, action="stop")
 
 
-@router.post("/apps/{app_key}/reload", status_code=202)
-async def reload_app(app_key: str, hassette: HassetteDep) -> dict[str, str]:
+@router.post("/apps/{app_key}/reload", status_code=202, response_model=ActionResponse)
+async def reload_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     try:
         await hassette.app_handler.reload_app(app_key)
     except Exception as exc:
         logger.warning("Failed to reload app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reload app") from exc
-    return {"status": "accepted", "app_key": app_key, "action": "reload"}
+    return ActionResponse(status="accepted", app_key=app_key, action="reload")

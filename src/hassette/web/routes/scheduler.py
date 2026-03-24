@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from fastapi import APIRouter, Query
 
 from hassette.web.dependencies import SchedulerDep
-from hassette.web.models import JobExecutionResponse, ScheduledJobResponse
+from hassette.web.models import ScheduledJobResponse
 from hassette.web.utils import resolve_trigger
 
 if TYPE_CHECKING:
@@ -47,13 +47,3 @@ async def get_scheduled_jobs(
     if instance_index is not None:
         jobs = [j for j in jobs if j.instance_index == instance_index]
     return [_job_to_dict(j) for j in jobs]
-
-
-@router.get("/scheduler/history", response_model=list[JobExecutionResponse])
-async def get_job_history(
-    limit: Annotated[int, Query(ge=1, le=1000)] = 50,  # noqa: ARG001
-    app_key: Annotated[str | None, Query()] = None,  # noqa: ARG001
-    instance_index: Annotated[int, Query()] = 0,  # noqa: ARG001
-) -> list[dict]:
-    # Stub: get_job_summary returns per-job aggregates, not per-execution records.
-    return []

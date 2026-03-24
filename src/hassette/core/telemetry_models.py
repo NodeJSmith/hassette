@@ -126,6 +126,7 @@ class JobGlobalStats(BaseModel):
     executed_jobs: int
     total_executions: int
     total_errors: int
+    avg_duration_ms: float = 0.0
 
 
 class GlobalSummary(BaseModel):

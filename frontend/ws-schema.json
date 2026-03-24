@@ -158,11 +158,16 @@
         },
         "data": {
           "$ref": "#/$defs/ConnectedPayload"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
         }
       },
       "required": [
         "type",
-        "data"
+        "data",
+        "timestamp"
       ],
       "title": "ConnectedWsMessage",
       "type": "object"
@@ -288,7 +293,92 @@
       "title": "LogWsMessage",
       "type": "object"
     },
-    "ServiceStatusPayloadModel": {
+    "ServiceStatusWsMessage": {
+      "properties": {
+        "type": {
+          "const": "service_status",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/WsServiceStatusPayload"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "ServiceStatusWsMessage",
+      "type": "object"
+    },
+    "StateChangedPayload": {
+      "properties": {
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "string"
+        },
+        "new_state": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "New State"
+        },
+        "old_state": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Old State"
+        }
+      },
+      "required": [
+        "entity_id"
+      ],
+      "title": "StateChangedPayload",
+      "type": "object"
+    },
+    "StateChangedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "state_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/StateChangedPayload"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "StateChangedWsMessage",
+      "type": "object"
+    },
+    "WsServiceStatusPayload": {
       "description": "Mirrors ``events.hassette.ServiceStatusPayload``.",
       "properties": {
         "resource_name": {
@@ -357,74 +447,7 @@
         "role",
         "status"
       ],
-      "title": "ServiceStatusPayloadModel",
-      "type": "object"
-    },
-    "ServiceStatusWsMessage": {
-      "properties": {
-        "type": {
-          "const": "service_status",
-          "title": "Type",
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/ServiceStatusPayloadModel"
-        },
-        "timestamp": {
-          "title": "Timestamp",
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "data",
-        "timestamp"
-      ],
-      "title": "ServiceStatusWsMessage",
-      "type": "object"
-    },
-    "StateChangedPayload": {
-      "properties": {
-        "entity_id": {
-          "title": "Entity Id",
-          "type": "string"
-        },
-        "new_state": {
-          "title": "New State"
-        },
-        "old_state": {
-          "title": "Old State"
-        }
-      },
-      "required": [
-        "entity_id",
-        "new_state",
-        "old_state"
-      ],
-      "title": "StateChangedPayload",
-      "type": "object"
-    },
-    "StateChangedWsMessage": {
-      "properties": {
-        "type": {
-          "const": "state_changed",
-          "title": "Type",
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/StateChangedPayload"
-        },
-        "timestamp": {
-          "title": "Timestamp",
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "data",
-        "timestamp"
-      ],
-      "title": "StateChangedWsMessage",
+      "title": "WsServiceStatusPayload",
       "type": "object"
     }
   },

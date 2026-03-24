@@ -65,7 +65,9 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
     : appFiltered;
 
   // Sort
-  const sorted = sortAsc.value ? [...filtered] : [...filtered].reverse();
+  const sorted = [...filtered].sort((a, b) =>
+    sortAsc.value ? a.timestamp - b.timestamp : b.timestamp - a.timestamp
+  );
 
   return (
     <div class="ht-log-table-container">

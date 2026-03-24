@@ -13,6 +13,7 @@ export function ActionButtons({ appKey, status }: Props) {
   const error = useRef(signal<string | null>(null)).current;
 
   const exec = async (action: (key: string) => Promise<unknown>) => {
+    if (loading.value) return;
     error.value = null;
     loading.value = true;
     try {

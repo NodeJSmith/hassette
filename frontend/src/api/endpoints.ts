@@ -66,9 +66,24 @@ export interface ListenerData {
   total_invocations: number;
   successful: number;
   failed: number;
+  di_failures: number;
+  cancelled: number;
   avg_duration_ms: number;
+  min_duration_ms: number;
+  max_duration_ms: number;
+  total_duration_ms: number;
+  predicate_description: string | null;
+  human_description: string | null;
+  debounce: number | null;
+  throttle: number | null;
+  once: number;
+  priority: number;
   last_invoked_at: number | null;
+  last_error_message: string | null;
+  last_error_type: string | null;
   handler_summary: string;
+  source_location: string;
+  registration_source: string | null;
 }
 
 export interface DashboardKpis {

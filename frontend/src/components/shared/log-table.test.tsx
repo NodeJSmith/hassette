@@ -208,6 +208,25 @@ describe("LogTable", () => {
 
   // -- Sort toggle --
 
+  it("sorts non-chronological entries by timestamp descending", () => {
+    // Push entries out of chronological order
+    state.logs.push(createLogEntry({ timestamp: 2000, message: "mid" }));
+    state.logs.push(createLogEntry({ timestamp: 1000, message: "oldest" }));
+    state.logs.push(createLogEntry({ timestamp: 3000, message: "newest" }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const rows = container.querySelectorAll("tbody tr");
+    expect(rows.length).toBe(3);
+    // Default descending: 3000, 2000, 1000
+    expect(rows[0].textContent).toContain("newest");
+    expect(rows[1].textContent).toContain("mid");
+    expect(rows[2].textContent).toContain("oldest");
+  });
+
   it("toggles sort direction on timestamp header click", () => {
     state.logs.push(createLogEntry({ timestamp: 1000, message: "older" }));
     state.logs.push(createLogEntry({ timestamp: 2000, message: "newer" }));
@@ -320,7 +339,42 @@ describe("LogTable", () => {
   });
 });
 
-// Tests for REST+WS entry merging deferred until the sort bug (#403) is fixed.
-// The component concatenates initialEntries (REST) + wsEntries (ring buffer)
-// without sorting or deduplicating — these tests need the sort fix first.
-describe.todo("REST + WS entry merging (#403)");
+describe("REST + WS entry merging (#403)", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    entrySeq = 0;
+  });
+
+  it("merges REST and WS entries in sorted order", async () => {
+    // Override getRecentLogs to return initial REST entries
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ timestamp: 1000, message: "rest-old" }),
+      createLogEntry({ timestamp: 3000, message: "rest-new" }),
+    ]);
+
+    // Push WS entries with timestamps that interleave with REST entries
+    state.logs.push(createLogEntry({ timestamp: 2000, message: "ws-mid" }));
+    state.logs.push(createLogEntry({ timestamp: 4000, message: "ws-newest" }));
+
+    const { container, findByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Wait for REST entries to load
+    await findByText("rest-old");
+
+    const rows = container.querySelectorAll("tbody tr");
+    expect(rows.length).toBe(4);
+    // Default descending sort: 4000, 3000, 2000, 1000
+    expect(rows[0].textContent).toContain("ws-newest");
+    expect(rows[1].textContent).toContain("rest-new");
+    expect(rows[2].textContent).toContain("ws-mid");
+    expect(rows[3].textContent).toContain("rest-old");
+  });
+});

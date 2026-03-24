@@ -324,4 +324,7 @@ class RuntimeQueryService(Resource):
                 try:
                     queue.put_nowait(safe_message)
                 except asyncio.QueueFull:
-                    self.logger.debug("Dropping message for slow WebSocket client")
+                    self.logger.warning(
+                        "Dropping message for slow WebSocket client (total clients: %d)",
+                        len(self._ws_clients),
+                    )

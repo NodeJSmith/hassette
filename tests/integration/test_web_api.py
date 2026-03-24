@@ -137,11 +137,6 @@ class TestSchedulerEndpoints:
         assert response.status_code == 200
         assert response.json() == []
 
-    async def test_get_job_history(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/scheduler/history")
-        assert response.status_code == 200
-        assert response.json() == []
-
 
 class TestConfigEndpoint:
     async def test_get_config(self, client: "AsyncClient") -> None:

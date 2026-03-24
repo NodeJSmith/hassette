@@ -153,6 +153,33 @@ describe("ActionButtons", () => {
     expect(btn.disabled).toBe(false);
   });
 
+  it("ignores second click while first action is in-flight", async () => {
+    let resolveAction!: (value: unknown) => void;
+    startApp.mockImplementation(
+      () => new Promise((resolve) => { resolveAction = resolve; }),
+    );
+
+    const { getByTestId } = render(
+      <ActionButtons appKey="my_app" status="stopped" />,
+    );
+
+    const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
+
+    // First click — starts the action
+    fireEvent.click(btn);
+    expect(startApp).toHaveBeenCalledTimes(1);
+
+    // Second click while first is still in-flight — should be ignored
+    fireEvent.click(btn);
+    expect(startApp).toHaveBeenCalledTimes(1);
+
+    // Resolve the pending action to clean up
+    resolveAction({ status: "accepted" });
+    await waitFor(() => {
+      expect(btn.disabled).toBe(false);
+    });
+  });
+
   it("clears error when status changes", async () => {
     startApp.mockRejectedValue(new Error("fail"));
 

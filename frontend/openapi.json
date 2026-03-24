@@ -154,11 +154,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Start App Api Apps  App Key  Start Post"
+                  "$ref": "#/components/schemas/ActionResponse"
                 }
               }
             }
@@ -200,11 +196,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Stop App Api Apps  App Key  Stop Post"
+                  "$ref": "#/components/schemas/ActionResponse"
                 }
               }
             }
@@ -246,11 +238,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Reload App Api Apps  App Key  Reload Post"
+                  "$ref": "#/components/schemas/ActionResponse"
                 }
               }
             }
@@ -491,81 +479,6 @@
         }
       }
     },
-    "/api/scheduler/history": {
-      "get": {
-        "tags": [
-          "scheduler"
-        ],
-        "summary": "Get Job History",
-        "operationId": "get_job_history_api_scheduler_history_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "app_key",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "App Key"
-            }
-          },
-          {
-            "name": "instance_index",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 0,
-              "title": "Instance Index"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JobExecutionResponse"
-                  },
-                  "title": "Response Get Job History Api Scheduler History Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/bus/listeners": {
       "get": {
         "tags": [
@@ -664,9 +577,358 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Get Config Api Config Get"
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/app/{app_key}/health": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "App Health",
+        "description": "Health strip metrics for a single app instance.",
+        "operationId": "app_health_api_telemetry_app__app_key__health_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "instance_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Instance Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppHealthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/app/{app_key}/listeners": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "App Listeners",
+        "description": "Listener metrics with human-readable handler summaries.",
+        "operationId": "app_listeners_api_telemetry_app__app_key__listeners_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "instance_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Instance Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListenerWithSummary"
+                  },
+                  "title": "Response App Listeners Api Telemetry App  App Key  Listeners Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/app/{app_key}/jobs": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "App Jobs",
+        "description": "Job summaries for a single app instance.",
+        "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "instance_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Instance Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobSummary"
+                  },
+                  "title": "Response App Jobs Api Telemetry App  App Key  Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/handler/{listener_id}/invocations": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Handler Invocations",
+        "description": "Invocation history for a specific handler (session-scoped).",
+        "operationId": "handler_invocations_api_telemetry_handler__listener_id__invocations_get",
+        "parameters": [
+          {
+            "name": "listener_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Listener Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HandlerInvocation"
+                  },
+                  "title": "Response Handler Invocations Api Telemetry Handler  Listener Id  Invocations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/job/{job_id}/executions": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Job Executions",
+        "description": "Execution history for a specific job (session-scoped).",
+        "operationId": "job_executions_api_telemetry_job__job_id__executions_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobExecution"
+                  },
+                  "title": "Response Job Executions Api Telemetry Job  Job Id  Executions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/dashboard/kpis": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Dashboard Kpis",
+        "description": "Global KPI metrics for the dashboard strip.",
+        "operationId": "dashboard_kpis_api_telemetry_dashboard_kpis_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardKpisResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/dashboard/app-grid": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Dashboard App Grid",
+        "description": "Per-app health data for the dashboard grid.",
+        "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardAppGridResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/dashboard/errors": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Dashboard Errors",
+        "description": "Recent errors for the dashboard error feed.",
+        "operationId": "dashboard_errors_api_telemetry_dashboard_errors_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardErrorsResponse"
                 }
               }
             }
@@ -677,6 +939,76 @@
   },
   "components": {
     "schemas": {
+      "ActionResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "app_key",
+          "action"
+        ],
+        "title": "ActionResponse",
+        "description": "Response for app mutation endpoints (start/stop/reload)."
+      },
+      "AppHealthResponse": {
+        "properties": {
+          "error_rate": {
+            "type": "number",
+            "title": "Error Rate"
+          },
+          "error_rate_class": {
+            "type": "string",
+            "title": "Error Rate Class"
+          },
+          "handler_avg_duration": {
+            "type": "number",
+            "title": "Handler Avg Duration"
+          },
+          "job_avg_duration": {
+            "type": "number",
+            "title": "Job Avg Duration"
+          },
+          "last_activity_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity Ts"
+          },
+          "health_status": {
+            "type": "string",
+            "title": "Health Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error_rate",
+          "error_rate_class",
+          "handler_avg_duration",
+          "job_avg_duration",
+          "last_activity_ts",
+          "health_status"
+        ],
+        "title": "AppHealthResponse",
+        "description": "Health metrics for a single app instance."
+      },
       "AppInstanceResponse": {
         "properties": {
           "app_key": {
@@ -968,6 +1300,322 @@
         ],
         "title": "BusMetricsSummaryResponse"
       },
+      "ConfigResponse": {
+        "properties": {
+          "dev_mode": {
+            "type": "boolean",
+            "title": "Dev Mode",
+            "default": false
+          },
+          "log_level": {
+            "type": "string",
+            "title": "Log Level",
+            "default": "INFO"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url",
+            "default": ""
+          },
+          "run_web_api": {
+            "type": "boolean",
+            "title": "Run Web Api",
+            "default": true
+          },
+          "run_web_ui": {
+            "type": "boolean",
+            "title": "Run Web Ui",
+            "default": true
+          },
+          "web_api_host": {
+            "type": "string",
+            "title": "Web Api Host",
+            "default": "0.0.0.0"
+          },
+          "web_api_port": {
+            "type": "integer",
+            "title": "Web Api Port",
+            "default": 8126
+          },
+          "web_api_cors_origins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Web Api Cors Origins"
+          },
+          "web_api_event_buffer_size": {
+            "type": "integer",
+            "title": "Web Api Event Buffer Size",
+            "default": 500
+          },
+          "web_api_log_buffer_size": {
+            "type": "integer",
+            "title": "Web Api Log Buffer Size",
+            "default": 2000
+          },
+          "web_api_job_history_size": {
+            "type": "integer",
+            "title": "Web Api Job History Size",
+            "default": 1000
+          },
+          "web_api_log_level": {
+            "type": "string",
+            "title": "Web Api Log Level",
+            "default": "INFO"
+          },
+          "autodetect_apps": {
+            "type": "boolean",
+            "title": "Autodetect Apps",
+            "default": true
+          },
+          "startup_timeout_seconds": {
+            "type": "integer",
+            "title": "Startup Timeout Seconds",
+            "default": 10
+          },
+          "app_startup_timeout_seconds": {
+            "type": "integer",
+            "title": "App Startup Timeout Seconds",
+            "default": 20
+          },
+          "app_shutdown_timeout_seconds": {
+            "type": "integer",
+            "title": "App Shutdown Timeout Seconds",
+            "default": 10
+          },
+          "watch_files": {
+            "type": "boolean",
+            "title": "Watch Files",
+            "default": true
+          },
+          "file_watcher_debounce_milliseconds": {
+            "type": "integer",
+            "title": "File Watcher Debounce Milliseconds",
+            "default": 3000
+          },
+          "scheduler_min_delay_seconds": {
+            "type": "integer",
+            "title": "Scheduler Min Delay Seconds",
+            "default": 1
+          },
+          "scheduler_max_delay_seconds": {
+            "type": "integer",
+            "title": "Scheduler Max Delay Seconds",
+            "default": 30
+          },
+          "scheduler_default_delay_seconds": {
+            "type": "integer",
+            "title": "Scheduler Default Delay Seconds",
+            "default": 15
+          },
+          "asyncio_debug_mode": {
+            "type": "boolean",
+            "title": "Asyncio Debug Mode",
+            "default": false
+          },
+          "allow_reload_in_prod": {
+            "type": "boolean",
+            "title": "Allow Reload In Prod",
+            "default": false
+          },
+          "web_ui_hot_reload": {
+            "type": "boolean",
+            "title": "Web Ui Hot Reload",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ConfigResponse",
+        "description": "Sanitized configuration response (allowlisted fields only)."
+      },
+      "DashboardAppGridEntry": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "handler_count": {
+            "type": "integer",
+            "title": "Handler Count"
+          },
+          "job_count": {
+            "type": "integer",
+            "title": "Job Count"
+          },
+          "total_invocations": {
+            "type": "integer",
+            "title": "Total Invocations"
+          },
+          "total_errors": {
+            "type": "integer",
+            "title": "Total Errors"
+          },
+          "total_executions": {
+            "type": "integer",
+            "title": "Total Executions"
+          },
+          "total_job_errors": {
+            "type": "integer",
+            "title": "Total Job Errors"
+          },
+          "avg_duration_ms": {
+            "type": "number",
+            "title": "Avg Duration Ms"
+          },
+          "last_activity_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity Ts"
+          },
+          "health_status": {
+            "type": "string",
+            "title": "Health Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "status",
+          "display_name",
+          "handler_count",
+          "job_count",
+          "total_invocations",
+          "total_errors",
+          "total_executions",
+          "total_job_errors",
+          "avg_duration_ms",
+          "last_activity_ts",
+          "health_status"
+        ],
+        "title": "DashboardAppGridEntry",
+        "description": "Per-app health entry for the dashboard grid."
+      },
+      "DashboardAppGridResponse": {
+        "properties": {
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardAppGridEntry"
+            },
+            "type": "array",
+            "title": "Apps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "apps"
+        ],
+        "title": "DashboardAppGridResponse",
+        "description": "Dashboard app grid with per-app health data."
+      },
+      "DashboardErrorsResponse": {
+        "properties": {
+          "errors": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/HandlerErrorEntry"
+                },
+                {
+                  "$ref": "#/components/schemas/JobErrorEntry"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "errors"
+        ],
+        "title": "DashboardErrorsResponse",
+        "description": "Recent errors for the dashboard error feed."
+      },
+      "DashboardKpisResponse": {
+        "properties": {
+          "total_handlers": {
+            "type": "integer",
+            "title": "Total Handlers"
+          },
+          "total_jobs": {
+            "type": "integer",
+            "title": "Total Jobs"
+          },
+          "total_invocations": {
+            "type": "integer",
+            "title": "Total Invocations"
+          },
+          "total_executions": {
+            "type": "integer",
+            "title": "Total Executions"
+          },
+          "total_errors": {
+            "type": "integer",
+            "title": "Total Errors"
+          },
+          "total_job_errors": {
+            "type": "integer",
+            "title": "Total Job Errors"
+          },
+          "avg_handler_duration_ms": {
+            "type": "number",
+            "title": "Avg Handler Duration Ms"
+          },
+          "avg_job_duration_ms": {
+            "type": "number",
+            "title": "Avg Job Duration Ms"
+          },
+          "error_rate": {
+            "type": "number",
+            "title": "Error Rate"
+          },
+          "error_rate_class": {
+            "type": "string",
+            "title": "Error Rate Class"
+          },
+          "uptime_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uptime Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_handlers",
+          "total_jobs",
+          "total_invocations",
+          "total_executions",
+          "total_errors",
+          "total_job_errors",
+          "avg_handler_duration_ms",
+          "avg_job_duration_ms",
+          "error_rate",
+          "error_rate_class"
+        ],
+        "title": "DashboardKpisResponse",
+        "description": "Global KPI metrics for the dashboard strip."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -981,23 +1629,60 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "JobExecutionResponse": {
+      "HandlerErrorEntry": {
         "properties": {
-          "job_id": {
+          "kind": {
+            "type": "string",
+            "const": "handler",
+            "title": "Kind",
+            "default": "handler"
+          },
+          "listener_id": {
             "type": "integer",
-            "title": "Job Id"
+            "title": "Listener Id"
           },
-          "job_name": {
+          "topic": {
             "type": "string",
-            "title": "Job Name"
+            "title": "Topic"
           },
-          "owner_id": {
+          "handler_method": {
             "type": "string",
-            "title": "Owner Id"
+            "title": "Handler Method"
           },
-          "started_at": {
+          "error_message": {
+            "type": "string",
+            "title": "Error Message"
+          },
+          "error_type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "timestamp": {
             "type": "number",
-            "title": "Started At"
+            "title": "Timestamp"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "listener_id",
+          "topic",
+          "handler_method",
+          "error_message",
+          "error_type",
+          "timestamp",
+          "app_key"
+        ],
+        "title": "HandlerErrorEntry"
+      },
+      "HandlerInvocation": {
+        "properties": {
+          "execution_start_ts": {
+            "type": "number",
+            "title": "Execution Start Ts"
           },
           "duration_ms": {
             "type": "number",
@@ -1006,17 +1691,6 @@
           "status": {
             "type": "string",
             "title": "Status"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
           },
           "error_type": {
             "anyOf": [
@@ -1028,6 +1702,17 @@
               }
             ],
             "title": "Error Type"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
           },
           "error_traceback": {
             "anyOf": [
@@ -1043,14 +1728,234 @@
         },
         "type": "object",
         "required": [
+          "execution_start_ts",
+          "duration_ms",
+          "status",
+          "error_type",
+          "error_message",
+          "error_traceback"
+        ],
+        "title": "HandlerInvocation",
+        "description": "Single invocation record returned by ``get_handler_invocations()``."
+      },
+      "JobErrorEntry": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "job",
+            "title": "Kind",
+            "default": "job"
+          },
+          "job_id": {
+            "type": "integer",
+            "title": "Job Id"
+          },
+          "job_name": {
+            "type": "string",
+            "title": "Job Name"
+          },
+          "error_message": {
+            "type": "string",
+            "title": "Error Message"
+          },
+          "error_type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          }
+        },
+        "type": "object",
+        "required": [
           "job_id",
           "job_name",
-          "owner_id",
-          "started_at",
-          "duration_ms",
-          "status"
+          "error_message",
+          "error_type",
+          "timestamp",
+          "app_key"
         ],
-        "title": "JobExecutionResponse"
+        "title": "JobErrorEntry"
+      },
+      "JobExecution": {
+        "properties": {
+          "execution_start_ts": {
+            "type": "number",
+            "title": "Execution Start Ts"
+          },
+          "duration_ms": {
+            "type": "number",
+            "title": "Duration Ms"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Type"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_start_ts",
+          "duration_ms",
+          "status",
+          "error_type",
+          "error_message"
+        ],
+        "title": "JobExecution",
+        "description": "Single execution record returned by ``get_job_executions()``."
+      },
+      "JobSummary": {
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "title": "Job Id"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "instance_index": {
+            "type": "integer",
+            "title": "Instance Index"
+          },
+          "job_name": {
+            "type": "string",
+            "title": "Job Name"
+          },
+          "handler_method": {
+            "type": "string",
+            "title": "Handler Method"
+          },
+          "trigger_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Type"
+          },
+          "trigger_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Value"
+          },
+          "repeat": {
+            "type": "integer",
+            "title": "Repeat"
+          },
+          "args_json": {
+            "type": "string",
+            "title": "Args Json"
+          },
+          "kwargs_json": {
+            "type": "string",
+            "title": "Kwargs Json"
+          },
+          "source_location": {
+            "type": "string",
+            "title": "Source Location"
+          },
+          "registration_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Source"
+          },
+          "total_executions": {
+            "type": "integer",
+            "title": "Total Executions"
+          },
+          "successful": {
+            "type": "integer",
+            "title": "Successful"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "last_executed_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Executed At"
+          },
+          "total_duration_ms": {
+            "type": "number",
+            "title": "Total Duration Ms"
+          },
+          "avg_duration_ms": {
+            "type": "number",
+            "title": "Avg Duration Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "app_key",
+          "instance_index",
+          "job_name",
+          "handler_method",
+          "trigger_type",
+          "trigger_value",
+          "repeat",
+          "args_json",
+          "kwargs_json",
+          "source_location",
+          "registration_source",
+          "total_executions",
+          "successful",
+          "failed",
+          "last_executed_at",
+          "total_duration_ms",
+          "avg_duration_ms"
+        ],
+        "title": "JobSummary",
+        "description": "Per-job summary returned by ``get_job_summary()``."
       },
       "ListenerMetricsResponse": {
         "properties": {
@@ -1205,6 +2110,193 @@
           "cancelled"
         ],
         "title": "ListenerMetricsResponse"
+      },
+      "ListenerWithSummary": {
+        "properties": {
+          "listener_id": {
+            "type": "integer",
+            "title": "Listener Id"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "instance_index": {
+            "type": "integer",
+            "title": "Instance Index",
+            "default": 0
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "handler_method": {
+            "type": "string",
+            "title": "Handler Method"
+          },
+          "total_invocations": {
+            "type": "integer",
+            "title": "Total Invocations"
+          },
+          "successful": {
+            "type": "integer",
+            "title": "Successful"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "di_failures": {
+            "type": "integer",
+            "title": "Di Failures"
+          },
+          "cancelled": {
+            "type": "integer",
+            "title": "Cancelled"
+          },
+          "avg_duration_ms": {
+            "type": "number",
+            "title": "Avg Duration Ms",
+            "default": 0.0
+          },
+          "min_duration_ms": {
+            "type": "number",
+            "title": "Min Duration Ms",
+            "default": 0.0
+          },
+          "max_duration_ms": {
+            "type": "number",
+            "title": "Max Duration Ms",
+            "default": 0.0
+          },
+          "total_duration_ms": {
+            "type": "number",
+            "title": "Total Duration Ms",
+            "default": 0.0
+          },
+          "predicate_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicate Description"
+          },
+          "human_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Description"
+          },
+          "debounce": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debounce"
+          },
+          "throttle": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Throttle"
+          },
+          "once": {
+            "type": "integer",
+            "title": "Once",
+            "default": 0
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "default": 0
+          },
+          "last_invoked_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Invoked At"
+          },
+          "last_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Message"
+          },
+          "last_error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Type"
+          },
+          "source_location": {
+            "type": "string",
+            "title": "Source Location",
+            "default": ""
+          },
+          "registration_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Source"
+          },
+          "handler_summary": {
+            "type": "string",
+            "title": "Handler Summary",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "listener_id",
+          "app_key",
+          "topic",
+          "handler_method",
+          "total_invocations",
+          "successful",
+          "failed",
+          "di_failures",
+          "cancelled"
+        ],
+        "title": "ListenerWithSummary",
+        "description": "Listener metrics enriched with human-readable handler summary."
       },
       "LogEntryResponse": {
         "properties": {
