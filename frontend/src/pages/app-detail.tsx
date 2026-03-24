@@ -17,7 +17,8 @@ interface Props {
 
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
-  const instanceIndex = params.index ? parseInt(params.index, 10) : 0;
+  const parsed = params.index !== undefined ? parseInt(params.index, 10) : 0;
+  const instanceIndex = Number.isFinite(parsed) ? parsed : 0;
   const { appStatus } = useAppState();
   const [, navigate] = useLocation();
 
@@ -68,7 +69,7 @@ export function AppDetailPage({ params }: Props) {
       {manifest && (
         <p class="ht-text-muted ht-text-sm ht-mb-3" data-testid="instance-meta">
           Instance {instanceIndex}
-          {currentInstance?.instance_name && <> &middot; PID {currentInstance.instance_name}</>}
+          {currentInstance?.owner_id && <> &middot; PID {currentInstance.owner_id}</>}
         </p>
       )}
 

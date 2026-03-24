@@ -42,6 +42,15 @@ def _health_status_from_summary(summary: AppHealthSummary) -> str:
     return classify_health_bar(success_rate)
 
 
+def _error_rate_from_summary(summary: AppHealthSummary) -> float:
+    """Compute error rate percentage from an app health summary."""
+    total = summary.total_invocations + summary.total_executions
+    if total == 0:
+        return 0.0
+    errors = summary.total_errors + summary.total_job_errors
+    return (errors / total) * 100
+
+
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)
 async def app_health(
     app_key: str,
@@ -189,6 +198,7 @@ async def dashboard_app_grid(
     entries = []
     for manifest in snapshot.manifests:
         health = summaries.get(manifest.app_key, empty)
+        rate = _error_rate_from_summary(health)
         entries.append(
             DashboardAppGridEntry(
                 app_key=manifest.app_key,
@@ -204,6 +214,8 @@ async def dashboard_app_grid(
                 avg_duration_ms=health.avg_duration_ms,
                 last_activity_ts=health.last_activity_ts,
                 health_status=_health_status_from_summary(health),
+                error_rate=rate,
+                error_rate_class=classify_error_rate(rate),
             )
         )
 

@@ -27,6 +27,7 @@ export interface AppInstance {
   status: string;
   error_message: string | null;
   error_traceback: string | null;
+  owner_id: string | null;
 }
 
 export interface ManifestListResponse {
@@ -113,6 +114,8 @@ export interface DashboardAppGridEntry {
   total_job_errors: number;
   avg_duration_ms: number;
   health_status: string;
+  error_rate: number;
+  error_rate_class: string;
   last_activity_ts: number | null;
 }
 

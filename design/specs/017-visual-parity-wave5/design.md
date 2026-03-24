@@ -1,7 +1,7 @@
 # Design: Visual Parity Wave 5 — Final Polish
 
 **Date:** 2026-03-24
-**Status:** approved
+**Status:** implemented
 **Spec:** N/A (gap analysis serves as spec: `design/research/2026-03-20-visual-parity-gaps.md`)
 
 ## Problem
@@ -22,7 +22,7 @@ The Preact SPA migration closed 24 of 30 visual parity gaps across waves 1–4. 
 
 - Multi-instance changes (GAP-MI1/A5/AD3) — separate wave
 - New features beyond visual parity with the old Jinja2 UI
-- Backend API changes (all data is already available)
+- Backend API changes beyond what's needed for server-side error rate classification
 - CSS design token changes
 - Page-transition loading indicator (GAP-MI5) — dropped after challenge review: SPA route transitions are instant (all components bundled), per-page Spinners already communicate loading state, and a fake progress bar creates contradictory signals when API calls outlast the animation timer
 
@@ -38,7 +38,7 @@ The component already computes `total` and `errors` (lines 13–14) but only pas
 const rate = total > 0 ? (errors / total) * 100 : 0;
 ```
 
-Display as e.g. `"2.1% errors"` with danger/warn color. Color the text using `health_status` as a proxy via `healthGradeToVariant()` (from `utils/status.ts`). Note: `DashboardAppGridEntry` carries `health_status` (a grade) but not `error_rate_class`. Using the grade as a color proxy is an intentional approximation — the grade aggregates more than just error rate, but is close enough for a dashboard card and avoids a backend change. Document this in a code comment. Show nothing when `total === 0`.
+Display as e.g. `"2.1% errors"` with danger/warn color. Color the text using `errorRateToVariant(app.error_rate_class)` from the server-provided classification. `DashboardAppGridEntry` now includes `error_rate: float` and `error_rate_class: str` (added to the backend model and telemetry route). This follows the project's established pattern where the server owns classification thresholds and the client maps labels to CSS classes. Show nothing when `error_rate === 0`.
 
 Place the error rate text below the handler/job counts line, matching the old UI's position.
 

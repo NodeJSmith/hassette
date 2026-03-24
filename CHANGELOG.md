@@ -35,8 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Source location column in log table showing `func_name:lineno` with full logger path on hover (#410)
 - Instance count badge on dashboard app cards for multi-instance apps (hidden for single-instance) (#410)
+- Error rate percentage on dashboard app cards, colored by server-classified severity
+- Multi-column sort (Level, App, Message) on log table with live-streaming auto-pause
+- Handler method and exception type shown in dashboard error feed entries
 
 ### Fixed
+- App detail instance metadata now shows actual PID (`owner_id`) instead of `instance_name`
+- Error feed badge uses exception type name (e.g., "ValueError") instead of generic "handler"/"job"
+- Malformed instance index in URL no longer produces NaN API calls
 - Phantom `update_state` method removed from API docstring — only `set_state` exists (#410)
 - Resource and Service startup failures now log full traceback instead of silently re-raising (#410)
 - WebSocket message drops rate-limited to one warning per 10s with cumulative drop counter (#410)
