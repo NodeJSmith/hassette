@@ -1,5 +1,6 @@
 import type { DashboardKpis } from "../../api/endpoints";
 import { pluralize } from "../../utils/format";
+import { errorRateToVariant } from "../../utils/status";
 
 interface Props {
   data: DashboardKpis | null;
@@ -22,7 +23,7 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Error Rate</span>
-        <span class={`ht-health-card__value ${data.error_rate_class}`}>
+        <span class={`ht-health-card__value ht-health-card__value--${errorRateToVariant(data.error_rate_class)}`}>
           {data.error_rate.toFixed(1)}%
         </span>
         <span class="ht-health-card__detail">

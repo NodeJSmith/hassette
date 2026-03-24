@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "preact/hooks";
+import { useRef } from "preact/hooks";
 import {
   getDashboardAppGrid,
   getDashboardErrors,
@@ -10,6 +10,7 @@ import { KpiStrip } from "../components/dashboard/kpi-strip";
 import { IconHeart, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
+import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 
 export function DashboardPage() {
@@ -19,16 +20,29 @@ export function DashboardPage() {
   const appGrid = useApi(() => getDashboardAppGrid().then((r) => r.apps));
   const errors = useApi(() => getDashboardErrors().then((r) => r.errors));
 
-  const lastStatus = appStatus.value;
-  const refetchAppGrid = useCallback(() => {
-    void appGrid.refetch();
-  }, [appGrid.refetch]);
-
-  useEffect(() => {
-    if (Object.keys(lastStatus).length > 0) {
-      refetchAppGrid();
-    }
-  }, [lastStatus, refetchAppGrid]);
+  // Debounce appStatus-driven refetches so rapid WS updates coalesce into one
+  // round of API calls. maxWait caps staleness during bulk startup. Reconnection
+  // refetches bypass this — they go through useApi's reconnectVersion signal.
+  //
+  // To prevent a phantom refetch when initial load completes, we track a version
+  // counter that only increments on real WS-driven appStatus changes AFTER load.
+  // The hook sees numeric changes (0→1→2...) instead of object reference changes,
+  // avoiding the undefined→object transition that would trigger a false refetch.
+  const initialLoadDone = !kpis.loading.value && !appGrid.loading.value && !errors.loading.value;
+  const statusVersionRef = useRef(0);
+  const prevStatusRef = useRef(appStatus.value);
+  if (initialLoadDone && appStatus.value !== prevStatusRef.current) {
+    prevStatusRef.current = appStatus.value;
+    statusVersionRef.current += 1;
+  }
+  useDebouncedEffect(
+    () => statusVersionRef.current,
+    500,
+    () => {
+      void Promise.allSettled([kpis.refetch(), appGrid.refetch(), errors.refetch()]);
+    },
+    2000,
+  );
 
   const isLoading = kpis.loading.value || appGrid.loading.value || errors.loading.value;
 

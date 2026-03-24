@@ -1,3 +1,5 @@
+import { healthGradeToVariant } from "../../utils/status";
+
 interface Props {
   healthStatus: string;
   total: number;
@@ -9,7 +11,10 @@ export function HealthBar({ healthStatus, total, errors }: Props) {
 
   return (
     <div class="ht-health-bar">
-      <div class={`ht-health-bar__fill ${healthStatus}`} style={{ width: `${successRate}%` }} />
+      <div
+        class={`ht-health-bar__fill ht-health-bar__fill--${healthGradeToVariant(healthStatus)}`}
+        style={{ width: `${successRate}%` }}
+      />
     </div>
   );
 }

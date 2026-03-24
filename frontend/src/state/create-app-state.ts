@@ -1,5 +1,7 @@
 import { batch, signal, type Signal } from "@preact/signals";
 import { RingBuffer } from "../utils/ring-buffer";
+import { getStoredValue } from "../utils/local-storage";
+import { isTheme } from "../utils/theme";
 import type { WsLogPayload } from "../api/ws-types";
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -39,7 +41,16 @@ export function createLogStore(): LogStore {
 
 export function createAppState() {
   return {
-    /** Per-app status keyed by app_key, updated via WS. */
+    /**
+     * Per-app status keyed by app_key, updated via WS.
+     *
+     * INVARIANT: appStatus changes trigger *debounced* page-level refetches
+     * (via useDebouncedEffect in dashboard.tsx). This is intentionally separate
+     * from reconnectVersion, which triggers *immediate* refetches (via useApi's
+     * useSignalEffect). These two signals must remain independent code paths —
+     * routing reconnection through appStatus would silently eat the reconnect
+     * refetch behind the debounce timer.
+     */
     appStatus: signal<Record<string, AppStatusEntry>>({}),
 
     /** WebSocket connection state machine. */
@@ -48,15 +59,21 @@ export function createAppState() {
     /** Log entries in a ring buffer with a version signal for efficient rendering. */
     logs: createLogStore(),
 
-    /** Dark/light theme (initialized from localStorage if available). */
+    /** Dark/light theme (initialized from localStorage via local-storage utility). */
     theme: signal<"dark" | "light">(
-      (typeof globalThis.localStorage?.getItem === "function" && localStorage.getItem("ht-theme") === "light") ? "light" : "dark"
+      getStoredValue<"dark" | "light">("theme", "dark", isTheme)
     ),
 
     /** Current Hassette session ID (from WS connected message). */
     sessionId: signal<number | null>(null),
 
-    /** Incremented on WS reconnection (not first connect). useApi reads this to auto-refetch. */
+    /**
+     * Incremented on WS reconnection (not first connect). useApi reads this
+     * to auto-refetch immediately via useSignalEffect.
+     *
+     * INVARIANT: reconnectVersion refetches must bypass debounce. See the
+     * appStatus comment above for why these two signals must stay independent.
+     */
     reconnectVersion: signal(0),
 
     /** Monotonic counter incremented every 30s to trigger relative-time re-renders. */

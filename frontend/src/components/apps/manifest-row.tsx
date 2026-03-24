@@ -1,5 +1,3 @@
-import { signal } from "@preact/signals";
-import { useRef } from "preact/hooks";
 import type { AppManifest } from "../../api/endpoints";
 import { StatusBadge } from "../shared/status-badge";
 import { pluralize } from "../../utils/format";
@@ -8,12 +6,13 @@ import { ActionButtons } from "./action-buttons";
 interface Props {
   manifest: AppManifest;
   liveStatus?: string;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
 }
 
-export function ManifestRow({ manifest, liveStatus }: Props) {
+export function ManifestRow({ manifest, liveStatus, isExpanded, onToggleExpand }: Props) {
   const status = liveStatus ?? manifest.status;
   const isMultiInstance = manifest.instance_count > 1;
-  const expanded = useRef(signal(false)).current;
 
   return (
     <>
@@ -23,10 +22,11 @@ export function ManifestRow({ manifest, liveStatus }: Props) {
             <span
               class="ht-item-row__chevron-inline"
               style={{ cursor: "pointer", marginRight: "4px" }}
-              onClick={() => { expanded.value = !expanded.value; }}
-              title={expanded.value ? "Collapse" : "Expand"}
+              onClick={onToggleExpand}
+              title={isExpanded ? "Collapse" : "Expand"}
+              data-testid={`expand-toggle-${manifest.app_key}`}
             >
-              {expanded.value ? "▾" : "▸"}
+              {isExpanded ? "▾" : "▸"}
             </span>
           )}
           <a href={`/apps/${manifest.app_key}`} class="ht-text-mono">
@@ -56,7 +56,7 @@ export function ManifestRow({ manifest, liveStatus }: Props) {
         </td>
         <td><ActionButtons appKey={manifest.app_key} status={status} /></td>
       </tr>
-      {isMultiInstance && expanded.value && manifest.instances.map((inst) => (
+      {isMultiInstance && isExpanded && manifest.instances.map((inst) => (
         <tr key={`${manifest.app_key}-${inst.index}`} class="ht-instance-row">
           <td style={{ paddingLeft: "2rem" }}>
             <a href={`/apps/${manifest.app_key}/${inst.index}`} class="ht-text-mono">
