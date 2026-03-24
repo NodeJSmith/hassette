@@ -1347,8 +1347,11 @@ strong {
 
 /* — Sortable Column Header ————————————————————————————— */
 .ht-sortable {
+  all: unset;
   cursor: pointer;
   user-select: none;
+  font: inherit;
+  color: inherit;
 }
 
 .ht-sortable:hover {
