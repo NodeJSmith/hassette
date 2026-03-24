@@ -1176,7 +1176,7 @@
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
-            "description": "Number of configured instances. 0 means stopped or disabled.",
+            "description": "Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
             "default": 0
           },
           "instances": {
@@ -1447,7 +1447,7 @@
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
-            "description": "Number of configured instances. 0 means stopped or disabled.",
+            "description": "Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
             "default": 0
           },
           "handler_count": {

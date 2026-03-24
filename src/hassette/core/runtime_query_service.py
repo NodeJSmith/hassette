@@ -335,7 +335,7 @@ class RuntimeQueryService(Resource):
                     now = time.monotonic()
                     if now - self._ws_drops_last_logged >= 10.0:
                         self.logger.warning(
-                            "Dropped %d messages in last 10s (total: %d, clients: %d)",
+                            "Dropped %d messages since last log (total: %d, clients: %d)",
                             self._ws_drops_since_last_log,
                             self._ws_drops,
                             len(self._ws_clients),
