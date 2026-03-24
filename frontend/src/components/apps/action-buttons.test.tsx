@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/preact";
-import { h } from "preact";
 import { ActionButtons } from "./action-buttons";
 
 // Mock the API endpoints — we test the component logic, not the network.
