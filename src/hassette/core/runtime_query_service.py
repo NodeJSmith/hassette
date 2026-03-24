@@ -125,6 +125,9 @@ class RuntimeQueryService(Resource):
             self._ws_clients.clear()
 
         self._event_buffer.clear()
+        self._ws_drops = 0
+        self._ws_drops_since_last_log = 0
+        self._ws_drops_last_logged = 0.0
 
     # --- Event handlers ---
 

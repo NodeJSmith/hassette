@@ -513,10 +513,17 @@ class TestAuthHeaders:
         assert result.endswith("789012")
         assert "..." in result
 
-    def test_truncated_token_guards_short_token(self) -> None:
+    def test_truncated_token_masks_very_short_token(self) -> None:
         config = _LogLevelTestConfig(token="abc123")
+        assert config.truncated_token == "***"
+
+    def test_truncated_token_masks_two_char_token(self) -> None:
+        config = _LogLevelTestConfig(token="ab")
+        assert config.truncated_token == "***"
+
+    def test_truncated_token_eight_char_shows_prefix(self) -> None:
+        config = _LogLevelTestConfig(token="abcdefgh")
         assert config.truncated_token == "abc***"
-        assert "123" not in config.truncated_token
 
     def test_truncated_token_guards_twelve_char_boundary(self) -> None:
         config = _LogLevelTestConfig(token="abcdefghijkl")
@@ -525,10 +532,6 @@ class TestAuthHeaders:
     def test_truncated_token_thirteen_char_uses_full_format(self) -> None:
         config = _LogLevelTestConfig(token="abcdefghijklm")
         assert config.truncated_token == "abcdef...hijklm"
-
-    def test_truncated_token_guards_very_short_token(self) -> None:
-        config = _LogLevelTestConfig(token="ab")
-        assert config.truncated_token == "ab***"
 
 
 def test_bundled_toml_files_have_no_log_level_entries():

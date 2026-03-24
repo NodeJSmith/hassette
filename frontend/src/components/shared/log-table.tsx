@@ -139,7 +139,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 </button>
               </th>
               {showAppColumn && <th style={{ width: "170px" }}>App</th>}
-              <th style={{ width: "220px" }} class="ht-col-source">Source</th>
+              <th style={{ width: "140px" }} class="ht-col-source">Source</th>
               <th>Message</th>
             </tr>
           </thead>
