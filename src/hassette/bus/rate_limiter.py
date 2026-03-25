@@ -27,7 +27,7 @@ class RateLimiter:
 
     Example:
         ```python
-        limiter = RateLimiter(debounce=1.0)
+        limiter = RateLimiter(task_bucket=bucket, debounce=1.0)
         await limiter.call(handler, event=event)
         ```
     """
