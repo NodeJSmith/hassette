@@ -72,6 +72,10 @@ class Listener:
     db_id: int | None = None
     """Database row ID for this listener. Set by the executor after persistence; None until then."""
 
+    _fired: bool = field(default=False, init=False, repr=False)
+    """Guard for once=True listeners: set before the first invocation to prevent double-fire
+    when two rapid events both match before the removal task executes."""
+
     @property
     def handler_name(self) -> str:
         return callable_name(self.orig_handler)
@@ -115,6 +119,17 @@ class Listener:
         app_key: str = "",
         instance_index: int = 0,
     ) -> "Listener":
+        if debounce is not None and debounce <= 0:
+            raise ValueError("'debounce' must be a positive number")
+        if throttle is not None and throttle <= 0:
+            raise ValueError("'throttle' must be a positive number")
+        if debounce is not None and throttle is not None:
+            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
+        if once and (debounce is not None or throttle is not None):
+            raise ValueError(
+                "Cannot combine 'once=True' with 'debounce' or 'throttle' -- these are semantically contradictory"
+            )
+
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
 
@@ -165,11 +180,9 @@ class HandlerAdapter:
         # Dependency injection setup
         self.injector = ParameterInjector(handler_name, signature)
 
-        # Rate limiting setup
+        # Rate limiting setup — validation is in Listener.create(), not here.
         self.rate_limiter: RateLimiter | None = None
-        if debounce or throttle:
-            if debounce and throttle:
-                raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
+        if debounce is not None or throttle is not None:
             self.rate_limiter = RateLimiter(
                 task_bucket=task_bucket,
                 debounce=debounce,
@@ -177,7 +190,11 @@ class HandlerAdapter:
             )
 
     async def call(self, event: "Event[Any]", **kwargs: Any) -> None:
-        """Call handler with dependency injection and optional rate limiting.
+        """Call handler with dependency injection.
+
+        Rate limiting is orchestrated by ``BusService._dispatch``, not here.
+        The rate limiter instance remains on the adapter for metadata access
+        (registration, metrics) but is never invoked from this method.
 
         Args:
             event: The event to pass to the handler.
@@ -188,21 +205,7 @@ class HandlerAdapter:
             DependencyResolutionError: If parameter extraction/conversion fails.
             Exception: If an error occurs during handler execution.
         """
-        if self.rate_limiter:
-            await self.rate_limiter.call(self._direct_call, event, **kwargs)
-        else:
-            await self._direct_call(event, **kwargs)
-
-    async def _direct_call(self, event: "Event[Any]", **kwargs: Any) -> None:
-        """Call handler directly with dependency injection (no rate limiting).
-
-        Args:
-            event: The event to pass to the handler.
-            **kwargs: Additional keyword arguments to pass to the handler.
-        """
-        # Inject parameters
         kwargs = self.injector.inject_parameters(event, **kwargs)
-
         await self.handler(**kwargs)
 
 

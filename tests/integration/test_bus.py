@@ -35,9 +35,17 @@ def bus(hassette_with_bus: "Hassette") -> "Bus":
     return hassette_with_bus._bus
 
 
-@pytest.mark.parametrize(("debounce", "throttle"), [(0.1, None), (None, 0.1), (None, None)])
+@pytest.mark.parametrize(
+    ("once", "debounce", "throttle"),
+    [
+        (False, 0.1, None),
+        (False, None, 0.1),
+        (True, None, None),
+        (False, None, None),
+    ],
+)
 async def test_on_registers_listener_and_supports_unsubscribe(
-    bus: "Bus", debounce: float | None, throttle: float | None
+    bus: "Bus", once: bool, debounce: float | None, throttle: float | None
 ) -> None:
     """Bus.on wraps handlers, normalises predicates, and wires subscription cleanup."""
 
@@ -57,7 +65,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
             handler=handler,
             where=[lambda _: True],
             kwargs={"suffix": "!"},
-            once=True,
+            once=once,
             debounce=debounce,
             throttle=throttle,
         )
@@ -70,7 +78,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
         assert listener.orig_handler is handler
         assert asyncio.iscoroutinefunction(listener.adapter.handler)
         assert listener.kwargs == {"suffix": "!"}
-        assert listener.once is True
+        assert listener.once is once
         assert isinstance(listener.predicate, AllOf)
 
         subscription.unsubscribe()
@@ -211,6 +219,37 @@ async def test_once_listener_removed(hassette_with_bus: "Hassette") -> None:
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
     assert received_payloads == [1], f"Expected handler to fire once with payload 1, got {received_payloads}"
+
+
+async def test_once_listener_fires_exactly_once_under_rapid_dispatch(hassette_with_bus: "Hassette") -> None:
+    """Two rapid events must not cause a once=True handler to fire twice.
+
+    Regression test for the double-fire race: dispatch spawns tasks per listener,
+    and without a _fired guard, both tasks invoke the handler before either removes it.
+    """
+    hassette = hassette_with_bus
+
+    call_count = 0
+
+    async def handler(_event: Event[SimpleNamespace]) -> None:
+        nonlocal call_count
+        call_count += 1
+        # Yield to let the second dispatch task run concurrently
+        await asyncio.sleep(0)
+
+    hassette._bus.on(topic="custom.rapid", handler=handler, once=True)
+
+    # Send two events back-to-back — both enter dispatch before removal task executes
+    ev1 = Event(topic="custom.rapid", payload=SimpleNamespace(value=1))
+    ev2 = Event(topic="custom.rapid", payload=SimpleNamespace(value=2))
+    await hassette.send_event("custom.rapid", ev1)
+    await hassette.send_event("custom.rapid", ev2)
+
+    # Wait for at least one handler invocation, then let tasks drain
+    await wait_for(lambda: call_count >= 1, desc="once handler fired at least once")
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+
+    assert call_count == 1, f"once=True handler should fire exactly once, fired {call_count} times"
 
 
 async def test_bus_background_tasks_cleanup(hassette_with_bus: "Hassette") -> None:
@@ -546,3 +585,90 @@ async def test_dispatch_internal_handler_logs_error_on_exception(hassette_with_b
 
     # Executor should NOT have been called
     executor.execute.assert_not_called()
+
+
+async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "Hassette") -> None:
+    """Debounced app-owned listener coalesces rapid events and routes through CommandExecutor.
+
+    This tests the full pipeline: _dispatch_tracked -> rate_limiter.call(execute_fn) ->
+    debounce delay -> execute_fn -> CommandExecutor.execute(InvokeHandler).
+    """
+    from hassette.core.commands import InvokeHandler
+    from hassette.events.base import Event
+
+    hassette = hassette_with_bus
+    event_handled = asyncio.Event()
+
+    def handler(_event: Event) -> None:
+        hassette.task_bucket.post_to_loop(event_handled.set)
+
+    hassette._bus.on(topic="custom.debounce_test", handler=handler, debounce=0.1)
+
+    # Wait for listener registration, then set db_id to make it app-owned
+    await asyncio.sleep(0.05)
+    all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.debounce_test")
+    for listener in all_listeners:
+        if listener.db_id is None:
+            listener.db_id = 42
+
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
+    # Send 3 rapid events — debounce should coalesce into 1 executor call
+    for i in range(3):
+        await hassette.send_event("custom.debounce_test", Event(topic="custom.debounce_test", payload=f"event-{i}"))
+
+    # Wait for debounce to fire
+    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
+    await asyncio.sleep(0.05)  # Let tasks drain
+
+    # Executor should have been called exactly once (debounce coalesced)
+    assert executor.execute.call_count == 1, (
+        f"Expected executor called once (debounce coalesce), got {executor.execute.call_count}"
+    )
+    cmd = executor.execute.call_args.args[0]
+    assert isinstance(cmd, InvokeHandler)
+    assert cmd.listener_id == 42
+
+
+async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "Hassette") -> None:
+    """Throttled app-owned listener fires once and drops subsequent events within the window.
+
+    This tests the full pipeline: _dispatch_tracked -> rate_limiter.call(execute_fn) ->
+    throttle check -> execute_fn -> CommandExecutor.execute(InvokeHandler).
+    """
+    from hassette.core.commands import InvokeHandler
+    from hassette.events.base import Event
+
+    hassette = hassette_with_bus
+    event_handled = asyncio.Event()
+
+    def handler(_event: Event) -> None:
+        hassette.task_bucket.post_to_loop(event_handled.set)
+
+    hassette._bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0)
+
+    # Wait for listener registration, then set db_id to make it app-owned
+    await asyncio.sleep(0.05)
+    all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.throttle_test")
+    for listener in all_listeners:
+        if listener.db_id is None:
+            listener.db_id = 77
+
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
+    # Send 3 rapid events — throttle should allow only the first
+    for i in range(3):
+        await hassette.send_event("custom.throttle_test", Event(topic="custom.throttle_test", payload=f"event-{i}"))
+
+    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+
+    # Executor should have been called exactly once (throttle dropped the rest)
+    assert executor.execute.call_count == 1, (
+        f"Expected executor called once (throttle), got {executor.execute.call_count}"
+    )
+    cmd = executor.execute.call_args.args[0]
+    assert isinstance(cmd, InvokeHandler)
+    assert cmd.listener_id == 77

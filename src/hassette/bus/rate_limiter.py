@@ -14,8 +14,12 @@ if typing.TYPE_CHECKING:
 class RateLimiter:
     """Handles rate limiting for handler calls using debounce or throttle strategies.
 
-    Debounce: Delays execution until after a period of inactivity.
-    Throttle: Ensures execution happens at most once per time period.
+    Debounce: Delays execution until after a period of inactivity. When a new call
+    arrives during the debounce window, the previous timer is cancelled and restarted.
+
+    Throttle: At most one execution per window. Calls arriving within the window are
+    silently dropped (not queued). The handler executes outside any lock — no lock is
+    needed because the check-and-set is atomic within asyncio's single-threaded event loop.
 
     Attributes:
         debounce: Debounce delay in seconds, or None.
@@ -23,7 +27,7 @@ class RateLimiter:
 
     Example:
         ```python
-        limiter = RateLimiter(debounce=1.0)
+        limiter = RateLimiter(task_bucket=bucket, debounce=1.0)
         await limiter.call(handler, event=event)
         ```
     """
@@ -41,12 +45,7 @@ class RateLimiter:
             debounce: Debounce delay in seconds.
             throttle: Throttle interval in seconds.
 
-        Raises:
-            ValueError: If both debounce and throttle are specified.
         """
-        if debounce and throttle:
-            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
-
         self.task_bucket = task_bucket
         self.debounce = debounce
         self.throttle = throttle
@@ -54,7 +53,25 @@ class RateLimiter:
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
         self._throttle_last_time = 0.0
-        self._throttle_lock = asyncio.Lock()
+        self._cancelled = False
+
+    def _clear_debounce_ref(self, task: "asyncio.Task[None]") -> None:
+        """Done callback: clear _debounce_task if it's still the current task."""
+        if self._debounce_task is task:
+            self._debounce_task = None
+
+    def cancel(self) -> None:
+        """Cancel any pending debounce task.
+
+        Called when a listener is removed to prevent dangling tasks from holding
+        references to handler objects after the listener's lifecycle has ended.
+
+        This is a terminal operation -- the RateLimiter should not be reused after cancel().
+        """
+        self._cancelled = True
+        if self._debounce_task and not self._debounce_task.done():
+            self._debounce_task.cancel()
+            self._debounce_task = None
 
     async def call(self, handler: "Callable", *args: Any, **kwargs: Any) -> None:
         """Call handler with rate limiting applied.
@@ -64,9 +81,11 @@ class RateLimiter:
             *args: Positional arguments to pass to handler.
             **kwargs: Keyword arguments to pass to handler.
         """
-        if self.debounce:
+        if self._cancelled:
+            return
+        if self.debounce is not None:
             await self._debounced_call(handler, *args, **kwargs)
-        elif self.throttle:
+        elif self.throttle is not None:
             await self._throttled_call(handler, *args, **kwargs)
         else:
             await handler(*args, **kwargs)
@@ -84,20 +103,32 @@ class RateLimiter:
 
             try:
                 await asyncio.sleep(self.debounce)
-                await handler(*args, **kwargs)
             except asyncio.CancelledError:
-                # Task was cancelled (e.g., due to a new debounce call); safe to ignore.
-                pass
+                # Debounce reset: a new event superseded this one. Silent and expected.
+                return
+            # Guard: if cancel() was called while we were sleeping, don't fire the handler.
+            if self._cancelled:
+                return
+            # Handler runs outside the CancelledError catch — if the handler is cancelled
+            # (e.g., during shutdown), it propagates so telemetry can record it as 'cancelled'.
+            await handler(*args, **kwargs)
 
-        self._debounce_task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
+        task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
+        task.add_done_callback(self._clear_debounce_ref)
+        self._debounce_task = task
 
     async def _throttled_call(self, handler: "Callable", *args: Any, **kwargs: Any) -> None:
-        """Throttled version of the handler call."""
+        """Throttled version of the handler call.
+
+        At most one attempt per window. No lock needed — the check-and-set between
+        ``time.monotonic()`` and ``self._throttle_last_time = now`` is atomic in asyncio's
+        single-threaded event loop (no await point between them).
+        """
         if self.throttle is None:
             raise ValueError("Throttle value is not set")
 
-        async with self._throttle_lock:
-            now = time.monotonic()
-            if now - self._throttle_last_time >= self.throttle:
-                self._throttle_last_time = now
-                await handler(*args, **kwargs)
+        now = time.monotonic()
+        if now - self._throttle_last_time < self.throttle:
+            return
+        self._throttle_last_time = now
+        await handler(*args, **kwargs)
