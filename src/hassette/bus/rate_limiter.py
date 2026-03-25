@@ -30,7 +30,7 @@ class RateLimiter:
     Example:
         ```python
         limiter = RateLimiter(task_bucket=bucket, debounce=1.0, handler_name="my_handler")
-        await limiter.call(handler, event=event)
+        await limiter.call(invoke_fn)  # invoke_fn is a zero-arg async closure
         ```
     """
 
