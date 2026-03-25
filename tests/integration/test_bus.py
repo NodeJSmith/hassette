@@ -590,7 +590,7 @@ async def test_dispatch_internal_handler_logs_error_on_exception(hassette_with_b
 async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "Hassette") -> None:
     """Debounced app-owned listener coalesces rapid events and routes through CommandExecutor.
 
-    This tests the full pipeline: _dispatch_tracked -> rate_limiter.call(execute_fn) ->
+    This tests the full pipeline: _dispatch -> _make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
     debounce delay -> execute_fn -> CommandExecutor.execute(InvokeHandler).
     """
     from hassette.core.commands import InvokeHandler
@@ -634,7 +634,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "Hassette") -> None:
     """Throttled app-owned listener fires once and drops subsequent events within the window.
 
-    This tests the full pipeline: _dispatch_tracked -> rate_limiter.call(execute_fn) ->
+    This tests the full pipeline: _dispatch -> _make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
     throttle check -> execute_fn -> CommandExecutor.execute(InvokeHandler).
     """
     from hassette.core.commands import InvokeHandler
@@ -672,3 +672,152 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
     cmd = executor.execute.call_args.args[0]
     assert isinstance(cmd, InvokeHandler)
     assert cmd.listener_id == 77
+
+
+# ---------------------------------------------------------------------------
+# Internal dispatch (db_id=None) with rate limiting
+# ---------------------------------------------------------------------------
+
+
+async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bus: "Hassette") -> None:
+    """Internal listener (db_id=None) with debounce coalesces rapid events.
+
+    Unlike tracked dispatch, internal dispatch wraps the handler in a try/except
+    rather than routing through CommandExecutor.  This test verifies the debounce
+    path works correctly for internal listeners.
+    """
+    hassette = hassette_with_bus
+    call_count = 0
+    event_handled = asyncio.Event()
+
+    def handler(_event: Event) -> None:
+        nonlocal call_count
+        call_count += 1
+        hassette.task_bucket.post_to_loop(event_handled.set)
+
+    # Internal bus (no app_key) — listener gets db_id=None
+    hassette._bus.on(topic="custom.internal_debounce", handler=handler, debounce=0.1)
+
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
+    # Send 3 rapid events — debounce should coalesce into 1 handler call
+    for i in range(3):
+        await hassette.send_event(
+            "custom.internal_debounce", Event(topic="custom.internal_debounce", payload=f"event-{i}")
+        )
+
+    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks drained")
+
+    assert call_count == 1, f"Expected 1 call (debounce coalesce), got {call_count}"
+    # Executor should NOT be involved for internal handlers
+    executor.execute.assert_not_called()
+
+
+async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "Hassette") -> None:
+    """Internal listener (db_id=None) with throttle fires once and drops subsequent events."""
+    hassette = hassette_with_bus
+    call_count = 0
+    event_handled = asyncio.Event()
+
+    def handler(_event: Event) -> None:
+        nonlocal call_count
+        call_count += 1
+        hassette.task_bucket.post_to_loop(event_handled.set)
+
+    hassette._bus.on(topic="custom.internal_throttle", handler=handler, throttle=5.0)
+
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
+    # Send 3 rapid events — throttle should allow only the first
+    for i in range(3):
+        await hassette.send_event(
+            "custom.internal_throttle", Event(topic="custom.internal_throttle", payload=f"event-{i}")
+        )
+
+    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+
+    assert call_count == 1, f"Expected 1 call (throttle), got {call_count}"
+    executor.execute.assert_not_called()
+
+
+async def test_internal_dispatch_with_debounce_logs_handler_error(
+    hassette_with_bus: "Hassette", caplog: pytest.LogCaptureFixture
+) -> None:
+    """Internal debounced handler exceptions are logged, not propagated."""
+    hassette = hassette_with_bus
+    error_raised = asyncio.Event()
+
+    def failing_handler(_event: Event) -> None:
+        hassette.task_bucket.post_to_loop(error_raised.set)
+        raise ValueError("test error from debounced internal handler")
+
+    hassette._bus.on(topic="custom.internal_debounce_error", handler=failing_handler, debounce=0.05)
+
+    await hassette.send_event(
+        "custom.internal_debounce_error",
+        Event(topic="custom.internal_debounce_error", payload="test"),
+    )
+
+    await asyncio.wait_for(error_raised.wait(), timeout=1.0)
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks drained")
+
+    # Error is absorbed by safe_invoke() and logged, not propagated
+    assert any("Internal handler error" in r.message for r in caplog.records), (
+        "Expected 'Internal handler error' log record from safe_invoke()"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Cancel-during-debounce regression test
+# ---------------------------------------------------------------------------
+
+
+async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "Hassette") -> None:
+    """Cancelling a rate limiter during the debounce sleep window prevents the handler from firing.
+
+    Uses the asyncio.Event gate pattern from CLAUDE.md regression test patterns.
+    """
+    from hassette.bus.rate_limiter import RateLimiter
+
+    hassette = hassette_with_bus
+    handler_fired = False
+
+    def handler(_event: Event) -> None:
+        nonlocal handler_fired
+        handler_fired = True
+
+    hassette._bus.on(topic="custom.cancel_debounce", handler=handler, debounce=0.5)
+
+    # Wait deterministically for listener registration and rate limiter attachment
+    listener = None
+    rate_limiter = None
+    for _ in range(100):
+        all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.cancel_debounce")
+        if len(all_listeners) == 1 and all_listeners[0].adapter.rate_limiter is not None:
+            listener = all_listeners[0]
+            rate_limiter = listener.adapter.rate_limiter
+            break
+        await asyncio.sleep(0.01)
+
+    assert listener is not None, "Listener for custom.cancel_debounce was not registered in time"
+    assert isinstance(rate_limiter, RateLimiter)
+
+    # Send an event to start the debounce timer
+    await hassette.send_event("custom.cancel_debounce", Event(topic="custom.cancel_debounce", payload="test"))
+    # Wait until the debounce task is actually sleeping
+    await wait_for(lambda: rate_limiter._debounce_task is not None, desc="debounce task spawned")
+
+    # Cancel the rate limiter while debounce is sleeping
+    rate_limiter.cancel()
+
+    # Wait until the debounce task has been cancelled and cleared
+    await wait_for(
+        lambda: rate_limiter._debounce_task is None or rate_limiter._debounce_task.done(),
+        desc="debounce task cancelled or completed",
+    )
+
+    assert not handler_fired, "Handler should not fire after rate limiter cancellation"

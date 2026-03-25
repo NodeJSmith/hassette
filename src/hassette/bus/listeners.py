@@ -66,6 +66,20 @@ class Listener:
     once: bool = False
     """Whether the listener should be removed after one invocation."""
 
+    debounce: float | None = None
+    """Debounce delay in seconds. Events reset the timer; handler fires after the quiet period.
+
+    Canonical source for this value. ``adapter.rate_limiter.debounce`` holds an independent
+    copy used at runtime; PR 2 will unify ownership on Listener.
+    """
+
+    throttle: float | None = None
+    """Throttle interval in seconds. At most one handler execution per window; extras are dropped.
+
+    Canonical source for this value. ``adapter.rate_limiter.throttle`` holds an independent
+    copy used at runtime; PR 2 will unify ownership on Listener.
+    """
+
     priority: int = 0
     """Priority for listener ordering. Higher values run first. Default is 0 for app handlers."""
 
@@ -157,6 +171,8 @@ class Listener:
             predicate=pred,
             kwargs=kwargs,
             once=once,
+            debounce=debounce,
+            throttle=throttle,
             priority=priority,
         )
 

@@ -91,9 +91,17 @@ class RateLimiter:
             await handler(*args, **kwargs)
 
     async def _debounced_call(self, handler: "Callable", *args: Any, **kwargs: Any) -> None:
-        """Debounced version of the handler call."""
-        # Cancel previous debounce
+        """Debounced version of the handler call.
 
+        Expects a fresh ``handler`` callable on each call.  BusService creates a new
+        closure per dispatch that captures the current event, so the debounced handler
+        always fires with the latest event data.  Callers must not reuse the same
+        callable with updated shared state — the cancel-then-create ordering below
+        discards the previous handler entirely.
+        """
+        # Cancel previous debounce task BEFORE spawning the replacement.  This ordering
+        # is critical: the old task holds the old handler closure (with the old event),
+        # and the new task will hold the new handler closure (with the latest event).
         if self._debounce_task and not self._debounce_task.done():
             self._debounce_task.cancel()
 
