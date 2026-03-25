@@ -248,7 +248,9 @@ class BusService(Service):
         applies rate limiting and once-cleanup in a single shared path.
 
         Error contract of the invoke functions:
-            - ``_make_internal_invoke_fn`` absorbs all exceptions (logs, does not propagate).
+            - ``_make_internal_invoke_fn`` catches ``Exception`` subclasses (logs, does not
+              propagate).  ``CancelledError`` (a ``BaseException``) still propagates
+              intentionally — it signals shutdown and must reach the task runner.
             - ``_make_tracked_invoke_fn`` can propagate ``CancelledError`` — the
               ``CommandExecutor`` re-raises it after recording the cancellation.
             - The ``finally`` clause is safe because ``once + rate_limiting`` is
