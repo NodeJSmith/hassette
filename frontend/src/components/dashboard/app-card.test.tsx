@@ -20,7 +20,9 @@ function createApp(overrides: Partial<DashboardAppGridEntry> = {}): DashboardApp
     total_executions: 5,
     total_job_errors: 0,
     avg_duration_ms: 50,
-    health_status: "healthy",
+    health_status: "good",
+    error_rate: 0,
+    error_rate_class: "good",
     last_activity_ts: Date.now() / 1000,
     ...overrides,
   };
@@ -67,5 +69,28 @@ describe("AppCard", () => {
       <AppCard app={createApp({ total_invocations: 0, total_executions: 0 })} />,
     );
     expect(queryByTestId("app-card-counts")).toBeNull();
+  });
+
+  it("shows error rate when invocations exist", () => {
+    const { getByTestId } = render(
+      <AppCard app={createApp({ error_rate: 5.0, error_rate_class: "good", total_invocations: 100, total_executions: 0 })} />,
+    );
+    const errorRate = getByTestId("app-card-error-rate");
+    expect(errorRate.textContent).toBe("5.0% errors");
+  });
+
+  it("hides error rate when no invocations or executions", () => {
+    const { queryByTestId } = render(
+      <AppCard app={createApp({ error_rate: 0, total_invocations: 0, total_executions: 0 })} />,
+    );
+    expect(queryByTestId("app-card-error-rate")).toBeNull();
+  });
+
+  it("colors error rate using error rate class variant", () => {
+    const { getByTestId } = render(
+      <AppCard app={createApp({ error_rate: 50.0, error_rate_class: "bad", total_invocations: 100, total_errors: 50 })} />,
+    );
+    const errorRate = getByTestId("app-card-error-rate");
+    expect(errorRate.className).toContain("ht-text-danger");
   });
 });

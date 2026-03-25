@@ -7,6 +7,47 @@ import { formatTimestamp, pluralize } from "../../utils/format";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
+export type SortColumn = "timestamp" | "level" | "app" | "message";
+
+export const LEVEL_INDEX: Record<string, number> = {
+  DEBUG: 0,
+  INFO: 1,
+  WARNING: 2,
+  ERROR: 3,
+  CRITICAL: 4,
+};
+
+interface SortConfig {
+  column: SortColumn;
+  asc: boolean;
+}
+
+/** Sort log entries by the given column and direction. Returns a new array. */
+export function sortEntries(entries: readonly LogEntry[], column: SortColumn, asc: boolean): LogEntry[] {
+  const direction = asc ? 1 : -1;
+
+  return [...entries].sort((a, b) => {
+    switch (column) {
+      case "timestamp":
+        return (a.timestamp - b.timestamp) * direction;
+      case "level":
+        return ((LEVEL_INDEX[a.level] ?? -1) - (LEVEL_INDEX[b.level] ?? -1)) * direction;
+      case "app": {
+        const aKey = a.app_key;
+        const bKey = b.app_key;
+        const aMissing = aKey == null || aKey === "";
+        const bMissing = bKey == null || bKey === "";
+        if (aMissing && bMissing) return 0;
+        if (aMissing) return 1;  // nulls always last
+        if (bMissing) return -1; // nulls always last
+        return aKey.localeCompare(bKey) * direction;
+      }
+      case "message":
+        return a.message.localeCompare(b.message) * direction;
+    }
+  });
+}
+
 interface Props {
   showAppColumn?: boolean;
   appKey?: string;
@@ -20,7 +61,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const appFilter = useRef(signal("")).current; // "" = All Apps
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
-  const sortAsc = useRef(signal(false)).current;
+  const sortConfig = useRef(signal<SortConfig>({ column: "timestamp", asc: false })).current;
   const expandedRows = useRef(signal<Set<string>>(new Set())).current;
 
   const watermarkRef = useRef(0);
@@ -47,7 +88,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
     return true;
   });
 
-  const allEntries = [...initialEntries.value, ...wsEntries];
+  // Live pause: when sorting by non-timestamp column, exclude WS entries
+  const livePaused = sortConfig.value.column !== "timestamp";
+  const allEntries = livePaused
+    ? [...initialEntries.value]
+    : [...initialEntries.value, ...wsEntries];
 
   // Apply level filter
   const levelFiltered = minLevel.value
@@ -73,9 +118,30 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
     : appFiltered;
 
   // Sort
-  const sorted = [...filtered].sort((a, b) =>
-    sortAsc.value ? a.timestamp - b.timestamp : b.timestamp - a.timestamp
-  );
+  const sorted = sortEntries(filtered, sortConfig.value.column, sortConfig.value.asc);
+
+  const handleSort = (column: SortColumn) => {
+    const current = sortConfig.value;
+    if (current.column === column) {
+      sortConfig.value = { column, asc: !current.asc };
+    } else {
+      sortConfig.value = { column, asc: false };
+    }
+  };
+
+  const handleResume = () => {
+    sortConfig.value = { column: "timestamp", asc: false };
+  };
+
+  const ariaSortFor = (column: SortColumn): "ascending" | "descending" | undefined =>
+    sortConfig.value.column === column
+      ? sortConfig.value.asc ? "ascending" : "descending"
+      : undefined;
+
+  const sortArrow = (column: SortColumn): string =>
+    sortConfig.value.column === column
+      ? sortConfig.value.asc ? "↑" : "↓"
+      : "⇅";
 
   return (
     <div class="ht-log-table-container">
@@ -127,20 +193,42 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           }}
         />
         <span class="ht-text-secondary ht-text-xs">{pluralize(filtered.length, "entry", "entries")}</span>
+        {livePaused && (
+          <span class="ht-text-xs ht-text-warning">
+            Live updates paused{" "}
+            <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" onClick={handleResume}>
+              Resume
+            </button>
+          </span>
+        )}
       </div>
       <div class="ht-log-table-scroll" style={{ maxHeight: "600px", overflow: "auto" }}>
         <table class="ht-table ht-table--compact ht-table-log">
           <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
             <tr>
-              <th style={{ width: "90px" }}>Level</th>
-              <th style={{ width: "180px" }} aria-sort={sortAsc.value ? "ascending" : "descending"} data-testid="sort-timestamp">
-                <button type="button" class="ht-sortable" onClick={() => { sortAsc.value = !sortAsc.value; }}>
-                  <span>Timestamp</span>{" "}<span aria-hidden="true">{sortAsc.value ? "↑" : "↓"}</span>
+              <th style={{ width: "90px" }} aria-sort={ariaSortFor("level")} data-testid="sort-level">
+                <button type="button" class="ht-sortable" onClick={() => handleSort("level")}>
+                  <span>Level</span>{" "}<span aria-hidden="true">{sortArrow("level")}</span>
                 </button>
               </th>
-              {showAppColumn && <th style={{ width: "170px" }}>App</th>}
+              <th style={{ width: "180px" }} aria-sort={ariaSortFor("timestamp")} data-testid="sort-timestamp">
+                <button type="button" class="ht-sortable" onClick={() => handleSort("timestamp")}>
+                  <span>Timestamp</span>{" "}<span aria-hidden="true">{sortArrow("timestamp")}</span>
+                </button>
+              </th>
+              {showAppColumn && (
+                <th style={{ width: "170px" }} aria-sort={ariaSortFor("app")} data-testid="sort-app">
+                  <button type="button" class="ht-sortable" onClick={() => handleSort("app")}>
+                    <span>App</span>{" "}<span aria-hidden="true">{sortArrow("app")}</span>
+                  </button>
+                </th>
+              )}
               <th style={{ width: "140px" }} class="ht-col-source">Source</th>
-              <th>Message</th>
+              <th aria-sort={ariaSortFor("message")} data-testid="sort-message">
+                <button type="button" class="ht-sortable" onClick={() => handleSort("message")}>
+                  <span>Message</span>{" "}<span aria-hidden="true">{sortArrow("message")}</span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>

@@ -3,6 +3,7 @@ import { HealthBar } from "../shared/health-bar";
 import { StatusBadge } from "../shared/status-badge";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { pluralize } from "../../utils/format";
+import { errorRateToVariant } from "../../utils/status";
 
 interface Props {
   app: DashboardAppGridEntry;
@@ -32,11 +33,21 @@ export function AppCard({ app }: Props) {
           <span class="ht-text-xs ht-text-muted">{pluralize(app.job_count, "job")}</span>
         </div>
         {(app.total_invocations > 0 || app.total_executions > 0) && (
-          <div class="ht-app-card__counts" data-testid="app-card-counts">
-            <span class="ht-text-xs ht-text-faint ht-text-mono">
-              {app.total_invocations} inv &middot; {app.total_executions} exec
-            </span>
-          </div>
+          <>
+            <div class="ht-app-card__counts" data-testid="app-card-counts">
+              <span class="ht-text-xs ht-text-faint ht-text-mono">
+                {app.total_invocations} inv &middot; {app.total_executions} exec
+              </span>
+            </div>
+            {app.error_rate > 0 && (
+              <span
+                class={`ht-text-xs ht-text-${errorRateToVariant(app.error_rate_class)}`}
+                data-testid="app-card-error-rate"
+              >
+                {app.error_rate.toFixed(1)}% errors
+              </span>
+            )}
+          </>
         )}
         <HealthBar
           healthStatus={app.health_status}

@@ -324,6 +324,8 @@ class DashboardAppGridEntry(BaseModel):
     avg_duration_ms: float
     last_activity_ts: float | None
     health_status: str
+    error_rate: float
+    error_rate_class: str
 
 
 class DashboardAppGridResponse(BaseModel):

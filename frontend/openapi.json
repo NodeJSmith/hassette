@@ -1492,6 +1492,14 @@
           "health_status": {
             "type": "string",
             "title": "Health Status"
+          },
+          "error_rate": {
+            "type": "number",
+            "title": "Error Rate"
+          },
+          "error_rate_class": {
+            "type": "string",
+            "title": "Error Rate Class"
           }
         },
         "type": "object",
@@ -1507,7 +1515,9 @@
           "total_job_errors",
           "avg_duration_ms",
           "last_activity_ts",
-          "health_status"
+          "health_status",
+          "error_rate",
+          "error_rate_class"
         ],
         "title": "DashboardAppGridEntry",
         "description": "Per-app health entry for the dashboard grid."

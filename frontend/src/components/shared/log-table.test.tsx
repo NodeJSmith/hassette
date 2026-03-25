@@ -2,7 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@testing-library/preact";
 import { h } from "preact";
 import type { ComponentChildren } from "preact";
-import { LogTable } from "./log-table";
+import { LogTable, sortEntries } from "./log-table";
+import type { LogEntry } from "../../api/endpoints";
 import { AppStateContext } from "../../state/context";
 import { createAppState, type AppState } from "../../state/create-app-state";
 import type { WsLogPayload } from "../../api/ws-types";
@@ -303,8 +304,8 @@ describe("LogTable", () => {
     );
 
     const headers = container.querySelectorAll("th");
-    const headerTexts = Array.from(headers).map((h) => h.textContent);
-    expect(headerTexts).not.toContain("App");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("App"))).toBe(false);
   });
 
   it("shows app column by default", () => {
@@ -314,8 +315,8 @@ describe("LogTable", () => {
     );
 
     const headers = container.querySelectorAll("th");
-    const headerTexts = Array.from(headers).map((h) => h.textContent);
-    expect(headerTexts).toContain("App");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("App"))).toBe(true);
   });
 
   // -- Source column --
@@ -476,5 +477,375 @@ describe("REST + WS entry merging (#403)", () => {
     expect(rows[1].textContent).toContain("rest-new");
     expect(rows[2].textContent).toContain("ws-mid");
     expect(rows[3].textContent).toContain("rest-old");
+  });
+});
+
+// -- sortEntries unit tests --
+
+describe("sortEntries", () => {
+  function entry(overrides: Partial<LogEntry>): LogEntry {
+    return {
+      seq: 1,
+      timestamp: 1000,
+      level: "INFO",
+      logger_name: "test",
+      func_name: "fn",
+      lineno: 1,
+      message: "msg",
+      exc_info: null,
+      app_key: "app",
+      ...overrides,
+    };
+  }
+
+  it("sorts by timestamp descending by default", () => {
+    const entries = [
+      entry({ timestamp: 1000, message: "old" }),
+      entry({ timestamp: 3000, message: "new" }),
+      entry({ timestamp: 2000, message: "mid" }),
+    ];
+    const result = sortEntries(entries, "timestamp", false);
+    expect(result.map((e) => e.message)).toEqual(["new", "mid", "old"]);
+  });
+
+  it("sorts by timestamp ascending", () => {
+    const entries = [
+      entry({ timestamp: 3000, message: "new" }),
+      entry({ timestamp: 1000, message: "old" }),
+    ];
+    const result = sortEntries(entries, "timestamp", true);
+    expect(result.map((e) => e.message)).toEqual(["old", "new"]);
+  });
+
+  it("sorts by level using severity index", () => {
+    const entries = [
+      entry({ level: "INFO", message: "info" }),
+      entry({ level: "CRITICAL", message: "crit" }),
+      entry({ level: "DEBUG", message: "debug" }),
+      entry({ level: "ERROR", message: "error" }),
+      entry({ level: "WARNING", message: "warn" }),
+    ];
+    const result = sortEntries(entries, "level", false);
+    expect(result.map((e) => e.message)).toEqual(["crit", "error", "warn", "info", "debug"]);
+  });
+
+  it("sorts by level ascending", () => {
+    const entries = [
+      entry({ level: "ERROR", message: "error" }),
+      entry({ level: "DEBUG", message: "debug" }),
+    ];
+    const result = sortEntries(entries, "level", true);
+    expect(result.map((e) => e.message)).toEqual(["debug", "error"]);
+  });
+
+  it("sorts by app using localeCompare", () => {
+    const entries = [
+      entry({ app_key: "climate", message: "c" }),
+      entry({ app_key: "alarm", message: "a" }),
+      entry({ app_key: "blinds", message: "b" }),
+    ];
+    const result = sortEntries(entries, "app", false);
+    // descending: climate, blinds, alarm
+    expect(result.map((e) => e.message)).toEqual(["c", "b", "a"]);
+  });
+
+  it("sorts by message using localeCompare", () => {
+    const entries = [
+      entry({ message: "Banana" }),
+      entry({ message: "Apple" }),
+      entry({ message: "Cherry" }),
+    ];
+    const result = sortEntries(entries, "message", true);
+    expect(result.map((e) => e.message)).toEqual(["Apple", "Banana", "Cherry"]);
+  });
+
+  it("does not mutate the original array", () => {
+    const entries = [
+      entry({ timestamp: 2000 }),
+      entry({ timestamp: 1000 }),
+    ];
+    const original = [...entries];
+    sortEntries(entries, "timestamp", true);
+    expect(entries).toEqual(original);
+  });
+
+  it("handles null app_key by sorting nulls last", () => {
+    const entries = [
+      entry({ app_key: null, message: "null" }),
+      entry({ app_key: "alpha", message: "alpha" }),
+    ];
+    const result = sortEntries(entries, "app", true);
+    // ascending: alpha first, null last
+    expect(result.map((e) => e.message)).toEqual(["alpha", "null"]);
+  });
+});
+
+// -- Multi-column sort component tests --
+
+describe("Multi-column sort", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    entrySeq = 0;
+  });
+
+  it("sorts by level when Level sort button is clicked", async () => {
+    // Use REST entries so they survive live-pause when sorting by non-timestamp
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ level: "INFO", message: "info-msg" }),
+      createLogEntry({ level: "ERROR", message: "error-msg" }),
+      createLogEntry({ level: "DEBUG", message: "debug-msg" }),
+    ]);
+
+    const { container, getByTestId, findByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("info-msg");
+
+    // Need to show DEBUG: set level filter to All Levels
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
+
+    const sortBtn = getByTestId("sort-level").querySelector("button") as HTMLElement;
+    fireEvent.click(sortBtn);
+
+    // Default non-timestamp sort is descending — ERROR > WARNING > INFO > DEBUG
+    const rows = container.querySelectorAll("tbody tr");
+    expect(rows[0].textContent).toContain("error-msg");
+    expect(rows[1].textContent).toContain("info-msg");
+    expect(rows[2].textContent).toContain("debug-msg");
+  });
+
+  it("sorts by app when App sort button is clicked", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ app_key: "climate", message: "climate-msg" }),
+      createLogEntry({ app_key: "alarm", message: "alarm-msg" }),
+      createLogEntry({ app_key: "blinds", message: "blinds-msg" }),
+    ]);
+
+    const { container, getByTestId, findByText } = render(
+      <LogTable showAppColumn appKeys={["alarm", "blinds", "climate"]} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("climate-msg");
+
+    const sortBtn = getByTestId("sort-app").querySelector("button") as HTMLElement;
+    fireEvent.click(sortBtn);
+
+    // Descending localeCompare: climate, blinds, alarm
+    const rows = container.querySelectorAll("tbody tr");
+    expect(rows[0].textContent).toContain("climate-msg");
+    expect(rows[1].textContent).toContain("blinds-msg");
+    expect(rows[2].textContent).toContain("alarm-msg");
+  });
+
+  it("sorts by message when Message sort button is clicked", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ message: "Banana" }),
+      createLogEntry({ message: "Apple" }),
+      createLogEntry({ message: "Cherry" }),
+    ]);
+
+    const { container, getByTestId, findByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("Banana");
+
+    const sortBtn = getByTestId("sort-message").querySelector("button") as HTMLElement;
+    fireEvent.click(sortBtn);
+
+    // Descending localeCompare: Cherry, Banana, Apple
+    const rows = container.querySelectorAll("tbody tr");
+    expect(rows[0].textContent).toContain("Cherry");
+    expect(rows[1].textContent).toContain("Banana");
+    expect(rows[2].textContent).toContain("Apple");
+  });
+
+  it("toggles sort direction on same column click", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ level: "DEBUG", message: "debug-msg" }),
+      createLogEntry({ level: "ERROR", message: "error-msg" }),
+    ]);
+
+    const { container, getByTestId, findByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // ERROR is visible at default INFO filter; wait for REST load
+    await findByText("error-msg");
+
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
+
+    const sortBtn = getByTestId("sort-level").querySelector("button") as HTMLElement;
+
+    // First click: level descending
+    fireEvent.click(sortBtn);
+    let rows = container.querySelectorAll("tbody tr");
+    expect(rows[0].textContent).toContain("error-msg");
+
+    // Second click: level ascending
+    fireEvent.click(sortBtn);
+    rows = container.querySelectorAll("tbody tr");
+    expect(rows[0].textContent).toContain("debug-msg");
+  });
+
+  it("sets aria-sort only on the active sort column", () => {
+    state.logs.push(createLogEntry());
+
+    const { getByTestId } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Default: timestamp has aria-sort
+    expect(getByTestId("sort-timestamp").getAttribute("aria-sort")).toBe("descending");
+    expect(getByTestId("sort-level").getAttribute("aria-sort")).toBeNull();
+    expect(getByTestId("sort-message").getAttribute("aria-sort")).toBeNull();
+
+    // Click level sort
+    const sortBtn = getByTestId("sort-level").querySelector("button") as HTMLElement;
+    fireEvent.click(sortBtn);
+
+    expect(getByTestId("sort-level").getAttribute("aria-sort")).toBe("descending");
+    expect(getByTestId("sort-timestamp").getAttribute("aria-sort")).toBeNull();
+    expect(getByTestId("sort-message").getAttribute("aria-sort")).toBeNull();
+  });
+
+  it("does not render App sort button when showAppColumn is false", () => {
+    const { queryByTestId } = render(
+      <LogTable showAppColumn={false} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    expect(queryByTestId("sort-app")).toBeNull();
+  });
+});
+
+// -- Live streaming pause --
+
+describe("Live streaming pause", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    entrySeq = 0;
+  });
+
+  it("shows 'Live updates paused' when sorting by non-timestamp column", () => {
+    state.logs.push(createLogEntry());
+
+    const { getByTestId, getByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const sortBtn = getByTestId("sort-level").querySelector("button") as HTMLElement;
+    fireEvent.click(sortBtn);
+
+    expect(getByText("Live updates paused")).toBeDefined();
+  });
+
+  it("hides paused indicator when sorting by timestamp", () => {
+    state.logs.push(createLogEntry());
+
+    const { getByTestId, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Sort by level (paused)
+    fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
+    expect(queryByText("Live updates paused")).not.toBeNull();
+
+    // Sort by timestamp (resumes)
+    fireEvent.click(getByTestId("sort-timestamp").querySelector("button") as HTMLElement);
+    expect(queryByText("Live updates paused")).toBeNull();
+  });
+
+  it("Resume button resets sort to timestamp descending", () => {
+    state.logs.push(createLogEntry({ timestamp: 1000, message: "older" }));
+    state.logs.push(createLogEntry({ timestamp: 2000, message: "newer" }));
+
+    const { getByTestId, getByText, queryByText, container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Sort by level to pause
+    fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
+    expect(queryByText("Live updates paused")).not.toBeNull();
+
+    // Click Resume
+    fireEvent.click(getByText("Resume"));
+
+    // Paused indicator gone
+    expect(queryByText("Live updates paused")).toBeNull();
+
+    // Sort is back to timestamp descending
+    expect(getByTestId("sort-timestamp").getAttribute("aria-sort")).toBe("descending");
+    const rows = container.querySelectorAll("tbody tr");
+    expect(rows[0].textContent).toContain("newer");
+  });
+
+  it("excludes WS entries from display when paused", () => {
+    // Only WS entries (no REST), so when paused they should disappear
+    state.logs.push(createLogEntry({ message: "ws-entry" }));
+
+    const { getByTestId, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // WS entry visible in default timestamp sort
+    expect(queryByText("ws-entry")).not.toBeNull();
+
+    // Sort by level — pauses live, WS entries excluded
+    fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
+    expect(queryByText("ws-entry")).toBeNull();
+  });
+
+  it("shows REST entries when paused but hides WS entries", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" }),
+    ]);
+
+    // WS entry above watermark
+    state.logs.push(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-entry" }));
+
+    const { findByText, getByTestId, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("rest-entry");
+
+    // Both visible initially
+    expect(queryByText("rest-entry")).not.toBeNull();
+    expect(queryByText("ws-entry")).not.toBeNull();
+
+    // Sort by level — pauses live
+    fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
+
+    // REST entry still visible, WS entry hidden
+    expect(queryByText("rest-entry")).not.toBeNull();
+    expect(queryByText("ws-entry")).toBeNull();
   });
 });

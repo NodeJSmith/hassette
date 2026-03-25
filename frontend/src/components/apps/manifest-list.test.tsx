@@ -39,6 +39,7 @@ function createInstance(overrides: Partial<AppInstance> = {}): AppInstance {
     status: "running",
     error_message: null,
     error_traceback: null,
+    owner_id: null,
     ...overrides,
   };
 }
