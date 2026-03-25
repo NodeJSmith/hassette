@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
-- Rate limiter redesign: throttle no longer blocks concurrent dispatch, debounced handlers now produce accurate telemetry via CommandExecutor, `once=True` listeners cannot double-fire under rapid events
-- `once=True` combined with `debounce` or `throttle` now raises `ValueError` at registration (previously undefined behavior)
-- `debounce` and `throttle` values of zero or negative now raise `ValueError` at registration
+- Rate limiter redesign: throttle no longer blocks concurrent dispatch, debounced handlers now produce accurate telemetry via CommandExecutor, `once=True` listeners cannot double-fire under rapid events (#430)
+- `once=True` combined with `debounce` or `throttle` now raises `ValueError` at registration (previously undefined behavior) (#430)
+- `debounce` and `throttle` values of zero or negative now raise `ValueError` at registration (#430)
 
 ### Changed
 - Complete web UI rebuild: 4 pages (Dashboard, Apps, App Detail, Logs), Graphite + Emerald design token system, handler/job drill-down with invocation history, plain-language handler summaries, and session-scoped error feed (#343)
