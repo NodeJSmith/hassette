@@ -132,8 +132,7 @@ class BusService(Service):
 
         Cancels any pending debounce task to prevent dangling references.
         """
-        if listener.adapter.rate_limiter:
-            listener.adapter.rate_limiter.cancel()
+        listener.cancel()
         return self._remove_listener_by_id(listener.topic, listener.listener_id)
 
     def _remove_listener_by_id(self, topic: str, listener_id: int) -> asyncio.Task[None]:
@@ -150,8 +149,7 @@ class BusService(Service):
         async def _clear_and_cancel() -> None:
             removed = await self.router.clear_owner(owner)
             for listener in removed:
-                if listener.adapter.rate_limiter:
-                    listener.adapter.rate_limiter.cancel()
+                listener.cancel()
 
         return self.task_bucket.spawn(_clear_and_cancel(), name="bus:remove_listeners_by_owner")
 
@@ -280,14 +278,10 @@ class BusService(Service):
         else:
             invoke_fn = self._make_tracked_invoke_fn(topic, event, listener)
 
-        rate_limiter = listener.adapter.rate_limiter
-        if listener.once and rate_limiter:
+        if listener.once and listener.rate_limiter:
             raise RuntimeError("once + rate_limiting is prohibited; see Listener.create() validation")
         try:
-            if rate_limiter:
-                await rate_limiter.call(invoke_fn)
-            else:
-                await invoke_fn()
+            await listener.dispatch(invoke_fn)
         finally:
             if listener.once:
                 self.remove_listener(listener)

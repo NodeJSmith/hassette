@@ -797,9 +797,9 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     rate_limiter = None
     for _ in range(100):
         all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.cancel_debounce")
-        if len(all_listeners) == 1 and all_listeners[0].adapter.rate_limiter is not None:
+        if len(all_listeners) == 1 and all_listeners[0].rate_limiter is not None:
             listener = all_listeners[0]
-            rate_limiter = listener.adapter.rate_limiter
+            rate_limiter = listener.rate_limiter
             break
         await asyncio.sleep(0.01)
 
