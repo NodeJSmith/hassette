@@ -140,32 +140,3 @@ class ParameterInjector:
                 f"using converter {conv_name} "
                 f": {type(e).__name__}: {e}"
             ) from e
-
-    def _convert_value(
-        self,
-        converter: Callable[[Any, type], Any],
-        extracted_value: Any,
-        param_name: str,
-        target_type: type,
-        extracted_type: type,
-    ) -> Any:
-        """Convert a value to the target type using the converter.
-
-        Args:
-            value: The value to convert.
-            target_type: The type to convert to.
-
-        Returns:
-            The converted value.
-
-        Raises:
-            DependencyResolutionError: If conversion fails.
-        """
-        try:
-            return converter(extracted_value, target_type)
-        except Exception as e:
-            raise DependencyResolutionError(
-                f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
-                f"of type '{extracted_type.__name__}' "
-                f"to type '{target_type.__name__}': {e}"
-            ) from e
