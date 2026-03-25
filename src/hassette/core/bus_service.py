@@ -3,7 +3,7 @@ import itertools
 import time
 import typing
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from fnmatch import fnmatch
 from functools import cached_property
 from typing import Any
@@ -109,8 +109,8 @@ class BusService(Service):
             instance_index=listener.instance_index,
             handler_method=listener.handler_name,
             topic=listener.topic,
-            debounce=listener.adapter.rate_limiter.debounce if listener.adapter.rate_limiter else None,
-            throttle=listener.adapter.rate_limiter.throttle if listener.adapter.rate_limiter else None,
+            debounce=listener.debounce,
+            throttle=listener.throttle,
             once=listener.once,
             priority=listener.priority,
             predicate_description=repr(listener.predicate) if listener.predicate else None,
@@ -243,9 +243,25 @@ class BusService(Service):
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener.
 
-        Routes to ``_dispatch_internal`` (no telemetry) or ``_dispatch_tracked``
-        (CommandExecutor telemetry) based on whether the listener has a ``db_id``.
-        Rate limiting is orchestrated here, not inside ``HandlerAdapter.call()``.
+        Selects an invoke function based on whether the listener has a ``db_id``
+        (tracked via CommandExecutor) or not (internal, error-catching only), then
+        applies rate limiting and once-cleanup in a single shared path.
+
+        Error contract of the invoke functions:
+            - ``_make_internal_invoke_fn`` absorbs all exceptions (logs, does not propagate).
+            - ``_make_tracked_invoke_fn`` can propagate ``CancelledError`` — the
+              ``CommandExecutor`` re-raises it after recording the cancellation.
+            - The ``finally`` clause is safe because ``once + rate_limiting`` is
+              prohibited by ``Listener.create()`` validation.  If that prohibition
+              is ever relaxed, the ``finally`` must guard against ``CancelledError``
+              to avoid removing a listener whose debounced handler hasn't fired yet.
+
+        Concurrency model:
+            Multiple spawned tasks may enter this method concurrently for the same
+            listener (via ``task_bucket.spawn`` in ``dispatch``).  Correctness relies
+            on asyncio's single-threaded cooperative scheduling — there is no ``await``
+            between the ``_fired`` check-and-set, so the guard is atomic.  The same
+            applies to the throttle check in ``RateLimiter._throttled_call``.
         """
         # Guard: prevent once=True listeners from firing twice under concurrent dispatch.
         # Safe without a lock — no await between the check and the set.
@@ -254,18 +270,34 @@ class BusService(Service):
         if listener.once:
             listener._fired = True
 
+        # New closure per dispatch: debounce always fires with the latest event's closure.
+        # RateLimiter._debounced_call replaces (cancel-then-create) the previous task each
+        # time, so the handler sees the event from the most recent dispatch call.
         if listener.db_id is None:
-            await self._dispatch_internal(topic, event, listener)
+            invoke_fn = self._make_internal_invoke_fn(topic, event, listener)
         else:
-            await self._dispatch_tracked(topic, event, listener)
+            invoke_fn = self._make_tracked_invoke_fn(topic, event, listener)
 
-    async def _dispatch_internal(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
-        """Dispatch to an internal handler (no telemetry).
-
-        If the listener has a rate limiter, the handler is wrapped in an error-catching
-        closure so that exceptions from deferred debounce tasks are still logged.
-        """
         rate_limiter = listener.adapter.rate_limiter
+        if listener.once and rate_limiter:
+            raise RuntimeError("once + rate_limiting is prohibited; see Listener.create() validation")
+        try:
+            if rate_limiter:
+                await rate_limiter.call(invoke_fn)
+            else:
+                await invoke_fn()
+        finally:
+            if listener.once:
+                self.remove_listener(listener)
+
+    def _make_internal_invoke_fn(
+        self, topic: str, event: "Event[Any]", listener: "Listener"
+    ) -> Callable[[], "Awaitable[None]"]:
+        """Build an invoke function for internal (non-app) listeners.
+
+        Wraps ``listener.invoke()`` in a try/except that logs and absorbs all
+        exceptions, preventing handler failures from crashing the bus dispatch loop.
+        """
 
         async def safe_invoke() -> None:
             try:
@@ -273,32 +305,26 @@ class BusService(Service):
             except Exception:
                 self.logger.exception("Internal handler error (topic=%s, handler=%r)", topic, listener)
 
-        try:
-            if rate_limiter:
-                await rate_limiter.call(safe_invoke)
-            else:
-                await safe_invoke()
-        finally:
-            # Safe: once+debounce/throttle is prohibited by Listener.create() validation.
-            # If that prohibition is ever relaxed, this removal must be deferred to after
-            # the debounced handler fires (remove_listener calls cancel(), killing the task).
-            if listener.once:
-                self.remove_listener(listener)
+        return safe_invoke
 
-    async def _dispatch_tracked(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
-        """Dispatch to an app-owned handler via CommandExecutor for telemetry.
+    def _make_tracked_invoke_fn(
+        self, topic: str, event: "Event[Any]", listener: "Listener"
+    ) -> Callable[[], "Awaitable[None]"]:
+        """Build an invoke function for app-owned listeners with telemetry.
 
-        For rate-limited listeners, the rate limiter wraps an ``execute_fn`` closure
-        that builds ``InvokeHandler`` at execution time (after debounce/throttle) so
-        that ``listener.db_id`` is read when the handler actually fires, not when the
-        event first arrives. The executor times the real handler execution accurately.
+        The closure reads ``listener.db_id`` lazily at call time (not capture time)
+        so that debounced handlers see the correct ``db_id`` after async registration
+        completes.  If ``db_id`` is still ``None`` at fire time, falls back to direct
+        invocation with error logging.
+
+        Can propagate ``CancelledError`` — the ``CommandExecutor`` re-raises it after
+        recording a cancellation record.
         """
-        rate_limiter = listener.adapter.rate_limiter
 
         async def execute_fn() -> None:
             db_id = listener.db_id
             if db_id is None:
-                self.logger.debug("Listener db_id not yet set, invoking directly (topic=%s)", topic)
+                self.logger.warning("Listener db_id not yet set, invoking directly without telemetry (topic=%s)", topic)
                 try:
                     await listener.invoke(event)
                 except Exception:
@@ -307,17 +333,7 @@ class BusService(Service):
             cmd = InvokeHandler(listener=listener, event=event, topic=topic, listener_id=db_id)
             await self._executor.execute(cmd)
 
-        try:
-            if rate_limiter:
-                await rate_limiter.call(execute_fn)
-            else:
-                await execute_fn()
-        finally:
-            # Safe: once+debounce/throttle is prohibited by Listener.create() validation.
-            # If that prohibition is ever relaxed, this removal must be deferred to after
-            # the debounced handler fires (remove_listener calls cancel(), killing the task).
-            if listener.once:
-                self.remove_listener(listener)
+        return execute_fn
 
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")
