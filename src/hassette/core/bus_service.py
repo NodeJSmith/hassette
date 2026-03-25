@@ -134,10 +134,10 @@ class BusService(Service):
         """
         if listener.adapter.rate_limiter:
             listener.adapter.rate_limiter.cancel()
-        return self.remove_listener_by_id(listener.topic, listener.listener_id)
+        return self._remove_listener_by_id(listener.topic, listener.listener_id)
 
-    def remove_listener_by_id(self, topic: str, listener_id: int) -> asyncio.Task[None]:
-        """Remove a listener by its ID."""
+    def _remove_listener_by_id(self, topic: str, listener_id: int) -> asyncio.Task[None]:
+        """Remove a listener by its ID (internal — use remove_listener for full cleanup)."""
         return self.task_bucket.spawn(self.router.remove_listener_by_id(topic, listener_id), name="bus:remove_listener")
 
     def remove_listeners_by_owner(self, owner: str) -> asyncio.Task[None]:
@@ -279,6 +279,9 @@ class BusService(Service):
             else:
                 await safe_invoke()
         finally:
+            # Safe: once+debounce/throttle is prohibited by Listener.create() validation.
+            # If that prohibition is ever relaxed, this removal must be deferred to after
+            # the debounced handler fires (remove_listener calls cancel(), killing the task).
             if listener.once:
                 self.remove_listener(listener)
 
@@ -310,6 +313,9 @@ class BusService(Service):
             else:
                 await execute_fn()
         finally:
+            # Safe: once+debounce/throttle is prohibited by Listener.create() validation.
+            # If that prohibition is ever relaxed, this removal must be deferred to after
+            # the debounced handler fires (remove_listener calls cancel(), killing the task).
             if listener.once:
                 self.remove_listener(listener)
 
@@ -542,7 +548,7 @@ class Router:
             A list of listeners associated with the owner.
         """
         async with self.lock:
-            return self.owners.get(owner, [])
+            return list(self.owners.get(owner, ()))
 
     async def clear_owner(self, owner: str) -> list["Listener"]:
         """Remove all listeners associated with the given owner.

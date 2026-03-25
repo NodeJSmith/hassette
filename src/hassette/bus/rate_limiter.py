@@ -55,6 +55,11 @@ class RateLimiter:
         self._throttle_last_time = 0.0
         self._cancelled = False
 
+    def _clear_debounce_ref(self, task: "asyncio.Task[None]") -> None:
+        """Done callback: clear _debounce_task if it's still the current task."""
+        if self._debounce_task is task:
+            self._debounce_task = None
+
     def cancel(self) -> None:
         """Cancel any pending debounce task.
 
@@ -76,6 +81,8 @@ class RateLimiter:
             *args: Positional arguments to pass to handler.
             **kwargs: Keyword arguments to pass to handler.
         """
+        if self._cancelled:
+            return
         if self.debounce is not None:
             await self._debounced_call(handler, *args, **kwargs)
         elif self.throttle is not None:
@@ -107,9 +114,7 @@ class RateLimiter:
             await handler(*args, **kwargs)
 
         task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
-        # Clear reference after completion to release captured event payloads.
-        # Only clear if this is still the current task (a newer debounce may have replaced it).
-        task.add_done_callback(lambda t: setattr(self, "_debounce_task", None) if self._debounce_task is t else None)
+        task.add_done_callback(self._clear_debounce_ref)
         self._debounce_task = task
 
     async def _throttled_call(self, handler: "Callable", *args: Any, **kwargs: Any) -> None:

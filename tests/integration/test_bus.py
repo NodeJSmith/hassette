@@ -629,3 +629,46 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
     cmd = executor.execute.call_args.args[0]
     assert isinstance(cmd, InvokeHandler)
     assert cmd.listener_id == 42
+
+
+async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "Hassette") -> None:
+    """Throttled app-owned listener fires once and drops subsequent events within the window.
+
+    This tests the full pipeline: _dispatch_tracked -> rate_limiter.call(execute_fn) ->
+    throttle check -> execute_fn -> CommandExecutor.execute(InvokeHandler).
+    """
+    from hassette.core.commands import InvokeHandler
+    from hassette.events.base import Event
+
+    hassette = hassette_with_bus
+    event_handled = asyncio.Event()
+
+    def handler(_event: Event) -> None:
+        hassette.task_bucket.post_to_loop(event_handled.set)
+
+    hassette._bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0)
+
+    # Wait for listener registration, then set db_id to make it app-owned
+    await asyncio.sleep(0.05)
+    all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.throttle_test")
+    for listener in all_listeners:
+        if listener.db_id is None:
+            listener.db_id = 77
+
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
+    # Send 3 rapid events — throttle should allow only the first
+    for i in range(3):
+        await hassette.send_event("custom.throttle_test", Event(topic="custom.throttle_test", payload=f"event-{i}"))
+
+    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+
+    # Executor should have been called exactly once (throttle dropped the rest)
+    assert executor.execute.call_count == 1, (
+        f"Expected executor called once (throttle), got {executor.execute.call_count}"
+    )
+    cmd = executor.execute.call_args.args[0]
+    assert isinstance(cmd, InvokeHandler)
+    assert cmd.listener_id == 77
