@@ -143,17 +143,17 @@ class BusService(Service):
     def remove_listeners_by_owner(self, owner: str) -> asyncio.Task[None]:
         """Remove all listeners owned by a specific owner.
 
-        Cancels pending debounce tasks before clearing to prevent dangling references.
+        Uses ``Router.clear_owner`` which atomically removes and returns listeners
+        under a single lock, then cancels debounce tasks on the returned set.
         """
 
-        async def _cancel_and_clear() -> None:
-            listeners = await self.router.get_listeners_by_owner(owner)
-            for listener in listeners:
+        async def _clear_and_cancel() -> None:
+            removed = await self.router.clear_owner(owner)
+            for listener in removed:
                 if listener.adapter.rate_limiter:
                     listener.adapter.rate_limiter.cancel()
-            await self.router.clear_owner(owner)
 
-        return self.task_bucket.spawn(_cancel_and_clear(), name="bus:remove_listeners_by_owner")
+        return self.task_bucket.spawn(_clear_and_cancel(), name="bus:remove_listeners_by_owner")
 
     def get_listeners_by_owner(self, owner: str) -> asyncio.Task[list["Listener"]]:
         """Get all listeners owned by a specific owner."""
@@ -247,6 +247,13 @@ class BusService(Service):
         (CommandExecutor telemetry) based on whether the listener has a ``db_id``.
         Rate limiting is orchestrated here, not inside ``HandlerAdapter.call()``.
         """
+        # Guard: prevent once=True listeners from firing twice under concurrent dispatch.
+        # Safe without a lock — no await between the check and the set.
+        if listener.once and listener._fired:
+            return
+        if listener.once:
+            listener._fired = True
+
         if listener.db_id is None:
             await self._dispatch_internal(topic, event, listener)
         else:
@@ -289,7 +296,10 @@ class BusService(Service):
             db_id = listener.db_id
             if db_id is None:
                 self.logger.debug("Listener db_id not yet set, invoking directly (topic=%s)", topic)
-                await listener.invoke(event)
+                try:
+                    await listener.invoke(event)
+                except Exception:
+                    self.logger.exception("Handler error (topic=%s, handler=%r, db_id pending)", topic, listener)
                 return
             cmd = InvokeHandler(listener=listener, event=event, topic=topic, listener_id=db_id)
             await self._executor.execute(cmd)
@@ -534,17 +544,20 @@ class Router:
         async with self.lock:
             return self.owners.get(owner, [])
 
-    async def clear_owner(self, owner: str) -> None:
+    async def clear_owner(self, owner: str) -> list["Listener"]:
         """Remove all listeners associated with the given owner.
 
         Args:
             owner: The owner whose listeners should be removed.
+
+        Returns:
+            The list of removed listeners (for cleanup such as cancelling debounce tasks).
         """
 
         async with self.lock:
             owner_listeners = self.owners.pop(owner, None)
             if not owner_listeners:
-                return
+                return []
 
             handled_topics = {listener.topic for listener in owner_listeners}
             for topic in handled_topics:
@@ -558,3 +571,5 @@ class Router:
                     bucket[topic] = remaining
                 else:
                     bucket.pop(topic, None)
+
+            return owner_listeners

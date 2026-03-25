@@ -45,12 +45,7 @@ class RateLimiter:
             debounce: Debounce delay in seconds.
             throttle: Throttle interval in seconds.
 
-        Raises:
-            ValueError: If both debounce and throttle are specified.
         """
-        if debounce and throttle:
-            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
-
         self.task_bucket = task_bucket
         self.debounce = debounce
         self.throttle = throttle
@@ -58,13 +53,17 @@ class RateLimiter:
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
         self._throttle_last_time = 0.0
+        self._cancelled = False
 
     def cancel(self) -> None:
         """Cancel any pending debounce task.
 
         Called when a listener is removed to prevent dangling tasks from holding
         references to handler objects after the listener's lifecycle has ended.
+
+        This is a terminal operation -- the RateLimiter should not be reused after cancel().
         """
+        self._cancelled = True
         if self._debounce_task and not self._debounce_task.done():
             self._debounce_task.cancel()
             self._debounce_task = None
@@ -77,9 +76,9 @@ class RateLimiter:
             *args: Positional arguments to pass to handler.
             **kwargs: Keyword arguments to pass to handler.
         """
-        if self.debounce:
+        if self.debounce is not None:
             await self._debounced_call(handler, *args, **kwargs)
-        elif self.throttle:
+        elif self.throttle is not None:
             await self._throttled_call(handler, *args, **kwargs)
         else:
             await handler(*args, **kwargs)
@@ -100,11 +99,18 @@ class RateLimiter:
             except asyncio.CancelledError:
                 # Debounce reset: a new event superseded this one. Silent and expected.
                 return
+            # Guard: if cancel() was called while we were sleeping, don't fire the handler.
+            if self._cancelled:
+                return
             # Handler runs outside the CancelledError catch — if the handler is cancelled
             # (e.g., during shutdown), it propagates so telemetry can record it as 'cancelled'.
             await handler(*args, **kwargs)
 
-        self._debounce_task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
+        task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
+        # Clear reference after completion to release captured event payloads.
+        # Only clear if this is still the current task (a newer debounce may have replaced it).
+        task.add_done_callback(lambda t: setattr(self, "_debounce_task", None) if self._debounce_task is t else None)
+        self._debounce_task = task
 
     async def _throttled_call(self, handler: "Callable", *args: Any, **kwargs: Any) -> None:
         """Throttled version of the handler call.

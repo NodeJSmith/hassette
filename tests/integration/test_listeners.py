@@ -163,7 +163,8 @@ class TestDebounceLogic:
 
         await asyncio.sleep(0.3)
         assert calls == ["third"], "Only the last call should be processed after debounce"
-        assert limiter._debounce_task.done(), "Debounce task should be completed"
+        # After completion, done_callback clears the reference to release captured payloads
+        assert limiter._debounce_task is None, "Debounce task reference should be cleared after completion"
 
     async def test_debounce_handler_cancelled_error_propagates(self, bucket_fixture: TaskBucket):
         """CancelledError during handler execution must propagate (not be suppressed).
@@ -179,13 +180,16 @@ class TestDebounceLogic:
         limiter = RateLimiter(bucket_fixture, debounce=0.01)
         await limiter.call(handler_that_gets_cancelled)
 
+        # Capture task reference before done_callback clears it
+        task = limiter._debounce_task
+        assert task is not None
+
         # Wait for debounce to fire and handler to run
         await asyncio.sleep(0.05)
 
         # The task should show as cancelled (CancelledError propagated out of delayed_call)
-        assert limiter._debounce_task is not None
-        assert limiter._debounce_task.done()
-        assert limiter._debounce_task.cancelled(), "Handler CancelledError should propagate, not be suppressed"
+        assert task.done()
+        assert task.cancelled(), "Handler CancelledError should propagate, not be suppressed"
 
     async def test_debounce_reset_cancellation_is_silent(self, bucket_fixture: TaskBucket):
         """CancelledError from debounce reset (new event superseding old) should be silent."""
@@ -665,3 +669,35 @@ class TestOnceWithRateLimitingProhibited:
             debounce=1.0,
         )
         assert listener.adapter.rate_limiter is not None
+
+
+class TestRateLimitValueValidation:
+    """debounce and throttle must be positive floats -- zero and negative are rejected."""
+
+    async def test_debounce_zero_raises(self, bucket_fixture: TaskBucket):
+        async def handler(event):
+            pass
+
+        with pytest.raises(ValueError, match=r"debounce.*positive"):
+            Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, debounce=0.0)
+
+    async def test_throttle_zero_raises(self, bucket_fixture: TaskBucket):
+        async def handler(event):
+            pass
+
+        with pytest.raises(ValueError, match=r"throttle.*positive"):
+            Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, throttle=0.0)
+
+    async def test_debounce_negative_raises(self, bucket_fixture: TaskBucket):
+        async def handler(event):
+            pass
+
+        with pytest.raises(ValueError, match=r"debounce.*positive"):
+            Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, debounce=-1.0)
+
+    async def test_throttle_negative_raises(self, bucket_fixture: TaskBucket):
+        async def handler(event):
+            pass
+
+        with pytest.raises(ValueError, match=r"throttle.*positive"):
+            Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, throttle=-1.0)
