@@ -3,12 +3,14 @@
 import asyncio
 import time
 import typing
-from typing import Any
+from logging import getLogger
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
+
+_logger = getLogger(__name__)
 
 
 class RateLimiter:
@@ -27,8 +29,8 @@ class RateLimiter:
 
     Example:
         ```python
-        limiter = RateLimiter(task_bucket=bucket, debounce=1.0)
-        await limiter.call(handler, event=event)
+        limiter = RateLimiter(task_bucket=bucket, debounce=1.0, handler_name="my_handler")
+        await limiter.call(invoke_fn)  # invoke_fn is a zero-arg async closure
         ```
     """
 
@@ -37,6 +39,7 @@ class RateLimiter:
         task_bucket: "TaskBucket",
         debounce: float | None = None,
         throttle: float | None = None,
+        handler_name: str = "unknown",
     ):
         """Initialize the rate limiter.
 
@@ -44,11 +47,13 @@ class RateLimiter:
             task_bucket: TaskBucket for spawning background tasks.
             debounce: Debounce delay in seconds.
             throttle: Throttle interval in seconds.
+            handler_name: Name of the owning handler, used in log messages for diagnostics.
 
         """
         self.task_bucket = task_bucket
         self.debounce = debounce
         self.throttle = throttle
+        self._handler_name = handler_name
 
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
@@ -73,24 +78,23 @@ class RateLimiter:
             self._debounce_task.cancel()
             self._debounce_task = None
 
-    async def call(self, handler: "Callable", *args: Any, **kwargs: Any) -> None:
+    async def call(self, handler: "Callable[[], Awaitable[None]]") -> None:
         """Call handler with rate limiting applied.
 
         Args:
-            handler: The async handler to call.
-            *args: Positional arguments to pass to handler.
-            **kwargs: Keyword arguments to pass to handler.
+            handler: Zero-arg async callable.  ``Listener.dispatch()`` always passes a
+                closure that captures the event and error handling internally.
         """
         if self._cancelled:
             return
         if self.debounce is not None:
-            await self._debounced_call(handler, *args, **kwargs)
+            await self._debounced_call(handler)
         elif self.throttle is not None:
-            await self._throttled_call(handler, *args, **kwargs)
+            await self._throttled_call(handler)
         else:
-            await handler(*args, **kwargs)
+            await handler()
 
-    async def _debounced_call(self, handler: "Callable", *args: Any, **kwargs: Any) -> None:
+    async def _debounced_call(self, handler: "Callable[[], Awaitable[None]]") -> None:
         """Debounced version of the handler call.
 
         Expects a fresh ``handler`` callable on each call.  BusService creates a new
@@ -103,6 +107,7 @@ class RateLimiter:
         # is critical: the old task holds the old handler closure (with the old event),
         # and the new task will hold the new handler closure (with the latest event).
         if self._debounce_task and not self._debounce_task.done():
+            _logger.debug("Debounce reset for handler=%s (window=%.1fs)", self._handler_name, self.debounce)
             self._debounce_task.cancel()
 
         async def delayed_call():
@@ -119,13 +124,13 @@ class RateLimiter:
                 return
             # Handler runs outside the CancelledError catch — if the handler is cancelled
             # (e.g., during shutdown), it propagates so telemetry can record it as 'cancelled'.
-            await handler(*args, **kwargs)
+            await handler()
 
         task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
         task.add_done_callback(self._clear_debounce_ref)
         self._debounce_task = task
 
-    async def _throttled_call(self, handler: "Callable", *args: Any, **kwargs: Any) -> None:
+    async def _throttled_call(self, handler: "Callable[[], Awaitable[None]]") -> None:
         """Throttled version of the handler call.
 
         At most one attempt per window. No lock needed — the check-and-set between
@@ -137,6 +142,7 @@ class RateLimiter:
 
         now = time.monotonic()
         if now - self._throttle_last_time < self.throttle:
+            _logger.debug("Throttle drop for handler=%s (window=%.1fs)", self._handler_name, self.throttle)
             return
         self._throttle_last_time = now
-        await handler(*args, **kwargs)
+        await handler()

@@ -14,7 +14,7 @@ from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
     from hassette.events.base import Event
@@ -49,7 +49,7 @@ class Listener:
     """Original handler function provided by the user."""
 
     adapter: "HandlerAdapter"
-    """Handler adapter that manages signature normalization and rate limiting."""
+    """Handler adapter that manages dependency injection and signature normalization."""
 
     predicate: "Predicate | None"
     """Predicate to filter events before invoking the handler."""
@@ -67,24 +67,21 @@ class Listener:
     """Whether the listener should be removed after one invocation."""
 
     debounce: float | None = None
-    """Debounce delay in seconds. Events reset the timer; handler fires after the quiet period.
-
-    Canonical source for this value. ``adapter.rate_limiter.debounce`` holds an independent
-    copy used at runtime; PR 2 will unify ownership on Listener.
-    """
+    """Debounce delay in seconds. Events reset the timer; handler fires after the quiet period."""
 
     throttle: float | None = None
-    """Throttle interval in seconds. At most one handler execution per window; extras are dropped.
-
-    Canonical source for this value. ``adapter.rate_limiter.throttle`` holds an independent
-    copy used at runtime; PR 2 will unify ownership on Listener.
-    """
+    """Throttle interval in seconds. At most one handler execution per window; extras are dropped."""
 
     priority: int = 0
     """Priority for listener ordering. Higher values run first. Default is 0 for app handlers."""
 
     db_id: int | None = None
     """Database row ID for this listener. Set by the executor after persistence; None until then."""
+
+    _rate_limiter: RateLimiter | None = field(default=None, init=False, repr=False)
+    """Rate limiter for debounce/throttle. Private — use :attr:`rate_limiter` for read access
+    and :meth:`cancel` for lifecycle management.  Contains an active runtime component
+    (spawns tasks, holds event loop references) — not a simple scalar like ``_fired``."""
 
     _fired: bool = field(default=False, init=False, repr=False)
     """Guard for once=True listeners: set before the first invocation to prevent double-fire
@@ -97,6 +94,39 @@ class Listener:
     @property
     def handler_short_name(self) -> str:
         return callable_short_name(self.orig_handler)
+
+    @property
+    def rate_limiter(self) -> RateLimiter | None:
+        """Read-only access to the rate limiter. Use :meth:`cancel` for lifecycle management."""
+        return self._rate_limiter
+
+    async def dispatch(self, invoke_fn: "Callable[[], Awaitable[None]]") -> None:
+        """Apply rate limiting around the given invoke function.
+
+        BusService builds the invoke function (internal error-catching or tracked
+        telemetry), Listener wraps it with rate limiting.  BusService never touches
+        the RateLimiter directly.
+
+        For debounced listeners, the rate limiter spawns a background task that calls
+        ``invoke_fn`` after the quiet period.  This method returns immediately after
+        spawning — the handler fires later.
+        """
+        if self._rate_limiter:
+            await self._rate_limiter.call(invoke_fn)
+        else:
+            await invoke_fn()
+
+    def cancel(self) -> None:
+        """Cancel any pending rate limiter tasks.
+
+        Called when a listener is removed to prevent dangling debounce tasks.
+        This is the sole cancellation path — external code must not call
+        ``_rate_limiter.cancel()`` directly.
+
+        Terminal operation: the rate limiter must not be reused after this call.
+        """
+        if self._rate_limiter:
+            self._rate_limiter.cancel()
 
     async def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
@@ -150,17 +180,14 @@ class Listener:
         # Create async handler
         async_handler = make_async_handler(handler, task_bucket)
 
-        # Create an adapter with rate limiting and signature informed calling
+        # Create an adapter for dependency injection
         adapter = HandlerAdapter(
             callable_name(handler),
             async_handler,
             signature,
-            task_bucket,
-            debounce=debounce,
-            throttle=throttle,
         )
 
-        return cls(
+        listener = cls(
             logger=logger,
             owner_id=owner_id,
             app_key=app_key,
@@ -176,41 +203,33 @@ class Listener:
             priority=priority,
         )
 
+        # Rate limiter constructed on Listener, not HandlerAdapter
+        if debounce is not None or throttle is not None:
+            listener._rate_limiter = RateLimiter(
+                task_bucket=task_bucket,
+                debounce=debounce,
+                throttle=throttle,
+                handler_name=callable_name(handler),
+            )
+
+        return listener
+
 
 class HandlerAdapter:
-    """Handler adapter that composes dependency injection and rate limiting."""
+    """Handler adapter that composes dependency injection with handler invocation."""
 
     def __init__(
         self,
         handler_name: str,
         handler: "AsyncHandlerType",
         signature: inspect.Signature,
-        task_bucket: "TaskBucket",
-        debounce: float | None = None,
-        throttle: float | None = None,
     ):
         self.handler_name = handler_name
         self.handler = handler
-        self.task_bucket = task_bucket
-
-        # Dependency injection setup
         self.injector = ParameterInjector(handler_name, signature)
-
-        # Rate limiting setup — validation is in Listener.create(), not here.
-        self.rate_limiter: RateLimiter | None = None
-        if debounce is not None or throttle is not None:
-            self.rate_limiter = RateLimiter(
-                task_bucket=task_bucket,
-                debounce=debounce,
-                throttle=throttle,
-            )
 
     async def call(self, event: "Event[Any]", **kwargs: Any) -> None:
         """Call handler with dependency injection.
-
-        Rate limiting is orchestrated by ``BusService._dispatch``, not here.
-        The rate limiter instance remains on the adapter for metadata access
-        (registration, metrics) but is never invoked from this method.
 
         Args:
             event: The event to pass to the handler.

@@ -92,7 +92,9 @@ def _make_mock_listener(
     listener.instance_index = instance_index
     listener.topic = topic
     listener.handler_name = "MyApp.on_event"
-    listener.adapter.rate_limiter = None
+    listener.debounce = None
+    listener.throttle = None
+    listener.rate_limiter = None
     listener.once = False
     listener.priority = 0
     listener.predicate = None

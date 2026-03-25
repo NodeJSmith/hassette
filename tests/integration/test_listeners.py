@@ -28,11 +28,11 @@ def mock_event(data: str = "test") -> MockEvent:
     return MockEvent(topic="test_topic", payload=data)
 
 
-def create_adapter(handler, bucket_fixture, **kwargs):
+def create_adapter(handler, _bucket_fixture=None):
     """Helper to create HandlerAdapter with proper signature."""
     signature = inspect.signature(handler)
     handler_name = handler.__name__ if hasattr(handler, "__name__") else "test_handler"
-    return HandlerAdapter(handler_name, handler, signature, bucket_fixture, **kwargs)
+    return HandlerAdapter(handler_name, handler, signature)
 
 
 class TestHandlerAdapter:
@@ -106,14 +106,17 @@ class TestDebounceLogic:
 
         calls: list[str] = []
 
-        async def handler(label: str):
-            calls.append(label)
+        def make_handler(label: str):
+            async def handler():
+                calls.append(label)
+
+            return handler
 
         limiter = RateLimiter(bucket_fixture, debounce=0.1)
 
-        await limiter.call(handler, "first")
-        await limiter.call(handler, "second")
-        await limiter.call(handler, "third")
+        await limiter.call(make_handler("first"))
+        await limiter.call(make_handler("second"))
+        await limiter.call(make_handler("third"))
 
         await asyncio.sleep(0)
         assert calls == [], "No calls should be made immediately due to debounce"
@@ -145,21 +148,24 @@ class TestDebounceLogic:
 
         calls: list[str] = []
 
-        async def handler(label: str):
-            calls.append(label)
+        def make_handler(label: str):
+            async def handler():
+                calls.append(label)
+
+            return handler
 
         limiter = RateLimiter(bucket_fixture, debounce=0.2)
 
-        await limiter.call(handler, "first")
+        await limiter.call(make_handler("first"))
         await asyncio.sleep(0.1)
         assert limiter._debounce_task is not None, "Debounce task should be created"
         assert not limiter._debounce_task.done(), "Debounce task should still be pending"
 
-        await limiter.call(handler, "second")
+        await limiter.call(make_handler("second"))
         await asyncio.sleep(0.1)
         assert not limiter._debounce_task.done(), "Debounce task should still be pending"
 
-        await limiter.call(handler, "third")
+        await limiter.call(make_handler("third"))
 
         await asyncio.sleep(0.3)
         assert calls == ["third"], "Only the last call should be processed after debounce"
@@ -197,18 +203,21 @@ class TestDebounceLogic:
 
         calls: list[str] = []
 
-        async def handler(label: str):
-            calls.append(label)
+        def make_handler(label: str):
+            async def handler():
+                calls.append(label)
+
+            return handler
 
         limiter = RateLimiter(bucket_fixture, debounce=0.1)
 
         # First call starts debounce
-        await limiter.call(handler, "first")
+        await limiter.call(make_handler("first"))
         first_task = limiter._debounce_task
         assert first_task is not None
 
         # Second call cancels first (debounce reset)
-        await limiter.call(handler, "second")
+        await limiter.call(make_handler("second"))
         await asyncio.sleep(0)  # Let cancellation propagate
 
         # First task should be cancelled silently (no crash)
@@ -278,21 +287,24 @@ class TestThrottleLogic:
 
         calls: list[str] = []
 
-        async def handler(label: str):
-            calls.append(label)
+        def make_handler(label: str):
+            async def handler():
+                calls.append(label)
+
+            return handler
 
         limiter = RateLimiter(bucket_fixture, throttle=0.1)
 
-        await limiter.call(handler, "first")
+        await limiter.call(make_handler("first"))
         assert calls == ["first"], "First call should be executed immediately"
 
-        await limiter.call(handler, "second")
-        await limiter.call(handler, "third")
+        await limiter.call(make_handler("second"))
+        await limiter.call(make_handler("third"))
         assert calls == ["first"], "Subsequent calls should be ignored"
 
         await asyncio.sleep(0.15)
 
-        await limiter.call(handler, "fourth")
+        await limiter.call(make_handler("fourth"))
         assert calls == ["first", "fourth"], "Fourth call should execute after throttle period"
 
     async def test_throttle_with_no_args(self, bucket_fixture: TaskBucket):
@@ -328,22 +340,25 @@ class TestThrottleLogic:
 
         calls: list[str] = []
 
-        async def handler(label: str):
-            calls.append(label)
+        def make_handler(label: str):
+            async def handler():
+                calls.append(label)
+
+            return handler
 
         with patch("hassette.bus.rate_limiter.time.monotonic") as mock_time:
             mock_time.return_value = 1000.0
             limiter = RateLimiter(bucket_fixture, throttle=0.05)
 
-            await limiter.call(handler, "1")
+            await limiter.call(make_handler("1"))
             assert calls == ["1"]
 
             mock_time.return_value = 1000.03
-            await limiter.call(handler, "2")
+            await limiter.call(make_handler("2"))
             assert calls == ["1"]
 
             mock_time.return_value = 1000.06
-            await limiter.call(handler, "3")
+            await limiter.call(make_handler("3"))
             assert calls == ["1", "3"]
 
     async def test_throttle_does_not_block_during_handler(self, bucket_fixture: TaskBucket):
@@ -388,8 +403,8 @@ class TestListenerIntegration:
             debounce=0.1,
         )
 
-        assert listener.adapter.rate_limiter is not None
-        rl = listener.adapter.rate_limiter
+        assert listener.rate_limiter is not None
+        rl = listener.rate_limiter
 
         # Simulate dispatch: rate_limiter.call(invoke_fn) — like _dispatch does
         async def invoke_fn():
@@ -423,21 +438,24 @@ class TestListenerIntegration:
             throttle=0.1,
         )
 
-        assert listener.adapter.rate_limiter is not None
-        rl = listener.adapter.rate_limiter
+        assert listener.rate_limiter is not None
+        rl = listener.rate_limiter
 
         events = [mock_event("1"), mock_event("2"), mock_event("3"), mock_event("4")]
 
-        async def make_invoke(ev):
-            await listener.invoke(ev)
+        def make_invoke(ev):
+            async def invoke_fn():
+                await listener.invoke(ev)
 
-        await rl.call(make_invoke, events[0])
-        await rl.call(make_invoke, events[1])
-        await rl.call(make_invoke, events[2])
+            return invoke_fn
+
+        await rl.call(make_invoke(events[0]))
+        await rl.call(make_invoke(events[1]))
+        await rl.call(make_invoke(events[2]))
         assert calls == ["1"], "First call should be executed immediately"
 
         await asyncio.sleep(0.15)
-        await rl.call(make_invoke, events[3])
+        await rl.call(make_invoke(events[3]))
         assert calls == ["1", "4"], "Second call should execute after throttle period"
 
     async def test_listener_without_rate_limiting(self, bucket_fixture: TaskBucket):
@@ -476,6 +494,91 @@ class TestListenerIntegration:
                 debounce=0.1,
                 throttle=0.1,
             )
+
+
+class TestListenerDispatchAndCancel:
+    """Test Listener.dispatch() and Listener.cancel() — the public rate limiting API."""
+
+    async def test_dispatch_without_rate_limiter_calls_invoke_fn_directly(self, bucket_fixture: TaskBucket):
+        """dispatch() with no rate limiter calls the invoke function immediately."""
+        calls = []
+
+        def handler(event: MockEvent):
+            calls.append(event.data)
+
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
+
+        async def invoke_fn():
+            await listener.invoke(mock_event("direct"))
+
+        await listener.dispatch(invoke_fn)
+        assert calls == ["direct"]
+
+    async def test_dispatch_with_debounce_coalesces(self, bucket_fixture: TaskBucket):
+        """dispatch() with debounce coalesces rapid calls — only last fires."""
+        calls: list[str] = []
+
+        def handler(event: MockEvent):
+            calls.append(event.data)
+
+        listener = Listener.create(
+            task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, debounce=0.1
+        )
+
+        for i in range(3):
+
+            async def invoke_fn(val=str(i + 1)):
+                await listener.invoke(mock_event(val))
+
+            await listener.dispatch(invoke_fn)
+
+        await asyncio.sleep(0.2)
+        assert calls == ["3"], "Only the last event should fire after debounce"
+
+    async def test_dispatch_with_throttle_drops_extras(self, bucket_fixture: TaskBucket):
+        """dispatch() with throttle allows first call, drops subsequent within window."""
+        calls: list[str] = []
+
+        def handler(event: MockEvent):
+            calls.append(event.data)
+
+        listener = Listener.create(
+            task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, throttle=5.0
+        )
+
+        for i in range(3):
+
+            async def invoke_fn(val=str(i + 1)):
+                await listener.invoke(mock_event(val))
+
+            await listener.dispatch(invoke_fn)
+
+        assert calls == ["1"], "Only the first call should execute"
+
+    async def test_cancel_with_rate_limiter_delegates(self, bucket_fixture: TaskBucket):
+        """cancel() delegates to the rate limiter's cancel."""
+        listener = Listener.create(
+            task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None, debounce=0.5
+        )
+        assert listener.rate_limiter is not None
+        assert not listener.rate_limiter._cancelled
+
+        listener.cancel()
+        assert listener.rate_limiter._cancelled
+
+    async def test_cancel_without_rate_limiter_is_noop(self, bucket_fixture: TaskBucket):
+        """cancel() on a listener without rate limiter does not raise."""
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None)
+        assert listener.rate_limiter is None
+        listener.cancel()  # should not raise
+
+    async def test_cancel_is_idempotent(self, bucket_fixture: TaskBucket):
+        """Calling cancel() twice does not raise."""
+        listener = Listener.create(
+            task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None, throttle=1.0
+        )
+        listener.cancel()
+        listener.cancel()  # second call should not raise
 
 
 class TestDependencyValidationErrors:
@@ -668,7 +771,7 @@ class TestOnceWithRateLimitingProhibited:
             handler=handler,
             debounce=1.0,
         )
-        assert listener.adapter.rate_limiter is not None
+        assert listener.rate_limiter is not None
 
 
 class TestRateLimitValueValidation:
