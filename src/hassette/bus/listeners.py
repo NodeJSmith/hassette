@@ -115,6 +115,11 @@ class Listener:
         app_key: str = "",
         instance_index: int = 0,
     ) -> "Listener":
+        if once and (debounce is not None or throttle is not None):
+            raise ValueError(
+                "Cannot combine 'once=True' with 'debounce' or 'throttle' -- these are semantically contradictory"
+            )
+
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
 
@@ -177,7 +182,11 @@ class HandlerAdapter:
             )
 
     async def call(self, event: "Event[Any]", **kwargs: Any) -> None:
-        """Call handler with dependency injection and optional rate limiting.
+        """Call handler with dependency injection.
+
+        Rate limiting is orchestrated by ``BusService._dispatch``, not here.
+        The rate limiter instance remains on the adapter for metadata access
+        (registration, metrics) but is never invoked from this method.
 
         Args:
             event: The event to pass to the handler.
@@ -188,10 +197,7 @@ class HandlerAdapter:
             DependencyResolutionError: If parameter extraction/conversion fails.
             Exception: If an error occurs during handler execution.
         """
-        if self.rate_limiter:
-            await self.rate_limiter.call(self._direct_call, event, **kwargs)
-        else:
-            await self._direct_call(event, **kwargs)
+        await self._direct_call(event, **kwargs)
 
     async def _direct_call(self, event: "Event[Any]", **kwargs: Any) -> None:
         """Call handler directly with dependency injection (no rate limiting).

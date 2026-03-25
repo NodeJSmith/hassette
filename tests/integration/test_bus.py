@@ -35,9 +35,17 @@ def bus(hassette_with_bus: "Hassette") -> "Bus":
     return hassette_with_bus._bus
 
 
-@pytest.mark.parametrize(("debounce", "throttle"), [(0.1, None), (None, 0.1), (None, None)])
+@pytest.mark.parametrize(
+    ("once", "debounce", "throttle"),
+    [
+        (False, 0.1, None),
+        (False, None, 0.1),
+        (True, None, None),
+        (False, None, None),
+    ],
+)
 async def test_on_registers_listener_and_supports_unsubscribe(
-    bus: "Bus", debounce: float | None, throttle: float | None
+    bus: "Bus", once: bool, debounce: float | None, throttle: float | None
 ) -> None:
     """Bus.on wraps handlers, normalises predicates, and wires subscription cleanup."""
 
@@ -57,7 +65,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
             handler=handler,
             where=[lambda _: True],
             kwargs={"suffix": "!"},
-            once=True,
+            once=once,
             debounce=debounce,
             throttle=throttle,
         )
@@ -70,7 +78,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
         assert listener.orig_handler is handler
         assert asyncio.iscoroutinefunction(listener.adapter.handler)
         assert listener.kwargs == {"suffix": "!"}
-        assert listener.once is True
+        assert listener.once is once
         assert isinstance(listener.predicate, AllOf)
 
         subscription.unsubscribe()

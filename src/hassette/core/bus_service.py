@@ -128,7 +128,12 @@ class BusService(Service):
             listener.db_id = await self._executor.register_listener(reg)
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
-        """Remove a listener from the bus."""
+        """Remove a listener from the bus.
+
+        Cancels any pending debounce task to prevent dangling references.
+        """
+        if listener.adapter.rate_limiter:
+            listener.adapter.rate_limiter.cancel()
         return self.remove_listener_by_id(listener.topic, listener.listener_id)
 
     def remove_listener_by_id(self, topic: str, listener_id: int) -> asyncio.Task[None]:
@@ -136,8 +141,19 @@ class BusService(Service):
         return self.task_bucket.spawn(self.router.remove_listener_by_id(topic, listener_id), name="bus:remove_listener")
 
     def remove_listeners_by_owner(self, owner: str) -> asyncio.Task[None]:
-        """Remove all listeners owned by a specific owner."""
-        return self.task_bucket.spawn(self.router.clear_owner(owner), name="bus:remove_listeners_by_owner")
+        """Remove all listeners owned by a specific owner.
+
+        Cancels pending debounce tasks before clearing to prevent dangling references.
+        """
+
+        async def _cancel_and_clear() -> None:
+            listeners = await self.router.get_listeners_by_owner(owner)
+            for listener in listeners:
+                if listener.adapter.rate_limiter:
+                    listener.adapter.rate_limiter.cancel()
+            await self.router.clear_owner(owner)
+
+        return self.task_bucket.spawn(_cancel_and_clear(), name="bus:remove_listeners_by_owner")
 
     def get_listeners_by_owner(self, owner: str) -> asyncio.Task[list["Listener"]]:
         """Get all listeners owned by a specific owner."""
@@ -227,22 +243,62 @@ class BusService(Service):
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener.
 
-        Internal handlers (``db_id is None``) are invoked directly without going
-        through CommandExecutor, so no telemetry record is created. App-owned
-        handlers are dispatched via CommandExecutor for full telemetry tracking.
+        Routes to ``_dispatch_internal`` (no telemetry) or ``_dispatch_tracked``
+        (CommandExecutor telemetry) based on whether the listener has a ``db_id``.
+        Rate limiting is orchestrated here, not inside ``HandlerAdapter.call()``.
         """
         if listener.db_id is None:
+            await self._dispatch_internal(topic, event, listener)
+        else:
+            await self._dispatch_tracked(topic, event, listener)
+
+    async def _dispatch_internal(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
+        """Dispatch to an internal handler (no telemetry).
+
+        If the listener has a rate limiter, the handler is wrapped in an error-catching
+        closure so that exceptions from deferred debounce tasks are still logged.
+        """
+        rate_limiter = listener.adapter.rate_limiter
+
+        async def safe_invoke() -> None:
             try:
                 await listener.invoke(event)
             except Exception:
                 self.logger.exception("Internal handler error (topic=%s, handler=%r)", topic, listener)
-            finally:
-                if listener.once:
-                    self.remove_listener(listener)
-            return
-        cmd = InvokeHandler(listener=listener, event=event, topic=topic, listener_id=listener.db_id)
+
         try:
+            if rate_limiter:
+                await rate_limiter.call(safe_invoke)
+            else:
+                await safe_invoke()
+        finally:
+            if listener.once:
+                self.remove_listener(listener)
+
+    async def _dispatch_tracked(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
+        """Dispatch to an app-owned handler via CommandExecutor for telemetry.
+
+        For rate-limited listeners, the rate limiter wraps an ``execute_fn`` closure
+        that builds ``InvokeHandler`` at execution time (after debounce/throttle) so
+        that ``listener.db_id`` is read when the handler actually fires, not when the
+        event first arrives. The executor times the real handler execution accurately.
+        """
+        rate_limiter = listener.adapter.rate_limiter
+
+        async def execute_fn() -> None:
+            db_id = listener.db_id
+            if db_id is None:
+                self.logger.debug("Listener db_id not yet set, invoking directly (topic=%s)", topic)
+                await listener.invoke(event)
+                return
+            cmd = InvokeHandler(listener=listener, event=event, topic=topic, listener_id=db_id)
             await self._executor.execute(cmd)
+
+        try:
+            if rate_limiter:
+                await rate_limiter.call(execute_fn)
+            else:
+                await execute_fn()
         finally:
             if listener.once:
                 self.remove_listener(listener)
