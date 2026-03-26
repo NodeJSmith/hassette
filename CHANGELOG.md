@@ -8,15 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
-- Keyboard accessibility: focus-visible indicators on all interactive elements, skip-nav link, ARIA roles on status filter/log expand/health bar, self-hosted fonts for offline use
-- Log table Source column no longer overflows into Message column; column widths rebalanced
-- Missing CSS classes `.ht-text-warning` and `.ht-tag--neutral` now defined (were used in components but never styled)
+- Keyboard accessibility: focus-visible indicators on all interactive elements, skip-nav link, ARIA roles on status filter/log expand/health bar, self-hosted fonts for offline use (#442)
+- Log table Source column no longer overflows into Message column; column widths rebalanced (#442)
+- Missing CSS classes `.ht-text-warning` and `.ht-tag--neutral` now defined (were used in components but never styled) (#442)
 
 ### Changed
-- Status filter tabs converted from `<a href="#">` links to `<button aria-pressed>` toggle buttons
-- Log message expand chevron hidden by default, appears on row hover or keyboard focus
-- All inline styles extracted to CSS classes using design tokens
-- Fonts self-hosted (DM Sans, JetBrains Mono, Space Grotesk) — no longer loaded from Google CDN
+- Status filter tabs converted from `<a href="#">` links to `<button aria-pressed>` toggle buttons (#442)
+- Log message expand chevron hidden by default, appears on row hover or keyboard focus (#442)
+- All inline styles extracted to CSS classes using design tokens (#442)
+- Fonts self-hosted (DM Sans, JetBrains Mono, Space Grotesk) — no longer loaded from Google CDN (#442)
 
 ### Fixed
 - Rate limiter redesign: throttle no longer blocks concurrent dispatch, debounced handlers now produce accurate telemetry via CommandExecutor, `once=True` listeners cannot double-fire under rapid events (#430)
