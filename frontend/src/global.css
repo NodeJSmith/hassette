@@ -523,8 +523,9 @@ strong {
   transition: color var(--ht-motion-micro), background var(--ht-motion-micro);
 }
 
-/* Show chevron on row hover or when expanded */
+/* Show chevron on row hover, keyboard focus, or when expanded */
 .ht-log-message:hover .ht-log-expand-btn,
+.ht-log-expand-btn:focus-visible,
 .ht-log-expand-btn[aria-expanded="true"] {
   opacity: 1;
 }
