@@ -91,3 +91,28 @@ def test_multi_instance_expand_persists_across_navigation(page: Page, base_url: 
     expect(page.locator("text=MultiApp[0]")).to_be_visible()
     expect(page.locator("text=MultiApp[1]")).to_be_visible()
     expect(page.locator("text=MultiApp[2]")).to_be_visible()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Accessibility: status filter aria-pressed
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_status_filter_uses_aria_pressed(page: Page, base_url: str) -> None:
+    """Status filter buttons use aria-pressed instead of links."""
+    page.goto(base_url + "/apps")
+    filter_group = page.locator(
+        "[role='group'][aria-label='App status filter']",
+    )
+    expect(filter_group).to_be_visible()
+    # "All" button should be pressed by default
+    all_btn = page.locator("[data-testid='tab-all'] button")
+    expect(all_btn).to_have_attribute("aria-pressed", "true")
+    # "Running" button should not be pressed
+    running_btn = page.locator("[data-testid='tab-running'] button")
+    expect(running_btn).to_have_attribute("aria-pressed", "false")
+    # Click Running — pressed state should swap
+    running_btn.click()
+    page.wait_for_timeout(300)
+    expect(running_btn).to_have_attribute("aria-pressed", "true")
+    expect(all_btn).to_have_attribute("aria-pressed", "false")
