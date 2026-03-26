@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+- Keyboard accessibility: focus-visible indicators on all interactive elements, skip-nav link, ARIA roles on status filter/log expand/health bar, self-hosted fonts for offline use
+- Log table Source column no longer overflows into Message column; column widths rebalanced
+- Missing CSS classes `.ht-text-warning` and `.ht-tag--neutral` now defined (were used in components but never styled)
+
+### Changed
+- Status filter tabs converted from `<a href="#">` links to `<button aria-pressed>` toggle buttons
+- Log message expand chevron hidden by default, appears on row hover or keyboard focus
+- All inline styles extracted to CSS classes using design tokens
+- Fonts self-hosted (DM Sans, JetBrains Mono, Space Grotesk) — no longer loaded from Google CDN
+
+### Fixed
 - Rate limiter redesign: throttle no longer blocks concurrent dispatch, debounced handlers now produce accurate telemetry via CommandExecutor, `once=True` listeners cannot double-fire under rapid events (#430)
 - `once=True` combined with `debounce` or `throttle` now raises `ValueError` at registration (previously undefined behavior) (#430)
 - `debounce` and `throttle` values of zero or negative now raise `ValueError` at registration (#430)
