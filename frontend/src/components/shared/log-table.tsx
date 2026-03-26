@@ -267,22 +267,23 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                   {entry.func_name}:{entry.lineno}
                 </td>
                 <td
-                  class="ht-log-message"
                   onClick={() => {
                     const next = new Set(expandedRows.value);
                     if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                     expandedRows.value = next;
                   }}
                 >
-                  <button
-                    type="button"
-                    class="ht-log-expand-btn"
-                    aria-label={expandedRows.value.has(rowKey) ? "Collapse log message" : "Expand log message"}
-                    aria-expanded={expandedRows.value.has(rowKey)}
-                  >
-                    {expandedRows.value.has(rowKey) ? "▾" : "▸"}
-                  </button>
-                  <div class={`ht-log-message__text${expandedRows.value.has(rowKey) ? " is-expanded" : ""}`}>{entry.message}</div>
+                  <div class="ht-log-message">
+                    <button
+                      type="button"
+                      class="ht-log-expand-btn"
+                      aria-label={expandedRows.value.has(rowKey) ? "Collapse log message" : "Expand log message"}
+                      aria-expanded={expandedRows.value.has(rowKey)}
+                    >
+                      {expandedRows.value.has(rowKey) ? "▾" : "▸"}
+                    </button>
+                    <div class={`ht-log-message__text${expandedRows.value.has(rowKey) ? " is-expanded" : ""}`}>{entry.message}</div>
+                  </div>
                 </td>
               </tr>
               );

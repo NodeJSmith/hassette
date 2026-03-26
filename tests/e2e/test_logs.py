@@ -137,31 +137,48 @@ def test_log_filter_controls_have_aria_labels(
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_log_table_columns_do_not_overflow(page: Page, base_url: str) -> None:
-    """No table cell's visible text overflows into the next column.
+def test_log_table_columns_do_not_visually_overlap(page: Page, base_url: str) -> None:
+    """No table cell's bounding box overlaps its neighbor.
 
     Regression guard: the Source column previously bled into Message
     because overflow:hidden was missing on the fixed-width cell.
+    Uses bounding-box comparison instead of scrollWidth/clientWidth
+    (which false-positives on intentionally truncated cells).
     """
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
-    # Check every cell in the first 5 data rows — scrollWidth > clientWidth means overflow
-    overflow_cells = page.evaluate("""() => {
+    # Compare adjacent cell bounding boxes in the first 5 data rows
+    overlaps = page.evaluate("""() => {
         const rows = document.querySelectorAll('.ht-table-log tbody tr');
         const problems = [];
         for (let i = 0; i < Math.min(rows.length, 5); i++) {
-            const cells = rows[i].querySelectorAll('td');
-            cells.forEach((cell, idx) => {
-                if (cell.scrollWidth > cell.clientWidth + 2) {
-                    problems.push(
-                        `Row ${i} col ${idx}: scrollWidth=${cell.scrollWidth} > clientWidth=${cell.clientWidth}`
-                    );
+            const cells = Array.from(rows[i].querySelectorAll('td'));
+            for (let j = 0; j < cells.length - 1; j++) {
+                const a = cells[j].getBoundingClientRect();
+                const b = cells[j + 1].getBoundingClientRect();
+                const overlap = a.right - b.left;
+                if (overlap > 1) {
+                    const msg = `Row ${i}: col ${j} right=${a.right.toFixed(0)}`
+                        + ` overlaps col ${j+1} left=${b.left.toFixed(0)}`
+                        + ` by ${overlap.toFixed(0)}px`;
+                    problems.push(msg);
                 }
-            });
+            }
         }
         return problems;
     }""")
-    assert overflow_cells == [], f"Column overflow detected: {overflow_cells}"
+    assert overlaps == [], f"Column visual overlap detected: {overlaps}"
+
+
+def test_source_column_has_overflow_hidden(page: Page, base_url: str) -> None:
+    """Source column cells have overflow:hidden to prevent text bleed."""
+    page.goto(base_url + "/logs")
+    _wait_for_log_entries(page)
+    source_cell = page.locator("td.ht-col-source").first
+    overflow = source_cell.evaluate("el => getComputedStyle(el).overflow")
+    text_overflow = source_cell.evaluate("el => getComputedStyle(el).textOverflow")
+    assert overflow == "hidden", f"Expected overflow:hidden on .ht-col-source, got {overflow}"
+    assert text_overflow == "ellipsis", f"Expected text-overflow:ellipsis, got {text_overflow}"
 
 
 def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:

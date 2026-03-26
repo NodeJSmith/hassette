@@ -478,11 +478,12 @@ strong {
   padding: var(--ht-sp-1) var(--ht-sp-2);
 }
 
+/* Inner wrapper inside <td> — keeps display:flex off the table cell itself */
 .ht-log-message {
-  cursor: pointer;
   display: flex;
   align-items: flex-start;
   gap: var(--ht-sp-1);
+  cursor: pointer;
 }
 
 .ht-log-message__text {
