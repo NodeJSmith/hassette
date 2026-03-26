@@ -187,6 +187,8 @@ strong {
   text-decoration: none;
 }
 
+.ht-sidebar__logo { height: var(--ht-sp-6); width: auto; }
+
 .ht-brand-link:hover {
   opacity: 0.85;
   text-decoration: none;
@@ -332,6 +334,9 @@ strong {
 .ht-card--full-height {
   height: 100%;
 }
+
+.ht-error-page { text-align: center; padding: var(--ht-sp-10); }
+.ht-error-card { padding: var(--ht-sp-6); text-align: center; }
 
 /* — Tables ————————————————————————————————————————————— */
 .ht-table {
@@ -587,6 +592,8 @@ strong {
   position: relative;
 }
 
+.ht-select--inline { display: inline-block; }
+
 .ht-field-group {
   display: flex;
   align-items: center;
@@ -708,6 +715,7 @@ strong {
 .ht-text-faint   { color: var(--ht-text-dim); }
 .ht-text-danger  { color: var(--ht-danger); }
 .ht-text-success { color: var(--ht-success); }
+.ht-text-warning { color: var(--ht-warning); }
 
 /* Text size */
 .ht-text-xs { font-size: var(--ht-text-xs); }
@@ -724,6 +732,7 @@ strong {
 .ht-mb-5 { margin-bottom: var(--ht-sp-5); }
 .ht-mb-6 { margin-bottom: var(--ht-sp-6); }
 .ht-mb-8 { margin-bottom: var(--ht-sp-8); }
+.ht-ml-1 { margin-left: var(--ht-sp-1); }
 .ht-ml-2 { margin-left: var(--ht-sp-2); }
 .ht-mr-2 { margin-right: var(--ht-sp-2); }
 .ht-mt-3 { margin-top: var(--ht-sp-3); }
@@ -752,7 +761,7 @@ strong {
 
 /* — Group / instance rows —————————————————————————————— */
 .ht-instance-row td:first-child {
-  padding-left: var(--ht-sp-6);
+  padding-left: var(--ht-sp-8);
 }
 
 /* — Alerts ————————————————————————————————————————————— */
@@ -1307,6 +1316,19 @@ strong {
   background: var(--ht-warning-light);
 }
 
+.ht-tag--neutral {
+  color: var(--ht-text-secondary);
+  background: var(--ht-surface-recessed);
+}
+
+.ht-tag--truncated {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
 /* — Alert List ————————————————————————————————————————— */
 .ht-alert-list {
   list-style: none;
@@ -1355,16 +1377,29 @@ strong {
 }
 
 .ht-log-table-scroll {
-  overflow-y: auto;
+  max-height: var(--ht-log-scroll-height, 600px);
+  overflow: auto;
 }
 
 .ht-table-log {
   table-layout: fixed;
 }
 
+.ht-table-log thead {
+  position: sticky;
+  top: 0;
+  /* --ht-surface-sticky must remain opaque or scrolled rows show through */
+  background: var(--ht-surface-sticky, var(--ht-bg));
+}
+
 .ht-table-log .ht-text-mono {
   white-space: nowrap;
 }
+
+.ht-table-log .ht-col-level   { width: 90px; }
+.ht-table-log .ht-col-time    { width: 180px; }
+.ht-table-log .ht-col-app     { width: 170px; }
+.ht-table-log .ht-col-source  { width: 140px; overflow: hidden; text-overflow: ellipsis; }
 
 @media screen and (max-width: 1024px) {
   .ht-table-log .ht-col-source {

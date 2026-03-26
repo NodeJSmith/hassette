@@ -46,7 +46,7 @@ export function ManifestRow({ manifest, liveStatus, isExpanded, onToggleExpand }
         <td>
           <StatusBadge status={status} size="small" />
           {isMultiInstance && (
-            <span class="ht-badge ht-badge--sm ht-badge--neutral" style={{ marginLeft: "4px" }}>
+            <span class="ht-badge ht-badge--sm ht-badge--neutral ht-ml-1">
               {pluralize(manifest.instance_count, "instance")}
             </span>
           )}
@@ -62,7 +62,7 @@ export function ManifestRow({ manifest, liveStatus, isExpanded, onToggleExpand }
       </tr>
       {isMultiInstance && isExpanded && manifest.instances.map((inst) => (
         <tr key={`${manifest.app_key}-${inst.index}`} class="ht-instance-row">
-          <td style={{ paddingLeft: "2rem" }}>
+          <td>
             <a href={`/apps/${manifest.app_key}/${inst.index}`} class="ht-text-mono">
               {inst.instance_name}
             </a>

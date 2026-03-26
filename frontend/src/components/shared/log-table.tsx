@@ -205,28 +205,28 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           </span>
         )}
       </div>
-      <div class="ht-log-table-scroll" style={{ maxHeight: "600px", overflow: "auto" }}>
+      <div class="ht-log-table-scroll">
         <table class="ht-table ht-table--compact ht-table-log">
-          <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
+          <thead>
             <tr>
-              <th style={{ width: "90px" }} aria-sort={ariaSortFor("level")} data-testid="sort-level">
+              <th class="ht-col-level" aria-sort={ariaSortFor("level")} data-testid="sort-level">
                 <button type="button" class="ht-sortable" onClick={() => handleSort("level")}>
                   <span>Level</span>{" "}<span aria-hidden="true">{sortArrow("level")}</span>
                 </button>
               </th>
-              <th style={{ width: "180px" }} aria-sort={ariaSortFor("timestamp")} data-testid="sort-timestamp">
+              <th class="ht-col-time" aria-sort={ariaSortFor("timestamp")} data-testid="sort-timestamp">
                 <button type="button" class="ht-sortable" onClick={() => handleSort("timestamp")}>
                   <span>Timestamp</span>{" "}<span aria-hidden="true">{sortArrow("timestamp")}</span>
                 </button>
               </th>
               {showAppColumn && (
-                <th style={{ width: "170px" }} aria-sort={ariaSortFor("app")} data-testid="sort-app">
+                <th class="ht-col-app" aria-sort={ariaSortFor("app")} data-testid="sort-app">
                   <button type="button" class="ht-sortable" onClick={() => handleSort("app")}>
                     <span>App</span>{" "}<span aria-hidden="true">{sortArrow("app")}</span>
                   </button>
                 </th>
               )}
-              <th style={{ width: "140px" }} class="ht-col-source">Source</th>
+              <th class="ht-col-source">Source</th>
               <th aria-sort={ariaSortFor("message")} data-testid="sort-message">
                 <button type="button" class="ht-sortable" onClick={() => handleSort("message")}>
                   <span>Message</span>{" "}<span aria-hidden="true">{sortArrow("message")}</span>
@@ -237,7 +237,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={showAppColumn ? 5 : 4} style={{ textAlign: "center" }} class="ht-text-muted">
+                <td colSpan={showAppColumn ? 5 : 4} class="ht-text-center ht-text-muted">
                   No log entries.
                 </td>
               </tr>

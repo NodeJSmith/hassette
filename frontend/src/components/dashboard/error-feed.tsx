@@ -46,8 +46,7 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
     <div class="ht-error-entry" data-testid="error-item">
       <div class="ht-error-entry__header">
         <span
-          class={`ht-tag ht-tag--${kindClass(err.kind)}`}
-          style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block"
+          class={`ht-tag ht-tag--${kindClass(err.kind)} ht-tag--truncated`}
         >
           {badgeText}
         </span>
