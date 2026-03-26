@@ -20,7 +20,7 @@ def test_apps_table_shows_manifests(page: Page, base_url: str) -> None:
 def test_filter_by_status_tab(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps")
     # Click the "Running" filter tab
-    page.locator("[data-testid='tab-running'] a").click()
+    page.locator("[data-testid='tab-running'] button").click()
     # Wait for Preact reactivity to filter
     page.wait_for_timeout(300)
     # Running app should be visible; filtered-out apps removed from DOM

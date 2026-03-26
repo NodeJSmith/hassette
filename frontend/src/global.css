@@ -1,3 +1,107 @@
+/* Self-hosted fonts — Latin subset
+   DM Sans: 400, 500, 700
+   JetBrains Mono: 400, 500
+   Space Grotesk: 400, 500, 600, 700 */
+
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/dm-sans-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/dm-sans-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/dm-sans-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* =====================================================
    Hassette Design System — Components
    All values reference --ht-* tokens from tokens.css.
@@ -45,6 +149,13 @@ table {
   border-collapse: collapse;
   border-spacing: 0;
   width: 100%;
+}
+
+/* — Global Focus Indicator ————————————————————————————— */
+/* Zero specificity via :where() — component-level overrides win cleanly */
+:where(:focus-visible) {
+  outline: 2px solid var(--ht-accent);
+  outline-offset: 2px;
 }
 
 /* — Base Typography ———————————————————————————————————— */
@@ -179,6 +290,8 @@ strong {
   color: var(--ht-accent);
   text-decoration: none;
 }
+
+.ht-sidebar__logo { height: var(--ht-sp-6); width: auto; }
 
 .ht-brand-link:hover {
   opacity: 0.85;
@@ -326,6 +439,9 @@ strong {
   height: 100%;
 }
 
+.ht-error-page { text-align: center; padding: var(--ht-sp-10); }
+.ht-error-card { padding: var(--ht-sp-6); text-align: center; }
+
 /* — Tables ————————————————————————————————————————————— */
 .ht-table {
   width: 100%;
@@ -362,24 +478,67 @@ strong {
   padding: var(--ht-sp-1) var(--ht-sp-2);
 }
 
+/* Inner wrapper inside <td> — keeps display:flex off the table cell itself */
 .ht-log-message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ht-sp-1);
   cursor: pointer;
 }
 
 .ht-log-message__text {
   line-height: 1.5;
-  max-height: calc(1.5em * 2); /* 2 lines */
+  max-height: calc(1.5em * 1); /* 1 line when collapsed */
   overflow: hidden;
-  word-break: break-all;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .ht-log-message__text.is-expanded {
   max-height: none;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.ht-log-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--ht-text-sm);
+  opacity: 0;
+  color: var(--ht-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  margin-right: var(--ht-sp-1);
+  vertical-align: middle;
+  border-radius: var(--ht-radius-sm);
+  transition: color var(--ht-motion-micro), background var(--ht-motion-micro);
+}
+
+/* Show chevron on row hover, keyboard focus, or when expanded */
+.ht-log-message:hover .ht-log-expand-btn,
+.ht-log-expand-btn:focus-visible,
+.ht-log-expand-btn[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.ht-log-expand-btn:hover {
+  color: var(--ht-accent);
+  background: var(--ht-accent-light);
 }
 
 .ht-table--dense th,
 .ht-table--dense td {
-  padding: 0.3em 0.5em;
+  padding: var(--ht-sp-1) var(--ht-sp-2);
 }
 
 .ht-table--striped tbody tr:nth-child(even) {
@@ -389,7 +548,7 @@ strong {
 /* Narrow variant (used in health badge config tables) */
 .ht-table--narrow th,
 .ht-table--narrow td {
-  padding: 0.25em 0.5em;
+  padding: var(--ht-sp-1) var(--ht-sp-2);
 }
 
 /* — Badges ————————————————————————————————————————————— */
@@ -548,8 +707,8 @@ strong {
   line-height: 1.5;
 }
 
-.ht-input:focus,
-.ht-select select:focus {
+.ht-input:focus-visible,
+.ht-select select:focus-visible {
   outline: none;
   border-color: var(--ht-accent);
   box-shadow: 0 0 0 2px var(--ht-accent-light);
@@ -565,6 +724,8 @@ strong {
   display: inline-block;
   position: relative;
 }
+
+.ht-select--inline { display: inline-block; }
 
 .ht-field-group {
   display: flex;
@@ -592,24 +753,25 @@ strong {
   gap: 0;
 }
 
-.ht-tabs li a {
+.ht-tabs li button {
   display: block;
   padding: 0.4em 0.85em;
   font-size: var(--ht-text-sm);
   color: var(--ht-text-secondary);
+  border: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  text-decoration: none;
+  background: transparent;
   cursor: pointer;
+  font: inherit;
   transition: color var(--ht-motion-micro), border-color var(--ht-motion-micro);
 }
 
-.ht-tabs li a:hover {
+.ht-tabs li button:hover {
   color: var(--ht-text);
-  text-decoration: none;
 }
 
-.ht-tabs li.is-active a {
+.ht-tabs li button[aria-pressed="true"] {
   color: var(--ht-accent);
   border-bottom-color: var(--ht-accent);
   font-weight: var(--ht-weight-semibold);
@@ -686,6 +848,7 @@ strong {
 .ht-text-faint   { color: var(--ht-text-dim); }
 .ht-text-danger  { color: var(--ht-danger); }
 .ht-text-success { color: var(--ht-success); }
+.ht-text-warning { color: var(--ht-warning); }
 
 /* Text size */
 .ht-text-xs { font-size: var(--ht-text-xs); }
@@ -702,6 +865,7 @@ strong {
 .ht-mb-5 { margin-bottom: var(--ht-sp-5); }
 .ht-mb-6 { margin-bottom: var(--ht-sp-6); }
 .ht-mb-8 { margin-bottom: var(--ht-sp-8); }
+.ht-ml-1 { margin-left: var(--ht-sp-1); }
 .ht-ml-2 { margin-left: var(--ht-sp-2); }
 .ht-mr-2 { margin-right: var(--ht-sp-2); }
 .ht-mt-3 { margin-top: var(--ht-sp-3); }
@@ -730,7 +894,7 @@ strong {
 
 /* — Group / instance rows —————————————————————————————— */
 .ht-instance-row td:first-child {
-  padding-left: var(--ht-sp-6);
+  padding-left: var(--ht-sp-8);
 }
 
 /* — Alerts ————————————————————————————————————————————— */
@@ -818,7 +982,7 @@ strong {
 }
 
 .ht-health-card__label {
-  font-size: var(--ht-text-xs);
+  font-size: var(--ht-text-sm);
   font-weight: var(--ht-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -840,7 +1004,7 @@ strong {
 
 .ht-health-card__detail {
   font-size: var(--ht-text-xs);
-  color: var(--ht-text-dim);
+  color: var(--ht-text-secondary);
 }
 
 /* — Health Strip (4-column grid of health cards) ————— */
@@ -1285,6 +1449,19 @@ strong {
   background: var(--ht-warning-light);
 }
 
+.ht-tag--neutral {
+  color: var(--ht-text-secondary);
+  background: var(--ht-surface-recessed);
+}
+
+.ht-tag--truncated {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
 /* — Alert List ————————————————————————————————————————— */
 .ht-alert-list {
   list-style: none;
@@ -1333,16 +1510,30 @@ strong {
 }
 
 .ht-log-table-scroll {
-  overflow-y: auto;
+  max-height: var(--ht-log-scroll-height, 600px);
+  overflow: auto;
 }
 
 .ht-table-log {
   table-layout: fixed;
 }
 
+.ht-table-log thead {
+  position: sticky;
+  top: 0;
+  /* --ht-surface-sticky must remain opaque or scrolled rows show through */
+  background: var(--ht-surface-sticky, var(--ht-bg));
+}
+
 .ht-table-log .ht-text-mono {
   white-space: nowrap;
 }
+
+/* Finding #1: widened source column from 140→180px; tightened level from 90→75px */
+.ht-table-log .ht-col-level   { width: 75px; }
+.ht-table-log .ht-col-time    { width: 170px; }
+.ht-table-log .ht-col-app     { width: 160px; }
+.ht-table-log .ht-col-source  { width: 180px; overflow: hidden; text-overflow: ellipsis; }
 
 @media screen and (max-width: 1024px) {
   .ht-table-log .ht-col-source {
@@ -1352,11 +1543,20 @@ strong {
 
 /* — Sortable Column Header ————————————————————————————— */
 .ht-sortable {
-  all: unset;
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
   cursor: pointer;
   user-select: none;
   font: inherit;
   color: inherit;
+}
+
+.ht-sortable:focus-visible {
+  outline: 2px solid var(--ht-accent);
+  outline-offset: 2px;
+  border-radius: var(--ht-radius-sm);
 }
 
 .ht-sortable:hover {
@@ -1366,9 +1566,15 @@ strong {
 /* — Chevron Inline (manifest table) ——————————————————— */
 .ht-item-row__chevron-inline {
   display: inline;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
   font-size: var(--ht-text-sm);
   color: var(--ht-text-dim);
   user-select: none;
+  cursor: pointer;
+  margin-right: var(--ht-sp-1);
 }
 
 /* — Button: link variant ————————————————————————————— */
@@ -1398,6 +1604,34 @@ strong {
 [data-theme="light"] .ht-card {
   border: 1px solid var(--ht-border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* — Skip Navigation Link ——————————————————————————————— */
+.ht-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 1000;
+}
+/* :focus (not :focus-visible) — skip-nav must be visible on ALL focus types,
+   including mouse click, since the user explicitly activated it */
+.ht-skip-link:focus {
+  position: fixed;
+  top: var(--ht-sp-2);
+  left: var(--ht-sp-2);
+  width: auto;
+  height: auto;
+  padding: var(--ht-sp-2) var(--ht-sp-4);
+  background: var(--ht-surface);
+  color: var(--ht-accent);
+  border: 2px solid var(--ht-accent);
+  border-radius: var(--ht-radius-md);
+  font-family: var(--ht-font-body);
+  font-size: var(--ht-text-base);
+  z-index: 1000;
 }
 
 /* — Reduced Motion ————————————————————————————————————— */

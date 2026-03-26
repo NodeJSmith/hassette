@@ -8,11 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+- Keyboard accessibility: focus-visible indicators on all interactive elements, skip-nav link, ARIA roles on status filter/log expand/health bar, self-hosted fonts for offline use (#442)
+- Log table Source column no longer overflows into Message column; column widths rebalanced (#442)
+- Missing CSS classes `.ht-text-warning` and `.ht-tag--neutral` now defined (were used in components but never styled) (#442)
 - Rate limiter redesign: throttle no longer blocks concurrent dispatch, debounced handlers now produce accurate telemetry via CommandExecutor, `once=True` listeners cannot double-fire under rapid events (#430)
 - `once=True` combined with `debounce` or `throttle` now raises `ValueError` at registration (previously undefined behavior) (#430)
 - `debounce` and `throttle` values of zero or negative now raise `ValueError` at registration (#430)
 
 ### Changed
+- Status filter tabs converted from `<a href="#">` links to `<button aria-pressed>` toggle buttons (#442)
+- Log message expand chevron hidden by default, appears on row hover or keyboard focus (#442)
+- All inline styles extracted to CSS classes using design tokens (#442)
+- Fonts self-hosted (DM Sans, JetBrains Mono, Space Grotesk) — no longer loaded from Google CDN (#442)
 - Complete web UI rebuild: 4 pages (Dashboard, Apps, App Detail, Logs), Graphite + Emerald design token system, handler/job drill-down with invocation history, plain-language handler summaries, and session-scoped error feed (#343)
 - Dashboard queries optimized from 2N sequential SQL calls to 2 batch queries via `get_all_app_summaries()` (#343)
 - Handler/job row live counts update via 5s polling without destroying Alpine.js expand state (replaced full-section morph with targeted DOM text updates) (#343)

@@ -28,8 +28,9 @@ export function App() {
     <AppStateContext.Provider value={state}>
       <WebSocketProvider state={state} />
       <div class="ht-layout">
+        <a href="#main-content" class="ht-skip-link">Skip to main content</a>
         <Sidebar />
-        <main class="ht-main">
+        <main class="ht-main" id="main-content" tabIndex={-1}>
           <StatusBar />
           <FailedAppsAlert />
           <ErrorBoundary resetKey={location}>

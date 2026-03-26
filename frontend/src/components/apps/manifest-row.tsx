@@ -13,21 +13,25 @@ interface Props {
 export function ManifestRow({ manifest, liveStatus, isExpanded, onToggleExpand }: Props) {
   const status = liveStatus ?? manifest.status;
   const isMultiInstance = manifest.instance_count > 1;
+  const expandLabel = isExpanded
+    ? `Collapse instances for ${manifest.app_key}`
+    : `Expand instances for ${manifest.app_key}`;
 
   return (
     <>
       <tr class="ht-item-row" data-testid={`app-row-${manifest.app_key}`}>
         <td>
           {isMultiInstance && (
-            <span
+            <button
+              type="button"
               class="ht-item-row__chevron-inline"
-              style={{ cursor: "pointer", marginRight: "4px" }}
               onClick={onToggleExpand}
-              title={isExpanded ? "Collapse" : "Expand"}
+              aria-label={expandLabel}
+              aria-expanded={isExpanded}
               data-testid={`expand-toggle-${manifest.app_key}`}
             >
               {isExpanded ? "▾" : "▸"}
-            </span>
+            </button>
           )}
           <a href={`/apps/${manifest.app_key}`} class="ht-text-mono">
             {manifest.app_key}
@@ -42,7 +46,7 @@ export function ManifestRow({ manifest, liveStatus, isExpanded, onToggleExpand }
         <td>
           <StatusBadge status={status} size="small" />
           {isMultiInstance && (
-            <span class="ht-badge ht-badge--sm ht-badge--neutral" style={{ marginLeft: "4px" }}>
+            <span class="ht-badge ht-badge--sm ht-badge--neutral ht-ml-1">
               {pluralize(manifest.instance_count, "instance")}
             </span>
           )}
@@ -58,7 +62,7 @@ export function ManifestRow({ manifest, liveStatus, isExpanded, onToggleExpand }
       </tr>
       {isMultiInstance && isExpanded && manifest.instances.map((inst) => (
         <tr key={`${manifest.app_key}-${inst.index}`} class="ht-instance-row">
-          <td style={{ paddingLeft: "2rem" }}>
+          <td>
             <a href={`/apps/${manifest.app_key}/${inst.index}`} class="ht-text-mono">
               {inst.instance_name}
             </a>

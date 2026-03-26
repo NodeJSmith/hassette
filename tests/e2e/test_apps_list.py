@@ -22,7 +22,7 @@ def test_apps_list_status_filter_tabs(page: Page, base_url: str) -> None:
     """Clicking the Running tab should filter to only running apps."""
     page.goto(base_url + "/apps")
     # Click the "Running" filter tab
-    page.locator("[data-testid='tab-running'] a").click()
+    page.locator("[data-testid='tab-running'] button").click()
     # Wait for Preact reactivity to filter
     page.wait_for_timeout(300)
     # Running app should be visible; others should not be in the DOM
@@ -38,13 +38,13 @@ def test_tab_filter_is_client_side(page: Page, base_url: str) -> None:
     """
     page.goto(base_url + "/apps")
     # Click the "Running" filter tab
-    page.locator("[data-testid='tab-running'] a").click()
+    page.locator("[data-testid='tab-running'] button").click()
     page.wait_for_timeout(300)
     # Verify filtered state
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
     expect(page.locator("[data-testid='app-row-other_app']")).to_have_count(0)
     # Click "All" tab to reset
-    page.locator("[data-testid='tab-all'] a").click()
+    page.locator("[data-testid='tab-all'] button").click()
     page.wait_for_timeout(300)
     # All apps should be visible again
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
@@ -91,3 +91,28 @@ def test_multi_instance_expand_persists_across_navigation(page: Page, base_url: 
     expect(page.locator("text=MultiApp[0]")).to_be_visible()
     expect(page.locator("text=MultiApp[1]")).to_be_visible()
     expect(page.locator("text=MultiApp[2]")).to_be_visible()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Accessibility: status filter aria-pressed
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_status_filter_uses_aria_pressed(page: Page, base_url: str) -> None:
+    """Status filter buttons use aria-pressed instead of links."""
+    page.goto(base_url + "/apps")
+    filter_group = page.locator(
+        "[role='group'][aria-label='App status filter']",
+    )
+    expect(filter_group).to_be_visible()
+    # "All" button should be pressed by default
+    all_btn = page.locator("[data-testid='tab-all'] button")
+    expect(all_btn).to_have_attribute("aria-pressed", "true")
+    # "Running" button should not be pressed
+    running_btn = page.locator("[data-testid='tab-running'] button")
+    expect(running_btn).to_have_attribute("aria-pressed", "false")
+    # Click Running — pressed state should swap
+    running_btn.click()
+    page.wait_for_timeout(300)
+    expect(running_btn).to_have_attribute("aria-pressed", "true")
+    expect(all_btn).to_have_attribute("aria-pressed", "false")

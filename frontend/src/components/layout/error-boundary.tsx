@@ -15,7 +15,7 @@ export function ErrorBoundary({ children, resetKey }: Props) {
 
   if (error) {
     return (
-      <div class="ht-card" style={{ padding: "var(--ht-sp-6)", textAlign: "center" }}>
+      <div class="ht-card ht-error-card">
         <h2>Something went wrong</h2>
         <p class="ht-text-secondary">{error instanceof Error ? error.message : String(error)}</p>
         <button

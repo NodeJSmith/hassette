@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { useRef } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import { getManifests } from "../api/endpoints";
 import { ManifestList } from "../components/apps/manifest-list";
 import { StatusFilter, type FilterValue } from "../components/apps/status-filter";
@@ -8,6 +8,7 @@ import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 
 export function AppsPage() {
+  useEffect(() => { document.title = "Apps - Hassette"; }, []);
   const filter = useRef(signal<FilterValue>("all")).current;
   const { data, loading, error } = useApi(getManifests);
 

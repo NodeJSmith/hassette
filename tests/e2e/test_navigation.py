@@ -111,3 +111,49 @@ def test_mobile_sidebar_hidden(page: Page, base_url: str) -> None:
     page.goto(base_url + "/")
     sidebar = page.locator(".ht-sidebar")
     expect(sidebar).not_to_be_visible()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Accessibility: skip-nav, page titles, aria-hidden icons
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_skip_nav_link_exists(page: Page, base_url: str) -> None:
+    """Skip-nav link is first focusable element and targets #main-content."""
+    page.goto(base_url + "/")
+    skip_link = page.locator("a.ht-skip-link")
+    expect(skip_link).to_have_attribute("href", "#main-content")
+    # Main element has the target id
+    main = page.locator("main#main-content")
+    expect(main).to_be_attached()
+
+
+TITLE_MAP = [
+    ("/", "Dashboard - Hassette"),
+    ("/apps", "Apps - Hassette"),
+    ("/logs", "Logs - Hassette"),
+]
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_title"),
+    TITLE_MAP,
+    ids=[p for p, _ in TITLE_MAP],
+)
+def test_page_title_updates_per_route(
+    page: Page,
+    base_url: str,
+    path: str,
+    expected_title: str,
+) -> None:
+    """Each page sets a distinct document.title."""
+    page.goto(base_url + path)
+    expect(page).to_have_title(expected_title)
+
+
+def test_sidebar_icons_are_aria_hidden(page: Page, base_url: str) -> None:
+    """Decorative SVG icons in sidebar nav have aria-hidden."""
+    page.goto(base_url + "/")
+    nav_svgs = page.locator("nav[aria-label='Main navigation'] svg")
+    for i in range(nav_svgs.count()):
+        expect(nav_svgs.nth(i)).to_have_attribute("aria-hidden", "true")

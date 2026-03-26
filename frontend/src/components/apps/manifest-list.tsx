@@ -76,7 +76,7 @@ export function ManifestList({ manifests, filter }: Props) {
   const expanded = expandedRef.current.value;
 
   return (
-    <table class="ht-table">
+    <table class="ht-table ht-table--dense">
       <thead>
         <tr>
           <th>App Key</th>

@@ -269,18 +269,18 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const messageCell = container.querySelector("[role='button'][aria-expanded]") as HTMLElement;
-    expect(messageCell.getAttribute("aria-expanded")).toBe("false");
+    const expandBtn = container.querySelector("button.ht-log-expand-btn") as HTMLElement;
+    expect(expandBtn.getAttribute("aria-expanded")).toBe("false");
 
-    fireEvent.click(messageCell);
-    expect(messageCell.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(expandBtn);
+    expect(expandBtn.getAttribute("aria-expanded")).toBe("true");
 
     // Click again to collapse
-    fireEvent.click(messageCell);
-    expect(messageCell.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(expandBtn);
+    expect(expandBtn.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("expands log message on Enter key", () => {
+  it("expands log message via keyboard (native button)", () => {
     state.logs.push(createLogEntry({ message: "Keyboard expand" }));
 
     const { container } = render(
@@ -288,9 +288,10 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const messageCell = container.querySelector("[role='button'][aria-expanded]") as HTMLElement;
-    fireEvent.keyDown(messageCell, { key: "Enter" });
-    expect(messageCell.getAttribute("aria-expanded")).toBe("true");
+    // Native <button> handles Enter/Space via click event — fireEvent.click simulates this
+    const expandBtn = container.querySelector("button.ht-log-expand-btn") as HTMLElement;
+    fireEvent.click(expandBtn);
+    expect(expandBtn.getAttribute("aria-expanded")).toBe("true");
   });
 
   // -- App column visibility --

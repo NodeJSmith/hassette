@@ -148,6 +148,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       <div class="ht-field-group">
         <div class="ht-select ht-select--sm">
           <select
+            aria-label="Minimum log level"
             data-testid="filter-level"
             value={minLevel.value}
             onChange={(e) => {
@@ -168,6 +169,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         {showAppColumn && appKeys && appKeys.length > 0 && (
           <div class="ht-select ht-select--sm">
             <select
+              aria-label="Filter by app"
               data-testid="filter-app"
               value={appFilter.value}
               onChange={(e) => {
@@ -186,6 +188,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         <input
           class="ht-input ht-input--sm"
           type="text"
+          aria-label="Search log messages"
           placeholder="Search..."
           value={search.value}
           onInput={(e) => {
@@ -202,28 +205,28 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           </span>
         )}
       </div>
-      <div class="ht-log-table-scroll" style={{ maxHeight: "600px", overflow: "auto" }}>
+      <div class="ht-log-table-scroll">
         <table class="ht-table ht-table--compact ht-table-log">
-          <thead style={{ position: "sticky", top: 0, background: "var(--ht-surface-sticky, var(--ht-bg))" }}>
+          <thead>
             <tr>
-              <th style={{ width: "90px" }} aria-sort={ariaSortFor("level")} data-testid="sort-level">
+              <th class="ht-col-level" aria-sort={ariaSortFor("level")} data-testid="sort-level">
                 <button type="button" class="ht-sortable" onClick={() => handleSort("level")}>
                   <span>Level</span>{" "}<span aria-hidden="true">{sortArrow("level")}</span>
                 </button>
               </th>
-              <th style={{ width: "180px" }} aria-sort={ariaSortFor("timestamp")} data-testid="sort-timestamp">
+              <th class="ht-col-time" aria-sort={ariaSortFor("timestamp")} data-testid="sort-timestamp">
                 <button type="button" class="ht-sortable" onClick={() => handleSort("timestamp")}>
                   <span>Timestamp</span>{" "}<span aria-hidden="true">{sortArrow("timestamp")}</span>
                 </button>
               </th>
               {showAppColumn && (
-                <th style={{ width: "170px" }} aria-sort={ariaSortFor("app")} data-testid="sort-app">
+                <th class="ht-col-app" aria-sort={ariaSortFor("app")} data-testid="sort-app">
                   <button type="button" class="ht-sortable" onClick={() => handleSort("app")}>
                     <span>App</span>{" "}<span aria-hidden="true">{sortArrow("app")}</span>
                   </button>
                 </th>
               )}
-              <th style={{ width: "140px" }} class="ht-col-source">Source</th>
+              <th class="ht-col-source">Source</th>
               <th aria-sort={ariaSortFor("message")} data-testid="sort-message">
                 <button type="button" class="ht-sortable" onClick={() => handleSort("message")}>
                   <span>Message</span>{" "}<span aria-hidden="true">{sortArrow("message")}</span>
@@ -234,7 +237,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={showAppColumn ? 5 : 4} style={{ textAlign: "center" }} class="ht-text-muted">
+                <td colSpan={showAppColumn ? 5 : 4} class="ht-text-center ht-text-muted">
                   No log entries.
                 </td>
               </tr>
@@ -264,25 +267,23 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                   {entry.func_name}:{entry.lineno}
                 </td>
                 <td
-                  class="ht-log-message"
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={expandedRows.value.has(rowKey)}
                   onClick={() => {
                     const next = new Set(expandedRows.value);
                     if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                     expandedRows.value = next;
                   }}
-                  onKeyDown={(e: KeyboardEvent) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      const next = new Set(expandedRows.value);
-                      if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
-                      expandedRows.value = next;
-                    }
-                  }}
                 >
-                  <div class={`ht-log-message__text${expandedRows.value.has(rowKey) ? " is-expanded" : ""}`}>{entry.message}</div>
+                  <div class="ht-log-message">
+                    <button
+                      type="button"
+                      class="ht-log-expand-btn"
+                      aria-label={expandedRows.value.has(rowKey) ? "Collapse log message" : "Expand log message"}
+                      aria-expanded={expandedRows.value.has(rowKey)}
+                    >
+                      {expandedRows.value.has(rowKey) ? "▾" : "▸"}
+                    </button>
+                    <div class={`ht-log-message__text${expandedRows.value.has(rowKey) ? " is-expanded" : ""}`}>{entry.message}</div>
+                  </div>
                 </td>
               </tr>
               );
