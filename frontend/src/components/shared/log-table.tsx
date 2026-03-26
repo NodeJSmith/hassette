@@ -148,6 +148,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       <div class="ht-field-group">
         <div class="ht-select ht-select--sm">
           <select
+            aria-label="Minimum log level"
             data-testid="filter-level"
             value={minLevel.value}
             onChange={(e) => {
@@ -168,6 +169,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         {showAppColumn && appKeys && appKeys.length > 0 && (
           <div class="ht-select ht-select--sm">
             <select
+              aria-label="Filter by app"
               data-testid="filter-app"
               value={appFilter.value}
               onChange={(e) => {
@@ -186,6 +188,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
         <input
           class="ht-input ht-input--sm"
           type="text"
+          aria-label="Search log messages"
           placeholder="Search..."
           value={search.value}
           onInput={(e) => {
@@ -265,23 +268,26 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 </td>
                 <td
                   class="ht-log-message"
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={expandedRows.value.has(rowKey)}
                   onClick={() => {
                     const next = new Set(expandedRows.value);
                     if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                     expandedRows.value = next;
                   }}
-                  onKeyDown={(e: KeyboardEvent) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
+                >
+                  <button
+                    type="button"
+                    class="ht-log-expand-btn"
+                    aria-label={expandedRows.value.has(rowKey) ? "Collapse log message" : "Expand log message"}
+                    aria-expanded={expandedRows.value.has(rowKey)}
+                    onClick={(e) => {
+                      e.stopPropagation();
                       const next = new Set(expandedRows.value);
                       if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                       expandedRows.value = next;
-                    }
-                  }}
-                >
+                    }}
+                  >
+                    {expandedRows.value.has(rowKey) ? "▾" : "▸"}
+                  </button>
                   <div class={`ht-log-message__text${expandedRows.value.has(rowKey) ? " is-expanded" : ""}`}>{entry.message}</div>
                 </td>
               </tr>

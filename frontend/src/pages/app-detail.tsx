@@ -89,9 +89,10 @@ export function AppDetailPage({ params }: Props) {
       {/* Instance switcher (multi-instance only) */}
       {isMultiInstance && manifest?.instances && (
         <div class="ht-mb-4">
-          <label class="ht-detail-label ht-mr-2">Instance</label>
+          <label class="ht-detail-label ht-mr-2" htmlFor="instance-select">Instance</label>
           <div class="ht-select ht-select--sm" style={{ display: "inline-block" }}>
             <select
+              id="instance-select"
               value={instanceIndex}
               onChange={(e) => {
                 const idx = (e.target as HTMLSelectElement).value;

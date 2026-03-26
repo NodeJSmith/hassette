@@ -22,7 +22,7 @@ def test_apps_list_status_filter_tabs(page: Page, base_url: str) -> None:
     """Clicking the Running tab should filter to only running apps."""
     page.goto(base_url + "/apps")
     # Click the "Running" filter tab
-    page.locator("[data-testid='tab-running'] a").click()
+    page.locator("[data-testid='tab-running'] button").click()
     # Wait for Preact reactivity to filter
     page.wait_for_timeout(300)
     # Running app should be visible; others should not be in the DOM
@@ -38,13 +38,13 @@ def test_tab_filter_is_client_side(page: Page, base_url: str) -> None:
     """
     page.goto(base_url + "/apps")
     # Click the "Running" filter tab
-    page.locator("[data-testid='tab-running'] a").click()
+    page.locator("[data-testid='tab-running'] button").click()
     page.wait_for_timeout(300)
     # Verify filtered state
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
     expect(page.locator("[data-testid='app-row-other_app']")).to_have_count(0)
     # Click "All" tab to reset
-    page.locator("[data-testid='tab-all'] a").click()
+    page.locator("[data-testid='tab-all'] button").click()
     page.wait_for_timeout(300)
     # All apps should be visible again
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()

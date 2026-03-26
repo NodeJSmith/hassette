@@ -384,6 +384,20 @@ strong {
   max-height: none;
 }
 
+.ht-log-expand-btn {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--ht-text-sm);
+  color: var(--ht-text-dim);
+  cursor: pointer;
+  user-select: none;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 .ht-table--dense th,
 .ht-table--dense td {
   padding: 0.3em 0.5em;
@@ -599,24 +613,25 @@ strong {
   gap: 0;
 }
 
-.ht-tabs li a {
+.ht-tabs li button {
   display: block;
   padding: 0.4em 0.85em;
   font-size: var(--ht-text-sm);
   color: var(--ht-text-secondary);
+  border: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  text-decoration: none;
+  background: transparent;
   cursor: pointer;
+  font: inherit;
   transition: color var(--ht-motion-micro), border-color var(--ht-motion-micro);
 }
 
-.ht-tabs li a:hover {
+.ht-tabs li button:hover {
   color: var(--ht-text);
-  text-decoration: none;
 }
 
-.ht-tabs li.is-active a {
+.ht-tabs li button[aria-pressed="true"] {
   color: var(--ht-accent);
   border-bottom-color: var(--ht-accent);
   font-weight: var(--ht-weight-semibold);
@@ -1382,9 +1397,15 @@ strong {
 /* — Chevron Inline (manifest table) ——————————————————— */
 .ht-item-row__chevron-inline {
   display: inline;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
   font-size: var(--ht-text-sm);
   color: var(--ht-text-dim);
   user-select: none;
+  cursor: pointer;
+  margin-right: var(--ht-sp-1);
 }
 
 /* — Button: link variant ————————————————————————————— */
