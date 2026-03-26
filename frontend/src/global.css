@@ -503,7 +503,7 @@ strong {
   color: var(--ht-text-dim);
   cursor: pointer;
   user-select: none;
-  margin-right: 4px;
+  margin-right: var(--ht-sp-1);
   vertical-align: middle;
 }
 
