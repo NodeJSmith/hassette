@@ -513,6 +513,7 @@ strong {
   background: transparent;
   font: inherit;
   font-size: var(--ht-text-sm);
+  opacity: 0;
   color: var(--ht-text-secondary);
   cursor: pointer;
   user-select: none;
@@ -520,6 +521,12 @@ strong {
   vertical-align: middle;
   border-radius: var(--ht-radius-sm);
   transition: color var(--ht-motion-micro), background var(--ht-motion-micro);
+}
+
+/* Show chevron on row hover or when expanded */
+.ht-log-message:hover .ht-log-expand-btn,
+.ht-log-expand-btn[aria-expanded="true"] {
+  opacity: 1;
 }
 
 .ht-log-expand-btn:hover {
