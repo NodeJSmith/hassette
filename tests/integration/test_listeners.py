@@ -529,6 +529,24 @@ class TestListenerDispatchAndCancel:
 
         assert calls == ["1"], "Only the first call should execute"
 
+    async def test_dispatch_once_fires_only_once(self, bucket_fixture: TaskBucket):
+        """dispatch() on a once=True listener fires the handler exactly once, even without BusService."""
+        calls: list[str] = []
+
+        def handler(event: MockEvent):
+            calls.append(event.data)
+
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, once=True)
+
+        for i in range(3):
+
+            async def invoke_fn(val=str(i + 1)):
+                await listener.invoke(mock_event(val))
+
+            await listener.dispatch(invoke_fn)
+
+        assert calls == ["1"], "Once-listener should fire exactly once via dispatch()"
+
     async def test_cancel_with_rate_limiter_delegates(self, bucket_fixture: TaskBucket):
         """cancel() delegates to the rate limiter's cancel."""
         listener = Listener.create(
