@@ -1,3 +1,4 @@
+import { useEffect } from "preact/hooks";
 import { getAppHealth, getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
 import { ErrorDisplay } from "../components/app-detail/error-display";
 import { ActionButtons } from "../components/apps/action-buttons";
@@ -27,7 +28,19 @@ export function AppDetailPage({ params }: Props) {
   const listeners = useApi(() => getAppListeners(appKey, instanceIndex), [appKey, instanceIndex]);
   const jobs = useApi(() => getAppJobs(appKey, instanceIndex), [appKey, instanceIndex]);
 
+  // Immediate fallback title on mount
+  useEffect(() => { document.title = "App - Hassette"; }, []);
+
   const manifest = manifests.data.value?.manifests.find((m) => m.app_key === appKey);
+
+  // Update title when manifest loads; reset on unmount to prevent stale titles
+  const displayName = manifest?.display_name;
+  useEffect(() => {
+    if (displayName) {
+      document.title = `${displayName} - Hassette`;
+    }
+    return () => { document.title = "Hassette"; };
+  }, [displayName]);
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
   const currentInstance = manifest?.instances.find((i) => i.index === instanceIndex);
   const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";

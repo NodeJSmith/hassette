@@ -1,4 +1,4 @@
-import { useRef } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import {
   getDashboardAppGrid,
   getDashboardErrors,
@@ -14,6 +14,7 @@ import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 
 export function DashboardPage() {
+  useEffect(() => { document.title = "Dashboard - Hassette"; }, []);
   const { appStatus } = useAppState();
 
   const kpis = useApi(getDashboardKpis);
