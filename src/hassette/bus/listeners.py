@@ -1,5 +1,3 @@
-import contextlib
-import inspect
 import itertools
 import typing
 from collections.abc import Mapping, Sequence
@@ -48,8 +46,11 @@ class Listener:
     orig_handler: "HandlerType"
     """Original handler function provided by the user."""
 
-    adapter: "HandlerAdapter"
-    """Handler adapter that manages dependency injection and signature normalization."""
+    _async_handler: "AsyncHandlerType"
+    """Async-wrapped handler function. Private — not part of the public API."""
+
+    _injector: ParameterInjector
+    """Parameter injector for dependency injection. Private — invoked by :meth:`invoke`."""
 
     predicate: "Predicate | None"
     """Predicate to filter events before invoking the handler."""
@@ -110,7 +111,17 @@ class Listener:
         For debounced listeners, the rate limiter spawns a background task that calls
         ``invoke_fn`` after the quiet period.  This method returns immediately after
         spawning — the handler fires later.
+
+        Includes once-guard: if ``once=True`` and the listener has already fired,
+        this method returns immediately.  This is the sole once-guard — callers
+        that bypass BusService (e.g., test harness, command executor) are protected.
+        Safe without a lock — no ``await`` between check-and-set.
         """
+        if self.once and self._fired:
+            return
+        if self.once:
+            self._fired = True
+
         if self._rate_limiter:
             await self._rate_limiter.call(invoke_fn)
         else:
@@ -139,9 +150,9 @@ class Listener:
         return matched
 
     async def invoke(self, event: "Event[Any]") -> None:
-        """Invoke the handler through the adapter."""
-        kwargs = self.kwargs or {}
-        await self.adapter.call(event, **kwargs)
+        """Invoke the handler with dependency injection."""
+        kwargs = self._injector.inject_parameters(event, **(self.kwargs or {}))
+        await self._async_handler(**kwargs)
 
     def __repr__(self) -> str:
         return f"Listener<{self.owner_id} - {self.handler_short_name}>"
@@ -177,15 +188,9 @@ class Listener:
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
 
-        # Create async handler
+        # Create async handler and injector
         async_handler = make_async_handler(handler, task_bucket)
-
-        # Create an adapter for dependency injection
-        adapter = HandlerAdapter(
-            callable_name(handler),
-            async_handler,
-            signature,
-        )
+        injector = ParameterInjector(callable_name(handler), signature)
 
         listener = cls(
             logger=logger,
@@ -194,7 +199,8 @@ class Listener:
             instance_index=instance_index,
             topic=topic,
             orig_handler=handler,
-            adapter=adapter,
+            _async_handler=async_handler,
+            _injector=injector,
             predicate=pred,
             kwargs=kwargs,
             once=once,
@@ -203,7 +209,7 @@ class Listener:
             priority=priority,
         )
 
-        # Rate limiter constructed on Listener, not HandlerAdapter
+        # Rate limiter constructed post-init (needs task_bucket from create())
         if debounce is not None or throttle is not None:
             listener._rate_limiter = RateLimiter(
                 task_bucket=task_bucket,
@@ -213,35 +219,6 @@ class Listener:
             )
 
         return listener
-
-
-class HandlerAdapter:
-    """Handler adapter that composes dependency injection with handler invocation."""
-
-    def __init__(
-        self,
-        handler_name: str,
-        handler: "AsyncHandlerType",
-        signature: inspect.Signature,
-    ):
-        self.handler_name = handler_name
-        self.handler = handler
-        self.injector = ParameterInjector(handler_name, signature)
-
-    async def call(self, event: "Event[Any]", **kwargs: Any) -> None:
-        """Call handler with dependency injection.
-
-        Args:
-            event: The event to pass to the handler.
-            **kwargs: Additional keyword arguments to pass to the handler.
-
-        Raises:
-            DependencyInjectionError: If signature validation fails.
-            DependencyResolutionError: If parameter extraction/conversion fails.
-            Exception: If an error occurs during handler execution.
-        """
-        kwargs = self.injector.inject_parameters(event, **kwargs)
-        await self.handler(**kwargs)
 
 
 @dataclass(slots=True)
@@ -258,13 +235,6 @@ class Subscription:
     unsubscribe: "Callable[[], None]"
     """Function to call to unsubscribe the listener."""
 
-    @contextlib.contextmanager
-    def manage(self):
-        try:
-            yield self
-        finally:
-            self.unsubscribe()
-
     def cancel(self) -> None:
         """Cancel the subscription by calling the unsubscribe function."""
         self.unsubscribe()
@@ -278,6 +248,7 @@ def make_async_handler(fn: "HandlerType", task_bucket: "TaskBucket") -> "AsyncHa
 
     Args:
         fn: The function to adapt.
+        task_bucket: TaskBucket used to create the async adapter (runs sync handlers in executor).
 
     Returns:
         An async handler that wraps the original function.

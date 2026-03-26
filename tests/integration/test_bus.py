@@ -76,7 +76,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
 
         assert listener.topic == "demo.topic"
         assert listener.orig_handler is handler
-        assert asyncio.iscoroutinefunction(listener.adapter.handler)
+        assert asyncio.iscoroutinefunction(listener._async_handler)
         assert listener.kwargs == {"suffix": "!"}
         assert listener.once is once
         assert isinstance(listener.predicate, AllOf)

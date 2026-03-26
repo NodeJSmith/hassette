@@ -258,18 +258,11 @@ class BusService(Service):
 
         Concurrency model:
             Multiple spawned tasks may enter this method concurrently for the same
-            listener (via ``task_bucket.spawn`` in ``dispatch``).  Correctness relies
-            on asyncio's single-threaded cooperative scheduling — there is no ``await``
-            between the ``_fired`` check-and-set, so the guard is atomic.  The same
+            listener (via ``task_bucket.spawn`` in ``dispatch``).  The once-guard
+            (``_fired`` check-and-set) is owned by ``Listener.dispatch()`` — see its
+            docstring for the atomicity argument.  The same single-threaded scheduling
             applies to the throttle check in ``RateLimiter._throttled_call``.
         """
-        # Guard: prevent once=True listeners from firing twice under concurrent dispatch.
-        # Safe without a lock — no await between the check and the set.
-        if listener.once and listener._fired:
-            return
-        if listener.once:
-            listener._fired = True
-
         # New closure per dispatch: debounce always fires with the latest event's closure.
         # RateLimiter._debounced_call replaces (cancel-then-create) the previous task each
         # time, so the handler sees the event from the most recent dispatch call.

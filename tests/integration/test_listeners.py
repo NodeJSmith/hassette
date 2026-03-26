@@ -1,11 +1,10 @@
 import asyncio
-import inspect
 from dataclasses import dataclass
 
 import pytest
 
 from hassette import D
-from hassette.bus.listeners import HandlerAdapter, Listener
+from hassette.bus.listeners import Listener
 from hassette.events import Event
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
@@ -28,15 +27,8 @@ def mock_event(data: str = "test") -> MockEvent:
     return MockEvent(topic="test_topic", payload=data)
 
 
-def create_adapter(handler, _bucket_fixture=None):
-    """Helper to create HandlerAdapter with proper signature."""
-    signature = inspect.signature(handler)
-    handler_name = handler.__name__ if hasattr(handler, "__name__") else "test_handler"
-    return HandlerAdapter(handler_name, handler, signature)
-
-
-class TestHandlerAdapter:
-    """Test HandlerAdapter functionality."""
+class TestListenerInvoke:
+    """Test Listener.invoke() — dependency injection and handler invocation."""
 
     async def test_sync_handler_with_event(self, bucket_fixture: TaskBucket):
         """Test sync handler that expects an event."""
@@ -45,11 +37,8 @@ class TestHandlerAdapter:
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = create_adapter(async_handler, bucket_fixture)
-
-        event = mock_event("test_data")
-        await adapter.call(event)
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
+        await listener.invoke(mock_event("test_data"))
         assert calls == ["test_data"], "Handler should be called with event data"
 
     async def test_async_handler_with_event(self, bucket_fixture: TaskBucket):
@@ -59,10 +48,8 @@ class TestHandlerAdapter:
         async def handler(event: MockEvent):
             calls.append(event.data)
 
-        adapter = create_adapter(handler, bucket_fixture)
-
-        event = mock_event("test_data")
-        await adapter.call(event)
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
+        await listener.invoke(mock_event("test_data"))
         assert calls == ["test_data"], "Handler should be called with event data"
 
     async def test_sync_handler_no_event(self, bucket_fixture: TaskBucket):
@@ -72,11 +59,8 @@ class TestHandlerAdapter:
         def handler():
             calls.append("called")
 
-        async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = create_adapter(async_handler, bucket_fixture)
-
-        event = mock_event("test_data")
-        await adapter.call(event)
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
+        await listener.invoke(mock_event("test_data"))
         assert calls == ["called"], "Handler should be called without event data"
 
     async def test_async_handler_no_event(self, bucket_fixture: TaskBucket):
@@ -86,19 +70,13 @@ class TestHandlerAdapter:
         async def handler():
             calls.append("called")
 
-        adapter = create_adapter(handler, bucket_fixture)
-
-        event = mock_event("test_data")
-        await adapter.call(event)
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
+        await listener.invoke(mock_event("test_data"))
         assert calls == ["called"], "Handler should be called without event data"
 
 
 class TestDebounceLogic:
-    """Test debounce functionality via RateLimiter directly.
-
-    Rate limiting is orchestrated by BusService._dispatch, not HandlerAdapter.
-    These tests exercise the RateLimiter in isolation.
-    """
+    """Test debounce functionality via RateLimiter directly."""
 
     async def test_debounce_delays_execution(self, bucket_fixture: TaskBucket):
         """Test that debounce delays execution until quiet period."""
@@ -275,11 +253,7 @@ class TestRateLimiterCancel:
 
 
 class TestThrottleLogic:
-    """Test throttle functionality via RateLimiter directly.
-
-    Rate limiting is orchestrated by BusService._dispatch, not HandlerAdapter.
-    These tests exercise the RateLimiter in isolation.
-    """
+    """Test throttle functionality via RateLimiter directly."""
 
     async def test_throttle_limits_execution_frequency(self, bucket_fixture: TaskBucket):
         """Test that throttle limits how often handler is called."""
@@ -386,7 +360,7 @@ class TestThrottleLogic:
 
 
 class TestListenerIntegration:
-    """Test Listener integration with HandlerAdapter."""
+    """Test Listener integration with rate limiting."""
 
     async def test_listener_with_debounce(self, bucket_fixture: TaskBucket):
         """Test Listener with debounce via rate limiter (as BusService._dispatch would)."""
@@ -555,6 +529,24 @@ class TestListenerDispatchAndCancel:
 
         assert calls == ["1"], "Only the first call should execute"
 
+    async def test_dispatch_once_fires_only_once(self, bucket_fixture: TaskBucket):
+        """dispatch() on a once=True listener fires the handler exactly once, even without BusService."""
+        calls: list[str] = []
+
+        def handler(event: MockEvent):
+            calls.append(event.data)
+
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, once=True)
+
+        for i in range(3):
+
+            async def invoke_fn(val=str(i + 1)):
+                await listener.invoke(mock_event(val))
+
+            await listener.dispatch(invoke_fn)
+
+        assert calls == ["1"], "Once-listener should fire exactly once via dispatch()"
+
     async def test_cancel_with_rate_limiter_delegates(self, bucket_fixture: TaskBucket):
         """cancel() delegates to the rate limiter's cancel."""
         listener = Listener.create(
@@ -586,8 +578,6 @@ class TestDependencyValidationErrors:
 
     async def test_required_state_with_none_raises_error(self, bucket_fixture: TaskBucket):
         """Test that using StateNew with None value raises DependencyResolutionError."""
-
-        # Create mock states
         old_state = make_state_dict(entity_id="test.entity", state="off")
         state_change_event = make_full_state_change_event("test.entity", old_state, None)
 
@@ -596,19 +586,15 @@ class TestDependencyValidationErrors:
         def handler(new_state: D.StateNew[states.BaseState]):
             calls.append(new_state)
 
-        async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = create_adapter(async_handler, bucket_fixture)
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
 
-        # Should raise DependencyResolutionError when new_state is None
         with pytest.raises(DependencyResolutionError):
-            await adapter.call(state_change_event)
+            await listener.invoke(state_change_event)
 
-        assert len(calls) == 0  # Handler should not be called
+        assert len(calls) == 0
 
     async def test_maybe_state_with_none_succeeds(self, bucket_fixture: TaskBucket):
         """Test that using MaybeStateNew with None value succeeds."""
-
-        # Create mock states
         old_state = make_state_dict(entity_id="test.entity", state="off")
         state_change_event = make_full_state_change_event("test.entity", old_state, None)
 
@@ -617,19 +603,14 @@ class TestDependencyValidationErrors:
         def handler(new_state: D.MaybeStateNew[states.BaseState]):
             calls.append(new_state)
 
-        async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = create_adapter(async_handler, bucket_fixture)
-
-        # Should succeed
-        await adapter.call(state_change_event)
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
+        await listener.invoke(state_change_event)
 
         assert len(calls) == 1
         assert calls[0] is None
 
     async def test_mixed_maybe_and_required_all_succeed(self, bucket_fixture: TaskBucket):
         """Test handler with both Maybe and required deps when all resolve."""
-
-        # Create mock states
         old_state = make_state_dict(entity_id="test.entity", state="off")
         new_state = make_state_dict(entity_id="test.entity", state="on")
         state_change_event = make_full_state_change_event("test.entity", old_state, new_state)
@@ -637,16 +618,14 @@ class TestDependencyValidationErrors:
         results = []
 
         def handler(
-            new_state: D.StateNew[states.BaseState],  # Required, present
-            old_state: D.MaybeStateOld[states.BaseState],  # Optional, present
-            entity_id: D.EntityId,  # Required, present
+            new_state: D.StateNew[states.BaseState],
+            old_state: D.MaybeStateOld[states.BaseState],
+            entity_id: D.EntityId,
         ):
             results.append((new_state, old_state, entity_id))
 
-        async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = create_adapter(async_handler, bucket_fixture)
-
-        await adapter.call(state_change_event)
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
+        await listener.invoke(state_change_event)
 
         assert len(results) == 1
         new, old, eid = results[0]
@@ -656,23 +635,18 @@ class TestDependencyValidationErrors:
 
     async def test_multiple_required_deps_first_fails(self, bucket_fixture: TaskBucket):
         """Test that if first required dep fails, handler is not called."""
-
         old_dict = make_light_state_dict("light.test", "on", brightness=100)
-
-        # make and send update event
         event = make_full_state_change_event("light.test", old_dict, None)
 
         calls = []
 
-        # StateNew will fail, EntityId will succeed
         def handler(new_state: D.StateNew[states.BaseState], entity_id: D.EntityId):
             calls.append((new_state, entity_id))
 
-        async_handler = bucket_fixture.make_async_adapter(handler)
-        adapter = create_adapter(async_handler, bucket_fixture)
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
 
         with pytest.raises(DependencyResolutionError):
-            await adapter.call(event)
+            await listener.invoke(event)
 
         assert len(calls) == 0
 
