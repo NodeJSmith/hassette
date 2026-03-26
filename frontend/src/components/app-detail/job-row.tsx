@@ -31,7 +31,9 @@ export function JobRow({ job }: Props) {
   const dotClass =
     job.failed > 0 ? "danger" : job.total_executions > 0 ? "success" : "neutral";
 
+  const hasExecutions = job.total_executions > 0;
   const toggle = () => {
+    if (!hasExecutions) return;
     expanded.value = !expanded.value;
     if (expanded.value) {
       void refetch();
@@ -42,11 +44,11 @@ export function JobRow({ job }: Props) {
     <div class="ht-item-row" data-testid={`job-row-${job.job_id}`}>
       <div
         class="ht-item-row__main"
-        role="button"
-        tabIndex={0}
-        aria-expanded={expanded.value}
+        role={hasExecutions ? "button" : undefined}
+        tabIndex={hasExecutions ? 0 : undefined}
+        aria-expanded={hasExecutions ? expanded.value : undefined}
         onClick={toggle}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
+        onKeyDown={hasExecutions ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}
       >
         <span class={`ht-item-row__dot ht-item-row__dot--${dotClass}`} />
         <div class="ht-item-row__content">
@@ -75,11 +77,13 @@ export function JobRow({ job }: Props) {
             </span>
           )}
         </div>
-        <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4 2 8 6 4 10" />
-          </svg>
-        </span>
+        {job.total_executions > 0 && (
+          <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="4 2 8 6 4 10" />
+            </svg>
+          </span>
+        )}
       </div>
       {expanded.value && (
         <div class="ht-item-detail" id={`job-${job.job_id}-detail`}>

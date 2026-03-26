@@ -480,36 +480,56 @@ strong {
 
 .ht-log-message {
   cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ht-sp-1);
 }
 
 .ht-log-message__text {
   line-height: 1.5;
-  max-height: calc(1.5em * 2); /* 2 lines */
+  max-height: calc(1.5em * 1); /* 1 line when collapsed */
   overflow: hidden;
-  word-break: break-all;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .ht-log-message__text.is-expanded {
   max-height: none;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .ht-log-expand-btn {
-  display: inline;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
   padding: 0;
   border: none;
   background: transparent;
   font: inherit;
   font-size: var(--ht-text-sm);
-  color: var(--ht-text-dim);
+  color: var(--ht-text-secondary);
   cursor: pointer;
   user-select: none;
   margin-right: var(--ht-sp-1);
   vertical-align: middle;
+  border-radius: var(--ht-radius-sm);
+  transition: color var(--ht-motion-micro), background var(--ht-motion-micro);
+}
+
+.ht-log-expand-btn:hover {
+  color: var(--ht-accent);
+  background: var(--ht-accent-light);
 }
 
 .ht-table--dense th,
 .ht-table--dense td {
-  padding: 0.3em 0.5em;
+  padding: var(--ht-sp-1) var(--ht-sp-2);
 }
 
 .ht-table--striped tbody tr:nth-child(even) {
@@ -519,7 +539,7 @@ strong {
 /* Narrow variant (used in health badge config tables) */
 .ht-table--narrow th,
 .ht-table--narrow td {
-  padding: 0.25em 0.5em;
+  padding: var(--ht-sp-1) var(--ht-sp-2);
 }
 
 /* — Badges ————————————————————————————————————————————— */
@@ -953,7 +973,7 @@ strong {
 }
 
 .ht-health-card__label {
-  font-size: var(--ht-text-xs);
+  font-size: var(--ht-text-sm);
   font-weight: var(--ht-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -975,7 +995,7 @@ strong {
 
 .ht-health-card__detail {
   font-size: var(--ht-text-xs);
-  color: var(--ht-text-dim);
+  color: var(--ht-text-secondary);
 }
 
 /* — Health Strip (4-column grid of health cards) ————— */
@@ -1500,10 +1520,11 @@ strong {
   white-space: nowrap;
 }
 
-.ht-table-log .ht-col-level   { width: 90px; }
-.ht-table-log .ht-col-time    { width: 180px; }
-.ht-table-log .ht-col-app     { width: 170px; }
-.ht-table-log .ht-col-source  { width: 140px; overflow: hidden; text-overflow: ellipsis; }
+/* Finding #1: widened source column from 140→180px; tightened level from 90→75px */
+.ht-table-log .ht-col-level   { width: 75px; }
+.ht-table-log .ht-col-time    { width: 170px; }
+.ht-table-log .ht-col-app     { width: 160px; }
+.ht-table-log .ht-col-source  { width: 180px; overflow: hidden; text-overflow: ellipsis; }
 
 @media screen and (max-width: 1024px) {
   .ht-table-log .ht-col-source {
