@@ -279,12 +279,6 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     class="ht-log-expand-btn"
                     aria-label={expandedRows.value.has(rowKey) ? "Collapse log message" : "Expand log message"}
                     aria-expanded={expandedRows.value.has(rowKey)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const next = new Set(expandedRows.value);
-                      if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
-                      expandedRows.value = next;
-                    }}
                   >
                     {expandedRows.value.has(rowKey) ? "▾" : "▸"}
                   </button>
