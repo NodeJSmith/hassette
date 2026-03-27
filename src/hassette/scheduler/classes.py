@@ -40,6 +40,9 @@ class IntervalTrigger:
     def __hash__(self) -> int:
         return hash(self.interval)
 
+    def __str__(self) -> str:
+        return f"interval:{self.interval.in_seconds():g}s"
+
     @classmethod
     def from_arguments(
         cls,
@@ -77,6 +80,9 @@ class CronTrigger:
 
     def __hash__(self) -> int:
         return hash(self.cron_expression)
+
+    def __str__(self) -> str:
+        return f"cron:{self.cron_expression}"
 
     @classmethod
     def from_arguments(
@@ -188,7 +194,8 @@ class ScheduledJob:
         self.set_next_run(self.next_run)
 
         if not self.name:
-            self.name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
+            callable_name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
+            self.name = f"{callable_name}:{self.trigger}" if self.trigger else callable_name
 
         self.args = tuple(self.args)
         self.kwargs = dict(self.kwargs)

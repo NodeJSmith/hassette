@@ -1,6 +1,5 @@
 import asyncio
 import heapq
-import time
 import typing
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -172,7 +171,6 @@ class SchedulerService(Service):
         ``db_id`` is set once DB registration completes; until then, dispatch
         uses the direct-invoke path (no telemetry record).
         """
-        ts = time.time()
         source_location, registration_source = capture_registration_source()
         trigger = job.trigger
         if isinstance(trigger, IntervalTrigger):
@@ -196,8 +194,6 @@ class SchedulerService(Service):
             kwargs_json=safe_json_serialize(job.kwargs),
             source_location=source_location,
             registration_source=registration_source,
-            first_registered_at=ts,
-            last_registered_at=ts,
         )
         await self._enqueue_job(job)
         job.db_id = await self._executor.register_job(reg)

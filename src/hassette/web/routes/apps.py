@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from hassette.web.dependencies import HassetteDep, RuntimeDep
-from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse, AppStatusResponse
+from hassette.web.models import ActionResponse, AppManifestListResponse, AppStatusResponse
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +20,6 @@ async def get_apps(runtime: RuntimeDep) -> AppStatusResponse:
 @router.get("/apps/manifests", response_model=AppManifestListResponse)
 async def get_app_manifests(runtime: RuntimeDep) -> AppManifestListResponse:
     return runtime.get_all_manifests_snapshot()
-
-
-@router.get("/apps/{app_key}", response_model=AppInstanceResponse)
-async def get_app(app_key: str, runtime: RuntimeDep) -> AppInstanceResponse:
-    snapshot = runtime.get_app_status_snapshot()
-    for app in snapshot.apps:
-        if app.app_key == app_key:
-            return app
-    raise HTTPException(status_code=404, detail=f"App {app_key} not found")
 
 
 @router.post("/apps/{app_key}/start", status_code=202, response_model=ActionResponse)

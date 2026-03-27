@@ -123,7 +123,7 @@ export interface DashboardErrorEntry {
   kind: "handler" | "job";
   error_message: string;
   error_type: string;
-  timestamp: number;
+  execution_start_ts: number;
   app_key: string;
   listener_id?: number;
   topic?: string;

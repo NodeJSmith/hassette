@@ -43,12 +43,6 @@ class ListenerRegistration:
     registration_source: str | None
     """Source code snippet of the registration call, or None if unavailable."""
 
-    first_registered_at: float
-    """Unix timestamp (epoch seconds) of the first registration."""
-
-    last_registered_at: float
-    """Unix timestamp (epoch seconds) of the most recent registration."""
-
 
 @dataclass(frozen=True)
 class ScheduledJobRegistration:
@@ -86,9 +80,3 @@ class ScheduledJobRegistration:
 
     registration_source: str | None
     """Source code snippet of the registration call, or None if unavailable."""
-
-    first_registered_at: float
-    """Unix timestamp (epoch seconds) of the first registration."""
-
-    last_registered_at: float
-    """Unix timestamp (epoch seconds) of the most recent registration."""

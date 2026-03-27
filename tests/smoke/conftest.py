@@ -103,9 +103,14 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> str:
 
 
 def _session_ready(hassette: Hassette) -> bool:
-    """Check if Hassette has created a valid session (without accessing private attributes)."""
+    """Check if Hassette has created a valid session and the WebSocket is connected.
+
+    session_id > 0 becomes true after Phase 1 (database + session creation), but
+    the WebSocket (Phase 2) may not be connected yet. Tests that call API methods
+    need the WebSocket to be ready.
+    """
     try:
-        return hassette.session_id > 0
+        return hassette.session_id > 0 and hassette.websocket_service.is_ready()
     except Exception:
         return False
 

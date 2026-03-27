@@ -94,10 +94,9 @@ async def _insert_listener(
         """INSERT INTO listeners
                (app_key, instance_index, handler_method, topic,
                 debounce, throttle, once, priority,
-                source_location,
-                first_registered_at, last_registered_at)
-           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1', ?, ?)""",
-        (app_key, instance_index, handler_method, topic, time.time(), time.time()),
+                source_location)
+           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1')""",
+        (app_key, instance_index, handler_method, topic),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -117,10 +116,9 @@ async def _insert_job(
         """INSERT INTO scheduled_jobs
                (app_key, instance_index, job_name, handler_method,
                 trigger_type, trigger_value, repeat,
-                source_location,
-                first_registered_at, last_registered_at)
-           VALUES (?, ?, ?, ?, 'interval', '60', 1, 'test.py:1', ?, ?)""",
-        (app_key, instance_index, job_name, handler_method, time.time(), time.time()),
+                source_location)
+           VALUES (?, ?, ?, ?, 'interval', '60', 1, 'test.py:1')""",
+        (app_key, instance_index, job_name, handler_method),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -416,6 +414,15 @@ class TestGetRecentErrors:
         kinds = {r["kind"] for r in rows}
         assert "handler" in kinds
         assert "job" in kinds
+
+        # Verify Fix 2: listener_id/job_id and execution_start_ts are present and non-zero
+        handler_row = next(r for r in rows if r["kind"] == "handler")
+        assert handler_row["listener_id"] > 0
+        assert handler_row["execution_start_ts"] > 0
+
+        job_row = next(r for r in rows if r["kind"] == "job")
+        assert job_row["job_id"] > 0
+        assert job_row["execution_start_ts"] > 0
 
     async def test_get_recent_errors_session_scoped(
         self,

@@ -110,15 +110,6 @@ class ScheduledJobResponse(BaseModel):
     trigger_detail: str | None = None
 
 
-class BusMetricsSummaryResponse(BaseModel):
-    total_listeners: int
-    total_invocations: int
-    total_successful: int
-    total_failed: int
-    total_di_failures: int
-    total_cancelled: int
-
-
 # ---------------------------------------------------------------------------
 # Typed WebSocket message models
 # ---------------------------------------------------------------------------
@@ -225,7 +216,7 @@ class HandlerErrorEntry(BaseModel):
     handler_method: str
     error_message: str
     error_type: str
-    timestamp: float
+    execution_start_ts: float
     app_key: str
 
 
@@ -235,7 +226,7 @@ class JobErrorEntry(BaseModel):
     job_name: str
     error_message: str
     error_type: str
-    timestamp: float
+    execution_start_ts: float
     app_key: str
 
 

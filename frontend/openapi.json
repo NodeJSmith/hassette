@@ -88,48 +88,6 @@
         }
       }
     },
-    "/api/apps/{app_key}": {
-      "get": {
-        "tags": [
-          "apps"
-        ],
-        "summary": "Get App",
-        "operationId": "get_app_api_apps__app_key__get",
-        "parameters": [
-          {
-            "name": "app_key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AppInstanceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/apps/{app_key}/start": {
       "post": {
         "tags": [
@@ -535,27 +493,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/bus/metrics": {
-      "get": {
-        "tags": [
-          "bus"
-        ],
-        "summary": "Get Bus Metrics Summary",
-        "operationId": "get_bus_metrics_summary_api_bus_metrics_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BusMetricsSummaryResponse"
                 }
               }
             }
@@ -1263,44 +1200,6 @@
         ],
         "title": "AppStatusResponse"
       },
-      "BusMetricsSummaryResponse": {
-        "properties": {
-          "total_listeners": {
-            "type": "integer",
-            "title": "Total Listeners"
-          },
-          "total_invocations": {
-            "type": "integer",
-            "title": "Total Invocations"
-          },
-          "total_successful": {
-            "type": "integer",
-            "title": "Total Successful"
-          },
-          "total_failed": {
-            "type": "integer",
-            "title": "Total Failed"
-          },
-          "total_di_failures": {
-            "type": "integer",
-            "title": "Total Di Failures"
-          },
-          "total_cancelled": {
-            "type": "integer",
-            "title": "Total Cancelled"
-          }
-        },
-        "type": "object",
-        "required": [
-          "total_listeners",
-          "total_invocations",
-          "total_successful",
-          "total_failed",
-          "total_di_failures",
-          "total_cancelled"
-        ],
-        "title": "BusMetricsSummaryResponse"
-      },
       "ConfigResponse": {
         "properties": {
           "dev_mode": {
@@ -1674,9 +1573,9 @@
             "type": "string",
             "title": "Error Type"
           },
-          "timestamp": {
+          "execution_start_ts": {
             "type": "number",
-            "title": "Timestamp"
+            "title": "Execution Start Ts"
           },
           "app_key": {
             "type": "string",
@@ -1690,7 +1589,7 @@
           "handler_method",
           "error_message",
           "error_type",
-          "timestamp",
+          "execution_start_ts",
           "app_key"
         ],
         "title": "HandlerErrorEntry"
@@ -1779,9 +1678,9 @@
             "type": "string",
             "title": "Error Type"
           },
-          "timestamp": {
+          "execution_start_ts": {
             "type": "number",
-            "title": "Timestamp"
+            "title": "Execution Start Ts"
           },
           "app_key": {
             "type": "string",
@@ -1794,7 +1693,7 @@
           "job_name",
           "error_message",
           "error_type",
-          "timestamp",
+          "execution_start_ts",
           "app_key"
         ],
         "title": "JobErrorEntry"

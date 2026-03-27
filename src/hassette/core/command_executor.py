@@ -291,28 +291,25 @@ class CommandExecutor(Service):
     # ------------------------------------------------------------------
 
     async def register_listener(self, registration: ListenerRegistration) -> int:
-        """Upsert a listener registration into the listeners table.
-
-        On conflict with the same natural key (app_key, instance_index, handler_method, topic),
-        only last_registered_at is updated — first_registered_at is never changed.
+        """Insert a listener registration into the listeners table.
 
         Args:
             registration: The listener registration data.
 
         Returns:
-            The row ID of the inserted or updated row.
+            The row ID of the inserted row.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
         return await self.hassette.database_service.submit(self._do_register_listener(registration))
 
     async def _do_register_listener(self, registration: ListenerRegistration) -> int:
-        """Execute the listener INSERT OR CONFLICT SQL; called by the DB write-queue worker.
+        """Execute the listener INSERT SQL; called by the DB write-queue worker.
 
         Args:
             registration: The listener registration data.
 
         Returns:
-            The row ID of the inserted or updated row.
+            The row ID of the inserted row.
         """
         db = self.hassette.database_service.db
         cursor = await db.execute(
@@ -321,13 +318,8 @@ class CommandExecutor(Service):
                 app_key, instance_index, handler_method, topic,
                 debounce, throttle, once, priority,
                 predicate_description, human_description,
-                source_location, registration_source,
-                first_registered_at, last_registered_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (app_key, instance_index, handler_method, topic)
-            DO UPDATE SET
-                last_registered_at = excluded.last_registered_at,
-                human_description = excluded.human_description
+                source_location, registration_source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
             (
@@ -343,8 +335,6 @@ class CommandExecutor(Service):
                 registration.human_description,
                 registration.source_location,
                 registration.registration_source,
-                registration.first_registered_at,
-                registration.last_registered_at,
             ),
         )
         row = await cursor.fetchone()
@@ -354,28 +344,25 @@ class CommandExecutor(Service):
         return row[0]
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
-        """Upsert a scheduled job registration into the scheduled_jobs table.
-
-        On conflict with the same natural key (app_key, instance_index, job_name),
-        only last_registered_at is updated.
+        """Insert a scheduled job registration into the scheduled_jobs table.
 
         Args:
             registration: The scheduled job registration data.
 
         Returns:
-            The row ID of the inserted or updated row.
+            The row ID of the inserted row.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
         return await self.hassette.database_service.submit(self._do_register_job(registration))
 
     async def _do_register_job(self, registration: ScheduledJobRegistration) -> int:
-        """Execute the scheduled_jobs INSERT OR CONFLICT SQL; called by the DB write-queue worker.
+        """Execute the scheduled_jobs INSERT SQL; called by the DB write-queue worker.
 
         Args:
             registration: The scheduled job registration data.
 
         Returns:
-            The row ID of the inserted or updated row.
+            The row ID of the inserted row.
         """
         db = self.hassette.database_service.db
         cursor = await db.execute(
@@ -384,11 +371,8 @@ class CommandExecutor(Service):
                 app_key, instance_index, job_name, handler_method,
                 trigger_type, trigger_value, repeat,
                 args_json, kwargs_json,
-                source_location, registration_source,
-                first_registered_at, last_registered_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (app_key, instance_index, job_name)
-            DO UPDATE SET last_registered_at = excluded.last_registered_at
+                source_location, registration_source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
             (
@@ -403,8 +387,6 @@ class CommandExecutor(Service):
                 registration.kwargs_json,
                 registration.source_location,
                 registration.registration_source,
-                registration.first_registered_at,
-                registration.last_registered_at,
             ),
         )
         row = await cursor.fetchone()

@@ -389,6 +389,7 @@ class TelemetryQueryService(Resource):
         if session_id is not None:
             handler_query = """
                 SELECT
+                    hi.listener_id,
                     l.app_key,
                     l.handler_method,
                     l.topic,
@@ -397,7 +398,8 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
-                LEFT JOIN listeners l ON l.id = hi.listener_id
+                -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
+                JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
                     AND hi.execution_start_ts > ?
                     AND hi.session_id = ?
@@ -406,6 +408,7 @@ class TelemetryQueryService(Resource):
             """
             job_query = """
                 SELECT
+                    je.job_id,
                     sj.app_key,
                     sj.job_name,
                     sj.handler_method,
@@ -414,7 +417,8 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
-                LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
+                -- INNER JOIN: excludes executions whose job was deleted by clear_registrations()
+                JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
                     AND je.execution_start_ts > ?
                     AND je.session_id = ?
@@ -426,6 +430,7 @@ class TelemetryQueryService(Resource):
         else:
             handler_query = """
                 SELECT
+                    hi.listener_id,
                     l.app_key,
                     l.handler_method,
                     l.topic,
@@ -434,15 +439,16 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
-                LEFT JOIN listeners l ON l.id = hi.listener_id
+                -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
+                JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
-                    AND hi.listener_id IS NOT NULL
                     AND hi.execution_start_ts > ?
                 ORDER BY hi.execution_start_ts DESC
                 LIMIT ?
             """
             job_query = """
                 SELECT
+                    je.job_id,
                     sj.app_key,
                     sj.job_name,
                     sj.handler_method,
@@ -451,9 +457,9 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
-                LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
+                -- INNER JOIN: excludes executions whose job was deleted by clear_registrations()
+                JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
-                    AND je.job_id IS NOT NULL
                     AND je.execution_start_ts > ?
                 ORDER BY je.execution_start_ts DESC
                 LIMIT ?
@@ -482,9 +488,9 @@ class TelemetryQueryService(Resource):
                 hi.execution_start_ts,
                 hi.duration_ms
             FROM handler_invocations hi
-            LEFT JOIN listeners l ON l.id = hi.listener_id
+            -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
+            JOIN listeners l ON l.id = hi.listener_id
             WHERE hi.duration_ms > ?
-                AND hi.listener_id IS NOT NULL
             ORDER BY hi.duration_ms DESC
             LIMIT ?
         """

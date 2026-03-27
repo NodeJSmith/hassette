@@ -1,6 +1,5 @@
 import asyncio
 import itertools
-import time
 import typing
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
@@ -99,7 +98,6 @@ class BusService(Service):
         first so events are received immediately; ``db_id`` is set once DB
         registration completes, and dispatch uses the direct-invoke path until then.
         """
-        now = time.time()
         source_location, registration_source = capture_registration_source()
         human_description: str | None = None
         if listener.predicate is not None and hasattr(listener.predicate, "summarize"):
@@ -117,8 +115,6 @@ class BusService(Service):
             human_description=human_description,
             source_location=source_location,
             registration_source=registration_source,
-            first_registered_at=now,
-            last_registered_at=now,
         )
         if listener.once:
             listener.db_id = await self._executor.register_listener(reg)
