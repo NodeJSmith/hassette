@@ -398,6 +398,7 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
+                -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
                 JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
                     AND hi.execution_start_ts > ?
@@ -416,6 +417,7 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
+                -- INNER JOIN: excludes executions whose job was deleted by clear_registrations()
                 JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
                     AND je.execution_start_ts > ?
@@ -437,6 +439,7 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
+                -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
                 JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
                     AND hi.execution_start_ts > ?
@@ -454,6 +457,7 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
+                -- INNER JOIN: excludes executions whose job was deleted by clear_registrations()
                 JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
                     AND je.execution_start_ts > ?
@@ -484,6 +488,7 @@ class TelemetryQueryService(Resource):
                 hi.execution_start_ts,
                 hi.duration_ms
             FROM handler_invocations hi
+            -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
             JOIN listeners l ON l.id = hi.listener_id
             WHERE hi.duration_ms > ?
             ORDER BY hi.duration_ms DESC

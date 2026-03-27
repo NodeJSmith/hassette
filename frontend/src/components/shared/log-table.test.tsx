@@ -261,37 +261,92 @@ describe("LogTable", () => {
 
   // -- Row expand/collapse --
 
-  it("expands log message on click", () => {
-    state.logs.push(createLogEntry({ message: "Expandable message" }));
+  it("non-truncated message cell is not interactive", () => {
+    // JSDOM has no layout engine, so scrollWidth === clientWidth === 0 → not truncated
+    state.logs.push(createLogEntry({ message: "Short message" }));
 
     const { container } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
 
-    const expandBtn = container.querySelector("button.ht-log-expand-btn") as HTMLElement;
-    expect(expandBtn.getAttribute("aria-expanded")).toBe("false");
-
-    fireEvent.click(expandBtn);
-    expect(expandBtn.getAttribute("aria-expanded")).toBe("true");
-
-    // Click again to collapse
-    fireEvent.click(expandBtn);
-    expect(expandBtn.getAttribute("aria-expanded")).toBe("false");
+    const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
+    expect(msgCell).toBeDefined();
+    // No role="button" or aria-expanded on non-expandable cells
+    expect(msgCell.getAttribute("role")).toBeNull();
+    expect(msgCell.getAttribute("aria-expanded")).toBeNull();
+    expect(msgCell.classList.contains("is-expandable")).toBe(false);
   });
 
-  it("expands log message via keyboard (native button)", () => {
-    state.logs.push(createLogEntry({ message: "Keyboard expand" }));
+  it("clicking non-truncated cell does not add is-expanded", () => {
+    state.logs.push(createLogEntry({ message: "Short message" }));
 
     const { container } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
 
-    // Native <button> handles Enter/Space via click event — fireEvent.click simulates this
-    const expandBtn = container.querySelector("button.ht-log-expand-btn") as HTMLElement;
-    fireEvent.click(expandBtn);
-    expect(expandBtn.getAttribute("aria-expanded")).toBe("true");
+    const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
+    fireEvent.click(msgCell);
+    expect(msgCell.classList.contains("is-expanded")).toBe(false);
+  });
+
+  it("truncated message cell becomes expandable and toggles on click", () => {
+    state.logs.push(createLogEntry({ message: "A very long message that would be truncated" }));
+
+    // Mock scrollWidth > clientWidth to simulate truncation in JSDOM
+    const origScrollWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth");
+    const origClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", { configurable: true, get() { return 500; } });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get() { return 200; } });
+
+    try {
+      const { container } = render(
+        <LogTable />,
+        { wrapper: createWrapper(state) },
+      );
+
+      const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
+      expect(msgCell.classList.contains("is-expandable")).toBe(true);
+      expect(msgCell.getAttribute("role")).toBe("button");
+      expect(msgCell.getAttribute("aria-expanded")).toBe("false");
+
+      fireEvent.click(msgCell);
+      expect(msgCell.getAttribute("aria-expanded")).toBe("true");
+      expect(msgCell.classList.contains("is-expanded")).toBe(true);
+
+      fireEvent.click(msgCell);
+      expect(msgCell.getAttribute("aria-expanded")).toBe("false");
+    } finally {
+      if (origScrollWidth) Object.defineProperty(HTMLElement.prototype, "scrollWidth", origScrollWidth);
+      if (origClientWidth) Object.defineProperty(HTMLElement.prototype, "clientWidth", origClientWidth);
+    }
+  });
+
+  it("truncated message cell expands via keyboard", () => {
+    state.logs.push(createLogEntry({ message: "Truncated keyboard test" }));
+
+    const origScrollWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth");
+    const origClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", { configurable: true, get() { return 500; } });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get() { return 200; } });
+
+    try {
+      const { container } = render(
+        <LogTable />,
+        { wrapper: createWrapper(state) },
+      );
+
+      const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
+      fireEvent.keyDown(msgCell, { key: "Enter" });
+      expect(msgCell.getAttribute("aria-expanded")).toBe("true");
+
+      fireEvent.keyDown(msgCell, { key: " " });
+      expect(msgCell.getAttribute("aria-expanded")).toBe("false");
+    } finally {
+      if (origScrollWidth) Object.defineProperty(HTMLElement.prototype, "scrollWidth", origScrollWidth);
+      if (origClientWidth) Object.defineProperty(HTMLElement.prototype, "clientWidth", origClientWidth);
+    }
   });
 
   // -- App column visibility --

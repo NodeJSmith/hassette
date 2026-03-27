@@ -133,6 +133,17 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
     sortConfig.value = { column: "timestamp", asc: false };
   };
 
+  // Track which rows have truncated message text (scrollWidth > clientWidth).
+  // Uses a ref callback on each text div to detect overflow after render.
+  const truncatedRows = useRef(signal(new Set<string>())).current;
+  const checkTruncation = (key: string) => (el: HTMLElement | null) => {
+    if (!el) return;
+    const isTruncated = el.scrollWidth > el.clientWidth;
+    if (isTruncated && !truncatedRows.value.has(key)) {
+      truncatedRows.value = new Set([...truncatedRows.value, key]);
+    }
+  };
+
   const ariaSortFor = (column: SortColumn): "ascending" | "descending" | undefined =>
     sortConfig.value.column === column
       ? sortConfig.value.asc ? "ascending" : "descending"
@@ -266,25 +277,27 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 <td class="ht-col-source ht-text-mono ht-text-xs ht-text-muted" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
                   {entry.func_name}:{entry.lineno}
                 </td>
-                <td
-                  onClick={() => {
+                {(() => {
+                  const isExpanded = expandedRows.value.has(rowKey);
+                  const canExpand = truncatedRows.value.has(rowKey) || isExpanded;
+                  const toggle = () => {
+                    if (!canExpand) return;
                     const next = new Set(expandedRows.value);
                     if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                     expandedRows.value = next;
-                  }}
-                >
-                  <div class="ht-log-message">
-                    <button
-                      type="button"
-                      class="ht-log-expand-btn"
-                      aria-label={expandedRows.value.has(rowKey) ? "Collapse log message" : "Expand log message"}
-                      aria-expanded={expandedRows.value.has(rowKey)}
+                  };
+                  return (
+                    <td
+                      class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}`}
+                      {...(canExpand ? { role: "button", tabIndex: 0, "aria-expanded": isExpanded,
+                        "aria-label": isExpanded ? "Collapse log message" : "Expand log message" } : {})}
+                      onClick={toggle}
+                      onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
                     >
-                      {expandedRows.value.has(rowKey) ? "▾" : "▸"}
-                    </button>
-                    <div class={`ht-log-message__text${expandedRows.value.has(rowKey) ? " is-expanded" : ""}`}>{entry.message}</div>
-                  </div>
-                </td>
+                      <div ref={checkTruncation(rowKey)} class={`ht-log-message__text${isExpanded ? " is-expanded" : ""}`}>{entry.message}</div>
+                    </td>
+                  );
+                })()}
               </tr>
               );
             })}
