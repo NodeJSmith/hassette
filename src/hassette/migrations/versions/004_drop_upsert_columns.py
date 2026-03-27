@@ -120,7 +120,16 @@ def upgrade() -> None:
             error_traceback       TEXT
         )
     """)
-    op.execute("INSERT INTO handler_invocations SELECT * FROM _handler_invocations_old")
+    op.execute("""
+        INSERT INTO handler_invocations (
+            id, listener_id, session_id, execution_start_ts,
+            duration_ms, status, error_type, error_message, error_traceback
+        )
+        SELECT
+            id, listener_id, session_id, execution_start_ts,
+            duration_ms, status, error_type, error_message, error_traceback
+        FROM _handler_invocations_old
+    """)
     op.execute("DROP TABLE _handler_invocations_old")
 
     op.execute("CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_ts DESC)")
@@ -143,7 +152,16 @@ def upgrade() -> None:
             error_traceback       TEXT
         )
     """)
-    op.execute("INSERT INTO job_executions SELECT * FROM _job_executions_old")
+    op.execute("""
+        INSERT INTO job_executions (
+            id, job_id, session_id, execution_start_ts,
+            duration_ms, status, error_type, error_message, error_traceback
+        )
+        SELECT
+            id, job_id, session_id, execution_start_ts,
+            duration_ms, status, error_type, error_message, error_traceback
+        FROM _job_executions_old
+    """)
     op.execute("DROP TABLE _job_executions_old")
 
     op.execute("CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_ts DESC)")
@@ -248,7 +266,16 @@ def downgrade() -> None:
             error_traceback       TEXT
         )
     """)
-    op.execute("INSERT INTO handler_invocations SELECT * FROM _handler_invocations_old")
+    op.execute("""
+        INSERT INTO handler_invocations (
+            id, listener_id, session_id, execution_start_ts,
+            duration_ms, status, error_type, error_message, error_traceback
+        )
+        SELECT
+            id, listener_id, session_id, execution_start_ts,
+            duration_ms, status, error_type, error_message, error_traceback
+        FROM _handler_invocations_old
+    """)
     op.execute("DROP TABLE _handler_invocations_old")
 
     op.execute("CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_ts DESC)")
@@ -270,7 +297,16 @@ def downgrade() -> None:
             error_traceback       TEXT
         )
     """)
-    op.execute("INSERT INTO job_executions SELECT * FROM _job_executions_old")
+    op.execute("""
+        INSERT INTO job_executions (
+            id, job_id, session_id, execution_start_ts,
+            duration_ms, status, error_type, error_message, error_traceback
+        )
+        SELECT
+            id, job_id, session_id, execution_start_ts,
+            duration_ms, status, error_type, error_message, error_traceback
+        FROM _job_executions_old
+    """)
     op.execute("DROP TABLE _job_executions_old")
 
     op.execute("CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_ts DESC)")

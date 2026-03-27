@@ -398,9 +398,8 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
-                LEFT JOIN listeners l ON l.id = hi.listener_id
+                JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
-                    AND hi.listener_id IS NOT NULL
                     AND hi.execution_start_ts > ?
                     AND hi.session_id = ?
                 ORDER BY hi.execution_start_ts DESC
@@ -417,9 +416,8 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
-                LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
+                JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
-                    AND je.job_id IS NOT NULL
                     AND je.execution_start_ts > ?
                     AND je.session_id = ?
                 ORDER BY je.execution_start_ts DESC
@@ -439,9 +437,8 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
-                LEFT JOIN listeners l ON l.id = hi.listener_id
+                JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
-                    AND hi.listener_id IS NOT NULL
                     AND hi.execution_start_ts > ?
                 ORDER BY hi.execution_start_ts DESC
                 LIMIT ?
@@ -457,9 +454,8 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
-                LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
+                JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
-                    AND je.job_id IS NOT NULL
                     AND je.execution_start_ts > ?
                 ORDER BY je.execution_start_ts DESC
                 LIMIT ?

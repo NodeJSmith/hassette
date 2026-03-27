@@ -415,6 +415,15 @@ class TestGetRecentErrors:
         assert "handler" in kinds
         assert "job" in kinds
 
+        # Verify Fix 2: listener_id/job_id and execution_start_ts are present and non-zero
+        handler_row = next(r for r in rows if r["kind"] == "handler")
+        assert handler_row["listener_id"] > 0
+        assert handler_row["execution_start_ts"] > 0
+
+        job_row = next(r for r in rows if r["kind"] == "job")
+        assert job_row["job_id"] > 0
+        assert job_row["execution_start_ts"] > 0
+
     async def test_get_recent_errors_session_scoped(
         self,
         svc: TelemetryQueryService,

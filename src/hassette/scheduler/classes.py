@@ -41,7 +41,7 @@ class IntervalTrigger:
         return hash(self.interval)
 
     def __str__(self) -> str:
-        return f"interval:{self.interval.in_seconds()}s"
+        return f"interval:{self.interval.in_seconds():g}s"
 
     @classmethod
     def from_arguments(

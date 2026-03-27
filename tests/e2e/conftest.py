@@ -495,6 +495,7 @@ def mock_hassette():
         return_value=[
             {
                 "app_key": "my_app",
+                "listener_id": 42,
                 "handler_method": "on_light_change",
                 "topic": "state_changed.light.kitchen",
                 "execution_start_ts": 1704067100.0,
@@ -505,6 +506,7 @@ def mock_hassette():
             },
             {
                 "app_key": "my_app",
+                "job_id": 7,
                 "handler_method": "check_lights",
                 "job_name": "check_lights",
                 "execution_start_ts": 1704067000.0,
@@ -515,6 +517,7 @@ def mock_hassette():
             },
             {
                 "app_key": "broken_app",
+                "listener_id": 43,
                 "handler_method": "on_door_open",
                 "topic": "state_changed.binary_sensor.door",
                 "execution_start_ts": 1704067050.0,
