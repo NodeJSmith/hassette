@@ -566,6 +566,13 @@ def _log_handler():
         ("hassette.apps.my_app", logging.WARNING, "Light kitchen unresponsive"),
         ("hassette.core", logging.DEBUG, "WebSocket heartbeat sent"),
         ("hassette.apps.my_app", logging.ERROR, "Failed to call service"),
+        (
+            "hassette.apps.my_app",
+            logging.INFO,
+            "Processing state change for sensor.living_room_temperature with attributes: "
+            "unit_of_measurement=°C, friendly_name=Living Room Temperature, device_class=temperature, "
+            "state_class=measurement, last_reset=2024-01-01T00:00:00+00:00",
+        ),
     ]
     for logger_name, level, msg in entries:
         record = logging.LogRecord(
