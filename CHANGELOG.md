@@ -8,10 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
-- Edge-case bug fixes: multi-predicate listeners no longer collapse into one DB row, dashboard error feed shows correct listener/job IDs and timestamps, SPA static file serving works under editable installs, scheduler auto-generated names include trigger info to prevent collisions
-- Dashboard endpoints catch `sqlite3.Error` specifically instead of bare `Exception`, preventing silent swallowing of programming errors
-- Dead endpoints removed: `GET /bus/metrics` (hardcoded zeros) and `GET /apps/{app_key}` (unused, returned only first instance)
-- Dead columns `first_registered_at`/`last_registered_at` and upsert logic removed from both registration tables (never read, cleanup on restart made upserts dead code)
+- Edge-case bug fixes: multi-predicate listeners no longer collapse into one DB row, dashboard error feed shows correct listener/job IDs and timestamps, SPA static file serving works under editable installs, scheduler auto-generated names include trigger info to prevent collisions (#446)
+- Dashboard endpoints catch `sqlite3.Error` specifically instead of bare `Exception`, preventing silent swallowing of programming errors (#446)
+- Dead endpoints removed: `GET /bus/metrics` (hardcoded zeros) and `GET /apps/{app_key}` (unused, returned only first instance) (#446)
+- Dead columns `first_registered_at`/`last_registered_at` and upsert logic removed from both registration tables (never read, cleanup on restart made upserts dead code) (#446)
 - Keyboard accessibility: focus-visible indicators on all interactive elements, skip-nav link, ARIA roles on status filter/log expand/health bar, self-hosted fonts for offline use (#442)
 - Log table Source column no longer overflows into Message column; column widths rebalanced (#442)
 - Missing CSS classes `.ht-text-warning` and `.ht-tag--neutral` now defined (were used in components but never styled) (#442)
