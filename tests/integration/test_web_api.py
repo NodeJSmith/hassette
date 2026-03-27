@@ -69,6 +69,22 @@ class TestHealthEndpoints:
         assert "app_count" in data
 
 
+class TestSPACatchAll:
+    async def test_path_traversal_returns_404_or_spa(self, client: "AsyncClient") -> None:
+        """Path traversal attempts must not serve files outside the SPA directory."""
+        response = await client.get("/../../etc/passwd")
+        # Either 404 (static-looking path) or 200 with SPA index.html — never the actual file
+        assert response.status_code in (200, 404)
+        if response.status_code == 200:
+            # SPA fallback — should be HTML, not /etc/passwd content
+            assert "root:" not in response.text
+
+    async def test_api_path_returns_404(self, client: "AsyncClient") -> None:
+        """Paths under /api/ that don't match a route return 404, not SPA index.html."""
+        response = await client.get("/api/nonexistent")
+        assert response.status_code == 404
+
+
 class TestAppEndpoints:
     async def test_get_apps(self, client: "AsyncClient") -> None:
         response = await client.get("/api/apps")
@@ -524,6 +540,40 @@ class TestTelemetryDashboard:
         assert len(data["errors"]) == 2
         assert data["errors"][0]["kind"] == "handler"
         assert data["errors"][1]["kind"] == "job"
+
+    async def test_kpis_returns_zeroed_on_sqlite_error(self, client: "AsyncClient", mock_hassette) -> None:
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/dashboard/kpis")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_handlers"] == 0
+        assert data["total_jobs"] == 0
+        assert data["error_rate"] == 0.0
+
+    async def test_kpis_propagates_programming_error(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(side_effect=TypeError("bad argument"))
+        with pytest.raises(TypeError, match="bad argument"):
+            await client.get("/api/telemetry/dashboard/kpis")
+
+    async def test_errors_returns_empty_on_sqlite_error(self, client: "AsyncClient", mock_hassette) -> None:
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["errors"] == []
+
+    async def test_errors_propagates_programming_error(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(side_effect=TypeError("bad argument"))
+        with pytest.raises(TypeError, match="bad argument"):
+            await client.get("/api/telemetry/dashboard/errors")
 
 
 class TestTelemetryHandlerInvocations:

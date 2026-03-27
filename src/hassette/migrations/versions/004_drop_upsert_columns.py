@@ -100,6 +100,11 @@ def upgrade() -> None:
     """)
     op.execute("DROP TABLE _scheduled_jobs_old")
 
+    # Replace the dropped UNIQUE constraints with non-unique indexes for query performance.
+    # These cover the same columns that clear_registrations() and telemetry queries filter on.
+    op.execute("CREATE INDEX idx_listeners_app ON listeners(app_key, instance_index)")
+    op.execute("CREATE INDEX idx_scheduled_jobs_app ON scheduled_jobs(app_key, instance_index)")
+
     # --- Step 2: Rebuild child tables to fix corrupted FK references ---
     # After the parent table renames above, handler_invocations.listener_id
     # now references _listeners_old (which was dropped). Rebuild both child

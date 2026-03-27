@@ -96,26 +96,19 @@ def test_search_filter_narrows_entries(page: Page, base_url: str) -> None:
 
 
 def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
-    """Log rows have an expand button that toggles aria-expanded."""
+    """Truncated log message cells are expandable via click."""
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
-    # Find the first expand button
-    expand_btn = page.locator("button.ht-log-expand-btn").first
-    expect(expand_btn).to_be_attached()
-    expect(expand_btn).to_have_attribute("aria-expanded", "false")
-    # The button has an accessible label
-    expect(expand_btn).to_have_attribute(
-        "aria-label",
-        "Expand log message",
-    )
-    # Click to expand (hover first since button uses opacity:0)
-    expand_btn.click(force=True)
+    # Find the first expandable message cell (truncation-gated interactivity)
+    msg_cell = page.locator("td.ht-log-message-cell.is-expandable").first
+    expect(msg_cell).to_be_attached()
+    expect(msg_cell).to_have_attribute("aria-expanded", "false")
+    expect(msg_cell).to_have_attribute("aria-label", "Expand log message")
+    # Click to expand
+    msg_cell.click()
     page.wait_for_timeout(200)
-    expect(expand_btn).to_have_attribute("aria-expanded", "true")
-    expect(expand_btn).to_have_attribute(
-        "aria-label",
-        "Collapse log message",
-    )
+    expect(msg_cell).to_have_attribute("aria-expanded", "true")
+    expect(msg_cell).to_have_attribute("aria-label", "Collapse log message")
 
 
 def test_log_filter_controls_have_aria_labels(
