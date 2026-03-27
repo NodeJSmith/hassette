@@ -454,7 +454,6 @@ strong {
   font-weight: var(--ht-weight-semibold);
   font-size: var(--ht-text-sm);
   color: var(--ht-text-secondary);
-  text-transform: uppercase;
   letter-spacing: 0.03em;
   padding: var(--ht-sp-2) var(--ht-sp-3);
   border-bottom: 1px solid var(--ht-border-strong);
@@ -1515,7 +1514,7 @@ strong {
 }
 
 .ht-table-log {
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .ht-table-log thead {
@@ -1529,11 +1528,11 @@ strong {
   white-space: nowrap;
 }
 
-/* Finding #1: widened source column from 140→180px; tightened level from 90→75px */
-.ht-table-log .ht-col-level   { width: 75px; }
-.ht-table-log .ht-col-time    { width: 170px; }
-.ht-table-log .ht-col-app     { width: 160px; }
-.ht-table-log .ht-col-source  { width: 180px; overflow: hidden; text-overflow: ellipsis; }
+/* Shrink-to-fit columns: width: 1% + nowrap keeps them tight to content */
+.ht-table-log .ht-col-level   { width: 1%; white-space: nowrap; }
+.ht-table-log .ht-col-time    { width: 1%; white-space: nowrap; }
+.ht-table-log .ht-col-app     { width: 1%; white-space: nowrap; }
+.ht-table-log .ht-col-source  { width: 1%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
 
 @media screen and (max-width: 1024px) {
   .ht-table-log .ht-col-source {
