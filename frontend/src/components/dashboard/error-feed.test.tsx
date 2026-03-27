@@ -12,7 +12,7 @@ function createError(overrides: Partial<DashboardErrorEntry> = {}): DashboardErr
     kind: "handler",
     error_message: "something broke",
     error_type: "ValueError",
-    timestamp: 1700000000,
+    execution_start_ts: 1700000000,
     app_key: "test_app",
     listener_id: 42,
     topic: "state_changed",
@@ -71,11 +71,11 @@ describe("ErrorFeed", () => {
     expect(badge?.className).toContain("ht-tag--neutral");
   });
 
-  it("key uses listener_id not timestamp+index", () => {
+  it("key uses listener_id not execution_start_ts+index", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const errors = [
-      createError({ listener_id: 10, timestamp: 1700000000, app_key: "app_a" }),
-      createError({ listener_id: 20, timestamp: 1700000000, app_key: "app_a" }),
+      createError({ listener_id: 10, execution_start_ts: 1700000000, app_key: "app_a" }),
+      createError({ listener_id: 20, execution_start_ts: 1700000000, app_key: "app_a" }),
     ];
     render(<ErrorFeed errors={errors} />);
     // No duplicate key warnings should appear

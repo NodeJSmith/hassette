@@ -5,6 +5,7 @@ the SPA never needs to know or pass a session ID.
 """
 
 import logging
+import sqlite3
 
 from fastapi import APIRouter, Query
 
@@ -148,7 +149,25 @@ async def dashboard_kpis(
 ) -> DashboardKpisResponse:
     """Global KPI metrics for the dashboard strip."""
     session_id = safe_session_id(runtime)
-    summary = await telemetry.get_global_summary(session_id=session_id)
+    try:
+        summary = await telemetry.get_global_summary(session_id=session_id)
+    except sqlite3.Error:
+        logger.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
+        status = runtime.get_system_status()
+        return DashboardKpisResponse(
+            total_handlers=0,
+            total_jobs=0,
+            total_invocations=0,
+            total_executions=0,
+            total_errors=0,
+            total_job_errors=0,
+            avg_handler_duration_ms=0.0,
+            avg_job_duration_ms=0.0,
+            error_rate=0.0,
+            error_rate_class=classify_error_rate(0.0),
+            uptime_seconds=status.uptime_seconds,
+        )
+
     total = summary.listeners.total_invocations + summary.jobs.total_executions
     errors = summary.listeners.total_errors + summary.jobs.total_errors
     error_rate = (errors / total * 100) if total > 0 else 0.0
@@ -180,7 +199,7 @@ async def dashboard_app_grid(
     snapshot = runtime.get_all_manifests_snapshot()
     try:
         summaries = await telemetry.get_all_app_summaries(session_id=session_id)
-    except Exception:
+    except sqlite3.Error:
         logger.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
@@ -229,7 +248,11 @@ async def dashboard_errors(
 ) -> DashboardErrorsResponse:
     """Recent errors for the dashboard error feed."""
     session_id = safe_session_id(runtime)
-    raw_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
+    try:
+        raw_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
+    except sqlite3.Error:
+        logger.warning("Failed to fetch recent errors for dashboard", exc_info=True)
+        return DashboardErrorsResponse(errors=[])
 
     typed_errors: list[HandlerErrorEntry | JobErrorEntry] = []
     for err in raw_errors:
@@ -241,7 +264,7 @@ async def dashboard_errors(
                     job_name=err.get("job_name", ""),
                     error_message=err.get("error_message", ""),
                     error_type=err.get("error_type", ""),
-                    timestamp=err.get("timestamp", 0.0),
+                    execution_start_ts=err.get("execution_start_ts", 0.0),
                     app_key=err.get("app_key", ""),
                 )
             )
@@ -253,7 +276,7 @@ async def dashboard_errors(
                     handler_method=err.get("handler_method", ""),
                     error_message=err.get("error_message", ""),
                     error_type=err.get("error_type", ""),
-                    timestamp=err.get("timestamp", 0.0),
+                    execution_start_ts=err.get("execution_start_ts", 0.0),
                     app_key=err.get("app_key", ""),
                 )
             )

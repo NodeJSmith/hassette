@@ -94,10 +94,9 @@ async def _insert_listener(
         """INSERT INTO listeners
                (app_key, instance_index, handler_method, topic,
                 debounce, throttle, once, priority,
-                source_location,
-                first_registered_at, last_registered_at)
-           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1', ?, ?)""",
-        (app_key, instance_index, handler_method, topic, time.time(), time.time()),
+                source_location)
+           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1')""",
+        (app_key, instance_index, handler_method, topic),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -117,10 +116,9 @@ async def _insert_job(
         """INSERT INTO scheduled_jobs
                (app_key, instance_index, job_name, handler_method,
                 trigger_type, trigger_value, repeat,
-                source_location,
-                first_registered_at, last_registered_at)
-           VALUES (?, ?, ?, ?, 'interval', '60', 1, 'test.py:1', ?, ?)""",
-        (app_key, instance_index, job_name, handler_method, time.time(), time.time()),
+                source_location)
+           VALUES (?, ?, ?, ?, 'interval', '60', 1, 'test.py:1')""",
+        (app_key, instance_index, job_name, handler_method),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None

@@ -76,7 +76,6 @@ async def executor(
 
 
 def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> ListenerRegistration:
-    now = time.time()
     return ListenerRegistration(
         app_key="test_app",
         instance_index=0,
@@ -90,13 +89,10 @@ def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> L
         human_description=None,
         source_location="test_command_executor.py:1",
         registration_source=None,
-        first_registered_at=now,
-        last_registered_at=now,
     )
 
 
 def _make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistration:
-    now = time.time()
     return ScheduledJobRegistration(
         app_key="test_app",
         instance_index=0,
@@ -109,8 +105,6 @@ def _make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistr
         kwargs_json="{}",
         source_location="test_command_executor.py:1",
         registration_source=None,
-        first_registered_at=now,
-        last_registered_at=now,
     )
 
 
@@ -321,88 +315,43 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
 
 @pytest.mark.asyncio
-async def test_register_listener_upsert(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
-    """register_listener() inserts on first call, updates last_registered_at on second."""
+async def test_register_listener_creates_separate_rows(
+    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
+) -> None:
+    """register_listener() creates a new row for each call (no upsert)."""
     db_service, _ = initialized_db
     reg = _make_listener_registration()
     first_id = await executor.register_listener(reg)
+    second_id = await executor.register_listener(reg)
 
-    # Fetch first_registered_at
-    cursor = await db_service.db.execute(
-        "SELECT first_registered_at, last_registered_at FROM listeners WHERE id = ?",
-        (first_id,),
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    first_registered_at_before = row[0]
-    last_registered_at_before = row[1]
+    assert first_id != second_id
 
-    # Wait a bit so last_registered_at will be different
-    await asyncio.sleep(0.01)
-
-    # Second registration with updated last_registered_at
-    now = time.time()
-    reg2 = ListenerRegistration(
-        **{**reg.__dict__, "last_registered_at": now},
-    )
-    await executor.register_listener(reg2)
-
-    # Check that there's still only 1 row (upsert, not insert)
     cursor = await db_service.db.execute(
         "SELECT COUNT(*) FROM listeners WHERE app_key = ? AND handler_method = ? AND topic = ?",
         (reg.app_key, reg.handler_method, reg.topic),
     )
     count_row = await cursor.fetchone()
-    assert count_row[0] == 1
-
-    # first_registered_at must NOT change
-    cursor = await db_service.db.execute(
-        "SELECT first_registered_at, last_registered_at FROM listeners WHERE id = ?",
-        (first_id,),
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == first_registered_at_before, "first_registered_at must not change on conflict"
-    assert row[1] >= last_registered_at_before, "last_registered_at must update"
+    assert count_row[0] == 2
 
 
 @pytest.mark.asyncio
-async def test_register_job_upsert(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
-    """register_job() inserts on first call, updates last_registered_at on second."""
+async def test_register_job_creates_separate_rows(
+    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
+) -> None:
+    """register_job() creates a new row for each call (no upsert)."""
     db_service, _ = initialized_db
     reg = _make_job_registration()
     first_id = await executor.register_job(reg)
+    second_id = await executor.register_job(reg)
 
-    cursor = await db_service.db.execute(
-        "SELECT first_registered_at, last_registered_at FROM scheduled_jobs WHERE id = ?",
-        (first_id,),
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    first_ts = row[0]
+    assert first_id != second_id
 
-    await asyncio.sleep(0.01)
-    now = time.time()
-    reg2 = ScheduledJobRegistration(
-        **{**reg.__dict__, "last_registered_at": now},
-    )
-    await executor.register_job(reg2)
-
-    # Still only 1 row
     cursor = await db_service.db.execute(
         "SELECT COUNT(*) FROM scheduled_jobs WHERE app_key = ? AND job_name = ?",
         (reg.app_key, reg.job_name),
     )
     count_row = await cursor.fetchone()
-    assert count_row[0] == 1
-
-    # first_registered_at unchanged
-    cursor = await db_service.db.execute(
-        "SELECT first_registered_at FROM scheduled_jobs WHERE id = ?",
-        (first_id,),
-    )
-    row = await cursor.fetchone()
-    assert row[0] == first_ts
+    assert count_row[0] == 2
 
 
 # ---------------------------------------------------------------------------

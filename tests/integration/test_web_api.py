@@ -77,14 +77,8 @@ class TestAppEndpoints:
         assert data["total"] == 1
         assert data["running"] == 1
 
-    async def test_get_app_found(self, client: "AsyncClient") -> None:
+    async def test_get_app_endpoint_removed(self, client: "AsyncClient") -> None:
         response = await client.get("/api/apps/my_app")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["app_key"] == "my_app"
-
-    async def test_get_app_not_found(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/apps/nonexistent")
         assert response.status_code == 404
 
     async def test_start_app(self, client: "AsyncClient") -> None:
@@ -159,16 +153,9 @@ class TestBusEndpoints:
         assert response.status_code == 200
         assert response.json() == []
 
-    async def test_get_bus_metrics_summary_empty(self, client: "AsyncClient") -> None:
+    async def test_bus_metrics_endpoint_removed(self, client: "AsyncClient") -> None:
         response = await client.get("/api/bus/metrics")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total_listeners"] == 0
-        assert data["total_invocations"] == 0
-        assert data["total_successful"] == 0
-        assert data["total_failed"] == 0
-        assert data["total_di_failures"] == 0
-        assert data["total_cancelled"] == 0
+        assert response.status_code == 404
 
     async def test_get_listener_metrics_returns_listener_with_summary(
         self, mock_hassette: MagicMock, client: "AsyncClient"
@@ -517,7 +504,7 @@ class TestTelemetryDashboard:
                     "handler_method": "on_light",
                     "error_message": "test error",
                     "error_type": "RuntimeError",
-                    "timestamp": 1234567890.0,
+                    "execution_start_ts": 1234567890.0,
                     "app_key": "my_app",
                 },
                 {
@@ -526,7 +513,7 @@ class TestTelemetryDashboard:
                     "job_name": "check_sensors",
                     "error_message": "timeout",
                     "error_type": "TimeoutError",
-                    "timestamp": 1234567891.0,
+                    "execution_start_ts": 1234567891.0,
                     "app_key": "sensor_app",
                 },
             ]

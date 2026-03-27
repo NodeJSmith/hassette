@@ -154,17 +154,17 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
 
     # Insert a listener for FK reference
     await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location, "
-        "first_registered_at, last_registered_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ("test.App", 0, "on_event", "state_changed", "test.py:1", time.time(), time.time()),
+        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("test.App", 0, "on_event", "state_changed", "test.py:1"),
     )
     await db.commit()
 
     # Insert a scheduled_job for FK reference
     await db.execute(
-        "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, source_location, "
-        "first_registered_at, last_registered_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ("test.App", 0, "my_job", "run_job", "test.py:2", time.time(), time.time()),
+        "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, source_location)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("test.App", 0, "my_job", "run_job", "test.py:2"),
     )
     await db.commit()
 
@@ -401,8 +401,6 @@ EXPECTED_TABLES = {
         "predicate_description",
         "source_location",
         "registration_source",
-        "first_registered_at",
-        "last_registered_at",
         "human_description",
     },
     "scheduled_jobs": {
@@ -418,8 +416,6 @@ EXPECTED_TABLES = {
         "kwargs_json",
         "source_location",
         "registration_source",
-        "first_registered_at",
-        "last_registered_at",
     },
     "handler_invocations": {
         "id",

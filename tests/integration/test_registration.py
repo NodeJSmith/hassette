@@ -151,7 +151,6 @@ async def test_listener_registration_persists_correct_app_key(
 ) -> None:
     """register_listener() on CommandExecutor persists the correct app_key and instance_index."""
     db_service, _ = initialized_db
-    ts = time.time()
     reg = ListenerRegistration(
         app_key="my_app",
         instance_index=2,
@@ -165,8 +164,6 @@ async def test_listener_registration_persists_correct_app_key(
         human_description=None,
         source_location="test_registration.py:1",
         registration_source=None,
-        first_registered_at=ts,
-        last_registered_at=ts,
     )
     listener_id = await executor.register_listener(reg)
     assert listener_id > 0
@@ -188,7 +185,6 @@ async def test_job_registration_persists_correct_app_key(
 ) -> None:
     """register_job() on CommandExecutor persists the correct app_key and instance_index."""
     db_service, _ = initialized_db
-    ts = time.time()
     reg = ScheduledJobRegistration(
         app_key="my_app",
         instance_index=3,
@@ -201,8 +197,6 @@ async def test_job_registration_persists_correct_app_key(
         kwargs_json="{}",
         source_location="test_registration.py:1",
         registration_source=None,
-        first_registered_at=ts,
-        last_registered_at=ts,
     )
     job_id = await executor.register_job(reg)
     assert job_id > 0

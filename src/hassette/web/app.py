@@ -86,7 +86,7 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
             """
             # Serve root-level SPA static files (logo, favicon, etc.)
             candidate = _SPA_DIR / path
-            if candidate.is_file() and _SPA_DIR in candidate.resolve().parents:
+            if candidate.is_file() and candidate.resolve().is_relative_to(_SPA_DIR.resolve()):
                 return FileResponse(str(candidate))
 
             last_segment = path.rsplit("/", 1)[-1]
