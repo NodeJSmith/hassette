@@ -484,9 +484,8 @@ class TelemetryQueryService(Resource):
                 hi.execution_start_ts,
                 hi.duration_ms
             FROM handler_invocations hi
-            LEFT JOIN listeners l ON l.id = hi.listener_id
+            JOIN listeners l ON l.id = hi.listener_id
             WHERE hi.duration_ms > ?
-                AND hi.listener_id IS NOT NULL
             ORDER BY hi.duration_ms DESC
             LIMIT ?
         """

@@ -104,7 +104,7 @@ def make_listener_metric(
     }
     m = MagicMock()
     m.to_dict.return_value = d
-    # Expose attributes directly for bus_metrics_summary
+    # Expose attributes directly for mock attribute access
     for k, v in d.items():
         setattr(m, k, v)
     return m
