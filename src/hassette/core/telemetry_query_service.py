@@ -154,102 +154,126 @@ class TelemetryQueryService(Resource):
         return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
 
     async def get_all_app_summaries(self, session_id: int | None = None) -> dict[str, AppHealthSummary]:
-        """Return per-app health summaries via 2 batch SQL queries (not 2N).
+        """Return per-app health summaries via 4 batch SQL queries.
 
-        Groups by ``app_key`` with ``instance_index = 0``.  Returns an empty
-        dict when no listeners or jobs exist.
+        Registration counts (handler_count, job_count) come from instance 0 only.
+        Activity counts (invocations, errors, executions, duration averages) aggregate
+        across all instances.  Returns an empty dict when no listeners or jobs exist.
         """
+        # --- Build registration queries (instance 0 only) ---
+        listener_reg_query = """
+            SELECT l.app_key, COUNT(DISTINCT l.id) AS handler_count
+            FROM listeners l
+            WHERE l.instance_index = 0
+            GROUP BY l.app_key
+        """
+        job_reg_query = """
+            SELECT sj.app_key, COUNT(DISTINCT sj.id) AS job_count
+            FROM scheduled_jobs sj
+            WHERE sj.instance_index = 0
+            GROUP BY sj.app_key
+        """
+
+        # --- Build activity queries (all instances) ---
         if session_id is not None:
-            listener_query = """
+            listener_act_query = """
                 SELECT
                     l.app_key,
-                    COUNT(DISTINCT l.id) AS handler_count,
                     COUNT(hi.rowid) AS total_invocations,
                     SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
                     COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
                     MAX(hi.execution_start_ts) AS last_listener_activity_ts
                 FROM listeners l
                 LEFT JOIN handler_invocations hi ON hi.listener_id = l.id AND hi.session_id = ?
-                WHERE l.instance_index = 0
                 GROUP BY l.app_key
             """
-            job_query = """
+            job_act_query = """
                 SELECT
                     sj.app_key,
-                    COUNT(DISTINCT sj.id) AS job_count,
                     COUNT(je.rowid) AS total_executions,
                     SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
                     MAX(je.execution_start_ts) AS last_job_activity_ts
                 FROM scheduled_jobs sj
                 LEFT JOIN job_executions je ON je.job_id = sj.id AND je.session_id = ?
-                WHERE sj.instance_index = 0
                 GROUP BY sj.app_key
             """
-            listener_params: tuple[int, ...] = (session_id,)
-            job_params: tuple[int, ...] = (session_id,)
+            listener_act_params: tuple[int, ...] = (session_id,)
+            job_act_params: tuple[int, ...] = (session_id,)
         else:
-            listener_query = """
+            listener_act_query = """
                 SELECT
                     l.app_key,
-                    COUNT(DISTINCT l.id) AS handler_count,
                     COUNT(hi.rowid) AS total_invocations,
                     SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
                     COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
                     MAX(hi.execution_start_ts) AS last_listener_activity_ts
                 FROM listeners l
                 LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
-                WHERE l.instance_index = 0
                 GROUP BY l.app_key
             """
-            job_query = """
+            job_act_query = """
                 SELECT
                     sj.app_key,
-                    COUNT(DISTINCT sj.id) AS job_count,
                     COUNT(je.rowid) AS total_executions,
                     SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
                     MAX(je.execution_start_ts) AS last_job_activity_ts
                 FROM scheduled_jobs sj
                 LEFT JOIN job_executions je ON je.job_id = sj.id
-                WHERE sj.instance_index = 0
                 GROUP BY sj.app_key
             """
-            listener_params = ()
-            job_params = ()
+            listener_act_params = ()
+            job_act_params = ()
 
-        async with self._db.execute(listener_query, listener_params) as cursor:
-            listener_rows = await cursor.fetchall()
-        async with self._db.execute(job_query, job_params) as cursor:
-            job_rows = await cursor.fetchall()
+        # Execute all four queries
+        async with self._db.execute(listener_reg_query) as cursor:
+            listener_reg_rows = await cursor.fetchall()
+        async with self._db.execute(listener_act_query, listener_act_params) as cursor:
+            listener_act_rows = await cursor.fetchall()
+        async with self._db.execute(job_reg_query) as cursor:
+            job_reg_rows = await cursor.fetchall()
+        async with self._db.execute(job_act_query, job_act_params) as cursor:
+            job_act_rows = await cursor.fetchall()
 
-        # Build per-app listener data
-        listener_data: dict[str, dict[str, Any]] = {}
-        for row in listener_rows:
+        # Build per-app data from each query
+        listener_reg: dict[str, dict[str, Any]] = {}
+        for row in listener_reg_rows:
             d = _row_to_dict(row)
-            listener_data[d["app_key"]] = d
+            listener_reg[d["app_key"]] = d
 
-        # Build per-app job data
-        job_data: dict[str, dict[str, Any]] = {}
-        for row in job_rows:
+        listener_act: dict[str, dict[str, Any]] = {}
+        for row in listener_act_rows:
             d = _row_to_dict(row)
-            job_data[d["app_key"]] = d
+            listener_act[d["app_key"]] = d
+
+        job_reg: dict[str, dict[str, Any]] = {}
+        for row in job_reg_rows:
+            d = _row_to_dict(row)
+            job_reg[d["app_key"]] = d
+
+        job_act: dict[str, dict[str, Any]] = {}
+        for row in job_act_rows:
+            d = _row_to_dict(row)
+            job_act[d["app_key"]] = d
 
         # Merge into AppHealthSummary per app_key
-        all_keys = set(listener_data.keys()) | set(job_data.keys())
+        all_keys = set(listener_reg.keys()) | set(listener_act.keys()) | set(job_reg.keys()) | set(job_act.keys())
         result: dict[str, AppHealthSummary] = {}
         for app_key in all_keys:
-            ld = listener_data.get(app_key, {})
-            jd = job_data.get(app_key, {})
-            last_listener_ts = ld.get("last_listener_activity_ts")
-            last_job_ts = jd.get("last_job_activity_ts")
+            lr = listener_reg.get(app_key, {})
+            la = listener_act.get(app_key, {})
+            jr = job_reg.get(app_key, {})
+            ja = job_act.get(app_key, {})
+            last_listener_ts = la.get("last_listener_activity_ts")
+            last_job_ts = ja.get("last_job_activity_ts")
             last_times = [t for t in (last_listener_ts, last_job_ts) if t is not None]
             result[app_key] = AppHealthSummary(
-                handler_count=ld.get("handler_count", 0),
-                job_count=jd.get("job_count", 0),
-                total_invocations=ld.get("total_invocations", 0),
-                total_errors=ld.get("total_errors", 0),
-                total_executions=jd.get("total_executions", 0),
-                total_job_errors=jd.get("total_job_errors", 0),
-                avg_duration_ms=ld.get("avg_duration_ms", 0.0),
+                handler_count=lr.get("handler_count", 0),
+                job_count=jr.get("job_count", 0),
+                total_invocations=la.get("total_invocations", 0),
+                total_errors=la.get("total_errors", 0),
+                total_executions=ja.get("total_executions", 0),
+                total_job_errors=ja.get("total_job_errors", 0),
+                avg_duration_ms=la.get("avg_duration_ms", 0.0),
                 last_activity_ts=max(last_times) if last_times else None,
             )
         return result
