@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 
 import pytest
@@ -778,3 +779,63 @@ class TestRateLimitValueValidation:
 
         with pytest.raises(ValueError, match=r"throttle.*positive"):
             Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler, throttle=-1.0)
+
+
+class TestMarkRegistered:
+    """Test Listener.mark_registered() — one-time db_id assignment."""
+
+    async def test_mark_registered_sets_db_id(self, bucket_fixture: TaskBucket) -> None:
+        """mark_registered() sets db_id on first call."""
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None)
+        assert listener.db_id is None
+
+        listener.mark_registered(42)
+        assert listener.db_id == 42
+
+    async def test_mark_registered_warns_on_double_call(
+        self, bucket_fixture: TaskBucket, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """mark_registered() logs a warning and keeps the original db_id on second call."""
+
+        listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None)
+        listener.mark_registered(42)
+
+        with caplog.at_level(logging.WARNING, logger="hassette.bus.listeners"):
+            listener.mark_registered(99)
+
+        assert listener.db_id == 42
+        assert "already registered" in caplog.text
+
+
+class TestMarkFired:
+    """Test Listener.mark_fired() — once-guard flag."""
+
+    async def test_mark_fired_sets_fired(self, bucket_fixture: TaskBucket) -> None:
+        """mark_fired() sets the internal _fired flag."""
+        listener = Listener.create(
+            task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None, once=True
+        )
+        assert listener._fired is False
+
+        listener.mark_fired()
+        assert listener._fired is True
+
+
+class TestValidateOptions:
+    """Test Listener._validate_options() — consolidated validation."""
+
+    def test_rejects_negative_debounce(self) -> None:
+        with pytest.raises(ValueError, match=r"debounce.*positive"):
+            Listener._validate_options(once=False, debounce=-1.0, throttle=None)
+
+    def test_rejects_both_debounce_and_throttle(self) -> None:
+        with pytest.raises(ValueError, match=r"Cannot specify both"):
+            Listener._validate_options(once=False, debounce=1.0, throttle=1.0)
+
+    def test_rejects_once_with_debounce(self) -> None:
+        with pytest.raises(ValueError, match=r"once.*debounce.*throttle"):
+            Listener._validate_options(once=True, debounce=1.0, throttle=None)
+
+    def test_accepts_valid_options(self) -> None:
+        Listener._validate_options(once=False, debounce=1.0, throttle=None)  # should not raise
+        Listener._validate_options(once=True, debounce=None, throttle=None)  # should not raise

@@ -103,15 +103,12 @@ def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime
     return self._next_after(previous_run, current_time)
 
 def _next_after(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-    # Pre-check total gap to avoid O(N) spin on sub-second schedules.
-    # Without this, a */5 second cron after a 10-minute gap would iterate 120 times.
-    total_gap = (current_time - anchor).in_seconds()
-    if total_gap > 60:
-        LOGGER.warning("Cron schedule >1 minute behind (%ss), skipping ahead", int(total_gap))
-        anchor = current_time
+    # No fixed skip-ahead threshold — croniter efficiently handles coarse schedules
+    # (a daily cron iterates once regardless of gap). Only sub-second crons with
+    # multi-minute gaps iterate heavily, which is rare in home automation.
     cron = croniter(self.cron_expression, anchor.py_datetime(), ret_type=datetime)
     while (next_time := cron.get_next()) <= current_time.py_datetime():
-        pass  # bounded to at most ~60 iterations now
+        pass
     return ZonedDateTime.from_py_datetime(next_time)
 ```
 

@@ -516,7 +516,7 @@ class Scheduler(Resource):
             day_of_week=day_of_week,
             start=start_dtme,
         )
-        run_at = trigger.next_run_time()
+        run_at = trigger.first_run_time(now())
         return self.schedule(
             func, run_at, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
         )

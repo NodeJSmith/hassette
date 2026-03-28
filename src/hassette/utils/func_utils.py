@@ -1,7 +1,7 @@
 import contextlib
 import inspect
 from collections.abc import Callable
-from functools import lru_cache, partial
+from functools import partial
 from types import MethodType
 from typing import Any
 
@@ -46,9 +46,11 @@ def is_async_callable(fn: Callable[..., object] | Any) -> bool:
     return False
 
 
-@lru_cache(maxsize=1024)
 def callable_name(fn: Any) -> str:
     """Get a human-readable name for a callable object.
+
+    Performs ``inspect.unwrap()`` on every call. Cache the result at construction
+    time rather than calling in hot paths.
 
     This function attempts to return a string representation of the callable that includes
     its module, class (if applicable), and function name. It handles various types of callables

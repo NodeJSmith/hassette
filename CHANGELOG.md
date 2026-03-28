@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- `TriggerProtocol` split into `first_run_time(current_time)` and `next_run_time(previous_run, current_time)` — triggers are now stateless and testable without mocking `now()` (**breaking**: custom triggers must implement both methods)
+- `Listener.matches()` is now synchronous (was async but never awaited) — reduces coroutine frame overhead on the event dispatch hot path
+
+### Fixed
+- `callable_name()` LRU cache removed — bound method references no longer pinned in memory after app reload
+- `IntervalTrigger.next_run_time()` no longer mutates internal state; calling it twice with the same inputs now returns the same result
+- `CronTrigger.next_run_time()` creates a fresh `croniter` per call instead of advancing a shared cursor
+- `Listener.db_id` and `ScheduledJob.db_id` now use `mark_registered()` with a warning guard against double-assignment
+- `ScheduledJob.set_next_run()` sort_index now uses rounded nanos, fixing a heap ordering inconsistency
+- `IntervalTrigger` rejects zero/negative intervals with `ValueError` at construction
+- Hard `assert secs > 0` in reschedule replaced with warning + 1-second advance fallback
+
 ### Added
 - Telemetry status endpoint (`/api/telemetry/status`) for monitoring database health — returns 503 when degraded, usable by Docker HEALTHCHECK and external tools (#448)
 - Status bar shows "DB degraded" indicator when telemetry database is unavailable, with exponential backoff polling (#448)

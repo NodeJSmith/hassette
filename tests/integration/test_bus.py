@@ -518,7 +518,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
     all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.exec_test")
     for listener in all_listeners:
         if listener.db_id is None:
-            listener.db_id = 99
+            listener.mark_registered(99)
 
     executor = hassette._bus_service._executor
     executor.execute.reset_mock()
@@ -609,7 +609,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
     all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.debounce_test")
     for listener in all_listeners:
         if listener.db_id is None:
-            listener.db_id = 42
+            listener.mark_registered(42)
 
     executor = hassette._bus_service._executor
     executor.execute.reset_mock()
@@ -653,7 +653,7 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
     all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.throttle_test")
     for listener in all_listeners:
         if listener.db_id is None:
-            listener.db_id = 77
+            listener.mark_registered(77)
 
     executor = hassette._bus_service._executor
     executor.execute.reset_mock()

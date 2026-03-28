@@ -1,5 +1,4 @@
 import asyncio
-import itertools
 import typing
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
@@ -32,9 +31,6 @@ class BusService(Service):
     stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"
     """Stream to receive events from."""
 
-    listener_seq: itertools.count
-    """Sequence generator for listener IDs."""
-
     router: "Router"
     """Router to manage event listeners."""
 
@@ -55,7 +51,6 @@ class BusService(Service):
         super().__init__(hassette, parent=parent)
         self.stream = stream
         self._executor = executor
-        self.listener_seq = itertools.count(1)
         self.router = Router()
         self._setup_exclusion_filters()
 
@@ -117,11 +112,11 @@ class BusService(Service):
             registration_source=registration_source,
         )
         if listener.once:
-            listener.db_id = await self._executor.register_listener(reg)
+            listener.mark_registered(await self._executor.register_listener(reg))
             await self.router.add_route(listener.topic, listener)
         else:
             await self.router.add_route(listener.topic, listener)
-            listener.db_id = await self._executor.register_listener(reg)
+            listener.mark_registered(await self._executor.register_listener(reg))
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus.
@@ -187,7 +182,7 @@ class BusService(Service):
             for listener in listeners:
                 if listener.listener_id in chosen:
                     continue
-                if await listener.matches(event):
+                if listener.matches(event):
                     chosen[listener.listener_id] = (route, listener)
 
         if not chosen:
@@ -228,11 +223,6 @@ class BusService(Service):
             f"{topic}.{domain}.*",  # hass.event.state_changed.light.*
             topic,  # hass.event.state_changed
         ]
-
-    async def _get_matching_listeners(self, topic: str, event: "Event[Any]") -> list["Listener"]:
-        """Get all listeners that match the given event."""
-        all_listeners = await self.router.get_topic_listeners(topic)
-        return [listener for listener in all_listeners if await listener.matches(event)]
 
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener.

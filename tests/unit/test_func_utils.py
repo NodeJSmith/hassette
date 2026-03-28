@@ -90,6 +90,10 @@ class TestCallableName:
         name = callable_name(decorated_function)
         assert "decorated_function" in name
 
+    def test_callable_name_no_lru_cache(self) -> None:
+        """callable_name must not be decorated with lru_cache (memory leak risk)."""
+        assert not hasattr(callable_name, "cache_info"), "callable_name should not have lru_cache"
+
 
 # --- callable_short_name tests ---
 

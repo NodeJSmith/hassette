@@ -196,7 +196,7 @@ class SchedulerService(Service):
             registration_source=registration_source,
         )
         await self._enqueue_job(job)
-        job.db_id = await self._executor.register_job(reg)
+        job.mark_registered(await self._executor.register_job(reg))
 
     async def _dispatch_and_log(self, job: "ScheduledJob"):
         """Dispatch a job and log its execution.
@@ -276,11 +276,13 @@ class SchedulerService(Service):
 
         if job.repeat and job.trigger:
             curr_next_run = job.next_run
-            next_run = job.trigger.next_run_time()
+            next_run = job.trigger.next_run_time(job.next_run, now())
             job.set_next_run(next_run)
             next_run_time_delta = job.next_run - curr_next_run
             secs = next_run_time_delta.in_seconds()
-            assert secs > 0, f"Next run time must be in the future, got {secs}"
+            if secs <= 0:
+                self.logger.warning("Trigger produced non-future next_run (delta=%ss), advancing by 1s", secs)
+                job.set_next_run(curr_next_run.add(seconds=1))
 
             self.logger.debug(
                 "Rescheduling repeating job %s from %s to %s (%s)",
