@@ -165,8 +165,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   }, [truncatedRows]);
 
   // Trigger path A — Viewport resize: ResizeObserver on individual text elements.
-  // Observes `.ht-log-message__text` elements (not the scroll container) because
-  // the scroll container may not resize when the viewport changes.
+  // Observe the table container element (not individual text elements or the
+  // scroll container). The table container is in normal document flow and resizes
+  // with the viewport. One observer target is cheaper than 500 per-element targets,
+  // and table cells all share column widths so they resize together.
   useEffect(() => {
     const container = tableContainerRef.current;
     if (!container) return;
@@ -174,9 +176,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       recheckTruncation();
     });
     resizeObserverRef.current = observer;
-    // Observe all current text elements
-    const elements = container.querySelectorAll<HTMLElement>(".ht-log-message__text");
-    elements.forEach((el) => observer.observe(el));
+    observer.observe(container);
     // Font load detection — recheck after all fonts have loaded
     document.fonts.ready.then(() => recheckTruncation());
     return () => {
@@ -187,16 +187,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
 
   // Trigger path B — Data changes: recheck after render when visible entry count changes.
   // Uses requestAnimationFrame to ensure layout is complete before measuring.
-  // Also observes new elements so they participate in subsequent viewport resizes.
+  // No need to re-observe elements since Trigger A observes the container, not
+  // individual elements.
   useEffect(() => {
     const rafId = requestAnimationFrame(() => {
       recheckTruncation();
-      // Observe any new text elements that weren't in the DOM at mount time
-      const container = tableContainerRef.current;
-      const observer = resizeObserverRef.current;
-      if (!container || !observer) return;
-      const elements = container.querySelectorAll<HTMLElement>(".ht-log-message__text");
-      elements.forEach((el) => observer.observe(el));
     });
     return () => cancelAnimationFrame(rafId);
   }, [sorted.length, recheckTruncation]);

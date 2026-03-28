@@ -7,7 +7,7 @@ the SPA never needs to know or pass a session ID.
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from hassette.core.telemetry_models import AppHealthSummary, HandlerInvocation, JobExecution, JobSummary
 from hassette.web.dependencies import RuntimeDep, TelemetryDep
@@ -32,23 +32,43 @@ from hassette.web.telemetry_helpers import (
 logger = logging.getLogger(__name__)
 
 DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError)
+"""Database error types to catch in telemetry endpoints.
+
+Includes ``ValueError`` for aiosqlite connection-closed errors during shutdown.
+Non-connection ``ValueError`` is re-raised via ``_reraise_if_not_connection_closed()``.
+"""
+
+
+def _reraise_if_not_connection_closed(exc: Exception) -> None:
+    """Re-raise ValueError unless it's an aiosqlite connection-closed error."""
+    if isinstance(exc, ValueError) and "closed" not in str(exc).lower():
+        raise
+
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
 
-@router.get("/status", response_model=TelemetryStatusResponse)
+@router.get(
+    "/status",
+    response_model=TelemetryStatusResponse,
+    responses={503: {"model": TelemetryStatusResponse}},
+)
 async def telemetry_status(
     telemetry: TelemetryDep,
+    response: Response,
 ) -> TelemetryStatusResponse:
     """Health check for the telemetry database.
 
     Runs a representative query exercising the listeners -> handler_invocations
-    join path. Returns ``degraded: true`` when the database is unavailable.
+    join path. Returns 503 with ``degraded: true`` when the database is
+    unavailable; 200 with ``degraded: false`` when healthy.
     """
     try:
         await telemetry.check_health()
-    except DB_ERRORS:
+    except DB_ERRORS as exc:
+        _reraise_if_not_connection_closed(exc)
         logger.warning("Telemetry database health check failed", exc_info=True)
+        response.status_code = 503
         return TelemetryStatusResponse(degraded=True)
     return TelemetryStatusResponse(degraded=False)
 
@@ -171,7 +191,8 @@ async def dashboard_kpis(
     session_id = safe_session_id(runtime)
     try:
         summary = await telemetry.get_global_summary(session_id=session_id)
-    except DB_ERRORS:
+    except DB_ERRORS as exc:
+        _reraise_if_not_connection_closed(exc)
         logger.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
         status = runtime.get_system_status()
         return DashboardKpisResponse(
@@ -219,7 +240,8 @@ async def dashboard_app_grid(
     snapshot = runtime.get_all_manifests_snapshot()
     try:
         summaries = await telemetry.get_all_app_summaries(session_id=session_id)
-    except DB_ERRORS:
+    except DB_ERRORS as exc:
+        _reraise_if_not_connection_closed(exc)
         logger.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
@@ -270,7 +292,8 @@ async def dashboard_errors(
     session_id = safe_session_id(runtime)
     try:
         raw_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
-    except DB_ERRORS:
+    except DB_ERRORS as exc:
+        _reraise_if_not_connection_closed(exc)
         logger.warning("Failed to fetch recent errors for dashboard", exc_info=True)
         return DashboardErrorsResponse(errors=[])
 

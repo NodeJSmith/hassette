@@ -200,7 +200,8 @@ export interface TelemetryStatus {
   degraded: boolean;
 }
 
-export const getTelemetryStatus = () => apiFetch<TelemetryStatus>("/telemetry/status");
+export const getTelemetryStatus = (signal?: AbortSignal) =>
+  apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);
 
 // ---- Logs ----
 

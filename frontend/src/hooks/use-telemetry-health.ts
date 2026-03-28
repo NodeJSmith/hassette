@@ -13,22 +13,33 @@ const MAX_INTERVAL_MS = 120_000;
  * - Exponential backoff on consecutive failures: 30s -> 60s -> 120s cap.
  * - Resets to 30s on success AND on page navigation.
  * - On fetch failure, sets telemetryDegraded = true (unreachable = degraded).
+ * - Uses AbortController to cancel in-flight requests on navigation, preventing
+ *   stale completions from clobbering the navigation-reset interval.
  */
 export function useTelemetryHealth(appState: AppState): void {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentIntervalMs = useRef(BASE_INTERVAL_MS);
+  const abortRef = useRef<AbortController | null>(null);
   const [location] = useLocation();
 
   const poll = useRef(async () => {
+    // Abort any in-flight request before starting a new one
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const result = await getTelemetryStatus();
+      const result = await getTelemetryStatus(controller.signal);
+      if (controller.signal.aborted) return; // Navigation cancelled us
       appState.telemetryDegraded.value = result.degraded;
       // Reset backoff on success
       if (currentIntervalMs.current !== BASE_INTERVAL_MS) {
         currentIntervalMs.current = BASE_INTERVAL_MS;
         restartInterval();
       }
-    } catch {
+    } catch (err) {
+      // Ignore abort errors — navigation will trigger a fresh poll
+      if (err instanceof DOMException && err.name === "AbortError") return;
       appState.telemetryDegraded.value = true;
       // Apply exponential backoff: double current interval, cap at MAX
       const nextInterval = Math.min(currentIntervalMs.current * 2, MAX_INTERVAL_MS);
@@ -51,17 +62,19 @@ export function useTelemetryHealth(appState: AppState): void {
     void poll();
     intervalRef.current = setInterval(poll, currentIntervalMs.current);
     return () => {
+      abortRef.current?.abort();
       if (intervalRef.current !== null) {
         clearInterval(intervalRef.current);
       }
     };
   }, []);
 
-  // On page navigation: poll immediately and reset backoff
+  // On page navigation: cancel in-flight, poll immediately, reset backoff
   const prevLocation = useRef(location);
   useEffect(() => {
     if (prevLocation.current !== location) {
       prevLocation.current = location;
+      abortRef.current?.abort(); // Cancel stale in-flight request
       currentIntervalMs.current = BASE_INTERVAL_MS;
       restartInterval();
       void poll();

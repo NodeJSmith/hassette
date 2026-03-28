@@ -547,7 +547,7 @@ class TelemetryQueryService(Resource):
         Raises on any database error; callers catch DB_ERRORS to derive degraded state.
         """
         query = """
-            SELECT COUNT(*)
+            SELECT 1
             FROM listeners l
             LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
             LIMIT 1
