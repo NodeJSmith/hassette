@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Telemetry status endpoint (`/api/telemetry/status`) for monitoring database health — returns 503 when degraded, usable by Docker HEALTHCHECK and external tools
+- Status bar shows "DB degraded" indicator when telemetry database is unavailable, with exponential backoff polling
+- Log table truncation detection now reactive — re-evaluates on viewport resize, font loading, and data changes via ResizeObserver
+
+### Changed
+- `/api/health` returns 503 for non-ok system status (degraded, starting) while preserving structured JSON response — Docker health checks now use this endpoint
+- `/api/healthz` removed (breaking) — update docker-compose health checks from `/healthz` to `/api/health`
+- Dashboard app grid aggregates telemetry across all app instances (invocations, errors, executions) instead of showing instance 0 only
+
 ### Fixed
 - Edge-case bug fixes: multi-predicate listeners no longer collapse into one DB row, dashboard error feed shows correct listener/job IDs and timestamps, SPA static file serving works under editable installs, scheduler auto-generated names include trigger info to prevent collisions (#446)
 - Dashboard endpoints catch `sqlite3.Error` specifically instead of bare `Exception`, preventing silent swallowing of programming errors (#446)
