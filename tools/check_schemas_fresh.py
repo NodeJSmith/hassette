@@ -1,7 +1,4 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.11"
-# ///
+#!/usr/bin/env -S uv run
 """Pre-push hook: verify frontend schema files match current backend models.
 
 Regenerates openapi.json and ws-schema.json in memory and compares against the
