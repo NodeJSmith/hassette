@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, fireEvent } from "@testing-library/preact";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { render, fireEvent, act } from "@testing-library/preact";
 import { h } from "preact";
 import type { ComponentChildren } from "preact";
 import { LogTable, sortEntries } from "./log-table";
@@ -12,6 +12,63 @@ import type { WsLogPayload } from "../../api/ws-types";
 vi.mock("../../api/endpoints", () => ({
   getRecentLogs: vi.fn().mockResolvedValue([]),
 }));
+
+// --- JSDOM polyfills for ResizeObserver, requestAnimationFrame, and document.fonts ---
+
+let rafCallbacks: Array<FrameRequestCallback> = [];
+let rafIdCounter = 0;
+
+const origRAF = globalThis.requestAnimationFrame;
+const origCAF = globalThis.cancelAnimationFrame;
+
+beforeEach(() => {
+  rafCallbacks = [];
+  rafIdCounter = 0;
+  globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+    const id = ++rafIdCounter;
+    rafCallbacks.push(cb);
+    return id;
+  };
+  globalThis.cancelAnimationFrame = (_id: number) => {
+    // no-op for tests
+  };
+});
+
+afterEach(() => {
+  globalThis.requestAnimationFrame = origRAF;
+  globalThis.cancelAnimationFrame = origCAF;
+});
+
+/** Flush all pending requestAnimationFrame callbacks within act(). */
+function flushRAF() {
+  return act(() => {
+    const cbs = [...rafCallbacks];
+    rafCallbacks = [];
+    for (const cb of cbs) cb(performance.now());
+  });
+}
+
+// ResizeObserver mock — stores observed elements but never fires the callback
+// (viewport resize is not testable in JSDOM; truncation detection is exercised
+// via the data-change trigger path B which uses requestAnimationFrame).
+class MockResizeObserver {
+  callback: ResizeObserverCallback;
+  observed = new Set<Element>();
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+  }
+  observe(el: Element) { this.observed.add(el); }
+  unobserve(el: Element) { this.observed.delete(el); }
+  disconnect() { this.observed.clear(); }
+}
+
+globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+
+// document.fonts.ready mock — resolves immediately
+Object.defineProperty(document, "fonts", {
+  value: { ready: Promise.resolve() },
+  configurable: true,
+});
 
 function createWrapper(state: AppState) {
   return function Wrapper({ children }: { children: ComponentChildren }) {
@@ -261,7 +318,7 @@ describe("LogTable", () => {
 
   // -- Row expand/collapse --
 
-  it("non-truncated message cell is not interactive", () => {
+  it("non-truncated message cell is not interactive", async () => {
     // JSDOM has no layout engine, so scrollWidth === clientWidth === 0 → not truncated
     state.logs.push(createLogEntry({ message: "Short message" }));
 
@@ -269,6 +326,7 @@ describe("LogTable", () => {
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
+    await flushRAF();
 
     const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
     expect(msgCell).toBeDefined();
@@ -278,20 +336,21 @@ describe("LogTable", () => {
     expect(msgCell.classList.contains("is-expandable")).toBe(false);
   });
 
-  it("clicking non-truncated cell does not add is-expanded", () => {
+  it("clicking non-truncated cell does not add is-expanded", async () => {
     state.logs.push(createLogEntry({ message: "Short message" }));
 
     const { container } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
+    await flushRAF();
 
     const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
     fireEvent.click(msgCell);
     expect(msgCell.classList.contains("is-expanded")).toBe(false);
   });
 
-  it("truncated message cell becomes expandable and toggles on click", () => {
+  it("truncated message cell becomes expandable and toggles on click", async () => {
     state.logs.push(createLogEntry({ message: "A very long message that would be truncated" }));
 
     // Mock scrollWidth > clientWidth to simulate truncation in JSDOM
@@ -305,6 +364,8 @@ describe("LogTable", () => {
         <LogTable />,
         { wrapper: createWrapper(state) },
       );
+      // Flush requestAnimationFrame to trigger recheckTruncation()
+      await flushRAF();
 
       const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
       expect(msgCell.classList.contains("is-expandable")).toBe(true);
@@ -323,7 +384,7 @@ describe("LogTable", () => {
     }
   });
 
-  it("truncated message cell expands via keyboard", () => {
+  it("truncated message cell expands via keyboard", async () => {
     state.logs.push(createLogEntry({ message: "Truncated keyboard test" }));
 
     const origScrollWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth");
@@ -336,6 +397,7 @@ describe("LogTable", () => {
         <LogTable />,
         { wrapper: createWrapper(state) },
       );
+      await flushRAF();
 
       const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
       fireEvent.keyDown(msgCell, { key: "Enter" });
@@ -347,6 +409,19 @@ describe("LogTable", () => {
       if (origScrollWidth) Object.defineProperty(HTMLElement.prototype, "scrollWidth", origScrollWidth);
       if (origClientWidth) Object.defineProperty(HTMLElement.prototype, "clientWidth", origClientWidth);
     }
+  });
+
+  it("renders data-row-key attribute on message text elements", () => {
+    state.logs.push(createLogEntry({ seq: 42, message: "Test with key" }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const textEl = container.querySelector(".ht-log-message__text") as HTMLElement;
+    expect(textEl).not.toBeNull();
+    expect(textEl.getAttribute("data-row-key")).toBe("42");
   });
 
   // -- App column visibility --

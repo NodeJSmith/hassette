@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useCallback } from "preact/hooks";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
 import { useAppState } from "../../state/context";
@@ -134,15 +134,72 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   };
 
   // Track which rows have truncated message text (scrollWidth > clientWidth).
-  // Uses a ref callback on each text div to detect overflow after render.
+  //
+  // NOTE: Expanded rows have `text-overflow: ellipsis` removed by CSS (via the
+  // `.is-expanded` class), so `scrollWidth === clientWidth` for them — they will
+  // NOT appear in `truncatedRows`. The `|| isExpanded` guard in the render path
+  // (`canExpand = truncatedRows.value.has(rowKey) || isExpanded`) is load-bearing:
+  // it keeps expanded rows collapsible even when recheckTruncation() doesn't
+  // include them. Do NOT remove that guard.
   const truncatedRows = useRef(signal(new Set<string>())).current;
-  const checkTruncation = (key: string) => (el: HTMLElement | null) => {
-    if (!el) return;
-    const isTruncated = el.scrollWidth > el.clientWidth;
-    if (isTruncated && !truncatedRows.value.has(key)) {
-      truncatedRows.value = new Set([...truncatedRows.value, key]);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+
+  /** Scan all `.ht-log-message__text` elements and update `truncatedRows` if the set changed. */
+  const recheckTruncation = useCallback(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+    const elements = container.querySelectorAll<HTMLElement>(".ht-log-message__text");
+    const nextTruncated = new Set<string>();
+    elements.forEach((el) => {
+      const key = el.getAttribute("data-row-key");
+      if (key && el.scrollWidth > el.clientWidth) {
+        nextTruncated.add(key);
+      }
+    });
+    // Suppress signal update when the set is unchanged (avoids unnecessary re-renders).
+    const current = truncatedRows.value;
+    if (nextTruncated.size !== current.size || [...nextTruncated].some((k) => !current.has(k))) {
+      truncatedRows.value = nextTruncated;
     }
-  };
+  }, [truncatedRows]);
+
+  // Trigger path A — Viewport resize: ResizeObserver on individual text elements.
+  // Observes `.ht-log-message__text` elements (not the scroll container) because
+  // the scroll container may not resize when the viewport changes.
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      recheckTruncation();
+    });
+    resizeObserverRef.current = observer;
+    // Observe all current text elements
+    const elements = container.querySelectorAll<HTMLElement>(".ht-log-message__text");
+    elements.forEach((el) => observer.observe(el));
+    // Font load detection — recheck after all fonts have loaded
+    document.fonts.ready.then(() => recheckTruncation());
+    return () => {
+      observer.disconnect();
+      resizeObserverRef.current = null;
+    };
+  }, [recheckTruncation]);
+
+  // Trigger path B — Data changes: recheck after render when visible entry count changes.
+  // Uses requestAnimationFrame to ensure layout is complete before measuring.
+  // Also observes new elements so they participate in subsequent viewport resizes.
+  useEffect(() => {
+    const rafId = requestAnimationFrame(() => {
+      recheckTruncation();
+      // Observe any new text elements that weren't in the DOM at mount time
+      const container = tableContainerRef.current;
+      const observer = resizeObserverRef.current;
+      if (!container || !observer) return;
+      const elements = container.querySelectorAll<HTMLElement>(".ht-log-message__text");
+      elements.forEach((el) => observer.observe(el));
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [sorted.length, recheckTruncation]);
 
   const ariaSortFor = (column: SortColumn): "ascending" | "descending" | undefined =>
     sortConfig.value.column === column
@@ -155,7 +212,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       : "⇅";
 
   return (
-    <div class="ht-log-table-container">
+    <div class="ht-log-table-container" ref={tableContainerRef}>
       <div class="ht-field-group">
         <div class="ht-select ht-select--sm">
           <select
@@ -294,7 +351,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                       onClick={toggle}
                       onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
                     >
-                      <div ref={checkTruncation(rowKey)} class={`ht-log-message__text${isExpanded ? " is-expanded" : ""}`}>{entry.message}</div>
+                      <div data-row-key={rowKey} class={`ht-log-message__text${isExpanded ? " is-expanded" : ""}`}>{entry.message}</div>
                     </td>
                   );
                 })()}

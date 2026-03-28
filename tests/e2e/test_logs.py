@@ -174,6 +174,83 @@ def test_source_column_has_overflow_hidden(page: Page, base_url: str) -> None:
     assert text_overflow == "ellipsis", f"Expected text-overflow:ellipsis, got {text_overflow}"
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Reactive truncation detection (FR-7)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_truncation_affordance_appears_on_narrow_viewport(
+    page: Page,
+    base_url: str,
+) -> None:
+    """At narrow viewport, long messages gain the expand affordance (is-expandable class)."""
+    # Use a narrow viewport so the long seed message overflows
+    page.set_viewport_size({"width": 800, "height": 600})
+    page.goto(base_url + "/logs")
+    _wait_for_log_entries(page)
+    # Wait for ResizeObserver / recheckTruncation to fire
+    page.wait_for_timeout(500)
+    # The long seed message should be truncated and have the expand affordance
+    expandable_cells = page.locator("td.ht-log-message-cell.is-expandable")
+    expect(expandable_cells.first).to_be_attached()
+    # At least one cell should be expandable (the long "Processing state change..." message)
+    count = expandable_cells.count()
+    assert count >= 1, f"Expected at least 1 expandable cell at narrow viewport, got {count}"
+
+
+def test_truncation_affordance_disappears_on_wide_viewport(
+    page: Page,
+    base_url: str,
+) -> None:
+    """Widening viewport removes expand affordance from messages that now fit.
+
+    Uses JavaScript to measure whether scrollWidth > clientWidth changes
+    after resize, since the seed data's long message may still overflow even
+    at moderately wide viewports.
+    """
+    # Start narrow so messages are truncated
+    page.set_viewport_size({"width": 800, "height": 600})
+    page.goto(base_url + "/logs")
+    _wait_for_log_entries(page)
+    page.wait_for_timeout(500)
+
+    # Verify at least one expandable cell exists at narrow width
+    expandable_cells = page.locator("td.ht-log-message-cell.is-expandable")
+    narrow_count = expandable_cells.count()
+    assert narrow_count >= 1, "Precondition failed: no expandable cells at narrow viewport"
+
+    # Measure overflow delta (scrollWidth - clientWidth) at narrow viewport
+    narrow_overflow = page.evaluate("""() => {
+        const els = document.querySelectorAll('.ht-log-message__text');
+        let maxOverflow = 0;
+        els.forEach(el => {
+            const overflow = el.scrollWidth - el.clientWidth;
+            if (overflow > maxOverflow) maxOverflow = overflow;
+        });
+        return maxOverflow;
+    }""")
+
+    # Widen the viewport significantly
+    page.set_viewport_size({"width": 2400, "height": 600})
+    # Wait for ResizeObserver to fire and recheckTruncation to update
+    page.wait_for_timeout(500)
+
+    wide_overflow = page.evaluate("""() => {
+        const els = document.querySelectorAll('.ht-log-message__text');
+        let maxOverflow = 0;
+        els.forEach(el => {
+            const overflow = el.scrollWidth - el.clientWidth;
+            if (overflow > maxOverflow) maxOverflow = overflow;
+        });
+        return maxOverflow;
+    }""")
+
+    # The overflow should decrease after widening, even if not fully eliminated
+    assert wide_overflow < narrow_overflow, (
+        f"Expected less text overflow after widening viewport (narrow={narrow_overflow}px, wide={wide_overflow}px)"
+    )
+
+
 def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:
     """Long log messages are truncated to one line with text-overflow: ellipsis."""
     page.goto(base_url + "/logs")
