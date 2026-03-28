@@ -685,6 +685,16 @@ class TestDashboardOSErrorFallback:
         # exc_info captures the ValueError
         assert any(r.exc_info is not None and r.exc_info[0] is ValueError for r in warning_records)
 
+    async def test_dashboard_kpis_non_connection_valueerror_propagates(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        """Non-connection ValueError propagates as an exception, not swallowed as degraded."""
+        mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(
+            side_effect=ValueError("invalid literal for int()")
+        )
+        with pytest.raises(ValueError, match="invalid literal"):
+            await client.get("/api/telemetry/dashboard/kpis")
+
 
 class TestTelemetryAvailableWithoutUI:
     async def test_telemetry_endpoints_work_when_run_web_ui_false(self, client: "AsyncClient") -> None:

@@ -42,7 +42,7 @@ Non-connection ``ValueError`` is re-raised via ``_reraise_if_not_connection_clos
 def _reraise_if_not_connection_closed(exc: Exception) -> None:
     """Re-raise ValueError unless it's an aiosqlite connection-closed error."""
     if isinstance(exc, ValueError) and "closed" not in str(exc).lower():
-        raise
+        raise exc
 
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
