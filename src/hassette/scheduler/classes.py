@@ -138,10 +138,11 @@ class CronTrigger:
         return cls(cron_expression, start=start)
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
-        # If an explicit start time is provided in the future, honor it exactly
-        if self.start is not None and self.start > current_time:
-            return self.start
-        return self._next_after(self.start or current_time, current_time)
+        # Use start as the croniter anchor, but always snap to the cron grid.
+        # This finds the first cron-aligned time at or after start (or current_time if no start).
+        anchor = self.start or current_time
+        reference = self.start if (self.start is not None and self.start > current_time) else current_time
+        return self._next_after(anchor, reference)
 
     def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
         return self._next_after(previous_run, current_time)
@@ -158,7 +159,9 @@ class CronTrigger:
                 return ZonedDateTime.from_py_datetime(next_time)
         # Too many iterations — skip ahead from current time
         LOGGER.warning(
-            "CronTrigger exceeded %d iterations catching up, skipping ahead from current_time", max_iterations
+            "CronTrigger(%s) exceeded %d iterations catching up, skipping ahead from current_time",
+            self.cron_expression,
+            max_iterations,
         )
         cron = croniter(self.cron_expression, current_dt, ret_type=datetime)
         next_time = cron.get_next()

@@ -103,6 +103,31 @@ async def test_cron_trigger_catchup() -> None:
     assert next_run.format_iso() == "2025-08-18T00:01:40-05:00[America/Chicago]", f"Got {next_run.format_iso()}"
 
 
+async def test_cron_trigger_first_run_with_future_start() -> None:
+    """first_run_time with a future start snaps to the cron grid, not the raw start time."""
+    # start is at 09:00:03, but cron fires every 10 seconds — should snap to 09:00:10, not 09:00:03
+    start = _t(2025, 8, 18, 9, 0, 3)
+    current_time = _t(2025, 8, 18, 0, 0, 0)  # well before start
+    trigger = CronTrigger.from_arguments(second="*/10", minute="*", hour="*", start=start)
+
+    next_run = trigger.first_run_time(current_time)
+    assert next_run > start, f"Expected time after start, got {next_run.format_iso()}"
+    assert next_run.format_iso() == "2025-08-18T09:00:10-05:00[America/Chicago]", f"Got {next_run.format_iso()}"
+
+
+async def test_cron_trigger_first_run_with_future_start_daily() -> None:
+    """Daily cron with future start snaps to next midnight, not the raw start time."""
+    # start is tomorrow at 9am, cron fires at midnight — should snap to midnight after start
+    start = _t(2025, 8, 19, 9, 0, 0)
+    current_time = _t(2025, 8, 18, 12, 0, 0)
+    trigger = CronTrigger.from_arguments(second="0", minute="0", hour="0", start=start)
+
+    next_run = trigger.first_run_time(current_time)
+    assert next_run > start, f"Expected time after start, got {next_run.format_iso()}"
+    # Next midnight after Aug 19 9am is Aug 20 midnight
+    assert next_run.format_iso() == "2025-08-20T00:00:00-05:00[America/Chicago]", f"Got {next_run.format_iso()}"
+
+
 async def test_run_cron_rejects_invalid(hassette_with_scheduler: Hassette) -> None:
     """run_cron raises ValueError when the cron expression is invalid."""
     with pytest.raises(ValueError, match="Invalid cron expression"):
