@@ -178,7 +178,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
     resizeObserverRef.current = observer;
     observer.observe(container);
     // Font load detection — recheck after all fonts have loaded
-    document.fonts.ready.then(() => recheckTruncation());
+    void document.fonts.ready.then(() => recheckTruncation());
     return () => {
       observer.disconnect();
       resizeObserverRef.current = null;

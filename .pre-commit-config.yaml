@@ -43,6 +43,15 @@ repos:
         files: ^\.github/codecov\.yml$
         pass_filenames: false
 
+      - id: check-schemas-fresh
+        name: Check frontend schemas are up to date
+        language: python
+        entry: python tools/check_schemas_fresh.py
+        pass_filenames: false
+        files: ^src/hassette/web/
+        stages:
+          - pre-push
+
       - id: check-missing-attribute
         name: Check for missing 'attributes' in State classes
         language: system
