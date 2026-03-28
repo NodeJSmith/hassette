@@ -1,5 +1,4 @@
 import asyncio
-from zoneinfo import ZoneInfo
 
 import pytest
 from whenever import TimeDelta, ZonedDateTime
@@ -7,12 +6,12 @@ from whenever import TimeDelta, ZonedDateTime
 from hassette import Hassette
 from hassette.scheduler import CronTrigger, IntervalTrigger
 
-TZ = ZoneInfo("America/Chicago")
+TZ = "America/Chicago"
 
 
 def _t(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second: int = 0) -> ZonedDateTime:
     """Shorthand for creating a ZonedDateTime in America/Chicago."""
-    return ZonedDateTime.from_system_tz(year, month, day, hour, minute, second)
+    return ZonedDateTime(year, month, day, hour, minute, second, tz=TZ)
 
 
 # --- IntervalTrigger ---

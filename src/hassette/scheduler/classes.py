@@ -138,18 +138,30 @@ class CronTrigger:
         return cls(cron_expression, start=start)
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
+        # If an explicit start time is provided in the future, honor it exactly
+        if self.start is not None and self.start > current_time:
+            return self.start
         return self._next_after(self.start or current_time, current_time)
 
     def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
         return self._next_after(previous_run, current_time)
 
     def _next_after(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-        # No fixed skip-ahead threshold — croniter efficiently handles coarse schedules
-        # (a daily cron iterates once regardless of gap). Only sub-second crons with
-        # multi-minute gaps iterate heavily, which is rare in home automation.
         cron = croniter(self.cron_expression, anchor.py_datetime(), ret_type=datetime)
-        while (next_time := cron.get_next()) <= current_time.py_datetime():
-            pass
+        current_dt = current_time.py_datetime()
+        # Bounded iteration — avoids O(N) spin for sub-second crons after long downtime.
+        # 10,000 iterations covers ~2.7 hours of per-second crons, which is generous.
+        max_iterations = 10_000
+        for _ in range(max_iterations):
+            next_time = cron.get_next()
+            if next_time > current_dt:
+                return ZonedDateTime.from_py_datetime(next_time)
+        # Too many iterations — skip ahead from current time
+        LOGGER.warning(
+            "CronTrigger exceeded %d iterations catching up, skipping ahead from current_time", max_iterations
+        )
+        cron = croniter(self.cron_expression, current_dt, ret_type=datetime)
+        next_time = cron.get_next()
         return ZonedDateTime.from_py_datetime(next_time)
 
 
