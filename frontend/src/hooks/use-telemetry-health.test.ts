@@ -199,6 +199,23 @@ describe("useTelemetryHealth", () => {
     });
   });
 
+  it("does not set degraded on AbortError (navigation cancellation)", async () => {
+    const state = createAppState();
+    mockedGetTelemetryStatus.mockRejectedValue(
+      new DOMException("The operation was aborted", "AbortError"),
+    );
+
+    renderHook(() => useTelemetryHealth(state));
+
+    // Wait for the initial poll to complete
+    await vi.waitFor(() => {
+      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
+    });
+
+    // AbortError should NOT set degraded — it's a navigation cancellation, not a failure
+    expect(state.telemetryDegraded.value).toBe(false);
+  });
+
   it("clears interval on unmount", async () => {
     const state = createAppState();
     const { unmount } = renderHook(() => useTelemetryHealth(state));

@@ -40,7 +40,13 @@ Non-connection ``ValueError`` is re-raised via ``_reraise_if_not_connection_clos
 
 
 def _reraise_if_not_connection_closed(exc: Exception) -> None:
-    """Re-raise ValueError unless it's an aiosqlite connection-closed error."""
+    """Re-raise ValueError unless it's an aiosqlite connection-closed error.
+
+    aiosqlite raises ``ValueError("Connection is closed")`` when querying after
+    the database connection has been explicitly closed (e.g., shutdown race).
+    This message has been stable across aiosqlite versions (verified through 0.21).
+    Re-verify on aiosqlite version bumps.
+    """
     if isinstance(exc, ValueError) and "closed" not in str(exc).lower():
         raise exc
 

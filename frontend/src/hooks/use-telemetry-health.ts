@@ -38,7 +38,11 @@ export function useTelemetryHealth(appState: AppState): void {
         restartInterval();
       }
     } catch (err) {
-      // Ignore abort errors — navigation will trigger a fresh poll
+      // Ignore abort errors — navigation cancels in-flight requests via AbortController.
+      // The navigation effect immediately fires a fresh poll, so this stale completion
+      // should have no side effects. apiFetch throws ApiError on 503, so the catch path
+      // correctly sets degraded=true for server-reported degradation (the 503 response
+      // body is not parsed — external tools like Docker HEALTHCHECK use the status code).
       if (err instanceof DOMException && err.name === "AbortError") return;
       appState.telemetryDegraded.value = true;
       // Apply exponential backoff: double current interval, cap at MAX
