@@ -194,7 +194,8 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       recheckTruncation();
     });
     return () => cancelAnimationFrame(rafId);
-  }, [sorted.length, recheckTruncation]);
+    // Key on count + first/last seq to detect row swaps at same count (filter/sort changes)
+  }, [sorted.length, sorted[0]?.seq, sorted[sorted.length - 1]?.seq, recheckTruncation]);
 
   const ariaSortFor = (column: SortColumn): "ascending" | "descending" | undefined =>
     sortConfig.value.column === column

@@ -48,7 +48,7 @@ def _reraise_if_not_connection_closed(exc: Exception) -> None:
     Re-verify on aiosqlite version bumps.
     """
     if isinstance(exc, ValueError) and "closed" not in str(exc).lower():
-        raise exc
+        raise  # bare raise preserves original traceback from the caller's except block
 
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])

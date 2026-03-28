@@ -45,8 +45,8 @@ repos:
 
       - id: check-schemas-fresh
         name: Check frontend schemas are up to date
-        language: python
-        entry: python tools/check_schemas_fresh.py
+        language: system
+        entry: tools/check_schemas_fresh.py
         pass_filenames: false
         files: ^src/hassette/web/
         stages:

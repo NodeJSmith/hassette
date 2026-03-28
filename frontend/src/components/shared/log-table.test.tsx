@@ -62,12 +62,22 @@ class MockResizeObserver {
   disconnect() { this.observed.clear(); }
 }
 
-globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+const origResizeObserver = globalThis.ResizeObserver;
+const origFonts = Object.getOwnPropertyDescriptor(document, "fonts");
 
-// document.fonts.ready mock — resolves immediately
-Object.defineProperty(document, "fonts", {
-  value: { ready: Promise.resolve() },
-  configurable: true,
+beforeEach(() => {
+  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+  Object.defineProperty(document, "fonts", {
+    value: { ready: Promise.resolve() },
+    configurable: true,
+  });
+});
+
+afterEach(() => {
+  globalThis.ResizeObserver = origResizeObserver;
+  if (origFonts) {
+    Object.defineProperty(document, "fonts", origFonts);
+  }
 });
 
 function createWrapper(state: AppState) {
