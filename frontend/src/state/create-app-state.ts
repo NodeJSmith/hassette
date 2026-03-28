@@ -90,6 +90,13 @@ export function createAppState() {
     tick: signal(0),
 
     /**
+     * Telemetry database health status, polled by useTelemetryHealth.
+     * True when /api/telemetry/status reports degradation or is unreachable.
+     * Single source of truth — only the poller writes this signal.
+     */
+    telemetryDegraded: signal(false),
+
+    /**
      * Request the server to update the minimum log level for WS log streaming.
      * Wired by useWebSocket once the socket is ready; no-op before that.
      */

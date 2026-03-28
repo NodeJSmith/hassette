@@ -667,6 +667,159 @@ class TestGetAllAppSummaries:
         assert x.total_executions == 1
         assert x.total_job_errors == 0
 
+    async def test_get_all_app_summaries_multi_instance_activity_aggregation(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Multi-instance app: activity sums across all instances, handler_count reflects instance 0 only."""
+        db_svc, session_id = db
+
+        # Instance 0: 2 listeners, 2 invocations
+        l0a = await _insert_listener(db_svc, app_key="app_m", instance_index=0, handler_method="on_a")
+        l0b = await _insert_listener(db_svc, app_key="app_m", instance_index=0, handler_method="on_b")
+        await _insert_invocation(db_svc, l0a, session_id, status="success", duration_ms=10.0)
+        await _insert_invocation(db_svc, l0b, session_id, status="error", duration_ms=20.0)
+
+        # Instance 1: 2 listeners (same handlers, different instance), 3 invocations
+        l1a = await _insert_listener(db_svc, app_key="app_m", instance_index=1, handler_method="on_a")
+        l1b = await _insert_listener(db_svc, app_key="app_m", instance_index=1, handler_method="on_b")
+        await _insert_invocation(db_svc, l1a, session_id, status="success", duration_ms=30.0)
+        await _insert_invocation(db_svc, l1b, session_id, status="success", duration_ms=40.0)
+        await _insert_invocation(db_svc, l1b, session_id, status="error", duration_ms=50.0)
+
+        # Instance 2: 1 listener, 1 invocation
+        l2a = await _insert_listener(db_svc, app_key="app_m", instance_index=2, handler_method="on_a")
+        await _insert_invocation(db_svc, l2a, session_id, status="success", duration_ms=60.0)
+
+        result = await svc.get_all_app_summaries()
+        assert "app_m" in result
+        m = result["app_m"]
+
+        # handler_count reflects instance 0 only (2 listeners)
+        assert m.handler_count == 2
+        # total_invocations sums across ALL instances: 2 + 3 + 1 = 6
+        assert m.total_invocations == 6
+        # total_errors sums across ALL instances: 1 + 1 = 2
+        assert m.total_errors == 2
+        # avg_duration_ms is AVG over all 6 raw rows: (10+20+30+40+50+60)/6 = 35.0
+        assert m.avg_duration_ms == pytest.approx(35.0)
+
+    async def test_get_all_app_summaries_multi_instance_job_aggregation(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Multi-instance app: job activity sums across all instances, job_count reflects instance 0 only."""
+        db_svc, session_id = db
+
+        # Instance 0: 1 job, 2 executions
+        j0 = await _insert_job(db_svc, app_key="app_j", instance_index=0, job_name="cron_a")
+        await _insert_execution(db_svc, j0, session_id, status="success", duration_ms=100.0)
+        await _insert_execution(db_svc, j0, session_id, status="error", duration_ms=50.0)
+
+        # Instance 1: 1 job, 3 executions
+        j1 = await _insert_job(db_svc, app_key="app_j", instance_index=1, job_name="cron_a")
+        await _insert_execution(db_svc, j1, session_id, status="success", duration_ms=200.0)
+        await _insert_execution(db_svc, j1, session_id, status="success", duration_ms=150.0)
+        await _insert_execution(db_svc, j1, session_id, status="error", duration_ms=80.0)
+
+        # Instance 2: 1 job, 1 execution
+        j2 = await _insert_job(db_svc, app_key="app_j", instance_index=2, job_name="cron_a")
+        await _insert_execution(db_svc, j2, session_id, status="success", duration_ms=300.0)
+
+        result = await svc.get_all_app_summaries()
+        assert "app_j" in result
+        j = result["app_j"]
+
+        # job_count reflects instance 0 only (1 job)
+        assert j.job_count == 1
+        # total_executions sums across ALL instances: 2 + 3 + 1 = 6
+        assert j.total_executions == 6
+        # total_job_errors sums across ALL instances: 1 + 1 = 2
+        assert j.total_job_errors == 2
+
+    async def test_get_all_app_summaries_single_instance_equivalence(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Single-instance app produces equivalent results to current behavior."""
+        db_svc, session_id = db
+
+        # Only instance 0 — same as current behavior
+        l1 = await _insert_listener(db_svc, app_key="app_s", instance_index=0, handler_method="on_x")
+        j1 = await _insert_job(db_svc, app_key="app_s", instance_index=0, job_name="job_x")
+
+        await _insert_invocation(db_svc, l1, session_id, status="success", duration_ms=15.0)
+        await _insert_invocation(db_svc, l1, session_id, status="error", duration_ms=25.0)
+        await _insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
+
+        result = await svc.get_all_app_summaries()
+        assert "app_s" in result
+        s = result["app_s"]
+
+        assert s.handler_count == 1
+        assert s.job_count == 1
+        assert s.total_invocations == 2
+        assert s.total_errors == 1
+        assert s.total_executions == 1
+        assert s.total_job_errors == 0
+        assert s.avg_duration_ms == pytest.approx(20.0, abs=0.001)
+
+    async def test_get_all_app_summaries_multi_instance_session_scoped(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Multi-instance data across sessions: session-scoped variant aggregates correctly."""
+        db_svc, session_a = db
+
+        cursor = await db_svc.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
+            (time.time(), time.time()),
+        )
+        session_b = cursor.lastrowid
+        await db_svc.db.commit()
+
+        # Instance 0: listener + job
+        l0 = await _insert_listener(db_svc, app_key="app_ms", instance_index=0, handler_method="on_a")
+        j0 = await _insert_job(db_svc, app_key="app_ms", instance_index=0, job_name="cron_a")
+
+        # Instance 1: listener + job
+        l1 = await _insert_listener(db_svc, app_key="app_ms", instance_index=1, handler_method="on_a")
+        j1 = await _insert_job(db_svc, app_key="app_ms", instance_index=1, job_name="cron_a")
+
+        # Session A: instance 0 gets 2 invocations, instance 1 gets 1 invocation
+        await _insert_invocation(db_svc, l0, session_a, status="success", duration_ms=10.0)
+        await _insert_invocation(db_svc, l0, session_a, status="error", duration_ms=20.0)
+        await _insert_invocation(db_svc, l1, session_a, status="success", duration_ms=30.0)
+        await _insert_execution(db_svc, j0, session_a, status="success")
+        await _insert_execution(db_svc, j1, session_a, status="error")
+
+        # Session B: instance 0 gets 1 invocation (should NOT be counted for session A)
+        await _insert_invocation(db_svc, l0, session_b, status="success", duration_ms=100.0)
+        await _insert_execution(db_svc, j0, session_b, status="error")
+
+        result = await svc.get_all_app_summaries(session_id=session_a)
+        assert "app_ms" in result
+        ms = result["app_ms"]
+
+        # handler_count from instance 0 only
+        assert ms.handler_count == 1
+        # job_count from instance 0 only
+        assert ms.job_count == 1
+        # total_invocations: session A across all instances = 2 + 1 = 3
+        assert ms.total_invocations == 3
+        # total_errors: session A across all instances = 1
+        assert ms.total_errors == 1
+        # total_executions: session A across all instances = 1 + 1 = 2
+        assert ms.total_executions == 2
+        # total_job_errors: session A across all instances = 1
+        assert ms.total_job_errors == 1
+        # avg_duration_ms: session A across all instances = (10+20+30)/3 = 20.0
+        assert ms.avg_duration_ms == pytest.approx(20.0)
+
 
 # ---------------------------------------------------------------------------
 # Tests: get_global_summary returns typed model

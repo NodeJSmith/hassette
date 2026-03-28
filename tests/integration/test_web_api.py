@@ -45,28 +45,42 @@ def mock_hassette():
 
 
 class TestHealthEndpoints:
-    async def test_healthz_ok(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/healthz")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "ok"
-        assert data["ws"] == "connected"
-
-    async def test_healthz_degraded(self, client: "AsyncClient", mock_hassette) -> None:
-        from hassette.types.enums import ResourceStatus
-
-        mock_hassette._websocket_service.status = ResourceStatus.STOPPED
-        response = await client.get("/api/healthz")
-        assert response.status_code == 503
-        data = response.json()
-        assert data["status"] == "degraded"
-
-    async def test_health_status(self, client: "AsyncClient") -> None:
+    async def test_health_returns_200_when_ok(self, client: "AsyncClient") -> None:
+        """GET /api/health returns 200 with status 'ok' when WebSocket is connected."""
         response = await client.get("/api/health")
         assert response.status_code == 200
         data = response.json()
+        assert data["status"] == "ok"
+        assert data["websocket_connected"] is True
         assert "entity_count" in data
         assert "app_count" in data
+
+    async def test_health_returns_503_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health returns 503 with status 'degraded' when WebSocket is disconnected."""
+        from hassette.types.enums import ResourceStatus
+
+        mock_hassette._websocket_service.status = ResourceStatus.STOPPED
+        response = await client.get("/api/health")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "degraded"
+        assert data["websocket_connected"] is False
+
+    async def test_health_returns_503_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health returns 503 with status 'starting' during startup."""
+        from hassette.types.enums import ResourceStatus
+
+        mock_hassette._websocket_service.status = ResourceStatus.STOPPED
+        mock_hassette._state_proxy.is_ready.return_value = False
+        response = await client.get("/api/health")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "starting"
+
+    async def test_healthz_returns_404(self, client: "AsyncClient") -> None:
+        """GET /api/healthz returns 404 after endpoint removal."""
+        response = await client.get("/api/healthz")
+        assert response.status_code == 404
 
 
 class TestSPACatchAll:
@@ -619,6 +633,67 @@ class TestTelemetryJobExecutions:
         data = response.json()
         assert len(data) == 1
         assert data[0]["status"] == "success"
+
+
+class TestTelemetryStatus:
+    async def test_telemetry_status_healthy(self, client: "AsyncClient") -> None:
+        """/api/telemetry/status returns 200 with degraded=false when DB is healthy."""
+        response = await client.get("/api/telemetry/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["degraded"] is False
+
+    async def test_telemetry_status_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
+        """/api/telemetry/status returns 503 with degraded=true when DB query raises sqlite3.Error."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.check_health = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/status")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["degraded"] is True
+
+
+class TestDashboardOSErrorFallback:
+    async def test_dashboard_kpis_oserror_returns_fallback(self, client: "AsyncClient", mock_hassette) -> None:
+        """OSError triggers the same fallback as sqlite3.Error."""
+        mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(side_effect=OSError("disk I/O error"))
+        response = await client.get("/api/telemetry/dashboard/kpis")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_handlers"] == 0
+        assert data["error_rate"] == 0.0
+
+    async def test_dashboard_kpis_valueerror_returns_fallback(
+        self, client: "AsyncClient", mock_hassette, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """ValueError triggers fallback and logs at WARNING."""
+        mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(
+            side_effect=ValueError("Connection is closed")
+        )
+        with caplog.at_level(logging.WARNING, logger="hassette.web.routes.telemetry"):
+            response = await client.get("/api/telemetry/dashboard/kpis")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_handlers"] == 0
+        assert data["error_rate"] == 0.0
+        # ValueError must be logged at WARNING, not silently swallowed
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) >= 1
+        # exc_info captures the ValueError
+        assert any(r.exc_info is not None and r.exc_info[0] is ValueError for r in warning_records)
+
+    async def test_dashboard_kpis_non_connection_valueerror_propagates(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        """Non-connection ValueError propagates as an exception, not swallowed as degraded."""
+        mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(
+            side_effect=ValueError("invalid literal for int()")
+        )
+        with pytest.raises(ValueError, match="invalid literal"):
+            await client.get("/api/telemetry/dashboard/kpis")
 
 
 class TestTelemetryAvailableWithoutUI:

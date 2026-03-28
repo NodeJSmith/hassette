@@ -12,7 +12,7 @@ services:
       - LOG_LEVEL=info
       - TZ=America/New_York # Set your timezone
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/healthz"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/api/health"]
       interval: 10s
       timeout: 5s
       retries: 3

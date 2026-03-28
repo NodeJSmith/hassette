@@ -2,31 +2,19 @@
 
 from fastapi import APIRouter, Response
 
-from hassette.web.dependencies import HassetteDep, RuntimeDep
+from hassette.web.dependencies import RuntimeDep
 from hassette.web.models import SystemStatusResponse
 
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", response_model=SystemStatusResponse)
-async def get_health(runtime: RuntimeDep) -> SystemStatusResponse:
-    return runtime.get_system_status()
-
-
-@router.get("/healthz")
-async def healthz(hassette: HassetteDep) -> Response:
-    """Backwards-compatible health endpoint matching the old HealthService contract."""
-    from hassette.types.enums import ResourceStatus
-
-    ws_running = hassette.websocket_service.status == ResourceStatus.RUNNING
-    if ws_running:
-        return Response(
-            content='{"status":"ok","ws":"connected"}',
-            media_type="application/json",
-            status_code=200,
-        )
-    return Response(
-        content='{"status":"degraded","ws":"disconnected"}',
-        media_type="application/json",
-        status_code=503,
-    )
+@router.get(
+    "/health",
+    response_model=SystemStatusResponse,
+    responses={503: {"model": SystemStatusResponse}},
+)
+async def get_health(runtime: RuntimeDep, response: Response) -> SystemStatusResponse:
+    status_data = runtime.get_system_status()
+    if status_data.status != "ok":
+        response.status_code = 503
+    return status_data

@@ -6,6 +6,7 @@ import { ErrorBoundary } from "./components/layout/error-boundary";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
 import { useApi } from "./hooks/use-api";
+import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { AppDetailPage } from "./pages/app-detail";
 import { AppsPage } from "./pages/apps";
@@ -27,6 +28,7 @@ export function App() {
   return (
     <AppStateContext.Provider value={state}>
       <WebSocketProvider state={state} />
+      <TelemetryHealthProvider state={state} />
       <div class="ht-layout">
         <a href="#main-content" class="ht-skip-link">Skip to main content</a>
         <Sidebar />
@@ -52,6 +54,12 @@ export function App() {
 /** Invisible component that wires up the WebSocket connection. */
 function WebSocketProvider({ state }: { state: ReturnType<typeof createAppState> }) {
   useWebSocket(state);
+  return null;
+}
+
+/** Invisible component that polls telemetry health status. */
+function TelemetryHealthProvider({ state }: { state: ReturnType<typeof createAppState> }) {
+  useTelemetryHealth(state);
   return null;
 }
 

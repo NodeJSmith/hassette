@@ -196,6 +196,13 @@ export const getDashboardAppGrid = () =>
 export const getDashboardErrors = () =>
   apiFetch<{ errors: DashboardErrorEntry[] }>("/telemetry/dashboard/errors");
 
+export interface TelemetryStatus {
+  degraded: boolean;
+}
+
+export const getTelemetryStatus = (signal?: AbortSignal) =>
+  apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);
+
 // ---- Logs ----
 
 export interface LogEntry {

@@ -22,24 +22,14 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/healthz": {
-      "get": {
-        "tags": [
-          "health"
-        ],
-        "summary": "Healthz",
-        "description": "Backwards-compatible health endpoint matching the old HealthService contract.",
-        "operationId": "healthz_api_healthz_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
+          },
+          "503": {
+            "description": "Service Unavailable",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusResponse"
+                }
               }
             }
           }
@@ -515,6 +505,38 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/status": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Telemetry Status",
+        "description": "Health check for the telemetry database.\n\nRuns a representative query exercising the listeners -> handler_invocations\njoin path. Returns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.",
+        "operationId": "telemetry_status_api_telemetry_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryStatusResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryStatusResponse"
                 }
               }
             }
@@ -2226,6 +2248,20 @@
           "services_running"
         ],
         "title": "SystemStatusResponse"
+      },
+      "TelemetryStatusResponse": {
+        "properties": {
+          "degraded": {
+            "type": "boolean",
+            "title": "Degraded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "degraded"
+        ],
+        "title": "TelemetryStatusResponse",
+        "description": "Health check response for the telemetry database."
       },
       "ValidationError": {
         "properties": {

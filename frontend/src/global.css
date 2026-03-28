@@ -371,6 +371,11 @@ strong {
   animation: none;
 }
 
+.ht-pulse-dot.degraded {
+  background: var(--ht-warning);
+  animation: none;
+}
+
 @keyframes ht-breathe {
   0%, 100% { opacity: 0.4; }
   50%      { opacity: 1; }

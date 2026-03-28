@@ -2,8 +2,9 @@ import { useAppState } from "../../state/context";
 import { setStoredValue } from "../../utils/local-storage";
 
 export function StatusBar() {
-  const { connection, theme } = useAppState();
+  const { connection, theme, telemetryDegraded } = useAppState();
   const status = connection.value;
+  const isDegraded = telemetryDegraded.value;
 
   const toggleTheme = () => {
     const next = theme.value === "dark" ? "light" : "dark";
@@ -21,12 +22,21 @@ export function StatusBar() {
 
   const { className, dotClass, label } = statusConfig[status];
 
+  // "Disconnected" takes visual precedence over "DB degraded"
+  const showDegraded = isDegraded && status === "connected";
+
   return (
     <div class="ht-status-bar">
       <span class={`ht-ws-indicator ${className}`} aria-label={label}>
         <span class={dotClass} />
         {status !== "connected" && <span class="ht-text-xs">{label}</span>}
       </span>
+      {showDegraded && (
+        <span class="ht-ws-indicator is-degraded" aria-label="DB degraded">
+          <span class="ht-pulse-dot degraded" />
+          <span class="ht-text-xs">DB degraded</span>
+        </span>
+      )}
       <button
         class="ht-theme-toggle"
         data-testid="theme-toggle"
