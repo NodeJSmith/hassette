@@ -541,6 +541,20 @@ class TelemetryQueryService(Resource):
             rows = await cursor.fetchall()
         return [_row_to_dict(row) for row in rows]
 
+    async def check_health(self) -> None:
+        """Run a representative query that exercises the listeners -> handler_invocations join.
+
+        Raises on any database error; callers catch DB_ERRORS to derive degraded state.
+        """
+        query = """
+            SELECT COUNT(*)
+            FROM listeners l
+            LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
+            LIMIT 1
+        """
+        async with self._db.execute(query) as cursor:
+            await cursor.fetchone()
+
     async def get_current_session_summary(self) -> SessionSummary | None:
         """Return a summary of the current running session, or None if no session is running."""
         query = """

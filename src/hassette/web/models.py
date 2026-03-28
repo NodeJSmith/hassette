@@ -331,6 +331,12 @@ class DashboardErrorsResponse(BaseModel):
     errors: list[HandlerErrorEntry | JobErrorEntry]
 
 
+class TelemetryStatusResponse(BaseModel):
+    """Health check response for the telemetry database."""
+
+    degraded: bool
+
+
 class ActionResponse(BaseModel):
     """Response for app mutation endpoints (start/stop/reload)."""
 

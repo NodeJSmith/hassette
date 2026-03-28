@@ -621,6 +621,57 @@ class TestTelemetryJobExecutions:
         assert data[0]["status"] == "success"
 
 
+class TestTelemetryStatus:
+    async def test_telemetry_status_healthy(self, client: "AsyncClient") -> None:
+        """/api/telemetry/status returns 200 with degraded=false when DB is healthy."""
+        response = await client.get("/api/telemetry/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["degraded"] is False
+
+    async def test_telemetry_status_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
+        """/api/telemetry/status returns 200 with degraded=true when DB query raises sqlite3.Error."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.check_health = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["degraded"] is True
+
+
+class TestDashboardOSErrorFallback:
+    async def test_dashboard_kpis_oserror_returns_fallback(self, client: "AsyncClient", mock_hassette) -> None:
+        """OSError triggers the same fallback as sqlite3.Error."""
+        mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(side_effect=OSError("disk I/O error"))
+        response = await client.get("/api/telemetry/dashboard/kpis")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_handlers"] == 0
+        assert data["error_rate"] == 0.0
+
+    async def test_dashboard_kpis_valueerror_returns_fallback(
+        self, client: "AsyncClient", mock_hassette, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """ValueError triggers fallback and logs at WARNING."""
+        mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(
+            side_effect=ValueError("Connection is closed")
+        )
+        with caplog.at_level(logging.WARNING, logger="hassette.web.routes.telemetry"):
+            response = await client.get("/api/telemetry/dashboard/kpis")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_handlers"] == 0
+        assert data["error_rate"] == 0.0
+        # ValueError must be logged at WARNING, not silently swallowed
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) >= 1
+        # exc_info captures the ValueError
+        assert any(r.exc_info is not None and r.exc_info[0] is ValueError for r in warning_records)
+
+
 class TestTelemetryAvailableWithoutUI:
     async def test_telemetry_endpoints_work_when_run_web_ui_false(self, client: "AsyncClient") -> None:
         """The mock_hassette has run_web_ui=False — telemetry should still work."""

@@ -20,6 +20,7 @@ from hassette.web.models import (
     HandlerErrorEntry,
     JobErrorEntry,
     ListenerWithSummary,
+    TelemetryStatusResponse,
 )
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
@@ -30,7 +31,26 @@ from hassette.web.telemetry_helpers import (
 
 logger = logging.getLogger(__name__)
 
+DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError)
+
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
+
+
+@router.get("/status", response_model=TelemetryStatusResponse)
+async def telemetry_status(
+    telemetry: TelemetryDep,
+) -> TelemetryStatusResponse:
+    """Health check for the telemetry database.
+
+    Runs a representative query exercising the listeners -> handler_invocations
+    join path. Returns ``degraded: true`` when the database is unavailable.
+    """
+    try:
+        await telemetry.check_health()
+    except DB_ERRORS:
+        logger.warning("Telemetry database health check failed", exc_info=True)
+        return TelemetryStatusResponse(degraded=True)
+    return TelemetryStatusResponse(degraded=False)
 
 
 def _health_status_from_summary(summary: AppHealthSummary) -> str:
@@ -151,7 +171,7 @@ async def dashboard_kpis(
     session_id = safe_session_id(runtime)
     try:
         summary = await telemetry.get_global_summary(session_id=session_id)
-    except sqlite3.Error:
+    except DB_ERRORS:
         logger.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
         status = runtime.get_system_status()
         return DashboardKpisResponse(
@@ -199,7 +219,7 @@ async def dashboard_app_grid(
     snapshot = runtime.get_all_manifests_snapshot()
     try:
         summaries = await telemetry.get_all_app_summaries(session_id=session_id)
-    except sqlite3.Error:
+    except DB_ERRORS:
         logger.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
@@ -250,7 +270,7 @@ async def dashboard_errors(
     session_id = safe_session_id(runtime)
     try:
         raw_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
-    except sqlite3.Error:
+    except DB_ERRORS:
         logger.warning("Failed to fetch recent errors for dashboard", exc_info=True)
         return DashboardErrorsResponse(errors=[])
 
