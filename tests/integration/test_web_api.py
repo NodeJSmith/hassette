@@ -45,28 +45,42 @@ def mock_hassette():
 
 
 class TestHealthEndpoints:
-    async def test_healthz_ok(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/healthz")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "ok"
-        assert data["ws"] == "connected"
-
-    async def test_healthz_degraded(self, client: "AsyncClient", mock_hassette) -> None:
-        from hassette.types.enums import ResourceStatus
-
-        mock_hassette._websocket_service.status = ResourceStatus.STOPPED
-        response = await client.get("/api/healthz")
-        assert response.status_code == 503
-        data = response.json()
-        assert data["status"] == "degraded"
-
-    async def test_health_status(self, client: "AsyncClient") -> None:
+    async def test_health_returns_200_when_ok(self, client: "AsyncClient") -> None:
+        """GET /api/health returns 200 with status 'ok' when WebSocket is connected."""
         response = await client.get("/api/health")
         assert response.status_code == 200
         data = response.json()
+        assert data["status"] == "ok"
+        assert data["websocket_connected"] is True
         assert "entity_count" in data
         assert "app_count" in data
+
+    async def test_health_returns_503_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health returns 503 with status 'degraded' when WebSocket is disconnected."""
+        from hassette.types.enums import ResourceStatus
+
+        mock_hassette._websocket_service.status = ResourceStatus.STOPPED
+        response = await client.get("/api/health")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "degraded"
+        assert data["websocket_connected"] is False
+
+    async def test_health_returns_503_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health returns 503 with status 'starting' during startup."""
+        from hassette.types.enums import ResourceStatus
+
+        mock_hassette._websocket_service.status = ResourceStatus.STOPPED
+        mock_hassette._state_proxy.is_ready.return_value = False
+        response = await client.get("/api/health")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "starting"
+
+    async def test_healthz_returns_404(self, client: "AsyncClient") -> None:
+        """GET /api/healthz returns 404 after endpoint removal."""
+        response = await client.get("/api/healthz")
+        assert response.status_code == 404
 
 
 class TestSPACatchAll:

@@ -170,7 +170,7 @@ docker compose exec hassette find /apps /config -name "requirements*.txt" 2>/dev
 
 ## Health Check Failing
 
-The health check queries `http://127.0.0.1:8126/healthz`.
+The health check queries `http://127.0.0.1:8126/api/health`.
 
 ### Symptoms
 
@@ -190,7 +190,7 @@ The health check queries `http://127.0.0.1:8126/healthz`.
    The health service is enabled by default. Check if it's accessible:
 
    ```bash
-   docker compose exec hassette curl http://127.0.0.1:8126/healthz
+   docker compose exec hassette curl http://127.0.0.1:8126/api/health
    ```
 
 3. **Check for port conflicts:**
@@ -203,7 +203,7 @@ The health check queries `http://127.0.0.1:8126/healthz`.
 
    ```yaml
    healthcheck:
-     test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/healthz"]
+     test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/api/health"]
      interval: 30s
      timeout: 5s
      retries: 3
