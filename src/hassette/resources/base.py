@@ -242,11 +242,26 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                     raise
 
     async def _finalize_shutdown(self) -> None:
-        """Common shutdown cleanup: cancel tasks, emit stopped event."""
+        """Common shutdown cleanup: cancel tasks, propagate to children, emit stopped event."""
         try:
             await self.cleanup()
         except Exception as e:
             self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
+
+        # Propagate shutdown to children in reverse insertion order
+        children = list(reversed(self.children))
+        if children:
+            timeout = self.hassette.config.resource_shutdown_timeout_seconds
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.gather(*[child.shutdown() for child in children], return_exceptions=True),
+                    timeout=timeout,
+                )
+                for child, result in zip(children, results, strict=True):
+                    if isinstance(result, Exception):
+                        self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+            except TimeoutError:
+                self.logger.error("Timed out waiting for children to shut down after %s seconds", timeout)
 
         self._shutdown_completed = True
 
