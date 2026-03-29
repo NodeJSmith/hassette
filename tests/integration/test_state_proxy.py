@@ -447,6 +447,78 @@ class TestStateProxyShutdown:
             state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
 
+class TestStateProxyRestartRoundTrip:
+    """Verify StateProxy shutdown + re-initialize restores subscriptions and state polling."""
+
+    async def test_shutdown_stops_children(self, hassette_with_state_proxy: "Hassette") -> None:
+        """After StateProxy shutdown, its Bus and Scheduler children are stopped."""
+        proxy = hassette_with_state_proxy._state_proxy
+        assert proxy is not None
+
+        # Verify children are ready before shutdown
+        assert proxy.bus.is_ready(), "Proxy Bus should be ready"
+        assert proxy.scheduler.is_ready(), "Proxy Scheduler should be ready"
+        assert proxy.is_ready(), "StateProxy should be ready"
+
+        await proxy.shutdown()
+
+        assert not proxy.is_ready(), "StateProxy should not be ready after shutdown"
+        assert not proxy.bus.is_ready(), "Proxy Bus should not be ready after shutdown"
+        assert not proxy.scheduler.is_ready(), "Proxy Scheduler should not be ready after shutdown"
+        assert len(proxy.states) == 0, "State cache should be cleared"
+
+        # Re-initialize
+        await proxy.initialize()
+
+        assert proxy.is_ready(), "StateProxy should be ready after re-initialize"
+        assert proxy.bus.is_ready(), "Proxy Bus should be ready after re-initialize"
+        assert proxy.scheduler.is_ready(), "Proxy Scheduler should be ready after re-initialize"
+
+    async def test_subscriptions_restored_after_restart(self, hassette_with_state_proxy: "Hassette") -> None:
+        """After shutdown + re-initialize, state change subscriptions work."""
+        hassette = hassette_with_state_proxy
+        proxy = hassette._state_proxy
+        assert proxy is not None
+
+        # Shutdown clears everything
+        await proxy.shutdown()
+        assert len(proxy.states) == 0
+
+        # Re-initialize restores subscriptions
+        await proxy.initialize()
+
+        # Verify subscriptions are re-established by checking listeners
+        listeners = await proxy.bus.get_listeners()
+        assert len(listeners) > 0, "Should have listeners after re-initialize"
+        topic_set = {listener.topic for listener in listeners}
+        assert Topic.HASS_EVENT_STATE_CHANGED in topic_set, "Should subscribe to state_changed after re-initialize"
+
+    async def test_state_events_processed_after_restart(self, hassette_with_state_proxy: "Hassette") -> None:
+        """After restart, the proxy processes new state change events."""
+        hassette = hassette_with_state_proxy
+        proxy = hassette._state_proxy
+        assert proxy is not None
+
+        # Full restart cycle
+        await proxy.shutdown()
+        await proxy.initialize()
+
+        # Send a state change event and verify it's processed
+        light_dict = make_light_state_dict("light.restart_test", "on", brightness=150)
+        event = make_full_state_change_event("light.restart_test", None, light_dict)
+
+        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await wait_for(
+            lambda: "light.restart_test" in proxy.states,
+            desc="light.restart_test state arrived after restart",
+        )
+
+        assert "light.restart_test" in proxy.states
+        state = proxy.states["light.restart_test"]
+        assert state["entity_id"] == "light.restart_test"
+        assert state["attributes"]["brightness"] == 150
+
+
 class TestStateProxyConcurrency:
     """Tests for thread-safety and concurrency."""
 
