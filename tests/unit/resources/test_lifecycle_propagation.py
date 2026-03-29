@@ -152,6 +152,19 @@ class SimpleParent(Resource):
 # ---------------------------------------------------------------------------
 
 
+async def test_ordered_children_for_shutdown_returns_reversed():
+    """_ordered_children_for_shutdown() returns children in reverse insertion order."""
+    hassette = _make_hassette_stub()
+    parent = SimpleParent(hassette)
+
+    child_a = parent.add_child(ShutdownCounter)
+    child_b = parent.add_child(ShutdownCounter)
+    child_c = parent.add_child(ShutdownCounter)
+
+    ordered = parent._ordered_children_for_shutdown()
+    assert ordered == [child_c, child_b, child_a], f"Expected [C, B, A], got {ordered}"
+
+
 async def test_shutdown_propagates_to_children_in_reverse_order():
     """Parent with 3 children: shutdown propagates in reverse insertion order."""
     _shutdown_order.clear()

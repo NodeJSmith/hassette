@@ -241,6 +241,10 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                         await self.handle_failed(e)
                     raise
 
+    def _ordered_children_for_shutdown(self) -> list["Resource"]:
+        """Return children in shutdown order (reverse insertion)."""
+        return list(reversed(self.children))
+
     async def _finalize_shutdown(self) -> None:
         """Common shutdown cleanup: cancel tasks, propagate to children, emit stopped event."""
         try:
@@ -249,7 +253,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
 
         # Propagate shutdown to children in reverse insertion order
-        children = list(reversed(self.children))
+        children = self._ordered_children_for_shutdown()
         if children:
             timeout = self.hassette.config.resource_shutdown_timeout_seconds
             try:
