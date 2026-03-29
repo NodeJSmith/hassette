@@ -11,6 +11,8 @@ on:
       - "src/hassette/core/websocket_service.py"
       - "src/hassette/core/database_service.py"
       - "src/hassette/core/bus_service.py"
+      - "src/hassette/resources/base.py"
+      - "src/hassette/resources/mixins.py"
       - "tests/smoke/**"
       - "tests/fixtures/ha-config/**"
       - ".github/workflows/smoke-tests.yml"
