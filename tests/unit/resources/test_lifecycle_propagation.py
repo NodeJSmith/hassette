@@ -27,13 +27,18 @@ Verifies leaf resource readiness:
 """
 
 import asyncio
+from unittest.mock import MagicMock
 
 from hassette.api.api import Api
+from hassette.app.app import App
+from hassette.app.app_config import AppConfig
 from hassette.bus.bus import Bus
 from hassette.core.scheduler_service import _ScheduledJobQueue
 from hassette.resources.base import Resource, Service
+from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.types.enums import ResourceStatus
+from hassette.utils.date_utils import now
 
 from .conftest import _make_hassette_stub
 
@@ -587,3 +592,62 @@ async def test_leaf_resources_ready_after_restart():
     assert api.is_ready(), "Api should be ready after re-initialize"
     assert api.sync.is_ready(), "ApiSyncFacade should be ready after re-initialize"
     assert queue.is_ready(), "Queue should be ready after re-initialize"
+
+
+# ---------------------------------------------------------------------------
+# Scheduler.on_shutdown / App propagation Tests (WP05)
+# ---------------------------------------------------------------------------
+
+
+def _make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
+    """Create a minimal ScheduledJob for testing."""
+
+    async def _noop() -> None:
+        pass
+
+    return ScheduledJob(owner_id=owner_id, next_run=now(), job=_noop, name=name)
+
+
+async def test_scheduler_on_shutdown_awaits_remove_all_jobs():
+    """Scheduler.on_shutdown() awaits remove_all_jobs (via remove_jobs_by_owner)."""
+    hassette = _make_hassette_stub()
+    # Make add_job a sync MagicMock so calling it doesn't create an unawaited coroutine
+    hassette._scheduler_service.add_job = MagicMock()
+    scheduler = Scheduler(hassette)
+
+    await scheduler.initialize()
+
+    # Add a job so we know there's something to remove
+    scheduler.add_job(
+        _make_dummy_job(owner_id=scheduler.owner_id, name="test_job"),
+    )
+
+    await scheduler.shutdown()
+
+    # remove_jobs_by_owner is called by remove_all_jobs, and it's on the mock service
+    hassette._scheduler_service.remove_jobs_by_owner.assert_awaited_once_with(scheduler.owner_id)
+
+
+async def test_app_shutdown_propagates_to_bus_and_scheduler():
+    """App shutdown propagates to Bus.on_shutdown and Scheduler.on_shutdown via children."""
+    hassette = _make_hassette_stub()
+    hassette.config.app_shutdown_timeout_seconds = 5
+    hassette.config.apps_log_level = "DEBUG"
+
+    app = App(hassette, app_config=AppConfig(instance_name="test_app"), index=0)
+
+    await app.initialize()
+
+    # Verify bus and scheduler are children that will receive propagated shutdown
+    assert app.bus in [child for child in app.children]
+    assert app.scheduler in [child for child in app.children]
+
+    # Both should be ready after init
+    assert app.bus.is_ready()
+    assert app.scheduler.is_ready()
+
+    await app.shutdown()
+
+    # After shutdown, children should have been shut down via propagation
+    assert not app.bus.is_ready(), "Bus should not be ready after app shutdown"
+    assert not app.scheduler.is_ready(), "Scheduler should not be ready after app shutdown"

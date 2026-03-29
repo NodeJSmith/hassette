@@ -409,16 +409,15 @@ class TestStateProxyShutdown:
     """Tests for shutdown behavior."""
 
     async def test_removes_all_listeners(self, hassette_with_state_proxy: "Hassette") -> None:
-        """Shutdown removes all bus listeners."""
+        """Shutdown removes all bus listeners via propagation to child Bus."""
         proxy = hassette_with_state_proxy._state_proxy
 
         listeners = await proxy.bus.get_listeners()
         assert len(listeners) > 0, "Should have listeners before shutdown"
 
-        with patch.object(proxy, "mark_not_ready"):
-            await proxy.on_shutdown()
+        await proxy.shutdown()
 
-        # All subscriptions should be removed
+        # All subscriptions should be removed (Bus.on_shutdown calls remove_all_listeners)
         listeners_after = await proxy.bus.get_listeners()
         assert len(listeners_after) == 0, "All listeners should be removed on shutdown"
 

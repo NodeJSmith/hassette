@@ -140,6 +140,9 @@ class Scheduler(Resource):
     async def on_initialize(self) -> None:
         self.mark_ready(reason="Scheduler initialized")
 
+    async def on_shutdown(self) -> None:
+        await self.remove_all_jobs()
+
     @property
     def config_log_level(self):
         """Return the log level from the config for this resource."""

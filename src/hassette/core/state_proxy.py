@@ -94,8 +94,6 @@ class StateProxy(Resource):
         """Shutdown the state proxy and clean up resources."""
         self.logger.debug("Shutting down state proxy")
         self.mark_not_ready(reason="Shutting down")
-        await self.bus.remove_all_listeners()
-        self.scheduler.remove_all_jobs()
 
         self.poll_job = None
         self.state_change_sub = None

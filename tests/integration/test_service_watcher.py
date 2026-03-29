@@ -16,8 +16,8 @@ async def get_service_watcher_mock(hassette_with_bus):
     original_children = list(hassette_with_bus.children)
     with preserve_config(hassette_with_bus.config):
         yield watcher
-        # Clean up bus listeners registered by this watcher
-        await watcher.on_shutdown()
+        # Clean up bus listeners registered by this watcher via propagation
+        await watcher.shutdown()
         await reset_hassette_lifecycle(hassette_with_bus, original_children=original_children)
 
 
