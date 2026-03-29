@@ -248,6 +248,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         except Exception as e:
             self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
 
+        self._shutdown_completed = True
+
         if not self.hassette.event_streams_closed:
             try:
                 await self.handle_stop()
@@ -259,6 +261,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     @final
     async def initialize(self) -> None:
         """Initialize the instance by calling the lifecycle hooks in order."""
+        self._shutdown_completed = False
+        self.shutdown_event.clear()
+
         if self._initializing:
             return
         self._initializing = True
@@ -287,6 +292,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     @final
     async def shutdown(self) -> None:
         """Shutdown the instance by calling the lifecycle hooks in order."""
+        if self._shutdown_completed:
+            return
         if self._shutting_down:
             return
         self._shutting_down = True
@@ -372,6 +379,9 @@ class Service(Resource):
 
     @final
     async def initialize(self) -> None:
+        self._shutdown_completed = False
+        self.shutdown_event.clear()
+
         if self._initializing:
             return
         self._initializing = True
@@ -386,6 +396,8 @@ class Service(Resource):
 
     @final
     async def shutdown(self) -> None:
+        if self._shutdown_completed:
+            return
         if self._shutting_down:
             return
         self._shutting_down = True

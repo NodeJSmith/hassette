@@ -4,7 +4,6 @@ Provides functions to reset Resource state between tests, enabling module-scoped
 fixtures without test pollution.
 """
 
-import asyncio
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -99,8 +98,14 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
         )
         raise RuntimeError(msg)
 
-    hassette.shutdown_event = asyncio.Event()
+    hassette.shutdown_event.clear()
     hassette._shutting_down = False
+    hassette._shutdown_completed = False
     hassette.mark_ready("reset for test")
     if original_children is not None:
         hassette.children[:] = original_children
+
+    for child in hassette.children:
+        child._shutdown_completed = False
+        child._shutting_down = False
+        child.shutdown_event.clear()
