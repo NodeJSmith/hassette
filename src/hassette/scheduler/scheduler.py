@@ -137,6 +137,7 @@ class Scheduler(Resource):
         assert self.scheduler_service is not None, "Scheduler service not initialized"
         self._jobs_by_name = {}
 
+    async def on_initialize(self) -> None:
         self.mark_ready(reason="Scheduler initialized")
 
     @property

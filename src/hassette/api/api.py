@@ -199,6 +199,8 @@ class Api(Resource):
         super().__init__(hassette, parent=parent)
         self._api_service = self.hassette._api_service
         self.sync = self.add_child(ApiSyncFacade, api=self)
+
+    async def on_initialize(self) -> None:
         self.mark_ready(reason="API initialized")
 
     @property

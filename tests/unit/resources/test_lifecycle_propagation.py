@@ -19,11 +19,20 @@ Verifies initialization propagation:
 - Failed children are re-initialized
 - Propagation runs before handle_running() (parent stays STARTING)
 - Service propagation runs after serve task is spawned
+
+Verifies leaf resource readiness:
+- Bus is not ready after construction, only after initialize()
+- Scheduler is not ready after construction, only after initialize()
+- All leaf resources restore readiness after shutdown + re-initialize
 """
 
 import asyncio
 
+from hassette.api.api import Api
+from hassette.bus.bus import Bus
+from hassette.core.scheduler_service import _ScheduledJobQueue
 from hassette.resources.base import Resource, Service
+from hassette.scheduler.scheduler import Scheduler
 from hassette.types.enums import ResourceStatus
 
 from .conftest import _make_hassette_stub
@@ -467,3 +476,114 @@ async def test_service_init_propagation_after_serve_spawn():
 
     # Cleanup
     await parent_svc.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Leaf Resource Readiness Tests (WP04)
+# ---------------------------------------------------------------------------
+
+
+async def test_bus_ready_after_initialize_not_after_init():
+    """Bus should NOT be ready after construction — only after initialize()."""
+    hassette = _make_hassette_stub()
+    bus = Bus(hassette)
+
+    assert not bus.is_ready(), "Bus should not be ready immediately after construction"
+
+    await bus.initialize()
+
+    assert bus.is_ready(), "Bus should be ready after initialize()"
+
+
+async def test_scheduler_ready_after_initialize_not_after_init():
+    """Scheduler should NOT be ready after construction — only after initialize()."""
+    hassette = _make_hassette_stub()
+    scheduler = Scheduler(hassette)
+
+    assert not scheduler.is_ready(), "Scheduler should not be ready immediately after construction"
+
+    await scheduler.initialize()
+
+    assert scheduler.is_ready(), "Scheduler should be ready after initialize()"
+
+
+async def test_api_ready_after_initialize_not_after_init():
+    """Api should NOT be ready after construction — only after initialize()."""
+    hassette = _make_hassette_stub()
+    api = Api(hassette)
+
+    assert not api.is_ready(), "Api should not be ready immediately after construction"
+
+    await api.initialize()
+
+    assert api.is_ready(), "Api should be ready after initialize()"
+
+
+async def test_api_sync_facade_ready_after_initialize_not_after_init():
+    """ApiSyncFacade should NOT be ready after construction — only after initialize()."""
+    hassette = _make_hassette_stub()
+    api = Api(hassette)
+
+    assert not api.sync.is_ready(), "ApiSyncFacade should not be ready immediately after construction"
+
+    await api.initialize()
+
+    assert api.sync.is_ready(), "ApiSyncFacade should be ready after initialize()"
+
+
+async def test_scheduled_job_queue_ready_after_initialize_not_after_init():
+    """_ScheduledJobQueue should NOT be ready after construction — only after initialize()."""
+    hassette = _make_hassette_stub()
+    queue = _ScheduledJobQueue(hassette)
+
+    assert not queue.is_ready(), "_ScheduledJobQueue should not be ready immediately after construction"
+
+    await queue.initialize()
+
+    assert queue.is_ready(), "_ScheduledJobQueue should be ready after initialize()"
+
+
+async def test_leaf_resources_ready_after_restart():
+    """After shutdown + re-initialize, all leaf resources restore readiness."""
+    hassette = _make_hassette_stub()
+
+    bus = Bus(hassette)
+    scheduler = Scheduler(hassette)
+    api = Api(hassette)
+    queue = _ScheduledJobQueue(hassette)
+
+    # Initialize all
+    await bus.initialize()
+    await scheduler.initialize()
+    await api.initialize()
+    await queue.initialize()
+
+    assert bus.is_ready()
+    assert scheduler.is_ready()
+    assert api.is_ready()
+    assert api.sync.is_ready()
+    assert queue.is_ready()
+
+    # Shutdown all
+    await bus.shutdown()
+    await scheduler.shutdown()
+    await api.shutdown()
+    await queue.shutdown()
+
+    assert not bus.is_ready(), "Bus should not be ready after shutdown"
+    assert not scheduler.is_ready(), "Scheduler should not be ready after shutdown"
+    assert not api.is_ready(), "Api should not be ready after shutdown"
+    assert not api.sync.is_ready(), "ApiSyncFacade should not be ready after shutdown"
+    assert not queue.is_ready(), "Queue should not be ready after shutdown"
+
+    # Re-initialize all
+    await bus.initialize()
+    await scheduler.initialize()
+    await api.initialize()
+    await queue.initialize()
+
+    assert bus.is_ready(), "Bus should be ready after re-initialize"
+    assert scheduler.is_ready(), "Scheduler should be ready after re-initialize"
+    assert api.is_ready(), "Api should be ready after re-initialize"
+    assert api.sync.is_ready(), "ApiSyncFacade should be ready after re-initialize"
+    assert queue.is_ready(), "Queue should be ready after re-initialize"

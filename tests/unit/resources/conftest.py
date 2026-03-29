@@ -4,22 +4,9 @@ import asyncio
 import threading
 from unittest.mock import AsyncMock
 
-import pytest
-
-
-@pytest.fixture
-def hassette_stub() -> AsyncMock:
-    """Minimal stub that satisfies Resource.__init__ and TaskBucket.spawn."""
-    stub = _make_hassette_stub()
-    return stub
-
 
 def _make_hassette_stub() -> AsyncMock:
-    """Minimal stub that satisfies Resource.__init__ and TaskBucket.spawn.
-
-    Available as both a fixture (hassette_stub) and a plain function
-    for tests that need to call it multiple times or inline.
-    """
+    """Minimal stub that satisfies Resource.__init__ and TaskBucket.spawn."""
     hassette = AsyncMock()
     hassette.config.log_level = "DEBUG"
     hassette.config.data_dir = "/tmp/hassette-test"

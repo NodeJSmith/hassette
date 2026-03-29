@@ -332,6 +332,8 @@ class _ScheduledJobQueue(Resource):
         super().__init__(hassette, parent=parent)
         self._lock = FairAsyncRLock()
         self._queue = HeapQueue()
+
+    async def on_initialize(self) -> None:
         self.mark_ready(reason="Queue ready")
 
     @property
