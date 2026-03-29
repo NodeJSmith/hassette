@@ -15,8 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `mark_ready()` moved from `__init__` to `on_initialize()` for Bus, Scheduler, Api, ApiSyncFacade, and _ScheduledJobQueue — leaf resources are now ready only after `initialize()`, not immediately after construction (**breaking**: code that checks readiness before calling `initialize()` must be updated) (#453)
 - `App.cleanup()`, `StateProxy.on_shutdown()`, `ServiceWatcher.on_shutdown()`, and `AppHandler.on_shutdown()` simplified — manual child cleanup calls removed in favor of automatic propagation (#453)
-
-### Changed
 - `TriggerProtocol` split into `first_run_time(current_time)` and `next_run_time(previous_run, current_time)` — triggers are now stateless and testable without mocking `now()` (**breaking**: custom triggers must implement both methods) (#452)
 - `Listener.matches()` is now synchronous (was async but never awaited) — reduces coroutine frame overhead on the event dispatch hot path (#452)
 

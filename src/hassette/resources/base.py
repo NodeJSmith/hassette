@@ -252,7 +252,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         except Exception as e:
             self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
 
-        # Propagate shutdown to children in reverse insertion order
+        # Propagate shutdown to children — submitted in reverse insertion order,
+        # but executed concurrently via gather (completion order is not guaranteed).
         children = self._ordered_children_for_shutdown()
         if children:
             timeout = self.hassette.config.resource_shutdown_timeout_seconds
@@ -272,6 +273,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                     if not child._shutdown_completed:
                         child._shutting_down = False
                         child._shutdown_completed = True
+                        child.status = ResourceStatus.STOPPED
+                        child.mark_not_ready("shutdown timed out")
 
         self._shutdown_completed = True
 

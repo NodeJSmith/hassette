@@ -132,8 +132,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     async def cleanup(self, timeout: int | None = None) -> None:
         """Cleanup resources owned by the instance.
 
-        This method is called during shutdown to ensure that all resources are properly released.
-        Delegates to Resource.cleanup() which propagates shutdown to all children (Bus, Scheduler, etc.).
+        This method is called during shutdown to cancel tasks and close caches.
+        Child cleanup (Bus, Scheduler, etc.) is handled by _finalize_shutdown() propagation,
+        not by this method.
         """
         timeout = timeout or self.hassette.config.app_shutdown_timeout_seconds
         await super().cleanup(timeout=timeout)

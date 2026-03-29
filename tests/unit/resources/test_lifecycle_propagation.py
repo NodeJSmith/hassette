@@ -113,8 +113,9 @@ async def test_start_resets_shutdown_completed():
     assert resource._shutdown_completed is False
     assert resource._init_task is not None, "start() should have spawned an init task"
 
-    # Cleanup: let the init task complete, then shut down
-    await asyncio.sleep(0.05)
+    # Cleanup: await the spawned init task, then shut down
+    assert resource._init_task is not None
+    await resource._init_task
     await resource.shutdown()
 
 
