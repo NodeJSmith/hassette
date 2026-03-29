@@ -41,10 +41,9 @@ class ApiSyncFacade(Resource):
     def __init__(self, hassette: "Hassette", *, api: "Api", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._api = api
-        self.mark_ready(reason="Synchronous API facade initialized")
 
-    def on_initialize(self) -> None:
-        return self.task_bucket.run_sync(self._api.on_initialize())
+    async def on_initialize(self) -> None:
+        self.mark_ready(reason="Synchronous API facade initialized")
 
     def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""

@@ -55,9 +55,28 @@ class ApiSyncFacade(Resource):
     def __init__(self, hassette: "Hassette", *, api: "Api", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._api = api
+
+    async def on_initialize(self) -> None:
         self.mark_ready(reason="Synchronous API facade initialized")
 
 '''
+
+
+LIFECYCLE_METHODS = frozenset(
+    {
+        "initialize",
+        "shutdown",
+        "restart",
+        "cleanup",
+        "before_initialize",
+        "on_initialize",
+        "after_initialize",
+        "before_shutdown",
+        "on_shutdown",
+        "after_shutdown",
+    }
+)
+"""Resource lifecycle hooks that should NOT be wrapped as sync facades."""
 
 
 def is_overload(func: ast.AsyncFunctionDef) -> bool:
@@ -183,7 +202,9 @@ def generate_sync(api_path: Path) -> str:
         raise SystemExit("Could not find class `Api` in api.py")
 
     wrappers: list[str] = [
-        gen_wrapper(node) for node in api_class.body if isinstance(node, ast.AsyncFunctionDef) and not is_overload(node)
+        gen_wrapper(node)
+        for node in api_class.body
+        if isinstance(node, ast.AsyncFunctionDef) and not is_overload(node) and node.name not in LIFECYCLE_METHODS
     ]
 
     wrappers_str = "\n".join(wrappers)
