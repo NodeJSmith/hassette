@@ -262,6 +262,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                         self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
             except TimeoutError:
                 self.logger.error("Timed out waiting for children to shut down after %s seconds", timeout)
+                # Force timed-out children to a consistent terminal state so they
+                # don't get stuck with _shutting_down=True or _shutdown_completed=False
+                for child in children:
+                    if not child._shutdown_completed:
+                        child._shutting_down = False
+                        child._shutdown_completed = True
 
         self._shutdown_completed = True
 
@@ -275,7 +281,10 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     @final
     async def initialize(self) -> None:
-        """Initialize the instance by calling the lifecycle hooks in order."""
+        """Initialize the instance by calling the lifecycle hooks in order.
+
+        NOTE: keep flag resets and child propagation in sync with Service.initialize().
+        """
         self._shutdown_completed = False
         self.shutdown_event.clear()
 
@@ -309,7 +318,10 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     @final
     async def shutdown(self) -> None:
-        """Shutdown the instance by calling the lifecycle hooks in order."""
+        """Shutdown the instance by calling the lifecycle hooks in order.
+
+        NOTE: keep guards and flag resets in sync with Service.shutdown().
+        """
         if self._shutdown_completed:
             return
         if self._shutting_down:

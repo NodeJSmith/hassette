@@ -72,6 +72,15 @@ def reset_mock_api(server: "SimpleTestServer") -> None:
     server._unexpected.clear()
 
 
+def _reset_resource_flags(resource: "Resource") -> None:
+    """Recursively reset lifecycle flags on a resource and all descendants."""
+    for child in resource.children:
+        child._shutdown_completed = False
+        child._shutting_down = False
+        child.shutdown_event.clear()
+        _reset_resource_flags(child)
+
+
 async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: list["Resource"] | None = None) -> None:
     """Clear Hassette shutdown/ready flags for module-scoped fixture reuse.
 
@@ -105,7 +114,4 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
     if original_children is not None:
         hassette.children[:] = original_children
 
-    for child in hassette.children:
-        child._shutdown_completed = False
-        child._shutting_down = False
-        child.shutdown_event.clear()
+    _reset_resource_flags(hassette)
