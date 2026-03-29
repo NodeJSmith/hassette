@@ -1,6 +1,6 @@
-"""Tests for shutdown lifecycle: idempotency (_shutdown_completed) and propagation.
+"""Tests for lifecycle propagation: shutdown and initialization.
 
-Verifies that:
+Verifies shutdown:
 - shutdown() only executes once (double-call is a no-op)
 - initialize() resets the flag so shutdown() works again
 - initialize() clears shutdown_event
@@ -10,11 +10,21 @@ Verifies that:
 - Already-completed children are skipped
 - Leaf Resources (no children) shut down normally
 - Service subclasses inherit propagation
+
+Verifies initialization propagation:
+- initialize() propagates to children in insertion order
+- Running children are skipped
+- Starting children are skipped
+- Stopped children are re-initialized
+- Failed children are re-initialized
+- Propagation runs before handle_running() (parent stays STARTING)
+- Service propagation runs after serve task is spawned
 """
 
 import asyncio
 
 from hassette.resources.base import Resource, Service
+from hassette.types.enums import ResourceStatus
 
 from .conftest import _make_hassette_stub
 
@@ -271,3 +281,189 @@ async def test_service_inherits_shutdown_propagation():
         child_b.unique_name,
         child_a.unique_name,
     ], f"Expected reverse order, got {_shutdown_order}"
+
+
+# ---------------------------------------------------------------------------
+# Init Propagation Helpers
+# ---------------------------------------------------------------------------
+
+# Shared list to record init order across multiple children
+_init_order: list[str] = []
+
+
+class InitTrackingChild(Resource):
+    """Resource that records its unique_name on initialization."""
+
+    init_count: int = 0
+
+    async def on_initialize(self) -> None:
+        self.init_count += 1
+        _init_order.append(self.unique_name)
+
+
+class StatusCapturingChild(Resource):
+    """Resource that captures the parent's status during its own initialization."""
+
+    parent_status_during_init: ResourceStatus | None = None
+
+    async def on_initialize(self) -> None:
+        if self.parent is not None:
+            self.parent_status_during_init = self.parent.status
+
+
+class SimpleServiceWithServeFlag(Service):
+    """Service that sets a flag once serve() starts running."""
+
+    serve_started: bool = False
+
+    async def serve(self) -> None:
+        self.serve_started = True
+        await asyncio.Event().wait()  # block forever
+
+
+class ServiceInitTrackingChild(Resource):
+    """Resource that records whether the parent's serve task exists during init."""
+
+    parent_serve_task_exists: bool = False
+
+    async def on_initialize(self) -> None:
+        if isinstance(self.parent, SimpleServiceWithServeFlag):
+            self.parent_serve_task_exists = self.parent._serve_task is not None
+
+
+# ---------------------------------------------------------------------------
+# Init Propagation Tests
+# ---------------------------------------------------------------------------
+
+
+async def test_init_propagates_to_children_in_insertion_order():
+    """Parent with 3 children: init propagates in insertion order."""
+    _init_order.clear()
+    hassette = _make_hassette_stub()
+    parent = SimpleParent(hassette)
+
+    child_a = parent.add_child(InitTrackingChild)
+    child_b = parent.add_child(InitTrackingChild)
+    child_c = parent.add_child(InitTrackingChild)
+
+    await parent.initialize()
+
+    assert _init_order == [
+        child_a.unique_name,
+        child_b.unique_name,
+        child_c.unique_name,
+    ], f"Expected insertion order, got {_init_order}"
+    assert child_a.init_count == 1
+    assert child_b.init_count == 1
+    assert child_c.init_count == 1
+
+
+async def test_init_skips_running_children():
+    """Pre-initialized (RUNNING) children are not re-initialized."""
+    _init_order.clear()
+    hassette = _make_hassette_stub()
+    parent = SimpleParent(hassette)
+
+    child_a = parent.add_child(InitTrackingChild)
+    child_b = parent.add_child(InitTrackingChild)
+
+    # Pre-initialize child_a so it reaches RUNNING
+    await child_a.initialize()
+    assert child_a.status == ResourceStatus.RUNNING
+    _init_order.clear()  # reset tracking
+
+    await parent.initialize()
+
+    # Only child_b should have been initialized
+    assert _init_order == [child_b.unique_name], f"Expected only child_b, got {_init_order}"
+    assert child_a.init_count == 1  # not re-initialized
+    assert child_b.init_count == 1
+
+
+async def test_init_skips_starting_children():
+    """Children in STARTING status are skipped during propagation."""
+    _init_order.clear()
+    hassette = _make_hassette_stub()
+    parent = SimpleParent(hassette)
+
+    child = parent.add_child(InitTrackingChild)
+
+    # Force child into STARTING status
+    await child.handle_starting()
+    assert child.status == ResourceStatus.STARTING
+
+    await parent.initialize()
+
+    # Child should have been skipped
+    assert _init_order == [], f"Expected empty, got {_init_order}"
+    assert child.init_count == 0
+
+
+async def test_init_reinitializes_stopped_children():
+    """Stopped children are re-initialized when parent initializes."""
+    _init_order.clear()
+    hassette = _make_hassette_stub()
+    parent = SimpleParent(hassette)
+
+    child = parent.add_child(InitTrackingChild)
+
+    # Initialize then shut down to reach STOPPED
+    await child.initialize()
+    await child.shutdown()
+    assert child.status == ResourceStatus.STOPPED
+    _init_order.clear()
+
+    await parent.initialize()
+
+    assert _init_order == [child.unique_name], f"Expected child re-init, got {_init_order}"
+    assert child.init_count == 2  # once direct, once via propagation
+
+
+async def test_init_reinitializes_failed_children():
+    """Failed children are re-initialized when parent initializes."""
+    _init_order.clear()
+    hassette = _make_hassette_stub()
+    parent = SimpleParent(hassette)
+
+    child = parent.add_child(InitTrackingChild)
+
+    # Force child into FAILED status
+    await child.handle_failed(RuntimeError("test failure"))
+    assert child.status == ResourceStatus.FAILED
+
+    await parent.initialize()
+
+    assert _init_order == [child.unique_name], f"Expected child re-init, got {_init_order}"
+    assert child.init_count == 1
+
+
+async def test_init_propagation_runs_before_handle_running():
+    """Parent is still STARTING during child initialization, RUNNING after."""
+    hassette = _make_hassette_stub()
+    parent = SimpleParent(hassette)
+
+    child = parent.add_child(StatusCapturingChild)
+
+    await parent.initialize()
+
+    assert child.parent_status_during_init == ResourceStatus.STARTING, (
+        f"Expected STARTING during child init, got {child.parent_status_during_init}"
+    )
+    assert parent.status == ResourceStatus.RUNNING
+
+
+async def test_service_init_propagation_after_serve_spawn():
+    """Service child init runs after serve task is spawned."""
+    hassette = _make_hassette_stub()
+    parent_svc = SimpleServiceWithServeFlag(hassette)
+
+    child = parent_svc.add_child(ServiceInitTrackingChild)
+
+    await parent_svc.initialize()
+    # Let serve task start
+    await asyncio.sleep(0.01)
+
+    assert child.parent_serve_task_exists is True, "Child should see serve task during init"
+
+    # Cleanup
+    await parent_svc.shutdown()

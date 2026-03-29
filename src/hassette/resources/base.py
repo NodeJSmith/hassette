@@ -11,7 +11,7 @@ from typing import Any, ClassVar, TypeVar, final
 from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError, FatalError
-from hassette.types.enums import ResourceRole
+from hassette.types.enums import ResourceRole, ResourceStatus
 
 from .mixins import LifecycleMixin
 
@@ -288,6 +288,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         try:
             await self._run_hooks([self.before_initialize, self.on_initialize, self.after_initialize])
+            for child in self.children:
+                if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
+                    await child.initialize()
             await self.handle_running()
         finally:
             self._initializing = False
@@ -406,6 +409,9 @@ class Service(Resource):
             await self._run_hooks([self.before_initialize, self.on_initialize])
             self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
             await self._run_hooks([self.after_initialize])
+            for child in self.children:
+                if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
+                    await child.initialize()
         finally:
             self._initializing = False
 
