@@ -82,7 +82,7 @@ Examples:
 import asyncio
 import typing
 from collections.abc import Mapping
-from typing import Any, TypeVar, Unpack
+from typing import Any, Unpack
 
 from typing_extensions import Sentinel, TypedDict
 
@@ -102,8 +102,6 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.bus_service import BusService
     from hassette.types import ChangeType, HandlerType, Predicate
-
-T = TypeVar("T", covariant=True)
 
 
 class Options(TypedDict, total=False):

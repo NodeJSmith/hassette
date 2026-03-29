@@ -58,8 +58,12 @@ class ComparisonCondition(Protocol[V_contra]):
 class TriggerProtocol(Protocol):
     """Protocol for defining triggers."""
 
-    def next_run_time(self) -> ZonedDateTime:
-        """Return the next run time of the trigger."""
+    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
+        """Return the first run time of the trigger."""
+        ...
+
+    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+        """Return the next run time of the trigger after a previous run."""
         ...
 
 

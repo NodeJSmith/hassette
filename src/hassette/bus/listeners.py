@@ -8,7 +8,7 @@ from typing import Any, cast
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
-from hassette.utils.func_utils import callable_name, callable_short_name
+from hassette.utils.func_utils import callable_name
 from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
@@ -20,6 +20,9 @@ if typing.TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 
+# next_id() is only called at listener creation time on the event loop thread.
+# itertools.count.__next__ is C-atomic. No lock needed unless the project targets
+# free-threaded CPython (PEP 703), which would require a broader concurrency audit.
 seq = itertools.count(1)
 
 
@@ -84,22 +87,36 @@ class Listener:
     and :meth:`cancel` for lifecycle management.  Contains an active runtime component
     (spawns tasks, holds event loop references) — not a simple scalar like ``_fired``."""
 
+    handler_name: str = ""
+    """Human-readable name for the handler, computed once at creation time."""
+
+    handler_short_name: str = ""
+    """Short (last-segment) name for the handler, computed once at creation time."""
+
     _fired: bool = field(default=False, init=False, repr=False)
     """Guard for once=True listeners: set before the first invocation to prevent double-fire
     when two rapid events both match before the removal task executes."""
 
     @property
-    def handler_name(self) -> str:
-        return callable_name(self.orig_handler)
-
-    @property
-    def handler_short_name(self) -> str:
-        return callable_short_name(self.orig_handler)
-
-    @property
     def rate_limiter(self) -> RateLimiter | None:
         """Read-only access to the rate limiter. Use :meth:`cancel` for lifecycle management."""
         return self._rate_limiter
+
+    def mark_registered(self, db_id: int) -> None:
+        """Set the database ID after persistence. One-time assignment by BusService."""
+        if self.db_id is not None:
+            LOGGER.warning(
+                "Listener %s already registered with db_id=%s, ignoring new db_id=%s",
+                self.listener_id,
+                self.db_id,
+                db_id,
+            )
+            return
+        self.db_id = db_id
+
+    def mark_fired(self) -> None:
+        """Mark this once-listener as having fired. Called internally by dispatch()."""
+        self._fired = True
 
     async def dispatch(self, invoke_fn: "Callable[[], Awaitable[None]]") -> None:
         """Apply rate limiting around the given invoke function.
@@ -120,7 +137,7 @@ class Listener:
         if self.once and self._fired:
             return
         if self.once:
-            self._fired = True
+            self.mark_fired()
 
         if self._rate_limiter:
             await self._rate_limiter.call(invoke_fn)
@@ -139,7 +156,7 @@ class Listener:
         if self._rate_limiter:
             self._rate_limiter.cancel()
 
-    async def matches(self, ev: "Event[Any]") -> bool:
+    def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
         if self.predicate is None:
             return True
@@ -156,6 +173,17 @@ class Listener:
 
     def __repr__(self) -> str:
         return f"Listener<{self.owner_id} - {self.handler_short_name}>"
+
+    @staticmethod
+    def _validate_options(once: bool, debounce: float | None, throttle: float | None) -> None:
+        if debounce is not None and debounce <= 0:
+            raise ValueError("'debounce' must be a positive number")
+        if throttle is not None and throttle <= 0:
+            raise ValueError("'throttle' must be a positive number")
+        if debounce is not None and throttle is not None:
+            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
+        if once and (debounce is not None or throttle is not None):
+            raise ValueError("Cannot combine 'once=True' with 'debounce' or 'throttle'")
 
     @classmethod
     def create(
@@ -174,23 +202,17 @@ class Listener:
         app_key: str = "",
         instance_index: int = 0,
     ) -> "Listener":
-        if debounce is not None and debounce <= 0:
-            raise ValueError("'debounce' must be a positive number")
-        if throttle is not None and throttle <= 0:
-            raise ValueError("'throttle' must be a positive number")
-        if debounce is not None and throttle is not None:
-            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
-        if once and (debounce is not None or throttle is not None):
-            raise ValueError(
-                "Cannot combine 'once=True' with 'debounce' or 'throttle' -- these are semantically contradictory"
-            )
+        cls._validate_options(once=once, debounce=debounce, throttle=throttle)
 
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
+        name = callable_name(handler)
+        parts = name.rsplit(".", 1)
+        short_name = parts[-1] if parts else name
 
         # Create async handler and injector
         async_handler = make_async_handler(handler, task_bucket)
-        injector = ParameterInjector(callable_name(handler), signature)
+        injector = ParameterInjector(name, signature)
 
         listener = cls(
             logger=logger,
@@ -207,15 +229,18 @@ class Listener:
             debounce=debounce,
             throttle=throttle,
             priority=priority,
+            handler_name=name,
+            handler_short_name=short_name,
         )
 
-        # Rate limiter constructed post-init (needs task_bucket from create())
+        # One-time construction-phase init — _rate_limiter is set here (inside create()),
+        # not by external callers, so it doesn't need a mark_* guard like db_id.
         if debounce is not None or throttle is not None:
             listener._rate_limiter = RateLimiter(
                 task_bucket=task_bucket,
                 debounce=debounce,
                 throttle=throttle,
-                handler_name=callable_name(handler),
+                handler_name=name,
             )
 
         return listener

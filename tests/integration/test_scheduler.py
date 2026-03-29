@@ -1,8 +1,12 @@
 import asyncio
+import typing
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 from whenever import ZonedDateTime
+
+if typing.TYPE_CHECKING:
+    import pytest
 
 from hassette import Hassette
 from hassette.core.commands import ExecuteJob
@@ -91,7 +95,7 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
 
     scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.05)
     # Simulate an app-owned job by setting db_id (internal jobs have db_id=None and bypass executor)
-    scheduled_job.db_id = 99
+    scheduled_job.mark_registered(99)
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
@@ -216,3 +220,34 @@ def test_scheduled_job_defaults_empty_app_key() -> None:
 
     assert job.app_key == ""
     assert job.instance_index == 0
+
+
+def test_scheduled_job_mark_registered_sets_db_id() -> None:
+    """mark_registered() sets db_id on first call."""
+    job = ScheduledJob(
+        owner_id="test",
+        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
+        job=lambda: None,
+    )
+    assert job.db_id is None
+
+    job.mark_registered(42)
+    assert job.db_id == 42
+
+
+def test_scheduled_job_mark_registered_warns_on_double_call(caplog: "pytest.LogCaptureFixture") -> None:
+    """mark_registered() logs a warning and keeps the original db_id on second call."""
+    import logging
+
+    job = ScheduledJob(
+        owner_id="test",
+        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
+        job=lambda: None,
+    )
+    job.mark_registered(42)
+
+    with caplog.at_level(logging.WARNING, logger="hassette.scheduler.classes"):
+        job.mark_registered(99)
+
+    assert job.db_id == 42
+    assert "already registered" in caplog.text

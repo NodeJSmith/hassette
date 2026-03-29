@@ -3,7 +3,7 @@ import logging
 import typing
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Self, TypeVar
+from typing import Any, Self
 
 from croniter import croniter
 from whenever import TimeDelta, ZonedDateTime
@@ -16,9 +16,10 @@ if typing.TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 
+# next_id() is only called at job creation time on the event loop thread.
+# itertools.count.__next__ is C-atomic. No lock needed unless the project targets
+# free-threaded CPython (PEP 703), which would require a broader concurrency audit.
 seq = itertools.count(1)
-
-T = TypeVar("T")
 
 
 def next_id() -> int:
@@ -29,6 +30,8 @@ class IntervalTrigger:
     """A trigger that runs at a fixed interval."""
 
     def __init__(self, interval: TimeDelta, start: ZonedDateTime | None = None):
+        if interval.in_seconds() <= 0:
+            raise ValueError("IntervalTrigger interval must be positive")
         self.interval = interval
         self.start = start or now()
 
@@ -53,16 +56,26 @@ class IntervalTrigger:
     ) -> Self:
         return cls(TimeDelta(hours=hours, minutes=minutes, seconds=seconds), start=start)
 
-    def next_run_time(self) -> ZonedDateTime:
-        # Catch up if we're behind schedule
-        while (next_time := self.start.add(seconds=self.interval.in_seconds())) <= now():
-            LOGGER.debug("Skipping past interval time %s", next_time)
-            self.start = self.start.add(seconds=self.interval.in_seconds())
+    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
+        if self.start > current_time:
+            return self.start.round(unit="second")
+        return self._advance_past(self.start, current_time)
 
-        # Advance to the next scheduled time
-        self.start = self.start.add(seconds=self.interval.in_seconds())
+    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+        return self._advance_past(previous_run, current_time)
 
-        return self.start.round(unit="second")
+    def _advance_past(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+        interval_secs = self.interval.in_seconds()
+        elapsed = (current_time - anchor).in_seconds()
+        if elapsed > 0:
+            missed = int(elapsed / interval_secs)
+            anchor = anchor.add(seconds=missed * interval_secs)
+        result = anchor.add(seconds=interval_secs)
+        # Guard: if floating-point truncation landed result at or before current_time,
+        # advance one more interval. Boundary-exact slots are treated as "past."
+        if result <= current_time:
+            result = result.add(seconds=interval_secs)
+        return result.round(unit="second")
 
 
 class CronTrigger:
@@ -70,8 +83,10 @@ class CronTrigger:
 
     def __init__(self, cron_expression: str, start: ZonedDateTime | None = None):
         self.cron_expression = cron_expression
+        self.start = start
+        # Validate expression eagerly at construction time
         base = start or now()
-        self.cron_iter = croniter(cron_expression, base.py_datetime(), ret_type=datetime)
+        croniter(cron_expression, base.py_datetime(), ret_type=datetime)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, CronTrigger):
@@ -122,22 +137,34 @@ class CronTrigger:
 
         return cls(cron_expression, start=start)
 
-    def next_run_time(self) -> ZonedDateTime:
-        while (next_time := self.cron_iter.get_next()) <= now().py_datetime():
-            delta = now() - ZonedDateTime.from_py_datetime(next_time)
-            if delta.in_seconds() > 60:
-                LOGGER.warning(
-                    "Cron schedule is more than 1 minute (%s) behind the current time; "
-                    "Next scheduled time: %s, now: %s",
-                    delta.in_minutes(),
-                    next_time,
-                    now().py_datetime(),
-                )
-                self.cron_iter.set_current(now().py_datetime())
+    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
+        # Use start as the croniter anchor, but always snap to the cron grid.
+        # This finds the first cron-aligned time at or after start (or current_time if no start).
+        anchor = self.start or current_time
+        reference = self.start if (self.start is not None and self.start > current_time) else current_time
+        return self._next_after(anchor, reference)
 
-            LOGGER.debug("Skipping past cron time %s", next_time)
-            pass
+    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+        return self._next_after(previous_run, current_time)
 
+    def _next_after(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+        cron = croniter(self.cron_expression, anchor.py_datetime(), ret_type=datetime)
+        current_dt = current_time.py_datetime()
+        # Bounded iteration — avoids O(N) spin for sub-second crons after long downtime.
+        # 10,000 iterations covers ~2.7 hours of per-second crons, which is generous.
+        max_iterations = 10_000
+        for _ in range(max_iterations):
+            next_time = cron.get_next()
+            if next_time > current_dt:
+                return ZonedDateTime.from_py_datetime(next_time)
+        # Too many iterations — skip ahead from current time
+        LOGGER.warning(
+            "CronTrigger(%s) exceeded %d iterations catching up, skipping ahead from current_time",
+            self.cron_expression,
+            max_iterations,
+        )
+        cron = croniter(self.cron_expression, current_dt, ret_type=datetime)
+        next_time = cron.get_next()
         return ZonedDateTime.from_py_datetime(next_time)
 
 
@@ -200,6 +227,18 @@ class ScheduledJob:
         self.args = tuple(self.args)
         self.kwargs = dict(self.kwargs)
 
+    def mark_registered(self, db_id: int) -> None:
+        """Set the database ID after persistence. One-time assignment by SchedulerService."""
+        if self.db_id is not None:
+            LOGGER.warning(
+                "ScheduledJob %s already registered with db_id=%s, ignoring new db_id=%s",
+                self.job_id,
+                self.db_id,
+                db_id,
+            )
+            return
+        self.db_id = db_id
+
     def matches(self, other: "ScheduledJob") -> bool:
         """Check whether two jobs represent the same logical configuration.
 
@@ -220,9 +259,9 @@ class ScheduledJob:
 
     def set_next_run(self, next_run: ZonedDateTime) -> None:
         """Update the next run timestamp and refresh ordering metadata."""
-        rounded_next_run = next_run.round(unit="second")
-        self.next_run = rounded_next_run
-        self.sort_index = (next_run.timestamp_nanos(), self.job_id)
+        rounded = next_run.round(unit="second")
+        self.next_run = rounded
+        self.sort_index = (rounded.timestamp_nanos(), self.job_id)
 
 
 @dataclass(frozen=True)
