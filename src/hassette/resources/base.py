@@ -409,6 +409,7 @@ class Service(Resource):
 
     @final
     async def initialize(self) -> None:
+        """NOTE: keep flag resets and child propagation in sync with Resource.initialize()."""
         self._shutdown_completed = False
         self.shutdown_event.clear()
 
@@ -429,6 +430,7 @@ class Service(Resource):
 
     @final
     async def shutdown(self) -> None:
+        """NOTE: keep guards and flag resets in sync with Resource.shutdown()."""
         if self._shutdown_completed:
             return
         if self._shutting_down:

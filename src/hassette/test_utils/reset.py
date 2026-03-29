@@ -73,7 +73,7 @@ def reset_mock_api(server: "SimpleTestServer") -> None:
 
 
 def _reset_resource_flags(resource: "Resource") -> None:
-    """Recursively reset lifecycle flags on a resource and all descendants."""
+    """Recursively reset lifecycle flags on all descendants of a resource (not the resource itself)."""
     for child in resource.children:
         child._shutdown_completed = False
         child._shutting_down = False

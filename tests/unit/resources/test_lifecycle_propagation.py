@@ -265,6 +265,36 @@ async def test_shutdown_propagation_with_no_children():
     assert leaf._shutdown_completed is True
 
 
+async def test_shutdown_propagation_timeout_forces_terminal_state():
+    """When child shutdown times out, timed-out children are forced to consistent terminal state."""
+    hassette = _make_hassette_stub()
+    hassette.config.resource_shutdown_timeout_seconds = 0.1  # very short timeout
+
+    class HangingChild(Resource):
+        """Resource whose shutdown hangs indefinitely."""
+
+        async def on_shutdown(self) -> None:
+            await asyncio.Event().wait()  # hang forever
+
+    parent = SimpleParent(hassette)
+    hanging = parent.add_child(HangingChild)
+    normal = parent.add_child(ShutdownCounter)
+
+    await parent.initialize()
+    await hanging.initialize()
+    await normal.initialize()
+
+    await parent.shutdown()
+
+    # Parent should complete despite the hanging child
+    assert parent._shutdown_completed is True
+    # Hanging child should be forced to terminal state
+    assert hanging._shutdown_completed is True
+    assert hanging._shutting_down is False
+    # Normal child should also be shut down (gather runs concurrently)
+    assert normal._shutdown_completed is True
+
+
 class SimpleService(Service):
     """Service that runs indefinitely until cancelled."""
 
