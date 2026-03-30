@@ -31,6 +31,8 @@ import logging
 from contextlib import suppress
 from unittest.mock import MagicMock
 
+import pytest
+
 from hassette.api.api import Api
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -552,110 +554,57 @@ async def test_service_status_is_starting_after_initialize():
 # ---------------------------------------------------------------------------
 
 
-async def test_bus_ready_after_initialize_not_after_init():
-    """Bus should NOT be ready after construction — only after initialize()."""
+def _make_leaf(hassette, leaf_type: str) -> Resource:
+    """Create a leaf resource by type name, returning the resource to check readiness on."""
+    if leaf_type == "Bus":
+        return Bus(hassette)
+    if leaf_type == "Scheduler":
+        return Scheduler(hassette)
+    if leaf_type == "Api":
+        return Api(hassette)
+    if leaf_type == "ApiSyncFacade":
+        api = Api(hassette)
+        return api.sync
+    if leaf_type == "_ScheduledJobQueue":
+        return _ScheduledJobQueue(hassette)
+    raise ValueError(f"Unknown leaf type: {leaf_type}")
+
+
+_LEAF_TYPES = ["Bus", "Scheduler", "Api", "ApiSyncFacade", "_ScheduledJobQueue"]
+
+
+@pytest.mark.parametrize("leaf_type", _LEAF_TYPES)
+async def test_leaf_ready_after_initialize_not_after_init(leaf_type: str):
+    """Leaf resources should NOT be ready after construction — only after initialize()."""
     hassette = _make_hassette_stub()
-    bus = Bus(hassette)
+    resource = _make_leaf(hassette, leaf_type)
 
-    assert not bus.is_ready(), "Bus should not be ready immediately after construction"
+    assert not resource.is_ready(), f"{leaf_type} should not be ready after construction"
 
-    await bus.initialize()
+    # For ApiSyncFacade, initialize the parent Api (which propagates to the facade)
+    if leaf_type == "ApiSyncFacade":
+        await resource.parent.initialize()
+    else:
+        await resource.initialize()
 
-    assert bus.is_ready(), "Bus should be ready after initialize()"
+    assert resource.is_ready(), f"{leaf_type} should be ready after initialize()"
 
 
-async def test_scheduler_ready_after_initialize_not_after_init():
-    """Scheduler should NOT be ready after construction — only after initialize()."""
+@pytest.mark.parametrize("leaf_type", _LEAF_TYPES)
+async def test_leaf_ready_after_restart(leaf_type: str):
+    """After shutdown + re-initialize, leaf resources restore readiness."""
     hassette = _make_hassette_stub()
-    scheduler = Scheduler(hassette)
+    resource = _make_leaf(hassette, leaf_type)
+    init_target = resource.parent if leaf_type == "ApiSyncFacade" else resource
 
-    assert not scheduler.is_ready(), "Scheduler should not be ready immediately after construction"
+    await init_target.initialize()
+    assert resource.is_ready()
 
-    await scheduler.initialize()
+    await init_target.shutdown()
+    assert not resource.is_ready(), f"{leaf_type} should not be ready after shutdown"
 
-    assert scheduler.is_ready(), "Scheduler should be ready after initialize()"
-
-
-async def test_api_ready_after_initialize_not_after_init():
-    """Api should NOT be ready after construction — only after initialize()."""
-    hassette = _make_hassette_stub()
-    api = Api(hassette)
-
-    assert not api.is_ready(), "Api should not be ready immediately after construction"
-
-    await api.initialize()
-
-    assert api.is_ready(), "Api should be ready after initialize()"
-
-
-async def test_api_sync_facade_ready_after_initialize_not_after_init():
-    """ApiSyncFacade should NOT be ready after construction — only after initialize()."""
-    hassette = _make_hassette_stub()
-    api = Api(hassette)
-
-    assert not api.sync.is_ready(), "ApiSyncFacade should not be ready immediately after construction"
-
-    await api.initialize()
-
-    assert api.sync.is_ready(), "ApiSyncFacade should be ready after initialize()"
-
-
-async def test_scheduled_job_queue_ready_after_initialize_not_after_init():
-    """_ScheduledJobQueue should NOT be ready after construction — only after initialize()."""
-    hassette = _make_hassette_stub()
-    queue = _ScheduledJobQueue(hassette)
-
-    assert not queue.is_ready(), "_ScheduledJobQueue should not be ready immediately after construction"
-
-    await queue.initialize()
-
-    assert queue.is_ready(), "_ScheduledJobQueue should be ready after initialize()"
-
-
-async def test_leaf_resources_ready_after_restart():
-    """After shutdown + re-initialize, all leaf resources restore readiness."""
-    hassette = _make_hassette_stub()
-
-    bus = Bus(hassette)
-    scheduler = Scheduler(hassette)
-    api = Api(hassette)
-    queue = _ScheduledJobQueue(hassette)
-
-    # Initialize all
-    await bus.initialize()
-    await scheduler.initialize()
-    await api.initialize()
-    await queue.initialize()
-
-    assert bus.is_ready()
-    assert scheduler.is_ready()
-    assert api.is_ready()
-    assert api.sync.is_ready()
-    assert queue.is_ready()
-
-    # Shutdown all
-    await bus.shutdown()
-    await scheduler.shutdown()
-    await api.shutdown()
-    await queue.shutdown()
-
-    assert not bus.is_ready(), "Bus should not be ready after shutdown"
-    assert not scheduler.is_ready(), "Scheduler should not be ready after shutdown"
-    assert not api.is_ready(), "Api should not be ready after shutdown"
-    assert not api.sync.is_ready(), "ApiSyncFacade should not be ready after shutdown"
-    assert not queue.is_ready(), "Queue should not be ready after shutdown"
-
-    # Re-initialize all
-    await bus.initialize()
-    await scheduler.initialize()
-    await api.initialize()
-    await queue.initialize()
-
-    assert bus.is_ready(), "Bus should be ready after re-initialize"
-    assert scheduler.is_ready(), "Scheduler should be ready after re-initialize"
-    assert api.is_ready(), "Api should be ready after re-initialize"
-    assert api.sync.is_ready(), "ApiSyncFacade should be ready after re-initialize"
-    assert queue.is_ready(), "Queue should be ready after re-initialize"
+    await init_target.initialize()
+    assert resource.is_ready(), f"{leaf_type} should be ready after re-initialize"
 
 
 # ---------------------------------------------------------------------------
