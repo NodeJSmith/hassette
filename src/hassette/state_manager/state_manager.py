@@ -224,7 +224,7 @@ class StateManager(Resource):
         self._domain_states_cache = {}
 
     async def after_initialize(self) -> None:
-        self.mark_ready()
+        self.mark_ready(reason="StateManager initialized")
 
     @property
     def _state_proxy(self) -> StateProxy:
