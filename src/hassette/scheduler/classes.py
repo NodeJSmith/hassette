@@ -1,8 +1,8 @@
 import itertools
-import logging
 import typing
 from dataclasses import dataclass, field
 from datetime import datetime
+from logging import getLogger
 from typing import Any, Self
 
 from croniter import croniter
@@ -14,7 +14,7 @@ if typing.TYPE_CHECKING:
     from hassette.types import JobCallable, TriggerProtocol
 
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 # next_id() is only called at job creation time on the event loop thread.
 # itertools.count.__next__ is C-atomic. No lock needed unless the project targets

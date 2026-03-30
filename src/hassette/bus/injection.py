@@ -1,9 +1,9 @@
 """Parameter injection for event handlers with dependency injection support."""
 
 import inspect
-import logging
 import typing
 from collections.abc import Callable
+from logging import getLogger
 from typing import Any
 
 from hassette.conversion import ANNOTATION_CONVERTER, TYPE_MATCHER
@@ -16,7 +16,7 @@ from .extraction import extract_from_signature, validate_di_signature
 if typing.TYPE_CHECKING:
     from hassette.events import Event
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 
 class ParameterInjector:

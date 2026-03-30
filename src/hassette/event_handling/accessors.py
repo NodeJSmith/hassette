@@ -42,9 +42,9 @@ Examples:
     ```
 """
 
-import logging
 import typing
 from collections.abc import Callable, Sequence
+from logging import getLogger
 from typing import Any, cast
 
 from glom import PathAccessError, glom
@@ -55,7 +55,7 @@ from hassette.const.misc import FalseySentinel
 if typing.TYPE_CHECKING:
     from hassette.events import CallServiceEvent, HassContext, HassEvent, HassStateDict, RawStateChangeEvent
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 DEFAULT_EXCLUDE = ("last_reported", "last_updated", "last_changed", "context")
 
 
