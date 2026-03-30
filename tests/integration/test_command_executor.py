@@ -412,7 +412,7 @@ def test_safe_session_id_returns_zero_and_logs_on_missing_session(mock_hassette:
             raise RuntimeError("No active session")
 
     exc = CommandExecutor(mock_hassette, parent=mock_hassette)
-    exc.hassette = _NoSession()  # type: ignore[assignment]
+    exc.hassette = _NoSession()  # pyright: ignore[reportAttributeAccessIssue]
     assert exc._safe_session_id() == 0
 
 
@@ -428,7 +428,7 @@ async def test_execute_queues_sentinel_record_when_no_session(executor: CommandE
         def session_id(self) -> int:
             raise RuntimeError("No active session")
 
-    executor.hassette = _NoSession()  # type: ignore[assignment]
+    executor.hassette = _NoSession()  # pyright: ignore[reportAttributeAccessIssue]
 
     listener = _make_mock_listener()
     cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)

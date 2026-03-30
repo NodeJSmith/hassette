@@ -84,7 +84,7 @@ class ExcludeExtrasMixin:
             pass  # caller explicitly requested specific fields — respect that
         elif extra_keys:
             exclude = self._merge_exclude(exclude, extra_keys)
-        return super().model_dump(exclude=exclude, **kwargs)  # type: ignore[misc]
+        return super().model_dump(exclude=exclude, **kwargs)  # pyright: ignore[reportCallIssue]
 
     def model_dump_json(self, *, exclude: Any | None = None, **kwargs: Any) -> str:
         """Serialize declared fields only; extra fields are excluded for privacy."""
@@ -93,7 +93,7 @@ class ExcludeExtrasMixin:
             pass  # caller explicitly requested specific fields — respect that
         elif extra_keys:
             exclude = self._merge_exclude(exclude, extra_keys)
-        return super().model_dump_json(exclude=exclude, **kwargs)  # type: ignore[misc]
+        return super().model_dump_json(exclude=exclude, **kwargs)  # pyright: ignore[reportCallIssue]
 
 
 class AppManifest(ExcludeExtrasMixin, BaseModel):

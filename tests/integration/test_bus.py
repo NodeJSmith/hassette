@@ -440,8 +440,8 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
     # Set app_key on the Bus's parent so the listener triggers DB registration
     bus = hassette._bus
     assert bus is not None
-    bus.parent.app_key = "test_app"  # type: ignore[union-attr]
-    bus.parent.index = 0  # type: ignore[union-attr]
+    bus.parent.app_key = "test_app"  # pyright: ignore[reportOptionalMemberAccess]
+    bus.parent.index = 0  # pyright: ignore[reportOptionalMemberAccess]
     try:
 
         def handler(event: Event) -> None:
@@ -459,8 +459,8 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
         assert listener.db_id == 42
     finally:
         # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
-        bus.parent.app_key = ""  # type: ignore[union-attr]
-        bus.parent.index = 0  # type: ignore[union-attr]
+        bus.parent.app_key = ""  # pyright: ignore[reportOptionalMemberAccess]
+        bus.parent.index = 0  # pyright: ignore[reportOptionalMemberAccess]
 
 
 async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hassette") -> None:

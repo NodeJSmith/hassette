@@ -121,10 +121,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
         if not hasattr(self.attributes, "entity_id"):
             return False
 
-        if not isinstance(self.attributes.entity_id, list):  # type: ignore
+        if not isinstance(self.attributes.entity_id, list):  # pyright: ignore[reportAttributeAccessIssue]
             return False
 
-        return len(self.attributes.entity_id) > 1  # type: ignore
+        return len(self.attributes.entity_id) > 1  # pyright: ignore[reportAttributeAccessIssue]
 
     @property
     def extras(self) -> dict[str, Any]:
