@@ -2,36 +2,13 @@
 not in on_initialize/on_shutdown, so subclasses can freely override hooks."""
 
 import asyncio
-import threading
-from unittest.mock import AsyncMock
 
 import pytest
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.base import FinalMeta, Service
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_hassette_stub() -> AsyncMock:
-    """Minimal stub that satisfies Resource.__init__ and TaskBucket.spawn."""
-    hassette = AsyncMock()
-    hassette.config.log_level = "DEBUG"
-    hassette.config.data_dir = "/tmp/hassette-test"
-    hassette.config.default_cache_size = 1024
-    hassette.config.resource_shutdown_timeout_seconds = 1
-    hassette.config.task_cancellation_timeout_seconds = 1
-    hassette.config.task_bucket_log_level = "DEBUG"
-    hassette.config.dev_mode = False
-    hassette.event_streams_closed = False
-    hassette.ready_event = asyncio.Event()
-    hassette.ready_event.set()
-    # TaskBucket.spawn needs these to use the fast path (asyncio.create_task)
-    hassette._loop_thread_id = threading.get_ident()
-    hassette.loop = asyncio.get_running_loop()
-    return hassette
+from .conftest import _make_hassette_stub
 
 
 class SimpleService(Service):
@@ -98,7 +75,7 @@ async def test_serve_task_spawned_even_when_on_initialize_overridden():
     """serve() task is spawned even when on_initialize is overridden without super()."""
     hassette = _make_hassette_stub()
     svc = ServiceWithCustomHooks(hassette)
-    svc.order = []  # type: ignore[attr-defined]
+    svc.order = []  # pyright: ignore[reportAttributeAccessIssue]
 
     await svc.initialize()
     # Let the serve task start
@@ -178,7 +155,7 @@ def test_finalmeta_blocks_service_subclass_from_overriding_initialize():
             async def serve(self) -> None:
                 pass
 
-            async def initialize(self) -> None:  # type: ignore[override]
+            async def initialize(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
                 pass
 
 
@@ -193,7 +170,7 @@ def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
             async def serve(self) -> None:
                 pass
 
-            async def shutdown(self) -> None:  # type: ignore[override]
+            async def shutdown(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
                 pass
 
 

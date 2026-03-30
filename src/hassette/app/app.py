@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import typing
 from logging import getLogger
@@ -133,24 +132,12 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     async def cleanup(self, timeout: int | None = None) -> None:
         """Cleanup resources owned by the instance.
 
-        This method is called during shutdown to ensure that all resources are properly released.
+        This method is called during shutdown to cancel tasks and close caches.
+        Child cleanup (Bus, Scheduler, etc.) is handled by _finalize_shutdown() propagation,
+        not by this method.
         """
         timeout = timeout or self.hassette.config.app_shutdown_timeout_seconds
-
         await super().cleanup(timeout=timeout)
-
-        tasks = []
-
-        tasks.append(self.scheduler.remove_all_jobs())
-        tasks.append(self.bus.remove_all_listeners())
-        tasks.append(self.task_bucket.cancel_all())
-
-        if tasks:
-            results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
-            for result in results:
-                if isinstance(result, Exception):
-                    self.logger.error("Error during resource cleanup for app '%s': %s", self.unique_name, result)
-        self.logger.debug("All resources cleaned up for app '%s'", self.unique_name)
 
 
 class AppSync(App[AppConfigT]):

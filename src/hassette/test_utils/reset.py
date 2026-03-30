@@ -4,7 +4,6 @@ Provides functions to reset Resource state between tests, enabling module-scoped
 fixtures without test pollution.
 """
 
-import asyncio
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,8 +18,12 @@ if TYPE_CHECKING:
 async def reset_state_proxy(proxy: "StateProxy") -> None:
     """Reset StateProxy to a clean state for testing.
 
-    Clears the internal states cache and removes any test-added bus listeners.
-    The proxy remains ready and its initialization listeners stay intact.
+    Performs a full shutdown/initialize cycle so that the proxy and its children
+    (Bus, Scheduler) go through proper lifecycle transitions.  The shutdown
+    clears the states cache, removes bus listeners, and cancels scheduler jobs.
+    The subsequent initialize re-subscribes to events and reloads the cache
+    (which will be empty when backed by an AsyncMock API).
+
     This allows module-scoped fixtures to be reused across tests without
     state pollution.
 
@@ -31,12 +34,8 @@ async def reset_state_proxy(proxy: "StateProxy") -> None:
         >>> async def cleanup_state_proxy(proxy: StateProxy):
         ...     await reset_state_proxy(proxy)
     """
-    # Clear the states cache
-    async with proxy.lock:
-        proxy.states.clear()
-
-    await proxy.on_shutdown()
-    await proxy.on_initialize()
+    await proxy.shutdown()
+    await proxy.initialize()
 
 
 async def reset_bus(bus: "Bus") -> None:
@@ -73,6 +72,15 @@ def reset_mock_api(server: "SimpleTestServer") -> None:
     server._unexpected.clear()
 
 
+def _reset_resource_flags(resource: "Resource") -> None:
+    """Recursively reset lifecycle flags on all descendants of a resource (not the resource itself)."""
+    for child in resource.children:
+        child._shutdown_completed = False
+        child._shutting_down = False
+        child.shutdown_event.clear()
+        _reset_resource_flags(child)
+
+
 async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: list["Resource"] | None = None) -> None:
     """Clear Hassette shutdown/ready flags for module-scoped fixture reuse.
 
@@ -99,8 +107,11 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
         )
         raise RuntimeError(msg)
 
-    hassette.shutdown_event = asyncio.Event()
+    hassette.shutdown_event.clear()
     hassette._shutting_down = False
+    hassette._shutdown_completed = False
     hassette.mark_ready("reset for test")
     if original_children is not None:
         hassette.children[:] = original_children
+
+    _reset_resource_flags(hassette)

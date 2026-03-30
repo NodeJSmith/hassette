@@ -90,7 +90,7 @@ class TestChangeSet:
         )
 
         with pytest.raises(AttributeError):
-            changes.orphans = frozenset({"b"})  # type: ignore[misc]
+            changes.orphans = frozenset({"b"})  # pyright: ignore[reportCallIssue]
 
 
 class TestAppChangeDetector:

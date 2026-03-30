@@ -38,7 +38,7 @@ class OfficeButtonApp(AppSync[OfficeButtonAppConfig]):
             )
             return
 
-        for entity_id in self.get_office_light().attributes.entity_id:  # type: ignore
+        for entity_id in self.get_office_light().attributes.entity_id:  # pyright: ignore[reportOptionalIterable]
             self.lights[entity_id] = self.states.light[entity_id]
             self.bus.on_state_change(entity_id, handler=self.log_light_changes)
 

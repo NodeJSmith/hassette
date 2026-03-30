@@ -164,7 +164,7 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(
 
     mod = sys.modules.get(f"{pkg_name}.env_reader_app")
     assert mod is not None, "Expected app module to be imported during precheck"
-    assert mod.READ_AT_IMPORT == "from_dotenv"  # type: ignore[attr-defined]
+    assert mod.READ_AT_IMPORT == "from_dotenv"  # pyright: ignore[reportAttributeAccessIssue]
     _cleanup_env(ENV_IMPORT_KEY)
 
 

@@ -1,7 +1,8 @@
 import asyncio
 import threading
 import typing
-from typing import Any, ParamSpec, TypeVar
+from contextlib import suppress
+from typing import Any, ParamSpec, TypeVar, final
 
 from dotenv import load_dotenv
 
@@ -18,8 +19,8 @@ from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
+from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
-from hassette.utils.exception_utils import get_traceback_string
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
@@ -350,23 +351,52 @@ class Hassette(Resource):
                 service.start()
 
     async def on_shutdown(self) -> None:
-        """Shutdown all services gracefully and gather any results."""
+        """Shutdown hook — children are shut down by _finalize_shutdown() propagation with timeout."""
+        pass
 
-        shutdown_tasks = [resource.shutdown() for resource in reversed(self.children)]
+    async def _on_children_stopped(self) -> None:
+        """Emit Hassette's own STOPPED event, then close event streams.
 
-        self.logger.info("Waiting for all resources to finish...")
+        Called by _finalize_shutdown() after all children have shut down cleanly.
+        handle_stop() must run before close_streams() so Hassette's STOPPED event
+        is delivered while streams are still open.
 
-        results = await asyncio.gather(*shutdown_tasks, return_exceptions=True)
-
-        for result in results:
-            if isinstance(result, Exception):
-                self.logger.error("Task raised an exception: %s", get_traceback_string(result))
-            else:
-                self.logger.debug("Task completed successfully: %s", result)
-
-        # Close event streams after all children have stopped — children send
-        # STOPPED status events during shutdown, so streams must stay open until then.
+        On the timeout path, this hook is skipped — Hassette.shutdown()'s finally
+        block handles both handle_stop() and close_streams() as a fallback.
+        """
+        await super()._on_children_stopped()
+        await self.handle_stop()
         await self._event_stream_service.close_streams()
+
+    @final
+    async def shutdown(self) -> None:
+        """Override to wrap the entire shutdown in a total timeout.
+
+        FinalMeta exempts Hassette from the @final on Resource.shutdown().
+        This ensures hooks + child propagation + cleanup all share one budget.
+        """
+        try:
+            async with asyncio.timeout(self.config.total_shutdown_timeout_seconds):
+                await super().shutdown()
+        except TimeoutError:
+            self.logger.critical(
+                "Total shutdown timeout (%ss) exceeded — forcing termination",
+                self.config.total_shutdown_timeout_seconds,
+            )
+            for child in self.children:
+                child._force_terminal()
+        finally:
+            # _shutdown_completed FIRST — prevents re-entry regardless of what follows.
+            self._shutdown_completed = True
+            # Emit Hassette's own STOPPED event while streams are still open,
+            # then close streams and set terminal status.
+            if not self.event_streams_closed:
+                with suppress(Exception):
+                    await self.handle_stop()
+            with suppress(Exception):
+                await self._event_stream_service.close_streams()
+            self.status = ResourceStatus.STOPPED
+            self.mark_not_ready("shutdown complete")
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""

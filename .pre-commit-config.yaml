@@ -34,6 +34,13 @@ repos:
         stages:
           - pre-push
 
+      # ban mypy-style type: ignore comments — use pyright: ignore[reportXxx] instead
+      - id: no-mypy-ignore
+        name: 'Ban "type: ignore" comments (use pyright)'
+        language: pygrep
+        types: [python]
+        entry: '# type: ignore'
+
       # ensure codecov yaml is valid
       - id: check-codecov-yml
         name: Check codecov.yml validity

@@ -113,6 +113,31 @@ def smoke(session: "Session"):
     )
 
 
+@nox.session
+def smoke_with_coverage(session: "Session"):
+    """Smoke tests with coverage collection for Codecov."""
+    session.env["COVERAGE_FILE"] = ".coverage.smoke"
+    session.run(
+        "uv",
+        "run",
+        "--active",
+        "--reinstall-package",
+        "hassette",
+        "pytest",
+        "-m",
+        "smoke",
+        "-v",
+        "-x",
+        "-n",
+        "0",
+        "--tb=short",
+        "--cov=hassette",
+        "--cov-branch",
+        "--cov-report=xml:coverage.smoke.xml",
+        external=True,
+    )
+
+
 @nox.session(python=["3.11", "3.12", "3.13"], tags=["coverage"])
 def tests_with_coverage(session: "Session"):
     session.env["COVERAGE_FILE"] = f".coverage.{session.python}"

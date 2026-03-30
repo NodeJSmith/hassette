@@ -240,4 +240,4 @@ def run_hassette_startup_tasks(config: "HassetteConfig") -> None:
     from hassette.core.core import Hassette as HassetteCore
 
     dummy = SimpleNamespace(config=config, logger=logging.getLogger("hassette.test.startup"))
-    HassetteCore._startup_tasks(dummy)  # type: ignore[arg-type]
+    HassetteCore._startup_tasks(dummy)  # pyright: ignore[reportArgumentType]

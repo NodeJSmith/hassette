@@ -129,6 +129,8 @@ class Bus(Resource):
         self.priority = priority
 
         assert self.bus_service is not None, "Bus service not initialized"
+
+    async def on_initialize(self) -> None:
         self.mark_ready(reason="Bus initialized")
 
     async def on_shutdown(self) -> None:

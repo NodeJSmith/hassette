@@ -503,3 +503,49 @@ class TestFullIntegrationFlow:
         snapshot = app_registry.get_snapshot()
         assert snapshot.failed_count == 1
         assert "failing" in snapshot.failed_apps
+
+
+class TestAppRestartPreservesChildren:
+    """Verify that an App's children survive a shutdown + re-initialize cycle."""
+
+    async def test_restart_round_trip(
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
+    ):
+        """Shutdown propagates to children, re-initialize restores them all to ready."""
+        manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
+        app_registry.set_manifests({"multi_instance": manifest})
+
+        app_factory.create_instances("multi_instance", manifest)
+        instances = app_registry.get_apps_by_key("multi_instance")
+        await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
+
+        app_instance = app_registry.get("multi_instance", 0)
+        assert app_instance is not None
+        assert app_instance.status == ResourceStatus.RUNNING
+
+        # All four children should be ready after init
+        assert app_instance.bus.is_ready(), "Bus should be ready after initialize"
+        assert app_instance.scheduler.is_ready(), "Scheduler should be ready after initialize"
+        assert app_instance.api.is_ready(), "Api should be ready after initialize"
+        assert app_instance.states.is_ready(), "StateManager should be ready after initialize"
+
+        # Shutdown
+        await app_lifecycle.shutdown_instance(app_instance)
+
+        assert app_instance.status == ResourceStatus.STOPPED
+        assert not app_instance.bus.is_ready(), "Bus should not be ready after shutdown"
+        assert not app_instance.scheduler.is_ready(), "Scheduler should not be ready after shutdown"
+        assert not app_instance.api.is_ready(), "Api should not be ready after shutdown"
+        assert not app_instance.states.is_ready(), "StateManager should not be ready after shutdown"
+
+        # Re-initialize
+        await app_instance.initialize()
+
+        assert app_instance.status == ResourceStatus.RUNNING, "App should be RUNNING after re-initialize"
+        assert app_instance.bus.is_ready(), "Bus should be ready after re-initialize"
+        assert app_instance.scheduler.is_ready(), "Scheduler should be ready after re-initialize"
+        assert app_instance.api.is_ready(), "Api should be ready after re-initialize"
+        assert app_instance.states.is_ready(), "StateManager should be ready after re-initialize"
+
+        # Clean up
+        await app_instance.shutdown()

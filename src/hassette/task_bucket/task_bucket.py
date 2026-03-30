@@ -214,6 +214,16 @@ class TaskBucket(Resource):
         with ctx.use_task_bucket(self):
             return self.hassette.loop.create_task(coro, name=name)
 
+    def cancel_all_sync(self) -> None:
+        """Cancel all tracked tasks without awaiting completion (fire-and-forget).
+
+        Snapshots the WeakSet before iterating to avoid mutation during iteration.
+        """
+        current = asyncio.current_task()
+        tasks = [t for t in list(self._tasks) if not t.done() and t is not current]
+        for t in tasks:
+            t.cancel()
+
     async def cancel_all(self) -> None:
         """Cancel all tracked tasks, wait for them to finish, and log stragglers."""
         # snapshot, because self._tasks is weak

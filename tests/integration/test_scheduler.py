@@ -60,7 +60,7 @@ def test_scheduled_job_copies_args_kwargs() -> None:
         owner_id="owner",
         next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda *a, **kw: None,  # noqa
-        args=args,  # type: ignore
+        args=args,  # pyright: ignore[reportArgumentType]
         kwargs=kwargs,
     )
 
@@ -138,8 +138,8 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) ->
     assert scheduler is not None
     # Set app_key on the scheduler's parent so the job has a non-empty app_key
     # and triggers DB registration (without this, the guard skips registration).
-    scheduler.parent.app_key = "test_app"  # type: ignore[union-attr]
-    scheduler.parent.index = 0  # type: ignore[union-attr]
+    scheduler.parent.app_key = "test_app"  # pyright: ignore[reportOptionalMemberAccess]
+    scheduler.parent.index = 0  # pyright: ignore[reportOptionalMemberAccess]
     try:
         scheduler_service = hassette_with_scheduler._scheduler_service
         assert scheduler_service is not None
@@ -162,8 +162,8 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) ->
         scheduled_job.cancel()
     finally:
         # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
-        scheduler.parent.app_key = ""  # type: ignore[union-attr]
-        scheduler.parent.index = 0  # type: ignore[union-attr]
+        scheduler.parent.app_key = ""  # pyright: ignore[reportOptionalMemberAccess]
+        scheduler.parent.index = 0  # pyright: ignore[reportOptionalMemberAccess]
 
 
 async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> None:

@@ -49,6 +49,12 @@ class EventStreamService(Resource):
         return self._send_stream._closed and self._receive_stream._closed  # pyright: ignore[reportPrivateUsage]
 
     async def close_streams(self) -> None:
-        """Close both streams. Called by Hassette.on_shutdown() after all children have stopped."""
+        """Close both streams. Called by Hassette._on_children_stopped() after all children have stopped.
+
+        Idempotent — safe to call multiple times (Hassette.shutdown() finally block
+        calls this as a fallback on timeout paths).
+        """
+        if self.event_streams_closed:
+            return
         await self._send_stream.aclose()
         await self._receive_stream.aclose()

@@ -36,9 +36,6 @@ class ServiceWatcher(Resource):
         self._register_internal_event_listeners()
         self.mark_ready(reason="Service watcher initialized")
 
-    async def on_shutdown(self) -> None:
-        await self.bus.remove_all_listeners()
-
     @staticmethod
     def _service_key(name: str, role: object) -> str:
         return f"{name}:{role}"

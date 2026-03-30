@@ -109,7 +109,6 @@ class AppHandler(Resource):
         """Shutdown all app instances gracefully."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
         self.mark_not_ready(reason="shutting-down")
-        await self.lifecycle.bus.remove_all_listeners()
         await self.lifecycle.shutdown_all()
 
     # --- Delegated operations ---
