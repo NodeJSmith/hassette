@@ -37,8 +37,9 @@ class FinalMeta(type):
 
         FinalMeta.LOADED_CLASSES.add(subclass_name)
 
-        if subclass_name == "hassette.resources.base.Service":
+        if subclass_name in ("hassette.resources.base.Service", "hassette.core.core.Hassette"):
             # allow Service to override Resource's final initialize/shutdown
+            # allow Hassette to override Resource's final shutdown (total timeout wrapper)
             return
 
         # Collect all methods marked as final from the MRO (excluding object and cls itself)
@@ -469,7 +470,17 @@ class Service(Resource):
 
     @final
     async def initialize(self) -> None:
-        """NOTE: keep flag resets and child propagation in sync with Resource.initialize()."""
+        """Initialize the Service and propagate to children.
+
+        NOTE: Unlike Resource.initialize(), this method returns while status is
+        still STARTING.  handle_running() is called by _serve_wrapper() when
+        serve() actually begins.  Children MUST NOT call
+        self.parent.wait_ready() during their on_initialize — this will deadlock
+        because the parent's readiness depends on serve() running, which cannot
+        start until child initialization completes.
+
+        Keep flag resets and child propagation in sync with Resource.initialize().
+        """
         self._shutdown_completed = False
         self.shutdown_event.clear()
 

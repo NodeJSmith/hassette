@@ -2,7 +2,7 @@ import asyncio
 import threading
 import typing
 from contextlib import suppress
-from typing import Any, ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar, final
 
 from dotenv import load_dotenv
 
@@ -19,6 +19,7 @@ from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
+from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -376,6 +377,36 @@ class Hassette(Resource):
             if not self.event_streams_closed:
                 with suppress(Exception):
                     await self._event_stream_service.close_streams()
+
+    @final
+    async def shutdown(self) -> None:
+        """Override to wrap the entire shutdown in a total timeout.
+
+        FinalMeta exempts Hassette from the @final on Resource.shutdown().
+        This ensures hooks + child propagation + cleanup all share one budget.
+        """
+        try:
+            async with asyncio.timeout(self.config.total_shutdown_timeout_seconds):
+                await super().shutdown()
+        except TimeoutError:
+            self.logger.critical(
+                "Total shutdown timeout (%ss) exceeded — forcing termination",
+                self.config.total_shutdown_timeout_seconds,
+            )
+            for child in self.children:
+                child._force_terminal()
+        finally:
+            # _shutdown_completed FIRST — prevents re-entry regardless of what follows.
+            self._shutdown_completed = True
+            # Emit Hassette's own STOPPED event while streams are still open,
+            # then close streams and set terminal status.
+            if not self.event_streams_closed:
+                with suppress(Exception):
+                    await self.handle_stop()
+            with suppress(Exception):
+                await self._event_stream_service.close_streams()
+            self.status = ResourceStatus.STOPPED
+            self.mark_not_ready("shutdown complete")
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""

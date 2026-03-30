@@ -165,6 +165,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     )
     """Length of time to wait for a resource to shut down before giving up. Defaults to app_shutdown_timeout_seconds."""
 
+    total_shutdown_timeout_seconds: int = Field(default=30)
+    """Maximum wall-clock seconds for the entire Hassette shutdown (hooks + propagation).
+    Individual resource_shutdown_timeout_seconds still applies per-level for diagnostics."""
+
     websocket_authentication_timeout_seconds: int = Field(default=10)
     """Length of time to wait for WebSocket authentication to complete."""
 
