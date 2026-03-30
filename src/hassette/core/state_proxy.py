@@ -79,6 +79,14 @@ class StateProxy(Resource):
             raise
 
     def subscribe_to_events(self) -> None:
+        # Cancel existing subscriptions to prevent leaks on rapid reconnect
+        if self.state_change_sub is not None:
+            self.state_change_sub.cancel()
+            self.state_change_sub = None
+        if self.poll_job is not None:
+            self.scheduler.remove_job(self.poll_job)
+            self.poll_job = None
+
         self.state_change_sub = self.bus.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
         if not self.hassette.config.disable_state_proxy_polling:
             self.poll_job = self.scheduler.run_every(

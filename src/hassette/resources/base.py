@@ -258,13 +258,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if children:
             timeout = self.hassette.config.resource_shutdown_timeout_seconds
             try:
-                results = await asyncio.wait_for(
-                    asyncio.gather(*[child.shutdown() for child in children], return_exceptions=True),
-                    timeout=timeout,
-                )
-                for child, result in zip(children, results, strict=True):
-                    if isinstance(result, Exception):
-                        self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+                async with asyncio.timeout(timeout):
+                    results = await asyncio.gather(
+                        *[child.shutdown() for child in children],
+                        return_exceptions=True,
+                    )
+                    for child, result in zip(children, results, strict=True):
+                        if isinstance(result, Exception):
+                            self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
             except TimeoutError:
                 self.logger.error("Timed out waiting for children to shut down after %s seconds", timeout)
                 # Force timed-out children to a consistent terminal state so they
