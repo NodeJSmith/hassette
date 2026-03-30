@@ -28,7 +28,7 @@ def dev(session: "Session"):
         "run",
         "pytest",
         "-m",
-        "not docker and not e2e and not smoke",
+        "not docker and not e2e and not system",
         "-n",
         "auto",
         "--dist",
@@ -48,7 +48,7 @@ def tests(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "not docker and not e2e and not smoke",
+        "not docker and not e2e and not system",
         "-n",
         "auto",
         "--dist",
@@ -89,8 +89,8 @@ def e2e(session: "Session"):
 
 
 @nox.session(python=["3.13"])
-def smoke(session: "Session"):
-    """Startup smoke tests against a real HA Docker container.
+def system(session: "Session"):
+    """System tests against a real HA Docker container.
 
     The ``ha_container`` pytest fixture manages Docker automatically —
     it starts the container before the session and tears it down after.
@@ -103,7 +103,7 @@ def smoke(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "smoke",
+        "system",
         "-v",
         "-x",
         "-n",
@@ -114,9 +114,9 @@ def smoke(session: "Session"):
 
 
 @nox.session
-def smoke_with_coverage(session: "Session"):
-    """Smoke tests with coverage collection for Codecov."""
-    session.env["COVERAGE_FILE"] = ".coverage.smoke"
+def system_with_coverage(session: "Session"):
+    """System tests with coverage collection for Codecov."""
+    session.env["COVERAGE_FILE"] = ".coverage.system"
     session.run(
         "uv",
         "run",
@@ -125,7 +125,7 @@ def smoke_with_coverage(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "smoke",
+        "system",
         "-v",
         "-x",
         "-n",
@@ -133,7 +133,7 @@ def smoke_with_coverage(session: "Session"):
         "--tb=short",
         "--cov=hassette",
         "--cov-branch",
-        "--cov-report=xml:coverage.smoke.xml",
+        "--cov-report=xml:coverage.system.xml",
         external=True,
     )
 
@@ -149,7 +149,7 @@ def tests_with_coverage(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "not docker and not e2e and not smoke",
+        "not docker and not e2e and not system",
         "-n",
         "auto",
         "--dist",

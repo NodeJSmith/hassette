@@ -3,7 +3,7 @@
 Run once from the repo root when the fixture format needs to change.
 Output files are committed to the repo.
 
-Usage: uv run python tests/smoke/generate_ha_fixtures.py
+Usage: uv run python tests/system/generate_ha_fixtures.py
 """
 
 import base64

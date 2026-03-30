@@ -1,4 +1,4 @@
-"""Smoke test fixtures."""
+"""System test fixtures."""
 
 import asyncio
 import contextlib
@@ -24,8 +24,8 @@ HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDA
 STARTUP_TIMEOUT = 60  # seconds
 
 
-class _SmokeConfig(HassetteConfig):
-    """HassetteConfig subclass that disables CLI arg parsing for smoke tests."""
+class _SystemTestConfig(HassetteConfig):
+    """HassetteConfig subclass that disables CLI arg parsing for system tests."""
 
     model_config = HassetteConfig.model_config.copy() | SettingsConfigDict(
         cli_parse_args=False,
@@ -157,8 +157,8 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
                 await hassette.shutdown()
 
 
-def make_smoke_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
-    """Build a minimal HassetteConfig pointing at the smoke test HA container.
+def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
+    """Build a minimal HassetteConfig pointing at the system test HA container.
 
     Args:
         ha_url: Base URL of the running Home Assistant instance.
@@ -170,7 +170,7 @@ def make_smoke_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
     app_dir = tmp_path / "apps"
     app_dir.mkdir(exist_ok=True)
 
-    return _SmokeConfig(
+    return _SystemTestConfig(
         base_url=ha_url,
         token=HA_TOKEN,
         data_dir=tmp_path / "data",
