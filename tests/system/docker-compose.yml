@@ -1,7 +1,7 @@
 services:
   homeassistant:
     image: homeassistant/home-assistant:2025.3
-    container_name: hassette-smoke-ha
+    container_name: hassette-system-ha
     volumes:
       - ${HA_CONFIG_PATH:-../../tests/fixtures/ha-config}:/config
     ports:

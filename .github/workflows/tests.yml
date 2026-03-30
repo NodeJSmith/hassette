@@ -61,7 +61,7 @@ jobs:
                   path: .coverage.${{ matrix.python-version }}
                   include-hidden-files: true
 
-    smoke:
+    system:
         runs-on: ubuntu-latest
         timeout-minutes: 10
 
@@ -79,18 +79,18 @@ jobs:
 
             - run: uv sync
 
-            - name: Run smoke tests with coverage
-              run: uv run nox -s smoke_with_coverage
+            - name: Run system tests with coverage
+              run: uv run nox -s system_with_coverage
 
             - name: Upload coverage data
               uses: actions/upload-artifact@v4
               with:
-                  name: .coverage.smoke
-                  path: .coverage.smoke
+                  name: .coverage.system
+                  path: .coverage.system
                   include-hidden-files: true
 
     combine-and-report:
-        needs: [test, smoke]
+        needs: [test, system]
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4

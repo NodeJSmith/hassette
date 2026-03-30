@@ -66,7 +66,7 @@ class ApiResource(Resource):
         await self.hassette.wait_for_ready(self.hassette._websocket_service)
         self.mark_ready(reason="API session initialized")
 
-    async def on_shutdown(self, *args, **kwargs) -> None:
+    async def on_shutdown(self) -> None:
         await self._stack.aclose()
 
     @property

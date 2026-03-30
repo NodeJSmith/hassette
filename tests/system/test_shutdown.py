@@ -1,4 +1,4 @@
-"""Shutdown smoke tests — verify clean shutdown against a live Home Assistant container.
+"""Shutdown system tests — verify clean shutdown against a live Home Assistant container.
 
 These tests verify that Hassette's shutdown path completes cleanly with all
 children in terminal state and event streams closed. They exercise the full
@@ -6,7 +6,7 @@ Hassette.shutdown() override (total timeout + _finalize_shutdown propagation +
 _on_children_stopped hook + close_streams fallback).
 
 Run with:
-    pytest -m smoke -v
+    pytest -m system -v
 """
 
 import pytest
@@ -14,14 +14,14 @@ import pytest
 from hassette.resources.base import Service
 from hassette.test_utils import make_service_failed_event, wait_for
 from hassette.types.enums import ResourceStatus
-from tests.smoke.conftest import make_smoke_config, startup_context
+from tests.system.conftest import make_system_config, startup_context
 
-pytestmark = [pytest.mark.smoke, pytest.mark.filterwarnings("default::DeprecationWarning")]
+pytestmark = [pytest.mark.system, pytest.mark.filterwarnings("default::DeprecationWarning")]
 
 
 async def test_shutdown_completes_cleanly(ha_container, tmp_path):
     """Hassette.shutdown() terminates all children and closes event streams."""
-    config = make_smoke_config(ha_container, tmp_path)
+    config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         # Verify we're fully running before shutdown
         assert hassette.session_id > 0
@@ -35,7 +35,7 @@ async def test_shutdown_completes_cleanly(ha_container, tmp_path):
 
 async def test_all_children_stopped_after_shutdown(ha_container, tmp_path):
     """Every direct child of Hassette is in STOPPED state after shutdown."""
-    config = make_smoke_config(ha_container, tmp_path)
+    config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         children_snapshot = list(hassette.children)
 
@@ -48,7 +48,7 @@ async def test_all_children_stopped_after_shutdown(ha_container, tmp_path):
 
 async def test_grandchildren_stopped_after_shutdown(ha_container, tmp_path):
     """Grandchildren (e.g., StateProxy.Bus, AppHandler.AppLifecycleService) are also STOPPED."""
-    config = make_smoke_config(ha_container, tmp_path)
+    config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         all_descendants = [
             (grandchild.unique_name, grandchild) for child in hassette.children for grandchild in child.children
@@ -81,7 +81,7 @@ async def test_bus_driven_failed_cascade_triggers_shutdown(ha_container, tmp_pat
     with clean bus state — module-scoped integration fixtures pollute the BusService
     router between tests.
     """
-    config = make_smoke_config(ha_container, tmp_path)
+    config = make_system_config(ha_container, tmp_path)
     config.service_restart_max_attempts = 2
     config.service_restart_backoff_seconds = 0.0
 

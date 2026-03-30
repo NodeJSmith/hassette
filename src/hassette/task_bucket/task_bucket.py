@@ -9,6 +9,7 @@ from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
 from hassette.resources.base import Resource
+from hassette.types.types import CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
 if typing.TYPE_CHECKING:
@@ -17,11 +18,9 @@ if typing.TYPE_CHECKING:
 
     from hassette import Hassette
 
-T = TypeVar("T", covariant=True)
+T = TypeVar("T")
 P = ParamSpec("P")
 R = TypeVar("R")
-
-CoroLikeT = Coroutine[Any, Any, T]
 
 
 class TaskBucket(Resource):

@@ -1,8 +1,8 @@
 """WebSocket endpoint for real-time updates."""
 
 import asyncio
-import logging
 import time
+from logging import getLogger
 
 import anyio
 from fastapi import APIRouter
@@ -12,7 +12,7 @@ from hassette.web.models import ConnectedPayload
 from hassette.web.telemetry_helpers import safe_session_id
 
 router = APIRouter(tags=["websocket"])
-logger = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 _LOG_LEVELS: dict[str, int] = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 
@@ -56,7 +56,7 @@ async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
     except Exception as exc:
         if _is_disconnect(exc):
             return
-        logger.debug("WebSocket read error", exc_info=True)
+        LOGGER.debug("WebSocket read error", exc_info=True)
         raise
 
 
@@ -79,7 +79,7 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
     except Exception as exc:
         if _is_disconnect(exc):
             return
-        logger.debug("WebSocket send error", exc_info=True)
+        LOGGER.debug("WebSocket send error", exc_info=True)
         raise
 
 
@@ -105,8 +105,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         if isinstance(exc, BaseExceptionGroup):
             _, rest = exc.split(_is_disconnect)
             if rest is not None:
-                logger.debug("WebSocket connection error", exc_info=rest)
+                LOGGER.debug("WebSocket connection error", exc_info=rest)
         elif not _is_disconnect(exc):
-            logger.debug("WebSocket connection error", exc_info=True)
+            LOGGER.debug("WebSocket connection error", exc_info=True)
     finally:
         await runtime.unregister_ws_client(queue)

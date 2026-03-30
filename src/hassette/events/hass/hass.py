@@ -1,6 +1,6 @@
-import logging
 import typing
 from dataclasses import dataclass, field
+from logging import getLogger
 from typing import Any, Generic, Literal, TypeAlias
 
 from hassette.const import MISSING_VALUE
@@ -14,7 +14,7 @@ if typing.TYPE_CHECKING:
     from hassette.const.misc import FalseySentinel
 
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)

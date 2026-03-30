@@ -2,11 +2,10 @@ import asyncio
 import typing
 import uuid
 from abc import abstractmethod
-from collections.abc import Coroutine
 from contextlib import suppress
 from functools import cached_property
 from logging import INFO, Logger, getLogger
-from typing import Any, ClassVar, TypeVar, final
+from typing import ClassVar, TypeVar, final
 
 from diskcache import Cache
 
@@ -17,9 +16,6 @@ from .mixins import LifecycleMixin
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette, TaskBucket
-
-T = TypeVar("T")
-CoroLikeT = Coroutine[Any, Any, T]
 
 _ResourceT = TypeVar("_ResourceT", bound="Resource")
 

@@ -10,7 +10,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import TaskBucket
 
-_logger = getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 
 class RateLimiter:
@@ -107,7 +107,7 @@ class RateLimiter:
         # is critical: the old task holds the old handler closure (with the old event),
         # and the new task will hold the new handler closure (with the latest event).
         if self._debounce_task and not self._debounce_task.done():
-            _logger.debug("Debounce reset for handler=%s (window=%.1fs)", self._handler_name, self.debounce)
+            LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self._handler_name, self.debounce)
             self._debounce_task.cancel()
 
         async def delayed_call():
@@ -142,7 +142,7 @@ class RateLimiter:
 
         now = time.monotonic()
         if now - self._throttle_last_time < self.throttle:
-            _logger.debug("Throttle drop for handler=%s (window=%.1fs)", self._handler_name, self.throttle)
+            LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self._handler_name, self.throttle)
             return
         self._throttle_last_time = now
         await handler()

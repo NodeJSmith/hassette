@@ -81,7 +81,7 @@ class AppHandler(Resource):
             self.logger.debug("Not watching for app changes, dev_mode is disabled")
 
         await self.hassette.wait_for_ready(self.hassette._websocket_service)
-        self.mark_ready("initialized")
+        self.mark_ready(reason="initialized")
 
     async def after_initialize(self) -> None:
         """Wait for all Hassette services, then spawn app bootstrap.

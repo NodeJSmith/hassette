@@ -343,6 +343,6 @@ async def test_restart_counter_not_reset_when_service_never_ready(get_service_wa
 
 
 # test_bus_driven_failed_events_trigger_shutdown_after_max_attempts moved to
-# tests/smoke/test_shutdown.py — the full bus cascade requires a clean Hassette
+# tests/system/test_shutdown.py — the full bus cascade requires a clean Hassette
 # instance, which the module-scoped hassette_with_bus fixture cannot provide
 # reliably across test ordering.

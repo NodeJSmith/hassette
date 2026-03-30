@@ -110,7 +110,7 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
     hassette.shutdown_event.clear()
     hassette._shutting_down = False
     hassette._shutdown_completed = False
-    hassette.mark_ready("reset for test")
+    hassette.mark_ready(reason="reset for test")
     if original_children is not None:
         hassette.children[:] = original_children
 

@@ -21,7 +21,7 @@ class TestHassetteShutdownSinglePass:
 
         Tests the child directly (not via hassette.shutdown()) because the module-scoped
         hassette_with_bus fixture cannot survive a full hassette shutdown (event streams
-        close permanently). Full parent→child propagation is covered by smoke tests.
+        close permanently). Full parent→child propagation is covered by system tests.
         """
         hassette = hassette_with_bus
         bus = hassette._bus
