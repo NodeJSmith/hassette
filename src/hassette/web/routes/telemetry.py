@@ -4,8 +4,8 @@ All endpoints resolve ``session_id`` server-side via ``safe_session_id()`` —
 the SPA never needs to know or pass a session ID.
 """
 
-import logging
 import sqlite3
+from logging import getLogger
 
 from fastapi import APIRouter, Query, Response
 
@@ -29,7 +29,7 @@ from hassette.web.telemetry_helpers import (
     to_listener_with_summary,
 )
 
-logger = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError)
 """Database error types to catch in telemetry endpoints.
@@ -73,7 +73,7 @@ async def telemetry_status(
         await telemetry.check_health()
     except DB_ERRORS as exc:
         _reraise_if_not_connection_closed(exc)
-        logger.warning("Telemetry database health check failed", exc_info=True)
+        LOGGER.warning("Telemetry database health check failed", exc_info=True)
         response.status_code = 503
         return TelemetryStatusResponse(degraded=True)
     return TelemetryStatusResponse(degraded=False)
@@ -199,7 +199,7 @@ async def dashboard_kpis(
         summary = await telemetry.get_global_summary(session_id=session_id)
     except DB_ERRORS as exc:
         _reraise_if_not_connection_closed(exc)
-        logger.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
+        LOGGER.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
         status = runtime.get_system_status()
         return DashboardKpisResponse(
             total_handlers=0,
@@ -248,7 +248,7 @@ async def dashboard_app_grid(
         summaries = await telemetry.get_all_app_summaries(session_id=session_id)
     except DB_ERRORS as exc:
         _reraise_if_not_connection_closed(exc)
-        logger.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
+        LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
     empty = AppHealthSummary(
@@ -300,7 +300,7 @@ async def dashboard_errors(
         raw_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
     except DB_ERRORS as exc:
         _reraise_if_not_connection_closed(exc)
-        logger.warning("Failed to fetch recent errors for dashboard", exc_info=True)
+        LOGGER.warning("Failed to fetch recent errors for dashboard", exc_info=True)
         return DashboardErrorsResponse(errors=[])
 
     typed_errors: list[HandlerErrorEntry | JobErrorEntry] = []

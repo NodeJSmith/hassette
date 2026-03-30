@@ -6,14 +6,14 @@ endpoints.  No imports from ``web/ui/`` — this module is the source,
 not the consumer.
 """
 
-import logging
+from logging import getLogger
 from typing import TYPE_CHECKING, Any, Protocol
 
 from hassette.config.helpers import VERSION
 from hassette.core.telemetry_models import JobSummary, ListenerSummary
 from hassette.web.models import ListenerWithSummary
 
-logger = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 if TYPE_CHECKING:
     from hassette.core.runtime_query_service import RuntimeQueryService

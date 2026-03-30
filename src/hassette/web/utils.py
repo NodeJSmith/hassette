@@ -1,7 +1,7 @@
 """Shared serialization helpers for the Hassette web layer."""
 
 import asyncio
-import logging
+from logging import getLogger
 from typing import TYPE_CHECKING
 
 from hassette.scheduler.classes import CronTrigger, IntervalTrigger
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from hassette.core.telemetry_query_service import TelemetryQueryService
     from hassette.scheduler.classes import ScheduledJob
 
-logger = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 
 async def gather_all_listeners(
@@ -32,7 +32,7 @@ async def gather_all_listeners(
     listeners: list[ListenerSummary] = []
     for result in results:
         if isinstance(result, BaseException):
-            logger.warning("Telemetry query failed gathering all listeners: %s", result)
+            LOGGER.warning("Telemetry query failed gathering all listeners: %s", result)
         elif isinstance(result, list):
             listeners.extend(result)
     return listeners
