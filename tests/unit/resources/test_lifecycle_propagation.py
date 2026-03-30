@@ -695,3 +695,114 @@ async def test_app_shutdown_propagates_to_bus_and_scheduler():
     # After shutdown, children should have been shut down via propagation
     assert not app.bus.is_ready(), "Bus should not be ready after app shutdown"
     assert not app.scheduler.is_ready(), "Scheduler should not be ready after app shutdown"
+
+
+# ---------------------------------------------------------------------------
+# _force_terminal() Tests (WP09)
+# ---------------------------------------------------------------------------
+
+
+class StubResource(Resource):
+    """Simple resource for testing _force_terminal()."""
+
+    pass
+
+
+class StubService(Service):
+    """Simple service for testing _force_terminal()."""
+
+    async def serve(self) -> None:
+        await asyncio.Event().wait()
+
+
+async def test_force_terminal_recurses_to_grandchildren():
+    """_force_terminal() recursively sets all descendants to STOPPED with _shutdown_completed=True."""
+    hassette = _make_hassette_stub()
+    root = StubResource(hassette)
+
+    child = root.add_child(StubResource)
+    grandchild = child.add_child(StubResource)
+
+    # Initialize all so they're in RUNNING state
+    await root.initialize()
+
+    assert root.status == ResourceStatus.RUNNING
+    assert child.status == ResourceStatus.RUNNING
+    assert grandchild.status == ResourceStatus.RUNNING
+
+    root._force_terminal()
+
+    assert root.status == ResourceStatus.STOPPED
+    assert root._shutdown_completed is True
+    assert child.status == ResourceStatus.STOPPED
+    assert child._shutdown_completed is True
+    assert grandchild.status == ResourceStatus.STOPPED
+    assert grandchild._shutdown_completed is True
+
+
+async def test_force_terminal_cancels_task_bucket():
+    """_force_terminal() calls cancel_all_sync() on each resource's task bucket."""
+    hassette = _make_hassette_stub()
+    root = StubResource(hassette)
+    child = root.add_child(StubResource)
+
+    await root.initialize()
+
+    # Patch cancel_all_sync on each resource's task bucket
+    root.task_bucket.cancel_all_sync = MagicMock()
+    child.task_bucket.cancel_all_sync = MagicMock()
+
+    root._force_terminal()
+
+    root.task_bucket.cancel_all_sync.assert_called_once()
+    child.task_bucket.cancel_all_sync.assert_called_once()
+
+
+async def test_force_terminal_skips_completed_children():
+    """_force_terminal() returns early for resources with _shutdown_completed=True."""
+    hassette = _make_hassette_stub()
+    root = StubResource(hassette)
+    child = root.add_child(StubResource)
+
+    await root.initialize()
+
+    # Pre-complete the child's shutdown
+    await child.shutdown()
+    assert child._shutdown_completed is True
+    assert child.status == ResourceStatus.STOPPED
+
+    # Track whether cancel() is called on the already-completed child
+    child.cancel = MagicMock()
+
+    root._force_terminal()
+
+    # Root should be force-terminated
+    assert root._shutdown_completed is True
+    assert root.status == ResourceStatus.STOPPED
+    # Child was already completed — cancel() should NOT have been called
+    child.cancel.assert_not_called()
+
+
+async def test_service_force_terminal_cancels_serve_task():
+    """Service._force_terminal() cancels the _serve_task before calling super()."""
+    hassette = _make_hassette_stub()
+    svc = StubService(hassette)
+
+    await svc.initialize()
+    # Let the serve task start
+    await asyncio.sleep(0.01)
+
+    assert svc._serve_task is not None
+    assert not svc._serve_task.done()
+
+    svc._force_terminal()
+
+    # _force_terminal is synchronous; the task is marked for cancellation but needs
+    # an event loop tick to actually finish. Verify cancelling() is True.
+    assert svc._serve_task.cancelling() > 0, "serve task should be marked for cancellation"
+    assert svc.status == ResourceStatus.STOPPED
+    assert svc._shutdown_completed is True
+
+    # Let the event loop process the cancellation
+    await asyncio.sleep(0)
+    assert svc._serve_task.done(), "serve task should be done after yielding to event loop"

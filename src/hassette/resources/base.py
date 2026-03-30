@@ -245,6 +245,23 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Return children in shutdown order (reverse insertion)."""
         return list(reversed(self.children))
 
+    def _force_terminal(self) -> None:
+        """Recursively force this resource and all descendants to STOPPED terminal state.
+
+        Cancels tasks for resources that were never given a shutdown signal (grandchildren).
+        Service overrides this to also cancel _serve_task.
+        """
+        if self._shutdown_completed:
+            return
+        self.cancel()
+        self.task_bucket.cancel_all_sync()
+        self._shutting_down = False
+        self._shutdown_completed = True
+        self.status = ResourceStatus.STOPPED
+        self.mark_not_ready("shutdown timed out")
+        for child in self.children:
+            child._force_terminal()
+
     async def _finalize_shutdown(self) -> None:
         """Common shutdown cleanup: cancel tasks, propagate to children, emit stopped event."""
         try:
@@ -409,6 +426,12 @@ class Service(Resource):
     role: ClassVar[ResourceRole] = ResourceRole.SERVICE
 
     _serve_task: asyncio.Task | None = None
+
+    def _force_terminal(self) -> None:
+        """Override to also cancel the serve task."""
+        if self._serve_task and not self._serve_task.done():
+            self._serve_task.cancel()
+        super()._force_terminal()
 
     @abstractmethod
     async def serve(self) -> None:
