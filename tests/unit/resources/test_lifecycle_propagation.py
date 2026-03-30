@@ -27,6 +27,7 @@ Verifies leaf resource readiness:
 """
 
 import asyncio
+import logging
 from unittest.mock import MagicMock
 
 from hassette.api.api import Api
@@ -806,3 +807,115 @@ async def test_service_force_terminal_cancels_serve_task():
     # Let the event loop process the cancellation
     await asyncio.sleep(0)
     assert svc._serve_task.done(), "serve task should be done after yielding to event loop"
+
+
+# ---------------------------------------------------------------------------
+# _on_children_stopped() Hook Tests (WP09b)
+# ---------------------------------------------------------------------------
+
+
+class HookTrackingParent(Resource):
+    """Resource that records whether _on_children_stopped was called."""
+
+    hook_called: bool = False
+
+    async def _on_children_stopped(self) -> None:
+        await super()._on_children_stopped()
+        self.hook_called = True
+
+
+async def test_on_children_stopped_called_on_clean_shutdown():
+    """_on_children_stopped() fires when children shut down cleanly."""
+    hassette = _make_hassette_stub()
+    parent = HookTrackingParent(hassette)
+    child = parent.add_child(ShutdownCounter)
+
+    await parent.initialize()
+    await child.initialize()
+
+    await parent.shutdown()
+
+    assert parent.hook_called is True, "_on_children_stopped should have been called"
+    assert child._shutdown_completed is True
+
+
+async def test_on_children_stopped_skipped_on_timeout():
+    """_on_children_stopped() is NOT called when child shutdown times out."""
+    hassette = _make_hassette_stub()
+    hassette.config.resource_shutdown_timeout_seconds = 0.1
+
+    class HangingChild(Resource):
+        async def on_shutdown(self) -> None:
+            await asyncio.Event().wait()
+
+    parent = HookTrackingParent(hassette)
+    parent.add_child(HangingChild)
+
+    await parent.initialize()
+
+    await parent.shutdown()
+
+    assert parent.hook_called is False, "_on_children_stopped should NOT be called on timeout"
+
+
+# ---------------------------------------------------------------------------
+# cleanup() Timeout Tests (WP09b)
+# ---------------------------------------------------------------------------
+
+
+async def test_cleanup_timeout_fires_on_hung_cleanup():
+    """When cleanup() hangs, asyncio.timeout catches it and logs a warning."""
+    hassette = _make_hassette_stub()
+    hassette.config.resource_shutdown_timeout_seconds = 0.1
+
+    class HungCleanupResource(Resource):
+        async def cleanup(self, timeout: int | None = None) -> None:
+            await asyncio.Event().wait()  # hang forever
+
+    resource = HungCleanupResource(hassette)
+    await resource.initialize()
+
+    # Should complete without hanging — the timeout wrapping cleanup() should fire
+    await resource.shutdown()
+
+    assert resource._shutdown_completed is True
+
+
+# ---------------------------------------------------------------------------
+# _initializing Warning Tests (WP09b)
+# ---------------------------------------------------------------------------
+
+
+async def test_initializing_warning_on_shutdown_during_init(caplog):
+    """_initializing=True + shutdown_event.set() -> DEBUG log; without -> WARNING."""
+
+    hassette = _make_hassette_stub()
+
+    # Case 1: shutdown requested during init (shutdown_event is set) -> DEBUG
+    resource1 = StubResource(hassette)
+    resource1._initializing = True
+    resource1.shutdown_event.set()
+
+    with caplog.at_level(logging.DEBUG):
+        await resource1._finalize_shutdown()
+
+    debug_msgs = [r for r in caplog.records if "shutting down with _initializing=True" in r.message]
+    assert any(r.levelno == logging.DEBUG for r in debug_msgs), (
+        f"Expected DEBUG log for shutdown-during-init, got levels: {[r.levelname for r in debug_msgs]}"
+    )
+    assert resource1._initializing is False
+
+    caplog.clear()
+
+    # Case 2: _initializing=True without shutdown_event -> WARNING (indicates a bug)
+    resource2 = StubResource(hassette)
+    resource2._initializing = True
+    resource2.shutdown_event.clear()
+
+    with caplog.at_level(logging.DEBUG):
+        await resource2._finalize_shutdown()
+
+    warning_msgs = [r for r in caplog.records if "shutting down with _initializing=True" in r.message]
+    assert any(r.levelno == logging.WARNING for r in warning_msgs), (
+        f"Expected WARNING log for unexpected _initializing, got levels: {[r.levelname for r in warning_msgs]}"
+    )

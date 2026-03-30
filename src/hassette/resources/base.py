@@ -264,16 +264,20 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     async def _finalize_shutdown(self) -> None:
         """Common shutdown cleanup: cancel tasks, propagate to children, emit stopped event."""
+        timeout = self.hassette.config.resource_shutdown_timeout_seconds
         try:
-            await self.cleanup()
+            async with asyncio.timeout(timeout):
+                await self.cleanup()
+        except TimeoutError:
+            self.logger.warning("cleanup() timed out after %ss for %s", timeout, self.unique_name)
         except Exception as e:
             self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
 
         # Propagate shutdown to children — submitted in reverse insertion order,
         # but executed concurrently via gather (completion order is not guaranteed).
         children = self._ordered_children_for_shutdown()
+        children_timed_out = False
         if children:
-            timeout = self.hassette.config.resource_shutdown_timeout_seconds
             try:
                 async with asyncio.timeout(timeout):
                     results = await asyncio.gather(
@@ -284,17 +288,26 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                         if isinstance(result, Exception):
                             self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
             except TimeoutError:
-                self.logger.error("Timed out waiting for children to shut down after %s seconds", timeout)
-                # Force timed-out children to a consistent terminal state so they
-                # don't get stuck with _shutting_down=True or _shutdown_completed=False
+                children_timed_out = True
+                self.logger.error("Timed out waiting for children to shut down after %ss", timeout)
                 for child in children:
-                    if not child._shutdown_completed:
-                        child._shutting_down = False
-                        child._shutdown_completed = True
-                        child.status = ResourceStatus.STOPPED
-                        child.mark_not_ready("shutdown timed out")
+                    child._force_terminal()
 
         self._shutdown_completed = True
+
+        if self._initializing:
+            if self.shutdown_event.is_set():
+                self.logger.debug(
+                    "%s shutting down with _initializing=True (shutdown requested during init)", self.unique_name
+                )
+            else:
+                self.logger.warning("%s shutting down with _initializing=True — this indicates a bug", self.unique_name)
+            self._initializing = False
+
+        # Hook runs only on clean shutdown — not after timeout, where children
+        # are force-patched and may still have running tasks.
+        if not children_timed_out:
+            await self._on_children_stopped()
 
         if not self.hassette.event_streams_closed:
             try:
@@ -303,6 +316,22 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self.logger.exception("Error during stopping %s %s", type(e).__name__, e)
         else:
             self.logger.debug("Skipping STOPPED event as event streams are closed")
+
+    async def _on_children_stopped(self) -> None:
+        """Called after children shut down cleanly, before this resource's STOPPED event.
+
+        Only runs on the success path — skipped when child propagation times out
+        (the timeout handler force-patches children and the caller handles fallback
+        teardown, e.g., Hassette's finally block calls close_streams()).
+
+        Override to run logic that must happen after children are shut down but
+        before the parent emits its own STOPPED event. Default is a no-op.
+        Overrides MUST call ``await super()._on_children_stopped()``.
+
+        Note: _finalize_shutdown() is intentionally not @final — this hook exists
+        so subclasses do NOT need to override _finalize_shutdown() for post-children
+        behavior.
+        """
 
     @final
     async def initialize(self) -> None:
