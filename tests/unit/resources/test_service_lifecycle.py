@@ -75,7 +75,7 @@ async def test_serve_task_spawned_even_when_on_initialize_overridden():
     """serve() task is spawned even when on_initialize is overridden without super()."""
     hassette = _make_hassette_stub()
     svc = ServiceWithCustomHooks(hassette)
-    svc.order = []  # type: ignore[attr-defined]
+    svc.order = []  # pyright: ignore[reportAttributeAccessIssue]
 
     await svc.initialize()
     # Let the serve task start
@@ -155,7 +155,7 @@ def test_finalmeta_blocks_service_subclass_from_overriding_initialize():
             async def serve(self) -> None:
                 pass
 
-            async def initialize(self) -> None:  # type: ignore[override]
+            async def initialize(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
                 pass
 
 
@@ -170,7 +170,7 @@ def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
             async def serve(self) -> None:
                 pass
 
-            async def shutdown(self) -> None:  # type: ignore[override]
+            async def shutdown(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
                 pass
 
 

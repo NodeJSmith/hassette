@@ -117,12 +117,12 @@ async def test_max_restart_exceeded_emits_crashed_event(get_service_watcher_mock
     # Second call exceeds max — should emit CRASHED then shutdown
     mock_send = AsyncMock()
     original_send = hassette.send_event
-    hassette.send_event = mock_send  # type: ignore[assignment]
+    hassette.send_event = mock_send  # pyright: ignore[reportAttributeAccessIssue]
     try:
         with patch("hassette.core.service_watcher.asyncio.sleep", return_value=None):
             await watcher.restart_service(event)
     finally:
-        hassette.send_event = original_send  # type: ignore[assignment]
+        hassette.send_event = original_send  # pyright: ignore[reportAttributeAccessIssue]
 
     # First send_event call should be the CRASHED event (shutdown may emit STOPPED after)
     assert mock_send.call_count >= 1

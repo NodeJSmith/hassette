@@ -287,7 +287,7 @@ class Api(Resource):
         Returns:
             A list of states as dictionaries.
         """
-        val: list[HassStateDict] = await self.ws_send_and_wait(type="get_states")  # type: ignore
+        val: list[HassStateDict] = await self.ws_send_and_wait(type="get_states")  # pyright: ignore[reportAssignmentType]
         assert isinstance(val, list), "Expected a list of states"
         return val
 
