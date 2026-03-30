@@ -11,6 +11,8 @@ Run with:
 
 import pytest
 
+from hassette.resources.base import Service
+from hassette.test_utils import make_service_failed_event, wait_for
 from hassette.types.enums import ResourceStatus
 from tests.smoke.conftest import make_smoke_config, startup_context
 
@@ -55,3 +57,55 @@ async def test_grandchildren_stopped_after_shutdown(ha_container, tmp_path):
     for name, desc in all_descendants:
         assert desc._shutdown_completed is True, f"Grandchild {name} should be _shutdown_completed"
         assert desc.status == ResourceStatus.STOPPED, f"Grandchild {name} should be STOPPED, got {desc.status}"
+
+
+class _AlwaysFailingService(Service):
+    """Service whose on_initialize always raises — triggers the restart cascade."""
+
+    async def serve(self) -> None:
+        pass
+
+    async def on_initialize(self) -> None:
+        raise RuntimeError("always fails")
+
+
+async def test_bus_driven_failed_cascade_triggers_shutdown(ha_container, tmp_path):
+    """Full bus-driven cascade: FAILED event → restart → fail → repeat → shutdown.
+
+    Uses a real Hassette with a real ServiceWatcher and BusService. Verifies that
+    the watcher's bus listeners correctly wire up: a single FAILED event triggers
+    restart_service, which fails, emits another FAILED event, exhausts the retry
+    budget, and calls hassette.shutdown().
+
+    Moved from integration tests because the cascade requires a fully-wired Hassette
+    with clean bus state — module-scoped integration fixtures pollute the BusService
+    router between tests.
+    """
+    config = make_smoke_config(ha_container, tmp_path)
+    config.service_restart_max_attempts = 2
+    config.service_restart_backoff_seconds = 0.0
+
+    async with startup_context(config) as hassette:
+        # Add a service that always fails on initialize
+        dummy = _AlwaysFailingService(hassette)
+        hassette.children.append(dummy)
+
+        event = make_service_failed_event(dummy)
+
+        # Stub hassette.shutdown() to set the event without tearing down the
+        # whole instance (which would cancel this test's coroutine via the
+        # startup_context manager).
+        async def _shutdown_stub() -> None:
+            hassette.shutdown_event.set()
+
+        hassette.shutdown = _shutdown_stub  # type: ignore[assignment]
+
+        # Fire the FAILED event — the ServiceWatcher's bus listener should catch it
+        # and start the restart cascade.
+        await hassette.send_event(event.topic, event)
+
+        await wait_for(
+            lambda: hassette.shutdown_event.is_set(),
+            timeout=10.0,
+            desc="shutdown triggered after max restart attempts exceeded",
+        )

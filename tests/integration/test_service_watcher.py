@@ -342,51 +342,7 @@ async def test_restart_counter_not_reset_when_service_never_ready(get_service_wa
     assert watcher._restart_attempts[key] == 2  # unchanged
 
 
-async def test_bus_driven_failed_events_trigger_shutdown_after_max_attempts(
-    get_service_watcher_mock: ServiceWatcher,
-):
-    """Full wiring: bus dispatch -> listener -> restart_service -> hassette.shutdown().
-
-    Unlike other tests that call restart_service() directly, this one fires
-    a single FAILED event through the bus.  Because the dummy service always
-    fails on restart, handle_failed() emits a new FAILED event each time,
-    creating a cascade that exhausts the retry budget and triggers shutdown.
-    """
-    watcher = get_service_watcher_mock
-    hassette = watcher.hassette
-    hassette.config.service_restart_max_attempts = 2
-    # Zero backoff so asyncio.sleep is never called by the handler.
-    # Patching asyncio.sleep globally would prevent wait_for() from yielding
-    # to the event loop, starving the bus dispatch tasks.
-    hassette.config.service_restart_backoff_seconds = 0.0
-
-    call_counts = {"cancel": 0, "start": 0}
-    # fail=True: on_initialize raises → handle_failed emits a new FAILED event,
-    # creating the cascade that eventually exceeds the retry budget.
-    dummy_service = get_dummy_service(call_counts, hassette, fail=True)
-    hassette.children.append(dummy_service)
-
-    event = make_service_failed_event(dummy_service)
-
-    # Stub hassette.shutdown() to set the event without running the full
-    # lifecycle (which would cancel_all tasks including this test's coroutine).
-    async def _shutdown_stub() -> None:
-        hassette.shutdown_event.set()
-
-    hassette.shutdown = _shutdown_stub  # type: ignore[assignment]
-
-    # Initialize watcher to register bus listeners, then await get_listeners()
-    # which guarantees all preceding add_listener tasks have completed
-    await watcher.on_initialize()
-    listeners = await watcher.bus.get_listeners()
-    assert len(listeners) == 4, f"Expected 4 listeners, got {len(listeners)}"
-
-    # Single FAILED event kicks off the cascade:
-    #   FAILED → restart_service (counter 0→1) → service.restart() fails
-    #   → handle_failed sends FAILED → restart_service (counter 1→2 ≥ max)
-    #   → hassette.shutdown()
-    await hassette.send_event(event.topic, event)
-    await wait_for(
-        lambda: hassette.shutdown_event.is_set(),
-        desc="shutdown triggered after max attempts exceeded",
-    )
+# test_bus_driven_failed_events_trigger_shutdown_after_max_attempts moved to
+# tests/smoke/test_shutdown.py — the full bus cascade requires a clean Hassette
+# instance, which the module-scoped hassette_with_bus fixture cannot provide
+# reliably across test ordering.
