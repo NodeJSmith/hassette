@@ -1,0 +1,57 @@
+"""Shutdown smoke tests — verify clean shutdown against a live Home Assistant container.
+
+These tests verify that Hassette's shutdown path completes cleanly with all
+children in terminal state and event streams closed. They exercise the full
+Hassette.shutdown() override (total timeout + _finalize_shutdown propagation +
+_on_children_stopped hook + close_streams fallback).
+
+Run with:
+    pytest -m smoke -v
+"""
+
+import pytest
+
+from hassette.types.enums import ResourceStatus
+from tests.smoke.conftest import make_smoke_config, startup_context
+
+pytestmark = [pytest.mark.smoke, pytest.mark.filterwarnings("default::DeprecationWarning")]
+
+
+async def test_shutdown_completes_cleanly(ha_container, tmp_path):
+    """Hassette.shutdown() terminates all children and closes event streams."""
+    config = make_smoke_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        # Verify we're fully running before shutdown
+        assert hassette.session_id > 0
+        assert len(hassette.children) > 0
+
+    # After the context manager exits, shutdown has completed
+    assert hassette._shutdown_completed is True
+    assert hassette.status == ResourceStatus.STOPPED
+    assert hassette.event_streams_closed
+
+
+async def test_all_children_stopped_after_shutdown(ha_container, tmp_path):
+    """Every direct child of Hassette is in STOPPED state after shutdown."""
+    config = make_smoke_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        children_snapshot = list(hassette.children)
+
+    for child in children_snapshot:
+        assert child._shutdown_completed is True, (
+            f"{child.unique_name} should be _shutdown_completed after Hassette shutdown"
+        )
+        assert child.status == ResourceStatus.STOPPED, f"{child.unique_name} should be STOPPED, got {child.status}"
+
+
+async def test_grandchildren_stopped_after_shutdown(ha_container, tmp_path):
+    """Grandchildren (e.g., StateProxy.Bus, AppHandler.AppLifecycleService) are also STOPPED."""
+    config = make_smoke_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        all_descendants = [
+            (grandchild.unique_name, grandchild) for child in hassette.children for grandchild in child.children
+        ]
+
+    for name, desc in all_descendants:
+        assert desc._shutdown_completed is True, f"Grandchild {name} should be _shutdown_completed"
+        assert desc.status == ResourceStatus.STOPPED, f"Grandchild {name} should be STOPPED, got {desc.status}"

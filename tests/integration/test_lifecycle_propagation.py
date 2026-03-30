@@ -1,4 +1,5 @@
-"""Integration tests for lifecycle propagation: single-pass shutdown and shutdown flag reset."""
+"""Integration tests for lifecycle propagation: single-pass shutdown, shutdown flag reset,
+and close_streams ordering."""
 
 from typing import TYPE_CHECKING
 
