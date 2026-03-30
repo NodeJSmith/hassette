@@ -31,13 +31,13 @@ class TestHassetteShutdownSinglePass:
             call_count += 1
             await original_on_shutdown()
 
-        bus.on_shutdown = tracked_on_shutdown  # type: ignore[assignment]
+        bus.on_shutdown = tracked_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         try:
             await bus.shutdown()
             assert call_count == 1, f"on_shutdown should have been called exactly once, got {call_count}"
         finally:
-            bus.on_shutdown = original_on_shutdown  # type: ignore[assignment]
+            bus.on_shutdown = original_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_shutdown_then_initialize_resets_flag(self, hassette_with_bus: "Hassette") -> None:
         """After shutdown + initialize, the resource can be shut down again."""
@@ -82,14 +82,14 @@ class TestHassetteShutdownSinglePass:
             extra_calls += 1
             await original_on_shutdown()
 
-        bus.on_shutdown = tracked_on_shutdown  # type: ignore[assignment]
+        bus.on_shutdown = tracked_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         try:
             # This should be a no-op due to _shutdown_completed
             await bus.shutdown()
             assert extra_calls == 0, "on_shutdown should not run again when _shutdown_completed is True"
         finally:
-            bus.on_shutdown = original_on_shutdown  # type: ignore[assignment]
+            bus.on_shutdown = original_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
             # Restore for other tests
             await bus.initialize()
 
@@ -142,14 +142,14 @@ class TestCloseStreamsAfterChildrenStopped:
             stopped_called = True
             await original_handle_stop()
 
-        bus.handle_stop = tracked_handle_stop  # type: ignore[method-assign]
+        bus.handle_stop = tracked_handle_stop  # pyright: ignore[reportAttributeAccessIssue]
 
         try:
             await bus.shutdown()
             assert stopped_called, "Child should have emitted a STOPPED event during shutdown"
             assert bus.status == ResourceStatus.STOPPED
         finally:
-            bus.handle_stop = original_handle_stop  # type: ignore[method-assign]
+            bus.handle_stop = original_handle_stop  # pyright: ignore[reportAttributeAccessIssue]
             # Restore for other tests
             bus._shutdown_completed = False
             bus._shutting_down = False

@@ -101,7 +101,7 @@ async def test_bus_driven_failed_cascade_triggers_shutdown(ha_container, tmp_pat
         async def _shutdown_stub() -> None:
             hassette.shutdown_event.set()
 
-        hassette.shutdown = _shutdown_stub  # type: ignore[assignment]
+        hassette.shutdown = _shutdown_stub  # pyright: ignore[reportAttributeAccessIssue]
 
         try:
             # Fire the FAILED event — the ServiceWatcher's bus listener should catch it
@@ -118,4 +118,4 @@ async def test_bus_driven_failed_cascade_triggers_shutdown(ha_container, tmp_pat
             )
         finally:
             # Restore real shutdown so startup_context can clean up properly
-            hassette.shutdown = original_shutdown  # type: ignore[assignment]
+            hassette.shutdown = original_shutdown  # pyright: ignore[reportAttributeAccessIssue]
