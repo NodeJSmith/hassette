@@ -531,7 +531,8 @@ class Service(Resource):
             await self.handle_running()
             await self.serve()
             # Normal return → graceful stop path
-            await self.handle_stop()
+            with suppress(Exception):
+                await self.handle_stop()
         except asyncio.CancelledError:
             # Cooperative shutdown
             with suppress(Exception):

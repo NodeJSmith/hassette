@@ -147,6 +147,14 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
         hassette.shutdown_event.set()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+        # If run_forever already called shutdown (via shutdown_event), ensure
+        # a full shutdown still runs. This handles the case where shutdown was
+        # stubbed during a test — run_forever's finally called the stub, so
+        # resources were never cleaned up. The _shutdown_completed guard makes
+        # this a no-op if real shutdown already ran.
+        if not hassette._shutdown_completed:
+            with contextlib.suppress(Exception):
+                await hassette.shutdown()
 
 
 def make_smoke_config(ha_url: str, tmp_path: Path) -> HassetteConfig:

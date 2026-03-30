@@ -92,15 +92,30 @@ async def test_bus_driven_failed_cascade_triggers_shutdown(ha_container, tmp_pat
 
         event = make_service_failed_event(dummy)
 
-        # Fire the FAILED event — the ServiceWatcher's bus listener should catch it
-        # and start the restart cascade:
-        #   FAILED → restart_service (attempt 1) → on_initialize raises
-        #   → handle_failed emits FAILED → restart_service (attempt 2 ≥ max)
-        #   → hassette.shutdown_event.set()
-        await hassette.send_event(event.topic, event)
+        # Stub hassette.shutdown() to just set the event. We can't let the real
+        # shutdown run here — it would tear down the Hassette while startup_context
+        # still owns the lifecycle. startup_context.__aexit__ handles the real
+        # shutdown via shutdown_event.set() → run_forever exits → clean teardown.
+        original_shutdown = hassette.shutdown
 
-        await wait_for(
-            lambda: hassette.shutdown_event.is_set(),
-            timeout=10.0,
-            desc="shutdown triggered after max restart attempts exceeded",
-        )
+        async def _shutdown_stub() -> None:
+            hassette.shutdown_event.set()
+
+        hassette.shutdown = _shutdown_stub  # type: ignore[assignment]
+
+        try:
+            # Fire the FAILED event — the ServiceWatcher's bus listener should catch it
+            # and start the restart cascade:
+            #   FAILED → restart_service (attempt 1) → on_initialize raises
+            #   → handle_failed emits FAILED → restart_service (attempt 2 ≥ max)
+            #   → hassette.shutdown()  (stub sets shutdown_event)
+            await hassette.send_event(event.topic, event)
+
+            await wait_for(
+                lambda: hassette.shutdown_event.is_set(),
+                timeout=10.0,
+                desc="shutdown triggered after max restart attempts exceeded",
+            )
+        finally:
+            # Restore real shutdown so startup_context can clean up properly
+            hassette.shutdown = original_shutdown  # type: ignore[assignment]
