@@ -484,9 +484,3 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
         self.app_manifests = app_manifest_dict
-
-
-if __name__ == "__main__":
-    # quick test
-    config = HassetteConfig()
-    print(config.model_dump_json(indent=4))
