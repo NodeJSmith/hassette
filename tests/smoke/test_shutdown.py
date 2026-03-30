@@ -92,16 +92,11 @@ async def test_bus_driven_failed_cascade_triggers_shutdown(ha_container, tmp_pat
 
         event = make_service_failed_event(dummy)
 
-        # Stub hassette.shutdown() to set the event without tearing down the
-        # whole instance (which would cancel this test's coroutine via the
-        # startup_context manager).
-        async def _shutdown_stub() -> None:
-            hassette.shutdown_event.set()
-
-        hassette.shutdown = _shutdown_stub  # type: ignore[assignment]
-
         # Fire the FAILED event — the ServiceWatcher's bus listener should catch it
-        # and start the restart cascade.
+        # and start the restart cascade:
+        #   FAILED → restart_service (attempt 1) → on_initialize raises
+        #   → handle_failed emits FAILED → restart_service (attempt 2 ≥ max)
+        #   → hassette.shutdown_event.set()
         await hassette.send_event(event.topic, event)
 
         await wait_for(
