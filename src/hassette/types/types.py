@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from datetime import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, Required, TypeAlias, TypeVar
@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 
 LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 """Log levels for configuring logging."""
+
+CoroT = TypeVar("CoroT")
+CoroLikeT = Coroutine[Any, Any, CoroT]
+"""A coroutine returning a value of type CoroT."""
 
 
 EventT = TypeVar("EventT", bound="Event[Any]", contravariant=True)

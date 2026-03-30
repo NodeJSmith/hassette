@@ -1,17 +1,14 @@
 import asyncio
 import typing
-from collections.abc import Coroutine
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol
 
 from hassette.types.enums import ResourceStatus
+from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
     import logging
 
     from hassette.events import HassetteServiceEvent
-
-T = TypeVar("T")
-CoroLikeT = Coroutine[Any, Any, T]
 
 
 class _TaskBucketP(Protocol):
