@@ -251,6 +251,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         Cancels tasks for resources that were never given a shutdown signal (grandchildren).
         Service overrides this to also cancel _serve_task.
+
+        Note: this does NOT call on_shutdown() hooks, so bus subscriptions and scheduler
+        jobs owned by force-terminated resources are not cleaned up. This is intentional —
+        calling hooks risks re-entrancy with the child's own finally block. In practice,
+        force-terminal only fires on timeout paths where process exit is imminent.
         """
         if self._shutdown_completed:
             return

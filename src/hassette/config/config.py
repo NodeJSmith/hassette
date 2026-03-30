@@ -163,7 +163,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     resource_shutdown_timeout_seconds: int = Field(
         default_factory=lambda data: data.get("app_shutdown_timeout_seconds", 10)
     )
-    """Length of time to wait for a resource to shut down before giving up. Defaults to app_shutdown_timeout_seconds."""
+    """Per-phase timeout for resource shutdown. Applied independently to cleanup() and child
+    propagation within _finalize_shutdown(), so a single level may block for up to 2x this value.
+    The total_shutdown_timeout_seconds config bounds the overall wall-clock time.
+    Defaults to app_shutdown_timeout_seconds."""
 
     total_shutdown_timeout_seconds: int = Field(default=30)
     """Maximum wall-clock seconds for the entire Hassette shutdown (hooks + propagation).

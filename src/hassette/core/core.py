@@ -355,28 +355,18 @@ class Hassette(Resource):
         pass
 
     async def _on_children_stopped(self) -> None:
-        """Close event streams after children have emitted their STOPPED events.
+        """Emit Hassette's own STOPPED event, then close event streams.
 
-        Called by _finalize_shutdown() after all children have shut down cleanly,
-        before Hassette's own STOPPED event is emitted. Streams must stay open
-        until children finish sending status events.
+        Called by _finalize_shutdown() after all children have shut down cleanly.
+        handle_stop() must run before close_streams() so Hassette's STOPPED event
+        is delivered while streams are still open.
+
+        On the timeout path, this hook is skipped — Hassette.shutdown()'s finally
+        block handles both handle_stop() and close_streams() as a fallback.
         """
         await super()._on_children_stopped()
+        await self.handle_stop()
         await self._event_stream_service.close_streams()
-
-    async def _finalize_shutdown(self) -> None:
-        """Override to ensure close_streams() runs even when child shutdown times out.
-
-        _on_children_stopped() is only called on the clean path. When children time
-        out, the hook is skipped. This override adds a finally block to guarantee
-        streams are closed regardless of the shutdown outcome.
-        """
-        try:
-            await super()._finalize_shutdown()
-        finally:
-            if not self.event_streams_closed:
-                with suppress(Exception):
-                    await self._event_stream_service.close_streams()
 
     @final
     async def shutdown(self) -> None:
