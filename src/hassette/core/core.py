@@ -1,6 +1,7 @@
 import asyncio
 import threading
 import typing
+from contextlib import suppress
 from typing import Any, ParamSpec, TypeVar
 
 from dotenv import load_dotenv
@@ -19,7 +20,6 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.utils.app_utils import run_apps_pre_check
-from hassette.utils.exception_utils import get_traceback_string
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
@@ -350,23 +350,32 @@ class Hassette(Resource):
                 service.start()
 
     async def on_shutdown(self) -> None:
-        """Shutdown all services gracefully and gather any results."""
+        """Shutdown hook — children are shut down by _finalize_shutdown() propagation with timeout."""
+        pass
 
-        shutdown_tasks = [resource.shutdown() for resource in reversed(self.children)]
+    async def _on_children_stopped(self) -> None:
+        """Close event streams after children have emitted their STOPPED events.
 
-        self.logger.info("Waiting for all resources to finish...")
-
-        results = await asyncio.gather(*shutdown_tasks, return_exceptions=True)
-
-        for result in results:
-            if isinstance(result, Exception):
-                self.logger.error("Task raised an exception: %s", get_traceback_string(result))
-            else:
-                self.logger.debug("Task completed successfully: %s", result)
-
-        # Close event streams after all children have stopped — children send
-        # STOPPED status events during shutdown, so streams must stay open until then.
+        Called by _finalize_shutdown() after all children have shut down cleanly,
+        before Hassette's own STOPPED event is emitted. Streams must stay open
+        until children finish sending status events.
+        """
+        await super()._on_children_stopped()
         await self._event_stream_service.close_streams()
+
+    async def _finalize_shutdown(self) -> None:
+        """Override to ensure close_streams() runs even when child shutdown times out.
+
+        _on_children_stopped() is only called on the clean path. When children time
+        out, the hook is skipped. This override adds a finally block to guarantee
+        streams are closed regardless of the shutdown outcome.
+        """
+        try:
+            await super()._finalize_shutdown()
+        finally:
+            if not self.event_streams_closed:
+                with suppress(Exception):
+                    await self._event_stream_service.close_streams()
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""

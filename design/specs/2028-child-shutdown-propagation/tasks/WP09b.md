@@ -1,7 +1,7 @@
 ---
 depends_on:
 - WP09
-lane: doing
+lane: done
 plan_section: 2. Best-Effort Cleanup and STOPPED Event in Timeout Handler + 6. Reset
   _initializing in _finalize_shutdown()
 title: Refactor _finalize_shutdown() with timeout, hook, and _initializing warning
@@ -53,3 +53,4 @@ Tests in `tests/unit/resources/test_lifecycle_propagation.py`. Use existing `con
 
 - 2026-03-30T00:00:00Z — system — lane=planned — WP created (split from original WP09)
 - 2026-03-30T13:16:36Z — system — lane=doing — moved from planned
+- 2026-03-30T13:32:14Z — system — lane=done — moved from doing
