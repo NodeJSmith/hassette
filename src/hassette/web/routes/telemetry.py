@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query, Response
 
 from hassette.core.telemetry_models import AppHealthSummary, HandlerInvocation, JobExecution, JobSummary
 from hassette.web.dependencies import RuntimeDep, TelemetryDep
+from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
     AppHealthResponse,
     DashboardAppGridEntry,
@@ -26,7 +27,6 @@ from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
     safe_session_id,
-    to_listener_with_summary,
 )
 
 LOGGER = getLogger(__name__)

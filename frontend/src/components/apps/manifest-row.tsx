@@ -60,7 +60,7 @@ export function ManifestRow({ manifest, liveStatus, isExpanded, onToggleExpand }
         </td>
         <td><ActionButtons appKey={manifest.app_key} status={status} /></td>
       </tr>
-      {isMultiInstance && isExpanded && manifest.instances.map((inst) => (
+      {isMultiInstance && isExpanded && manifest.instances?.map((inst) => (
         <tr key={`${manifest.app_key}-${inst.index}`} class="ht-instance-row">
           <td>
             <a href={`/apps/${manifest.app_key}/${inst.index}`} class="ht-text-mono">

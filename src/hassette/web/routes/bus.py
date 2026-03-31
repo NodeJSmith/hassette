@@ -5,8 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from hassette.web.dependencies import RuntimeDep, TelemetryDep
+from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import ListenerWithSummary
-from hassette.web.telemetry_helpers import safe_session_id, to_listener_with_summary
+from hassette.web.telemetry_helpers import safe_session_id
 from hassette.web.utils import gather_all_listeners
 
 router = APIRouter(tags=["bus"])

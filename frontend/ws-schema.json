@@ -1,7 +1,7 @@
 {
   "$defs": {
-    "AppStatusChangedPayload": {
-      "description": "Mirrors ``events.hassette.AppStateChangePayload`` exactly.",
+    "AppStatusChangedData": {
+      "description": "Payload for an app lifecycle state-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.AppStateChangePayload`` exactly.",
       "properties": {
         "app_key": {
           "title": "App Key",
@@ -93,7 +93,7 @@
         "index",
         "status"
       ],
-      "title": "AppStatusChangedPayload",
+      "title": "AppStatusChangedData",
       "type": "object"
     },
     "AppStatusChangedWsMessage": {
@@ -104,7 +104,7 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/AppStatusChangedPayload"
+          "$ref": "#/$defs/AppStatusChangedData"
         },
         "timestamp": {
           "title": "Timestamp",
@@ -172,7 +172,8 @@
       "title": "ConnectedWsMessage",
       "type": "object"
     },
-    "ConnectivityPayload": {
+    "ConnectivityData": {
+      "description": "Payload for a Home Assistant WebSocket connectivity event.",
       "properties": {
         "connected": {
           "title": "Connected",
@@ -182,7 +183,7 @@
       "required": [
         "connected"
       ],
-      "title": "ConnectivityPayload",
+      "title": "ConnectivityData",
       "type": "object"
     },
     "ConnectivityWsMessage": {
@@ -193,7 +194,7 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/ConnectivityPayload"
+          "$ref": "#/$defs/ConnectivityData"
         },
         "timestamp": {
           "title": "Timestamp",
@@ -298,93 +299,8 @@
       "title": "LogWsMessage",
       "type": "object"
     },
-    "ServiceStatusWsMessage": {
-      "properties": {
-        "type": {
-          "const": "service_status",
-          "title": "Type",
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/WsServiceStatusPayload"
-        },
-        "timestamp": {
-          "title": "Timestamp",
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "data",
-        "timestamp"
-      ],
-      "title": "ServiceStatusWsMessage",
-      "type": "object"
-    },
-    "StateChangedPayload": {
-      "properties": {
-        "entity_id": {
-          "title": "Entity Id",
-          "type": "string"
-        },
-        "new_state": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "New State"
-        },
-        "old_state": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Old State"
-        }
-      },
-      "required": [
-        "entity_id"
-      ],
-      "title": "StateChangedPayload",
-      "type": "object"
-    },
-    "StateChangedWsMessage": {
-      "properties": {
-        "type": {
-          "const": "state_changed",
-          "title": "Type",
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/StateChangedPayload"
-        },
-        "timestamp": {
-          "title": "Timestamp",
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "data",
-        "timestamp"
-      ],
-      "title": "StateChangedWsMessage",
-      "type": "object"
-    },
-    "WsServiceStatusPayload": {
-      "description": "Mirrors ``events.hassette.ServiceStatusPayload``.",
+    "ServiceStatusData": {
+      "description": "Payload for an internal service status-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.ServiceStatusPayload``.",
       "properties": {
         "resource_name": {
           "title": "Resource Name",
@@ -452,7 +368,93 @@
         "role",
         "status"
       ],
-      "title": "WsServiceStatusPayload",
+      "title": "ServiceStatusData",
+      "type": "object"
+    },
+    "ServiceStatusWsMessage": {
+      "properties": {
+        "type": {
+          "const": "service_status",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ServiceStatusData"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "ServiceStatusWsMessage",
+      "type": "object"
+    },
+    "StateChangedData": {
+      "description": "Payload for a Home Assistant ``state_changed`` event broadcast over WebSocket.",
+      "properties": {
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "string"
+        },
+        "new_state": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "New State"
+        },
+        "old_state": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Old State"
+        }
+      },
+      "required": [
+        "entity_id"
+      ],
+      "title": "StateChangedData",
+      "type": "object"
+    },
+    "StateChangedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "state_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/StateChangedData"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "StateChangedWsMessage",
       "type": "object"
     }
   },

@@ -285,7 +285,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     # Convention (see design/config-log-level-convention.md):
     #   - Every Hassette-registered service gets a dedicated *_log_level field here.
     #   - Child/helper Resources cross-bind to their parent service's field via config_log_level overrides.
-    #   - No concrete Resource should fall through to the global log_level default.
+    #   - No concrete non-root Resource should fall through to the global log_level default;
+    #     the Hassette root Resource is an intentional exception (see design doc).
     #   - All config_log_level overrides must return -> LOG_LEVEL_TYPE.
 
     database_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)

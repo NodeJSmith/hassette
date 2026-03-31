@@ -37,16 +37,31 @@ class ExecutionResult:
 
 
 @asynccontextmanager
-async def track_execution() -> AsyncIterator[ExecutionResult]:
+async def track_execution(
+    known_errors: tuple[type[Exception], ...] = (),
+) -> AsyncIterator[ExecutionResult]:
     """Async context manager that tracks execution timing and errors.
 
     Yields an ExecutionResult that is populated on exit. Always re-raises exceptions.
+
+    Args:
+        known_errors: A tuple of exception types (and their subclasses) for which
+            ``error_traceback`` is suppressed (set to ``None``) in the result.
+            Uses ``isinstance`` semantics — subclasses of listed types are also
+            suppressed. Useful for expected framework errors (e.g. ``DependencyError``,
+            ``HassetteError``) where a full traceback adds no diagnostic value.
+            Defaults to ``()`` (no suppression — all exceptions include tracebacks).
 
     Usage::
 
         async with track_execution() as result:
             await do_work()
         # result.status == "success", result.duration_ms populated
+
+        async with track_execution(known_errors=(DependencyError,)) as result:
+            await do_work()
+        # DependencyError and its subclasses: result.error_traceback is None
+        # Any other exception: result.error_traceback is the full traceback string
     """
     result = ExecutionResult()
     result.monotonic_start = time.monotonic()
@@ -60,7 +75,10 @@ async def track_execution() -> AsyncIterator[ExecutionResult]:
         result.status = "error"
         result.error_message = str(exc)
         result.error_type = type(exc).__name__
-        result.error_traceback = traceback.format_exc()
+        if known_errors and isinstance(exc, known_errors):
+            result.error_traceback = None
+        else:
+            result.error_traceback = traceback.format_exc()
         raise
     finally:
         result.duration_ms = (time.monotonic() - result.monotonic_start) * 1000

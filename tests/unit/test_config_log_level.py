@@ -1,9 +1,13 @@
 """Tests for config_log_level convention compliance.
 
-Verifies that every concrete Resource subclass:
+Verifies each Resource subclass listed in OVERRIDE_CASES:
 1. Overrides config_log_level (no fallthrough to global default)
 2. Returns the expected config field value
 3. Has a LOG_LEVEL_TYPE return annotation
+
+The list is curated, not auto-discovered. When adding a new Resource
+subclass, add it to OVERRIDE_CASES. Hassette (root) is an intentional
+exception — it uses the base-class global default.
 """
 
 import inspect

@@ -7,11 +7,10 @@ components for integration tests (bus routing, scheduler, state propagation).
 
 import asyncio
 from collections import deque
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette.core.app_registry import AppManifestInfo
+from hassette.core.app_registry import AppManifestInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry_models import GlobalSummary, JobGlobalStats, ListenerGlobalStats
 from hassette.test_utils.web_helpers import make_full_snapshot
@@ -67,7 +66,7 @@ def create_hassette_stub(
     is_ready: bool = True,
     # Apps
     manifests: list[AppManifestInfo] | None = None,
-    old_snapshot: SimpleNamespace | None = None,
+    old_snapshot: AppStatusSnapshot | None = None,
     app_action_mocks: bool = False,
     # Scheduler
     scheduler_jobs: list[Any] | None = None,
@@ -110,11 +109,9 @@ def create_hassette_stub(
     snapshot = make_full_snapshot(manifests)
     hassette._app_handler.registry.get_full_snapshot.return_value = snapshot
 
-    # Old-style snapshot
+    # App status snapshot (AppStatusSnapshot domain object)
     if old_snapshot is None:
-        old_snapshot = SimpleNamespace(
-            running=[], failed=[], total_count=0, running_count=0, failed_count=0, only_app=None
-        )
+        old_snapshot = AppStatusSnapshot(running=[], failed=[])
     hassette._app_handler.get_status_snapshot.return_value = old_snapshot
 
     if app_action_mocks:

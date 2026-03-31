@@ -35,7 +35,7 @@ For case 3 (app-owned), see [#462](https://github.com/NodeJSmith/hassette/issues
 | `SchedulerService` | `scheduler_service_log_level` |
 | `AppHandler` | `app_handler_log_level` |
 | `WebApiService` | `web_api_log_level` |
-| `WebSocketService` | `websocket_log_level` |
+| `WebsocketService` | `websocket_log_level` |
 | `ServiceWatcher` | `service_watcher_log_level` |
 | `FileWatcherService` | `file_watcher_log_level` |
 | `TaskBucket` | `task_bucket_log_level` |

@@ -7,10 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
+from hassette.core.domain_models import SystemStatus
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.logging_ import LogCaptureHandler, LogEntry
-from hassette.test_utils.web_helpers import make_old_snapshot
-from hassette.web.models import AppStatusResponse, SystemStatusResponse
+from hassette.types.enums import ResourceStatus
 
 _test_seq = itertools.count(1)
 
@@ -62,7 +63,17 @@ def mock_hassette():
     hassette._websocket_service.status = "running"
 
     # Mock app handler
-    hassette._app_handler.get_status_snapshot.return_value = make_old_snapshot()
+    _instance = AppInstanceInfo(
+        app_key="my_app",
+        index=0,
+        instance_name="MyApp[0]",
+        class_name="MyApp",
+        status=ResourceStatus.RUNNING,
+    )
+    hassette._app_handler.get_status_snapshot.return_value = AppStatusSnapshot(
+        running=[_instance],
+        failed=[],
+    )
 
     # Mock scheduler service
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
@@ -93,12 +104,12 @@ def runtime(mock_hassette):
 class TestAppStatus:
     def test_get_app_status_snapshot(self, runtime: RuntimeQueryService) -> None:
         snapshot = runtime.get_app_status_snapshot()
-        assert isinstance(snapshot, AppStatusResponse)
-        assert snapshot.total == 1
-        assert snapshot.running == 1
-        assert snapshot.failed == 0
-        assert len(snapshot.apps) == 1
-        assert snapshot.apps[0].app_key == "my_app"
+        assert isinstance(snapshot, AppStatusSnapshot)
+        assert snapshot.total_count == 1
+        assert snapshot.running_count == 1
+        assert snapshot.failed_count == 0
+        assert len(snapshot.running) == 1
+        assert snapshot.running[0].app_key == "my_app"
 
 
 class TestEventBuffer:
@@ -324,9 +335,10 @@ class TestLogAccess:
 class TestSystemStatus:
     def test_get_system_status(self, runtime: RuntimeQueryService) -> None:
         status = runtime.get_system_status()
-        assert isinstance(status, SystemStatusResponse)
+        assert isinstance(status, SystemStatus)
         assert status.entity_count == 2
         assert status.app_count == 1
+        assert isinstance(status.services_running, list)
 
 
 class TestWebSocketClientManagement:

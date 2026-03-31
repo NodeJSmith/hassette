@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 import uvicorn
 
-from hassette.core.app_registry import AppInstanceInfo
+from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.core.telemetry_models import (
     AppHealthSummary,
     GlobalSummary,
@@ -26,8 +26,6 @@ from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
     make_job,
     make_manifest,
-    make_old_app_instance,
-    make_old_snapshot,
 )
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
@@ -387,18 +385,25 @@ def mock_hassette():
             },
         },
         manifests=manifests,
-        old_snapshot=make_old_snapshot(
+        old_snapshot=AppStatusSnapshot(
             running=[
-                make_old_app_instance(owner_id="MyApp.MyApp[0]"),
+                AppInstanceInfo(
+                    app_key="my_app",
+                    index=0,
+                    instance_name="MyApp[0]",
+                    class_name="MyApp",
+                    status=ResourceStatus.RUNNING,
+                    owner_id="MyApp.MyApp[0]",
+                ),
             ],
             failed=[
-                make_old_app_instance(
+                AppInstanceInfo(
                     app_key="broken_app",
+                    index=0,
                     instance_name="BrokenApp[0]",
                     class_name="BrokenApp",
-                    status="failed",
+                    status=ResourceStatus.FAILED,
                     error_message="Init error: bad config",
-                    owner_id=None,
                 ),
             ],
         ),
