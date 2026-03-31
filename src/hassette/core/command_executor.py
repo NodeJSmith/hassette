@@ -13,6 +13,7 @@ from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.execution import ExecutionResult, track_execution
 
 if typing.TYPE_CHECKING:
@@ -42,7 +43,7 @@ class CommandExecutor(Service):
         self.repository = TelemetryRepository(hassette.database_service)
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.command_executor_log_level
 

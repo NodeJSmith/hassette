@@ -7,6 +7,7 @@ from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.base import Resource
 from hassette.types import ResourceStatus, Topic
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -27,7 +28,7 @@ class ServiceWatcher(Resource):
         self._restart_attempts = {}
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.service_watcher_log_level
 

@@ -17,6 +17,7 @@ from hassette.const.misc import FalseySentinel
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
@@ -44,6 +45,11 @@ class ApiSyncFacade(Resource):
 
     async def on_initialize(self) -> None:
         self.mark_ready(reason="Synchronous API facade initialized")
+
+    @property
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.api_log_level
 
     def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""

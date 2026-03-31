@@ -11,6 +11,7 @@ from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError, FatalError
 from hassette.types.enums import ResourceRole, ResourceStatus
+from hassette.types.types import LOG_LEVEL_TYPE
 
 from .mixins import LifecycleMixin
 
@@ -188,7 +189,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         return self.unique_name
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.log_level
 

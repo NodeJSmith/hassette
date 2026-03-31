@@ -21,6 +21,7 @@ from hassette.logging_ import LogEntry, get_log_capture_handler
 from hassette.resources.base import Resource
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -56,7 +57,7 @@ class RuntimeQueryService(Resource):
         self._subscriptions = []
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.web_api_log_level
 
     async def on_initialize(self) -> None:

@@ -12,6 +12,7 @@ from hassette.core.commands import ExecuteJob
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import CronTrigger, IntervalTrigger
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.date_utils import now
 from hassette.utils.serialization import safe_json_serialize
 from hassette.utils.source_capture import capture_registration_source
@@ -60,7 +61,7 @@ class SchedulerService(Service):
         return self.hassette.config.scheduler_default_delay_seconds
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.scheduler_service_log_level
 
@@ -337,7 +338,7 @@ class _ScheduledJobQueue(Resource):
         self.mark_ready(reason="Queue ready")
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.scheduler_service_log_level
 

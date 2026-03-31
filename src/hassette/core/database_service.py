@@ -10,6 +10,7 @@ from alembic import command
 from alembic.config import Config
 
 from hassette.resources.base import Service
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -59,7 +60,7 @@ class DatabaseService(Service):
         self._db_worker_task = None
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.database_service_log_level
 

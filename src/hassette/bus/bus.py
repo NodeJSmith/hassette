@@ -92,6 +92,7 @@ from hassette.event_handling.accessors import get_path
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_short_name
 
 from .listeners import Listener, Subscription
@@ -138,7 +139,7 @@ class Bus(Resource):
         await self.remove_all_listeners()
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.bus_service_log_level
 

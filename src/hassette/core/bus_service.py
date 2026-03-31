@@ -12,6 +12,7 @@ from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
 from hassette.events import Event, HassPayload
 from hassette.resources.base import Resource, Service
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 from hassette.utils.source_capture import capture_registration_source
@@ -55,7 +56,7 @@ class BusService(Service):
         self._setup_exclusion_filters()
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.bus_service_log_level
 

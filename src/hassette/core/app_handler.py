@@ -12,6 +12,7 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry, AppStatusSnapshot
 from hassette.resources.base import Resource
 from hassette.types import Topic
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
@@ -56,7 +57,7 @@ class AppHandler(Resource):
         return self.registry.get_snapshot()
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.app_handler_log_level
 

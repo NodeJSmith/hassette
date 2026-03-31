@@ -9,7 +9,7 @@ from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
 from hassette.resources.base import Resource
-from hassette.types.types import CoroLikeT
+from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
 if typing.TYPE_CHECKING:
@@ -40,7 +40,7 @@ class TaskBucket(Resource):
         return self.hassette.config.task_cancellation_timeout_seconds
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config."""
         return self.hassette.config.task_bucket_log_level
 
