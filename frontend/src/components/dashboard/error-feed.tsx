@@ -19,7 +19,8 @@ function kindClass(kind: string): string {
 
 function errorEntryKey(err: DashboardErrorEntry, index: number): string {
   // listener_id/job_id can be 0 (sentinel for unregistered) — treat as missing
-  const id = (err.listener_id || err.job_id) || `${err.execution_start_ts}-${index}`;
+  const rawId = err.kind === "handler" ? err.listener_id : err.job_id;
+  const id = rawId || `${err.execution_start_ts}-${index}`;
   return `${err.kind}-${id}-${err.app_key}`;
 }
 
@@ -40,7 +41,7 @@ export function ErrorFeed({ errors }: Props) {
 function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
   const relativeTime = useRelativeTime(err.execution_start_ts);
   const badgeText = shortErrorType(err.error_type) || err.kind;
-  const subtitle = err.handler_method || err.job_name;
+  const subtitle = err.kind === "handler" ? err.handler_method : err.job_name;
 
   return (
     <div class="ht-error-entry" data-testid="error-item">

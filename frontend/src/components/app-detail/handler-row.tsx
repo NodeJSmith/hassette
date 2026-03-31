@@ -19,7 +19,7 @@ interface Props {
  * visible during the refresh (stale-while-revalidate).
  */
 export function HandlerRow({ listener }: Props) {
-  const lastInvoked = useRelativeTime(listener.last_invoked_at);
+  const lastInvoked = useRelativeTime(listener.last_invoked_at ?? null);
   const expanded = useRef(signal(false)).current;
 
   const { data: invocations, loading, refetch } = useApi(

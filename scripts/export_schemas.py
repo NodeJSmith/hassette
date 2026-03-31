@@ -12,9 +12,12 @@ Schema.  Outputs:
 Usage::
 
     python scripts/export_schemas.py
+    python scripts/export_schemas.py --types  # also runs openapi-typescript
 """
 
+import argparse
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -32,6 +35,14 @@ def _create_stub_hassette() -> MagicMock:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Export OpenAPI and WebSocket JSON Schemas.")
+    parser.add_argument(
+        "--types",
+        action="store_true",
+        help="Also run openapi-typescript to generate frontend/src/api/generated-types.ts",
+    )
+    args = parser.parse_args()
+
     from hassette.web.app import create_fastapi_app
     from hassette.web.models import WsServerMessage
 
@@ -56,6 +67,25 @@ def main() -> None:
     ws_schema_path = frontend_dir / "ws-schema.json"
     ws_schema_path.write_text(json.dumps(ws_schema, indent=2) + "\n")
     print(f"Wrote {ws_schema_path}")
+
+    # --- TypeScript types (optional) ---
+    if args.types:
+        print("Running openapi-typescript...")
+        try:
+            subprocess.run(
+                ["npx", "openapi-typescript", "openapi.json", "-o", "src/api/generated-types.ts"],
+                cwd=frontend_dir,
+                check=True,
+            )
+        except FileNotFoundError as exc:
+            raise SystemExit("openapi-typescript not found — run `npm ci` in the frontend directory first") from exc
+        except subprocess.CalledProcessError as exc:
+            raise SystemExit(
+                f"openapi-typescript failed (exit {exc.returncode})"
+                " — run `npm ci` in the frontend directory if dependencies are missing"
+            ) from exc
+        generated_path = frontend_dir / "src" / "api" / "generated-types.ts"
+        print(f"Wrote {generated_path}")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,14 @@
-"""Pydantic models for TelemetryQueryService results.
+"""Pydantic models for TelemetryQueryService DB query results.
 
 These typed models replace raw ``dict`` returns, preventing the
 "column rename -> silent template failure" class of bugs.
+
+For live runtime state models, see ``domain_models.py``.
+
+Separation rationale
+--------------------
+- ``telemetry_models.py`` — historical/aggregated data from the database (this module)
+- ``domain_models.py`` — live state snapshots and WS event payloads
 """
 
 from pydantic import BaseModel

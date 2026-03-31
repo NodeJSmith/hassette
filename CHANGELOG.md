@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Domain model layer (`core/domain_models.py`) — Pydantic models for live runtime state and WS event payloads, decoupling core services from the web presentation layer (#461)
+- Web mapping layer (`web/mappers.py`) — centralized domain-to-response model conversion for all REST and WebSocket routes (#461)
+- `TelemetryRepository` class — extracted SQL persistence from `CommandExecutor` into a dedicated repository with lazy db access (#461)
+- OpenAPI TypeScript codegen — `scripts/export_schemas.py --types` generates `frontend/src/api/generated-types.ts` from the OpenAPI schema, replacing hand-mirrored interfaces (#461)
+- CI schema validation — frontend job regenerates and diffs `openapi.json`, `ws-schema.json`, and `generated-types.ts` to catch drift (#461)
+
+### Changed
+- `RuntimeQueryService` returns domain objects (`SystemStatus`, `AppStatusSnapshot`, `AppFullSnapshot`) instead of web response models — zero imports from `hassette.web.models` (#461)
+- `CommandExecutor._execute_handler()` and `_execute_job()` deduplicated via `track_execution(known_errors=...)` — ~170 lines of duplicated exception handling consolidated (#461)
+- WS payload types (`StateChangedData`, `AppStatusChangedData`, `ConnectivityData`, `ServiceStatusData`) moved from `web/models.py` to `core/domain_models.py` (#461)
+- `broadcast()` logging moved outside the async lock to reduce contention under queue-full conditions (#461)
+
+### Fixed
+- `logger.exception()` called outside active exception handler in `CommandExecutor` — replaced with `logger.error()` using the captured traceback string (#461)
+
+### Added
 - Automatic child lifecycle propagation — `Resource.shutdown()` and `Resource.initialize()` now propagate to children automatically, eliminating manual cleanup in parent `on_shutdown` hooks (#453)
 - `Scheduler.on_shutdown()` hook clears all jobs on shutdown (mirrors `Bus.on_shutdown()`) (#453)
 - `_shutdown_completed` flag for true shutdown idempotency — sequential double-shutdown is now a no-op (#453)

@@ -5,38 +5,28 @@ import contextlib
 import json
 import time
 from collections import deque
-from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
 from hassette.bus import Bus
+from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
+from hassette.core.domain_models import (
+    AppStatusChangedData,
+    ConnectivityData,
+    ServiceStatusData,
+    StateChangedData,
+    SystemStatus,
+)
 from hassette.events import Event, RawStateChangeEvent
 from hassette.logging_ import LogEntry, get_log_capture_handler
 from hassette.resources.base import Resource
 from hassette.types import Topic
-from hassette.web.models import (
-    AppInstanceResponse,
-    AppManifestListResponse,
-    AppManifestResponse,
-    AppStatusChangedPayload,
-    AppStatusResponse,
-    ConnectivityPayload,
-    StateChangedPayload,
-    SystemStatusResponse,
-    WsServiceStatusPayload,
-)
+from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
 
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
-
-
-def _serialize_payload(data: object) -> object:
-    """Convert a dataclass (possibly containing enums) to a JSON-safe dict."""
-    if hasattr(data, "__dataclass_fields__"):
-        return json.loads(json.dumps(asdict(data), default=str))  # pyright: ignore[reportArgumentType]
-    return data
 
 
 class RuntimeQueryService(Resource):
@@ -132,7 +122,7 @@ class RuntimeQueryService(Resource):
     # --- Event handlers ---
 
     async def _on_state_change(self, event: RawStateChangeEvent) -> None:
-        payload = StateChangedPayload(
+        payload = StateChangedData(
             entity_id=event.payload.data.entity_id,
             new_state=dict(event.payload.data.new_state) if event.payload.data.new_state else None,
             old_state=dict(event.payload.data.old_state) if event.payload.data.old_state else None,
@@ -142,99 +132,61 @@ class RuntimeQueryService(Resource):
         await self.broadcast(entry)
 
     async def _on_app_state_changed(self, event: Event) -> None:
-        raw = event.payload.data if hasattr(event, "payload") else {}
-        serialized = _serialize_payload(raw)
-        payload = AppStatusChangedPayload.model_validate(serialized)
+        if not hasattr(event, "payload"):
+            return
+        data = event.payload.data
+        payload = AppStatusChangedData(
+            app_key=data.app_key,
+            index=data.index,
+            status=data.status.value,
+            previous_status=data.previous_status.value if data.previous_status else None,
+            instance_name=data.instance_name,
+            class_name=data.class_name,
+            exception=data.exception,
+            exception_type=data.exception_type,
+            exception_traceback=data.exception_traceback,
+        )
         entry = {"type": "app_status_changed", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_service_status(self, event: Event[Any]) -> None:
-        raw = event.payload.data if hasattr(event, "payload") else {}
-        serialized = _serialize_payload(raw)
-        payload = WsServiceStatusPayload.model_validate(serialized)
+        if not hasattr(event, "payload"):
+            return
+        data = event.payload.data
+        payload = ServiceStatusData(
+            resource_name=data.resource_name,
+            role=data.role.value,
+            status=data.status.value,
+            previous_status=data.previous_status.value if data.previous_status else None,
+            exception=data.exception,
+            exception_type=data.exception_type,
+            exception_traceback=data.exception_traceback,
+        )
         entry = {"type": "service_status", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_ws_connected(self) -> None:
-        payload = ConnectivityPayload(connected=True)
+        payload = ConnectivityData(connected=True)
         entry = {"type": "connectivity", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def _on_ws_disconnected(self) -> None:
-        payload = ConnectivityPayload(connected=False)
+        payload = ConnectivityData(connected=False)
         entry = {"type": "connectivity", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     # --- App status ---
 
-    def get_app_status_snapshot(self) -> AppStatusResponse:
-        snapshot = self.hassette.app_handler.get_status_snapshot()
-        apps = [
-            AppInstanceResponse(
-                app_key=info.app_key,
-                index=info.index,
-                instance_name=info.instance_name,
-                class_name=info.class_name,
-                status=info.status.value,
-                error_message=info.error_message,
-                owner_id=info.owner_id,
-            )
-            for info in (*snapshot.running, *snapshot.failed)
-        ]
-        return AppStatusResponse(
-            total=snapshot.total_count,
-            running=snapshot.running_count,
-            failed=snapshot.failed_count,
-            apps=apps,
-            only_app=snapshot.only_app,
-        )
+    def get_app_status_snapshot(self) -> AppStatusSnapshot:
+        return self.hassette.app_handler.get_status_snapshot()
 
-    def get_all_manifests_snapshot(self) -> AppManifestListResponse:
+    def get_all_manifests_snapshot(self) -> AppFullSnapshot:
         """Return full manifest-based snapshot including stopped/disabled apps."""
-        snapshot = self.hassette.app_handler.registry.get_full_snapshot()
-        manifests = [
-            AppManifestResponse(
-                app_key=m.app_key,
-                class_name=m.class_name,
-                display_name=m.display_name,
-                filename=m.filename,
-                enabled=m.enabled,
-                auto_loaded=m.auto_loaded,
-                status=m.status,
-                block_reason=m.block_reason,
-                instance_count=m.instance_count,
-                instances=[
-                    AppInstanceResponse(
-                        app_key=inst.app_key,
-                        index=inst.index,
-                        instance_name=inst.instance_name,
-                        class_name=inst.class_name,
-                        status=str(inst.status),
-                        error_message=inst.error_message,
-                        error_traceback=inst.error_traceback,
-                        owner_id=inst.owner_id,
-                    )
-                    for inst in m.instances
-                ],
-                error_message=m.error_message,
-                error_traceback=m.error_traceback,
-            )
-            for m in snapshot.manifests
-        ]
-        return AppManifestListResponse(
-            total=snapshot.total,
-            running=snapshot.running,
-            failed=snapshot.failed,
-            stopped=snapshot.stopped,
-            disabled=snapshot.disabled,
-            blocked=snapshot.blocked,
-            manifests=manifests,
-            only_app=snapshot.only_app,
-        )
+        return self.hassette.app_handler.registry.get_full_snapshot()
 
     # --- Event history ---
 
@@ -262,9 +214,7 @@ class RuntimeQueryService(Resource):
 
     # --- System status ---
 
-    def get_system_status(self) -> SystemStatusResponse:
-        from hassette.types.enums import ResourceStatus
-
+    def get_system_status(self) -> SystemStatus:
         ws_connected = self.hassette.websocket_service.status == ResourceStatus.RUNNING
         uptime = time.time() - self._start_time
 
@@ -297,7 +247,7 @@ class RuntimeQueryService(Resource):
         else:
             status = "starting"
 
-        return SystemStatusResponse(
+        return SystemStatus(
             status=status,
             websocket_connected=ws_connected,
             uptime_seconds=uptime,
@@ -325,6 +275,10 @@ class RuntimeQueryService(Resource):
         """Broadcast a message to all connected WebSocket clients."""
         # Pre-serialize once for all clients (handles enums, dataclasses, etc.)
         safe_message = json.loads(json.dumps(message, default=str))
+        should_log = False
+        log_since: int = 0
+        log_total: int = 0
+        log_clients: int = 0
         async with self._lock:
             for queue in self._ws_clients:
                 try:
@@ -334,11 +288,16 @@ class RuntimeQueryService(Resource):
                     self._ws_drops_since_last_log += 1
                     now = time.monotonic()
                     if now - self._ws_drops_last_logged >= 10.0:
-                        self.logger.warning(
-                            "Dropped %d messages since last log (total: %d, clients: %d)",
-                            self._ws_drops_since_last_log,
-                            self._ws_drops,
-                            len(self._ws_clients),
-                        )
+                        should_log = True
+                        log_since = self._ws_drops_since_last_log
+                        log_total = self._ws_drops
+                        log_clients = len(self._ws_clients)
                         self._ws_drops_since_last_log = 0
                         self._ws_drops_last_logged = now
+        if should_log:
+            self.logger.warning(
+                "Dropped %d messages since last log (total: %d, clients: %d)",
+                log_since,
+                log_total,
+                log_clients,
+            )

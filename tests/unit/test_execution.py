@@ -90,3 +90,51 @@ class TestTrackExecution:
         assert result.status == "error"
         assert result.error_type == "DependencyInjectionError"
         assert result.error_message == "bad sig"
+
+    async def test_known_errors_suppresses_traceback(self) -> None:
+        """known_errors=(DependencyError,) produces error_traceback=None for DependencyError."""
+        from hassette.exceptions import DependencyError
+
+        with pytest.raises(DependencyError):
+            async with track_execution(known_errors=(DependencyError,)) as result:
+                raise DependencyError("missing dep")
+
+        assert result.status == "error"
+        assert result.error_type == "DependencyError"
+        assert result.error_message == "missing dep"
+        assert result.error_traceback is None
+
+    async def test_unknown_error_preserves_traceback(self) -> None:
+        """known_errors=(DependencyError,) preserves traceback for non-matching exceptions."""
+        from hassette.exceptions import DependencyError
+
+        with pytest.raises(ValueError, match="oops"):
+            async with track_execution(known_errors=(DependencyError,)) as result:
+                raise ValueError("oops")
+
+        assert result.status == "error"
+        assert result.error_type == "ValueError"
+        assert result.error_traceback is not None
+        assert "ValueError" in result.error_traceback
+
+    async def test_known_errors_subclass_also_suppressed(self) -> None:
+        """Subclass of a known error type is also suppressed (isinstance semantics)."""
+        from hassette.exceptions import DependencyInjectionError, HassetteError
+
+        with pytest.raises(DependencyInjectionError):
+            async with track_execution(known_errors=(HassetteError,)) as result:
+                raise DependencyInjectionError("bad sig")
+
+        assert result.status == "error"
+        assert result.error_type == "DependencyInjectionError"
+        assert result.error_traceback is None
+
+    async def test_known_errors_empty_tuple_preserves_all(self) -> None:
+        """Default known_errors=() preserves traceback for all exceptions."""
+        with pytest.raises(RuntimeError):
+            async with track_execution() as result:
+                raise RuntimeError("fail")
+
+        assert result.status == "error"
+        assert result.error_traceback is not None
+        assert "RuntimeError" in result.error_traceback

@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Response
 
 from hassette.web.dependencies import RuntimeDep
+from hassette.web.mappers import system_status_response_from
 from hassette.web.models import SystemStatusResponse
 
 router = APIRouter(tags=["health"])
@@ -17,4 +18,4 @@ async def get_health(runtime: RuntimeDep, response: Response) -> SystemStatusRes
     status_data = runtime.get_system_status()
     if status_data.status != "ok":
         response.status_code = 503
-    return status_data
+    return system_status_response_from(status_data)

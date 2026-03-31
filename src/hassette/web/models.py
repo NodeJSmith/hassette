@@ -4,11 +4,13 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
+from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
+
 
 class SystemStatusResponse(BaseModel):
     status: str
     websocket_connected: bool
-    uptime_seconds: float | None
+    uptime_seconds: float
     entity_count: int
     app_count: int
     services_running: list[str]
@@ -115,51 +117,15 @@ class ScheduledJobResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AppStatusChangedPayload(BaseModel):
-    """Mirrors ``events.hassette.AppStateChangePayload`` exactly."""
-
-    app_key: str
-    index: int
-    status: str
-    previous_status: str | None = None
-    instance_name: str | None = None
-    class_name: str | None = None
-    exception: str | None = None
-    exception_type: str | None = None
-    exception_traceback: str | None = None
-
-
 class ConnectedPayload(BaseModel):
     session_id: int | None = None
     entity_count: int
     app_count: int
 
 
-class ConnectivityPayload(BaseModel):
-    connected: bool
-
-
-class StateChangedPayload(BaseModel):
-    entity_id: str
-    new_state: dict[str, Any] | None = None
-    old_state: dict[str, Any] | None = None
-
-
-class WsServiceStatusPayload(BaseModel):
-    """Mirrors ``events.hassette.ServiceStatusPayload``."""
-
-    resource_name: str
-    role: str
-    status: str
-    previous_status: str | None = None
-    exception: str | None = None
-    exception_type: str | None = None
-    exception_traceback: str | None = None
-
-
 class AppStatusChangedWsMessage(BaseModel):
     type: Literal["app_status_changed"]
-    data: AppStatusChangedPayload
+    data: AppStatusChangedData
     timestamp: float
 
 
@@ -177,19 +143,19 @@ class ConnectedWsMessage(BaseModel):
 
 class ConnectivityWsMessage(BaseModel):
     type: Literal["connectivity"]
-    data: ConnectivityPayload
+    data: ConnectivityData
     timestamp: float
 
 
 class StateChangedWsMessage(BaseModel):
     type: Literal["state_changed"]
-    data: StateChangedPayload
+    data: StateChangedData
     timestamp: float
 
 
 class ServiceStatusWsMessage(BaseModel):
     type: Literal["service_status"]
-    data: WsServiceStatusPayload
+    data: ServiceStatusData
     timestamp: float
 
 

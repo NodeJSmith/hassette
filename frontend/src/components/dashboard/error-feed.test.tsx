@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/preact";
 import { ErrorFeed } from "./error-feed";
-import type { DashboardErrorEntry } from "../../api/endpoints";
+import type { DashboardErrorEntry, HandlerErrorEntry, JobErrorEntry } from "../../api/endpoints";
 
 vi.mock("../../hooks/use-relative-time", () => ({
   useRelativeTime: () => "2m ago",
 }));
 
-function createError(overrides: Partial<DashboardErrorEntry> = {}): DashboardErrorEntry {
+function createError(overrides: Partial<HandlerErrorEntry> = {}): HandlerErrorEntry {
   return {
     kind: "handler",
     error_message: "something broke",
@@ -17,6 +17,19 @@ function createError(overrides: Partial<DashboardErrorEntry> = {}): DashboardErr
     listener_id: 42,
     topic: "state_changed",
     handler_method: "on_light_change",
+    ...overrides,
+  };
+}
+
+function createJobError(overrides: Partial<JobErrorEntry> = {}): JobErrorEntry {
+  return {
+    kind: "job",
+    error_message: "something broke",
+    error_type: "ValueError",
+    execution_start_ts: 1700000000,
+    app_key: "test_app",
+    job_id: 7,
+    job_name: "cleanup",
     ...overrides,
   };
 }
@@ -57,7 +70,7 @@ describe("ErrorFeed", () => {
   it("shows job_name for job errors", () => {
     const { getByText } = render(
       <ErrorFeed
-        errors={[createError({ kind: "job", job_name: "cleanup", handler_method: undefined, job_id: 7 })]}
+        errors={[createJobError({ job_name: "cleanup" })]}
       />,
     );
     expect(getByText("cleanup")).toBeDefined();
@@ -65,7 +78,7 @@ describe("ErrorFeed", () => {
 
   it("unknown kind gets neutral class", () => {
     const { container } = render(
-      <ErrorFeed errors={[createError({ kind: "cron" as DashboardErrorEntry["kind"] })]} />,
+      <ErrorFeed errors={[{ ...createError(), kind: "cron" } as unknown as DashboardErrorEntry]} />,
     );
     const badge = container.querySelector(".ht-tag");
     expect(badge?.className).toContain("ht-tag--neutral");
