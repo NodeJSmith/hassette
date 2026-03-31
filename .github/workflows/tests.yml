@@ -10,6 +10,13 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
+            - name: Install uv and set the Python version
+              uses: astral-sh/setup-uv@v6
+              with:
+                  python-version: "3.13"
+
+            - run: uv sync
+
             - name: Set up Node.js
               uses: actions/setup-node@v4
               with:
@@ -23,6 +30,16 @@ jobs:
 
             - name: Run frontend tests
               run: npm test
+              working-directory: frontend
+
+            - name: Regenerate schemas
+              run: uv run python scripts/export_schemas.py
+
+            - name: Check openapi.json and ws-schema.json are up to date
+              run: git diff --exit-code frontend/openapi.json frontend/ws-schema.json
+
+            - name: Check generated-types.ts is up to date
+              run: npm run types && git diff --exit-code -- src/api/generated-types.ts
               working-directory: frontend
 
             - name: Build frontend

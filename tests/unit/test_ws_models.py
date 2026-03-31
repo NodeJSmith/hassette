@@ -5,18 +5,18 @@ from dataclasses import asdict
 import pytest
 from pydantic import TypeAdapter
 
+from hassette.core.domain_models import AppStatusChangedData as AppStatusChangedPayload
+from hassette.core.domain_models import ServiceStatusData as WsServiceStatusPayload
+from hassette.core.domain_models import StateChangedData as StateChangedPayload
 from hassette.web.models import (
-    AppStatusChangedPayload,
     AppStatusChangedWsMessage,
     ConnectedPayload,
     ConnectedWsMessage,
     ConnectivityWsMessage,
     LogWsMessage,
     ServiceStatusWsMessage,
-    StateChangedPayload,
     StateChangedWsMessage,
     WsServerMessage,
-    WsServiceStatusPayload,
 )
 
 

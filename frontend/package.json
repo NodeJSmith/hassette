@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "types": "openapi-typescript openapi.json -o src/api/types.ts",
+    "types": "openapi-typescript openapi.json -o src/api/generated-types.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix"
   },

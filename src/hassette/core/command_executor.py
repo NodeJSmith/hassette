@@ -3,15 +3,17 @@
 import asyncio
 import contextlib
 import time
-import traceback
 import typing
+from collections.abc import Awaitable, Callable
 
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.utils.execution import ExecutionResult, track_execution
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -31,9 +33,13 @@ class CommandExecutor(Service):
     _write_queue: asyncio.Queue[HandlerInvocationRecord | JobExecutionRecord]
     """Unbounded queue of execution records pending DB persistence."""
 
+    repository: TelemetryRepository
+    """Repository for all telemetry SQL writes."""
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._write_queue = asyncio.Queue()
+        self.repository = TelemetryRepository(hassette.database_service)
 
     @property
     def config_log_level(self) -> str:
@@ -91,7 +97,12 @@ class CommandExecutor(Service):
 
             # Queue has an item — drain the full queue in one batch
             if get_fut in done and not get_fut.cancelled() and get_fut.exception() is None:
-                await self._drain_and_persist(first_item=get_fut.result())
+                try:
+                    await self._drain_and_persist(first_item=get_fut.result())
+                except Exception:
+                    self.logger.exception(
+                        "_drain_and_persist failed — records from this batch are dropped (already dequeued)"
+                    )
 
     # ------------------------------------------------------------------
     # Execution
@@ -109,6 +120,82 @@ class CommandExecutor(Service):
             case ExecuteJob():
                 await self._execute_job(cmd)
 
+    async def _execute(
+        self,
+        fn: Callable[[], Awaitable[None]],
+        cmd: InvokeHandler | ExecuteJob,
+        log_error: Callable[[ExecutionResult], None],
+    ) -> ExecutionResult:
+        """Core execution wrapper: time the call, capture errors, queue the record.
+
+        Wraps ``track_execution()`` with the full 5-branch exception contract:
+
+        - ``CancelledError``   — record queued with status='cancelled', then re-raised.
+        - ``DependencyError``  — record queued with status='error', no traceback.
+        - ``HassetteError``    — record queued with status='error', no traceback.
+        - ``Exception``        — record queued with status='error', traceback included.
+        - success              — record queued with status='success'.
+
+        ``result`` is initialized before the ``async with`` block so that a
+        ``CancelledError`` raised before ``track_execution()`` yields still has a
+        safe default to queue.
+
+        Args:
+            fn: The async callable to execute (a zero-argument coroutine factory).
+            cmd: The originating command, used to build the record in callers.
+            log_error: A callback that logs the error details from the result.
+                Called for error paths (not cancelled, not success).
+
+        Returns:
+            The populated ``ExecutionResult``.
+        """
+        execution_start_ts = time.time()
+        result = ExecutionResult()  # safe default if CancelledError fires before yield
+        try:
+            async with track_execution(known_errors=(DependencyError, HassetteError)) as result:
+                await fn()
+        except asyncio.CancelledError:
+            self._write_queue.put_nowait(self._build_record(cmd, result, execution_start_ts))
+            raise
+        except Exception:
+            pass  # track_execution() already re-raised; result is populated. Swallowing is intentional.
+        # result is available for both success and error paths
+        if result.is_error:
+            log_error(result)
+        self._write_queue.put_nowait(self._build_record(cmd, result, execution_start_ts))
+        return result
+
+    def _build_record(
+        self,
+        cmd: InvokeHandler | ExecuteJob,
+        result: ExecutionResult,
+        execution_start_ts: float,
+    ) -> HandlerInvocationRecord | JobExecutionRecord:
+        """Build the appropriate record type from the execution result and command."""
+        match cmd:
+            case InvokeHandler():
+                return HandlerInvocationRecord(
+                    listener_id=cmd.listener_id,
+                    session_id=self._safe_session_id(),
+                    execution_start_ts=execution_start_ts,
+                    duration_ms=result.duration_ms,
+                    status=result.status,
+                    error_type=result.error_type,
+                    error_message=result.error_message,
+                    error_traceback=result.error_traceback,
+                )
+            case ExecuteJob():
+                return JobExecutionRecord(
+                    job_id=cmd.job_db_id,
+                    session_id=self._safe_session_id(),
+                    execution_start_ts=execution_start_ts,
+                    duration_ms=result.duration_ms,
+                    status=result.status,
+                    error_type=result.error_type,
+                    error_message=result.error_message,
+                    error_traceback=result.error_traceback,
+                )
+
     async def _execute_handler(self, cmd: InvokeHandler) -> None:
         """Execute a listener handler invocation and queue the result record.
 
@@ -116,175 +203,33 @@ class CommandExecutor(Service):
             CancelledError   → record queued with status='cancelled', then re-raised.
             DependencyError  → record queued with status='error', logger.error (no traceback).
             HassetteError    → record queued with status='error', logger.error (no traceback).
-            Exception        → record queued with status='error', logger.exception (with traceback).
+            Exception        → record queued with status='error', logger.error (with traceback string).
             success          → record queued with status='success'.
         """
-        execution_start_ts = time.time()
-        _mono_start = time.monotonic()
 
-        try:
-            await cmd.listener.invoke(cmd.event)
-        except asyncio.CancelledError:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            record = HandlerInvocationRecord(
-                listener_id=cmd.listener_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="cancelled",
-                error_type=None,
-                error_message=None,
-                error_traceback=None,
-            )
-            self._write_queue.put_nowait(record)
-            raise
-        except DependencyError as e:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            self.logger.error("Handler DI error (topic=%s): %s", cmd.topic, e)
-            record = HandlerInvocationRecord(
-                listener_id=cmd.listener_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="error",
-                error_type=type(e).__name__,
-                error_message=str(e),
-                error_traceback=None,
-            )
-            self._write_queue.put_nowait(record)
-            await self._run_error_hooks(e, cmd)
-        except HassetteError as e:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            self.logger.error("Handler error (topic=%s): %s", cmd.topic, e)
-            record = HandlerInvocationRecord(
-                listener_id=cmd.listener_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="error",
-                error_type=type(e).__name__,
-                error_message=str(e),
-                error_traceback=None,
-            )
-            self._write_queue.put_nowait(record)
-            await self._run_error_hooks(e, cmd)
-        except Exception as e:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            self.logger.exception("Handler error (topic=%s, handler=%r)", cmd.topic, cmd.listener)
-            tb = traceback.format_exc()
-            record = HandlerInvocationRecord(
-                listener_id=cmd.listener_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="error",
-                error_type=type(e).__name__,
-                error_message=str(e),
-                error_traceback=tb,
-            )
-            self._write_queue.put_nowait(record)
-            await self._run_error_hooks(e, cmd)
-        else:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            record = HandlerInvocationRecord(
-                listener_id=cmd.listener_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="success",
-                error_type=None,
-                error_message=None,
-                error_traceback=None,
-            )
-            self._write_queue.put_nowait(record)
+        def _log_error(result: ExecutionResult) -> None:
+            if result.error_traceback is None:
+                self.logger.error("Handler error (topic=%s): %s", cmd.topic, result.error_message)
+            else:
+                self.logger.error(
+                    "Handler error (topic=%s, handler=%r)\n%s", cmd.topic, cmd.listener, result.error_traceback
+                )
+
+        await self._execute(lambda: cmd.listener.invoke(cmd.event), cmd, _log_error)
 
     async def _execute_job(self, cmd: ExecuteJob) -> None:
         """Execute a scheduled job and queue the result record.
 
         Exception contract is identical to _execute_handler, but uses JobExecutionRecord.
         """
-        execution_start_ts = time.time()
-        _mono_start = time.monotonic()
 
-        try:
-            await cmd.callable()
-        except asyncio.CancelledError:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            record = JobExecutionRecord(
-                job_id=cmd.job_db_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="cancelled",
-                error_type=None,
-                error_message=None,
-                error_traceback=None,
-            )
-            self._write_queue.put_nowait(record)
-            raise
-        except DependencyError as e:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            self.logger.error("Job DI error (job_db_id=%s): %s", cmd.job_db_id, e)
-            record = JobExecutionRecord(
-                job_id=cmd.job_db_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="error",
-                error_type=type(e).__name__,
-                error_message=str(e),
-                error_traceback=None,
-            )
-            self._write_queue.put_nowait(record)
-            await self._run_error_hooks(e, cmd)
-        except HassetteError as e:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            self.logger.error("Job error (job_db_id=%s): %s", cmd.job_db_id, e)
-            record = JobExecutionRecord(
-                job_id=cmd.job_db_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="error",
-                error_type=type(e).__name__,
-                error_message=str(e),
-                error_traceback=None,
-            )
-            self._write_queue.put_nowait(record)
-            await self._run_error_hooks(e, cmd)
-        except Exception as e:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            self.logger.exception("Job error (job_db_id=%s)", cmd.job_db_id)
-            tb = traceback.format_exc()
-            record = JobExecutionRecord(
-                job_id=cmd.job_db_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="error",
-                error_type=type(e).__name__,
-                error_message=str(e),
-                error_traceback=tb,
-            )
-            self._write_queue.put_nowait(record)
-            await self._run_error_hooks(e, cmd)
-        else:
-            duration_ms = (time.monotonic() - _mono_start) * 1000
-            record = JobExecutionRecord(
-                job_id=cmd.job_db_id,
-                session_id=self._safe_session_id(),
-                execution_start_ts=execution_start_ts,
-                duration_ms=duration_ms,
-                status="success",
-                error_type=None,
-                error_message=None,
-                error_traceback=None,
-            )
-            self._write_queue.put_nowait(record)
+        def _log_error(result: ExecutionResult) -> None:
+            if result.error_traceback is None:
+                self.logger.error("Job error (job_db_id=%s): %s", cmd.job_db_id, result.error_message)
+            else:
+                self.logger.error("Job error (job_db_id=%s)\n%s", cmd.job_db_id, result.error_traceback)
 
-    async def _run_error_hooks(self, _exc: Exception, _cmd: InvokeHandler | ExecuteJob) -> None:
-        """No-op stub for error hooks. Hook registration wired in #268."""
-        pass
+        await self._execute(cmd.callable, cmd, _log_error)
 
     # ------------------------------------------------------------------
     # Registration
@@ -300,48 +245,7 @@ class CommandExecutor(Service):
             The row ID of the inserted row.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
-        return await self.hassette.database_service.submit(self._do_register_listener(registration))
-
-    async def _do_register_listener(self, registration: ListenerRegistration) -> int:
-        """Execute the listener INSERT SQL; called by the DB write-queue worker.
-
-        Args:
-            registration: The listener registration data.
-
-        Returns:
-            The row ID of the inserted row.
-        """
-        db = self.hassette.database_service.db
-        cursor = await db.execute(
-            """
-            INSERT INTO listeners (
-                app_key, instance_index, handler_method, topic,
-                debounce, throttle, once, priority,
-                predicate_description, human_description,
-                source_location, registration_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id
-            """,
-            (
-                registration.app_key,
-                registration.instance_index,
-                registration.handler_method,
-                registration.topic,
-                registration.debounce,
-                registration.throttle,
-                1 if registration.once else 0,
-                registration.priority,
-                registration.predicate_description,
-                registration.human_description,
-                registration.source_location,
-                registration.registration_source,
-            ),
-        )
-        row = await cursor.fetchone()
-        await db.commit()
-        if row is None:
-            raise RuntimeError("RETURNING id returned no row after INSERT INTO listeners — this should never happen")
-        return row[0]
+        return await self.hassette.database_service.submit(self.repository.register_listener(registration))
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
         """Insert a scheduled job registration into the scheduled_jobs table.
@@ -353,47 +257,7 @@ class CommandExecutor(Service):
             The row ID of the inserted row.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
-        return await self.hassette.database_service.submit(self._do_register_job(registration))
-
-    async def _do_register_job(self, registration: ScheduledJobRegistration) -> int:
-        """Execute the scheduled_jobs INSERT SQL; called by the DB write-queue worker.
-
-        Args:
-            registration: The scheduled job registration data.
-
-        Returns:
-            The row ID of the inserted row.
-        """
-        db = self.hassette.database_service.db
-        cursor = await db.execute(
-            """
-            INSERT INTO scheduled_jobs (
-                app_key, instance_index, job_name, handler_method,
-                trigger_type, trigger_value, repeat,
-                args_json, kwargs_json,
-                source_location, registration_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id
-            """,
-            (
-                registration.app_key,
-                registration.instance_index,
-                registration.job_name,
-                registration.handler_method,
-                registration.trigger_type,
-                registration.trigger_value,
-                1 if registration.repeat else 0,
-                registration.args_json,
-                registration.kwargs_json,
-                registration.source_location,
-                registration.registration_source,
-            ),
-        )
-        row = await cursor.fetchone()
-        await db.commit()
-        if row is None:
-            raise RuntimeError("RETURNING id returned no row after INSERT INTO scheduled_jobs — should never happen")
-        return row[0]
+        return await self.hassette.database_service.submit(self.repository.register_job(registration))
 
     # ------------------------------------------------------------------
     # Registration cleanup
@@ -411,14 +275,7 @@ class CommandExecutor(Service):
             app_key: The app key whose registrations to delete.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
-        await self.hassette.database_service.submit(self._do_clear_registrations(app_key))
-
-    async def _do_clear_registrations(self, app_key: str) -> None:
-        """Execute the DELETE SQL for clearing registrations; called by DB write-queue worker."""
-        db = self.hassette.database_service.db
-        await db.execute("DELETE FROM listeners WHERE app_key = ?", (app_key,))
-        await db.execute("DELETE FROM scheduled_jobs WHERE app_key = ?", (app_key,))
-        await db.commit()
+        await self.hassette.database_service.submit(self.repository.clear_registrations(app_key))
 
     # ------------------------------------------------------------------
     # Queue persistence
@@ -490,18 +347,9 @@ class CommandExecutor(Service):
     ) -> None:
         """Write a batch of execution records to the DB in a single transaction.
 
-        Args:
-            invocations: Handler invocation records to insert into handler_invocations.
-            job_executions: Job execution records to insert into job_executions.
-        """
-        await self.hassette.database_service.submit(self._do_persist_batch(invocations, job_executions))
-
-    async def _do_persist_batch(
-        self,
-        invocations: list[HandlerInvocationRecord],
-        job_executions: list[JobExecutionRecord],
-    ) -> None:
-        """Execute the executemany inserts for a batch of records; called by the DB write-queue worker.
+        Sentinel filtering (listener_id == 0, session_id == 0) is performed here
+        before delegating to the repository. This guard stays in CommandExecutor
+        so that the repository remains a pure persistence layer with no policy logic.
 
         Args:
             invocations: Handler invocation records to insert into handler_invocations.
@@ -526,55 +374,4 @@ class CommandExecutor(Service):
         invocations = [r for r in invocations if r.listener_id != 0 and r.session_id != 0]
         job_executions = [r for r in job_executions if r.job_id != 0 and r.session_id != 0]
 
-        if not invocations and not job_executions:
-            return
-
-        db = self.hassette.database_service.db
-
-        if invocations:
-            await db.executemany(
-                """
-                INSERT INTO handler_invocations (
-                    listener_id, session_id, execution_start_ts,
-                    duration_ms, status, error_type, error_message, error_traceback
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        r.listener_id,
-                        r.session_id,
-                        r.execution_start_ts,
-                        r.duration_ms,
-                        r.status,
-                        r.error_type,
-                        r.error_message,
-                        r.error_traceback,
-                    )
-                    for r in invocations
-                ],
-            )
-
-        if job_executions:
-            await db.executemany(
-                """
-                INSERT INTO job_executions (
-                    job_id, session_id, execution_start_ts,
-                    duration_ms, status, error_type, error_message, error_traceback
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        r.job_id,
-                        r.session_id,
-                        r.execution_start_ts,
-                        r.duration_ms,
-                        r.status,
-                        r.error_type,
-                        r.error_message,
-                        r.error_traceback,
-                    )
-                    for r in job_executions
-                ],
-            )
-
-        await db.commit()
+        await self.hassette.database_service.submit(self.repository.persist_batch(invocations, job_executions))

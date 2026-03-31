@@ -5,6 +5,7 @@ from logging import getLogger
 from fastapi import APIRouter, HTTPException
 
 from hassette.web.dependencies import HassetteDep, RuntimeDep
+from hassette.web.mappers import app_manifest_list_response_from, app_status_response_from
 from hassette.web.models import ActionResponse, AppManifestListResponse, AppStatusResponse
 
 LOGGER = getLogger(__name__)
@@ -14,12 +15,12 @@ router = APIRouter(tags=["apps"])
 
 @router.get("/apps", response_model=AppStatusResponse)
 async def get_apps(runtime: RuntimeDep) -> AppStatusResponse:
-    return runtime.get_app_status_snapshot()
+    return app_status_response_from(runtime.get_app_status_snapshot())
 
 
 @router.get("/apps/manifests", response_model=AppManifestListResponse)
 async def get_app_manifests(runtime: RuntimeDep) -> AppManifestListResponse:
-    return runtime.get_all_manifests_snapshot()
+    return app_manifest_list_response_from(runtime.get_all_manifests_snapshot())
 
 
 @router.post("/apps/{app_key}/start", status_code=202, response_model=ActionResponse)

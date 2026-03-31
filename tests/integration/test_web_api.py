@@ -11,15 +11,23 @@ from hassette.core.telemetry_models import ListenerSummary
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
+from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.logging_ import LogCaptureHandler
-from hassette.test_utils.web_helpers import make_old_snapshot
 from hassette.test_utils.web_mocks import create_hassette_stub
+from hassette.types.enums import ResourceStatus
 from hassette.web.routes.config import _CONFIG_SAFE_FIELDS
 
 
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette instance for the FastAPI app."""
+    _instance = AppInstanceInfo(
+        app_key="my_app",
+        index=0,
+        instance_name="MyApp[0]",
+        class_name="MyApp",
+        status=ResourceStatus.RUNNING,
+    )
     return create_hassette_stub(
         run_web_ui=False,
         states={
@@ -38,7 +46,7 @@ def mock_hassette():
                 "last_updated": "2024-01-01T00:00:00",
             },
         },
-        old_snapshot=make_old_snapshot(),
+        old_snapshot=AppStatusSnapshot(running=[_instance], failed=[]),
         app_action_mocks=True,
         config_dump={"dev_mode": True, "web_api_port": 8126},
     )

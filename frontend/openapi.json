@@ -2212,14 +2212,7 @@
             "title": "Websocket Connected"
           },
           "uptime_seconds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "number",
             "title": "Uptime Seconds"
           },
           "entity_count": {

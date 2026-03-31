@@ -2,12 +2,13 @@
 
 import asyncio
 import json
-from types import SimpleNamespace
 
 import pytest
 
+from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.test_utils.web_mocks import create_hassette_stub
+from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
 try:
@@ -23,13 +24,38 @@ pytestmark = pytest.mark.skipif(not HAS_STARLETTE_TC, reason="starlette testclie
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette for WebSocket tests."""
+    # 2 running + 1 failed = total_count 3 (matches test assertion app_count == 3)
+    running = [
+        AppInstanceInfo(
+            app_key="app_a",
+            index=0,
+            instance_name="AppA[0]",
+            class_name="AppA",
+            status=ResourceStatus.RUNNING,
+        ),
+        AppInstanceInfo(
+            app_key="app_b",
+            index=0,
+            instance_name="AppB[0]",
+            class_name="AppB",
+            status=ResourceStatus.RUNNING,
+        ),
+    ]
+    failed = [
+        AppInstanceInfo(
+            app_key="app_c",
+            index=0,
+            instance_name="AppC[0]",
+            class_name="AppC",
+            status=ResourceStatus.FAILED,
+            error_message="boom",
+        ),
+    ]
     return create_hassette_stub(
         run_web_ui=False,
         cors_origins=(),
         states={"light.kitchen": {"entity_id": "light.kitchen", "state": "on"}},
-        old_snapshot=SimpleNamespace(
-            running=[], failed=[], total_count=3, running_count=2, failed_count=1, only_app=None
-        ),
+        old_snapshot=AppStatusSnapshot(running=running, failed=failed),
     )
 
 

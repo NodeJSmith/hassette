@@ -71,7 +71,7 @@ function FailedAppsAlert() {
       .filter((m) => m.status === "failed")
       .map((m) => ({
         app_key: m.app_key,
-        error_message: m.error_message,
+        error_message: m.error_message ?? null,
       })) ?? [];
 
   return <AlertBanner failedApps={failedApps} />;
