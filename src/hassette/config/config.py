@@ -281,6 +281,12 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Number of days to retain execution records (handler_invocations, job_executions)."""
 
     # Service log levels
+    #
+    # Convention (see design/config-log-level-convention.md):
+    #   - Every Hassette-registered service gets a dedicated *_log_level field here.
+    #   - Child/helper Resources cross-bind to their parent service's field via config_log_level overrides.
+    #   - No concrete Resource should fall through to the global log_level default.
+    #   - All config_log_level overrides must return -> LOG_LEVEL_TYPE.
 
     database_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the database service. Defaults to INFO or the value of log_level."""
@@ -318,6 +324,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     state_proxy_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the state proxy resource. Defaults to INFO or the value of log_level."""
+
+    api_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    """Logging level for the API resource (REST/WebSocket client). Defaults to INFO or the value of log_level."""
 
     log_all_events: bool = Field(default=False)
     """Whether to include all events in bus debug logging. Should be used sparingly. Defaults to False."""

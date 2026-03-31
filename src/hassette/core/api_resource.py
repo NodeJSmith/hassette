@@ -24,6 +24,7 @@ from hassette.exceptions import (
 )
 from hassette.models.history import normalize_history
 from hassette.resources.base import Resource
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.request_utils import clean_kwargs, orjson_dump
 
 if typing.TYPE_CHECKING:
@@ -70,9 +71,9 @@ class ApiResource(Resource):
         await self._stack.aclose()
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.log_level
+        return self.hassette.config.api_log_level
 
     @property
     def _headers(self) -> dict[str, str]:

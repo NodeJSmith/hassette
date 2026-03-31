@@ -14,6 +14,7 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.types import AppConfigT
 from hassette.types.enums import ResourceRole
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.date_utils import now
 
 from .app_config import AppConfig
@@ -103,7 +104,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         return f"{self.class_name}.{self.app_config.instance_name}"
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         try:
             return self.app_config.log_level

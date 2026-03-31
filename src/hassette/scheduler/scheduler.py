@@ -113,6 +113,7 @@ from whenever import Time, TimeDelta, ZonedDateTime
 
 from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.date_utils import now
 
 from .classes import CronTrigger, IntervalTrigger, ScheduledJob
@@ -144,7 +145,7 @@ class Scheduler(Resource):
         await self.remove_all_jobs()
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.scheduler_service_log_level
 

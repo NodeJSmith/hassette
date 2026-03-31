@@ -5,6 +5,7 @@ import typing
 from anyio import create_memory_object_stream
 
 from hassette.resources.base import Resource
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from typing import Any
@@ -33,6 +34,11 @@ class EventStreamService(Resource):
     async def on_initialize(self) -> None:
         """Signal readiness — streams are created synchronously in __init__."""
         self.mark_ready(reason="EventStreamService initialized")
+
+    @property
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.bus_service_log_level
 
     @property
     def receive_stream(self) -> "MemoryObjectReceiveStream[tuple[str, Event[Any]]]":

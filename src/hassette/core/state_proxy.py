@@ -12,6 +12,7 @@ from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
 from hassette.scheduler import ScheduledJob, Scheduler
 from hassette.types import Topic
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import extract_domain
 
 if TYPE_CHECKING:
@@ -40,7 +41,7 @@ class StateProxy(Resource):
         self.poll_job = None
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.state_proxy_log_level
 

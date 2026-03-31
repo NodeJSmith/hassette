@@ -5,6 +5,7 @@ from pathlib import Path
 from watchfiles import awatch
 
 from hassette.resources.base import Service
+from hassette.types.types import LOG_LEVEL_TYPE
 
 _WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 _WATCH_DIRS = [_WEB_DIR / "static", _WEB_DIR / "templates"]
@@ -26,6 +27,11 @@ def _change_kind(path: str) -> str:
 
 class WebUiWatcherService(Service):
     """Watches web UI static/template files and broadcasts reload signals to browsers."""
+
+    @property
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.file_watcher_log_level
 
     async def on_initialize(self) -> None:
         if not self.hassette.config.web_ui_hot_reload:

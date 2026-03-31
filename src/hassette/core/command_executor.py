@@ -12,6 +12,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -36,7 +37,7 @@ class CommandExecutor(Service):
         self._write_queue = asyncio.Queue()
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.command_executor_log_level
 

@@ -16,6 +16,7 @@ from hassette.core.telemetry_models import (
     SessionSummary,
 )
 from hassette.resources.base import Resource
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -37,7 +38,7 @@ class TelemetryQueryService(Resource):
         super().__init__(hassette, parent=parent)
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.web_api_log_level
 
     async def on_initialize(self) -> None:

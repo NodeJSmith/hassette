@@ -12,6 +12,7 @@ from hassette.models import states
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
 from hassette.types import StateT
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import make_entity_id
 
 if typing.TYPE_CHECKING:
@@ -225,6 +226,11 @@ class StateManager(Resource):
 
     async def after_initialize(self) -> None:
         self.mark_ready(reason="StateManager initialized")
+
+    @property
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.state_proxy_log_level
 
     @property
     def _state_proxy(self) -> StateProxy:

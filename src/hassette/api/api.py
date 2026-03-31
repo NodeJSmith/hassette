@@ -171,6 +171,7 @@ from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
+from hassette.types.types import LOG_LEVEL_TYPE
 
 from .sync import ApiSyncFacade
 
@@ -204,9 +205,9 @@ class Api(Resource):
         self.mark_ready(reason="API initialized")
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.log_level
+        return self.hassette.config.api_log_level
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""

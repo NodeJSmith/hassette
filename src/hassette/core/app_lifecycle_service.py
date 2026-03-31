@@ -23,6 +23,7 @@ from hassette.logging_ import get_log_capture_handler
 from hassette.resources.base import Resource
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import BlockReason
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -95,7 +96,7 @@ class AppLifecycleService(Resource):
         self.mark_ready(reason="AppLifecycleService initialized")
 
     @property
-    def config_log_level(self) -> str:
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.app_handler_log_level
 

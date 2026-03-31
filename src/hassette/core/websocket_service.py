@@ -31,6 +31,7 @@ from hassette.exceptions import (
 )
 from hassette.resources.base import Service
 from hassette.types import Topic
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -91,7 +92,7 @@ class WebsocketService(Service):
         self._connect_lock = asyncio.Lock()
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.websocket_log_level
 

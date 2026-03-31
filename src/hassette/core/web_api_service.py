@@ -6,6 +6,7 @@ import typing
 import uvicorn
 
 from hassette.resources.base import Service
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.web.app import create_fastapi_app
 
 if typing.TYPE_CHECKING:
@@ -27,7 +28,7 @@ class WebApiService(Service):
         self._server = None
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.web_api_log_level
 
     async def before_initialize(self) -> None:

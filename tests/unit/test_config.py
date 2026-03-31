@@ -410,6 +410,7 @@ SERVICE_LOG_LEVEL_FIELDS = (
     "command_executor_log_level",
     "apps_log_level",
     "state_proxy_log_level",
+    "api_log_level",
 )
 
 
@@ -431,7 +432,7 @@ class _LogLevelTestConfig(HassetteConfig):
 
 
 def test_service_log_levels_inherit_global_debug(monkeypatch):
-    """Setting HASSETTE__LOG_LEVEL=DEBUG propagates to all 12 service log level fields."""
+    """Setting HASSETTE__LOG_LEVEL=DEBUG propagates to all 13 service log level fields."""
     monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
 
     config = _LogLevelTestConfig()
@@ -443,7 +444,7 @@ def test_service_log_levels_inherit_global_debug(monkeypatch):
 
 
 def test_service_log_levels_default_to_info_when_global_unset():
-    """With no log_level override all 12 service log level fields default to INFO."""
+    """With no log_level override all 13 service log level fields default to INFO."""
     config = _LogLevelTestConfig()
 
     assert config.log_level == "INFO", f"Expected global log_level='INFO', got {config.log_level!r}"

@@ -4,13 +4,14 @@ from watchfiles import awatch
 
 from hassette.events.hassette import HassetteFileWatcherEvent
 from hassette.resources.base import Service
+from hassette.types.types import LOG_LEVEL_TYPE
 
 
 class FileWatcherService(Service):
     """Background task to watch for file changes and reload apps."""
 
     @property
-    def config_log_level(self):
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.file_watcher_log_level
 

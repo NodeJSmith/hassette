@@ -6,6 +6,7 @@ import typing
 
 from hassette.events import HassetteServiceEvent
 from hassette.resources.base import Resource
+from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -36,6 +37,11 @@ class SessionManager(Resource):
     async def on_initialize(self) -> None:
         """Signal readiness — session creation happens later in run_forever()."""
         self.mark_ready(reason="SessionManager initialized")
+
+    @property
+    def config_log_level(self) -> LOG_LEVEL_TYPE:
+        """Return the log level from the config for this resource."""
+        return self.hassette.config.database_service_log_level
 
     @property
     def session_id(self) -> int:
