@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- `api_log_level` config field for independent Api/ApiResource log level control (#463)
+- `config_log_level` overrides for SessionManager, EventStreamService, WebUiWatcherService, StateManager, and ApiSyncFacade — no Resource falls through to global default (#463)
+- Design doc (`design/config-log-level-convention.md`) establishing the three-mode config_log_level convention (#463)
+- `-> LOG_LEVEL_TYPE` return annotation on all 26 `config_log_level` overrides (#463)
 - Automatic child lifecycle propagation — `Resource.shutdown()` and `Resource.initialize()` now propagate to children automatically, eliminating manual cleanup in parent `on_shutdown` hooks (#453)
 - `Scheduler.on_shutdown()` hook clears all jobs on shutdown (mirrors `Bus.on_shutdown()`) (#453)
 - `_shutdown_completed` flag for true shutdown idempotency — sequential double-shutdown is now a no-op (#453)
@@ -22,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Listener.matches()` is now synchronous (was async but never awaited) — reduces coroutine frame overhead on the event dispatch hot path (#452)
 
 ### Fixed
+- `Api.config_log_level` and `ApiResource.config_log_level` were no-op overrides returning the global `log_level` — now correctly return `api_log_level` (#463)
 - `callable_name()` LRU cache removed — bound method references no longer pinned in memory after app reload (#452)
 - `IntervalTrigger.next_run_time()` no longer mutates internal state; calling it twice with the same inputs now returns the same result (#452)
 - `CronTrigger.next_run_time()` creates a fresh `croniter` per call instead of advancing a shared cursor (#452)
