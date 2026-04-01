@@ -115,6 +115,7 @@ from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.date_utils import now
+from hassette.utils.source_capture import capture_registration_source
 
 from .classes import CronTrigger, IntervalTrigger, ScheduledJob
 
@@ -234,6 +235,9 @@ class Scheduler(Resource):
         app_key = getattr(self.parent, "app_key", "") if self.parent else ""
         instance_index = getattr(self.parent, "index", 0) if self.parent else 0
 
+        # Capture source while user code is still on the stack (before async spawn boundary)
+        source_location, registration_source = capture_registration_source()
+
         job = ScheduledJob(
             owner_id=self.owner_id,
             next_run=run_at,
@@ -245,6 +249,8 @@ class Scheduler(Resource):
             kwargs=dict(kwargs) if kwargs else {},
             app_key=app_key,
             instance_index=instance_index,
+            source_location=source_location,
+            registration_source=registration_source or "",
         )
         return self.add_job(job, if_exists=if_exists)
 

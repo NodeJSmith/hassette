@@ -93,6 +93,12 @@ class Listener:
     handler_short_name: str = ""
     """Short (last-segment) name for the handler, computed once at creation time."""
 
+    source_location: str = ""
+    """Captured source location (file:line) of the user code that registered this listener."""
+
+    registration_source: str = ""
+    """Captured source code snippet of the registration call."""
+
     _fired: bool = field(default=False, init=False, repr=False)
     """Guard for once=True listeners: set before the first invocation to prevent double-fire
     when two rapid events both match before the removal task executes."""
