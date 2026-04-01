@@ -11,6 +11,8 @@ Separation rationale
 - ``domain_models.py`` — live state snapshots and WS event payloads
 """
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -164,3 +166,41 @@ class SessionSummary(BaseModel):
     invocation_errors: int
     total_executions: int
     execution_errors: int
+
+
+class HandlerErrorRecord(BaseModel):
+    """Handler error returned by ``get_recent_errors()``."""
+
+    kind: Literal["handler"] = "handler"
+    listener_id: int
+    app_key: str
+    handler_method: str
+    topic: str
+    execution_start_ts: float
+    duration_ms: float
+    error_type: str | None
+    error_message: str | None
+
+
+class JobErrorRecord(BaseModel):
+    """Job error returned by ``get_recent_errors()``."""
+
+    kind: Literal["job"] = "job"
+    job_id: int
+    app_key: str
+    job_name: str
+    handler_method: str
+    execution_start_ts: float
+    duration_ms: float
+    error_type: str | None
+    error_message: str | None
+
+
+class SlowHandlerRecord(BaseModel):
+    """Slow handler invocation returned by ``get_slow_handlers()``."""
+
+    app_key: str
+    handler_method: str
+    topic: str
+    execution_start_ts: float
+    duration_ms: float

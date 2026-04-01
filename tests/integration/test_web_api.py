@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_models import ListenerSummary
+from hassette.core.telemetry_models import HandlerErrorRecord, JobErrorRecord, ListenerSummary
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -535,25 +535,26 @@ class TestTelemetryDashboard:
     async def test_errors_returns_typed_entries(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
             return_value=[
-                {
-                    "kind": "handler",
-                    "listener_id": 1,
-                    "topic": "state_changed.light.kitchen",
-                    "handler_method": "on_light",
-                    "error_message": "test error",
-                    "error_type": "RuntimeError",
-                    "execution_start_ts": 1234567890.0,
-                    "app_key": "my_app",
-                },
-                {
-                    "kind": "job",
-                    "job_id": 1,
-                    "job_name": "check_sensors",
-                    "error_message": "timeout",
-                    "error_type": "TimeoutError",
-                    "execution_start_ts": 1234567891.0,
-                    "app_key": "sensor_app",
-                },
+                HandlerErrorRecord(
+                    listener_id=1,
+                    topic="state_changed.light.kitchen",
+                    handler_method="on_light",
+                    error_message="test error",
+                    error_type="RuntimeError",
+                    execution_start_ts=1234567890.0,
+                    duration_ms=12.5,
+                    app_key="my_app",
+                ),
+                JobErrorRecord(
+                    job_id=1,
+                    job_name="check_sensors",
+                    handler_method="check",
+                    error_message="timeout",
+                    error_type="TimeoutError",
+                    execution_start_ts=1234567891.0,
+                    duration_ms=5000.0,
+                    app_key="sensor_app",
+                ),
             ]
         )
         response = await client.get("/api/telemetry/dashboard/errors")

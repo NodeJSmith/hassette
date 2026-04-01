@@ -10,7 +10,15 @@ from logging import getLogger
 
 from fastapi import APIRouter, Query, Response
 
-from hassette.core.telemetry_models import AppHealthSummary, HandlerInvocation, JobExecution, JobSummary, SessionRecord
+from hassette.core.telemetry_models import (
+    AppHealthSummary,
+    HandlerErrorRecord,
+    HandlerInvocation,
+    JobErrorRecord,
+    JobExecution,
+    JobSummary,
+    SessionRecord,
+)
 from hassette.web.dependencies import RuntimeDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
@@ -314,28 +322,27 @@ async def dashboard_errors(
 
     typed_errors: list[HandlerErrorEntry | JobErrorEntry] = []
     for err in raw_errors:
-        kind = err.get("kind", "handler")
-        if kind == "job":
+        if isinstance(err, JobErrorRecord):
             typed_errors.append(
                 JobErrorEntry(
-                    job_id=err.get("job_id", 0),
-                    job_name=err.get("job_name", ""),
-                    error_message=err.get("error_message", ""),
-                    error_type=err.get("error_type", ""),
-                    execution_start_ts=err.get("execution_start_ts", 0.0),
-                    app_key=err.get("app_key", ""),
+                    job_id=err.job_id,
+                    job_name=err.job_name,
+                    error_message=err.error_message or "",
+                    error_type=err.error_type or "",
+                    execution_start_ts=err.execution_start_ts,
+                    app_key=err.app_key,
                 )
             )
-        else:
+        elif isinstance(err, HandlerErrorRecord):
             typed_errors.append(
                 HandlerErrorEntry(
-                    listener_id=err.get("listener_id", 0),
-                    topic=err.get("topic", ""),
-                    handler_method=err.get("handler_method", ""),
-                    error_message=err.get("error_message", ""),
-                    error_type=err.get("error_type", ""),
-                    execution_start_ts=err.get("execution_start_ts", 0.0),
-                    app_key=err.get("app_key", ""),
+                    listener_id=err.listener_id,
+                    topic=err.topic,
+                    handler_method=err.handler_method,
+                    error_message=err.error_message or "",
+                    error_type=err.error_type or "",
+                    execution_start_ts=err.execution_start_ts,
+                    app_key=err.app_key,
                 )
             )
 

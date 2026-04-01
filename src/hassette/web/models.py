@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
+from hassette.core.telemetry_models import SessionRecord
 
 
 class SystemStatusResponse(BaseModel):
@@ -297,16 +298,7 @@ class DashboardErrorsResponse(BaseModel):
     errors: list[HandlerErrorEntry | JobErrorEntry]
 
 
-class SessionListEntry(BaseModel):
-    """Single session entry for the session list endpoint."""
-
-    id: int
-    started_at: float
-    stopped_at: float | None
-    status: str
-    error_type: str | None
-    error_message: str | None
-    duration_seconds: float | None
+SessionListEntry = SessionRecord
 
 
 class TelemetryStatusResponse(BaseModel):
