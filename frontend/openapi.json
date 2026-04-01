@@ -590,7 +590,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/SessionListEntry"
+                    "$ref": "#/components/schemas/SessionRecord"
                   },
                   "title": "Response Sessions Api Telemetry Sessions Get"
                 }
@@ -2431,7 +2431,7 @@
         ],
         "title": "ScheduledJobResponse"
       },
-      "SessionListEntry": {
+      "SessionRecord": {
         "properties": {
           "id": {
             "type": "integer",
@@ -2500,8 +2500,8 @@
           "error_message",
           "duration_seconds"
         ],
-        "title": "SessionListEntry",
-        "description": "Single session entry for the session list endpoint."
+        "title": "SessionRecord",
+        "description": "Single session record returned by ``get_session_list()``."
       },
       "SystemStatusResponse": {
         "properties": {

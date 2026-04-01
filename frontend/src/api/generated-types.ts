@@ -324,7 +324,7 @@ export interface paths {
         };
         /**
          * Handler Invocations
-         * @description Invocation history for a specific handler (session-scoped).
+         * @description Invocation history for a specific handler.
          */
         get: operations["handler_invocations_api_telemetry_handler__listener_id__invocations_get"];
         put?: never;
@@ -344,7 +344,7 @@ export interface paths {
         };
         /**
          * Job Executions
-         * @description Execution history for a specific job (session-scoped).
+         * @description Execution history for a specific job.
          */
         get: operations["job_executions_api_telemetry_job__job_id__executions_get"];
         put?: never;
@@ -989,10 +989,10 @@ export interface components {
             trigger_detail?: string | null;
         };
         /**
-         * SessionListEntry
-         * @description Single session entry for the session list endpoint.
+         * SessionRecord
+         * @description Single session record returned by ``get_session_list()``.
          */
-        SessionListEntry: {
+        SessionRecord: {
             /** Id */
             id: number;
             /** Started At */
@@ -1340,6 +1340,7 @@ export interface operations {
             query?: {
                 app_key?: string | null;
                 instance_index?: number;
+                session_id?: number | null;
             };
             header?: never;
             path?: never;
@@ -1433,7 +1434,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SessionListEntry"][];
+                    "application/json": components["schemas"]["SessionRecord"][];
                 };
             };
             /** @description Validation Error */
@@ -1451,6 +1452,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1484,6 +1486,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1517,6 +1520,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1550,6 +1554,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1583,6 +1588,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1614,7 +1620,9 @@ export interface operations {
     };
     dashboard_kpis_api_telemetry_dashboard_kpis_get: {
         parameters: {
-            query?: never;
+            query?: {
+                session_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1630,11 +1638,22 @@ export interface operations {
                     "application/json": components["schemas"]["DashboardKpisResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     dashboard_app_grid_api_telemetry_dashboard_app_grid_get: {
         parameters: {
-            query?: never;
+            query?: {
+                session_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1650,11 +1669,22 @@ export interface operations {
                     "application/json": components["schemas"]["DashboardAppGridResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     dashboard_errors_api_telemetry_dashboard_errors_get: {
         parameters: {
-            query?: never;
+            query?: {
+                session_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1668,6 +1698,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardErrorsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

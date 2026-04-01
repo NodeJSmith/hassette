@@ -20,7 +20,7 @@ export type HandlerInvocationData = components["schemas"]["HandlerInvocation"];
 export type JobExecutionData = components["schemas"]["JobExecution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
 export type LogEntry = components["schemas"]["LogEntryResponse"];
-export type SessionListEntry = components["schemas"]["SessionListEntry"];
+export type SessionListEntry = components["schemas"]["SessionRecord"];
 
 // ---- App management ----
 
@@ -34,7 +34,7 @@ export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/
 
 /** Append `&session_id=N` (or `?session_id=N`) to a URL when sessionId is provided. */
 function withSession(url: string, sessionId?: number | null): string {
-  if (sessionId == null) return url;
+  if (sessionId === null || sessionId === undefined) return url;
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}session_id=${sessionId}`;
 }

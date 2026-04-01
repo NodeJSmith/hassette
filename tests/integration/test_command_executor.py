@@ -27,6 +27,8 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.data_dir = tmp_path
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
+    hassette.config.db_migration_timeout_seconds = 120
+    hassette.config.db_max_size_mb = 0
     hassette.config.database_service_log_level = "INFO"
     hassette.config.log_level = "INFO"
     hassette.config.task_bucket_log_level = "INFO"
@@ -570,6 +572,8 @@ async def test_concurrent_registrations_do_not_raise(
     mock_hassette.config.data_dir = tmp_path
     mock_hassette.config.db_path = None
     mock_hassette.config.db_retention_days = 7
+    mock_hassette.config.db_migration_timeout_seconds = 120
+    mock_hassette.config.db_max_size_mb = 0
     mock_hassette.config.database_service_log_level = "INFO"
     mock_hassette.config.log_level = "INFO"
     mock_hassette.config.task_bucket_log_level = "INFO"
