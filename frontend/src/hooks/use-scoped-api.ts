@@ -75,7 +75,8 @@ export function useScopedApi<T>(
     const loadingData = useRef(signal<T | null>(null)).current;
     const loadingFlag = useRef(signal(true)).current;
     const loadingError = useRef(signal<string | null>(null)).current;
-    return { data: loadingData, loading: loadingFlag, error: loadingError, refetch: result.refetch };
+    const noop = async () => {};
+    return { data: loadingData, loading: loadingFlag, error: loadingError, refetch: noop };
   }
 
   return result;

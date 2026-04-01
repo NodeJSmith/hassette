@@ -127,6 +127,28 @@ describe("useScopedApi", () => {
     expect(fetcher).toHaveBeenLastCalledWith(10);
   });
 
+  it("returns no-op refetch when waiting for session", async () => {
+    const state = createAppState();
+    state.sessionId.value = null;
+    state.sessionScope.value = "current";
+
+    const fetcher = vi.fn().mockResolvedValue("should-not-reach");
+
+    const { result } = renderHook(() => useScopedApi(fetcher), {
+      wrapper: createWrapper(state),
+    });
+
+    // Wait a tick for effects to settle
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Calling refetch while waiting should be a no-op
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(0);
+  });
+
   it("preserves lazy mode", async () => {
     const state = createAppState();
     state.sessionId.value = 5;

@@ -170,8 +170,9 @@ async def test_db_max_size_mb_zero_disables_failsafe(
     """_check_size_failsafe() returns immediately when db_max_size_mb is 0."""
     initialized_service_with_worker.hassette.config.db_max_size_mb = 0
 
-    # If failsafe tried to access _get_db_size_mb(), it would fail because _db_path is
-    # a mock path. An early return means no size check at all.
+    # _db_path is a real Path from tmp_path, but the DB file doesn't exist at this point.
+    # _get_db_size_mb() would return 0 (under the 0 limit = disabled). An early return
+    # means no size check at all.
     await initialized_service_with_worker._check_size_failsafe()
     # No exception means the early return worked.
 
