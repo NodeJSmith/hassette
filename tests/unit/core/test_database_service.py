@@ -170,11 +170,13 @@ async def test_db_max_size_mb_zero_disables_failsafe(
     """_check_size_failsafe() returns immediately when db_max_size_mb is 0."""
     initialized_service_with_worker.hassette.config.db_max_size_mb = 0
 
-    # _db_path is a real Path from tmp_path, but the DB file doesn't exist at this point.
-    # _get_db_size_mb() would return 0 (under the 0 limit = disabled). An early return
-    # means no size check at all.
+    # Patch _get_db_size_mb to prove it's never called — the early return
+    # should skip the size check entirely.
+    initialized_service_with_worker._get_db_size_mb = MagicMock(  # pyright: ignore[reportAttributeAccessIssue]
+        side_effect=AssertionError("_get_db_size_mb should not be called when disabled"),
+    )
     await initialized_service_with_worker._check_size_failsafe()
-    # No exception means the early return worked.
+    initialized_service_with_worker._get_db_size_mb.assert_not_called()
 
 
 async def test_worker_continues_after_enqueue_error(

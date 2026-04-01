@@ -107,7 +107,10 @@ class DatabaseService(Service):
         self._db.row_factory = aiosqlite.Row
 
         await self._set_pragmas()
-        await self._check_size_failsafe()
+        try:
+            await self._check_size_failsafe()
+        except Exception:
+            self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
         self._db_write_queue = asyncio.Queue()
         self._db_worker_task = asyncio.create_task(self._db_write_worker())
@@ -341,7 +344,7 @@ class DatabaseService(Service):
         self._consecutive_size_triggers += 1
         if self._consecutive_size_triggers > 1:
             self.logger.warning(
-                "Size failsafe triggered %d consecutive times (%.1f MB > %d MB limit)",
+                "Size failsafe triggered %d consecutive times (%.1f MB > %.1f MB limit)",
                 self._consecutive_size_triggers,
                 current_size,
                 max_size_mb,
@@ -376,7 +379,7 @@ class DatabaseService(Service):
 
             if iteration == _SIZE_FAILSAFE_MAX_ITERATIONS - 1:
                 self.logger.warning(
-                    "Size failsafe loop capped at %d iterations; database still %.1f MB (limit %d MB)",
+                    "Size failsafe loop capped at %d iterations; database still %.1f MB (limit %.1f MB)",
                     _SIZE_FAILSAFE_MAX_ITERATIONS,
                     current_size,
                     max_size_mb,
