@@ -87,6 +87,16 @@ export function JobRow({ job }: Props) {
       </div>
       {expanded.value && (
         <div class="ht-item-detail" id={`job-${job.job_id}-detail`}>
+          {(job.source_location || job.registration_source) && (
+            <div class="ht-source-display" data-testid="source-display">
+              {job.source_location && (
+                <div class="ht-text-muted ht-text-xs">{job.source_location}</div>
+              )}
+              {job.registration_source && (
+                <code class="ht-text-mono ht-text-xs" style="display: block">{job.registration_source}</code>
+              )}
+            </div>
+          )}
           {loading.value && !executions.value ? (
             <p class="ht-text-muted ht-text-xs">Loading executions...</p>
           ) : executions.value ? (

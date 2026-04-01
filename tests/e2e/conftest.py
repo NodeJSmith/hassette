@@ -98,6 +98,24 @@ def _build_manifests() -> list:
             instance_count=0,
         ),
         make_manifest(
+            app_key="nosource_app",
+            class_name="NoSourceApp",
+            display_name="No Source App",
+            filename="nosource_app.py",
+            status="running",
+            instance_count=1,
+            instances=[
+                AppInstanceInfo(
+                    app_key="nosource_app",
+                    index=0,
+                    instance_name="NoSourceApp[0]",
+                    class_name="NoSourceApp",
+                    status=ResourceStatus.RUNNING,
+                    owner_id="NoSourceApp.NoSourceApp[0]",
+                ),
+            ],
+        ),
+        make_manifest(
             app_key="multi_app",
             class_name="MultiApp",
             display_name="Multi App",
@@ -228,9 +246,41 @@ def mock_hassette():
         ),
     ]
 
+    # nosource_app listeners — empty source fields for testing hidden source display.
+    telemetry_listeners_nosource_app = [
+        ListenerSummary(
+            listener_id=100,
+            handler_method="on_event",
+            topic="state_changed.switch.fan",
+            app_key="nosource_app",
+            instance_index=0,
+            debounce=None,
+            throttle=None,
+            once=0,
+            priority=0,
+            predicate_description=None,
+            human_description=None,
+            source_location="",
+            registration_source=None,
+            total_invocations=1,
+            successful=1,
+            failed=0,
+            di_failures=0,
+            cancelled=0,
+            total_duration_ms=1.0,
+            avg_duration_ms=1.0,
+            min_duration_ms=1.0,
+            max_duration_ms=1.0,
+            last_invoked_at=1704067000.0,
+            last_error_type=None,
+            last_error_message=None,
+        ),
+    ]
+
     telemetry_listeners_by_app = {
         "my_app": telemetry_listeners_my_app,
         "broken_app": telemetry_listeners_broken_app,
+        "nosource_app": telemetry_listeners_nosource_app,
     }
 
     # Job summaries as proper Pydantic models.
@@ -300,9 +350,34 @@ def mock_hassette():
         ),
     ]
 
+    # nosource_app jobs — empty source fields for testing hidden source display.
+    telemetry_jobs_nosource_app = [
+        JobSummary(
+            job_id=100,
+            app_key="nosource_app",
+            instance_index=0,
+            job_name="poll_sensor",
+            handler_method="poll_sensor",
+            trigger_type="interval",
+            trigger_value="PT10S",
+            repeat=1,
+            args_json="[]",
+            kwargs_json="{}",
+            source_location="",
+            registration_source=None,
+            total_executions=2,
+            successful=2,
+            failed=0,
+            last_executed_at=1704067000.0,
+            total_duration_ms=2.0,
+            avg_duration_ms=1.0,
+        ),
+    ]
+
     telemetry_jobs_by_app = {
         "my_app": telemetry_jobs_my_app,
         "broken_app": telemetry_jobs_broken_app,
+        "nosource_app": telemetry_jobs_nosource_app,
     }
 
     # Handler invocation records (for drill-down).
@@ -394,6 +469,14 @@ def mock_hassette():
                     class_name="MyApp",
                     status=ResourceStatus.RUNNING,
                     owner_id="MyApp.MyApp[0]",
+                ),
+                AppInstanceInfo(
+                    app_key="nosource_app",
+                    index=0,
+                    instance_name="NoSourceApp[0]",
+                    class_name="NoSourceApp",
+                    status=ResourceStatus.RUNNING,
+                    owner_id="NoSourceApp.NoSourceApp[0]",
                 ),
             ],
             failed=[

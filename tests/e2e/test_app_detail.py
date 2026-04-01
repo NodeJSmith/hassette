@@ -115,14 +115,50 @@ def test_app_detail_identity_model_fixed(page: Page, base_url: str) -> None:
 
 
 def test_registration_source_link(page: Page, base_url: str) -> None:
-    """Source link visible in handler row or expanded handler details."""
+    """Expanded handler detail shows source_location and registration_source."""
     page.goto(base_url + "/apps/my_app")
-    # The handler row itself shows the handler method and topic.
     handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
     handler_main.click()
-    # After expanding, the detail panel loads.
     detail = page.locator("#handler-1-detail")
     expect(detail).to_be_visible(timeout=5000)
+    # Source display block should be present with actual content from fixture
+    source_display = detail.locator("[data-testid='source-display']")
+    expect(source_display).to_be_visible()
+    expect(source_display).to_contain_text("my_app.py:15")
+    expect(source_display).to_contain_text("on_initialize")
+
+
+def test_job_registration_source_display(page: Page, base_url: str) -> None:
+    """Expanded job detail shows source_location and registration_source."""
+    page.goto(base_url + "/apps/my_app")
+    job_main = page.locator("[data-testid='job-row-1'] .ht-item-row__main")
+    job_main.click()
+    detail = page.locator("#job-1-detail")
+    expect(detail).to_be_visible(timeout=5000)
+    source_display = detail.locator("[data-testid='source-display']")
+    expect(source_display).to_be_visible()
+    expect(source_display).to_contain_text("my_app.py:30")
+    expect(source_display).to_contain_text("on_initialize")
+
+
+def test_source_display_hidden_when_empty(page: Page, base_url: str) -> None:
+    """No source section renders when source_location is empty and registration_source is null."""
+    page.goto(base_url + "/apps/my_app")
+    # Handler 1 has source data — expand it and verify source-display IS present
+    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
+    handler_main.click()
+    detail = page.locator("#handler-1-detail")
+    expect(detail).to_be_visible(timeout=5000)
+    expect(detail.locator("[data-testid='source-display']")).to_be_visible()
+
+    # Navigate to the nosource_app whose handler/job have empty source fields
+    page.goto(base_url + "/apps/nosource_app")
+    handler_main_ns = page.locator("[data-testid='handler-row-100'] .ht-item-row__main")
+    handler_main_ns.click()
+    detail_ns = page.locator("#handler-100-detail")
+    expect(detail_ns).to_be_visible(timeout=5000)
+    # Source display should NOT be present
+    expect(detail_ns.locator("[data-testid='source-display']")).to_have_count(0)
 
 
 # ── Expand/collapse state ────────────────────────────────────────────

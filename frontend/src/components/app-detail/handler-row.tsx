@@ -86,6 +86,16 @@ export function HandlerRow({ listener }: Props) {
       </div>
       {expanded.value && (
         <div class="ht-item-detail" id={`handler-${listener.listener_id}-detail`}>
+          {(listener.source_location || listener.registration_source) && (
+            <div class="ht-source-display" data-testid="source-display">
+              {listener.source_location && (
+                <div class="ht-text-muted ht-text-xs">{listener.source_location}</div>
+              )}
+              {listener.registration_source && (
+                <code class="ht-text-mono ht-text-xs" style="display: block">{listener.registration_source}</code>
+              )}
+            </div>
+          )}
           {loading.value && !invocations.value ? (
             <p class="ht-text-muted ht-text-xs">Loading invocations...</p>
           ) : invocations.value ? (
