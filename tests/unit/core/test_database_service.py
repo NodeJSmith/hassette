@@ -18,6 +18,8 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.data_dir = tmp_path
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
+    hassette.config.db_max_size_mb = 500
+    hassette.config.db_migration_timeout_seconds = 120
     hassette.config.database_service_log_level = "INFO"
     hassette.config.log_level = "INFO"
     hassette.config.task_bucket_log_level = "INFO"
@@ -160,6 +162,18 @@ async def test_enqueue_is_fire_and_forget(
     assert initialized_service_with_worker._db_write_queue is not None
     await initialized_service_with_worker._db_write_queue.join()
     assert completed == [1]
+
+
+async def test_db_max_size_mb_zero_disables_failsafe(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """_check_size_failsafe() returns immediately when db_max_size_mb is 0."""
+    initialized_service_with_worker.hassette.config.db_max_size_mb = 0
+
+    # If failsafe tried to access _get_db_size_mb(), it would fail because _db_path is
+    # a mock path. An early return means no size check at all.
+    await initialized_service_with_worker._check_size_failsafe()
+    # No exception means the early return worked.
 
 
 async def test_worker_continues_after_enqueue_error(

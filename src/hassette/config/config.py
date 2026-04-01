@@ -280,6 +280,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     db_retention_days: int = Field(default=7, ge=1)
     """Number of days to retain execution records (handler_invocations, job_executions)."""
 
+    db_max_size_mb: int = Field(default=500, ge=0)
+    """Maximum database file size in MB. When exceeded, oldest execution records are deleted. 0 disables the size
+    failsafe."""
+
+    db_migration_timeout_seconds: int = Field(default=120, ge=10)
+    """Maximum seconds to wait for Alembic migrations to complete at startup."""
+
     # Service log levels
     #
     # Convention (see design/config-log-level-convention.md):
