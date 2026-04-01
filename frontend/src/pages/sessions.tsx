@@ -10,7 +10,7 @@ const SESSION_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map([
   ["running", "success"],
   ["success", "success"],
   ["failure", "danger"],
-  ["unknown", "warning"],
+  ["unknown", "neutral"],
 ]);
 
 function sessionStatusToVariant(status: string): StatusVariant {
