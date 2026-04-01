@@ -30,15 +30,18 @@ class AppHealthSummary(BaseModel):
 
     @property
     def error_rate(self) -> float:
-        """Handler error rate as a percentage (0.0-100.0)."""
-        if self.total_invocations == 0:
+        """Combined handler + job error rate as a percentage (0.0-100.0)."""
+        total = self.total_invocations + self.total_executions
+        if total == 0:
             return 0.0
-        return self.total_errors / self.total_invocations * 100
+        errors = self.total_errors + self.total_job_errors
+        return errors / total * 100
 
     @property
     def success_rate(self) -> float:
-        """Handler success rate as a percentage (0.0-100.0)."""
-        if self.total_invocations == 0:
+        """Combined handler + job success rate as a percentage (0.0-100.0)."""
+        total = self.total_invocations + self.total_executions
+        if total == 0:
             return 100.0
         return 100.0 - self.error_rate
 

@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 import time
 import typing
 from collections.abc import Coroutine
@@ -278,7 +279,7 @@ class DatabaseService(Service):
             if self._consecutive_heartbeat_failures > 0:
                 self.logger.info("Heartbeat recovered after %d failure(s)", self._consecutive_heartbeat_failures)
                 self._consecutive_heartbeat_failures = 0
-        except Exception:
+        except (sqlite3.Error, OSError, ValueError):
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
                 "Failed to update heartbeat (failure %d/%d)",

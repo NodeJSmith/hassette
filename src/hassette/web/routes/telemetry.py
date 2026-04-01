@@ -43,21 +43,9 @@ LOGGER = getLogger(__name__)
 DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError)
 """Database error types to catch in telemetry endpoints.
 
-Includes ``ValueError`` for aiosqlite connection-closed errors during shutdown.
-Non-connection ``ValueError`` is re-raised via ``_reraise_if_not_connection_closed()``.
-"""
-
-
-def _reraise_if_not_connection_closed(exc: Exception) -> None:
-    """Re-raise ValueError unless it's an aiosqlite connection-closed error.
-
-    aiosqlite raises ``ValueError("Connection is closed")`` when querying after
-    the database connection has been explicitly closed (e.g., shutdown race).
-    This message has been stable across aiosqlite versions (verified through 0.21).
-    Re-verify on aiosqlite version bumps.
-    """
-    if isinstance(exc, ValueError) and "closed" not in str(exc).lower():
-        raise  # bare raise preserves original traceback from the caller's except block
+Includes ``ValueError`` because aiosqlite raises it for closed-connection
+errors during shutdown.  All three types are suppressed uniformly — a degraded
+response is always preferable to an unhandled 500."""
 
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
@@ -80,8 +68,7 @@ async def telemetry_status(
     """
     try:
         await telemetry.check_health()
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Telemetry database health check failed", exc_info=True)
         response.status_code = 503
         return TelemetryStatusResponse(degraded=True)
@@ -96,8 +83,7 @@ async def sessions(
     """List recent sessions with lifecycle data."""
     try:
         return list(await telemetry.get_session_list(limit=limit))
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Failed to fetch session list", exc_info=True)
         return []
 
@@ -215,8 +201,7 @@ async def dashboard_kpis(
     """Global KPI metrics for the dashboard strip."""
     try:
         summary = await telemetry.get_global_summary(session_id=session_id)
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
         status = runtime.get_system_status()
         return DashboardKpisResponse(
@@ -264,8 +249,7 @@ async def dashboard_app_grid(
     snapshot = runtime.get_all_manifests_snapshot()
     try:
         summaries = await telemetry.get_all_app_summaries(session_id=session_id)
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
@@ -315,8 +299,7 @@ async def dashboard_errors(
     """Recent errors for the dashboard error feed."""
     try:
         raw_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Failed to fetch recent errors for dashboard", exc_info=True)
         return DashboardErrorsResponse(errors=[])
 

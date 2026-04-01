@@ -1,6 +1,7 @@
 """Integration tests for DatabaseService with real SQLite."""
 
 import asyncio
+import sqlite3
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -302,7 +303,7 @@ async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseSe
     # Simulate one failure by temporarily breaking the connection
     real_db = initialized_service._db
     initialized_service._db = MagicMock()
-    initialized_service._db.execute = AsyncMock(side_effect=Exception("db error"))
+    initialized_service._db.execute = AsyncMock(side_effect=sqlite3.OperationalError("db error"))
 
     await initialized_service._update_heartbeat()
     assert initialized_service._db_write_queue is not None
