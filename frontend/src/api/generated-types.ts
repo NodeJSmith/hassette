@@ -235,6 +235,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sessions
+         * @description List recent sessions with lifecycle data.
+         */
+        get: operations["sessions_api_telemetry_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry/app/{app_key}/health": {
         parameters: {
             query?: never;
@@ -968,6 +988,26 @@ export interface components {
             /** Trigger Detail */
             trigger_detail?: string | null;
         };
+        /**
+         * SessionListEntry
+         * @description Single session entry for the session list endpoint.
+         */
+        SessionListEntry: {
+            /** Id */
+            id: number;
+            /** Started At */
+            started_at: number;
+            /** Stopped At */
+            stopped_at: number | null;
+            /** Status */
+            status: string;
+            /** Error Type */
+            error_type: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+        };
         /** SystemStatusResponse */
         SystemStatusResponse: {
             /** Status */
@@ -1372,6 +1412,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TelemetryStatusResponse"];
+                };
+            };
+        };
+    };
+    sessions_api_telemetry_sessions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionListEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

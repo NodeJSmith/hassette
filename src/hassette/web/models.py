@@ -297,6 +297,18 @@ class DashboardErrorsResponse(BaseModel):
     errors: list[HandlerErrorEntry | JobErrorEntry]
 
 
+class SessionListEntry(BaseModel):
+    """Single session entry for the session list endpoint."""
+
+    id: int
+    started_at: float
+    stopped_at: float | None
+    status: str
+    error_type: str | None
+    error_message: str | None
+    duration_seconds: float | None
+
+
 class TelemetryStatusResponse(BaseModel):
     """Health check response for the telemetry database."""
 

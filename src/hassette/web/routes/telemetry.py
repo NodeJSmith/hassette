@@ -9,7 +9,7 @@ from logging import getLogger
 
 from fastapi import APIRouter, Query, Response
 
-from hassette.core.telemetry_models import AppHealthSummary, HandlerInvocation, JobExecution, JobSummary
+from hassette.core.telemetry_models import AppHealthSummary, HandlerInvocation, JobExecution, JobSummary, SessionRecord
 from hassette.web.dependencies import RuntimeDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
@@ -21,6 +21,7 @@ from hassette.web.models import (
     HandlerErrorEntry,
     JobErrorEntry,
     ListenerWithSummary,
+    SessionListEntry,
     TelemetryStatusResponse,
 )
 from hassette.web.telemetry_helpers import (
@@ -77,6 +78,20 @@ async def telemetry_status(
         response.status_code = 503
         return TelemetryStatusResponse(degraded=True)
     return TelemetryStatusResponse(degraded=False)
+
+
+@router.get("/sessions", response_model=list[SessionListEntry])
+async def sessions(
+    telemetry: TelemetryDep,
+    limit: int = Query(default=50, ge=1, le=200),  # pyright: ignore[reportCallInDefaultInitializer]
+) -> list[SessionRecord]:
+    """List recent sessions with lifecycle data."""
+    try:
+        return list(await telemetry.get_session_list(limit=limit))
+    except DB_ERRORS as exc:
+        _reraise_if_not_connection_closed(exc)
+        LOGGER.warning("Failed to fetch session list", exc_info=True)
+        return []
 
 
 def _health_status_from_summary(summary: AppHealthSummary) -> str:

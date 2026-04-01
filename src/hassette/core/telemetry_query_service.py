@@ -13,6 +13,7 @@ from hassette.core.telemetry_models import (
     JobSummary,
     ListenerGlobalStats,
     ListenerSummary,
+    SessionRecord,
     SessionSummary,
 )
 from hassette.resources.base import Resource
@@ -523,7 +524,7 @@ class TelemetryQueryService(Resource):
             rows = await cursor.fetchall()
         return [_row_to_dict(row) for row in rows]
 
-    async def get_session_list(self, limit: int = 20) -> list[dict]:
+    async def get_session_list(self, limit: int = 20) -> list[SessionRecord]:
         """Return recent session records."""
         query = """
             SELECT
@@ -540,7 +541,7 @@ class TelemetryQueryService(Resource):
         """
         async with self._db.execute(query, (limit,)) as cursor:
             rows = await cursor.fetchall()
-        return [_row_to_dict(row) for row in rows]
+        return [SessionRecord.model_validate(_row_to_dict(row)) for row in rows]
 
     async def check_health(self) -> None:
         """Run a representative query that exercises the listeners -> handler_invocations join.

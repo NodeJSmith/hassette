@@ -143,6 +143,18 @@ class GlobalSummary(BaseModel):
     jobs: JobGlobalStats
 
 
+class SessionRecord(BaseModel):
+    """Single session record returned by ``get_session_list()``."""
+
+    id: int
+    started_at: float
+    stopped_at: float | None
+    status: str
+    error_type: str | None
+    error_message: str | None
+    duration_seconds: float | None
+
+
 class SessionSummary(BaseModel):
     """Current-session summary returned by ``get_current_session_summary()``."""
 

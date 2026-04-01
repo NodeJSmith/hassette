@@ -16,6 +16,7 @@ from hassette.core.telemetry_models import (
     JobExecution,
     JobSummary,
     ListenerSummary,
+    SessionRecord,
     SessionSummary,
 )
 from hassette.core.telemetry_query_service import TelemetryQueryService
@@ -512,17 +513,26 @@ class TestGetSessionList:
         rows = await svc.get_session_list(limit=20)
         assert len(rows) == 3
 
+        # Returns typed SessionRecord models
+        assert all(isinstance(r, SessionRecord) for r in rows)
+
         # Most recent first: started_at DESC
-        assert rows[0]["started_at"] == pytest.approx(base_ts + 200.0)
-        assert rows[1]["started_at"] == pytest.approx(base_ts + 100.0)
-        assert rows[2]["started_at"] == pytest.approx(base_ts + 0.0)
+        assert rows[0].started_at == pytest.approx(base_ts + 200.0)
+        assert rows[1].started_at == pytest.approx(base_ts + 100.0)
+        assert rows[2].started_at == pytest.approx(base_ts + 0.0)
 
         # duration_seconds for stopped sessions = stopped_at - started_at
-        assert rows[1]["duration_seconds"] == pytest.approx(50.0)
-        assert rows[2]["duration_seconds"] == pytest.approx(50.0)
+        assert rows[1].duration_seconds == pytest.approx(50.0)
+        assert rows[2].duration_seconds == pytest.approx(50.0)
 
         # Running session uses last_heartbeat_at for duration
-        assert rows[0]["duration_seconds"] == pytest.approx(100.0)
+        assert rows[0].duration_seconds == pytest.approx(100.0)
+
+        # Field types are correct
+        assert isinstance(rows[0].id, int)
+        assert isinstance(rows[0].status, str)
+        assert rows[0].stopped_at is None  # running session
+        assert rows[1].stopped_at is not None  # stopped session
 
 
 # ---------------------------------------------------------------------------

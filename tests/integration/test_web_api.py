@@ -704,6 +704,71 @@ class TestDashboardOSErrorFallback:
             await client.get("/api/telemetry/dashboard/kpis")
 
 
+class TestTelemetrySessionsEndpoint:
+    async def test_sessions_endpoint_returns_session_list(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /telemetry/sessions returns 200 with valid session data."""
+        from hassette.core.telemetry_models import SessionRecord
+
+        mock_hassette.telemetry_query_service.get_session_list = AsyncMock(
+            return_value=[
+                SessionRecord(
+                    id=1,
+                    started_at=1000000.0,
+                    stopped_at=1000050.0,
+                    status="stopped",
+                    error_type=None,
+                    error_message=None,
+                    duration_seconds=50.0,
+                ),
+                SessionRecord(
+                    id=2,
+                    started_at=1000100.0,
+                    stopped_at=None,
+                    status="running",
+                    error_type=None,
+                    error_message=None,
+                    duration_seconds=100.0,
+                ),
+            ]
+        )
+        response = await client.get("/api/telemetry/sessions")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["id"] == 1
+        assert data[0]["started_at"] == 1000000.0
+        assert data[0]["status"] == "stopped"
+        assert data[1]["stopped_at"] is None
+
+    async def test_sessions_endpoint_limit_parameter(self, client: "AsyncClient", mock_hassette) -> None:
+        """Verify limit parameter is passed through and validated."""
+
+        mock_hassette.telemetry_query_service.get_session_list = AsyncMock(return_value=[])
+        response = await client.get("/api/telemetry/sessions?limit=10")
+        assert response.status_code == 200
+        mock_hassette.telemetry_query_service.get_session_list.assert_called_once_with(limit=10)
+
+        # Limit below minimum (1) should fail validation
+        response = await client.get("/api/telemetry/sessions?limit=0")
+        assert response.status_code == 422
+
+        # Limit above maximum (200) should fail validation
+        response = await client.get("/api/telemetry/sessions?limit=201")
+        assert response.status_code == 422
+
+    async def test_sessions_endpoint_db_error_returns_empty(self, client: "AsyncClient", mock_hassette) -> None:
+        """Verify graceful degradation returns empty list on DB error."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_session_list = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/sessions")
+        assert response.status_code == 200
+        data = response.json()
+        assert data == []
+
+
 class TestTelemetryAvailableWithoutUI:
     async def test_telemetry_endpoints_work_when_run_web_ui_false(self, client: "AsyncClient") -> None:
         """The mock_hassette has run_web_ui=False — telemetry should still work."""
