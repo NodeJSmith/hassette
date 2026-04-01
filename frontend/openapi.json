@@ -460,6 +460,22 @@
               "default": 0,
               "title": "Instance Index"
             }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
           }
         ],
         "responses": {
@@ -621,6 +637,22 @@
               "default": 0,
               "title": "Instance Index"
             }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
           }
         ],
         "responses": {
@@ -673,6 +705,22 @@
               "type": "integer",
               "default": 0,
               "title": "Instance Index"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
             }
           }
         ],
@@ -731,6 +779,22 @@
               "default": 0,
               "title": "Instance Index"
             }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
           }
         ],
         "responses": {
@@ -767,7 +831,7 @@
           "telemetry"
         ],
         "summary": "Handler Invocations",
-        "description": "Invocation history for a specific handler (session-scoped).",
+        "description": "Invocation history for a specific handler.",
         "operationId": "handler_invocations_api_telemetry_handler__listener_id__invocations_get",
         "parameters": [
           {
@@ -789,6 +853,22 @@
               "minimum": 1,
               "default": 50,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
             }
           }
         ],
@@ -826,7 +906,7 @@
           "telemetry"
         ],
         "summary": "Job Executions",
-        "description": "Execution history for a specific job (session-scoped).",
+        "description": "Execution history for a specific job.",
         "operationId": "job_executions_api_telemetry_job__job_id__executions_get",
         "parameters": [
           {
@@ -848,6 +928,22 @@
               "minimum": 1,
               "default": 50,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
             }
           }
         ],
@@ -887,6 +983,24 @@
         "summary": "Dashboard Kpis",
         "description": "Global KPI metrics for the dashboard strip.",
         "operationId": "dashboard_kpis_api_telemetry_dashboard_kpis_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -894,6 +1008,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardKpisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -909,6 +1033,24 @@
         "summary": "Dashboard App Grid",
         "description": "Per-app health data for the dashboard grid.",
         "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -916,6 +1058,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardAppGridResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -931,6 +1083,24 @@
         "summary": "Dashboard Errors",
         "description": "Recent errors for the dashboard error feed.",
         "operationId": "dashboard_errors_api_telemetry_dashboard_errors_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -938,6 +1108,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardErrorsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }

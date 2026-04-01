@@ -141,7 +141,11 @@ def format_handler_summary(listener: _ListenerLike) -> str:
 
 
 def safe_session_id(runtime: "RuntimeQueryService") -> int | None:
-    """Return the current session_id from Hassette, or None if unavailable."""
+    """Return the current session_id from Hassette, or None if unavailable.
+
+    Remaining consumer: ``ws.py`` ``connected_payload_from()``.
+    Telemetry endpoints no longer use this — session_id is client-provided.
+    """
     try:
         return runtime.hassette.session_id
     except (AttributeError, RuntimeError):

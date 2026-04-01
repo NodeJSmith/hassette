@@ -1,7 +1,8 @@
 """JSON telemetry endpoints for the Preact SPA.
 
-All endpoints resolve ``session_id`` server-side via ``safe_session_id()`` —
-the SPA never needs to know or pass a session ID.
+Session scoping is client-driven: endpoints accept an optional ``session_id``
+query parameter.  Pass a session ID for current-session data, or omit it for
+all-time aggregates.
 """
 
 import sqlite3
@@ -27,7 +28,6 @@ from hassette.web.models import (
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
-    safe_session_id,
 )
 
 LOGGER = getLogger(__name__)
@@ -116,12 +116,11 @@ def _error_rate_from_summary(summary: AppHealthSummary) -> float:
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)
 async def app_health(
     app_key: str,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     instance_index: int = 0,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
-    session_id = safe_session_id(runtime)
     listeners = await telemetry.get_listener_summary(
         app_key=app_key, instance_index=instance_index, session_id=session_id
     )
@@ -155,12 +154,11 @@ async def app_health(
 @router.get("/app/{app_key}/listeners", response_model=list[ListenerWithSummary])
 async def app_listeners(
     app_key: str,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     instance_index: int = 0,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[ListenerWithSummary]:
     """Listener metrics with human-readable handler summaries."""
-    session_id = safe_session_id(runtime)
     listeners = await telemetry.get_listener_summary(
         app_key=app_key, instance_index=instance_index, session_id=session_id
     )
@@ -170,36 +168,33 @@ async def app_listeners(
 @router.get("/app/{app_key}/jobs", response_model=list[JobSummary])
 async def app_jobs(
     app_key: str,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     instance_index: int = 0,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[JobSummary]:
     """Job summaries for a single app instance."""
-    session_id = safe_session_id(runtime)
     return list(await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index, session_id=session_id))
 
 
 @router.get("/handler/{listener_id}/invocations", response_model=list[HandlerInvocation])
 async def handler_invocations(
     listener_id: int,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[HandlerInvocation]:
-    """Invocation history for a specific handler (session-scoped)."""
-    session_id = safe_session_id(runtime)
+    """Invocation history for a specific handler."""
     return list(await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit, session_id=session_id))
 
 
 @router.get("/job/{job_id}/executions", response_model=list[JobExecution])
 async def job_executions(
     job_id: int,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[JobExecution]:
-    """Execution history for a specific job (session-scoped)."""
-    session_id = safe_session_id(runtime)
+    """Execution history for a specific job."""
     return list(await telemetry.get_job_executions(job_id=job_id, limit=limit, session_id=session_id))
 
 
@@ -207,9 +202,9 @@ async def job_executions(
 async def dashboard_kpis(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> DashboardKpisResponse:
     """Global KPI metrics for the dashboard strip."""
-    session_id = safe_session_id(runtime)
     try:
         summary = await telemetry.get_global_summary(session_id=session_id)
     except DB_ERRORS as exc:
@@ -255,9 +250,9 @@ async def dashboard_kpis(
 async def dashboard_app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> DashboardAppGridResponse:
     """Per-app health data for the dashboard grid."""
-    session_id = safe_session_id(runtime)
     snapshot = runtime.get_all_manifests_snapshot()
     try:
         summaries = await telemetry.get_all_app_summaries(session_id=session_id)
@@ -306,11 +301,10 @@ async def dashboard_app_grid(
 
 @router.get("/dashboard/errors", response_model=DashboardErrorsResponse)
 async def dashboard_errors(
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> DashboardErrorsResponse:
     """Recent errors for the dashboard error feed."""
-    session_id = safe_session_id(runtime)
     try:
         raw_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
     except DB_ERRORS as exc:

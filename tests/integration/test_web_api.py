@@ -769,6 +769,100 @@ class TestTelemetrySessionsEndpoint:
         assert data == []
 
 
+class TestTelemetrySessionIdParam:
+    """Verify session_id query parameter propagates to telemetry service methods."""
+
+    async def test_app_health_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/{key}/health?session_id=42 forwards session_id to service."""
+        response = await client.get("/api/telemetry/app/my_app/health?session_id=42")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 42
+
+    async def test_app_health_omitted_session_id_is_none(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/{key}/health without session_id passes None."""
+        response = await client.get("/api/telemetry/app/my_app/health")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] is None
+
+    async def test_app_listeners_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/app/my_app/listeners?session_id=7")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 7
+
+    async def test_app_jobs_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/app/my_app/jobs?session_id=3")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_job_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 3
+
+    async def test_handler_invocations_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/handler/1/invocations?session_id=5")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_handler_invocations.call_args.kwargs
+        assert call_kwargs["session_id"] == 5
+
+    async def test_handler_invocations_omitted_session_id_is_none(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        response = await client.get("/api/telemetry/handler/1/invocations")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_handler_invocations.call_args.kwargs
+        assert call_kwargs["session_id"] is None
+
+    async def test_job_executions_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/job/1/executions?session_id=9")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_job_executions.call_args.kwargs
+        assert call_kwargs["session_id"] == 9
+
+    async def test_dashboard_kpis_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/dashboard/kpis?session_id=11")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_global_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 11
+
+    async def test_dashboard_app_grid_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/dashboard/app-grid?session_id=13")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_all_app_summaries.call_args.kwargs
+        assert call_kwargs["session_id"] == 13
+
+    async def test_dashboard_errors_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/dashboard/errors?session_id=15")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
+        assert call_kwargs["session_id"] == 15
+
+    async def test_dashboard_errors_omitted_session_id_is_none(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
+        assert call_kwargs["session_id"] is None
+
+
+class TestBusListenersSessionIdParam:
+    """Verify session_id query parameter propagates through /bus/listeners."""
+
+    async def test_bus_listeners_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/bus/listeners?app_key=my_app&session_id=20")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 20
+
+    async def test_bus_listeners_omitted_session_id_is_none(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        response = await client.get("/api/bus/listeners?app_key=my_app")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] is None
+
+
 class TestTelemetryAvailableWithoutUI:
     async def test_telemetry_endpoints_work_when_run_web_ui_false(self, client: "AsyncClient") -> None:
         """The mock_hassette has run_web_ui=False — telemetry should still work."""
