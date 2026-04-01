@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Session list page — `/sessions` route with sidebar navigation, status badges, and formatted timestamps
+- Session scope toggle — "This Session" / "All Time" segmented control in the status bar with localStorage persistence
+- `useScopedApi` hook — scope-aware data fetching wrapper; all telemetry consumers use it automatically
+- Database size failsafe — `db_max_size_mb` config (default 500) with automatic oldest-record deletion and `incremental_vacuum`
+- Alembic migration 005 — one-time `auto_vacuum = INCREMENTAL` conversion for disk space reclamation
+- Source code display in handler and job detail panels (`source_location` and `registration_source`)
+
+### Changed
+- Telemetry endpoints accept client-provided `session_id` query parameter (server no longer injects session scope)
+- `get_session_list()` and `get_recent_errors()` return typed Pydantic models instead of `list[dict]`
+- Error rate formula unified across dashboard, app-detail, and `AppHealthSummary` (now includes both handler and job data)
+- Heartbeat failure handler narrowed from bare `except Exception` to `except (sqlite3.Error, OSError, ValueError)`
+- Removed fragile `_reraise_if_not_connection_closed()` string matching — all `DB_ERRORS` suppressed uniformly
+
+### Added
 - Domain model layer (`core/domain_models.py`) — Pydantic models for live runtime state and WS event payloads, decoupling core services from the web presentation layer (#461)
 - Web mapping layer (`web/mappers.py`) — centralized domain-to-response model conversion for all REST and WebSocket routes (#461)
 - `TelemetryRepository` class — extracted SQL persistence from `CommandExecutor` into a dedicated repository with lazy db access (#461)
