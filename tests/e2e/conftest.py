@@ -761,3 +761,19 @@ def live_server(_fastapi_app):
 def base_url(live_server: str) -> str:
     """Override pytest-playwright's base_url fixture."""
     return live_server
+
+
+@pytest.fixture(autouse=True)
+def _default_scope_all(page, base_url: str) -> None:
+    """Set session scope to 'all' so telemetry loads without a WS-provided sessionId.
+
+    The E2E test server disables WebSocket (ws='none'), so the frontend
+    never receives a sessionId. With scope='current' (the user-facing
+    default), useScopedApi returns a loading state. Setting scope to
+    'all' lets all existing tests see real data.
+
+    Individual tests can override by setting localStorage themselves.
+    """
+    page.goto(base_url + "/")
+    page.evaluate('localStorage.setItem("hassette:sessionScope", JSON.stringify("all"))')
+    page.reload()

@@ -381,6 +381,42 @@ strong {
   50%      { opacity: 1; }
 }
 
+/* — Session Scope Toggle —————————————————————————————— */
+.ht-scope-toggle {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-md);
+  overflow: hidden;
+}
+
+.ht-scope-toggle__btn {
+  padding: 2px 10px;
+  font-size: var(--ht-text-xs);
+  font-family: inherit;
+  font-weight: var(--ht-weight-medium);
+  line-height: 1.6;
+  color: var(--ht-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--ht-motion-micro), color var(--ht-motion-micro);
+}
+
+.ht-scope-toggle__btn:not(:last-child) {
+  border-right: 1px solid var(--ht-border);
+}
+
+.ht-scope-toggle__btn:hover:not(.is-active) {
+  background: var(--ht-accent-light);
+  color: var(--ht-text);
+}
+
+.ht-scope-toggle__btn.is-active {
+  background: var(--ht-accent);
+  color: var(--ht-bg);
+}
+
 /* — Theme Toggle ——————————————————————————————————————— */
 .ht-theme-toggle {
   display: flex;

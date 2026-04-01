@@ -9,7 +9,7 @@ import { ErrorFeed } from "../components/dashboard/error-feed";
 import { KpiStrip } from "../components/dashboard/kpi-strip";
 import { IconHeart, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
-import { useApi } from "../hooks/use-api";
+import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 
@@ -17,9 +17,9 @@ export function DashboardPage() {
   useEffect(() => { document.title = "Dashboard - Hassette"; }, []);
   const { appStatus } = useAppState();
 
-  const kpis = useApi(getDashboardKpis);
-  const appGrid = useApi(() => getDashboardAppGrid().then((r) => r.apps));
-  const errors = useApi(() => getDashboardErrors().then((r) => r.errors));
+  const kpis = useScopedApi((sid) => getDashboardKpis(sid));
+  const appGrid = useScopedApi((sid) => getDashboardAppGrid(sid).then((r) => r.apps));
+  const errors = useScopedApi((sid) => getDashboardErrors(sid).then((r) => r.errors));
 
   // Debounce appStatus-driven refetches so rapid WS updates coalesce into one
   // round of API calls. maxWait caps staleness during bulk startup. Reconnection

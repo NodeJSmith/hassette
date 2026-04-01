@@ -2,7 +2,7 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import { getHandlerInvocations } from "../../api/endpoints";
 import type { ListenerData } from "../../api/endpoints";
-import { useApi } from "../../hooks/use-api";
+import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { formatDuration, pluralize } from "../../utils/format";
 import { HandlerInvocations } from "./handler-invocations";
@@ -14,7 +14,7 @@ interface Props {
 /**
  * Expandable handler row with lazy-loaded invocation history.
  *
- * Uses `useApi` with `lazy: true` so no API call is made until the row is
+ * Uses `useScopedApi` with `lazy: true` so no API call is made until the row is
  * expanded. On re-expand, `refetch()` is called again — stale data stays
  * visible during the refresh (stale-while-revalidate).
  */
@@ -22,10 +22,9 @@ export function HandlerRow({ listener }: Props) {
   const lastInvoked = useRelativeTime(listener.last_invoked_at ?? null);
   const expanded = useRef(signal(false)).current;
 
-  const { data: invocations, loading, refetch } = useApi(
-    () => getHandlerInvocations(listener.listener_id),
-    [listener.listener_id],
-    { lazy: true },
+  const { data: invocations, loading, refetch } = useScopedApi(
+    (sid) => getHandlerInvocations(listener.listener_id, 50, sid),
+    { deps: [listener.listener_id], lazy: true },
   );
 
   const dotClass =

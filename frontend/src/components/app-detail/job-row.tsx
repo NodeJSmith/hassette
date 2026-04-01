@@ -2,7 +2,7 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import { getJobExecutions } from "../../api/endpoints";
 import type { JobData } from "../../api/endpoints";
-import { useApi } from "../../hooks/use-api";
+import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { formatDuration, pluralize } from "../../utils/format";
 import { JobExecutions } from "./job-executions";
@@ -14,7 +14,7 @@ interface Props {
 /**
  * Expandable job row with lazy-loaded execution history.
  *
- * Uses `useApi` with `lazy: true` so no API call is made until the row is
+ * Uses `useScopedApi` with `lazy: true` so no API call is made until the row is
  * expanded. On re-expand, `refetch()` is called again — stale data stays
  * visible during the refresh (stale-while-revalidate).
  */
@@ -22,10 +22,9 @@ export function JobRow({ job }: Props) {
   const lastExecuted = useRelativeTime(job.last_executed_at);
   const expanded = useRef(signal(false)).current;
 
-  const { data: executions, loading, refetch } = useApi(
-    () => getJobExecutions(job.job_id),
-    [job.job_id],
-    { lazy: true },
+  const { data: executions, loading, refetch } = useScopedApi(
+    (sid) => getJobExecutions(job.job_id, 50, sid),
+    { deps: [job.job_id], lazy: true },
   );
 
   const dotClass =

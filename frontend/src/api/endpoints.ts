@@ -32,28 +32,36 @@ export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/
 
 // ---- Telemetry ----
 
-export const getAppHealth = (appKey: string, instanceIndex = 0) =>
-  apiFetch<AppHealthData>(`/telemetry/app/${appKey}/health?instance_index=${instanceIndex}`);
+/** Append `&session_id=N` (or `?session_id=N`) to a URL when sessionId is provided. */
+function withSession(url: string, sessionId?: number | null): string {
+  if (sessionId == null) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}session_id=${sessionId}`;
+}
 
-export const getAppListeners = (appKey: string, instanceIndex = 0) =>
-  apiFetch<ListenerData[]>(`/telemetry/app/${appKey}/listeners?instance_index=${instanceIndex}`);
+export const getAppHealth = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
+  apiFetch<AppHealthData>(withSession(`/telemetry/app/${appKey}/health?instance_index=${instanceIndex}`, sessionId));
 
-export const getAppJobs = (appKey: string, instanceIndex = 0) =>
-  apiFetch<JobData[]>(`/telemetry/app/${appKey}/jobs?instance_index=${instanceIndex}`);
+export const getAppListeners = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
+  apiFetch<ListenerData[]>(withSession(`/telemetry/app/${appKey}/listeners?instance_index=${instanceIndex}`, sessionId));
 
-export const getHandlerInvocations = (listenerId: number, limit = 50) =>
-  apiFetch<HandlerInvocationData[]>(`/telemetry/handler/${listenerId}/invocations?limit=${limit}`);
+export const getAppJobs = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
+  apiFetch<JobData[]>(withSession(`/telemetry/app/${appKey}/jobs?instance_index=${instanceIndex}`, sessionId));
 
-export const getJobExecutions = (jobId: number, limit = 50) =>
-  apiFetch<JobExecutionData[]>(`/telemetry/job/${jobId}/executions?limit=${limit}`);
+export const getHandlerInvocations = (listenerId: number, limit = 50, sessionId?: number | null) =>
+  apiFetch<HandlerInvocationData[]>(withSession(`/telemetry/handler/${listenerId}/invocations?limit=${limit}`, sessionId));
 
-export const getDashboardKpis = () => apiFetch<DashboardKpis>("/telemetry/dashboard/kpis");
+export const getJobExecutions = (jobId: number, limit = 50, sessionId?: number | null) =>
+  apiFetch<JobExecutionData[]>(withSession(`/telemetry/job/${jobId}/executions?limit=${limit}`, sessionId));
 
-export const getDashboardAppGrid = () =>
-  apiFetch<{ apps: DashboardAppGridEntry[] }>("/telemetry/dashboard/app-grid");
+export const getDashboardKpis = (sessionId?: number | null) =>
+  apiFetch<DashboardKpis>(withSession("/telemetry/dashboard/kpis", sessionId));
 
-export const getDashboardErrors = () =>
-  apiFetch<{ errors: DashboardErrorEntry[] }>("/telemetry/dashboard/errors");
+export const getDashboardAppGrid = (sessionId?: number | null) =>
+  apiFetch<{ apps: DashboardAppGridEntry[] }>(withSession("/telemetry/dashboard/app-grid", sessionId));
+
+export const getDashboardErrors = (sessionId?: number | null) =>
+  apiFetch<{ errors: DashboardErrorEntry[] }>(withSession("/telemetry/dashboard/errors", sessionId));
 
 export const getTelemetryStatus = (signal?: AbortSignal) =>
   apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);

@@ -1,5 +1,6 @@
 import { useAppState } from "../../state/context";
 import { setStoredValue } from "../../utils/local-storage";
+import { SessionScopeToggle } from "./session-scope-toggle";
 
 export function StatusBar() {
   const { connection, theme, telemetryDegraded } = useAppState();
@@ -37,6 +38,7 @@ export function StatusBar() {
           <span class="ht-text-xs">DB degraded</span>
         </span>
       )}
+      <SessionScopeToggle />
       <button
         class="ht-theme-toggle"
         data-testid="theme-toggle"

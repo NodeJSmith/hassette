@@ -9,6 +9,7 @@ import { JobList } from "../components/app-detail/job-list";
 import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
+import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { useLocation } from "wouter";
 
@@ -24,9 +25,11 @@ export function AppDetailPage({ params }: Props) {
   const [, navigate] = useLocation();
 
   const manifests = useApi(getManifests);
-  const health = useApi(() => getAppHealth(appKey, instanceIndex), [appKey, instanceIndex]);
-  const listeners = useApi(() => getAppListeners(appKey, instanceIndex), [appKey, instanceIndex]);
-  const jobs = useApi(() => getAppJobs(appKey, instanceIndex), [appKey, instanceIndex]);
+  const health = useScopedApi((sid) => getAppHealth(appKey, instanceIndex, sid), { deps: [appKey, instanceIndex] });
+  const listeners = useScopedApi(
+    (sid) => getAppListeners(appKey, instanceIndex, sid), { deps: [appKey, instanceIndex] },
+  );
+  const jobs = useScopedApi((sid) => getAppJobs(appKey, instanceIndex, sid), { deps: [appKey, instanceIndex] });
 
   // Immediate fallback title on mount
   useEffect(() => { document.title = "App - Hassette"; }, []);
