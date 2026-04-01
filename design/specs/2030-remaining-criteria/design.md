@@ -1,7 +1,7 @@
 # Design: Issue #268 Remaining Criteria
 
 **Date:** 2026-03-31
-**Status:** approved
+**Status:** archived
 **Research:** design/research/2026-02-16-sqlite-command-pattern/prereq-04-frontend-query-requirements.md
 
 ## Problem
