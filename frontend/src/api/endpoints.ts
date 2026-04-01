@@ -20,6 +20,7 @@ export type HandlerInvocationData = components["schemas"]["HandlerInvocation"];
 export type JobExecutionData = components["schemas"]["JobExecution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
 export type LogEntry = components["schemas"]["LogEntryResponse"];
+export type SessionListEntry = components["schemas"]["SessionListEntry"];
 
 // ---- App management ----
 
@@ -56,6 +57,11 @@ export const getDashboardErrors = () =>
 
 export const getTelemetryStatus = (signal?: AbortSignal) =>
   apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);
+
+// ---- Sessions ----
+
+export const getSessionList = (limit = 50) =>
+  apiFetch<SessionListEntry[]>(`/telemetry/sessions?limit=${limit}`);
 
 // ---- Logs ----
 

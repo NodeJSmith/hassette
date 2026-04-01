@@ -14,6 +14,7 @@ PAGES = [
     ("/", "App Health"),
     ("/apps", "App Management"),
     ("/logs", "Log Viewer"),
+    ("/sessions", "Sessions"),
 ]
 
 
@@ -37,14 +38,15 @@ SIDEBAR_LINKS = [
     ("nav-dashboard", "/", "App Health"),
     ("nav-apps", "/apps", "App Management"),
     ("nav-logs", "/logs", "Log Viewer"),
+    ("nav-sessions", "/sessions", "Sessions"),
 ]
 
 
 def test_sidebar_renders_nav_items(page: Page, base_url: str) -> None:
-    """All 3 nav links are present with correct testids."""
+    """All 4 nav links are present with correct testids."""
     page.goto(base_url + "/")
     nav_items = page.locator(".ht-nav-item")
-    expect(nav_items).to_have_count(3)
+    expect(nav_items).to_have_count(4)
     for testid, _, _ in SIDEBAR_LINKS:
         expect(page.locator(f'[data-testid="{testid}"]')).to_be_visible()
 
@@ -67,6 +69,7 @@ SIDEBAR_ACTIVE = [
     ("/", "nav-dashboard"),
     ("/apps", "nav-apps"),
     ("/logs", "nav-logs"),
+    ("/sessions", "nav-sessions"),
 ]
 
 
@@ -132,6 +135,7 @@ TITLE_MAP = [
     ("/", "Dashboard - Hassette"),
     ("/apps", "Apps - Hassette"),
     ("/logs", "Logs - Hassette"),
+    ("/sessions", "Sessions - Hassette"),
 ]
 
 

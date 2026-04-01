@@ -20,6 +20,7 @@ from hassette.core.telemetry_models import (
     JobSummary,
     ListenerGlobalStats,
     ListenerSummary,
+    SessionRecord,
     SessionSummary,
 )
 from hassette.logging_ import LogCaptureHandler
@@ -576,6 +577,39 @@ def mock_hassette():
             total_executions=28,
             execution_errors=6,
         )
+    )
+
+    # Session list for the sessions page.
+    hassette._telemetry_query_service.get_session_list = AsyncMock(
+        return_value=[
+            SessionRecord(
+                id=1,
+                started_at=1704067200.0,
+                stopped_at=None,
+                status="running",
+                error_type=None,
+                error_message=None,
+                duration_seconds=3600.0,
+            ),
+            SessionRecord(
+                id=2,
+                started_at=1704060000.0,
+                stopped_at=1704063600.0,
+                status="success",
+                error_type=None,
+                error_message=None,
+                duration_seconds=3600.0,
+            ),
+            SessionRecord(
+                id=3,
+                started_at=1704050000.0,
+                stopped_at=1704053600.0,
+                status="failure",
+                error_type="RuntimeError",
+                error_message="WebSocket connection lost",
+                duration_seconds=3600.0,
+            ),
+        ]
     )
 
     # Recent errors for the error feed — includes errors from multiple apps.

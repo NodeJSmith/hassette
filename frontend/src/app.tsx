@@ -13,6 +13,7 @@ import { AppsPage } from "./pages/apps";
 import { DashboardPage } from "./pages/dashboard";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
+import { SessionsPage } from "./pages/sessions";
 import { AppStateContext } from "./state/context";
 import { createAppState } from "./state/create-app-state";
 
@@ -42,6 +43,7 @@ export function App() {
               <Route path="/apps/:key/:index">{(params: { key: string; index: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/logs" component={LogsPage} />
+              <Route path="/sessions" component={SessionsPage} />
               <Route component={NotFoundPage} />
             </Switch>
           </ErrorBoundary>
