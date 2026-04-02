@@ -29,7 +29,7 @@ See the [Getting Started guide](https://hassette.readthedocs.io/en/latest/pages/
 
 ## 🖥️ Web UI
 
-Hassette includes a dashboard for monitoring apps, viewing logs, browsing entities, and inspecting the event bus and scheduler — all in real time.
+Hassette includes a built-in web dashboard with four pages: **Dashboard** (KPI overview and app health), **Apps** (manage and inspect automations), **Logs** (real-time log streaming with filtering), and **Sessions** (restart history and telemetry).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/web_ui_dashboard.png" alt="Hassette Web UI Dashboard" />

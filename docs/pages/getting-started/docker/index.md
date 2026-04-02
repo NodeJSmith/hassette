@@ -150,25 +150,9 @@ docker compose logs -f hassette
 docker compose logs --tail=100 hassette
 ```
 
-### Using Dozzle (Optional)
+### Built-in Web Dashboard
 
-Hassette does not yet have a UI, but you can enhance your logging experience with [Dozzle](https://dozzle.dev/), a lightweight log viewer for Docker containers.
-
-```yaml
-services:
-  dozzle:
-    container_name: dozzle
-    image: amir20/dozzle:latest
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports:
-      - 8080:8080
-
-  hassette:
-    # ... your hassette config ...
-```
-
-Access Dozzle at `http://localhost:8080` for a web-based log viewer with filtering, search, and multi-container support.
+Hassette includes a built-in web UI at `http://<host>:8126/ui/` with a live dashboard, app management, log streaming, and session history. No extra containers or setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
 
 ## Environment Variables Reference
 

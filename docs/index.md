@@ -46,7 +46,7 @@ Filter events with built-in predicates and conditions for clean, readable code.
 
 #### Built-in Web UI
 
-Monitor and manage your automations from a browser dashboard — view app status, browse entities, inspect the event bus and scheduler, and stream logs in real time. Enabled by default, no extra setup needed.
+Monitor and manage your automations from a built-in web dashboard — view a live KPI overview, manage apps, stream logs with filtering, and browse session history with telemetry. Enabled by default, no extra setup needed.
 
 ![Hassette Web UI Dashboard](./_static/web_ui_dashboard.png)
 
