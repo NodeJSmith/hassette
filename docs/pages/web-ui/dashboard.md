@@ -32,8 +32,6 @@ The middle-left panel shows a summary of scheduled jobs:
 - **Repeating** — jobs configured to run repeatedly.
 - **Total** — total number of registered jobs.
 
-Click **View All** to navigate to the [Scheduler](scheduler.md) page.
-
 ## Event Bus
 
 Below the Scheduled Jobs panel, the Event Bus panel displays aggregate event bus metrics:
@@ -42,8 +40,6 @@ Below the Scheduled Jobs panel, the Event Bus panel displays aggregate event bus
 - **Invocations** — total handler calls since startup.
 - **Successful** (green) — handlers that completed without error.
 - **Failed** — handlers that raised an exception.
-
-Click **View All** to navigate to the [Event Bus](event-bus.md) page.
 
 ## Recent Events
 
