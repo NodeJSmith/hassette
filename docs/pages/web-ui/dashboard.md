@@ -1,61 +1,59 @@
 # Dashboard
 
-The dashboard is the landing page of the web UI. It provides a quick overview of system health, running apps, scheduled jobs, event bus activity, recent events, and recent logs.
+The dashboard is the landing page of the web UI. It provides a quick overview of system health, per-app telemetry, and recent errors.
 
 ![Dashboard](../../_static/web_ui_dashboard.png)
 
-## System Health
+## KPI Strip
 
-The top-left panel shows the current system status:
+A row of health cards across the top summarizes the system at a glance:
 
-- **Status badge** — `OK` (green) when everything is healthy, or `degraded`/`starting` during transitions.
-- **WS Connected** — indicates the WebSocket connection to Home Assistant is active.
-- **Uptime** — how long Hassette has been running.
-- **Entities** — total number of Home Assistant entities tracked.
-- **Apps** — number of loaded apps.
+| Card | Description |
+|------|-------------|
+| **Apps** | Total registered apps and how many are running. |
+| **Error Rate** | Combined error rate across all handler invocations and job executions. Color-coded: green (healthy), yellow (elevated), red (critical). |
+| **Handlers** | Total registered event handlers and their invocation count. |
+| **Jobs** | Total scheduled jobs and their execution count. |
+| **Uptime** | How long Hassette has been running (hours and minutes). |
 
-## Apps Summary
+## App Health Grid
 
-The top-right panel summarizes app states:
+Below the KPI strip, the **App Health** section displays a card for each registered app. Each card shows:
 
-- **Total** — all registered apps.
-- **Running** (green) — apps that are active and healthy.
-- **Failed** (red) — apps that encountered an error.
+- **Display name** and **status badge** (running, stopped, failed, disabled).
+- **Handler count** and **job count** — how many event listeners and scheduled jobs the app owns.
+- **Invocations and executions** — total handler calls and job runs (shown when telemetry data exists).
+- **Error rate** — percentage of invocations/executions that resulted in an error.
+- **Health bar** — visual indicator of overall app health.
+- **Last activity** — relative timestamp of the most recent invocation or execution.
+- **Instance count** — shown as a badge when the app has multiple instances.
 
-Click **Manage Apps** to navigate to the [Apps](apps.md) page.
+Click any app card to navigate to its [detail page](apps.md#app-detail-view).
 
-## Scheduled Jobs
+A **Manage Apps** link at the bottom navigates to the full [Apps](apps.md) page.
 
-The middle-left panel shows a summary of scheduled jobs:
+## Recent Errors
 
-- **Active** (green) — jobs that are currently scheduled and not cancelled.
-- **Repeating** — jobs configured to run repeatedly.
-- **Total** — total number of registered jobs.
+The **Recent Errors** section lists the most recent handler and job errors. Each entry displays:
 
-## Event Bus
+- **Error type** — the Python exception class (e.g. `ValueError`, `TimeoutError`).
+- **Kind badge** — `handler` or `job`, indicating the source of the error.
+- **App key** — links to the app detail page.
+- **Method or job name** — the specific handler method or job that failed.
+- **Relative timestamp** — when the error occurred.
+- **Error message** — the exception message text.
 
-Below the Scheduled Jobs panel, the Event Bus panel displays aggregate event bus metrics:
+When no errors exist, a "No recent errors. All systems healthy." message is displayed.
 
-- **Listeners** — total number of registered event listeners across all apps.
-- **Invocations** — total handler calls since startup.
-- **Successful** (green) — handlers that completed without error.
-- **Failed** — handlers that raised an exception.
+## Session Scope
 
-## Recent Events
+Error and telemetry data can be scoped using the **session toggle** in the status bar. Choose between:
 
-The middle-right panel shows the last 10 events received from Home Assistant. Each entry displays the event type (e.g. `state_changed`) and the entity ID.
+- **This Session** — only data from the current Hassette session.
+- **All Time** — data across all sessions in the retention window.
 
-## Recent Logs
-
-The bottom panel spans the full width and shows the last 30 log entries. Each entry displays:
-
-- **Level** — colored badge (DEBUG, INFO, WARNING, ERROR, CRITICAL).
-- **Time** — when the entry was recorded, formatted as local time.
-- **App** — originating app (links to app detail), or `—` for system-level messages.
-- **Message** — truncated log message text.
-
-Click **View All** to navigate to the [Logs](logs.md) page.
+See [Sessions](sessions.md) for more on how sessions work.
 
 ## Auto-Refresh
 
-Dashboard data refreshes every 30 seconds and updates in real time when WebSocket messages arrive (e.g. state changes or app status transitions).
+Dashboard data refreshes every 30 seconds and updates in real time when WebSocket messages arrive (e.g. app status transitions). Rapid updates are debounced to avoid excessive API calls.

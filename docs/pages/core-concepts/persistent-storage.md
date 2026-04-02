@@ -138,7 +138,7 @@ class WaterLeakAlertApp(App[AppConfig]):
         self.bus.on_state_change(
             "binary_sensor.water_leak",
             handler=self.on_leak_detected,
-            P.to_state.is_on
+            where=P.StateTo("on"),
         )
 
     async def on_leak_detected(self, event):
@@ -178,7 +178,7 @@ class MultiSensorAlertApp(App[AppConfig]):
         self.bus.on_state_change(
             "binary_sensor.*",
             handler=self.on_sensor_alert,
-            P.to_state.is_on
+            where=P.StateTo("on"),
         )
 
     async def on_sensor_alert(self, event):
@@ -217,7 +217,7 @@ class MotionCounterApp(App[AppConfig]):
         self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_motion,
-            P.to_state.is_on
+            where=P.StateTo("on"),
         )
 
     async def on_motion(self, event):

@@ -16,8 +16,10 @@ At runtime, the `Hassette` class is the entry point. It receives a `HassetteConf
 - `SchedulerService` – runs scheduled jobs.
 - `AppHandler` – discovers, loads, and initializes your apps.
 - `StateProxy` – tracks state changes and provides a consistent view of Home Assistant states.
+- `DatabaseService` – persistent telemetry storage, configurable via `db_*` fields in [global settings](configuration/global.md).
 - `WebApiService` – serves the REST API, healthcheck, and [web UI](../web-ui/index.md).
-- `DataSyncService` – aggregates runtime data (events, metrics, logs) for the web UI.
+- `RuntimeQueryService` – provides live runtime data (events, logs, metrics) to the web UI.
+- `TelemetryQueryService` – serves historical telemetry (invocations, executions, errors) from the database.
 
 Each app is loaded through `AppHandler` and receives its own lightweight handles:
 
@@ -50,8 +52,10 @@ graph TB
     H --> SCHED[SchedulerService]
     H --> APPS[AppHandler]
     H --> STATE[StateProxy]
+    H --> DB[DatabaseService]
     H --> WEB[WebApiService]
-    H --> DSYNC[DataSyncService]
+    H --> RTQ[RuntimeQueryService]
+    H --> TQ[TelemetryQueryService]
 ```
 
 #### 3) What each app gets (lightweight handles)

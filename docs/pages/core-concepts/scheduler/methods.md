@@ -63,6 +63,32 @@ Run on a complex schedule using cron syntax.
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_cron.py"
 ```
 
+## Idempotent Registration
+
+Job names must be unique within each app instance. If you register a job with a name that already exists, the scheduler raises `ValueError` by default.
+
+All `run_*` methods accept an `if_exists` parameter to control this behavior:
+
+| Value | Behavior |
+|-------|----------|
+| `"error"` (default) | Raise `ValueError` if a job with the same name already exists. |
+| `"skip"` | Silently return the existing job if it matches. Useful for safe re-registration. |
+
+This is especially useful in `on_initialize`, which runs again on app reload:
+
+```python
+async def on_initialize(self):
+    # Safe to call on every reload — won't create duplicates
+    self.scheduler.run_every(
+        self.check_sensors,
+        60,
+        name="sensor_check",
+        if_exists="skip",
+    )
+```
+
+Without `if_exists="skip"`, a reload would raise `ValueError` because `sensor_check` is already registered from the previous initialization.
+
 ## See Also
 
 - [Job Management](management.md) - Name, track, and cancel scheduled jobs

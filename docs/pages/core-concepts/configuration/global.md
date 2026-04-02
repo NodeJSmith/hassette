@@ -78,6 +78,9 @@ These settings control the built-in [web UI](../../web-ui/index.md) and the unde
 - **`web_api_log_buffer_size`** (integer): Maximum number of log entries to keep in the ring buffer.
     - Default: `2000`
 
+- **`web_ui_hot_reload`** (boolean): Watch web UI static files for changes and push live reloads to the browser via WebSocket. CSS changes are hot-swapped without a page reload; JS changes trigger a full reload.
+    - Default: `false`
+
 **Example:**
 
 ```toml
@@ -85,6 +88,120 @@ These settings control the built-in [web UI](../../web-ui/index.md) and the unde
 run_web_ui = true
 web_api_port = 8126
 ```
+
+## Database Settings
+
+These settings control the persistent telemetry database. See [Database & Telemetry](../database-telemetry.md) for details on what is stored.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `db_path` | path or null | `null` | Path to the SQLite database file. Defaults to `{data_dir}/hassette.db` when not set. |
+| `db_retention_days` | integer | `7` | Number of days to retain execution records (handler invocations, job executions). Minimum: 1. |
+| `db_max_size_mb` | float | `500` | Maximum database file size in MB. When exceeded, oldest execution records are deleted. Set to `0` to disable the size limit. |
+
+**Example:**
+
+```toml
+[hassette]
+db_path = "/var/lib/hassette/telemetry.db"
+db_retention_days = 14
+db_max_size_mb = 1000
+```
+
+## Timeout Settings
+
+These settings control how long Hassette waits for various operations before giving up.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `startup_timeout_seconds` | integer | `10` | Time to wait for all Hassette resources to start. |
+| `app_startup_timeout_seconds` | integer | `20` | Time to wait for an individual app to start. |
+| `app_shutdown_timeout_seconds` | integer | `10` | Time to wait for an individual app to shut down. |
+| `total_shutdown_timeout_seconds` | integer | `30` | Maximum wall-clock seconds for the entire Hassette shutdown process. |
+| `websocket_authentication_timeout_seconds` | integer | `10` | Time to wait for WebSocket authentication to complete. |
+| `websocket_response_timeout_seconds` | integer | `5` | Time to wait for a response from the WebSocket. |
+| `websocket_connection_timeout_seconds` | integer | `5` | Time to wait for the WebSocket connection to establish. |
+| `websocket_total_timeout_seconds` | integer | `30` | Total time for WebSocket operations to complete. |
+| `websocket_heartbeat_interval_seconds` | integer | `30` | Interval for WebSocket keepalive pings. |
+
+## Scheduler Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `scheduler_min_delay_seconds` | integer | `1` | Minimum delay between scheduled jobs. |
+| `scheduler_max_delay_seconds` | integer | `30` | Maximum delay between scheduled jobs. |
+| `scheduler_default_delay_seconds` | integer | `15` | Default delay between scheduled jobs. |
+
+## Logging Settings
+
+You can tune the log level for individual services without changing the global `log_level`. Each field defaults to `INFO` or the value of the global `log_level` setting.
+
+See [Log Level Tuning](../../advanced/log-level-tuning.md) for a full guide.
+
+| Setting | Controls |
+|---------|----------|
+| `database_service_log_level` | Database service |
+| `bus_service_log_level` | Event bus service |
+| `scheduler_service_log_level` | Scheduler service |
+| `app_handler_log_level` | App handler (discovery, loading) |
+| `web_api_log_level` | Web API service |
+| `websocket_log_level` | WebSocket service |
+| `service_watcher_log_level` | Service watcher |
+| `file_watcher_log_level` | File watcher service |
+| `task_bucket_log_level` | Task buckets |
+| `command_executor_log_level` | Command executor |
+| `apps_log_level` | Default for all apps (overridable per app) |
+| `state_proxy_log_level` | State proxy |
+| `api_log_level` | API resource (REST/WebSocket client) |
+
+**Example:**
+
+```toml
+[hassette]
+log_level = "INFO"
+bus_service_log_level = "WARNING"
+scheduler_service_log_level = "DEBUG"
+```
+
+## Bus Filtering Settings
+
+Filter out noisy events at the bus level before they reach your apps.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `bus_excluded_domains` | tuple of strings | `()` | Domains whose events are skipped; supports glob patterns (e.g. `"sensor"`, `"media_*"`). |
+| `bus_excluded_entities` | tuple of strings | `()` | Entity IDs whose events are skipped; supports glob patterns. |
+
+**Example:**
+
+```toml
+[hassette]
+bus_excluded_domains = ["sensor", "media_*"]
+bus_excluded_entities = ["switch.noisy_device"]
+```
+
+## Production Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `allow_reload_in_prod` | boolean | `false` | Enable file watching and automatic app reloads in production mode. Manual app management (start/stop/reload via API) is always available. |
+| `allow_only_app_in_prod` | boolean | `false` | Allow the `only_app` decorator in production mode. |
+
+## App Detection Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `autodetect_apps` | boolean | `true` | Automatically discover apps in the app directory. |
+| `run_app_precheck` | boolean | `true` | Run app precheck before starting. If any apps fail to load, Hassette does not start. |
+| `allow_startup_if_app_precheck_fails` | boolean | `false` | Allow Hassette to start even if the app precheck fails. Generally not recommended. |
+
+## Advanced Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `hassette_event_buffer_size` | integer | `1000` | Buffer capacity of the internal event channel used to route events to the bus. |
+| `asyncio_debug_mode` | boolean | `false` | Enable asyncio debug mode. |
+| `watch_files` | boolean | `true` | Watch files for changes and reload apps automatically. |
 
 ## Basic Example
 

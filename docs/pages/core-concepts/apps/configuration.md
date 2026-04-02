@@ -14,8 +14,8 @@ Inherit from [`AppConfig`][hassette.app.app_config.AppConfig] to define your con
 
 The base `AppConfig` includes standard fields available to all apps:
 
-- `instance_name: str | None` - Used for logging and identification.
-- `log_level: str | None` - Optional log-level override; defaults to the global setting.
+- `instance_name: str = ""` - Used for logging and identification.
+- `log_level: LOG_LEVEL_TYPE` - Log-level override for this app instance; defaults to `INFO` or the global `log_level` setting.
 
 ## TOML Configuration
 
