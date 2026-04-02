@@ -35,13 +35,18 @@ vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
 
-// Mock useApi to return controlled signal values
+// Mock useApi and useScopedApi to return controlled signal values
 vi.mock("../hooks/use-api", () => ({
   useApi: vi.fn(),
+}));
+vi.mock("../hooks/use-scoped-api", () => ({
+  useScopedApi: vi.fn(),
 }));
 
 const useApiMod = await import("../hooks/use-api");
 const useApi = useApiMod.useApi as unknown as ReturnType<typeof vi.fn>;
+const useScopedApiMod = await import("../hooks/use-scoped-api");
+const useScopedApi = useScopedApiMod.useScopedApi as unknown as ReturnType<typeof vi.fn>;
 
 function createInstance(overrides: Partial<AppInstance> = {}): AppInstance {
   return {
@@ -113,9 +118,10 @@ describe("AppDetailPage", () => {
   });
 
   function setupUseApi(manifest: AppManifest) {
-    // useApi is called 4 times in AppDetailPage: manifests, health, listeners, jobs
+    // useApi is called once for manifests; useScopedApi is called 3 times for health, listeners, jobs
     useApi
-      .mockReturnValueOnce(fakeApiResult(createManifestListResponse(manifest))) // manifests
+      .mockReturnValueOnce(fakeApiResult(createManifestListResponse(manifest)));
+    useScopedApi
       .mockReturnValueOnce(fakeApiResult(null)) // health
       .mockReturnValueOnce(fakeApiResult([])) // listeners
       .mockReturnValueOnce(fakeApiResult([])); // jobs

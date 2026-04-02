@@ -214,6 +214,12 @@ class ScheduledJob:
     db_id: int | None = field(default=None, compare=False)
     """Database row ID for this job. Set by the executor after persistence; None until then."""
 
+    source_location: str = field(default="", compare=False)
+    """Captured source location (file:line) of the user code that scheduled this job."""
+
+    registration_source: str = field(default="", compare=False)
+    """Captured source code snippet of the scheduling call."""
+
     def __repr__(self) -> str:
         return f"ScheduledJob(name={self.name!r}, owner_id={self.owner_id})"
 

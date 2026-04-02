@@ -15,7 +15,6 @@ from hassette.resources.base import Resource, Service
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
-from hassette.utils.source_capture import capture_registration_source
 
 if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream
@@ -94,7 +93,8 @@ class BusService(Service):
         first so events are received immediately; ``db_id`` is set once DB
         registration completes, and dispatch uses the direct-invoke path until then.
         """
-        source_location, registration_source = capture_registration_source()
+        source_location = listener.source_location
+        registration_source: str | None = listener.registration_source or None
         human_description: str | None = None
         if listener.predicate is not None and hasattr(listener.predicate, "summarize"):
             human_description = listener.predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]

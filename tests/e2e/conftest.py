@@ -14,12 +14,15 @@ from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.core.telemetry_models import (
     AppHealthSummary,
     GlobalSummary,
+    HandlerErrorRecord,
     HandlerInvocation,
+    JobErrorRecord,
     JobExecution,
     JobGlobalStats,
     JobSummary,
     ListenerGlobalStats,
     ListenerSummary,
+    SessionRecord,
     SessionSummary,
 )
 from hassette.logging_ import LogCaptureHandler
@@ -96,6 +99,24 @@ def _build_manifests() -> list:
             enabled=False,
             status="disabled",
             instance_count=0,
+        ),
+        make_manifest(
+            app_key="nosource_app",
+            class_name="NoSourceApp",
+            display_name="No Source App",
+            filename="nosource_app.py",
+            status="running",
+            instance_count=1,
+            instances=[
+                AppInstanceInfo(
+                    app_key="nosource_app",
+                    index=0,
+                    instance_name="NoSourceApp[0]",
+                    class_name="NoSourceApp",
+                    status=ResourceStatus.RUNNING,
+                    owner_id="NoSourceApp.NoSourceApp[0]",
+                ),
+            ],
         ),
         make_manifest(
             app_key="multi_app",
@@ -228,9 +249,41 @@ def mock_hassette():
         ),
     ]
 
+    # nosource_app listeners — empty source fields for testing hidden source display.
+    telemetry_listeners_nosource_app = [
+        ListenerSummary(
+            listener_id=100,
+            handler_method="on_event",
+            topic="state_changed.switch.fan",
+            app_key="nosource_app",
+            instance_index=0,
+            debounce=None,
+            throttle=None,
+            once=0,
+            priority=0,
+            predicate_description=None,
+            human_description=None,
+            source_location="",
+            registration_source=None,
+            total_invocations=1,
+            successful=1,
+            failed=0,
+            di_failures=0,
+            cancelled=0,
+            total_duration_ms=1.0,
+            avg_duration_ms=1.0,
+            min_duration_ms=1.0,
+            max_duration_ms=1.0,
+            last_invoked_at=1704067000.0,
+            last_error_type=None,
+            last_error_message=None,
+        ),
+    ]
+
     telemetry_listeners_by_app = {
         "my_app": telemetry_listeners_my_app,
         "broken_app": telemetry_listeners_broken_app,
+        "nosource_app": telemetry_listeners_nosource_app,
     }
 
     # Job summaries as proper Pydantic models.
@@ -300,9 +353,34 @@ def mock_hassette():
         ),
     ]
 
+    # nosource_app jobs — empty source fields for testing hidden source display.
+    telemetry_jobs_nosource_app = [
+        JobSummary(
+            job_id=100,
+            app_key="nosource_app",
+            instance_index=0,
+            job_name="poll_sensor",
+            handler_method="poll_sensor",
+            trigger_type="interval",
+            trigger_value="PT10S",
+            repeat=1,
+            args_json="[]",
+            kwargs_json="{}",
+            source_location="",
+            registration_source=None,
+            total_executions=2,
+            successful=2,
+            failed=0,
+            last_executed_at=1704067000.0,
+            total_duration_ms=2.0,
+            avg_duration_ms=1.0,
+        ),
+    ]
+
     telemetry_jobs_by_app = {
         "my_app": telemetry_jobs_my_app,
         "broken_app": telemetry_jobs_broken_app,
+        "nosource_app": telemetry_jobs_nosource_app,
     }
 
     # Handler invocation records (for drill-down).
@@ -394,6 +472,14 @@ def mock_hassette():
                     class_name="MyApp",
                     status=ResourceStatus.RUNNING,
                     owner_id="MyApp.MyApp[0]",
+                ),
+                AppInstanceInfo(
+                    app_key="nosource_app",
+                    index=0,
+                    instance_name="NoSourceApp[0]",
+                    class_name="NoSourceApp",
+                    status=ResourceStatus.RUNNING,
+                    owner_id="NoSourceApp.NoSourceApp[0]",
                 ),
             ],
             failed=[
@@ -495,42 +581,72 @@ def mock_hassette():
         )
     )
 
+    # Session list for the sessions page.
+    hassette._telemetry_query_service.get_session_list = AsyncMock(
+        return_value=[
+            SessionRecord(
+                id=1,
+                started_at=1704067200.0,
+                stopped_at=None,
+                status="running",
+                error_type=None,
+                error_message=None,
+                duration_seconds=3600.0,
+            ),
+            SessionRecord(
+                id=2,
+                started_at=1704060000.0,
+                stopped_at=1704063600.0,
+                status="success",
+                error_type=None,
+                error_message=None,
+                duration_seconds=3600.0,
+            ),
+            SessionRecord(
+                id=3,
+                started_at=1704050000.0,
+                stopped_at=1704053600.0,
+                status="failure",
+                error_type="RuntimeError",
+                error_message="WebSocket connection lost",
+                duration_seconds=3600.0,
+            ),
+        ]
+    )
+
     # Recent errors for the error feed — includes errors from multiple apps.
     hassette._telemetry_query_service.get_recent_errors = AsyncMock(
         return_value=[
-            {
-                "app_key": "my_app",
-                "listener_id": 42,
-                "handler_method": "on_light_change",
-                "topic": "state_changed.light.kitchen",
-                "execution_start_ts": 1704067100.0,
-                "duration_ms": 3.1,
-                "error_type": "ValueError",
-                "error_message": "Bad state value",
-                "kind": "handler",
-            },
-            {
-                "app_key": "my_app",
-                "job_id": 7,
-                "handler_method": "check_lights",
-                "job_name": "check_lights",
-                "execution_start_ts": 1704067000.0,
-                "duration_ms": 4.2,
-                "error_type": "TimeoutError",
-                "error_message": "Light service unavailable",
-                "kind": "job",
-            },
-            {
-                "app_key": "broken_app",
-                "listener_id": 43,
-                "handler_method": "on_door_open",
-                "topic": "state_changed.binary_sensor.door",
-                "execution_start_ts": 1704067050.0,
-                "duration_ms": 10.0,
-                "error_type": "RuntimeError",
-                "error_message": "Lock service timed out",
-                "kind": "handler",
-            },
+            HandlerErrorRecord(
+                app_key="my_app",
+                listener_id=42,
+                handler_method="on_light_change",
+                topic="state_changed.light.kitchen",
+                execution_start_ts=1704067100.0,
+                duration_ms=3.1,
+                error_type="ValueError",
+                error_message="Bad state value",
+            ),
+            JobErrorRecord(
+                app_key="my_app",
+                job_id=7,
+                handler_method="check_lights",
+                job_name="check_lights",
+                execution_start_ts=1704067000.0,
+                duration_ms=4.2,
+                error_type="TimeoutError",
+                error_message="Light service unavailable",
+            ),
+            HandlerErrorRecord(
+                app_key="broken_app",
+                listener_id=43,
+                handler_method="on_door_open",
+                topic="state_changed.binary_sensor.door",
+                execution_start_ts=1704067050.0,
+                duration_ms=10.0,
+                error_type="RuntimeError",
+                error_message="Lock service timed out",
+            ),
         ]
     )
 
@@ -644,3 +760,19 @@ def live_server(_fastapi_app):
 def base_url(live_server: str) -> str:
     """Override pytest-playwright's base_url fixture."""
     return live_server
+
+
+@pytest.fixture(autouse=True)
+def _default_scope_all(page, base_url: str) -> None:
+    """Set session scope to 'all' so telemetry loads without a WS-provided sessionId.
+
+    The E2E test server disables WebSocket (ws='none'), so the frontend
+    never receives a sessionId. With scope='current' (the user-facing
+    default), useScopedApi returns a loading state. Setting scope to
+    'all' lets all existing tests see real data.
+
+    Individual tests can override by setting localStorage themselves.
+    """
+    page.goto(base_url + "/")
+    page.evaluate('localStorage.setItem("hassette:sessionScope", JSON.stringify("all"))')
+    page.reload()

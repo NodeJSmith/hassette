@@ -7,13 +7,17 @@ import aiosqlite
 from hassette.core.telemetry_models import (
     AppHealthSummary,
     GlobalSummary,
+    HandlerErrorRecord,
     HandlerInvocation,
+    JobErrorRecord,
     JobExecution,
     JobGlobalStats,
     JobSummary,
     ListenerGlobalStats,
     ListenerSummary,
+    SessionRecord,
     SessionSummary,
+    SlowHandlerRecord,
 )
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -409,7 +413,7 @@ class TelemetryQueryService(Resource):
         since_ts: float,
         limit: int = 50,
         session_id: int | None = None,
-    ) -> list[dict]:
+    ) -> list[HandlerErrorRecord | JobErrorRecord]:
         """Return recent error records since a given timestamp."""
         if session_id is not None:
             handler_query = """
@@ -497,13 +501,17 @@ class TelemetryQueryService(Resource):
         async with self._db.execute(job_query, job_params) as cursor:
             job_rows = await cursor.fetchall()
 
-        handler_errors = [dict(_row_to_dict(r), kind="handler") for r in handler_rows]
-        job_errors = [dict(_row_to_dict(r), kind="job") for r in job_rows]
+        handler_errors: list[HandlerErrorRecord | JobErrorRecord] = [
+            HandlerErrorRecord.model_validate(_row_to_dict(r)) for r in handler_rows
+        ]
+        job_errors: list[HandlerErrorRecord | JobErrorRecord] = [
+            JobErrorRecord.model_validate(_row_to_dict(r)) for r in job_rows
+        ]
         merged = handler_errors + job_errors
-        merged.sort(key=lambda e: e.get("execution_start_ts", 0), reverse=True)
+        merged.sort(key=lambda e: e.execution_start_ts, reverse=True)
         return merged[:limit]
 
-    async def get_slow_handlers(self, threshold_ms: float, limit: int = 50) -> list[dict]:
+    async def get_slow_handlers(self, threshold_ms: float, limit: int = 50) -> list[SlowHandlerRecord]:
         """Return handler invocations whose duration exceeds threshold_ms."""
         query = """
             SELECT
@@ -521,9 +529,9 @@ class TelemetryQueryService(Resource):
         """
         async with self._db.execute(query, (threshold_ms, limit)) as cursor:
             rows = await cursor.fetchall()
-        return [_row_to_dict(row) for row in rows]
+        return [SlowHandlerRecord.model_validate(_row_to_dict(row)) for row in rows]
 
-    async def get_session_list(self, limit: int = 20) -> list[dict]:
+    async def get_session_list(self, limit: int = 20) -> list[SessionRecord]:
         """Return recent session records."""
         query = """
             SELECT
@@ -540,7 +548,7 @@ class TelemetryQueryService(Resource):
         """
         async with self._db.execute(query, (limit,)) as cursor:
             rows = await cursor.fetchall()
-        return [_row_to_dict(row) for row in rows]
+        return [SessionRecord.model_validate(_row_to_dict(row)) for row in rows]
 
     async def check_health(self) -> None:
         """Run a representative query that exercises the listeners -> handler_invocations join.

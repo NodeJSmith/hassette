@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { IconBoxes, IconDashboard, IconScrollText } from "../shared/icons";
+import { IconBoxes, IconDashboard, IconHistory, IconScrollText } from "../shared/icons";
 
 const NAV_ITEMS = [
   {
@@ -19,6 +19,12 @@ const NAV_ITEMS = [
     label: "Logs",
     testId: "nav-logs",
     icon: <IconScrollText />,
+  },
+  {
+    path: "/sessions",
+    label: "Sessions",
+    testId: "nav-sessions",
+    icon: <IconHistory />,
   },
 ] as const;
 

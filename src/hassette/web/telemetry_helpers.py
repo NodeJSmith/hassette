@@ -103,10 +103,13 @@ def compute_health_metrics(
     """
     total_invocations = sum(ls.total_invocations for ls in listeners)
     total_errors = sum(ls.failed for ls in listeners)
-    error_rate = (total_errors / total_invocations * 100) if total_invocations > 0 else 0.0
+    total_job_executions = sum(j.total_executions for j in jobs)
+    total_job_errors = sum(j.failed for j in jobs)
+    combined_total = total_invocations + total_job_executions
+    combined_errors = total_errors + total_job_errors
+    error_rate = (combined_errors / combined_total * 100) if combined_total > 0 else 0.0
     total_handler_duration = sum(ls.total_duration_ms for ls in listeners)
     handler_avg_duration = (total_handler_duration / total_invocations) if total_invocations > 0 else 0.0
-    total_job_executions = sum(j.total_executions for j in jobs)
     total_job_duration = sum(j.total_duration_ms for j in jobs)
     job_avg_duration = (total_job_duration / total_job_executions) if total_job_executions > 0 else 0.0
     last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at is not None]
@@ -141,7 +144,11 @@ def format_handler_summary(listener: _ListenerLike) -> str:
 
 
 def safe_session_id(runtime: "RuntimeQueryService") -> int | None:
-    """Return the current session_id from Hassette, or None if unavailable."""
+    """Return the current session_id from Hassette, or None if unavailable.
+
+    Remaining consumer: ``ws.py`` ``connected_payload_from()``.
+    Telemetry endpoints no longer use this — session_id is client-provided.
+    """
     try:
         return runtime.hassette.session_id
     except (AttributeError, RuntimeError):

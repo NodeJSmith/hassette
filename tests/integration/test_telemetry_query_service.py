@@ -12,10 +12,13 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
     AppHealthSummary,
     GlobalSummary,
+    HandlerErrorRecord,
     HandlerInvocation,
+    JobErrorRecord,
     JobExecution,
     JobSummary,
     ListenerSummary,
+    SessionRecord,
     SessionSummary,
 )
 from hassette.core.telemetry_query_service import TelemetryQueryService
@@ -38,6 +41,8 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.task_cancellation_timeout_seconds = 5
     hassette.config.web_api_log_level = "INFO"
     hassette.config.run_web_api = True
+    hassette.config.db_migration_timeout_seconds = 120
+    hassette.config.db_max_size_mb = 0
     hassette.ready_event = asyncio.Event()
     return hassette
 
@@ -411,18 +416,17 @@ class TestGetRecentErrors:
         rows = await svc.get_recent_errors(since_ts)
         # Both handler error and job error should appear
         assert len(rows) == 2
-        kinds = {r["kind"] for r in rows}
-        assert "handler" in kinds
-        assert "job" in kinds
+        handler_rows = [r for r in rows if isinstance(r, HandlerErrorRecord)]
+        job_rows = [r for r in rows if isinstance(r, JobErrorRecord)]
+        assert len(handler_rows) == 1
+        assert len(job_rows) == 1
 
-        # Verify Fix 2: listener_id/job_id and execution_start_ts are present and non-zero
-        handler_row = next(r for r in rows if r["kind"] == "handler")
-        assert handler_row["listener_id"] > 0
-        assert handler_row["execution_start_ts"] > 0
+        # Verify listener_id/job_id and execution_start_ts are present and non-zero
+        assert handler_rows[0].listener_id > 0
+        assert handler_rows[0].execution_start_ts > 0
 
-        job_row = next(r for r in rows if r["kind"] == "job")
-        assert job_row["job_id"] > 0
-        assert job_row["execution_start_ts"] > 0
+        assert job_rows[0].job_id > 0
+        assert job_rows[0].execution_start_ts > 0
 
     async def test_get_recent_errors_session_scoped(
         self,
@@ -448,7 +452,7 @@ class TestGetRecentErrors:
 
         rows = await svc.get_recent_errors(since_ts, session_id=session_a)
         assert len(rows) == 1
-        assert rows[0]["kind"] == "handler"
+        assert isinstance(rows[0], HandlerErrorRecord)
 
 
 # ---------------------------------------------------------------------------
@@ -473,8 +477,8 @@ class TestGetSlowHandlers:
 
         rows = await svc.get_slow_handlers(threshold_ms=60.0)
         assert len(rows) == 2
-        assert rows[0]["duration_ms"] == pytest.approx(500.0)
-        assert rows[1]["duration_ms"] == pytest.approx(100.0)
+        assert rows[0].duration_ms == pytest.approx(500.0)
+        assert rows[1].duration_ms == pytest.approx(100.0)
 
 
 # ---------------------------------------------------------------------------
@@ -512,17 +516,26 @@ class TestGetSessionList:
         rows = await svc.get_session_list(limit=20)
         assert len(rows) == 3
 
+        # Returns typed SessionRecord models
+        assert all(isinstance(r, SessionRecord) for r in rows)
+
         # Most recent first: started_at DESC
-        assert rows[0]["started_at"] == pytest.approx(base_ts + 200.0)
-        assert rows[1]["started_at"] == pytest.approx(base_ts + 100.0)
-        assert rows[2]["started_at"] == pytest.approx(base_ts + 0.0)
+        assert rows[0].started_at == pytest.approx(base_ts + 200.0)
+        assert rows[1].started_at == pytest.approx(base_ts + 100.0)
+        assert rows[2].started_at == pytest.approx(base_ts + 0.0)
 
         # duration_seconds for stopped sessions = stopped_at - started_at
-        assert rows[1]["duration_seconds"] == pytest.approx(50.0)
-        assert rows[2]["duration_seconds"] == pytest.approx(50.0)
+        assert rows[1].duration_seconds == pytest.approx(50.0)
+        assert rows[2].duration_seconds == pytest.approx(50.0)
 
         # Running session uses last_heartbeat_at for duration
-        assert rows[0]["duration_seconds"] == pytest.approx(100.0)
+        assert rows[0].duration_seconds == pytest.approx(100.0)
+
+        # Field types are correct
+        assert isinstance(rows[0].id, int)
+        assert isinstance(rows[0].status, str)
+        assert rows[0].stopped_at is None  # running session
+        assert rows[1].stopped_at is not None  # stopped session
 
 
 # ---------------------------------------------------------------------------

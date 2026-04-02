@@ -235,6 +235,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sessions
+         * @description List recent sessions with lifecycle data.
+         */
+        get: operations["sessions_api_telemetry_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry/app/{app_key}/health": {
         parameters: {
             query?: never;
@@ -304,7 +324,7 @@ export interface paths {
         };
         /**
          * Handler Invocations
-         * @description Invocation history for a specific handler (session-scoped).
+         * @description Invocation history for a specific handler.
          */
         get: operations["handler_invocations_api_telemetry_handler__listener_id__invocations_get"];
         put?: never;
@@ -324,7 +344,7 @@ export interface paths {
         };
         /**
          * Job Executions
-         * @description Execution history for a specific job (session-scoped).
+         * @description Execution history for a specific job.
          */
         get: operations["job_executions_api_telemetry_job__job_id__executions_get"];
         put?: never;
@@ -968,6 +988,26 @@ export interface components {
             /** Trigger Detail */
             trigger_detail?: string | null;
         };
+        /**
+         * SessionRecord
+         * @description Single session record returned by ``get_session_list()``.
+         */
+        SessionRecord: {
+            /** Id */
+            id: number;
+            /** Started At */
+            started_at: number;
+            /** Stopped At */
+            stopped_at: number | null;
+            /** Status */
+            status: string;
+            /** Error Type */
+            error_type: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+        };
         /** SystemStatusResponse */
         SystemStatusResponse: {
             /** Status */
@@ -1300,6 +1340,7 @@ export interface operations {
             query?: {
                 app_key?: string | null;
                 instance_index?: number;
+                session_id?: number | null;
             };
             header?: never;
             path?: never;
@@ -1376,10 +1417,42 @@ export interface operations {
             };
         };
     };
+    sessions_api_telemetry_sessions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRecord"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     app_health_api_telemetry_app__app_key__health_get: {
         parameters: {
             query?: {
                 instance_index?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1413,6 +1486,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1446,6 +1520,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1479,6 +1554,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1512,6 +1588,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                session_id?: number | null;
             };
             header?: never;
             path: {
@@ -1543,7 +1620,9 @@ export interface operations {
     };
     dashboard_kpis_api_telemetry_dashboard_kpis_get: {
         parameters: {
-            query?: never;
+            query?: {
+                session_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1559,11 +1638,22 @@ export interface operations {
                     "application/json": components["schemas"]["DashboardKpisResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     dashboard_app_grid_api_telemetry_dashboard_app_grid_get: {
         parameters: {
-            query?: never;
+            query?: {
+                session_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1579,11 +1669,22 @@ export interface operations {
                     "application/json": components["schemas"]["DashboardAppGridResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     dashboard_errors_api_telemetry_dashboard_errors_get: {
         parameters: {
-            query?: never;
+            query?: {
+                session_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1597,6 +1698,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardErrorsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

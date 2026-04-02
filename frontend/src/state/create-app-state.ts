@@ -1,6 +1,7 @@
 import { batch, signal, type Signal } from "@preact/signals";
 import { RingBuffer } from "../utils/ring-buffer";
 import { getStoredValue } from "../utils/local-storage";
+import { isSessionScope } from "../utils/session-scope";
 import { isTheme } from "../utils/theme";
 import type { WsLogPayload } from "../api/ws-types";
 
@@ -76,6 +77,11 @@ export function createAppState() {
 
     /** Current Hassette session ID (from WS connected message). */
     sessionId: signal<number | null>(null),
+
+    /** Session scope for telemetry queries (initialized from localStorage). */
+    sessionScope: signal<"current" | "all">(
+      getStoredValue<"current" | "all">("sessionScope", "current", isSessionScope)
+    ),
 
     /**
      * Incremented on WS reconnection (not first connect). useApi reads this

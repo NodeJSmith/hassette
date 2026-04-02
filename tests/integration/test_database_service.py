@@ -1,6 +1,7 @@
 """Integration tests for DatabaseService with real SQLite."""
 
 import asyncio
+import sqlite3
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -19,6 +20,8 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.data_dir = tmp_path
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
+    hassette.config.db_max_size_mb = 500
+    hassette.config.db_migration_timeout_seconds = 120
     hassette.config.database_service_log_level = "INFO"
     hassette.config.log_level = "INFO"
     hassette.config.task_bucket_log_level = "INFO"
@@ -300,7 +303,7 @@ async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseSe
     # Simulate one failure by temporarily breaking the connection
     real_db = initialized_service._db
     initialized_service._db = MagicMock()
-    initialized_service._db.execute = AsyncMock(side_effect=Exception("db error"))
+    initialized_service._db.execute = AsyncMock(side_effect=sqlite3.OperationalError("db error"))
 
     await initialized_service._update_heartbeat()
     assert initialized_service._db_write_queue is not None
@@ -592,5 +595,206 @@ def test_migration_schema_matches_expected_columns(tmp_path: Path) -> None:
             assert not extra_columns, (
                 f"Table {table_name!r}: columns in DB but missing from expected schema: {extra_columns}"
             )
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Size failsafe tests
+# ---------------------------------------------------------------------------
+
+
+async def test_size_failsafe_deletes_oldest_records(initialized_service: DatabaseService) -> None:
+    """Size failsafe deletes oldest records when database exceeds the configured limit."""
+    session_id = initialized_service.hassette.session_id
+    db = initialized_service.db
+
+    # Insert a listener and scheduled_job for FK references
+    await db.execute(
+        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("test.App", 0, "on_event", "state_changed", "test.py:1"),
+    )
+    await db.execute(
+        "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, source_location)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("test.App", 0, "my_job", "run_job", "test.py:2"),
+    )
+    await db.commit()
+
+    # Insert records with known timestamps: older ones should be deleted first
+    now = time.time()
+    for i in range(50):
+        ts = now - (100 - i)  # oldest first
+        await db.execute(
+            "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
+            "VALUES (1, ?, ?, 10.0, 'success')",
+            (session_id, ts),
+        )
+        await db.execute(
+            "INSERT INTO job_executions (job_id, session_id, execution_start_ts, duration_ms, status) "
+            "VALUES (1, ?, ?, 5.0, 'success')",
+            (session_id, ts),
+        )
+    await db.commit()
+
+    # Set a very small max size that the DB likely already exceeds
+    initialized_service.hassette.config.db_max_size_mb = 0.0001  # ~100 bytes — guaranteed to trigger
+
+    await initialized_service._check_size_failsafe()
+
+    # After failsafe, some records should have been deleted
+    cursor = await db.execute("SELECT COUNT(*) FROM handler_invocations")
+    row = await cursor.fetchone()
+    assert row is not None
+    hi_remaining = row[0]
+
+    cursor = await db.execute("SELECT COUNT(*) FROM job_executions")
+    row = await cursor.fetchone()
+    assert row is not None
+    je_remaining = row[0]
+
+    # With only 50 records and batch size 1000, all should be deleted in one iteration
+    assert hi_remaining == 0
+    assert je_remaining == 0
+
+    # Sessions table must NOT be touched
+    cursor = await db.execute("SELECT COUNT(*) FROM sessions")
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] >= 1
+
+
+async def test_size_failsafe_loop_capped_at_10_iterations(initialized_service: DatabaseService) -> None:
+    """Size failsafe loop terminates after 10 iterations even if still over limit."""
+    session_id = initialized_service.hassette.session_id
+    db = initialized_service.db
+
+    # Insert a listener for FK reference
+    await db.execute(
+        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("test.App", 0, "on_event", "state_changed", "test.py:1"),
+    )
+    await db.commit()
+
+    # Insert records so there's something to delete
+    now = time.time()
+    for i in range(100):
+        ts = now - (200 - i)
+        await db.execute(
+            "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
+            "VALUES (1, ?, ?, 10.0, 'success')",
+            (session_id, ts),
+        )
+    await db.commit()
+
+    # Use a mock _get_db_size_mb that always reports over-limit so the loop runs all 10 iterations
+    call_count = 0
+    original_get_size = initialized_service._get_db_size_mb
+
+    def always_over_limit() -> float:
+        nonlocal call_count
+        call_count += 1
+        return original_get_size() + 999.0  # always over limit
+
+    with patch.object(initialized_service, "_get_db_size_mb", side_effect=always_over_limit):
+        initialized_service.hassette.config.db_max_size_mb = 1
+        await initialized_service._check_size_failsafe()
+
+    # _get_db_size_mb is called once before the loop, then once per iteration (10 iterations)
+    assert call_count == 11
+
+
+async def test_startup_size_check_runs(service: DatabaseService) -> None:
+    """_check_size_failsafe() is called during on_initialize()."""
+    with patch.object(DatabaseService, "_check_size_failsafe", new_callable=AsyncMock) as mock_check:
+        await service.on_initialize()
+        try:
+            mock_check.assert_awaited_once()
+        finally:
+            await service.on_shutdown()
+
+
+async def test_serve_runs_heartbeat_retention_and_size_failsafe(initialized_service: DatabaseService) -> None:
+    """serve() runs heartbeat, retention cleanup, and size failsafe during the loop."""
+    session_id = initialized_service.hassette.session_id
+    # Get initial heartbeat
+    cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    initial_heartbeat = row[0]
+
+    size_failsafe_called = False
+    original_run_size_failsafe = initialized_service._run_size_failsafe
+
+    async def tracking_size_failsafe() -> None:
+        nonlocal size_failsafe_called
+        size_failsafe_called = True
+        await original_run_size_failsafe()
+
+    async def shutdown_after_loop() -> None:
+        await asyncio.sleep(0.3)
+        initialized_service.shutdown_event.set()
+
+    shutdown_task = asyncio.create_task(shutdown_after_loop())
+
+    with (
+        patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.1),
+        patch("hassette.core.database_service._RETENTION_INTERVAL_SECONDS", 0.1),
+        patch("hassette.core.database_service._SIZE_FAILSAFE_INTERVAL_SECONDS", 0.1),
+        patch.object(initialized_service, "_run_size_failsafe", side_effect=tracking_size_failsafe),
+    ):
+        await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
+
+    await shutdown_task
+    assert initialized_service._db_write_queue is not None
+    await initialized_service._db_write_queue.join()
+
+    # Heartbeat should have been updated
+    cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] > initial_heartbeat
+
+    # Size failsafe should have been called
+    assert size_failsafe_called
+
+
+# ---------------------------------------------------------------------------
+# Migration: auto_vacuum
+# ---------------------------------------------------------------------------
+
+
+def test_auto_vacuum_migration(tmp_path: Path) -> None:
+    """Migration 005 converts an existing database to auto_vacuum = INCREMENTAL."""
+    import sqlite3
+
+    from alembic import command
+
+    db_path = tmp_path / "test.db"
+
+    # Create a DB with tables at migration 004 (auto_vacuum defaults to 0 = NONE)
+    config = _make_alembic_config(db_path)
+    command.upgrade(config, "004")
+
+    # Verify auto_vacuum is NOT incremental before migration 005
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.execute("PRAGMA auto_vacuum")
+        mode_before = cursor.fetchone()[0]
+        assert mode_before != 2, f"Expected auto_vacuum != 2 before migration 005, got {mode_before}"
+    finally:
+        conn.close()
+
+    # Run migration 005
+    command.upgrade(config, "005")
+
+    # Verify auto_vacuum is now INCREMENTAL (2)
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.execute("PRAGMA auto_vacuum")
+        mode_after = cursor.fetchone()[0]
+        assert mode_after == 2, f"Expected auto_vacuum = 2 after migration 005, got {mode_after}"
     finally:
         conn.close()

@@ -15,7 +15,6 @@ from hassette.scheduler.classes import CronTrigger, IntervalTrigger
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.date_utils import now
 from hassette.utils.serialization import safe_json_serialize
-from hassette.utils.source_capture import capture_registration_source
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -172,7 +171,8 @@ class SchedulerService(Service):
         ``db_id`` is set once DB registration completes; until then, dispatch
         uses the direct-invoke path (no telemetry record).
         """
-        source_location, registration_source = capture_registration_source()
+        source_location = job.source_location
+        registration_source: str | None = job.registration_source or None
         trigger = job.trigger
         if isinstance(trigger, IntervalTrigger):
             trigger_type = "interval"

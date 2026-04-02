@@ -94,6 +94,7 @@ from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_short_name
+from hassette.utils.source_capture import capture_registration_source
 
 from .listeners import Listener, Subscription
 
@@ -203,6 +204,11 @@ class Bus(Resource):
             app_key=app_key,
             instance_index=instance_index,
         )
+
+        # Capture source while user code is still on the stack (before async spawn boundary)
+        source_location, registration_source = capture_registration_source()
+        listener.source_location = source_location
+        listener.registration_source = registration_source or ""
 
         def unsubscribe() -> None:
             self.remove_listener(listener)

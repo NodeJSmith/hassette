@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
+from hassette.core.telemetry_models import SessionRecord
 
 
 class SystemStatusResponse(BaseModel):
@@ -295,6 +296,9 @@ class DashboardErrorsResponse(BaseModel):
     """Recent errors for the dashboard error feed."""
 
     errors: list[HandlerErrorEntry | JobErrorEntry]
+
+
+SessionListEntry = SessionRecord
 
 
 class TelemetryStatusResponse(BaseModel):

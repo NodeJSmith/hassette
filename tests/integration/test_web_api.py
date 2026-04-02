@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_models import ListenerSummary
+from hassette.core.telemetry_models import HandlerErrorRecord, JobErrorRecord, ListenerSummary
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -535,25 +535,26 @@ class TestTelemetryDashboard:
     async def test_errors_returns_typed_entries(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
             return_value=[
-                {
-                    "kind": "handler",
-                    "listener_id": 1,
-                    "topic": "state_changed.light.kitchen",
-                    "handler_method": "on_light",
-                    "error_message": "test error",
-                    "error_type": "RuntimeError",
-                    "execution_start_ts": 1234567890.0,
-                    "app_key": "my_app",
-                },
-                {
-                    "kind": "job",
-                    "job_id": 1,
-                    "job_name": "check_sensors",
-                    "error_message": "timeout",
-                    "error_type": "TimeoutError",
-                    "execution_start_ts": 1234567891.0,
-                    "app_key": "sensor_app",
-                },
+                HandlerErrorRecord(
+                    listener_id=1,
+                    topic="state_changed.light.kitchen",
+                    handler_method="on_light",
+                    error_message="test error",
+                    error_type="RuntimeError",
+                    execution_start_ts=1234567890.0,
+                    duration_ms=12.5,
+                    app_key="my_app",
+                ),
+                JobErrorRecord(
+                    job_id=1,
+                    job_name="check_sensors",
+                    handler_method="check",
+                    error_message="timeout",
+                    error_type="TimeoutError",
+                    execution_start_ts=1234567891.0,
+                    duration_ms=5000.0,
+                    app_key="sensor_app",
+                ),
             ]
         )
         response = await client.get("/api/telemetry/dashboard/errors")
@@ -693,15 +694,177 @@ class TestDashboardOSErrorFallback:
         # exc_info captures the ValueError
         assert any(r.exc_info is not None and r.exc_info[0] is ValueError for r in warning_records)
 
-    async def test_dashboard_kpis_non_connection_valueerror_propagates(
+    async def test_dashboard_kpis_non_connection_valueerror_returns_fallback(
         self, client: "AsyncClient", mock_hassette
     ) -> None:
-        """Non-connection ValueError propagates as an exception, not swallowed as degraded."""
+        """Any ValueError (not just connection-closed) returns a degraded fallback response."""
         mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(
             side_effect=ValueError("invalid literal for int()")
         )
-        with pytest.raises(ValueError, match="invalid literal"):
-            await client.get("/api/telemetry/dashboard/kpis")
+        resp = await client.get("/api/telemetry/dashboard/kpis")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total_invocations"] == 0
+        assert body["total_errors"] == 0
+
+
+class TestTelemetrySessionsEndpoint:
+    async def test_sessions_endpoint_returns_session_list(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /telemetry/sessions returns 200 with valid session data."""
+        from hassette.core.telemetry_models import SessionRecord
+
+        mock_hassette.telemetry_query_service.get_session_list = AsyncMock(
+            return_value=[
+                SessionRecord(
+                    id=1,
+                    started_at=1000000.0,
+                    stopped_at=1000050.0,
+                    status="stopped",
+                    error_type=None,
+                    error_message=None,
+                    duration_seconds=50.0,
+                ),
+                SessionRecord(
+                    id=2,
+                    started_at=1000100.0,
+                    stopped_at=None,
+                    status="running",
+                    error_type=None,
+                    error_message=None,
+                    duration_seconds=100.0,
+                ),
+            ]
+        )
+        response = await client.get("/api/telemetry/sessions")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["id"] == 1
+        assert data[0]["started_at"] == 1000000.0
+        assert data[0]["status"] == "stopped"
+        assert data[1]["stopped_at"] is None
+
+    async def test_sessions_endpoint_limit_parameter(self, client: "AsyncClient", mock_hassette) -> None:
+        """Verify limit parameter is passed through and validated."""
+
+        mock_hassette.telemetry_query_service.get_session_list = AsyncMock(return_value=[])
+        response = await client.get("/api/telemetry/sessions?limit=10")
+        assert response.status_code == 200
+        mock_hassette.telemetry_query_service.get_session_list.assert_called_once_with(limit=10)
+
+        # Limit below minimum (1) should fail validation
+        response = await client.get("/api/telemetry/sessions?limit=0")
+        assert response.status_code == 422
+
+        # Limit above maximum (200) should fail validation
+        response = await client.get("/api/telemetry/sessions?limit=201")
+        assert response.status_code == 422
+
+    async def test_sessions_endpoint_db_error_returns_empty(self, client: "AsyncClient", mock_hassette) -> None:
+        """Verify graceful degradation returns empty list on DB error."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_session_list = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/sessions")
+        assert response.status_code == 200
+        data = response.json()
+        assert data == []
+
+
+class TestTelemetrySessionIdParam:
+    """Verify session_id query parameter propagates to telemetry service methods."""
+
+    async def test_app_health_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/{key}/health?session_id=42 forwards session_id to service."""
+        response = await client.get("/api/telemetry/app/my_app/health?session_id=42")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 42
+
+    async def test_app_health_omitted_session_id_is_none(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/{key}/health without session_id passes None."""
+        response = await client.get("/api/telemetry/app/my_app/health")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] is None
+
+    async def test_app_listeners_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/app/my_app/listeners?session_id=7")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 7
+
+    async def test_app_jobs_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/app/my_app/jobs?session_id=3")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_job_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 3
+
+    async def test_handler_invocations_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/handler/1/invocations?session_id=5")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_handler_invocations.call_args.kwargs
+        assert call_kwargs["session_id"] == 5
+
+    async def test_handler_invocations_omitted_session_id_is_none(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        response = await client.get("/api/telemetry/handler/1/invocations")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_handler_invocations.call_args.kwargs
+        assert call_kwargs["session_id"] is None
+
+    async def test_job_executions_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/job/1/executions?session_id=9")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_job_executions.call_args.kwargs
+        assert call_kwargs["session_id"] == 9
+
+    async def test_dashboard_kpis_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/dashboard/kpis?session_id=11")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_global_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 11
+
+    async def test_dashboard_app_grid_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/dashboard/app-grid?session_id=13")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_all_app_summaries.call_args.kwargs
+        assert call_kwargs["session_id"] == 13
+
+    async def test_dashboard_errors_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/dashboard/errors?session_id=15")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
+        assert call_kwargs["session_id"] == 15
+
+    async def test_dashboard_errors_omitted_session_id_is_none(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
+        assert call_kwargs["session_id"] is None
+
+
+class TestBusListenersSessionIdParam:
+    """Verify session_id query parameter propagates through /bus/listeners."""
+
+    async def test_bus_listeners_passes_session_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/bus/listeners?app_key=my_app&session_id=20")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] == 20
+
+    async def test_bus_listeners_omitted_session_id_is_none(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        response = await client.get("/api/bus/listeners?app_key=my_app")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["session_id"] is None
 
 
 class TestTelemetryAvailableWithoutUI:

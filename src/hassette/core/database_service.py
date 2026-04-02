@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 import time
 import typing
 from collections.abc import Coroutine
@@ -24,6 +25,18 @@ _HEARTBEAT_INTERVAL_SECONDS = 300
 
 # Retention cleanup interval: 1 hour
 _RETENTION_INTERVAL_SECONDS = 3600
+
+# Size failsafe interval: 1 hour (same as retention)
+_SIZE_FAILSAFE_INTERVAL_SECONDS = 3600
+
+# Maximum iterations per size failsafe invocation
+_SIZE_FAILSAFE_MAX_ITERATIONS = 10
+
+# Records to delete per iteration in the size failsafe
+_SIZE_FAILSAFE_DELETE_BATCH = 1000
+
+# Pages to free per incremental_vacuum call
+_SIZE_FAILSAFE_VACUUM_PAGES = 100
 
 # Raise from serve() after this many consecutive heartbeat failures
 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
@@ -51,11 +64,15 @@ class DatabaseService(Service):
     _db_worker_task: asyncio.Task[None] | None
     """Background task that drains _db_write_queue sequentially."""
 
+    _consecutive_size_triggers: int
+    """Counter for consecutive hourly size failsafe triggers; logged as a warning."""
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._db = None
         self._db_path = Path()
         self._consecutive_heartbeat_failures = 0
+        self._consecutive_size_triggers = 0
         self._db_write_queue = None
         self._db_worker_task = None
 
@@ -78,25 +95,32 @@ class DatabaseService(Service):
     async def on_initialize(self) -> None:
         """Set up the database: run migrations and open connection."""
         self._consecutive_heartbeat_failures = 0
+        self._consecutive_size_triggers = 0
         self._db_path = self._resolve_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.logger.info("Running database migrations for %s", self._db_path)
-        await asyncio.to_thread(self._run_migrations)
+        timeout = self.hassette.config.db_migration_timeout_seconds
+        await asyncio.wait_for(asyncio.to_thread(self._run_migrations), timeout=timeout)
 
         self._db = await aiosqlite.connect(self._db_path)
         self._db.row_factory = aiosqlite.Row
 
         await self._set_pragmas()
+        try:
+            await self._check_size_failsafe()
+        except Exception:
+            self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
         self._db_write_queue = asyncio.Queue()
         self._db_worker_task = asyncio.create_task(self._db_write_worker())
 
     async def serve(self) -> None:
-        """Run the heartbeat and retention loop until shutdown."""
+        """Run the heartbeat, retention, and size failsafe loop until shutdown."""
         self.mark_ready(reason="Database service started")
 
         last_retention_run = time.monotonic()
+        last_size_failsafe_run = time.monotonic()
 
         while True:
             try:
@@ -116,6 +140,11 @@ class DatabaseService(Service):
             if elapsed >= _RETENTION_INTERVAL_SECONDS:
                 await self._run_retention_cleanup()
                 last_retention_run = time.monotonic()
+
+            elapsed_size = time.monotonic() - last_size_failsafe_run
+            if elapsed_size >= _SIZE_FAILSAFE_INTERVAL_SECONDS:
+                await self._run_size_failsafe()
+                last_size_failsafe_run = time.monotonic()
 
     async def on_shutdown(self) -> None:
         """Drain the write queue, cancel the worker, then close the database connection."""
@@ -219,6 +248,9 @@ class DatabaseService(Service):
         await db.execute("PRAGMA synchronous = NORMAL")
         await db.execute("PRAGMA busy_timeout = 5000")
         await db.execute("PRAGMA foreign_keys = ON")
+        # Intentionally a no-op — auto_vacuum is set via the Alembic migration before table creation.
+        # This line documents intent only.
+        await db.execute("PRAGMA auto_vacuum = INCREMENTAL")
 
     async def _update_heartbeat(self) -> None:
         """Await a heartbeat update for the current session.
@@ -250,7 +282,7 @@ class DatabaseService(Service):
             if self._consecutive_heartbeat_failures > 0:
                 self.logger.info("Heartbeat recovered after %d failure(s)", self._consecutive_heartbeat_failures)
                 self._consecutive_heartbeat_failures = 0
-        except Exception:
+        except (sqlite3.Error, OSError, ValueError):
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
                 "Failed to update heartbeat (failure %d/%d)",
@@ -282,3 +314,87 @@ class DatabaseService(Service):
                 )
         except Exception:
             self.logger.exception("Failed to run retention cleanup")
+
+    def _get_db_size_mb(self) -> float:
+        """Return total database size (main + WAL + SHM) in megabytes."""
+        total = 0
+        for suffix in ("", "-wal", "-shm"):
+            path = Path(str(self._db_path) + suffix)
+            if path.exists():
+                total += path.stat().st_size
+        return total / (1024 * 1024)
+
+    async def _check_size_failsafe(self) -> None:
+        """Delete oldest execution records if database exceeds the configured size limit.
+
+        Skips the sessions table. Loops up to _SIZE_FAILSAFE_MAX_ITERATIONS times,
+        deleting _SIZE_FAILSAFE_DELETE_BATCH oldest records per iteration from
+        handler_invocations and job_executions, then running incremental_vacuum
+        and wal_checkpoint to reclaim disk space.
+        """
+        max_size_mb = self.hassette.config.db_max_size_mb
+        if max_size_mb == 0:
+            return
+
+        current_size = self._get_db_size_mb()
+        if current_size <= max_size_mb:
+            self._consecutive_size_triggers = 0
+            return
+
+        self._consecutive_size_triggers += 1
+        if self._consecutive_size_triggers > 1:
+            self.logger.warning(
+                "Size failsafe triggered %d consecutive times (%.1f MB > %.1f MB limit)",
+                self._consecutive_size_triggers,
+                current_size,
+                max_size_mb,
+            )
+
+        db = self.db
+        total_hi_deleted = 0
+        total_je_deleted = 0
+
+        for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
+            cursor_hi = await db.execute(
+                "DELETE FROM handler_invocations WHERE id IN "
+                "(SELECT id FROM handler_invocations ORDER BY execution_start_ts ASC LIMIT ?)",
+                (_SIZE_FAILSAFE_DELETE_BATCH,),
+            )
+            cursor_je = await db.execute(
+                "DELETE FROM job_executions WHERE id IN "
+                "(SELECT id FROM job_executions ORDER BY execution_start_ts ASC LIMIT ?)",
+                (_SIZE_FAILSAFE_DELETE_BATCH,),
+            )
+            await db.commit()
+
+            total_hi_deleted += cursor_hi.rowcount or 0
+            total_je_deleted += cursor_je.rowcount or 0
+
+            await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
+            await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+            current_size = self._get_db_size_mb()
+            if current_size <= max_size_mb:
+                break
+
+            if iteration == _SIZE_FAILSAFE_MAX_ITERATIONS - 1:
+                self.logger.warning(
+                    "Size failsafe loop capped at %d iterations; database still %.1f MB (limit %.1f MB)",
+                    _SIZE_FAILSAFE_MAX_ITERATIONS,
+                    current_size,
+                    max_size_mb,
+                )
+
+        if total_hi_deleted or total_je_deleted:
+            self.logger.info(
+                "Size failsafe: deleted %d handler_invocations, %d job_executions (%.1f MB remaining)",
+                total_hi_deleted,
+                total_je_deleted,
+                current_size,
+            )
+
+    async def _run_size_failsafe(self) -> None:
+        """Enqueue a size failsafe check; fire-and-forget via enqueue()."""
+        if self._db is None:
+            return
+        self.enqueue(self._check_size_failsafe())

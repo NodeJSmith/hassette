@@ -41,6 +41,22 @@ def test_dashboard_renders_kpi_strip(page: Page, base_url: str) -> None:
         expect(kpi_strip).to_contain_text(label)
 
 
+def test_dashboard_error_rate_includes_jobs(page: Page, base_url: str) -> None:
+    """Error rate denominator includes both handler invocations AND job executions.
+
+    Seed data: 33 invocations + 28 executions = 61 total, 3 + 6 = 9 errors.
+    The detail text must show "9 / 61 invocations", NOT "3 / 33 invocations".
+    """
+    page.goto(base_url + "/")
+    kpi_strip = page.locator("[data-testid='kpi-strip']")
+    expect(kpi_strip).to_be_visible()
+
+    # Combined denominator: 33 handler invocations + 28 job executions = 61
+    expect(kpi_strip).to_contain_text("9 / 61 invocations")
+    # Must NOT show handler-only denominator
+    expect(kpi_strip).not_to_contain_text("3 / 33 invocations")
+
+
 # ── App health grid ─────────────────────────────────────────────────
 
 

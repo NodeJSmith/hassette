@@ -11,6 +11,8 @@ Separation rationale
 - ``domain_models.py`` — live state snapshots and WS event payloads
 """
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -28,15 +30,18 @@ class AppHealthSummary(BaseModel):
 
     @property
     def error_rate(self) -> float:
-        """Handler error rate as a percentage (0.0-100.0)."""
-        if self.total_invocations == 0:
+        """Combined handler + job error rate as a percentage (0.0-100.0)."""
+        total = self.total_invocations + self.total_executions
+        if total == 0:
             return 0.0
-        return self.total_errors / self.total_invocations * 100
+        errors = self.total_errors + self.total_job_errors
+        return errors / total * 100
 
     @property
     def success_rate(self) -> float:
-        """Handler success rate as a percentage (0.0-100.0)."""
-        if self.total_invocations == 0:
+        """Combined handler + job success rate as a percentage (0.0-100.0)."""
+        total = self.total_invocations + self.total_executions
+        if total == 0:
             return 100.0
         return 100.0 - self.error_rate
 
@@ -143,6 +148,18 @@ class GlobalSummary(BaseModel):
     jobs: JobGlobalStats
 
 
+class SessionRecord(BaseModel):
+    """Single session record returned by ``get_session_list()``."""
+
+    id: int
+    started_at: float
+    stopped_at: float | None
+    status: str
+    error_type: str | None
+    error_message: str | None
+    duration_seconds: float | None
+
+
 class SessionSummary(BaseModel):
     """Current-session summary returned by ``get_current_session_summary()``."""
 
@@ -152,3 +169,41 @@ class SessionSummary(BaseModel):
     invocation_errors: int
     total_executions: int
     execution_errors: int
+
+
+class HandlerErrorRecord(BaseModel):
+    """Handler error returned by ``get_recent_errors()``."""
+
+    kind: Literal["handler"] = "handler"
+    listener_id: int
+    app_key: str
+    handler_method: str
+    topic: str
+    execution_start_ts: float
+    duration_ms: float
+    error_type: str | None
+    error_message: str | None
+
+
+class JobErrorRecord(BaseModel):
+    """Job error returned by ``get_recent_errors()``."""
+
+    kind: Literal["job"] = "job"
+    job_id: int
+    app_key: str
+    job_name: str
+    handler_method: str
+    execution_start_ts: float
+    duration_ms: float
+    error_type: str | None
+    error_message: str | None
+
+
+class SlowHandlerRecord(BaseModel):
+    """Slow handler invocation returned by ``get_slow_handlers()``."""
+
+    app_key: str
+    handler_method: str
+    topic: str
+    execution_start_ts: float
+    duration_ms: float

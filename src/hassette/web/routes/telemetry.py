@@ -1,7 +1,8 @@
 """JSON telemetry endpoints for the Preact SPA.
 
-All endpoints resolve ``session_id`` server-side via ``safe_session_id()`` —
-the SPA never needs to know or pass a session ID.
+Session scoping is client-driven: endpoints accept an optional ``session_id``
+query parameter.  Pass a session ID for current-session data, or omit it for
+all-time aggregates.
 """
 
 import sqlite3
@@ -9,7 +10,15 @@ from logging import getLogger
 
 from fastapi import APIRouter, Query, Response
 
-from hassette.core.telemetry_models import AppHealthSummary, HandlerInvocation, JobExecution, JobSummary
+from hassette.core.telemetry_models import (
+    AppHealthSummary,
+    HandlerErrorRecord,
+    HandlerInvocation,
+    JobErrorRecord,
+    JobExecution,
+    JobSummary,
+    SessionRecord,
+)
 from hassette.web.dependencies import RuntimeDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
@@ -21,12 +30,12 @@ from hassette.web.models import (
     HandlerErrorEntry,
     JobErrorEntry,
     ListenerWithSummary,
+    SessionListEntry,
     TelemetryStatusResponse,
 )
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
-    safe_session_id,
 )
 
 LOGGER = getLogger(__name__)
@@ -34,21 +43,9 @@ LOGGER = getLogger(__name__)
 DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError)
 """Database error types to catch in telemetry endpoints.
 
-Includes ``ValueError`` for aiosqlite connection-closed errors during shutdown.
-Non-connection ``ValueError`` is re-raised via ``_reraise_if_not_connection_closed()``.
-"""
-
-
-def _reraise_if_not_connection_closed(exc: Exception) -> None:
-    """Re-raise ValueError unless it's an aiosqlite connection-closed error.
-
-    aiosqlite raises ``ValueError("Connection is closed")`` when querying after
-    the database connection has been explicitly closed (e.g., shutdown race).
-    This message has been stable across aiosqlite versions (verified through 0.21).
-    Re-verify on aiosqlite version bumps.
-    """
-    if isinstance(exc, ValueError) and "closed" not in str(exc).lower():
-        raise  # bare raise preserves original traceback from the caller's except block
+Includes ``ValueError`` because aiosqlite raises it for closed-connection
+errors during shutdown.  All three types are suppressed uniformly — a degraded
+response is always preferable to an unhandled 500."""
 
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
@@ -71,12 +68,24 @@ async def telemetry_status(
     """
     try:
         await telemetry.check_health()
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Telemetry database health check failed", exc_info=True)
         response.status_code = 503
         return TelemetryStatusResponse(degraded=True)
     return TelemetryStatusResponse(degraded=False)
+
+
+@router.get("/sessions", response_model=list[SessionListEntry])
+async def sessions(
+    telemetry: TelemetryDep,
+    limit: int = Query(default=50, ge=1, le=200),  # pyright: ignore[reportCallInDefaultInitializer]
+) -> list[SessionRecord]:
+    """List recent sessions with lifecycle data."""
+    try:
+        return list(await telemetry.get_session_list(limit=limit))
+    except DB_ERRORS:
+        LOGGER.warning("Failed to fetch session list", exc_info=True)
+        return []
 
 
 def _health_status_from_summary(summary: AppHealthSummary) -> str:
@@ -101,12 +110,11 @@ def _error_rate_from_summary(summary: AppHealthSummary) -> float:
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)
 async def app_health(
     app_key: str,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     instance_index: int = 0,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
-    session_id = safe_session_id(runtime)
     listeners = await telemetry.get_listener_summary(
         app_key=app_key, instance_index=instance_index, session_id=session_id
     )
@@ -140,12 +148,11 @@ async def app_health(
 @router.get("/app/{app_key}/listeners", response_model=list[ListenerWithSummary])
 async def app_listeners(
     app_key: str,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     instance_index: int = 0,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[ListenerWithSummary]:
     """Listener metrics with human-readable handler summaries."""
-    session_id = safe_session_id(runtime)
     listeners = await telemetry.get_listener_summary(
         app_key=app_key, instance_index=instance_index, session_id=session_id
     )
@@ -155,36 +162,33 @@ async def app_listeners(
 @router.get("/app/{app_key}/jobs", response_model=list[JobSummary])
 async def app_jobs(
     app_key: str,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     instance_index: int = 0,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[JobSummary]:
     """Job summaries for a single app instance."""
-    session_id = safe_session_id(runtime)
     return list(await telemetry.get_job_summary(app_key=app_key, instance_index=instance_index, session_id=session_id))
 
 
 @router.get("/handler/{listener_id}/invocations", response_model=list[HandlerInvocation])
 async def handler_invocations(
     listener_id: int,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[HandlerInvocation]:
-    """Invocation history for a specific handler (session-scoped)."""
-    session_id = safe_session_id(runtime)
+    """Invocation history for a specific handler."""
     return list(await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit, session_id=session_id))
 
 
 @router.get("/job/{job_id}/executions", response_model=list[JobExecution])
 async def job_executions(
     job_id: int,
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[JobExecution]:
-    """Execution history for a specific job (session-scoped)."""
-    session_id = safe_session_id(runtime)
+    """Execution history for a specific job."""
     return list(await telemetry.get_job_executions(job_id=job_id, limit=limit, session_id=session_id))
 
 
@@ -192,13 +196,12 @@ async def job_executions(
 async def dashboard_kpis(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> DashboardKpisResponse:
     """Global KPI metrics for the dashboard strip."""
-    session_id = safe_session_id(runtime)
     try:
         summary = await telemetry.get_global_summary(session_id=session_id)
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
         status = runtime.get_system_status()
         return DashboardKpisResponse(
@@ -240,14 +243,13 @@ async def dashboard_kpis(
 async def dashboard_app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> DashboardAppGridResponse:
     """Per-app health data for the dashboard grid."""
-    session_id = safe_session_id(runtime)
     snapshot = runtime.get_all_manifests_snapshot()
     try:
         summaries = await telemetry.get_all_app_summaries(session_id=session_id)
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
@@ -291,42 +293,39 @@ async def dashboard_app_grid(
 
 @router.get("/dashboard/errors", response_model=DashboardErrorsResponse)
 async def dashboard_errors(
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> DashboardErrorsResponse:
     """Recent errors for the dashboard error feed."""
-    session_id = safe_session_id(runtime)
     try:
         raw_errors = await telemetry.get_recent_errors(since_ts=0, limit=10, session_id=session_id)
-    except DB_ERRORS as exc:
-        _reraise_if_not_connection_closed(exc)
+    except DB_ERRORS:
         LOGGER.warning("Failed to fetch recent errors for dashboard", exc_info=True)
         return DashboardErrorsResponse(errors=[])
 
     typed_errors: list[HandlerErrorEntry | JobErrorEntry] = []
     for err in raw_errors:
-        kind = err.get("kind", "handler")
-        if kind == "job":
+        if isinstance(err, JobErrorRecord):
             typed_errors.append(
                 JobErrorEntry(
-                    job_id=err.get("job_id", 0),
-                    job_name=err.get("job_name", ""),
-                    error_message=err.get("error_message", ""),
-                    error_type=err.get("error_type", ""),
-                    execution_start_ts=err.get("execution_start_ts", 0.0),
-                    app_key=err.get("app_key", ""),
+                    job_id=err.job_id,
+                    job_name=err.job_name,
+                    error_message=err.error_message or "",
+                    error_type=err.error_type or "",
+                    execution_start_ts=err.execution_start_ts,
+                    app_key=err.app_key,
                 )
             )
-        else:
+        elif isinstance(err, HandlerErrorRecord):
             typed_errors.append(
                 HandlerErrorEntry(
-                    listener_id=err.get("listener_id", 0),
-                    topic=err.get("topic", ""),
-                    handler_method=err.get("handler_method", ""),
-                    error_message=err.get("error_message", ""),
-                    error_type=err.get("error_type", ""),
-                    execution_start_ts=err.get("execution_start_ts", 0.0),
-                    app_key=err.get("app_key", ""),
+                    listener_id=err.listener_id,
+                    topic=err.topic,
+                    handler_method=err.handler_method,
+                    error_message=err.error_message or "",
+                    error_type=err.error_type or "",
+                    execution_start_ts=err.execution_start_ts,
+                    app_key=err.app_key,
                 )
             )
 
