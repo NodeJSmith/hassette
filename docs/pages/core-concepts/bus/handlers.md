@@ -38,7 +38,7 @@ This gives you typed state objects for easier access to attributes.
 --8<-- "pages/core-concepts/bus/snippets/handlers_typed_event.py"
 ```
 
-**Option 3: Extract specific data** (recommended):
+**Option 3: Extract specific data** (recommended for production code — if you're new to Hassette, start with Option 1 or 2):
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers_extract_data.py"

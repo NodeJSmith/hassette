@@ -11,15 +11,18 @@ Hassette has a lot of moving parts, but at its core it’s simple: everything re
 At runtime, the `Hassette` class is the entry point. It receives a `HassetteConfig` instance that defines where to find Home Assistant, your apps, and related configuration. From there it starts the core services:
 
 - `WebsocketService` – maintains the WebSocket connection and dispatches events.
-- `ApiResource` – typed interface to Home Assistant's REST and WebSocket APIs.
-- `BusService` – routes events from the socket to subscribed apps.
-- `SchedulerService` – runs scheduled jobs.
-- `AppHandler` – discovers, loads, and initializes your apps.
-- `StateProxy` – tracks state changes and provides a consistent view of Home Assistant states.
-- `DatabaseService` – persistent telemetry storage, configurable via `db_*` fields in [global settings](configuration/global.md).
-- `WebApiService` – serves the REST API, healthcheck, and [web UI](../web-ui/index.md).
+- [`ApiResource`](api/index.md) – typed interface to Home Assistant's REST and WebSocket APIs.
+- [`BusService`](bus/index.md) – routes events from the socket to subscribed apps.
+- [`SchedulerService`](scheduler/index.md) – runs scheduled jobs.
+- `AppHandler` – discovers, loads, and initializes your apps. Configured via [Application Configuration](configuration/applications.md).
+- [`StateProxy`](states/index.md) – tracks state changes and provides a consistent view of Home Assistant states.
+- [`DatabaseService`](database-telemetry.md) – persistent telemetry storage, configurable via `db_*` fields in [global settings](configuration/global.md).
+- [`WebApiService`](../web-ui/index.md) – serves the REST API, healthcheck, and web UI.
 - `RuntimeQueryService` – provides live runtime data (events, logs, metrics) to the web UI.
 - `TelemetryQueryService` – serves historical telemetry (invocations, executions, errors) from the database.
+
+!!! note "Internal services"
+    Hassette also runs several internal infrastructure services not shown in the diagram above: `EventStreamService` (event delivery pipeline), `ServiceWatcher` (monitors and restarts failed services), `FileWatcherService` (detects code changes for hot reload), `SessionManager` (tracks session lifecycle), and `CommandExecutor` (dispatches app management commands). These are not user-facing but may appear in debug logs.
 
 Each app is loaded through `AppHandler` and receives its own lightweight handles:
 

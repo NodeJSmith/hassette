@@ -2,6 +2,12 @@
 
 Hassette provides powerful tools for filtering events, ensuring your handlers only run when necessary.
 
+The filtering system uses three helper modules, imported by alias:
+
+- **`P`** (Predicates) — event matching logic: `from hassette import P`
+- **`C`** (Conditions) — value comparison helpers: `from hassette import C`
+- **`A`** (Accessors) — field extraction helpers: `from hassette import A`
+
 ## Common State Filtering
 
 For `on_state_change`, the most common way to filter is using the `changed_to`, `changed_from`, or `changed` parameters. These allow you to filter based on the new state value, old state value, or general criteria.

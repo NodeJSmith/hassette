@@ -125,19 +125,7 @@ Behind the scenes, the DI system uses `convert_state_dict_to_model()` which call
 
 ## Custom State Classes
 
-You can define custom state classes for your own integrations or to extend existing ones:
-
-### Basic Custom State
-
-```python
---8<-- "pages/advanced/snippets/state-registry/basic_custom_state.py"
-```
-
-Once defined, your custom state class is automatically registered and can be used throughout Hassette:
-
-```python
---8<-- "pages/advanced/snippets/state-registry/basic_custom_state_usage.py"
-```
+For a complete guide on defining custom state classes — choosing a base class, adding custom attributes, and usage patterns — see [Custom States](custom-states.md).
 
 ### Domain Override
 

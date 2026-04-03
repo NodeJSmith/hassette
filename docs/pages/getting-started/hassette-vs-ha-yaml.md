@@ -44,6 +44,13 @@ Hassette brings Python's power to Home Assistant automations. This unlocks capab
 
 **Best for:** Automations that have grown too complex for YAML, or when you need features like persistent state, code reuse, or proper testing.
 
+## What You're Signing Up For
+
+- **Setup time**: ~30 minutes from install to your first running app ([Local Setup](index.md)).
+- **Runs alongside HA automations**: Hassette does not replace or interfere with your existing YAML automations or UI-created automations. They coexist — Hassette connects as a separate client via the same WebSocket API.
+- **Incremental migration**: You can move automations one at a time. Start with one complex automation that's painful in YAML, keep everything else as-is.
+- **Requirements**: Python 3.11+, a running Home Assistant instance, and a long-lived access token.
+
 ## Making the Decision
 
 **Stick with YAML if:**

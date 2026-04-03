@@ -1,10 +1,10 @@
 # App Configuration
 
-Each app can define a Pydantic configuration model to validate its settings. This allows you to benefit from type safety and automatic parsing of configuration files.
+Each app can define a Pydantic configuration model to validate its settings. This gives you type safety, automatic parsing, and environment variable injection.
 
 ## Defining Config Models
 
-Inherit from [`AppConfig`][hassette.app.app_config.AppConfig] to define your configuration schema. `AppConfig` extends Pydantic's `BaseSettings`, so it supports Pydantic validation and automatic environment variable injection.
+Inherit from [`AppConfig`][hassette.app.app_config.AppConfig] to define your configuration schema. `AppConfig` extends Pydantic's [`BaseSettings`](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) (from the `pydantic-settings` package), which adds environment variable injection on top of standard Pydantic validation. If you've used Pydantic's `BaseModel`, the syntax is the same — `BaseSettings` just adds env var support.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"

@@ -22,8 +22,8 @@ theme:
 nav:
   - Home: index.md
   - Getting Started:
-      - Hassette vs. YAML: pages/getting-started/hassette-vs-ha-yaml.md
       - Local Setup: pages/getting-started/index.md
+      - Hassette vs. YAML: pages/getting-started/hassette-vs-ha-yaml.md
       - Docker Deployment:
           - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
@@ -72,6 +72,7 @@ nav:
       - Log Level Tuning: pages/advanced/log-level-tuning.md
   - Troubleshooting: pages/troubleshooting.md
   - AppDaemon Comparison: pages/appdaemon-comparison.md
+  - Changelog: CHANGELOG.md  # symlinked from repo root
   - API Reference: reference/
 
 plugins:

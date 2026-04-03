@@ -138,34 +138,9 @@ These settings control how long Hassette waits for various operations before giv
 
 ## Logging Settings
 
-You can tune the log level for individual services without changing the global `log_level`. Each field falls back to the global `log_level` setting, which itself defaults to `INFO`. See [Log Level Tuning](../../advanced/log-level-tuning.md) for the full precedence chain.
+Hassette supports per-service log levels for each of its 13 internal services. Each field falls back to the global `log_level` setting (default: `INFO`).
 
-See [Log Level Tuning](../../advanced/log-level-tuning.md) for a full guide.
-
-| Setting | Controls |
-|---------|----------|
-| `database_service_log_level` | Database service |
-| `bus_service_log_level` | Event bus service |
-| `scheduler_service_log_level` | Scheduler service |
-| `app_handler_log_level` | App handler (discovery, loading) |
-| `web_api_log_level` | Web API service |
-| `websocket_log_level` | WebSocket service |
-| `service_watcher_log_level` | Service watcher |
-| `file_watcher_log_level` | File watcher service |
-| `task_bucket_log_level` | Task buckets |
-| `command_executor_log_level` | Command executor |
-| `apps_log_level` | Default for all apps (overridable per app) |
-| `state_proxy_log_level` | State proxy |
-| `api_log_level` | API resource (REST/WebSocket client) |
-
-**Example:**
-
-```toml
-[hassette]
-log_level = "INFO"
-bus_service_log_level = "WARNING"
-scheduler_service_log_level = "DEBUG"
-```
+See [Log Level Tuning](../../advanced/log-level-tuning.md) for the full field list, precedence rules, and examples.
 
 ## Bus Filtering Settings
 
@@ -206,6 +181,41 @@ bus_excluded_entities = ["switch.noisy_device"]
 | `hassette_event_buffer_size` | integer | `1000` | Buffer capacity of the internal event channel used to route events to the bus. |
 | `asyncio_debug_mode` | boolean | `false` | Enable asyncio debug mode. |
 | `watch_files` | boolean | `true` | Watch files for changes and reload apps automatically. |
+
+## Service Restart Policy
+
+These settings control automatic restart behavior when an internal service crashes.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `service_restart_max_attempts` | integer | `5` | Maximum restart attempts before giving up. |
+| `service_restart_backoff_seconds` | float | `2.0` | Initial delay between restart attempts. |
+| `service_restart_max_backoff_seconds` | float | `60.0` | Maximum delay between restart attempts. |
+| `service_restart_backoff_multiplier` | float | `2.0` | Multiplier applied after each failed attempt. |
+| `service_restart_readiness_timeout_seconds` | float | `10.0` | Seconds to wait for a restarted service to become ready. |
+
+## App Detection Settings (Advanced)
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `extend_autodetect_exclude_dirs` | tuple of strings | `()` | Additional directories to exclude from app auto-detection. **Use this instead of `autodetect_exclude_dirs`** — it adds to the defaults rather than replacing them. |
+| `autodetect_exclude_dirs` | tuple of strings | *(built-in list)* | Full list of excluded directories. Setting this directly **replaces** the defaults (`.git`, `__pycache__`, `.venv`, etc.), which is usually not what you want. |
+
+!!! warning
+    If you need to exclude additional directories from app auto-detection, always use `extend_autodetect_exclude_dirs`. Setting `autodetect_exclude_dirs` directly will remove the default exclusions, causing Hassette to scan `.git`, `__pycache__`, virtual environments, and other directories that should be ignored.
+
+## Other Advanced Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `resource_shutdown_timeout_seconds` | integer | *(same as `app_shutdown_timeout_seconds`)* | Per-phase timeout for resource shutdown. |
+| `state_proxy_poll_interval_seconds` | integer | `30` | Interval to poll Home Assistant for state updates (supplements WebSocket events). |
+| `disable_state_proxy_polling` | boolean | `false` | Disable state polling entirely (rely only on WebSocket events). |
+| `db_migration_timeout_seconds` | integer | `120` | Maximum seconds to wait for database migrations at startup. |
+| `file_watcher_debounce_milliseconds` | integer | `3000` | Debounce time for file watcher events. |
+| `task_cancellation_timeout_seconds` | integer | `5` | Time to wait for tasks to cancel before forcing. |
+| `scheduler_behind_schedule_threshold_seconds` | integer | `5` | Threshold before a "behind schedule" warning is logged. |
+| `run_sync_timeout_seconds` | integer | `6` | Default timeout for synchronous function calls. |
 
 ## Basic Example
 

@@ -90,6 +90,7 @@ hassette -c ./config/hassette.toml -e ./config/.env
 
 ## Next steps
 
+- [Web UI](../web-ui/index.md) — open `http://localhost:8126/ui/` to see the dashboard
 - [Creating a Home Assistant token](ha_token.md) — if you haven't set up your token yet
 - [Apps Overview](../core-concepts/apps/index.md) — writing your first automation
 - [Configuration Overview](../core-concepts/configuration/index.md) — config precedence, file locations, and options

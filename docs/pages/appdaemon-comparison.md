@@ -1029,3 +1029,10 @@ class MyApp(App):
     - Hassette: `self.states.light.get()` returns cached state (no `await` needed)
     - Both maintain automatic local caches updated via state change events
     - Use `self.api.get_state()` only when you need to force a fresh read from HA
+
+## Next Steps
+
+- **[Local Setup](getting-started/index.md)** — get Hassette running in minutes
+- **[Docker Deployment](getting-started/docker/index.md)** — production setup with Docker Compose
+- **[Core Concepts](core-concepts/index.md)** — architecture overview and key components
+- **[Troubleshooting](troubleshooting.md)** — common issues and solutions
