@@ -1,7 +1,7 @@
 from hassette import App, AppConfig, D, states
 
 
-class ExampleApp(App[AppConfig]):  # App[AppConfig] when you don't need custom config
+class ExampleApp(App[AppConfig]):
     async def on_initialize(self):
         self.logger.info("Hello from ExampleApp!")
 

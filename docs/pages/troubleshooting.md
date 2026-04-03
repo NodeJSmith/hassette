@@ -13,6 +13,14 @@ This page organizes common problems by symptom. Click through to the relevant se
 - **Import errors**: Check for missing dependencies or syntax errors in logs. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#apps-not-loading).
 - **App precheck fails**: If an app fails to load, Hassette won't start by default. Check logs for the specific error, or set `allow_startup_if_app_precheck_fails = true` temporarily for debugging.
 
+## Event handler never runs
+
+- **Entity ID typo**: Double-check the entity ID string — `"binary_sensor.motion"` vs `"binary_sensor.motoin"`. Hassette won't error on a non-existent entity; the handler simply never fires.
+- **`changed_to` type mismatch**: Home Assistant state values are strings. `changed_to="on"` works; `changed_to=True` does not — it compares against the Python `bool`, not the HA string `"on"`.
+- **Domain excluded**: Check `bus_excluded_domains` and `bus_excluded_entities` in your `hassette.toml` — events from excluded domains are silently dropped before reaching your handlers.
+- **App not enabled**: Verify the app's config block has `enabled = true` (the default). A disabled app's handlers are never registered.
+- **Attribute-only change**: By default, `on_state_change` only fires when the main state value changes. If only an attribute changed (e.g., brightness), pass `changed=False`. See [Filtering — The `changed` Parameter](core-concepts/bus/filtering.md#the-changed-parameter).
+
 ## Scheduler not firing
 
 - **Job scheduled for the past**: Check your `start` parameter — a time-of-day value like `(7, 0)` schedules for the *next* occurrence of 7:00 AM, not today if it's already past.

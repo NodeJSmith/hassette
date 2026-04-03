@@ -82,9 +82,11 @@ Hassette is a long-running process. You should see output like:
 INFO hassette ... ─ Connected to Home Assistant
 INFO hassette.MyApp.0 ... ─ This is from the config file!
 INFO hassette.MyApp.0 ... ─ Heartbeat
+INFO hassette.MyApp.0 ... ─ Sun changed: below_horizon
+INFO hassette.MyApp.0 ... ─ Porch light turned on
 ```
 
-The greeting comes from the `greeting` field in your `hassette.toml` — Hassette loaded your config and passed it to your app as `self.app_config.greeting`.
+The greeting comes from the `greeting` field in your `hassette.toml` — Hassette loaded your config and passed it to your app as `self.app_config.greeting`. When the sun sets, the app calls `self.api.turn_on()` to switch on a light — a complete automation in a few lines of Python.
 
 !!! tip
     If your environment doesn't expose the `hassette` command, run `python -m hassette` instead.

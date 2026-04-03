@@ -23,6 +23,9 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App] or 
 --8<-- "pages/core-concepts/apps/snippets/example_app.py"
 ```
 
+!!! info "Don't worry about `D` and `states` yet"
+    The `D.StateNew[states.LightState]` annotation is Hassette's [dependency injection](../bus/handlers.md) system — it automatically extracts and types the new state from the event. You'll learn how it works in the [Writing Handlers](../bus/handlers.md) section. For now, just notice the pattern: declare what data you need, and Hassette provides it.
+
 ## Dates and Times
 
 Hassette uses the [`whenever`](https://whenever.readthedocs.io) library for timezone-aware date/time handling instead of Python's stdlib `datetime`. Every app provides `self.now()`, which returns a `ZonedDateTime` in your system timezone.
@@ -96,6 +99,18 @@ self.counter = self.cache.get("counter", 0)
 self.counter += 1
 self.cache["counter"] = self.counter
 ```
+
+### Run Blocking Code
+
+If you need to call a synchronous library (e.g., a database driver or CPU-bound computation) from an async app, use `self.task_bucket.run_in_thread()` to offload it to a thread pool:
+
+```python
+async def on_initialize(self):
+    # Run a blocking function without freezing the event loop
+    result = await self.task_bucket.run_in_thread(self.expensive_sync_call)
+```
+
+For callbacks that may be sync or async, `self.task_bucket.make_async_adapter(fn)` normalizes any callable into an async callable — sync functions are automatically wrapped in `run_in_thread`.
 
 ## Next Steps
 

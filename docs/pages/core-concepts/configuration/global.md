@@ -176,6 +176,11 @@ bus_excluded_entities = ["switch.noisy_device"]
 | `autodetect_apps` | boolean | `true` | Automatically discover apps in the app directory. |
 | `run_app_precheck` | boolean | `true` | Run app precheck before starting. If any apps fail to load, Hassette does not start. |
 | `allow_startup_if_app_precheck_fails` | boolean | `false` | Allow Hassette to start even if the app precheck fails. Generally not recommended. |
+| `extend_autodetect_exclude_dirs` | tuple of strings | `()` | Additional directories to exclude from app auto-detection. **Use this instead of `autodetect_exclude_dirs`** — it adds to the defaults rather than replacing them. |
+| `autodetect_exclude_dirs` | tuple of strings | *(built-in list)* | Full list of excluded directories. Setting this directly **replaces** the defaults (`.git`, `__pycache__`, `.venv`, etc.), which is usually not what you want. |
+
+!!! warning
+    If you need to exclude additional directories from app auto-detection, always use `extend_autodetect_exclude_dirs`. Setting `autodetect_exclude_dirs` directly will remove the default exclusions, causing Hassette to scan `.git`, `__pycache__`, virtual environments, and other directories that should be ignored.
 
 ## Advanced Settings
 
@@ -196,16 +201,6 @@ These settings control automatic restart behavior when an internal service crash
 | `service_restart_max_backoff_seconds` | float | `60.0` | Maximum delay between restart attempts. |
 | `service_restart_backoff_multiplier` | float | `2.0` | Multiplier applied after each failed attempt. |
 | `service_restart_readiness_timeout_seconds` | float | `10.0` | Seconds to wait for a restarted service to become ready. |
-
-## App Detection Settings (Advanced)
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `extend_autodetect_exclude_dirs` | tuple of strings | `()` | Additional directories to exclude from app auto-detection. **Use this instead of `autodetect_exclude_dirs`** — it adds to the defaults rather than replacing them. |
-| `autodetect_exclude_dirs` | tuple of strings | *(built-in list)* | Full list of excluded directories. Setting this directly **replaces** the defaults (`.git`, `__pycache__`, `.venv`, etc.), which is usually not what you want. |
-
-!!! warning
-    If you need to exclude additional directories from app auto-detection, always use `extend_autodetect_exclude_dirs`. Setting `autodetect_exclude_dirs` directly will remove the default exclusions, causing Hassette to scan `.git`, `__pycache__`, virtual environments, and other directories that should be ignored.
 
 ## Other Advanced Settings
 
