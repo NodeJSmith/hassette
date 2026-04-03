@@ -29,7 +29,7 @@ Hassette uses the [`whenever`](https://whenever.readthedocs.io) library for time
 
 ```python
 # whenever types — used throughout Hassette
-from whenever import ZonedDateTime, TimeDelta, Time
+from whenever import ZonedDateTime, TimeDelta
 
 next_run = self.now().add(hours=2)          # 2 hours from now
 elapsed = self.now() - last_seen            # returns a TimeDelta

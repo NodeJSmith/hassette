@@ -9,7 +9,7 @@ This page organizes common problems by symptom. Click through to the relevant se
 
 ## Apps not loading
 
-- **App not discovered**: Verify `app_dir` points to the correct directory and your app file is registered in `hassette.toml`. See [Application Configuration](core-concepts/configuration/applications.md).
+- **App not discovered**: Verify `app_dir` points to the correct directory and your app file is registered in `hassette.toml`. See [Application Configuration](core-concepts/configuration/applications.md). Success: you'll see `INFO hassette.<AppName>.0 ... ─ App initialized` in the logs.
 - **Import errors**: Check for missing dependencies or syntax errors in logs. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#apps-not-loading).
 - **App precheck fails**: If an app fails to load, Hassette won't start by default. Check logs for the specific error, or set `allow_startup_if_app_precheck_fails = true` temporarily for debugging.
 

@@ -138,7 +138,7 @@ Prevent notification spam by tracking when you last sent a notification:
 
 ```python
 from hassette import App, AppConfig
-from hassette.event_handling import P
+from hassette import P
 
 class WaterLeakAlertApp(App[AppConfig]):
     async def on_initialize(self):
@@ -213,7 +213,7 @@ Track events across restarts:
 
 ```python
 from hassette import App, AppConfig
-from hassette.event_handling import P
+from hassette import P
 
 class MotionCounterApp(App[AppConfig]):
     async def on_initialize(self):

@@ -82,6 +82,9 @@ These settings control the [web UI](../../web-ui/index.md) and the underlying we
 - **`web_api_log_buffer_size`** (integer): Maximum number of log entries to keep in the ring buffer.
     - Default: `2000`
 
+- **`web_api_job_history_size`** (integer): Maximum number of job execution records to keep in memory.
+    - Default: `1000`
+
 - **`web_ui_hot_reload`** (boolean): Watch web UI static files for changes and push live reloads to the browser via WebSocket. CSS changes are hot-swapped without a page reload; JS changes trigger a full reload.
     - Default: `false`
 
@@ -132,9 +135,9 @@ These settings control how long Hassette waits for various operations before giv
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `scheduler_min_delay_seconds` | integer | `1` | Minimum delay between scheduled jobs. |
-| `scheduler_max_delay_seconds` | integer | `30` | Maximum delay between scheduled jobs. |
-| `scheduler_default_delay_seconds` | integer | `15` | Default delay between scheduled jobs. |
+| `scheduler_min_delay_seconds` | integer | `1` | Minimum sleep interval for the scheduler loop. Prevents busy-waiting when jobs fire in rapid succession. |
+| `scheduler_max_delay_seconds` | integer | `30` | Maximum sleep interval for the scheduler loop. Bounds how long the scheduler may wait before checking for due jobs. |
+| `scheduler_default_delay_seconds` | integer | `15` | Default sleep interval used when no jobs are imminently due. |
 
 ## Logging Settings
 
@@ -213,6 +216,7 @@ These settings control automatic restart behavior when an internal service crash
 | `disable_state_proxy_polling` | boolean | `false` | Disable state polling entirely (rely only on WebSocket events). |
 | `db_migration_timeout_seconds` | integer | `120` | Maximum seconds to wait for database migrations at startup. |
 | `file_watcher_debounce_milliseconds` | integer | `3000` | Debounce time for file watcher events. |
+| `file_watcher_step_milliseconds` | integer | `500` | Time to wait for additional file changes before emitting an event. Works with the debounce to batch rapid saves. |
 | `task_cancellation_timeout_seconds` | integer | `5` | Time to wait for tasks to cancel before forcing. |
 | `scheduler_behind_schedule_threshold_seconds` | integer | `5` | Threshold before a "behind schedule" warning is logged. |
 | `run_sync_timeout_seconds` | integer | `6` | Default timeout for synchronous function calls. |

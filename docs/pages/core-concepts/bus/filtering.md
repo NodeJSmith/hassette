@@ -30,6 +30,15 @@ For more logic, you can pass **Predicates** or callables directly to these param
 --8<-- "pages/core-concepts/bus/snippets/filtering_predicate_lambda.py"
 ```
 
+## The `changed` Parameter
+
+By default, `on_state_change` only fires when the main state value changes. To also fire on attribute-only changes (e.g., brightness changed but the light is still "on"), pass `changed=False`:
+
+```python
+# Fire even when only attributes change, not the main state value
+self.bus.on_state_change("light.office", handler=self.on_light_change, changed=False)
+```
+
 ## Advanced Filtering with `where`
 
 If `changed_to/from` aren't enough, or if you are filtering other event types (like service calls), use the `where` parameter.

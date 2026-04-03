@@ -123,11 +123,7 @@ The StateRegistry integrates seamlessly with [dependency injection](dependency-i
 
 Behind the scenes, the DI system uses `convert_state_dict_to_model()` which calls the StateRegistry.
 
-## Custom State Classes
-
-For a complete guide on defining custom state classes — choosing a base class, adding custom attributes, and usage patterns — see [Custom States](custom-states.md).
-
-### Domain Override
+## Domain Override
 
 If you want to override the default state class for a domain (for example, to add custom attributes), define your class after imports:
 
@@ -164,7 +160,7 @@ The StateRegistry raises specific exceptions for different error conditions:
 Raised when state data is malformed or missing required fields:
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/error_handling_examples.py"
+--8<-- "pages/advanced/snippets/state-registry/error_invalid_data.py"
 ```
 
 ### InvalidEntityIdError
@@ -172,7 +168,7 @@ Raised when state data is malformed or missing required fields:
 Raised when the entity_id format is invalid:
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/error_handling_examples.py"
+--8<-- "pages/advanced/snippets/state-registry/error_invalid_entity_id.py"
 ```
 
 ### UnableToConvertStateError
@@ -180,7 +176,7 @@ Raised when the entity_id format is invalid:
 Raised when conversion to the target state class fails:
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/error_handling_examples.py"
+--8<-- "pages/advanced/snippets/state-registry/error_unable_to_convert.py"
 ```
 
 ## Integration with Other Components

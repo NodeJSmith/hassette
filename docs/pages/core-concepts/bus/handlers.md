@@ -25,7 +25,7 @@ Hassette uses dependency injection (DI) to provide event data to your handlers. 
 ### Basic Patterns
 
 **Option 1: Receive the full event in raw form** (simplest):
-This gives you the raw event object, with the state data in untyped dicts.
+This gives you the raw event object, with the state data in untyped dicts. The raw state dict mirrors Home Assistant's `state_changed` event — the main state value is in `new_state["state"]`; attributes are in `new_state["attributes"]`.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers_raw_event.py"
@@ -60,7 +60,7 @@ You can pass additional arguments to your handler using `kwargs` when subscribin
 
 ### Available Dependencies
 
-Dependencies are imported from `hassette.dependencies` (aliased as `D`). The most common are `StateNew[T]`, `StateOld[T]`, `EntityId`, and `Domain`.
+Dependencies are available via `from hassette import D`. The most common are `StateNew[T]`, `StateOld[T]`, `EntityId`, and `Domain`.
 
 See the [Dependency Injection guide](../../advanced/dependency-injection.md#available-di-annotations) for the full annotation table, custom extractors, and automatic type conversion.
 

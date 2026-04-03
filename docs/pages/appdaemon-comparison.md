@@ -195,7 +195,7 @@ includes the internal `__thread_id` value. Schedule callbacks can be
 async or sync functions, although the documentation recommends not using
 async functions due to the threading model.
 
-Schedule helpers include `run_in()`, `run_at()`, `run_minutely()`,
+Schedule helpers include `run_in()`, `run_once()`, `run_every()`, `run_minutely()`,
 `run_hourly()`, and `run_daily()`. These methods return a handle that
 can be used to cancel the scheduled job.
 
@@ -227,7 +227,7 @@ thread automatically) or use `self.task_bucket.run_in_thread()`
 to manually offload the work to a thread.
 
 The scheduler is accessed via the `self.scheduler` attribute, and offers
-similar helpers: `run_in()`, `run_at()`, `run_minutely()`,
+similar helpers: `run_in()`, `run_once()`, `run_every()`, `run_minutely()`,
 `run_hourly()`, and `run_daily()`. These methods return a
 [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object that can be used to
 cancel or inspect the job.
@@ -415,7 +415,7 @@ class MyApp(App[MyConfig]):
 ```
 
 ```text
-2025-10-13 20:07:26.735 INFO hassette.MyApp.0.minimal_callback:21 ─ Button pressed: Event(HassPayload(event_type=call_service, event_id=01KGDE3WR4F4NSDK3R2210HH6Z))
+2025-10-13 20:07:26.735 INFO hassette.MyApp.0.minimal_callback:21 ─ Button pressed: {'entity_id': 'input_button.test_button'}
 ```
 
 ### State Change Handlers/Callbacks
@@ -879,7 +879,7 @@ def initialize(self):
 Hassette provides two approaches - the **local cache** (preferred, similar to AppDaemon) and **direct API calls**:
 
 ```python
-from hassette.models import states
+from hassette import states
 
 async def on_initialize(self):
     # PREFERRED: Use local state cache (no await, no API call)

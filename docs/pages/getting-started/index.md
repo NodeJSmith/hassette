@@ -59,7 +59,14 @@ Create `hassette_apps/main.py`:
 ```
 
 !!! note "Typed handlers"
-    This example uses a raw event for simplicity. Once you're comfortable, Hassette's [dependency injection](../core-concepts/bus/handlers.md) lets you write much cleaner handlers with automatic type conversion — e.g., `async def on_sun_change(self, new_state: D.StateNew[SunState])`.
+    This example uses a raw event for simplicity. Once you're comfortable, Hassette's [dependency injection](../core-concepts/bus/handlers.md) lets you write cleaner handlers with automatic type conversion:
+
+    ```python
+    from hassette import App, AppConfig, D, states
+
+    async def on_sun_change(self, new_state: D.StateNew[states.SunState]):
+        self.logger.info("Sun changed: %s", new_state.value)
+    ```
 
 ## 7. Run Hassette
 
@@ -87,6 +94,9 @@ If you need explicit paths:
 ```bash
 hassette -c ./config/hassette.toml -e ./config/.env
 ```
+
+!!! tip "Having trouble?"
+    If Hassette fails to start or can't connect to Home Assistant, see the [Troubleshooting](../troubleshooting.md) page — the most common issue is an incorrect `base_url` or missing token.
 
 ## Next steps
 
