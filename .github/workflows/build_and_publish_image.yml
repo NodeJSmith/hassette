@@ -1,10 +1,14 @@
 name: Build & Publish Image
 
 on:
-    push:
-        tags: ["v*"] # only versioned releases
     pull_request:
         branches: [main] # publish sha-only image for PR testing
+    workflow_call: # called by release-please workflow
+        inputs:
+            tag_name:
+                description: "Release tag (e.g. v0.24.0) — passed by release-please"
+                required: true
+                type: string
     workflow_dispatch: # manual trigger
 
 permissions:
@@ -25,8 +29,11 @@ jobs:
             OWNER: ${{ github.repository_owner }}
             PYTHON_VERSION: ${{ matrix.python-version }}
             IS_STABLE_RELEASE: "false"
+            IS_RELEASE: ${{ github.event_name == 'workflow_call' }}
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.tag_name || github.ref }}
 
             - name: Set up QEMU
               uses: docker/setup-qemu-action@v3
@@ -48,8 +55,16 @@ jobs:
                   enable-cache: true
 
             - name: Classify release tag
-              if: github.event_name == 'push'
-              run: uv run ./tools/check_tag_version.py --ref-name ${{ github.ref_name }} --project-version $(uv version --short)
+              if: env.IS_RELEASE == 'true'
+              run: uv run ./tools/check_tag_version.py --ref-name ${{ inputs.tag_name || github.ref_name }} --project-version $(uv version --short)
+
+            - name: Verify VERSION is set for releases
+              if: env.IS_RELEASE == 'true'
+              run: |
+                  if [ -z "$VERSION" ]; then
+                      echo "::error::VERSION env var not set after tag classification"
+                      exit 1
+                  fi
 
             - name: Docker metadata
               id: meta
@@ -61,8 +76,8 @@ jobs:
                       suffix=-py${{ env.PYTHON_VERSION }}
                   tags: |
                       type=sha,prefix=sha-,format=short
-                      type=pep440,pattern={{version}},enable=${{ github.event_name == 'push' }}
-                      type=raw,value=latest,enable=${{ github.event_name == 'push' && env.IS_STABLE_RELEASE == 'true' }}
+                      type=raw,value=${{ env.VERSION }},enable=${{ env.IS_RELEASE == 'true' }}
+                      type=raw,value=latest,enable=${{ env.IS_RELEASE == 'true' && env.IS_STABLE_RELEASE == 'true' }}
 
             - name: Build & Push
               if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository

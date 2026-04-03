@@ -1,9 +1,12 @@
 name: Publish Python package
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "Release tag (e.g. v0.24.0) — passed by release-please"
+        required: true
+        type: string
   workflow_dispatch:
 
 jobs:
@@ -14,6 +17,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
