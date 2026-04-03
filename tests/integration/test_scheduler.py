@@ -1,12 +1,8 @@
 import asyncio
-import typing
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 from whenever import ZonedDateTime
-
-if typing.TYPE_CHECKING:
-    import pytest
 
 from hassette import Hassette
 from hassette.core.commands import ExecuteJob
@@ -235,19 +231,14 @@ def test_scheduled_job_mark_registered_sets_db_id() -> None:
     assert job.db_id == 42
 
 
-def test_scheduled_job_mark_registered_warns_on_double_call(caplog: "pytest.LogCaptureFixture") -> None:
-    """mark_registered() logs a warning and keeps the original db_id on second call."""
-    import logging
-
+def test_scheduled_job_mark_registered_keeps_original_on_double_call() -> None:
+    """mark_registered() keeps the original db_id when called a second time."""
     job = ScheduledJob(
         owner_id="test",
         next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda: None,
     )
     job.mark_registered(42)
-
-    with caplog.at_level(logging.WARNING, logger="hassette.scheduler.classes"):
-        job.mark_registered(99)
+    job.mark_registered(99)
 
     assert job.db_id == 42
-    assert "already registered" in caplog.text

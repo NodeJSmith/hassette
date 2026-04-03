@@ -44,6 +44,6 @@ After the shutdown hooks run, Hassette automatically performs cleanup:
 This means you generally do **not** need to manually unsubscribe or cancel jobs in `on_shutdown`. Only implement shutdown logic if you have allocated external resources (like opening a file or a raw socket).
 
 !!! warning
-    **Do not override** `initialize`, `shutdown`, or `cleanup` methods directly. Check `on_initialize` and `on_shutdown` instead.
+    **Do not override** `initialize`, `shutdown`, or `cleanup` methods directly. These are internal methods that manage resource setup, lifecycle ordering, and teardown — they are marked final to prevent accidental overrides that could break the resource contract.
 
-    Attempting to override these methods will raise a [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] when your app class is loaded.
+    Use the `on_initialize` and `on_shutdown` hooks instead — they are called at the correct point within these methods. Attempting to override a final method will raise a [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] when your app class is loaded.

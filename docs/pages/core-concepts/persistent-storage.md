@@ -13,6 +13,9 @@ The cache is useful when you need to:
 
 The cache uses the [`diskcache`](https://grantjenks.com/docs/diskcache/) library under the hood, providing a simple dictionary-like interface backed by persistent storage.
 
+!!! warning "Shared across instances"
+    All instances of the same resource class share the same cache directory. If you have multiple instances of `MyApp`, use `self.app_config.instance_name` as a key prefix to avoid collisions — e.g., `f"{self.app_config.instance_name}:last_run"`.
+
 ## Basic Usage
 
 The cache works like a Python dictionary:
@@ -135,7 +138,7 @@ Prevent notification spam by tracking when you last sent a notification:
 
 ```python
 from hassette import App, AppConfig
-from hassette.event_handling import P
+from hassette import P
 
 class WaterLeakAlertApp(App[AppConfig]):
     async def on_initialize(self):
@@ -210,7 +213,7 @@ Track events across restarts:
 
 ```python
 from hassette import App, AppConfig
-from hassette.event_handling import P
+from hassette import P
 
 class MotionCounterApp(App[AppConfig]):
     async def on_initialize(self):
@@ -345,11 +348,10 @@ The cache can store any Python object that is pickle-able:
 ```python
 class OptimizedApp(App[AppConfig]):
     async def on_initialize(self):
-        # Load from disk cache once
+        # Load from disk cache once into an instance variable
         self.config_data = self.cache.get("config", {})
 
-    async def on_ready(self):
-        # Use in-memory copy for frequent access
+        # Use in-memory copy for frequent access throughout the app's lifetime
         setting = self.config_data.get("some_setting")
 
     async def on_shutdown(self):

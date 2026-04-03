@@ -45,12 +45,9 @@ Create `config/hassette.toml`:
 
 Update `base_url` to match your Home Assistant instance.
 
-!!! note "Where Hassette looks"
-    By default, Hassette searches for:
+--8<-- "pages/core-concepts/configuration/snippets/file_discovery.md"
 
-    - `hassette.toml`: `/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`
-    - `.env`: `/config/.env`, `./.env`, `./config/.env`
-
+!!! tip
     Run Hassette from your project directory and it will pick up `./config/hassette.toml` and `./config/.env` automatically.
 
 ## 6. Create your first app
@@ -61,6 +58,16 @@ Create `hassette_apps/main.py`:
 --8<-- "pages/getting-started/snippets/first_app.py"
 ```
 
+!!! note "Typed handlers"
+    This example uses a raw event for simplicity. Once you're comfortable, Hassette's [dependency injection](../core-concepts/bus/handlers.md) lets you write cleaner handlers with automatic type conversion:
+
+    ```python
+    from hassette import App, AppConfig, D, states
+
+    async def on_sun_change(self, new_state: D.StateNew[states.SunState]):
+        self.logger.info("Sun changed: %s", new_state.value)
+    ```
+
 ## 7. Run Hassette
 
 From your project directory:
@@ -68,6 +75,18 @@ From your project directory:
 ```bash
 hassette
 ```
+
+Hassette is a long-running process. You should see output like:
+
+```
+INFO hassette ... ─ Connected to Home Assistant
+INFO hassette.MyApp.0 ... ─ This is from the config file!
+INFO hassette.MyApp.0 ... ─ Heartbeat
+INFO hassette.MyApp.0 ... ─ Sun changed: below_horizon
+INFO hassette.MyApp.0 ... ─ Porch light turned on
+```
+
+The greeting comes from the `greeting` field in your `hassette.toml` — Hassette loaded your config and passed it to your app as `self.app_config.greeting`. When the sun sets, the app calls `self.api.turn_on()` to switch on a light — a complete automation in a few lines of Python.
 
 !!! tip
     If your environment doesn't expose the `hassette` command, run `python -m hassette` instead.
@@ -78,8 +97,12 @@ If you need explicit paths:
 hassette -c ./config/hassette.toml -e ./config/.env
 ```
 
+!!! tip "Having trouble?"
+    If Hassette fails to start or can't connect to Home Assistant, see the [Troubleshooting](../troubleshooting.md) page — the most common issue is an incorrect `base_url` or missing token.
+
 ## Next steps
 
+- [Web UI](../web-ui/index.md) — open `http://localhost:8126/ui/` to see the dashboard
 - [Creating a Home Assistant token](ha_token.md) — if you haven't set up your token yet
 - [Apps Overview](../core-concepts/apps/index.md) — writing your first automation
 - [Configuration Overview](../core-concepts/configuration/index.md) — config precedence, file locations, and options

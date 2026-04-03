@@ -1,14 +1,26 @@
-from hassette import App, AppConfig, D, states
+from hassette import App, AppConfig
+from hassette.events import RawStateChangeEvent
 
 
-class MyApp(App[AppConfig]):
+class MyAppConfig(AppConfig):
+    greeting: str = "Hello from Hassette!"
+
+
+class MyApp(App[MyAppConfig]):
     async def on_initialize(self):
-        self.logger.info("Getting started with Hassette!")
-        self.bus.on_state_change("sun.*", handler=self.changed)
-        self.scheduler.run_minutely(self.log_heartbeat, start=self.now())
+        self.logger.info(self.app_config.greeting)
+        self.bus.on_state_change("sun.*", handler=self.on_sun_change)
+        self.scheduler.run_minutely(self.log_heartbeat, start=self.now())  # first run fires immediately
 
-    async def changed(self, new_state: D.StateNew[states.SunState]):
-        self.logger.info("Sun changed: %s", new_state.value)
+    async def on_sun_change(self, event: RawStateChangeEvent):
+        new_state = event.payload.data.new_state
+        value = new_state.get("state") if new_state else "unknown"
+        self.logger.info("Sun changed: %s", value)
+
+        # Turn on porch light at sunset
+        if value == "below_horizon":
+            await self.api.turn_on("light.porch")
+            self.logger.info("Porch light turned on")
 
     async def log_heartbeat(self):
         self.logger.info("Heartbeat")

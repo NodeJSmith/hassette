@@ -38,7 +38,7 @@ Each app row has action buttons:
 
 ## Multi-Instance Apps
 
-Apps configured with multiple instances show an expandable row. Click the chevron to reveal individual instances. In the screenshot above, `new_remote_app` is a `RemoteApp` with two instances: `jessica_remote` and `other_remote`. Each instance has its own status and action buttons.
+Apps configured with multiple instances show an expandable row with an "N instances" badge. Click the chevron to reveal individual instances. In the screenshot above, `motion_lights` and `presence_tracker` each have 2 instances. Each instance has its own status and action buttons.
 
 ## App Detail View
 

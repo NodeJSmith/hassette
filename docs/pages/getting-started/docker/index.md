@@ -112,6 +112,9 @@ Create `apps/my_app.py`:
 docker compose up -d
 ```
 
+!!! warning "Web UI Security"
+    The Docker Compose file exposes port 8126, which serves the web UI and REST API with **no authentication**. Anyone on your network can view, start, stop, and reload your automations. For remote servers, bind to `127.0.0.1` via `web_api_host` or place Hassette behind a reverse proxy with authentication. See [Web UI — Accessing the UI](../../web-ui/index.md#accessing-the-ui) for details.
+
 Check the logs:
 
 ```bash
@@ -179,6 +182,9 @@ See [Managing Dependencies](dependencies.md) for details on `HASSETTE__APP_DIR` 
 - [Managing Dependencies](dependencies.md) - Install Python packages for your apps
 - [Image Tags](image-tags.md) - Choose the right Docker image
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
+
+!!! note "File Locations"
+    For details on where Hassette searches for `hassette.toml` and `.env` files, including the `-c` and `-e` override flags, see [Configuration — File Locations](../../core-concepts/configuration/index.md#file-locations).
 
 ## See Also
 

@@ -66,6 +66,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scheduler auto-generated job names include trigger info, preventing name collisions (#446)
 - Scheduler job and listener filters return correct results after `owner_id`/`app_key` mismatch fix (#335, #336)
 
+### Documentation
+
+- Fixed broken code examples: `run_hourly(minute=15)` TypeError, invalid `api_port` field, wrong `instance_name` key in config snippet (#469, #472)
+- Added parameter tables to all scheduler methods with types, defaults, and cross-references (#469, #472)
+- Corrected `data_dir` default from `~/.hassette` to actual platform-dependent path (#469, #472)
+- Added troubleshooting index page with symptom-based navigation (#469, #472)
+- Added security admonition for unauthenticated web API (#469, #472)
+- Extracted duplicated config file-discovery table into a shared snippet (#469, #472)
+- Simplified getting-started first app to use raw events; added typed-handler forward reference (#469, #472)
+- Removed ghost `getting-started/configuration.md` page (#469, #472)
+
 ## [0.23.0] - 2026-02-19
 
 ### Changed

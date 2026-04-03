@@ -78,7 +78,24 @@ When the telemetry database becomes unavailable (disk full, permissions error, c
 - The Dashboard displays a degraded indicator to alert you.
 - Your automations continue to run normally — telemetry is an observability layer, not a dependency for app execution.
 
-To resolve a degraded state, check for disk space issues or file permission problems at your configured `db_path`.
+### Recovery
+
+To resolve a degraded state:
+
+1. **Check disk space** — in Docker: `docker compose exec hassette df -h /data`
+2. **Check file permissions** — ensure the Hassette user can write to the database path
+3. **Delete and restart** — if the database is corrupted, deleting it is safe. Only telemetry history is lost; your automations are unaffected:
+
+    ```bash
+    # Docker
+    docker compose exec hassette rm /data/hassette.db
+    docker compose restart hassette
+
+    # Local
+    rm ~/.local/share/hassette/v0/hassette.db  # replace v0 with your major version, or use your configured db_path
+    ```
+
+    Hassette will recreate the database on next startup.
 
 ## Related Resources
 

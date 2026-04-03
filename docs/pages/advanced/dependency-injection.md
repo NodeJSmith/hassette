@@ -70,7 +70,7 @@ Extract typed state objects from state change events:
 ```
 
 !!! note
-    In actual usage you should pass a condition to the `changed` parameter of `on_state_changed`, which will handle this
+    In actual usage you should pass a condition to the `changed` parameter of `on_state_change`, which will handle this
     condition for you.
 
     ```python

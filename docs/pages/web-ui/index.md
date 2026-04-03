@@ -34,6 +34,11 @@ http://<host>:8126/ui/
 
 The default bind address is `0.0.0.0:8126`. Change it with `web_api_host` and `web_api_port`.
 
+!!! warning "No authentication"
+    The web API and UI have no built-in authentication. By default, the server binds to `0.0.0.0`, making it accessible to anyone on your network. This includes endpoints that can start, stop, and reload your automations.
+
+    For local-only access, set `web_api_host = "127.0.0.1"` in your `hassette.toml`. If you need remote access, place Hassette behind a reverse proxy with authentication (e.g., Caddy, nginx, or Traefik with basic auth or SSO).
+
 ## Configuration Quick Reference
 
 | Setting | Type | Default | Description |

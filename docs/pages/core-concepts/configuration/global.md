@@ -35,9 +35,13 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 ## Storage Settings
 
 - **`data_dir`** (string): Directory where Hassette stores persistent data.
-    - Default: `~/.hassette`
+    - Default: platform-dependent. Docker: `/data`. Linux: `~/.local/share/hassette/vN/`. macOS: `~/Library/Application Support/hassette/vN/`. Where `N` is the installed major version.
+    - Override with `HASSETTE__DATA_DIR` environment variable for a stable path across upgrades.
     - Used for [persistent cache](../persistent-storage.md) storage and other data files.
     - Each resource class gets its own subdirectory: `{data_dir}/{ClassName}/cache/`
+
+    !!! warning "Major version upgrades"
+        The default path includes the major version number. Upgrading to a new major version changes the path, which means the telemetry database and cache data appear to "disappear." Set an explicit `data_dir` if you need persistence across major upgrades.
 
 - **`default_cache_size`** (integer): Maximum size in bytes for each resource's disk cache.
     - Default: `104857600` (100 MiB)
@@ -77,6 +81,9 @@ These settings control the [web UI](../../web-ui/index.md) and the underlying we
 
 - **`web_api_log_buffer_size`** (integer): Maximum number of log entries to keep in the ring buffer.
     - Default: `2000`
+
+- **`web_api_job_history_size`** (integer): Maximum number of job execution records to keep in memory.
+    - Default: `1000`
 
 - **`web_ui_hot_reload`** (boolean): Watch web UI static files for changes and push live reloads to the browser via WebSocket. CSS changes are hot-swapped without a page reload; JS changes trigger a full reload.
     - Default: `false`
@@ -128,40 +135,15 @@ These settings control how long Hassette waits for various operations before giv
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `scheduler_min_delay_seconds` | integer | `1` | Minimum delay between scheduled jobs. |
-| `scheduler_max_delay_seconds` | integer | `30` | Maximum delay between scheduled jobs. |
-| `scheduler_default_delay_seconds` | integer | `15` | Default delay between scheduled jobs. |
+| `scheduler_min_delay_seconds` | integer | `1` | Minimum sleep interval for the scheduler loop. Prevents busy-waiting when jobs fire in rapid succession. |
+| `scheduler_max_delay_seconds` | integer | `30` | Maximum sleep interval for the scheduler loop. Bounds how long the scheduler may wait before checking for due jobs. |
+| `scheduler_default_delay_seconds` | integer | `15` | Default sleep interval used when no jobs are imminently due. |
 
 ## Logging Settings
 
-You can tune the log level for individual services without changing the global `log_level`. Each field falls back to the global `log_level` setting, which itself defaults to `INFO`. See [Log Level Tuning](../../advanced/log-level-tuning.md) for the full precedence chain.
+Hassette supports per-service log levels for each of its 13 internal services. Each field falls back to the global `log_level` setting (default: `INFO`).
 
-See [Log Level Tuning](../../advanced/log-level-tuning.md) for a full guide.
-
-| Setting | Controls |
-|---------|----------|
-| `database_service_log_level` | Database service |
-| `bus_service_log_level` | Event bus service |
-| `scheduler_service_log_level` | Scheduler service |
-| `app_handler_log_level` | App handler (discovery, loading) |
-| `web_api_log_level` | Web API service |
-| `websocket_log_level` | WebSocket service |
-| `service_watcher_log_level` | Service watcher |
-| `file_watcher_log_level` | File watcher service |
-| `task_bucket_log_level` | Task buckets |
-| `command_executor_log_level` | Command executor |
-| `apps_log_level` | Default for all apps (overridable per app) |
-| `state_proxy_log_level` | State proxy |
-| `api_log_level` | API resource (REST/WebSocket client) |
-
-**Example:**
-
-```toml
-[hassette]
-log_level = "INFO"
-bus_service_log_level = "WARNING"
-scheduler_service_log_level = "DEBUG"
-```
+See [Log Level Tuning](../../advanced/log-level-tuning.md) for the full field list, precedence rules, and examples.
 
 ## Bus Filtering Settings
 
@@ -194,6 +176,11 @@ bus_excluded_entities = ["switch.noisy_device"]
 | `autodetect_apps` | boolean | `true` | Automatically discover apps in the app directory. |
 | `run_app_precheck` | boolean | `true` | Run app precheck before starting. If any apps fail to load, Hassette does not start. |
 | `allow_startup_if_app_precheck_fails` | boolean | `false` | Allow Hassette to start even if the app precheck fails. Generally not recommended. |
+| `extend_autodetect_exclude_dirs` | tuple of strings | `()` | Additional directories to exclude from app auto-detection. **Use this instead of `autodetect_exclude_dirs`** — it adds to the defaults rather than replacing them. |
+| `autodetect_exclude_dirs` | tuple of strings | *(built-in list)* | Full list of excluded directories. Setting this directly **replaces** the defaults (`.git`, `__pycache__`, `.venv`, etc.), which is usually not what you want. |
+
+!!! warning
+    If you need to exclude additional directories from app auto-detection, always use `extend_autodetect_exclude_dirs`. Setting `autodetect_exclude_dirs` directly will remove the default exclusions, causing Hassette to scan `.git`, `__pycache__`, virtual environments, and other directories that should be ignored.
 
 ## Advanced Settings
 
@@ -202,6 +189,32 @@ bus_excluded_entities = ["switch.noisy_device"]
 | `hassette_event_buffer_size` | integer | `1000` | Buffer capacity of the internal event channel used to route events to the bus. |
 | `asyncio_debug_mode` | boolean | `false` | Enable asyncio debug mode. |
 | `watch_files` | boolean | `true` | Watch files for changes and reload apps automatically. |
+
+## Service Restart Policy
+
+These settings control automatic restart behavior when an internal service crashes.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `service_restart_max_attempts` | integer | `5` | Maximum restart attempts before giving up. |
+| `service_restart_backoff_seconds` | float | `2.0` | Initial delay between restart attempts. |
+| `service_restart_max_backoff_seconds` | float | `60.0` | Maximum delay between restart attempts. |
+| `service_restart_backoff_multiplier` | float | `2.0` | Multiplier applied after each failed attempt. |
+| `service_restart_readiness_timeout_seconds` | float | `10.0` | Seconds to wait for a restarted service to become ready. |
+
+## Other Advanced Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `resource_shutdown_timeout_seconds` | integer | *(same as `app_shutdown_timeout_seconds`)* | Per-phase timeout for resource shutdown. |
+| `state_proxy_poll_interval_seconds` | integer | `30` | Interval to poll Home Assistant for state updates (supplements WebSocket events). |
+| `disable_state_proxy_polling` | boolean | `false` | Disable state polling entirely (rely only on WebSocket events). |
+| `db_migration_timeout_seconds` | integer | `120` | Maximum seconds to wait for database migrations at startup. |
+| `file_watcher_debounce_milliseconds` | integer | `3000` | Debounce time for file watcher events. |
+| `file_watcher_step_milliseconds` | integer | `500` | Time to wait for additional file changes before emitting an event. Works with the debounce to batch rapid saves. |
+| `task_cancellation_timeout_seconds` | integer | `5` | Time to wait for tasks to cancel before forcing. |
+| `scheduler_behind_schedule_threshold_seconds` | integer | `5` | Threshold before a "behind schedule" warning is logged. |
+| `run_sync_timeout_seconds` | integer | `6` | Default timeout for synchronous function calls. |
 
 ## Basic Example
 
