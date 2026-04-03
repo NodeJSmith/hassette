@@ -1,5 +1,7 @@
 # Design: Wave 3 — Dashboard & App Detail Polish
 
+**Status:** archived
+
 **Date:** 2026-03-23
 **Issues:** #363, #385, #383, #357, #359
 **Scope:** Frontend (Preact) only — no backend changes

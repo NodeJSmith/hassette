@@ -1,5 +1,7 @@
 # Design: CommandExecutor — Issue #266
 
+**Status:** archived
+
 **Date**: 2026-03-11
 **Status**: implemented
 **Milestone**: SQLite + Command Executor

@@ -1,7 +1,7 @@
 # Design: Fix owner_id/app_key mismatch in job and listener recording
 
 **Date:** 2026-03-15
-**Status:** implemented
+**Status:** archived
 **Spec:** design/specs/005-fix-owner-app-key-mismatch/spec.md
 
 ## Problem

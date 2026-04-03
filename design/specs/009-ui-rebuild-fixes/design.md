@@ -1,7 +1,7 @@
 # Design: UI Rebuild Post-Critique Fixes
 
 **Date:** 2026-03-19
-**Status:** implemented
+**Status:** archived
 **Critique:** design/critiques/2026-03-19-ui-rebuild-challenge/critique.md
 **Research:** design/research/2026-03-19-alpine-live-updates/research.md
 **Critique iterations:** 4 rounds — morph approach revised twice, then abandoned in favor of completing existing polling partial

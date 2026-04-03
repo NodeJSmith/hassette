@@ -1,7 +1,7 @@
 # Design: Dashboard Quality Fixes
 
 **Date:** 2026-03-27
-**Status:** approved
+**Status:** archived
 **Spec:** design/specs/2027-dashboard-quality-fixes/spec.md
 **Research:** /tmp/claude-mine-design-research-Xv3A2t/brief.md
 
