@@ -8,4 +8,4 @@ class_name = "MyApp"
 enabled = true
 
 [[apps.my_app.config]]
-name = "instance_1"
+instance_name = "instance_1"

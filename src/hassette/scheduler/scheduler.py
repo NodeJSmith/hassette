@@ -6,101 +6,62 @@ cron expressions, intervals, or simple time delays. Jobs are automatically clean
 the app shuts down, and support both async and sync callables.
 
 Examples:
-    One-time delayed execution
+    One-time delayed execution::
 
-    ```python
-    # Run in 30 seconds
-    self.scheduler.run_in(self.cleanup_task, 30)
+        # Run in 30 seconds
+        self.scheduler.run_in(self.cleanup_task, 30)
 
-    # Run at specific datetime
-    self.scheduler.run_once(self.morning_routine, "2023-12-25 09:00:00")
-    ```
+        # Run once at a specific time (7:00 AM)
+        self.scheduler.run_once(self.morning_routine, start=(7, 0))
 
-    Recurring execution with intervals
+    Recurring execution with intervals::
 
-    ```python
-    # Every 5 minutes
-    self.scheduler.run_every(self.check_sensors, interval=300)
+        # Every 5 minutes
+        self.scheduler.run_every(self.check_sensors, interval=300)
 
-    # Every hour starting in 10 minutes
-    self.scheduler.run_every(
-        self.hourly_report,
-        interval=3600,
-        start_in=600
-    )
-    ```
+        # Every hour starting in 10 minutes
+        self.scheduler.run_every(self.hourly_report, interval=3600, start=600)
 
-    Time-based recurring schedules
+    Convenience helpers::
 
-    ```python
-    # Every hour at 15 minutes past
-    self.scheduler.run_hourly(self.log_status, minute=15)
+        # Every hour
+        self.scheduler.run_hourly(self.log_status)
 
-    # Daily at 6:30 AM
-    self.scheduler.run_daily(self.morning_routine, hour=6, minute=30)
+        # Every day, first run anchored to 6:30 AM
+        self.scheduler.run_daily(self.morning_routine, start=(6, 30))
 
-    # Every minute at 30 seconds
-    self.scheduler.run_minutely(self.quick_check, second=30)
-    ```
+        # Every 5 minutes
+        self.scheduler.run_minutely(self.quick_check, minutes=5)
 
-    Cron-style scheduling
+    Cron-style scheduling::
 
-    ```python
-    # Weekdays at 9 AM
-    self.scheduler.run_cron(
-        self.workday_routine,
-        hour=9,
-        minute=0,
-        day_of_week="mon-fri"
-    )
+        # Weekdays at 9 AM
+        self.scheduler.run_cron(
+            self.workday_routine,
+            hour=9,
+            minute=0,
+            day_of_week="1-5",
+        )
 
-    # Every 15 minutes during business hours
-    self.scheduler.run_cron(
-        self.business_check,
-        minute="*/15",
-        hour="9-17",
-        day_of_week="mon-fri"
-    )
-    ```
+        # Every 15 minutes during business hours on weekdays
+        self.scheduler.run_cron(
+            self.business_check,
+            minute="*/15",
+            hour="9-17",
+            day_of_week="1-5",
+        )
 
-    Using trigger objects for complex scheduling
+    Job management::
 
-    ```python
-    from hassette.scheduler import CronTrigger, IntervalTrigger
+        # Named job for easier management
+        job = self.scheduler.run_daily(
+            self.backup_data,
+            name="daily_backup",
+            start=(2, 0),
+        )
 
-    # Complex cron trigger
-    trigger = CronTrigger(
-        hour="*/2",
-        minute=30,
-        day_of_week="mon,wed,fri"
-    )
-    self.scheduler.schedule(self.complex_task, trigger=trigger)
-
-    # Interval with custom start time
-    trigger = IntervalTrigger(
-        interval=timedelta(minutes=30),
-        start_datetime=datetime(2023, 12, 1, 8, 0)
-    )
-    self.scheduler.schedule(self.periodic_task, trigger=trigger)
-    ```
-
-    Job management and naming
-
-    ```python
-    # Named job for easier management
-    job = self.scheduler.run_daily(
-        self.backup_data,
-        hour=2,
-        minute=0,
-        name="daily_backup"
-    )
-
-    # Remove specific job
-    self.scheduler.remove_job(job)
-
-    # Remove all jobs for this scheduler
-    self.scheduler.remove_all_jobs()
-    ```
+        # Cancel a specific job
+        job.cancel()
 """
 
 import asyncio

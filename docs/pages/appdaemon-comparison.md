@@ -133,7 +133,6 @@ A basic `hassette.toml` might look like this:
 ```toml
 [hassette]
 base_url = "http://127.0.0.1:8123"
-api_port = 8123
 
 [apps.my_app]
 filename = "my_app.py"

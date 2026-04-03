@@ -23,6 +23,20 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App] or 
 --8<-- "pages/core-concepts/apps/snippets/example_app.py"
 ```
 
+## Dates and Times
+
+Hassette uses the [`whenever`](https://whenever.readthedocs.io) library for timezone-aware date/time handling instead of Python's stdlib `datetime`. Every app provides `self.now()`, which returns a `ZonedDateTime` in your system timezone.
+
+```python
+# whenever types — used throughout Hassette
+from whenever import ZonedDateTime, TimeDelta, Time
+
+next_run = self.now().add(hours=2)          # 2 hours from now
+elapsed = self.now() - last_seen            # returns a TimeDelta
+```
+
+You'll see `ZonedDateTime` in scheduler parameters, persistent storage examples, and custom state definitions. If you're familiar with `datetime.datetime`, the API is similar but always timezone-aware.
+
 ## Core Capabilities
 
 Each app receives pre-configured helpers:
@@ -50,7 +64,7 @@ self.on_change_listener = self.bus.on_state_change(self.app_config.light, handle
 Use [`self.scheduler`](../scheduler/index.md) to schedule recurring tasks.
 
 ```python
-self.scheduler.run_hourly(self.log_status, minute=15)
+self.scheduler.run_hourly(self.log_status)
 ```
 
 ### Check Entity States

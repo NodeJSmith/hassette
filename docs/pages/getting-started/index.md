@@ -45,12 +45,9 @@ Create `config/hassette.toml`:
 
 Update `base_url` to match your Home Assistant instance.
 
-!!! note "Where Hassette looks"
-    By default, Hassette searches for:
+--8<-- "pages/core-concepts/configuration/snippets/file_discovery.md"
 
-    - `hassette.toml`: `/config/hassette.toml`, `./hassette.toml`, `./config/hassette.toml`
-    - `.env`: `/config/.env`, `./.env`, `./config/.env`
-
+!!! tip
     Run Hassette from your project directory and it will pick up `./config/hassette.toml` and `./config/.env` automatically.
 
 ## 6. Create your first app
@@ -61,6 +58,9 @@ Create `hassette_apps/main.py`:
 --8<-- "pages/getting-started/snippets/first_app.py"
 ```
 
+!!! note "Typed handlers"
+    This example uses a raw event for simplicity. Once you're comfortable, Hassette's [dependency injection](../core-concepts/bus/handlers.md) lets you write much cleaner handlers with automatic type conversion — e.g., `async def on_sun_change(self, new_state: D.StateNew[SunState])`.
+
 ## 7. Run Hassette
 
 From your project directory:
@@ -68,6 +68,16 @@ From your project directory:
 ```bash
 hassette
 ```
+
+Hassette is a long-running process. You should see output like:
+
+```
+INFO hassette ... ─ Connected to Home Assistant
+INFO hassette.MyApp.0 ... ─ This is from the config file!
+INFO hassette.MyApp.0 ... ─ Heartbeat
+```
+
+The greeting comes from the `greeting` field in your `hassette.toml` — Hassette loaded your config and passed it to your app as `self.app_config.greeting`.
 
 !!! tip
     If your environment doesn't expose the `hassette` command, run `python -m hassette` instead.

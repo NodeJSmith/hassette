@@ -20,21 +20,7 @@ Hassette loads configuration from multiple sources, with the following precedenc
 
 ## File Locations
 
-Hassette searches for `hassette.toml` in:
-
-1. `/config/hassette.toml`
-2. `./hassette.toml`
-3. `./config/hassette.toml`
-
-You can override this with `--config-file` / `-c`.
-
-Hassette searches for `.env` files in:
-
-1. `/config/.env`
-2. `./.env`
-3. `./config/.env`
-
-You can override this with `--env-file` / `-e`.
+--8<-- "pages/core-concepts/configuration/snippets/file_discovery.md"
 
 !!! tip "Docker"
     In Docker, typically mount your configuration volume to `/config`.

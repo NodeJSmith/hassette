@@ -8,6 +8,8 @@ services:
       - ./apps:/apps
       - data:/data
       - uv_cache:/uv_cache
+    ports:
+      - "8126:8126"
     environment:
       - LOG_LEVEL=info
       - TZ=America/New_York # Set your timezone

@@ -35,9 +35,13 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 ## Storage Settings
 
 - **`data_dir`** (string): Directory where Hassette stores persistent data.
-    - Default: `~/.hassette`
+    - Default: platform-dependent. Docker: `/data`. Linux: `~/.local/share/hassette/vN/`. macOS: `~/Library/Application Support/hassette/vN/`. Where `N` is the installed major version.
+    - Override with `HASSETTE__DATA_DIR` environment variable for a stable path across upgrades.
     - Used for [persistent cache](../persistent-storage.md) storage and other data files.
     - Each resource class gets its own subdirectory: `{data_dir}/{ClassName}/cache/`
+
+    !!! warning "Major version upgrades"
+        The default path includes the major version number. Upgrading to a new major version changes the path, which means the telemetry database and cache data appear to "disappear." Set an explicit `data_dir` if you need persistence across major upgrades.
 
 - **`default_cache_size`** (integer): Maximum size in bytes for each resource's disk cache.
     - Default: `104857600` (100 MiB)

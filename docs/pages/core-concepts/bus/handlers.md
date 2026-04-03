@@ -60,20 +60,9 @@ You can pass additional arguments to your handler using `kwargs` when subscribin
 
 ### Available Dependencies
 
-Common dependencies are imported from `hassette.dependencies` (aliased as `D`).
+Dependencies are imported from `hassette.dependencies` (aliased as `D`). The most common are `StateNew[T]`, `StateOld[T]`, `EntityId`, and `Domain`.
 
-#### State Extractors
-- `StateNew[T]` - Extract the new state object, raises if missing
-- `StateOld[T]` - Extract the old state object, raises if missing
-- `MaybeStateNew[T]` - Extract new state, allows None
-- `MaybeStateOld[T]` - Extract old state, allows None
-
-#### Identity Extractors
-- `EntityId` - Extract the entity ID
-- `Domain` - Extract the domain
-- `EventContext` - Extract the Home Assistant event context
-
-For a complete list and advanced usage, see the [Dependency Injection](../../advanced/dependency-injection.md) guide.
+See the [Dependency Injection guide](../../advanced/dependency-injection.md#available-di-annotations) for the full annotation table, custom extractors, and automatic type conversion.
 
 ### Restrictions
 
