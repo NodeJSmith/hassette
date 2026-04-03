@@ -54,7 +54,7 @@ default_cache_size = 209715200  # 200 MiB
 
 ## Web UI Settings
 
-These settings control the built-in [web UI](../../web-ui/index.md) and the underlying web API service.
+These settings control the [web UI](../../web-ui/index.md) and the underlying web API service.
 
 - **`run_web_api`** (boolean): Whether to run the web API service (REST API, healthcheck, and UI backend).
     - Default: `true`

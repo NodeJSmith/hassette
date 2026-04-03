@@ -150,9 +150,9 @@ docker compose logs -f hassette
 docker compose logs --tail=100 hassette
 ```
 
-### Built-in Web Dashboard
+### Web UI
 
-Hassette includes a built-in web UI at `http://<host>:8126/ui/` with a live dashboard, app management, log streaming, and session history. No extra containers or setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
+Hassette includes a web UI at `http://<host>:8126/ui/` with a live dashboard, app management, log streaming, and session history. No extra setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
 
 ## Environment Variables Reference
 

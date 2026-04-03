@@ -79,7 +79,7 @@ Learn more about writing apps in the [apps](apps/index.md) section.
 - [API](api/index.md) – interacting with Home Assistant.
 - [States](states/index.md) – working with state models.
 - [Configuration](configuration/index.md) – Hassette and app configuration.
-- [Web UI](../web-ui/index.md) – built-in browser dashboard for monitoring and management.
+- [Web UI](../web-ui/index.md) – browser-based monitoring and management.
 
 ## Advanced Topics
 
