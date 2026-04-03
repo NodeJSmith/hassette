@@ -7,198 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Added
-- Session list page — `/sessions` route with sidebar navigation, status badges, and formatted timestamps (#464)
-- Session scope toggle — "This Session" / "All Time" segmented control in the status bar with localStorage persistence (#464)
-- `useScopedApi` hook — scope-aware data fetching wrapper; all telemetry consumers use it automatically (#464)
-- Database size failsafe — `db_max_size_mb` config (default 500) with automatic oldest-record deletion and `incremental_vacuum` (#464)
-- Alembic migration 005 — one-time `auto_vacuum = INCREMENTAL` conversion for disk space reclamation (#464)
-- Source code display in handler and job detail panels (`source_location` and `registration_source`) (#464)
+### Breaking Changes
 
-### Changed
-- Telemetry endpoints accept client-provided `session_id` query parameter (server no longer injects session scope) (#464)
-- `get_session_list()` and `get_recent_errors()` return typed Pydantic models instead of `list[dict]` (#464)
-- Error rate formula unified across dashboard, app-detail, and `AppHealthSummary` (now includes both handler and job data) (#464)
-- Heartbeat failure handler narrowed from bare `except Exception` to `except (sqlite3.Error, OSError, ValueError)` (#464)
-- Removed fragile `_reraise_if_not_connection_closed()` string matching — all `DB_ERRORS` suppressed uniformly (#464)
+- **`TriggerProtocol` split** — custom triggers must now implement both `first_run_time(current_time)` and `next_run_time(previous_run, current_time)` instead of a single method. Triggers are now stateless. (#452)
+- **`/api/healthz` removed** — update Docker Compose health checks from `/api/healthz` to `/api/health`, which returns structured JSON and 503 for non-ok status. (#448)
+- **Scheduler enforces job name uniqueness** — duplicate job names per instance raise `ValueError`. Pass `if_exists="skip"` for idempotent registration. (#297)
+- **`once=True` + rate limiting raises `ValueError`** — combining `once=True` with `debounce` or `throttle` is no longer silently accepted. Remove the rate-limiting parameter from affected listeners. (#430)
 
-### Added
-- Domain model layer (`core/domain_models.py`) — Pydantic models for live runtime state and WS event payloads, decoupling core services from the web presentation layer (#461)
-- Web mapping layer (`web/mappers.py`) — centralized domain-to-response model conversion for all REST and WebSocket routes (#461)
-- `TelemetryRepository` class — extracted SQL persistence from `CommandExecutor` into a dedicated repository with lazy db access (#461)
-- OpenAPI TypeScript codegen — `scripts/export_schemas.py --types` generates `frontend/src/api/generated-types.ts` from the OpenAPI schema, replacing hand-mirrored interfaces (#461)
-- CI schema validation — frontend job regenerates and diffs `openapi.json`, `ws-schema.json`, and `generated-types.ts` to catch drift (#461)
-- `api_log_level` config field for independent Api/ApiResource log level control (#463)
-- `config_log_level` overrides for SessionManager, EventStreamService, WebUiWatcherService, StateManager, and ApiSyncFacade — no Resource falls through to global default (#463)
-- Design doc (`design/config-log-level-convention.md`) establishing the three-mode config_log_level convention (#463)
-- `-> LOG_LEVEL_TYPE` return annotation on all 26 `config_log_level` overrides (#463)
+### Web UI
 
-### Changed
-- `RuntimeQueryService` returns domain objects (`SystemStatus`, `AppStatusSnapshot`, `AppFullSnapshot`) instead of web response models — zero imports from `hassette.web.models` (#461)
-- `CommandExecutor._execute_handler()` and `_execute_job()` deduplicated via `track_execution(known_errors=...)` — ~170 lines of duplicated exception handling consolidated (#461)
-- WS payload types (`StateChangedData`, `AppStatusChangedData`, `ConnectivityData`, `ServiceStatusData`) moved from `web/models.py` to `core/domain_models.py` (#461)
-- `broadcast()` logging moved outside the async lock to reduce contention under queue-full conditions (#461)
-
-### Fixed
-- `logger.exception()` called outside active exception handler in `CommandExecutor` — replaced with `logger.error()` using the captured traceback string (#461)
-- Automatic child lifecycle propagation — `Resource.shutdown()` and `Resource.initialize()` now propagate to children automatically, eliminating manual cleanup in parent `on_shutdown` hooks (#453)
-- `Scheduler.on_shutdown()` hook clears all jobs on shutdown (mirrors `Bus.on_shutdown()`) (#453)
-- `_shutdown_completed` flag for true shutdown idempotency — sequential double-shutdown is now a no-op (#453)
-- Timeout enforcement in `_finalize_shutdown()` — timed-out children are recursively force-terminated via `_force_terminal()`, cancelling tasks at all tree depths (#453)
-- `_on_children_stopped()` hook for post-children shutdown logic (used by Hassette for `close_streams()` ordering) (#453)
-- `total_shutdown_timeout_seconds` config caps Hassette's total shutdown wall-clock time (default: 30s) (#453)
-
-### Changed
-- `mark_ready()` moved from `__init__` to `on_initialize()` for Bus, Scheduler, Api, ApiSyncFacade, and _ScheduledJobQueue — leaf resources are now ready only after `initialize()`, not immediately after construction (**breaking**: code that checks readiness before calling `initialize()` must be updated) (#453)
-- `App.cleanup()`, `StateProxy.on_shutdown()`, `ServiceWatcher.on_shutdown()`, and `AppHandler.on_shutdown()` simplified — manual child cleanup calls removed in favor of automatic propagation (#453)
-- `TriggerProtocol` split into `first_run_time(current_time)` and `next_run_time(previous_run, current_time)` — triggers are now stateless and testable without mocking `now()` (**breaking**: custom triggers must implement both methods) (#452)
-- `Listener.matches()` is now synchronous (was async but never awaited) — reduces coroutine frame overhead on the event dispatch hot path (#452)
-
-### Fixed
-- `Api.config_log_level` and `ApiResource.config_log_level` were no-op overrides returning the global `log_level` — now correctly return `api_log_level` (#463)
-- `callable_name()` LRU cache removed — bound method references no longer pinned in memory after app reload (#452)
-- `IntervalTrigger.next_run_time()` no longer mutates internal state; calling it twice with the same inputs now returns the same result (#452)
-- `CronTrigger.next_run_time()` creates a fresh `croniter` per call instead of advancing a shared cursor (#452)
-- `Listener.db_id` and `ScheduledJob.db_id` now use `mark_registered()` with a warning guard against double-assignment (#452)
-- `ScheduledJob.set_next_run()` sort_index now uses rounded nanos, fixing a heap ordering inconsistency (#452)
-- `IntervalTrigger` rejects zero/negative intervals with `ValueError` at construction (#452)
-- Hard `assert secs > 0` in reschedule replaced with warning + 1-second advance fallback (#452)
-
-### Added
-- Telemetry status endpoint (`/api/telemetry/status`) for monitoring database health — returns 503 when degraded, usable by Docker HEALTHCHECK and external tools (#448)
-- Status bar shows "DB degraded" indicator when telemetry database is unavailable, with exponential backoff polling (#448)
-- Log table truncation detection now reactive — re-evaluates on viewport resize, font loading, and data changes via ResizeObserver (#448)
-
-### Changed
-- `/api/health` returns 503 for non-ok system status (degraded, starting) while preserving structured JSON response — Docker health checks now use this endpoint (#448)
-- `/api/healthz` removed (breaking) — update docker-compose health checks from `/healthz` to `/api/health` (#448)
-- Dashboard app grid aggregates telemetry across all app instances (invocations, errors, executions) instead of showing instance 0 only (#448)
-
-### Fixed
-- Edge-case bug fixes: multi-predicate listeners no longer collapse into one DB row, dashboard error feed shows correct listener/job IDs and timestamps, SPA static file serving works under editable installs, scheduler auto-generated names include trigger info to prevent collisions (#446)
-- Dashboard endpoints catch `sqlite3.Error` specifically instead of bare `Exception`, preventing silent swallowing of programming errors (#446)
-- Dead endpoints removed: `GET /bus/metrics` (hardcoded zeros) and `GET /apps/{app_key}` (unused, returned only first instance) (#446)
-- Dead columns `first_registered_at`/`last_registered_at` and upsert logic removed from both registration tables (never read, cleanup on restart made upserts dead code) (#446)
-- Keyboard accessibility: focus-visible indicators on all interactive elements, skip-nav link, ARIA roles on status filter/log expand/health bar, self-hosted fonts for offline use (#442)
-- Log table Source column no longer overflows into Message column; column widths rebalanced (#442)
-- Missing CSS classes `.ht-text-warning` and `.ht-tag--neutral` now defined (were used in components but never styled) (#442)
-- Rate limiter redesign: throttle no longer blocks concurrent dispatch, debounced handlers now produce accurate telemetry via CommandExecutor, `once=True` listeners cannot double-fire under rapid events (#430)
-- `once=True` combined with `debounce` or `throttle` now raises `ValueError` at registration (previously undefined behavior) (#430)
-- `debounce` and `throttle` values of zero or negative now raise `ValueError` at registration (#430)
-
-### Changed
-- Status filter tabs converted from `<a href="#">` links to `<button aria-pressed>` toggle buttons (#442)
-- Log message expand chevron hidden by default, appears on row hover or keyboard focus (#442)
-- All inline styles extracted to CSS classes using design tokens (#442)
-- Fonts self-hosted (DM Sans, JetBrains Mono, Space Grotesk) — no longer loaded from Google CDN (#442)
-- Complete web UI rebuild: 4 pages (Dashboard, Apps, App Detail, Logs), Graphite + Emerald design token system, handler/job drill-down with invocation history, plain-language handler summaries, and session-scoped error feed (#343)
-- Dashboard queries optimized from 2N sequential SQL calls to 2 batch queries via `get_all_app_summaries()` (#343)
-- Handler/job row live counts update via 5s polling without destroying Alpine.js expand state (replaced full-section morph with targeted DOM text updates) (#343)
-- Health thresholds centralized as Jinja2 globals (`classify_error_rate`, `classify_health_bar`) (#343)
-- Apps list page filter tabs use server-side filtering via `?status=` param instead of client-side Alpine `x-show` (#343)
-
-### Added
-- `predicate.summarize()` method on all event predicate classes for stable, human-readable handler descriptions (#343)
-- `human_description` column on `listeners` table (Alembic migration) populated at registration time (#343)
-- Typed Pydantic models (`ListenerSummary`, `JobSummary`, `HandlerInvocation`, `JobExecution`, `GlobalSummary`, `SessionSummary`, `AppHealthSummary`) for all telemetry query returns (#343)
-- Design token CSS system (`tokens.css`) with light/dark mode via `[data-theme]` selector and localStorage persistence (#343)
-- E2E tests for all 4 pages, theme toggle, WebSocket live-update infrastructure, and morph stability (#343)
-
-### Added
-- Invocation and execution counts on dashboard app cards — hidden when zero (#392)
-- Alembic migration chain integrity tests (revision chain, fresh-to-head, sequential upgrade, schema drift) (#392)
-- `useDebouncedEffect` hook with `maxWaitMs` to prevent debounce starvation during rapid updates (#392)
-- Centralized `localStorage` utility with `hassette:` prefix, runtime validators, and key migration (#392)
-
-### Changed
-- Dashboard refetches all three panels (KPIs, app grid, errors) on status changes with 500ms debounce + 2s max-wait, instead of only refetching the app grid immediately (#392)
-- Status-to-color mappings consolidated into single `status.ts` utility with runtime validation; unknown backend values fallback to neutral with `console.warn` (#392)
-- Multi-instance app expand state in the apps list now persists across page navigation via localStorage (#392)
-
-### Added
-- Source location column in log table showing `func_name:lineno` with full logger path on hover (#410)
-- Instance count badge on dashboard app cards for multi-instance apps (hidden for single-instance) (#410)
-- Error rate percentage on dashboard app cards, colored by server-classified severity (#411)
-- Multi-column sort (Level, App, Message) on log table with live-streaming auto-pause (#411)
-- Handler method and exception type shown in dashboard error feed entries (#411)
-
-### Fixed
-- App detail instance metadata now shows actual PID (`owner_id`) instead of `instance_name` (#411)
-- Error feed badge uses exception type name (e.g., "ValueError") instead of generic "handler"/"job" (#411)
-- Malformed instance index in URL no longer produces NaN API calls (#411)
-- Phantom `update_state` method removed from API docstring — only `set_state` exists (#410)
-- Resource and Service startup failures now log full traceback instead of silently re-raising (#410)
-- WebSocket message drops rate-limited to one warning per 10s with cumulative drop counter (#410)
-- `WebUiWatcherService` missing from Hassette children assertion in test_core.py (#410)
-- Dead `SchedulerSummaryResponse` model removed (obsolete after Preact migration) (#410)
-- Bus endpoint (`/bus/listeners`) now returns `ListenerWithSummary` with correct `once: int` type; `ListenerMetricsResponse` retired (#409)
-- Real-time log streaming works: WebSocket auto-subscribes on connect/reconnect with server-side level filtering (#409)
-- Log entries deduplicated at REST/WS boundary via monotonic sequence counter (#409)
-- Service log levels now inherit global `log_level` setting (redundant TOML defaults removed) (#409)
-- Stale listener and job registrations cleaned up on app startup; telemetry no longer shows removed handlers/jobs (#390)
-- Connection status bar no longer flashes "Disconnected" on page refresh; shows "Connecting..." until WebSocket handshake completes (#390)
-- App start/stop/reload endpoints work in production mode without `dev_mode` or `allow_reload_in_prod` (#390)
-- Throttle timing test no longer flaky under CI load (mocked `time.monotonic` instead of real sleeps) (#390)
-- Log table expand/collapse is keyboard-accessible and uses stable row keys (#390)
-- Handler descriptions show short method name + topic instead of truncated fully-qualified paths (#390)
-- Disabled apps now show a Start button in the apps list and detail page (#390)
-- App detail sections use wider spacing (32px) between cards for clearer visual rhythm (#390)
-- Action buttons in apps list use compact ghost style instead of outlined buttons (#390)
-- Empty handler/job sections hidden on app detail page instead of showing placeholder text (#390)
-- Dashboard app cards and apps list now use consistent pill badge for status (#390)
-- Handler Avg health card shows "—" instead of misleading "<1ms" when no invocations exist (#390)
-- Log table font sizes match apps table (15px body text, consistent across pages) (#390)
-- Typed API returns for telemetry endpoints, handler/job rows refactored to useApi with lazy fetch and stale-while-revalidate (#381)
-- Relative timestamps now auto-refresh every 30 seconds (#381)
-- Action button errors are displayed instead of silently swallowed (#381)
-- Spinner, alert banner, and error feed badges now have visible CSS styles (were previously unstyled) (#381)
-- ~340 lines of dead CSS from the old htmx/Alpine UI removed (#381)
-- Long log messages truncate to 2 lines with click-to-expand (#381)
-- Dashboard errors section shows API failure instead of false "all healthy" (#381)
+- Complete rebuild as a Preact SPA with 5 pages: Dashboard, Apps, App Detail, Sessions, Logs (#343)
+- Graphite + Emerald design token system with light/dark mode toggle and `[data-theme]` persistence (#343, #442)
+- Session list page with status badges, "This Session" / "All Time" scope toggle, and localStorage persistence (#464)
+- Source location display in handler/job detail panels and log table (#464, #410)
+- Handler/job drill-down with invocation history, plain-language handler summaries, and error feed with exception type names (#343, #411)
+- Dashboard app cards show invocation/execution counts, error rate percentage, instance count badge, and multi-instance telemetry aggregation (#392, #410, #411, #448)
+- Multi-column sort on log table with live-streaming auto-pause and click-to-expand messages (#411, #381)
+- Keyboard accessibility: focus-visible indicators, skip-nav link, ARIA roles, keyboard-navigable log table (#442, #390)
+- Self-hosted fonts (DM Sans, JetBrains Mono, Space Grotesk) — no external CDN requests (#442)
+- Real-time log streaming via WebSocket with server-side level filtering and deduplication (#409)
 - WebSocket reconnection automatically refreshes all REST-fetched data without page reload (#379)
-- WebSocket hook no longer causes infinite reconnect loop when options are passed (#379)
-- Instance switcher uses client-side navigation instead of full page reload (#378)
-- ErrorBoundary resets on route change without destroying child component state (#378)
-- Loading spinners wait for all API requests to complete instead of disappearing after the first (#378)
-- `useApi` hook refetches when route params change and discards stale responses from superseded requests (#378)
-- Startup race condition: phased startup ensures session exists before services fire handlers, eliminating "Dropping N handler invocation record(s)" warnings on every boot (#343)
-- Internal handlers (ServiceWatcher, StateProxy) now dispatch directly without CommandExecutor, preventing listener_id=0 sentinel records (#343)
-- App-owned listeners route-first then register in DB, preventing silent event loss during registration window (#343)
-- Dashboard KPI strip now live-updates via 30s polling + WebSocket events (#343)
-- Removed duplicate connection bar on dashboard, redundant sidebar pulse dot (#343)
-- Split single "Avg Duration" health card into separate "Handler Avg" and "Job Avg" on app detail page (#343)
-- Renamed misleading "Init Status" to "Status" on app detail page (#343)
-- Removed dead Log Level button (#345) and Run Now button (#346) from UI (#343)
-- Scheduler job and listener filters in web UI partials and API now return correct results by fixing `owner_id`/`app_key` mismatch in DB recording and filter comparisons (#335) (#336)
-- `get_job_summary` telemetry query now returns `job_id`, `app_key`, and `instance_index` columns, matching the shape of `get_listener_summary` (#334)
-- Bus page telemetry query failures (from `asyncio.gather`) are now logged at WARNING instead of being silently dropped (#334)
-- App detail and instance detail pages now correctly filter scheduled jobs by `owner_id` instead of `app_key`, so jobs appear in the app detail view (#334)
-- Scheduler and bus page app-filter dropdowns now correctly pass `app_key` to HTMX partials (param name was `owner`, never matched the endpoint) (#334)
-- `ListenerMetricsResponse` now uses `app_key`/`instance_index` fields instead of `owner`, matching the data produced by `TelemetryQueryService` (#334)
-- `DatabaseService` now serializes all SQLite writes through a single-writer queue, eliminating `OperationalError: cannot commit transaction - SQL statements in progress` race conditions at startup (#331, #333)
-- `CommandExecutor` startup crash: `register_listener()`/`register_job()` now wait for `DatabaseService` to be ready before accessing `.db`, and `execute()` no longer raises `RuntimeError` when handlers fire before `_create_session()` completes (#330)
+- Status bar "DB degraded" indicator with exponential backoff polling (#448)
 
-### Added
-- `TelemetryQueryService` serves real SQLite-backed telemetry (listener invocation counts, job execution counts, last error, last run) from the database instead of stubs (#267) (#334)
-- `RuntimeQueryService` replaces `DataSyncService` as the in-memory web UI data layer, aggregating app status, event buffer, log buffer, and WebSocket broadcast (#267) (#334)
-- Docker-based startup smoke tests that run Hassette against a real Home Assistant container, verifying WebSocket connect, session creation, entity visibility, event bus firing, and sentinel record integrity (#332)
-- `CommandExecutor` service consolidates handler invocation and scheduled job execution with unified timing, error classification, and batched SQLite telemetry writes (#329)
-- `DatabaseService` with Alembic migration infrastructure for persistent SQLite telemetry storage (sessions, listeners, scheduled jobs, handler invocations, job executions) (#305)
-- Event injection and lifecycle reset utilities in `test_utils` for service-level integration tests (`emit_service_event`, `emit_file_change_event`, `make_service_failed_event`, `make_service_running_event`, `wire_up_app_state_listener`, `wire_up_app_running_listener`, `reset_hassette_lifecycle`) (#303)
-- `App.app_key` property for accessing the app's configuration key (#297)
-- `if_exists` parameter on all `Scheduler.run_*` methods with `"error"` (default) and `"skip"` modes for idempotent job registration (#297)
-- `ScheduledJob.matches()` method for comparing job configuration (callable, trigger, repeat, args, kwargs) (#297)
-- `__eq__`/`__hash__` on `IntervalTrigger` and `CronTrigger` comparing configuration only (interval/cron expression) (#297)
+### Database & Telemetry
 
-### Changed
-- **Breaking:** Scheduler now enforces job name uniqueness per instance, raising `ValueError` on duplicate names (#297)
-- **Breaking:** Renamed `ExecutionResult.started_at` to `monotonic_start` to clarify it stores a monotonic clock value (#297)
+- Persistent SQLite telemetry storage for sessions, handler invocations, and job executions with automatic schema migrations (#305, #329)
+- Configurable retention (`db_retention_days`) and size limit (`db_max_size_mb`, default 500 MB) with automatic oldest-record deletion (#464)
+- Telemetry status endpoint (`/api/telemetry/status`) returns 503 when degraded, usable by Docker HEALTHCHECK (#448)
+- `/api/health` returns 503 for non-ok system status while preserving structured JSON (#448)
 
-### Fixed
-- Await `Bus.remove_all_listeners()` in `ServiceWatcher`, `StateProxy`, and `AppHandler` shutdown to prevent listener cleanup race condition (#311)
-- StateProxy `on_disconnect` now uses `remove_job()` instead of `cancel()` to properly free the job name slot for reconnection (#297)
-- Strip literal quote characters from `base_url` before parsing, fixing connection failures when Docker Compose passes quoted env var values (#298)
-- ServiceWatcher now triggers Hassette shutdown when a service exceeds its max restart attempts, instead of silently giving up (#301)
+### Bus & Scheduler
+
+- Rate limiter redesign: throttle no longer blocks concurrent dispatch, debounced handlers produce accurate telemetry, `once=True` listeners cannot double-fire under rapid events (#430)
+- Zero or negative `debounce` and `throttle` values rejected with `ValueError` at registration (#430)
+- `if_exists` parameter on all `Scheduler.run_*` methods — `"error"` (default) or `"skip"` for idempotent registration (#297)
+- `IntervalTrigger` rejects zero/negative intervals with `ValueError` at construction (#452)
+
+### Logging
+
+- Per-service log level tuning via 13 dedicated `*_log_level` config fields (e.g., `api_log_level`, `bus_service_log_level`) — no service falls through to global default (#463)
+
+### Configuration
+
+- `total_shutdown_timeout_seconds` — caps total shutdown wall-clock time (default: 30s) (#453)
+- `db_path`, `db_retention_days`, `db_max_size_mb` — telemetry database location, retention, and size limit (#305, #464)
+
+### Bug Fixes
+
+- Startup race condition: phased startup ensures session exists before handlers fire, eliminating "Dropping N handler invocation record(s)" warnings (#343)
+- `CommandExecutor` startup crash resolved — registration methods wait for `DatabaseService` readiness before DB access (#330)
+- SQLite write serialization eliminates `OperationalError: cannot commit transaction` races at startup (#333)
+- Stale listener/job registrations cleaned up on app restart; telemetry no longer shows removed handlers (#390)
+- Connection status bar no longer flashes "Disconnected" on page refresh (#390)
+- WebSocket hook no longer causes infinite reconnect loop (#379)
+- App start/stop/reload endpoints work in production mode without `dev_mode` flag (#390)
+- Strip literal quote characters from `base_url`, fixing Docker Compose connection failures (#298)
+- ServiceWatcher triggers shutdown on max restart failures instead of silently giving up (#301)
+- Scheduler auto-generated job names include trigger info, preventing name collisions (#446)
+- Scheduler job and listener filters return correct results after `owner_id`/`app_key` mismatch fix (#335, #336)
 
 ## [0.23.0] - 2026-02-19
 

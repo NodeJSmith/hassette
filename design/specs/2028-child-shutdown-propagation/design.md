@@ -1,7 +1,7 @@
 # Design: Automatic Child Lifecycle Propagation in Resource
 
 **Date:** 2026-03-29
-**Status:** approved
+**Status:** archived
 **Issue:** #449
 **Research:** `/tmp/claude-mine-research-init-propagation-Nvvi9k/brief.md`
 

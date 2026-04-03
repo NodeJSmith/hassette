@@ -1,7 +1,7 @@
-from hassette import App
+from hassette import App, AppConfig
 
 
-class CancelApp(App):
+class CancelApp(App[AppConfig]):
     async def on_initialize(self):
         # Store the job
         self.my_job = self.scheduler.run_every(self.task, interval=60)

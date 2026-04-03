@@ -4,7 +4,7 @@ Each app can define a Pydantic configuration model to validate its settings. Thi
 
 ## Defining Config Models
 
-Inherit from [`AppConfig`][hassette.app.app_config.AppConfig] to define your configuration schema.
+Inherit from [`AppConfig`][hassette.app.app_config.AppConfig] to define your configuration schema. `AppConfig` extends Pydantic's `BaseSettings`, so it supports Pydantic validation and automatic environment variable injection.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"
@@ -14,8 +14,8 @@ Inherit from [`AppConfig`][hassette.app.app_config.AppConfig] to define your con
 
 The base `AppConfig` includes standard fields available to all apps:
 
-- `instance_name: str | None` - Used for logging and identification.
-- `log_level: str | None` - Optional log-level override; defaults to the global setting.
+- `instance_name: str = ""` - Used for logging and identification.
+- `log_level: LOG_LEVEL_TYPE` - Log-level override for this app instance; defaults to `INFO` or the global `log_level` setting.
 
 ## TOML Configuration
 
@@ -27,14 +27,7 @@ You can configure your apps in `hassette.toml`.
 
 ## Secrets & Environment Variables
 
-`AppConfig` inherits from Pydantic's `BaseSettings`, so it supports environment variable injection out of the box.
-
-Standard naming convention for nested config is:
-`HASSETTE__APPS__<APP_NAME>__CONFIG__<FIELD_NAME>`
-
-### Custom Prefix
-
-You can simplify environment variable names by defining a custom `env_prefix`:
+`AppConfig` inherits from Pydantic's `BaseSettings`, so it supports environment variable injection out of the box. Define a custom `env_prefix` on your config class to control which environment variables it reads:
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/app_config_env_prefix.py"

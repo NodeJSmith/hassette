@@ -1,6 +1,6 @@
 # Bus Overview
 
-The event bus connect your apps to Home Assistant and to Hassette itself. It delivers events such as state changes, service calls, or framework updates to any app that subscribes.
+The event bus connects your apps to Home Assistant and to Hassette itself. It delivers events such as state changes, service calls, or framework updates to any app that subscribes.
 
 Apps register event handlers through `self.bus`, which is created automatically at app instantiation.
 
@@ -29,6 +29,7 @@ The `Bus` provides helper methods for common subscriptions. Each returns a [`Sub
 - `on_attribute_change` - Listen for changes to a specific attribute.
 - `on_call_service` - Listen for service calls.
 - `on` - Generic subscription to any topic.
+- `on_component_loaded` - Listen for Home Assistant component load events.
 
 ### Example
 
@@ -94,6 +95,8 @@ self.bus.on_component_loaded(
     once=True
 )
 ```
+
+Both `debounce` and `throttle` must be positive; zero or negative values raise `ValueError` at registration. Specifying both `debounce` and `throttle` together also raises `ValueError` — only one rate-limiting strategy may be active at a time. Combining `once=True` with either also raises `ValueError`.
 
 ## Next Steps
 

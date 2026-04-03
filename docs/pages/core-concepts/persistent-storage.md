@@ -60,7 +60,11 @@ For example, if your app is named `WeatherApp` and your `data_dir` is `/home/use
 All instances of the same resource class share the same cache directory. If you have multiple instances of `MyApp`, they all read from and write to the same cache.
 
 !!! warning "Instance Sharing"
-    Because cache is shared across instances of the same class, be careful with key naming if you have multiple instances. Consider including instance-specific identifiers in your cache keys.
+    Because cache is shared across instances of the same class, be careful with key naming if you have multiple instances. Use `instance_name` as a key prefix to avoid collisions:
+
+    ```python
+    cache_key = f"{self.app_config.instance_name}:last_run"
+    ```
 
 ### Lazy Initialization
 
@@ -138,7 +142,7 @@ class WaterLeakAlertApp(App[AppConfig]):
         self.bus.on_state_change(
             "binary_sensor.water_leak",
             handler=self.on_leak_detected,
-            P.to_state.is_on
+            where=P.StateTo("on"),
         )
 
     async def on_leak_detected(self, event):
@@ -178,7 +182,7 @@ class MultiSensorAlertApp(App[AppConfig]):
         self.bus.on_state_change(
             "binary_sensor.*",
             handler=self.on_sensor_alert,
-            P.to_state.is_on
+            where=P.StateTo("on"),
         )
 
     async def on_sensor_alert(self, event):
@@ -217,7 +221,7 @@ class MotionCounterApp(App[AppConfig]):
         self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_motion,
-            P.to_state.is_on
+            where=P.StateTo("on"),
         )
 
     async def on_motion(self, event):
@@ -231,6 +235,7 @@ class MotionCounterApp(App[AppConfig]):
 The cache can store any Python object that can be pickled:
 
 ```python
+import dataclasses
 from dataclasses import dataclass
 from hassette import App, AppConfig
 from whenever import ZonedDateTime
@@ -254,9 +259,13 @@ class EnergyTrackerApp(App[AppConfig]):
     async def update_stats(self):
         current_usage = await self.get_current_usage()
 
-        self.stats.total_kwh += current_usage
-        self.stats.peak_usage = max(self.stats.peak_usage, current_usage)
-        self.stats.last_updated = self.now()
+        # Create a new stats object instead of mutating the existing one
+        self.stats = dataclasses.replace(
+            self.stats,
+            total_kwh=self.stats.total_kwh + current_usage,
+            peak_usage=max(self.stats.peak_usage, current_usage),
+            last_updated=self.now(),
+        )
 
         # Persist to cache
         self.cache["energy_stats"] = self.stats
@@ -395,8 +404,8 @@ Enable debug logging to see cache operations:
 
 ```toml
 # hassette.toml
-[logging]
-level = "DEBUG"
+[hassette]
+log_level = "DEBUG"
 ```
 
 Check the cache directory to verify data is being written:

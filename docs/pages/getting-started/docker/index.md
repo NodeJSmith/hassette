@@ -22,7 +22,6 @@ The fastest way to get started is to use the pre-built image from GitHub Contain
 1. **Create project directory**
 
 ```bash
-# Create directory structure
 mkdir project_dir && cd project_dir
 mkdir -p config apps
 ```
@@ -35,13 +34,17 @@ Create `docker-compose.yml` in `project_dir`:
 --8<-- "pages/getting-started/docker/snippets/docker-compose.yml"
 ```
 
-1. **Start Hassette**
+3. **Create configuration files**
+
+Create `config/hassette.toml` and `config/.env` with your Home Assistant token — see [Configuration](#configuration) below for the full setup.
+
+4. **Start Hassette**
 
 ```bash
 docker compose up -d
 ```
 
-Now configure Hassette by creating `config/hassette.toml` and `config/.env` - see [Configuration](#configuration) below.
+Verify it's running: `docker compose logs hassette -f` — you should see "Connected to Home Assistant" in the output.
 
 ## Directory Structure
 
@@ -150,15 +153,9 @@ docker compose logs -f hassette
 docker compose logs --tail=100 hassette
 ```
 
-### Using Dozzle (Optional)
+### Web UI
 
-Hassette does not yet have a UI, but you can enhance your logging experience with [Dozzle](https://dozzle.dev/), a lightweight log viewer for Docker containers.
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/dozzle-service.yml"
-```
-
-Access Dozzle at `http://localhost:8080` for a web-based log viewer with filtering, search, and multi-container support.
+Hassette includes a web UI at `http://<host>:8126/ui/` with a live dashboard, app management, log streaming, and session history. No extra setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
 
 ## Environment Variables Reference
 
@@ -171,7 +168,7 @@ Override any configuration via environment variables using the `HASSETTE__` pref
 | `HASSETTE__APP_DIR`                | Directory containing your app Python files                                  |
 | `HASSETTE__PROJECT_DIR`            | Directory containing `pyproject.toml`/`uv.lock` for dependency installation |
 | `HASSETTE__CONFIG_DIR`             | Directory containing configuration files                                    |
-| `HASSETTE__LOG_LEVEL`              | Logging level (`debug`, `info`, `warning`, `error`)                         |
+| `HASSETTE__LOG_LEVEL`              | Logging level (`debug`, `info`, `warning`, `error`). Also accepts `LOG_LEVEL` as a shorthand alias. |
 | `HASSETTE__ALLOW_UNLOCKED_PROJECT` | Set to `1` to allow installing from `pyproject.toml` without a lockfile     |
 | `TZ`                               | System timezone (e.g., `America/New_York`)                                  |
 

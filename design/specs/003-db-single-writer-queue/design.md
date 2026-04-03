@@ -1,7 +1,7 @@
 # Design: Serialize Database Writes Through a Single-Writer Queue
 
 **Date:** 2026-03-13
-**Status:** implemented
+**Status:** archived
 **Spec:** design/specs/003-db-single-writer-queue/spec.md
 
 ## Problem

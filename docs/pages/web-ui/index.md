@@ -43,17 +43,16 @@ The default bind address is `0.0.0.0:8126`. Change it with `web_api_host` and `w
 | `web_api_cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
 | `web_api_event_buffer_size` | int | `500` | Recent events buffer size |
 | `web_api_log_buffer_size` | int | `2000` | Log entries buffer size |
+| `web_ui_hot_reload` | bool | `false` | Live-reload on static file changes (CSS hot-swap, JS full reload) |
 
 ## Navigation
 
 The sidebar provides access to every section:
 
-- **Dashboard** — system health, app summary, scheduled jobs, event bus metrics, recent events, recent logs
-- **Apps** — view, start, stop, and reload your automations
-- **Scheduler** — scheduled jobs and execution history
-- **Event Bus** — listener metrics and handler details
-- **Entities** — browse Home Assistant entity states and attributes
-- **Logs** — filterable, searchable log viewer with real-time streaming
+- **[Dashboard](dashboard.md)** — KPI health cards, app grid with telemetry (invocations, errors, error rate), and recent errors feed
+- **[Apps](apps.md)** — view, start, stop, and reload your automations; drill into per-app listeners, jobs, and logs
+- **[Logs](logs.md)** — filterable, searchable log viewer with real-time streaming, source location, and multi-column sort
+- **[Sessions](sessions.md)** — session history with status badges, timestamps, and session scope toggle
 
 ## Real-Time Updates
 

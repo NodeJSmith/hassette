@@ -1,7 +1,7 @@
 # Design: Visual Parity Wave 5 — Final Polish
 
 **Date:** 2026-03-24
-**Status:** implemented
+**Status:** archived
 **Spec:** N/A (gap analysis serves as spec: `design/research/2026-03-20-visual-parity-gaps.md`)
 
 ## Problem

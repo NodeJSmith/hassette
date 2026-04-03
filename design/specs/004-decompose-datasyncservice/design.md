@@ -1,6 +1,6 @@
 # Design: Decompose DataSyncService (Issue #267)
 
-**Status:** implemented
+**Status:** archived
 **Spec directory**: `design/specs/004-decompose-datasyncservice/`
 **Issue**: [#267 — Decompose DataSyncService into TelemetryQueryService and RuntimeQueryService](https://github.com/NodeJSmith/hassette/issues/267)
 **Research**: `design/research/2026-02-16-sqlite-command-pattern/prereq-04-frontend-query-requirements.md`, `prereq-08-datasyncservice-decomposition.md`

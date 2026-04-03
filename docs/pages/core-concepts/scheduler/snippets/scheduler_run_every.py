@@ -1,7 +1,7 @@
-from hassette import App
+from hassette import App, AppConfig
 
 
-class IntervalApp(App):
+class IntervalApp(App[AppConfig]):
     async def on_initialize(self):
         # Every 10 seconds
         self.scheduler.run_every(self.poll_api, interval=10)

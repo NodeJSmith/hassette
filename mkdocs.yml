@@ -32,7 +32,7 @@ nav:
       - Configuration Files: pages/getting-started/configuration.md
       - Home Assistant Token: pages/getting-started/ha_token.md
   - Core Concepts:
-      - Overview: pages/core-concepts/index.md
+      - Architecture: pages/core-concepts/index.md
       - Apps:
           - Overview: pages/core-concepts/apps/index.md
           - Lifecycle: pages/core-concepts/apps/lifecycle.md
@@ -52,6 +52,7 @@ nav:
           - Utilities: pages/core-concepts/api/utilities.md
       - States: pages/core-concepts/states/index.md
       - Persistent Storage: pages/core-concepts/persistent-storage.md
+      - Database & Telemetry: pages/core-concepts/database-telemetry.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md
           - Authentication: pages/core-concepts/configuration/auth.md
@@ -61,9 +62,7 @@ nav:
       - Overview: pages/web-ui/index.md
       - Dashboard: pages/web-ui/dashboard.md
       - Apps: pages/web-ui/apps.md
-      - Scheduler: pages/web-ui/scheduler.md
-      - Event Bus: pages/web-ui/event-bus.md
-      - Entities: pages/web-ui/entities.md
+      - Sessions: pages/web-ui/sessions.md
       - Logs: pages/web-ui/logs.md
   - Advanced:
       - Overview: pages/advanced/index.md
@@ -71,6 +70,7 @@ nav:
       - Custom States: pages/advanced/custom-states.md
       - State Registry: pages/advanced/state-registry.md
       - TypeRegistry: pages/advanced/type-registry.md
+      - Log Level Tuning: pages/advanced/log-level-tuning.md
   - AppDaemon Comparison: pages/appdaemon-comparison.md
   - API Reference: reference/
 

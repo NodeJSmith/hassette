@@ -1,7 +1,7 @@
 # Design: Extract SessionManager and EventStreamService from Hassette Core
 
 **Date:** 2026-03-16
-**Status:** implemented
+**Status:** archived
 **Spec:** design/specs/006-extract-session-event-services/spec.md
 
 ## Problem

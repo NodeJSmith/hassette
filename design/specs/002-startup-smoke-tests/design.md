@@ -1,7 +1,7 @@
 # Design: Startup Smoke Tests Against Real Home Assistant
 
 **Date:** 2026-03-13
-**Status:** implemented
+**Status:** archived
 **Research brief:** [design/research/2026-03-13-startup-smoke-tests/research.md](../../research/2026-03-13-startup-smoke-tests/research.md)
 
 ---

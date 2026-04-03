@@ -1,7 +1,7 @@
 # Design: Decouple Core from Web Layer, Extract Telemetry Persistence, and Formalize API Contracts
 
 **Date:** 2026-03-30
-**Status:** approved
+**Status:** archived
 **Issues:** #415, #388
 **Research:** /tmp/claude-mine-design-research-TAWApW/brief.md
 **Challenge findings:** /tmp/claude-mine-design-challenge-r2-phFKtr/findings.md

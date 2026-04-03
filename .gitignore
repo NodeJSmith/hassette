@@ -228,3 +228,4 @@ frontend/dist/
 !docs/_static/*.png
 !frontend/public/hassette-logo.png
 !src/hassette/web/static/img/hassette-logo.png
+.playwright-mcp/
