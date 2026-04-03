@@ -10,6 +10,11 @@ on:
                 required: true
                 type: string
     workflow_dispatch: # manual trigger
+        inputs:
+            tag_name:
+                description: "Release tag to publish (e.g. v0.24.0)"
+                required: true
+                type: string
 
 permissions:
     contents: read
@@ -20,6 +25,7 @@ jobs:
     build:
         runs-on: ubuntu-latest
         strategy:
+            fail-fast: false
             matrix:
                 # PRs build only 3.13 for speed; releases build all supported versions
                 python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.13"]') || fromJSON('["3.11", "3.12", "3.13"]') }}
@@ -29,7 +35,7 @@ jobs:
             OWNER: ${{ github.repository_owner }}
             PYTHON_VERSION: ${{ matrix.python-version }}
             IS_STABLE_RELEASE: "false"
-            IS_RELEASE: ${{ github.event_name == 'workflow_call' }}
+            IS_RELEASE: ${{ github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch' }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -56,7 +62,9 @@ jobs:
 
             - name: Classify release tag
               if: env.IS_RELEASE == 'true'
-              run: uv run ./tools/check_tag_version.py --ref-name ${{ inputs.tag_name || github.ref_name }} --project-version $(uv version --short)
+              env:
+                  TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+              run: uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$(uv version --short)"
 
             - name: Verify VERSION is set for releases
               if: env.IS_RELEASE == 'true'

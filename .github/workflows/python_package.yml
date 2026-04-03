@@ -8,6 +8,11 @@ on:
         required: true
         type: string
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to publish (e.g. v0.24.0)"
+        required: true
+        type: string
 
 jobs:
   build-pypi-dists:
@@ -31,6 +36,12 @@ jobs:
 
       - name: Install python packages
         run: uv sync
+
+      - name: Verify tag matches project version
+        if: inputs.tag_name != ''
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$(uv version --short)"
 
       - name: Build a binary wheel and a source tarball
         run: uv build
@@ -60,3 +71,5 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
