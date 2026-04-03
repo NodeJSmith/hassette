@@ -5,10 +5,17 @@ The scheduler provides several helper methods to run tasks at different times. A
 ## Standard Helpers
 
 ### `run_in`
-Run once after a delay. Useful for timeouts or delayed actions.
+Run once after a delay (in seconds). Useful for timeouts or delayed actions.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_in.py"
+```
+
+### `run_once`
+Run once at a specific time. Accepts an absolute datetime, a `(hour, minute)` tuple, or a time string.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_once.py"
 ```
 
 ### `run_every`

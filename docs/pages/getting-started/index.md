@@ -80,15 +80,7 @@ hassette -c ./config/hassette.toml -e ./config/.env
 
 ## Next steps
 
-- Learn config precedence and options in [Configuration Overview](../core-concepts/configuration/index.md).
-- Register and configure more apps in [Application Configuration](../core-concepts/configuration/applications.md).
-- Use typed app config models in [App Configuration](../core-concepts/apps/configuration.md).
-
-If you want details on config discovery, overrides, and file locations, see [Configuration Files](configuration.md).
-
-## Where to go next
-
-- Token help: [Creating a Home Assistant token](ha_token.md)
-- Config file details: [Configuration Files](configuration.md)
-- App authoring: [Apps Overview](../core-concepts/apps/index.md)
-- Full configuration reference: [Configuration Overview](../core-concepts/configuration/index.md)
+- [Creating a Home Assistant token](ha_token.md) — if you haven't set up your token yet
+- [Apps Overview](../core-concepts/apps/index.md) — writing your first automation
+- [Configuration Overview](../core-concepts/configuration/index.md) — config precedence, file locations, and options
+- [Application Configuration](../core-concepts/configuration/applications.md) — registering and configuring apps

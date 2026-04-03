@@ -29,6 +29,7 @@ The `Bus` provides helper methods for common subscriptions. Each returns a [`Sub
 - `on_attribute_change` - Listen for changes to a specific attribute.
 - `on_call_service` - Listen for service calls.
 - `on` - Generic subscription to any topic.
+- `on_component_loaded` - Listen for Home Assistant component load events.
 
 ### Example
 

@@ -42,7 +42,7 @@ uv run mkdocs serve
 
 **App** (`src/hassette/app/app.py`) - Base class for user automations. Generic over `AppConfig` type. Each app gets its own Bus, Scheduler, Api, and StateManager. Lifecycle hooks: `on_initialize`, `on_ready`, `on_shutdown`.
 
-**Bus** (`src/hassette/bus/`) - Event pub/sub with filtering. Methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on_event`. Supports glob patterns, predicates, conditions, debounce, throttle.
+**Bus** (`src/hassette/bus/`) - Event pub/sub with filtering. Methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on`. Supports glob patterns, predicates, conditions, debounce, throttle.
 
 **Scheduler** (`src/hassette/scheduler/`) - Task scheduling with `run_in()`, `run_once()`, `run_every()`, `run_hourly()`, `run_daily()`, `run_cron()`.
 

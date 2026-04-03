@@ -1,7 +1,7 @@
-from hassette import App
+from hassette import App, AppConfig
 
 
-class CronApp(App):
+class CronApp(App[AppConfig]):
     async def on_initialize(self):
         # Weekdays at 9 AM
         self.scheduler.run_cron(

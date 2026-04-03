@@ -1,7 +1,7 @@
-from hassette import App
+from hassette import App, AppConfig
 
 
-class NamedJobApp(App):
+class NamedJobApp(App[AppConfig]):
     async def on_initialize(self):
         self.scheduler.run_every(
             self.tick,

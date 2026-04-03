@@ -1,7 +1,7 @@
-from hassette import App
+from hassette import App, AppConfig
 
 
-class MinutelyApp(App):
+class MinutelyApp(App[AppConfig]):
     async def on_initialize(self):
         # Every minute
         self.scheduler.run_minutely(self.task)

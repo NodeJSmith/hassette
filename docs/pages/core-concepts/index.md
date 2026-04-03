@@ -1,4 +1,4 @@
-# Core Concepts
+# Architecture
 
 Hassette has a lot of moving parts, but at its core it’s simple: everything revolves around **apps**, **events**, and **resources**.
 

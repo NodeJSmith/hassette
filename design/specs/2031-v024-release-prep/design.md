@@ -179,26 +179,17 @@ Source: `src/hassette/config/config.py`.
 
 **`README.md`** — covered in section 2g above (feature description update). Also review roadmap section for stale items.
 
-### Phase 2: Screenshots & Version Bump
+### Phase 2: Screenshots (done) & Version Bump (deferred)
 
-Done in the same PR, after Phase 1 is committed.
+Screenshots were captured and committed during this PR. Version bump is deferred to a follow-up PR — the challenge review surfaced additional doc quality issues (#469) that should be fixed before stamping the version.
 
-#### 6. Fresh Screenshots
+#### 6. Fresh Screenshots — COMPLETE
 
-- Clone/update the demo repo on this machine
-- Bring down hautomate service (conflicts with demo)
-- Run dev server with representative data
-- Take fresh screenshots: Dashboard, Apps, App Detail, Logs, Sessions
-- Replace stale screenshots: `web_ui_dashboard.png`, `web_ui_apps.png`, `web_ui_logs.png`
-- Add new: `web_ui_sessions.png`
-- Delete stale screenshots for removed pages (already done in Phase 1)
-- Bring hautomate service back up
+Screenshots captured via Playwright from the hassette-examples demo repo running the dev image.
 
-#### 7. Version Bump
+#### 7. Version Bump — DEFERRED
 
-**`pyproject.toml`** — Bump `version = "0.23.0"` to `"0.24.0"`.
-
-**`CHANGELOG.md`** — Stamp `## Unreleased` → `## [0.24.0] - <date>`.
+Moved to a follow-up PR after #469 doc fixes are addressed. The changelog stays as `## Unreleased` in this PR.
 
 ## Alternatives Considered
 

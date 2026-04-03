@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Logging
 
-- Per-service log level tuning via 14 dedicated `*_log_level` config fields (e.g., `api_log_level`, `bus_log_level`) — no service falls through to global default (#463)
+- Per-service log level tuning via 13 dedicated `*_log_level` config fields (e.g., `api_log_level`, `bus_log_level`) — no service falls through to global default (#463)
 
 ### Configuration
 

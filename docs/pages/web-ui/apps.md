@@ -24,7 +24,7 @@ The table displays one row per app with the following columns:
 |--------|-------------|
 | **App Key** | Unique identifier (links to the app detail view) |
 | **Name** | Display name of the app |
-| **Status** | Current status badge (running, stopped, failed, disabled, blocked) |
+| **Status** | Current status badge: running, stopped, failed, disabled, or blocked (waiting for a dependency to become ready — typically resolves automatically) |
 | **Error** | Error message if the app has failed, otherwise `—` |
 | **Actions** | Stop, Reload, and Start buttons |
 

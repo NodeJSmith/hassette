@@ -1,7 +1,7 @@
-from hassette import App
+from hassette import App, AppConfig
 
 
-class DailyApp(App):
+class DailyApp(App[AppConfig]):
     async def on_initialize(self):
         # Every day at default start time (now)
         self.scheduler.run_daily(self.task)

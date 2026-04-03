@@ -1,7 +1,7 @@
-from hassette import App
+from hassette import App, AppConfig
 
 
-class DelayApp(App):
+class DelayApp(App[AppConfig]):
     async def on_initialize(self):
         # Run in 5 seconds
         self.scheduler.run_in(self.turn_off_light, delay=5.0)

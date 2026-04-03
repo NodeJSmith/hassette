@@ -134,7 +134,7 @@ These settings control how long Hassette waits for various operations before giv
 
 ## Logging Settings
 
-You can tune the log level for individual services without changing the global `log_level`. Each field defaults to `INFO` or the value of the global `log_level` setting.
+You can tune the log level for individual services without changing the global `log_level`. Each field falls back to the global `log_level` setting, which itself defaults to `INFO`. See [Log Level Tuning](../../advanced/log-level-tuning.md) for the full precedence chain.
 
 See [Log Level Tuning](../../advanced/log-level-tuning.md) for a full guide.
 
