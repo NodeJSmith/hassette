@@ -12,7 +12,7 @@ Run once after a delay (in seconds). Useful for timeouts or delayed actions.
 ```
 
 ### `run_once`
-Run once at a specific time. Accepts an absolute datetime, a `(hour, minute)` tuple, or a time string.
+Run once at a specific time. Accepts a `ZonedDateTime`, `datetime.time`, `(hour, minute)` tuple, or a numeric seconds offset.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_once.py"

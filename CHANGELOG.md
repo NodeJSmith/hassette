@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Web UI
 
-- Complete rebuild as a Preact SPA with 4 pages: Dashboard, Apps, App Detail, Logs (#343)
+- Complete rebuild as a Preact SPA with 5 pages: Dashboard, Apps, App Detail, Sessions, Logs (#343)
 - Graphite + Emerald design token system with light/dark mode toggle and `[data-theme]` persistence (#343, #442)
 - Session list page with status badges, "This Session" / "All Time" scope toggle, and localStorage persistence (#464)
 - Source location display in handler/job detail panels and log table (#464, #410)
@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Database & Telemetry
 
-- Persistent SQLite telemetry storage for sessions, handler invocations, and job executions via `DatabaseService` with Alembic migrations (#305, #329)
+- Persistent SQLite telemetry storage for sessions, handler invocations, and job executions with automatic schema migrations (#305, #329)
 - Configurable retention (`db_retention_days`) and size limit (`db_max_size_mb`, default 500 MB) with automatic oldest-record deletion (#464)
 - Telemetry status endpoint (`/api/telemetry/status`) returns 503 when degraded, usable by Docker HEALTHCHECK (#448)
 - `/api/health` returns 503 for non-ok system status while preserving structured JSON (#448)
@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Logging
 
-- Per-service log level tuning via 13 dedicated `*_log_level` config fields (e.g., `api_log_level`, `bus_log_level`) — no service falls through to global default (#463)
+- Per-service log level tuning via 13 dedicated `*_log_level` config fields (e.g., `api_log_level`, `bus_service_log_level`) — no service falls through to global default (#463)
 
 ### Configuration
 
