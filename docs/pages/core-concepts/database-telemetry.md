@@ -92,7 +92,7 @@ To resolve a degraded state:
     docker compose restart hassette
 
     # Local
-    rm ~/.local/share/hassette/v1/hassette.db  # or your configured db_path
+    rm ~/.local/share/hassette/v0/hassette.db  # replace v0 with your major version, or use your configured db_path
     ```
 
     Hassette will recreate the database on next startup.

@@ -11,7 +11,7 @@ Examples:
         # Run in 30 seconds
         self.scheduler.run_in(self.cleanup_task, 30)
 
-        # Run once at a specific time (7:00 AM)
+        # Run once at 7:00 AM today (if already past, fires immediately)
         self.scheduler.run_once(self.morning_routine, start=(7, 0))
 
     Recurring execution with intervals::

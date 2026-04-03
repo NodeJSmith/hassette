@@ -23,7 +23,7 @@ This page organizes common problems by symptom. Click through to the relevant se
 
 ## Scheduler not firing
 
-- **Job scheduled for the past**: Check your `start` parameter — a time-of-day value like `(7, 0)` schedules for the *next* occurrence of 7:00 AM, not today if it's already past.
+- **Job scheduled for the past**: A time-of-day `start` value like `(7, 0)` is converted to *today* at that time. If it's already past 7:00 AM, `run_once` fires immediately as an overdue job; repeating methods (`run_daily`, `run_hourly`, etc.) advance to the next interval. Use a future `ZonedDateTime` or a seconds offset for guaranteed future scheduling.
 - **Runs too often or too rarely**: `run_every(interval=5)` is 5 *seconds*, not minutes. For `run_cron`, `minute=5` means "at minute 5 of every hour", not "every 5 minutes" — use `minute="*/5"` for intervals.
 - **Exception in task**: Unhandled exceptions in scheduled tasks are logged at ERROR level but don't crash the scheduler. Check your logs.
 - See [Job Management — Troubleshooting](core-concepts/scheduler/management.md#troubleshooting) for more.
