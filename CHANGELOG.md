@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Handle SIGTERM for graceful Docker shutdown — sessions no longer show `unknown` status after `docker stop`
+- Handle SIGTERM for graceful Docker shutdown — sessions no longer show `unknown` status after `docker stop` (#479)
 
 ## [0.24.0](https://github.com/NodeJSmith/hassette/compare/v0.23.0...v0.24.0) - 2026-04-03
 
