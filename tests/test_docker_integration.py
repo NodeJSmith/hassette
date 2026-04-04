@@ -444,6 +444,50 @@ def test_docker_project_install_with_lockfile():
 @pytest.mark.integration
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_install_without_build_system():
+    """Test that a project without [build-system] still installs via uv's default backend."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        # No [build-system] table — uv handles this with its default backend
+        (project_dir / "pyproject.toml").write_text(
+            '[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = []\n'
+        )
+        subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{project_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__PROJECT_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        output = result.stderr + result.stdout
+        assert result.returncode == 0, f"Project without [build-system] should still work. Output:\n{output}"
+        assert "Project install complete." in output
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_project_without_lockfile_warns():
     """Test that pyproject.toml without uv.lock logs a warning to run uv lock."""
     with tempfile.TemporaryDirectory() as tmpdir:

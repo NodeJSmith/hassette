@@ -48,9 +48,14 @@ run_uv_install() {
     local uv_log
     uv_log=$(mktemp /tmp/uv-output.XXXXXX)
 
-    # Stream live output AND capture to file for error banner replay
-    local exit_code=0
-    timeout "${timeout_secs}" uv "$@" 2>&1 | tee "${uv_log}" || exit_code=${PIPESTATUS[0]}
+    # Stream live output AND capture to file for error replay.
+    # Temporarily disable set -e so the pipeline doesn't abort the function,
+    # then capture PIPESTATUS immediately (it's reset by the next command).
+    set +e
+    timeout "${timeout_secs}" uv "$@" 2>&1 | tee "${uv_log}"
+    local -a pipe_status=("${PIPESTATUS[@]}")
+    set -e
+    local exit_code="${pipe_status[0]}"
 
     if [ "${exit_code}" -eq 0 ]; then
         rm -f "${uv_log}"
