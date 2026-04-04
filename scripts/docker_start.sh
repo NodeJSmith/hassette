@@ -116,9 +116,10 @@ run_uv_install() {
 if [ -f "$PROJECT_DIR/uv.lock" ]; then
     echo "Installing locked project from $PROJECT_DIR..."
 
-    # Temp file for exported deps — cleaned up on exit (including early termination)
+    # Temp files — cleaned up on exit (including early termination)
     user_deps_file=$(mktemp /tmp/user-deps.XXXXXX)
-    trap 'rm -f "${user_deps_file}"' EXIT
+    tmp_project=$(mktemp -d /tmp/project-build.XXXXXX)
+    trap 'rm -f "${user_deps_file}"; rm -rf "${tmp_project}"' EXIT
 
     # Export resolved deps as a flat requirements list
     # --output-file is preferred over stdout redirect: uv writes atomically (temp+rename)
@@ -134,9 +135,12 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
         -r "${user_deps_file}" \
         -c "$CONSTRAINTS"
 
-    # Install just the project package itself (for clean imports), no dep resolution
+    # Copy project to a writable temp dir before installing. Some build backends
+    # (notably setuptools without [build-system]) write egg-info into the source
+    # tree, which fails if the mount is read-only or owned by a different UID.
+    cp -a "$PROJECT_DIR"/. "$tmp_project"/
     run_uv_install 120 "project" pip install \
-        --no-deps "$PROJECT_DIR"
+        --no-deps "$tmp_project"
 
     echo "Project install complete."
 
