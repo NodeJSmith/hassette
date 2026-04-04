@@ -4,7 +4,6 @@ import textwrap
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 from generate_constraints import generate_lines
 
 # ---------------------------------------------------------------------------
@@ -181,12 +180,9 @@ PYPROJECT_NO_DEPS = textwrap.dedent(
 )
 
 
-def test_missing_dependencies_key_exits(tmp_path: Path) -> None:
-    """generate_lines() should exit cleanly when [project].dependencies is missing."""
-    toml_file = tmp_path / "pyproject.toml"
-    toml_file.write_text(PYPROJECT_NO_DEPS)
-
-    with patch("generate_constraints.importlib.metadata.version", return_value="0.24.0"):
-        with pytest.raises(SystemExit) as exc_info:
-            generate_lines(toml_file)
-        assert exc_info.value.code == 1
+def test_missing_dependencies_key_produces_hassette_pin_only(tmp_path: Path) -> None:
+    """A pyproject.toml without [project].dependencies should still produce a hassette pin."""
+    lines = run_generate(tmp_path, PYPROJECT_NO_DEPS)
+    non_comment = [line for line in lines if not line.startswith("#")]
+    assert len(non_comment) == 1, f"Expected only hassette pin, got: {non_comment}"
+    assert non_comment[0] == "hassette==0.24.0"

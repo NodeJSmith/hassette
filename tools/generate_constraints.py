@@ -43,11 +43,7 @@ def generate_lines(pyproject_path: Path) -> list[str]:
     with pyproject_path.open("rb") as f:
         data = tomllib.load(f)
 
-    try:
-        declared: list[str] = data["project"]["dependencies"]
-    except KeyError as e:
-        print(f"ERROR: missing key in pyproject.toml: {e}", file=sys.stderr)
-        sys.exit(1)
+    declared: list[str] = data.get("project", {}).get("dependencies", [])
     hassette_version = importlib.metadata.version("hassette")
 
     lines: list[str] = ["# Auto-generated from hassette pyproject.toml — do not edit"]
