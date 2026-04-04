@@ -65,9 +65,9 @@ jobs:
           DOCKER_RESULT: ${{ needs.publish-docker.result }}
           TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
         run: |
-          # Detect credential/setup failure (both skipped = release-please job failed)
+          # Detect unexpected state where release was created but both publish jobs were skipped
           if [ "$PYPI_RESULT" = "skipped" ] && [ "$DOCKER_RESULT" = "skipped" ]; then
-            echo "::error::Both publish jobs were skipped — release-please likely failed (check App token secrets)"
+            echo "::error::Both publish jobs were skipped unexpectedly for release $TAG_NAME — inspect the publish workflow conditions and logs"
             exit 1
           fi
 
