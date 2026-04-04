@@ -114,8 +114,10 @@ def test_all_deps_present(tmp_path: Path) -> None:
     """Every declared dependency should appear in the output (by normalized name)."""
     lines = run_generate(tmp_path, SIMPLE_PYPROJECT)
     non_comment = [line for line in lines if not line.startswith("#") and line.strip()]
-    # hassette plus 4 deps
-    assert len(non_comment) >= 4, f"Expected at least 4 dep lines, got: {non_comment}"
+    # SIMPLE_PYPROJECT has 4 deps + 1 hassette pin = 5 lines exactly
+    assert len(non_comment) == 5, f"Expected exactly 5 non-comment lines (4 deps + hassette pin), got: {non_comment}"
+    dep_names = {line.split(">=")[0].split("==")[0] for line in non_comment}
+    assert {"aiohttp", "pydantic-settings", "typing-extensions", "whenever", "hassette"} == dep_names
 
 
 def test_no_duplicate_hassette(tmp_path: Path) -> None:

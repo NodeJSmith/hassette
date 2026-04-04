@@ -49,7 +49,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Generate constraints file from declared dependency ranges (not lockfile pins).
 # Must use the venv Python so importlib.metadata can find the installed hassette version.
 RUN /app/.venv/bin/python tools/generate_constraints.py > /app/constraints.txt \
- && /app/.venv/bin/python -c "lines=[l for l in open('/app/constraints.txt').read().splitlines() if l and not l.startswith('#')]; assert len(lines) >= 5, f'constraints.txt has only {len(lines)} entries — check generate_constraints.py'"
+ && /app/.venv/bin/python -c "\
+import tomllib; \
+lines=[l for l in open('/app/constraints.txt').read().splitlines() if l and not l.startswith('#')]; \
+deps=tomllib.load(open('/app/pyproject.toml','rb')).get('project',{}).get('dependencies',[]); \
+expected=len(deps)+1; \
+assert len(lines)==expected, f'constraints.txt has {len(lines)} entries, expected {expected}'; \
+assert lines[-1].startswith('hassette=='), f'last line should be hassette pin, got {lines[-1]!r}'"
 
 # ---- Final stage ----
 FROM python:${PYTHON_VERSION}-slim
