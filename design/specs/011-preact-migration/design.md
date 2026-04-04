@@ -1,7 +1,7 @@
 # Design: Migrate Web UI from htmx/Alpine to Preact SPA
 
 **Date:** 2026-03-20
-**Status:** approved
+**Status:** archived
 **Spec:** N/A (design-first — problem well-established from prior research)
 
 ## Problem

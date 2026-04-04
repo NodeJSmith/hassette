@@ -1,7 +1,7 @@
 # Design: Visual Parity Round 2
 
 **Date:** 2026-03-21
-**Status:** approved
+**Status:** archived
 **Spec:** N/A — second pass of 012-visual-parity-verification
 
 ## Problem

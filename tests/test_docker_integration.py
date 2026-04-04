@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,41 @@ import pytest
 # Allow overriding the Docker image for testing
 # Default to locally built image, can override with HASSETTE_TEST_IMAGE env var
 DOCKER_IMAGE = os.getenv("HASSETTE_TEST_IMAGE", "hassette:test")
+
+
+@pytest.fixture
+def docker_project_dir() -> Iterator[Path]:
+    """Temp directory for project-based Docker tests with UID-safe cleanup.
+
+    The container's hassette user (UID 1000) creates build artifacts (egg-info, build/)
+    that the CI runner (different UID) cannot delete. The teardown uses `docker run --user root`
+    to chmod everything before rmtree.
+    """
+    tmpdir = tempfile.mkdtemp()
+    project_dir = Path(tmpdir) / "project"
+    project_dir.mkdir()
+    yield project_dir
+    # Fix ownership so rmtree can clean up container-created files
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            "root",
+            "--entrypoint",
+            "chmod",
+            "-v",
+            f"{tmpdir}:/mnt",
+            DOCKER_IMAGE,
+            "-R",
+            "777",
+            "/mnt",
+        ],
+        capture_output=True,
+        timeout=30,
+    )
+    shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @pytest.mark.integration
@@ -28,7 +64,7 @@ def test_docker_installs_user_requirements():
         # Create a test app directory with requirements
         apps_dir = tmp_path / "apps"
         apps_dir.mkdir()
-        (apps_dir / "requirements.txt").write_text("requests==2.31.0\n")
+        (apps_dir / "requirements.txt").write_text("requests>=2.28\n")
 
         # Create a simple app
         (apps_dir / "test_app.py").write_text("""
@@ -55,6 +91,8 @@ class TestApp(App[AppConfig]):
                 "HASSETTE__TOKEN=test_token",
                 "-e",
                 "HASSETTE__BASE_URL=http://test",
+                "-e",
+                "HASSETTE__INSTALL_DEPS=1",
                 DOCKER_IMAGE,
                 "--version",
             ],
@@ -82,7 +120,7 @@ def test_docker_finds_nested_requirements():
         # Create nested structure
         apps_dir = tmp_path / "apps"
         (apps_dir / "app1" / "subdir").mkdir(parents=True)
-        (apps_dir / "app1" / "subdir" / "requirements.txt").write_text("httpx\n")
+        (apps_dir / "app1" / "subdir" / "requirements.txt").write_text("httpx>=0.25\n")
 
         result = subprocess.run(
             [
@@ -97,6 +135,8 @@ def test_docker_finds_nested_requirements():
                 "HASSETTE__TOKEN=test_token",
                 "-e",
                 "HASSETTE__BASE_URL=http://test",
+                "-e",
+                "HASSETTE__INSTALL_DEPS=1",
                 DOCKER_IMAGE,
                 "--version",
             ],
@@ -106,6 +146,7 @@ def test_docker_finds_nested_requirements():
         )
 
         output = result.stderr + result.stdout
+        assert result.returncode == 0, f"Container exited with {result.returncode}. Output:\n{output}"
         assert "Installing requirements from" in output
         assert "requirements.txt" in output
 
@@ -124,8 +165,8 @@ def test_docker_installs_from_config_and_apps():
         config_dir.mkdir()
         apps_dir.mkdir()
 
-        (config_dir / "requirements.txt").write_text("pyyaml==6.0.1\n")
-        (apps_dir / "requirements.txt").write_text("httpx==0.25.0\n")
+        (config_dir / "requirements.txt").write_text("pyyaml>=6.0\n")
+        (apps_dir / "requirements.txt").write_text("httpx>=0.25\n")
 
         result = subprocess.run(
             [
@@ -144,6 +185,8 @@ def test_docker_installs_from_config_and_apps():
                 "HASSETTE__TOKEN=test_token",
                 "-e",
                 "HASSETTE__BASE_URL=http://test",
+                "-e",
+                "HASSETTE__INSTALL_DEPS=1",
                 DOCKER_IMAGE,
                 "--version",
             ],
@@ -162,15 +205,19 @@ def test_docker_installs_from_config_and_apps():
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_skips_empty_requirements():
-    """Test that empty requirements.txt files are skipped."""
+    """Test that empty requirements.txt files are skipped by the -s guard."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
 
         apps_dir = tmp_path / "apps"
         apps_dir.mkdir()
 
-        # Create empty and non-empty files
-        (apps_dir / "empty_requirements.txt").touch()
+        # Empty requirements.txt in a subdirectory — fd finds it but -s guard skips it
+        empty_dir = apps_dir / "emptyapp"
+        empty_dir.mkdir()
+        (empty_dir / "requirements.txt").touch()
+
+        # Non-empty requirements.txt — should be installed
         (apps_dir / "requirements.txt").write_text("requests\n")
 
         result = subprocess.run(
@@ -186,6 +233,8 @@ def test_docker_skips_empty_requirements():
                 "HASSETTE__TOKEN=test_token",
                 "-e",
                 "HASSETTE__BASE_URL=http://test",
+                "-e",
+                "HASSETTE__INSTALL_DEPS=1",
                 DOCKER_IMAGE,
                 "--version",
             ],
@@ -196,10 +245,8 @@ def test_docker_skips_empty_requirements():
 
         output = result.stderr + result.stdout
 
-        # Should only install from non-empty file
-        assert "Installing requirements from" in output
-        # Empty file should not be mentioned
-        assert "empty_requirements.txt" not in output
+        # Only the non-empty file should be installed (1 install, not 2)
+        assert output.count("Installing requirements from") == 1, f"Expected 1 install. Output:\n{output}"
 
 
 @pytest.mark.integration
@@ -235,6 +282,8 @@ class TestApp(App[AppConfig]):
                 "HASSETTE__TOKEN=test_token",
                 "-e",
                 "HASSETTE__BASE_URL=http://test",
+                "-e",
+                "HASSETTE__INSTALL_DEPS=1",
                 DOCKER_IMAGE,
                 "--version",
             ],
@@ -246,14 +295,14 @@ class TestApp(App[AppConfig]):
         # Should complete successfully
         assert result.returncode == 0
         # Should show completion message even with no requirements found
-        assert "Completed installation of 0 found requirements.txt" in (result.stderr + result.stdout)
+        assert "Installed 0 requirements.txt file(s)" in (result.stderr + result.stdout)
 
 
 @pytest.mark.integration
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_installs_requirements_dev_variants():
-    """Test that requirements-dev.txt and similar variants are found."""
+    """Test that requirements-dev.txt is NOT installed (fd pattern is exact match only)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
 
@@ -262,6 +311,383 @@ def test_docker_installs_requirements_dev_variants():
 
         (apps_dir / "requirements.txt").write_text("requests\n")
         (apps_dir / "requirements-dev.txt").write_text("pytest\n")
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{apps_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                "-e",
+                "HASSETTE__INSTALL_DEPS=1",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        output = result.stderr + result.stdout
+
+        # Only requirements.txt should be installed; dev variant must be ignored
+        assert output.count("Installing requirements from") == 1
+        assert "requirements.txt" in output
+        assert "requirements-dev.txt" not in output
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_skips_requirements_by_default():
+    """Test that requirements are NOT installed when INSTALL_DEPS is unset (default-off)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        apps_dir = tmp_path / "apps"
+        apps_dir.mkdir()
+        (apps_dir / "requirements.txt").write_text("requests\n")
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{apps_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                # Intentionally omitting HASSETTE__INSTALL_DEPS
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        output = result.stderr + result.stdout
+
+        # Startup should succeed but requirements should be skipped
+        assert result.returncode == 0
+        assert "Runtime dependency installation disabled" in output
+        assert "Installing requirements from" not in output
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_constraint_conflict():
+    """Test that a requirements.txt conflicting with constraints fails with a clear error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        apps_dir = tmp_path / "apps"
+        apps_dir.mkdir()
+
+        # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
+        (apps_dir / "requirements.txt").write_text("aiohttp==3.0.0\n")
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{apps_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                "-e",
+                "HASSETTE__INSTALL_DEPS=1",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        output = result.stderr + result.stdout
+
+        # Container must exit with non-zero code
+        assert result.returncode != 0, f"Expected non-zero exit for conflict. Output:\n{output}"
+        # Must display the DEPENDENCY CONFLICT banner
+        assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_install_with_lockfile(docker_project_dir: Path):
+    """Test that a project with uv.lock triggers the export-then-install path."""
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+        'requires-python = ">=3.11"\ndependencies = []\n'
+        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+    )
+    pkg_dir = docker_project_dir / "test_proj"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    subprocess.run(["uv", "lock", "--directory", str(docker_project_dir)], check=True, capture_output=True)
+
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    output = result.stderr + result.stdout
+    assert result.returncode == 0, f"Project install failed. Output:\n{output}"
+    assert "Project install complete." in output
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_install_without_build_system(docker_project_dir: Path):
+    """Test that a project without [build-system] still installs via uv's default backend."""
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = []\n'
+    )
+    pkg_dir = docker_project_dir / "test_proj"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    subprocess.run(["uv", "lock", "--directory", str(docker_project_dir)], check=True, capture_output=True)
+
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    output = result.stderr + result.stdout
+    assert result.returncode == 0, f"Project without [build-system] should still work. Output:\n{output}"
+    assert "Project install complete." in output
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_without_lockfile_warns(docker_project_dir: Path):
+    """Test that pyproject.toml without uv.lock logs a warning to run uv lock."""
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\ndependencies = []\n'
+    )
+
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    output = result.stderr + result.stdout
+    assert result.returncode == 0, f"Container should still start. Output:\n{output}"
+    assert "uv lock" in output, f"Expected lockfile warning. Output:\n{output}"
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_install_with_real_dep(docker_project_dir: Path):
+    """Test that a project with an actual dependency gets it installed through constraints."""
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+        'requires-python = ">=3.11"\ndependencies = ["tabulate>=0.9"]\n'
+        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+    )
+    pkg_dir = docker_project_dir / "test_proj"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    subprocess.run(["uv", "lock", "--directory", str(docker_project_dir)], check=True, capture_output=True)
+
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    output = result.stderr + result.stdout
+    assert result.returncode == 0, f"Project install with real dep failed. Output:\n{output}"
+    assert "Project install complete." in output
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_constraint_conflict(docker_project_dir: Path):
+    """Test that a project whose lockfile conflicts with hassette's constraints fails with a clear error."""
+    # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+        'requires-python = ">=3.11"\ndependencies = ["aiohttp==3.0.0"]\n'
+        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+    )
+    pkg_dir = docker_project_dir / "test_proj"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    subprocess.run(["uv", "lock", "--directory", str(docker_project_dir)], check=True, capture_output=True)
+
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    output = result.stderr + result.stdout
+    assert result.returncode != 0, f"Expected non-zero exit for project constraint conflict. Output:\n{output}"
+    assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_deprecated_allow_unlocked_project_warns():
+    """Test that setting ALLOW_UNLOCKED_PROJECT logs a deprecation warning."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        apps_dir = tmp_path / "apps"
+        apps_dir.mkdir()
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{apps_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__ALLOW_UNLOCKED_PROJECT=1",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        output = result.stderr + result.stdout
+        assert result.returncode == 0, f"Deprecation warning should not crash. Output:\n{output}"
+        assert "ALLOW_UNLOCKED_PROJECT" in output, f"Expected deprecation warning. Output:\n{output}"
+        assert "deprecated" in output.lower(), f"Expected 'deprecated' in warning. Output:\n{output}"
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_no_project_no_deps_starts_clean():
+    """Test that a container with no project and INSTALL_DEPS unset starts cleanly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        apps_dir = tmp_path / "apps"
+        apps_dir.mkdir()
 
         result = subprocess.run(
             [
@@ -285,8 +711,6 @@ def test_docker_installs_requirements_dev_variants():
         )
 
         output = result.stderr + result.stdout
-
-        # Both should be installed
-        assert output.count("Installing requirements from") >= 2
-        assert "requirements.txt" in output
-        assert "requirements-dev.txt" in output
+        assert result.returncode == 0, f"Clean start failed. Output:\n{output}"
+        assert "No project found" in output
+        assert "Runtime dependency installation disabled" in output

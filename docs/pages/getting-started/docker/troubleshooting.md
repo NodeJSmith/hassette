@@ -110,9 +110,60 @@ Look for installation errors in the logs:
 docker compose logs hassette | grep -i "installing\|error\|failed"
 ```
 
-### Common Dependency Issues
+### Dependency Conflicts
 
-#### pyproject.toml Not Found
+**Symptom:** Container exits at startup with a `DEPENDENCY CONFLICT` banner followed by a uv resolver error like:
+
+```
+─────────────────────────────────────────────────────────
+  DEPENDENCY CONFLICT
+
+  Your project's dependencies conflict with this version
+  of Hassette. This usually means your uv.lock was generated
+  against a different Hassette version than this image.
+
+  To fix: run 'uv lock' locally, commit uv.lock, and restart.
+─────────────────────────────────────────────────────────
+Because you require yarl==1.20.0 and yarl==1.22.0, we can conclude that
+your requirements are unsatisfiable.
+```
+
+**Why it happens:** Your project's `uv.lock` was resolved against a different version of Hassette than the Docker image you're running. When the startup script installs your dependencies through Hassette's constraints file, it detects the version mismatch and exits rather than silently downgrading a framework package.
+
+**How to fix it:**
+
+For project-based installs (`pyproject.toml` + `uv.lock`):
+
+```bash
+# Re-resolve against the current hassette version
+uv lock
+
+# Commit the updated lockfile
+git add uv.lock
+git commit -m "update uv.lock for hassette upgrade"
+```
+
+Then restart the container.
+
+For `requirements.txt`-based installs: relax any pinned versions that conflict, or check which version range hassette requires:
+
+```bash
+docker compose exec hassette cat /app/constraints.txt | grep <package>
+```
+
+**How to prevent it:** Pin hassette in your project dependencies to match the image tag you're deploying. For example, if you're using the `0.24.0-py3.13` image:
+
+```toml
+# pyproject.toml
+dependencies = [
+    "hassette==0.24.0",
+    # ... your other deps
+]
+```
+
+Re-run `uv lock` after changing the pin, then commit both files.
+
+### pyproject.toml Not Found
 
 **Symptom:** "No pyproject.toml found" or dependencies not installing
 
@@ -129,44 +180,64 @@ Verify the file exists:
 docker compose exec hassette cat /apps/pyproject.toml
 ```
 
-#### Unlocked Project Not Installing
+### Project Has pyproject.toml But Dependencies Don't Install
 
-**Symptom:** Has `pyproject.toml` but no `uv.lock`, dependencies not installing
+**Symptom:** You have a `pyproject.toml` but no `uv.lock`, and the startup log says "run 'uv lock' to generate a lockfile"
 
-**Solution:** Either create a lock file or enable unlocked projects:
+**Solution:** Generate a lockfile locally and commit it:
 
-Or enable unlocked projects:
-
-```yaml
-environment:
-  - HASSETTE__ALLOW_UNLOCKED_PROJECT=1
+```bash
+uv lock
+git add uv.lock
+git commit -m "add uv.lock"
 ```
 
-#### Version Conflicts
+If you cannot run `uv` locally, use the `requirements.txt` approach with `HASSETTE__INSTALL_DEPS=1` instead.
+
+### requirements.txt Not Found
+
+**Symptom:** `requirements.txt` files are not being installed
+
+**Solution:** Check these in order:
+
+1. **Confirm `HASSETTE__INSTALL_DEPS=1` is set** — requirements discovery is disabled by default. Without this variable, no requirements files are scanned.
+
+   ```yaml
+   environment:
+     - HASSETTE__INSTALL_DEPS=1
+   ```
+
+2. **Verify the filename is exactly `requirements.txt`** — the startup script only discovers files named exactly `requirements.txt`. Files named `requirements-dev.txt`, `requirements_test.txt`, or any other variant are ignored.
+
+3. **Verify the file is under `/config` or `/apps`** and is not empty.
+
+Check what the container sees:
+
+```bash
+docker compose exec hassette fdfind -t f -a --max-depth 5 '^requirements\.txt$' /apps /config
+```
+
+### Version Conflicts
 
 **Symptom:** Package version conflicts during installation
 
 **Solutions:**
 
-1. Pin exact versions in your dependencies
-2. Use `uv.lock` for consistent resolution
-3. Check for conflicts with hassette's requirements
+1. Use `uv.lock` for consistent, reproducible resolution
+2. For `requirements.txt`, relax overly tight version pins
+3. Check the constraints file to see what versions hassette requires:
 
-#### requirements.txt Not Found
+   ```bash
+   docker compose exec hassette cat /app/constraints.txt
+   ```
 
-**Symptom:** requirements.txt files not being installed
+### Import Errors at Runtime
 
-**Solution:** The startup script looks in `/config` and `/apps`. Ensure files are:
+If apps fail to import installed packages:
 
-1. Named `requirements*.txt` (e.g., `requirements.txt`, `requirements-dev.txt`)
-2. Located somewhere under `/config` or `/apps`
-3. Not empty
-
-Check what the container sees:
-
-```bash
-docker compose exec hassette find /apps /config -name "requirements*.txt" 2>/dev/null
-```
+1. Verify the package is listed in your dependencies
+2. Check logs for installation errors at startup
+3. Ensure `HASSETTE__APP_DIR` points to the correct location
 
 ## Health Check Failing
 
@@ -199,7 +270,7 @@ The health check queries `http://127.0.0.1:8126/api/health`.
 
 4. **Increase start period:**
 
-   If the app takes time to start, increase `start_period`:
+   If the container installs dependencies at startup, it may take more than a few seconds before Hassette is ready to respond to health checks. Increase `start_period` to give it time:
 
    ```yaml
    healthcheck:
@@ -207,7 +278,7 @@ The health check queries `http://127.0.0.1:8126/api/health`.
      interval: 30s
      timeout: 5s
      retries: 3
-     start_period: 60s  # Increase this
+     start_period: 60s
    ```
 
 ## Hot Reload Not Working
@@ -266,7 +337,12 @@ COPY ./apps /apps  # ✗ Copied - changes not reflected
 
 **Symptom:** `ModuleNotFoundError: No module named 'hassette'`
 
-**Solution:** This usually means the virtual environment isn't activated or hassette was uninstalled. Check the startup logs - the script reinstalls hassette after user dependencies.
+**Solution:** This usually means the virtual environment isn't activated or the Docker image is corrupt. Check the startup logs — the script validates that hassette is importable before doing anything else, and prints a clear error if that import fails. If you see `"ERROR: Failed to import hassette — the Docker image may be corrupt"`, try pulling the image again:
+
+```bash
+docker compose pull
+docker compose up -d
+```
 
 ## Performance Issues
 
@@ -279,7 +355,7 @@ COPY ./apps /apps  # ✗ Copied - changes not reflected
 
 **Solutions:**
 
-1. Use `uv.lock` for faster resolution
+1. Use `uv.lock` for faster resolution (packages are already pinned, no resolution needed)
 2. Mount a persistent cache volume:
 
    ```yaml
@@ -287,7 +363,7 @@ COPY ./apps /apps  # ✗ Copied - changes not reflected
      - uv_cache:/uv_cache
    ```
 
-3. Pre-build a custom image with dependencies
+3. Pre-build a custom image with dependencies — see [Pre-building a Custom Image](dependencies.md#pre-building-a-custom-image)
 
 ### High Memory Usage
 
