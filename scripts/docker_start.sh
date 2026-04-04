@@ -45,21 +45,26 @@ run_uv_install() {
     local conflict_type="$2"
     shift 2
 
+    local uv_log
+    uv_log=$(mktemp /tmp/uv-output.XXXXXX)
+
+    # Stream live output AND capture to file for error banner replay
     local exit_code=0
-    local uv_output
-    uv_output=$(timeout "${timeout_secs}" uv "$@" 2>&1) || exit_code=$?
+    timeout "${timeout_secs}" uv "$@" 2>&1 | tee "${uv_log}" || exit_code=${PIPESTATUS[0]}
 
     if [ "${exit_code}" -eq 0 ]; then
-        [ -n "${uv_output}" ] && echo "${uv_output}"
+        rm -f "${uv_log}"
         return 0
     fi
 
     if [ "${exit_code}" -eq 124 ]; then
+        rm -f "${uv_log}"
         echo "ERROR: dependency install timed out after ${timeout_secs}s"
         exit 1
     fi
 
-    # User-friendly error banner printed BEFORE raw uv output
+    # User-friendly error banner — uv output was already streamed live above
+    echo ""
     if [ "${conflict_type}" = "export" ]; then
         echo "─────────────────────────────────────────────────────────"
         echo "  EXPORT FAILED"
@@ -95,10 +100,7 @@ run_uv_install() {
         echo "─────────────────────────────────────────────────────────"
     fi
 
-    echo "  Details below ↓"
-    echo ""
-    [ -n "${uv_output}" ] && echo "${uv_output}"
-
+    rm -f "${uv_log}"
     echo "ERROR: dependency install failed (exit ${exit_code})"
     exit 1
 }

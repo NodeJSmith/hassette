@@ -109,7 +109,7 @@ hassette = "hassette.__main__:entrypoint"
 module-name = "hassette"
 
 [tool.pytest.ini_options]
-pythonpath = "src"
+pythonpath = ["src", "tools"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
