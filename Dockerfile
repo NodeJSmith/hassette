@@ -25,6 +25,7 @@ ADD ./src /app/src
 # Copy SPA build output from frontend stage (vite outputs to ../src/hassette/web/static/spa relative to WORKDIR)
 COPY --from=frontend /app/src/hassette/web/static/spa/ /app/src/hassette/web/static/spa/
 ADD ./scripts /app/scripts
+ADD ./tools /app/tools
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./uv.lock /app/uv.lock
 ADD ./README.md /app/README.md
@@ -34,6 +35,9 @@ ADD ./scripts/.ignore /app/.ignore
 
 ENV UV_LINK_MODE=copy
 
+# Fail the build if uv.lock is stale relative to pyproject.toml
+RUN uv lock --check
+
 # Install deps (without project)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-editable --active --no-default-groups
@@ -41,6 +45,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Install project into venv (not editable, root owns at this point)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --active --no-default-groups
+
+# Generate constraints file from declared dependency ranges (not lockfile pins)
+RUN python tools/generate_constraints.py > /app/constraints.txt
 
 # ---- Final stage ----
 FROM python:${PYTHON_VERSION}-slim
@@ -53,7 +60,6 @@ RUN apt-get update \
     tini \
     tzdata \
     fd-find \
-    git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

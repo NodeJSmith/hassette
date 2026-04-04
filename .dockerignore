@@ -63,6 +63,9 @@ docker-compose*.yml
 # /data/
 # /apps/
 
+# Generated at build time by tools/generate_constraints.py — not sourced from working tree
+constraints.txt
+
 # Frontend build (node_modules sent separately via COPY)
 frontend/node_modules/
 frontend/dist/
