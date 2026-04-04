@@ -88,7 +88,7 @@ class SessionManager(Resource):
 
             self._session_error = True
             self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
-            self._database_service.enqueue(self._do_on_service_crashed(event))
+            await self._database_service.submit(self._do_on_service_crashed(event))
 
     async def finalize_session(self) -> None:
         """Write final session status before shutdown.
