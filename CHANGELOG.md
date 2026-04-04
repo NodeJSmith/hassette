@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.1](https://github.com/NodeJSmith/hassette/compare/v0.24.0...v0.24.1) (2026-04-04)
+
+
+### CI/CD
+
+* add release-please for automated releases ([#474](https://github.com/NodeJSmith/hassette/issues/474)) ([4164e65](https://github.com/NodeJSmith/hassette/commit/4164e65f7456a589ef2bbcf3e1b38acc33a92290))
+* sync uv.lock on release-please PR after version bump ([#476](https://github.com/NodeJSmith/hassette/issues/476)) ([aab51e7](https://github.com/NodeJSmith/hassette/commit/aab51e703d55bf5be972d5d2fc40401a07e7065f))
+
 ## [0.24.0](https://github.com/NodeJSmith/hassette/compare/v0.23.0...v0.24.0) - 2026-04-03
 
 ### Breaking Changes
