@@ -214,7 +214,7 @@ If you cannot run `uv` locally, use the `requirements.txt` approach with `HASSET
 Check what the container sees:
 
 ```bash
-docker compose exec hassette fdfind -t f -a '^requirements\.txt$' /apps /config
+docker compose exec hassette fdfind -t f -a --max-depth 5 '^requirements\.txt$' /apps /config
 ```
 
 ### Version Conflicts

@@ -56,8 +56,16 @@ run_uv_install() {
     local -a pipe_status=("${PIPESTATUS[@]}")
     set -e
     local exit_code="${pipe_status[0]}"
+    local tee_code="${pipe_status[1]:-0}"
 
-    if [ "${exit_code}" -eq 0 ]; then
+    if [ "${exit_code}" -eq 0 ] && [ "${tee_code}" -eq 0 ]; then
+        rm -f "${uv_log}"
+        return 0
+    fi
+
+    # tee failure (disk full, permission denied) — warn but use the uv exit code for decision
+    if [ "${tee_code}" -ne 0 ] && [ "${exit_code}" -eq 0 ]; then
+        echo "WARNING: output capture failed (tee exit ${tee_code}) — install may have succeeded but logs are incomplete"
         rm -f "${uv_log}"
         return 0
     fi
