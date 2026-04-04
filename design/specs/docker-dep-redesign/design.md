@@ -1,0 +1,228 @@
+---
+feature: docker-dep-redesign
+status: approved
+reviewed: true
+---
+
+# Design: Docker Startup Dependency Redesign
+
+## Problem
+
+The Docker startup script (`scripts/docker_start.sh`) installs user dependencies with no protection against framework downgrade, adds unnecessary startup latency, and couples container readiness to PyPI availability. An adversarial challenge review (2026-04-03) traced 5+ findings to this root cause, and a prior art survey confirmed the current pattern is a documented anti-pattern.
+
+Specific issues:
+1. **No framework protection**: `uv pip install -r requirements.txt` can silently downgrade hassette or its transitive deps
+2. **Broken version guard**: `uv pip install /app` runs on every startup (guard is dead code), bypasses the lockfile, adds latency, and doesn't actually fix transitive dep conflicts
+3. **Missing `pipefail`**: `set -eu` without `pipefail` means fd pipeline failures are silently swallowed
+4. **Slow network-coupled startup**: every container start hits PyPI for requirements.txt installs, adding latency and failing on network issues
+5. **Misleading logging**: "Completed sync of found project" prints even when no project was found
+
+## Architecture
+
+### Constraints file (Airflow pattern)
+
+At image build time, the Dockerfile generates a constraints file from the lockfile:
+
+```dockerfile
+RUN uv export --no-hashes --frozen --no-dev --no-editable --no-emit-project \
+    > /app/constraints.txt
+```
+
+Additionally, hassette itself is explicitly pinned in the constraints file:
+
+```dockerfile
+RUN echo "hassette==$(uv version --short)" >> /app/constraints.txt
+```
+
+This file lists exact versions of all hassette dependencies plus hassette itself. **All** runtime dependency installation — whether from `requirements.txt` or user project lockfiles — passes through `-c /app/constraints.txt`, which causes uv to **error** (not silently downgrade) if a user requirement conflicts with the framework's dependency tree.
+
+### Export-then-install pattern for user projects
+
+A post-challenge review (round 2) identified that `uv sync` bypasses constraints entirely — it resolves from the lockfile and installs directly, ignoring pip-style constraints. This means the constraints file provided no protection for the project-install path.
+
+The solution eliminates `uv sync` from the runtime entirely. Instead, user project deps are exported to a requirements file and installed through the same constraints-protected `uv pip install` path:
+
+```bash
+# 1. Export user's resolved deps as a flat requirements list
+uv export --no-hashes --frozen --directory "$PROJECT_DIR" \
+    --no-dev --no-editable --no-emit-project > /tmp/user-deps.txt
+
+# 2. Install deps through constraints (catches conflicts with clear errors)
+timeout 300 uv pip install -r /tmp/user-deps.txt -c "$CONSTRAINTS"
+
+# 3. Install just the project package itself (for clean imports), no dep resolution
+timeout 120 uv pip install --no-deps "$PROJECT_DIR"
+```
+
+This gives users clean imports (their package is installed as a proper Python package) while routing all dependency resolution through constraints. If the user's lockfile resolved `pydantic==2.4` but hassette's constraints require `pydantic==2.5`, step 2 errors with an actionable message instead of silently downgrading.
+
+The unlocked project path (`ALLOW_UNLOCKED_PROJECT=1`) has been removed — see Environment variables section.
+
+### Startup script flow
+
+```
+Container starts
+    │
+    ├── [always] Activate venv, validate hassette is importable
+    │
+    ├── [if uv.lock exists]
+    │   ├── uv export → /tmp/user-deps.txt
+    │   ├── uv pip install -r /tmp/user-deps.txt -c constraints.txt
+    │   └── uv pip install --no-deps <project>
+    │
+    ├── [if pyproject.toml but no uv.lock]
+    │   └── Log: "Generate a lockfile with uv lock"
+    │
+    ├── [if INSTALL_DEPS=1]
+    │   ├── Discover requirements.txt files via fd (exact match only)
+    │   └── For each: uv pip install -r <file> -c constraints.txt
+    │
+    └── exec hassette "$@"
+```
+
+All `uv` network calls are wrapped with `timeout` (300s for project install, 120s per requirements file).
+
+### Error handling policy
+
+A failing `uv pip install` (constraint conflict, yanked package, network error) is **fatal** — the container exits with an actionable error message. This is the fail-fast approach: the user sees the problem immediately in `docker compose logs` rather than discovering missing packages at runtime. With `restart: unless-stopped`, Docker will retry, giving transient network issues a chance to resolve.
+
+### Requirements file discovery
+
+When `INSTALL_DEPS=1`, the startup script discovers files matching **exactly** `requirements.txt` (not `requirements-dev.txt`, `requirements_test.txt`, etc.). This prevents dev/test dependencies from being silently installed in the production container when users mount their full project directory. Users who need multiple requirements files should use the project-based install with `pyproject.toml` + `uv.lock`.
+
+### Version banner
+
+The version banner uses `importlib.metadata.version('hassette')` instead of `uv version --short`. This validates the venv is functional (the import actually works) and reports the installed version, not the declared version from `pyproject.toml`. If the import fails, the script exits with a clear error about a corrupt image.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `HASSETTE__INSTALL_DEPS` | `0` | Enable requirements.txt file discovery and installation |
+
+**Removed**: `HASSETTE__ALLOW_UNLOCKED_PROJECT` — the unlocked path ran `uv export` without `--frozen`, resolving live against PyPI on every restart. This is non-reproducible, network-dependent, and contradicts the constraints-based safety model. Users with `pyproject.toml` but no `uv.lock` should run `uv lock` locally (one command). Users who can't run uv locally have the `requirements.txt` path with `INSTALL_DEPS=1`.
+
+**Deprecation handling**: If the startup script detects `HASSETTE__ALLOW_UNLOCKED_PROJECT` is set, it logs a warning directing the user to generate a lockfile or use `INSTALL_DEPS=1`, then continues (does not abort).
+
+### Dockerfile changes
+
+1. Add `RUN uv lock --check` before any `uv sync` to catch stale lockfiles at build time
+2. Add `uv export` step after `uv sync` in builder stage to generate `constraints.txt`
+3. Explicitly append `hassette==<version>` to constraints file (using `uv version --short` which reads `pyproject.toml`)
+4. Remove `git` from final stage (no runtime use)
+5. The constraints file is copied to the final image alongside the venv
+
+### Startup script hardening
+
+- `set -euo pipefail` (adds `pipefail`)
+- `timeout` on all `uv` network calls, with explicit exit-code handling (code 124 = timeout, logs actionable message)
+- `--no-default-groups` on `uv export` calls (prevents dev deps in production)
+- Bash array for `ROOTS` (fixes word-split on paths with spaces)
+- NUL-safe `read -d ''` in fd loop (fixes paths with spaces)
+- Accurate log messages for all branches (including pyproject.toml-exists-but-no-lockfile case)
+- `fd` check moved outside `INSTALL_DEPS` gate (broken image detection regardless of config)
+- `fd --max-depth 5` to prevent deep traversal of mounted project trees
+
+## Alternatives Considered
+
+### Separate virtualenv for user deps (Pattern 5 from prior art)
+
+Framework in `/app/.venv`, user deps in `/app/user.venv`, both on `sys.path` with framework first.
+
+**Rejected**: Fundamentally incompatible with how Python's import system works. Python can only import one version of a package — if user code needs `pydantic>=2.5` features but the framework venv has `pydantic==2.4` first on `sys.path`, the user's code breaks. Entry points, `.pth` files, and namespace packages also behave unpredictably across venv boundaries. This pattern is repeatedly suggested by AI tools but does not work in practice.
+
+### Disable all runtime installs (hermetic only)
+
+Remove all runtime pip install capability, require users to build custom images.
+
+**Rejected**: Incompatible with the future HA add-on path where the add-on system owns the image and runtime install is the only option. Also too high-friction for the "barely know what I'm doing" user persona.
+
+### Keep `uv sync` for project-based installs
+
+Use `uv sync --locked --active` directly instead of the export-then-install pattern.
+
+**Rejected**: `uv sync` does not support pip-style constraints. A user lockfile that resolves a different version of hassette or its transitive deps silently overwrites the framework's packages with no error. The export-then-install pattern routes everything through the constraints file, providing a single enforcement point.
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `.dockerignore` | Add `constraints.txt` (generated at build time, not sourced from working tree) |
+| `Dockerfile` | Add `uv lock --check`, `uv export` step, append hassette pin, remove `git` from final stage |
+| `scripts/docker_start.sh` | Replace `uv sync` with export-then-install, add pipefail, timeouts, constraints, fix logging, deprecation detection |
+| `docs/pages/getting-started/docker/index.md` | Document `HASSETTE__INSTALL_DEPS`, remove `ALLOW_UNLOCKED_PROJECT`, update env var table |
+| `docs/pages/getting-started/docker/dependencies.md` | Update startup flow diagram, document constraints and export pattern, update custom-image example to use export-then-install, add local path deps limitation |
+| `docs/pages/getting-started/docker/troubleshooting.md` | Add constraint conflict troubleshooting with user-friendly framing (see below), remove `ALLOW_UNLOCKED_PROJECT` references, update stale "reinstalls hassette" text |
+| `tests/test_docker_integration.py` | Add `INSTALL_DEPS=1` to all requirements tests, invert dev-variant test (assert NOT installed), add constraint-conflict test, add `test_docker_skips_requirements_by_default`, relax pinned versions |
+| `tests/test_docker_requirements_discovery.py` | Update `test_fd_handles_multiple_requirements_patterns` to reflect exact-match pattern |
+| `examples/docker-compose.yml` | Add `start_period: 60s` and `interval: 30s` to healthcheck |
+
+## Prior Art
+
+- Apache Airflow: constraints.txt published per release, baked into Docker image
+- AWS MWAA: server-side constraints enforcement
+- AppDaemon: unprotected runtime install (documented anti-pattern)
+- Full brief: `design/research/2026-04-03-runtime-dep-install/research.md`
+
+## Constraint Error UX
+
+The constraints mechanism will produce uv resolver errors that look intimidating to non-technical users. Without framing, these errors read as "hassette is broken" rather than "your lockfile needs updating." This is the most important UX consideration in the redesign.
+
+### Startup script error wrapping
+
+When `uv pip install -r <user-deps> -c constraints.txt` fails, the startup script catches the error and prints a human-readable message **before** the raw uv output:
+
+```
+─────────────────────────────────────────────────────────
+  DEPENDENCY CONFLICT
+
+  Your project's dependencies conflict with this version
+  of Hassette. This usually means your uv.lock was generated
+  against a different Hassette version than this image.
+
+  To fix: run 'uv lock' locally, commit uv.lock, and restart.
+
+  Details below ↓
+─────────────────────────────────────────────────────────
+```
+
+The raw uv error follows so advanced users can see the specific package and version involved.
+
+For `requirements.txt` conflicts, the message is similar but directs users to relax their version pin or check which version hassette requires (`cat /app/constraints.txt | grep <package>`).
+
+### Troubleshooting page
+
+The troubleshooting page gets a dedicated "Dependency Conflicts" section (not buried under a generic "Version Conflicts" heading) with:
+
+1. **What the error looks like** — show the actual uv error output so users can pattern-match
+2. **Why it happens** — one sentence: "Your project was locked against a different hassette version than this Docker image"
+3. **How to fix it** — step by step:
+   - For project-based installs: `uv lock && git commit uv.lock`
+   - For requirements.txt: relax version pins or check `docker compose exec hassette cat /app/constraints.txt | grep <package>`
+4. **How to prevent it** — pin hassette in your project deps to match the image tag (e.g., `hassette==0.24.0` when using the `0.24.0-py3.13` image)
+
+### Dependencies page
+
+The dependencies page explains the constraints concept proactively (before users hit errors):
+
+> Hassette's Docker image includes a constraints file that pins the exact versions of all framework dependencies. When you install your own packages, hassette checks that they don't conflict with these versions. If there's a mismatch, you'll see a clear error message with instructions to fix it — usually just running `uv lock` locally to re-resolve your dependencies against the current hassette version.
+
+## Known Limitations
+
+- **Local path dependencies**: User projects with local path deps (`foo = { path = "../shared-lib" }`) will fail during the export step because `uv export` emits `file:///absolute/path` references that don't exist in the container. Users with monorepo-style local deps should use the custom image build pattern instead. Document in troubleshooting.
+- **Multi-arch constraints**: The constraints file is generated for the build platform. Multi-arch images (amd64 + arm64) are not in scope for this release. If/when multi-arch is needed, generate platform-keyed constraints files (Airflow pattern). Document as known limitation.
+- **Network-dependent cold starts**: The export-then-install pattern reduces PyPI latency via caching but does not eliminate network dependency on cold starts. Users who need offline-capable restarts can set `UV_OFFLINE=1` after initial setup (the `uv_cache` volume makes this viable). Document the custom image path as the recommended approach for restricted-network environments.
+
+## Open Questions
+
+None — all questions resolved across three challenge rounds:
+- `uv sync` eliminated from runtime; replaced by export-then-install through constraints
+- `uv export` used for constraints generation (lockfile-derived, canonical)
+- Isolated user venv rejected (incompatible with Python's import system)
+- `ALLOW_UNLOCKED_PROJECT` removed with deprecation log (non-reproducible, contradicts safety model)
+- Requirements discovery restricted to exact `requirements.txt` match (prevents dev dep leakage)
+- Failed dependency installs are fatal (fail-fast, actionable error messages)
+- `uv lock --check` added to Dockerfile to catch stale lockfiles
+- Timeouts with explicit exit-code handling on all network calls
+- Version banner validates venv health via importlib.metadata
+- Local path deps, multi-arch, and offline operation documented as known limitations
