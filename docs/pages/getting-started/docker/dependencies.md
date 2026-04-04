@@ -4,10 +4,14 @@ This guide explains how to install Python packages for your Hassette apps when r
 
 ## Overview
 
-Hassette's Docker startup script automatically discovers and installs dependencies before starting your apps. It supports two methods:
+Hassette's Docker startup script installs project dependencies automatically and optionally discovers `requirements.txt` files when enabled. It supports two methods:
 
-1. **Project-based** - Using `pyproject.toml` and `uv.lock` (recommended for complex projects)
-2. **Requirements files** - Using `requirements.txt` files (simple approach)
+1. **Project-based** — using `pyproject.toml` and `uv.lock` (recommended for complex projects)
+2. **Requirements files** — using `requirements.txt` (simple approach, opt-in)
+
+### How Constraints Work
+
+Hassette's Docker image includes a constraints file (`/app/constraints.txt`) that records the compatible version ranges for all framework dependencies. When you install your own packages, the startup script passes this file to `uv`, so any dependency that would conflict with hassette's requirements causes a clear error message rather than a silent downgrade. If you see a conflict error, it usually means your `uv.lock` was generated against a different hassette version than the image — running `uv lock` locally and committing the result fixes it. See [Dependency Conflicts](troubleshooting.md#dependency-conflicts) for details.
 
 ## How the Startup Script Works
 
@@ -15,24 +19,31 @@ When the container starts, the [startup script](https://github.com/NodeJSmith/ha
 
 ```mermaid
 graph TD
-    A[Container Starts] --> B{uv.lock exists?}
-    B -->|Yes| C[Install locked project]
-    B -->|No| D{pyproject.toml exists AND<br>ALLOW_UNLOCKED=1?}
-    D -->|Yes| E[Install unlocked project]
-    D -->|No| F[Skip project install]
-    C --> G[Search for requirements.txt]
-    E --> G
-    F --> G
-    G --> H[Install each requirements.txt found]
-    H --> I[Ensure correct hassette version]
-    I --> J[Start hassette]
+    A[Container Starts] --> B[Activate venv\nValidate hassette importable]
+    B --> C{uv.lock exists?}
+    C -->|Yes| D[uv export → /tmp/user-deps.txt]
+    D --> E[uv pip install -r user-deps.txt\n-c constraints.txt]
+    E --> F[uv pip install --no-deps project]
+    C -->|No| G{pyproject.toml exists?}
+    G -->|Yes| H[Log: run uv lock to generate a lockfile]
+    G -->|No| I[Skip project install]
+    F --> J{HASSETTE__INSTALL_DEPS=1?}
+    H --> J
+    I --> J
+    J -->|Yes| K[Discover requirements.txt files via fd\nexact match only]
+    K --> L[For each: uv pip install -r file -c constraints.txt]
+    L --> M[Start hassette]
+    J -->|No| M
 ```
 
 ### Key Behaviors
 
-1. **Project installation**: Looks for `uv.lock` or `pyproject.toml` in `HASSETTE__PROJECT_DIR` (defaults to `/apps`)
-2. **Requirements discovery**: Uses `fd` to find all `requirements*.txt` files in both `/config` and `/apps` directories
-3. **Version protection**: After installing your dependencies, reinstalls the correct hassette version to prevent conflicts
+1. **Export-then-install**: When a `uv.lock` is found, the startup script exports your resolved dependencies to a temporary requirements file and installs them through the constraints file. This routes all dependency resolution through a single enforcement point rather than bypassing constraints.
+2. **Opt-in requirements discovery**: `requirements.txt` files are only discovered when `HASSETTE__INSTALL_DEPS=1` is set. By default, no requirements files are scanned.
+3. **Exact filename match**: Only files named exactly `requirements.txt` are discovered — not `requirements-dev.txt`, `requirements_test.txt`, or other variants. This prevents dev and test dependencies from being silently installed in the production container.
+4. **Constraints protection for all installs**: Every `uv pip install` — whether from a project lockfile or a `requirements.txt` — passes `-c /app/constraints.txt`. Conflicts produce a clear error message before the container exits.
+5. **Fail-fast**: A failing dependency install exits the container immediately with an actionable message. With `restart: unless-stopped`, Docker retries automatically, giving transient network issues a chance to resolve.
+6. **Timeouts**: All network calls are wrapped with `timeout` (300 s for project export/install, 120 s per requirements file).
 
 ## Understanding APP_DIR vs PROJECT_DIR
 
@@ -82,7 +93,9 @@ In this setup:
 
 - `HASSETTE__APP_DIR` defaults to `/apps` ✓
 - `HASSETTE__PROJECT_DIR` defaults to `/apps` ✓
-- Any `requirements.txt` in `/apps` is automatically discovered and installed
+
+!!! note "Opt-in required for requirements.txt"
+    A `requirements.txt` in `/apps` is **not** installed automatically. You must set `HASSETTE__INSTALL_DEPS=1` for the startup script to discover and install it. See [Using requirements.txt](#using-requirementstxt) below.
 
 ### Traditional src/ Layout
 
@@ -126,7 +139,7 @@ In this setup:
 - The project root (containing `pyproject.toml`) is mounted to `/apps`
 - `HASSETTE__PROJECT_DIR=/apps` tells the startup script where to find dependencies
 - `HASSETTE__APP_DIR=/apps/src/my_apps` tells Hassette where to find your app files
-- Your App files can import from the `my_apps` package normally
+- Your app files can import from the `my_apps` package normally
 
 ## Using pyproject.toml
 
@@ -144,30 +157,24 @@ dependencies = [
 ]
 ```
 
-### With a Lock File (Recommended)
+### With a Lock File (Required)
 
-Generate a lock file for reproducible builds.
+Generate a lock file before deploying:
 
-If a `uv.lock` file exists alongside your `pyproject.toml`, the startup script will automatically use it to pin exact versions.
-
-!!! tip "No lock file tooling?"
-  If you don't want to generate a lock file, you can use the simpler `requirements.txt` approach below.
-
-### Without a Lock File
-
-If you only have `pyproject.toml` without `uv.lock`, you must explicitly opt-in:
-
-```yaml
-environment:
-  - HASSETTE__ALLOW_UNLOCKED_PROJECT=1
+```bash
+uv lock
+git add uv.lock
+git commit -m "add uv.lock"
 ```
 
-!!! warning "Reproducibility"
-    Without a lock file, dependency versions may change between container restarts. Always use `uv.lock` for production deployments.
+If a `uv.lock` file exists alongside your `pyproject.toml`, the startup script uses the export-then-install pattern: it exports your resolved dependencies as a flat requirements list and installs them through the constraints file.
+
+!!! note "Lock file is required for project-based installs"
+    If your `pyproject.toml` is present but no `uv.lock` exists, the startup script logs a message directing you to run `uv lock` and skips the project install. If you can't run `uv` locally, use the `requirements.txt` path with `HASSETTE__INSTALL_DEPS=1` instead.
 
 ## Using requirements.txt
 
-For simpler setups, place `requirements.txt` files anywhere in `/config` or `/apps`:
+For simpler setups, place a `requirements.txt` file in `/config` or `/apps`:
 
 ```
 apps/
@@ -182,30 +189,24 @@ requests>=2.31.0
 aiohttp>=3.9.0
 ```
 
-The startup script uses `fd` to recursively find all files matching `requirements*.txt` in both `/config` and `/apps`, then installs them in sorted order.
+!!! warning "Opt-in required"
+    Requirements file discovery is disabled by default. Set `HASSETTE__INSTALL_DEPS=1` in your compose environment to enable it.
 
-### Multiple Requirements Files
-
-You can have multiple requirements files:
-
-```
-apps/
-├── requirements.txt
-├── requirements-dev.txt
-└── feature/
-    └── requirements.txt
+```yaml
+environment:
+  - HASSETTE__INSTALL_DEPS=1
 ```
 
-All files matching `requirements*.txt` will be discovered and installed.
+The startup script uses `fd` to find files named exactly `requirements.txt` in both `/config` and `/apps` (up to 5 directory levels deep), then installs them in sorted path order with constraints applied.
 
-!!! note "Installation Order"
-    Files are installed in sorted order by path. Later files can override versions from earlier ones.
+!!! note "Exact filename match only"
+    Only files named exactly `requirements.txt` are discovered. Files named `requirements-dev.txt`, `requirements_test.txt`, or any other variant are ignored. If you need multiple files, use the project-based install with `pyproject.toml` + `uv.lock`.
 
 ## Startup Performance
 
 ### Using uv.lock for Faster Starts
 
-The `uv_cache` Docker volume caches downloaded packages. Combined with `uv.lock`, this makes subsequent container starts very fast:
+The `uv_cache` Docker volume caches downloaded packages. Combined with `uv.lock`, this makes subsequent container starts very fast because packages that are already cached don't need to be re-downloaded:
 
 ```yaml
 volumes:
@@ -214,18 +215,29 @@ volumes:
 
 ### Pre-building a Custom Image
 
-For the fastest startup times, build a custom image with dependencies pre-installed:
+For the fastest startup times, build a custom image with your dependencies pre-installed. Use the export-then-install pattern to ensure constraints are respected:
 
 ```dockerfile
 FROM ghcr.io/nodejsmith/hassette:latest-py3.13
 
 # Copy your project files
-COPY pyproject.toml uv.lock /apps/
+COPY pyproject.toml uv.lock /project/
 
-# Install dependencies at build time
-RUN uv sync --directory /apps --locked --active
+# Export resolved deps as a flat requirements list
+RUN uv export \
+        --no-hashes --frozen \
+        --directory /project \
+        --no-default-groups \
+        --no-dev --no-editable --no-emit-project \
+        --output-file /tmp/user-deps.txt
 
-# Your apps will be mounted at runtime
+# Install through constraints
+RUN uv pip install -r /tmp/user-deps.txt -c /app/constraints.txt
+
+# Install the project package itself (no dep resolution)
+RUN uv pip install --no-deps /project
+
+RUN rm /tmp/user-deps.txt
 ```
 
 Then in `docker-compose.yml`:
@@ -239,54 +251,11 @@ services:
       - ./config:/config
 ```
 
-## Troubleshooting Dependencies
+### Known Limitations
 
-### Dependencies Not Installing
+#### Local Path Dependencies
 
-1. **Check the logs** for installation output:
-
-   ```bash
-   docker compose logs hassette | grep -i "installing"
-   ```
-
-2. **Verify file locations** - make sure files are where the startup script expects:
-
-   ```bash
-   docker compose exec hassette ls -la /apps
-   docker compose exec hassette cat /apps/pyproject.toml
-   ```
-
-3. **Check PROJECT_DIR** - ensure it points to the directory containing `pyproject.toml`:
-
-   ```yaml
-   environment:
-     - HASSETTE__PROJECT_DIR=/apps  # Must contain pyproject.toml
-   ```
-
-### "Unlocked project" Not Installing
-
-If you have `pyproject.toml` but no `uv.lock`, you must set:
-
-```yaml
-environment:
-  - HASSETTE__ALLOW_UNLOCKED_PROJECT=1
-```
-
-### Version Conflicts
-
-If you see version conflicts:
-
-1. Pin exact versions in your dependencies
-2. Use `uv.lock` to ensure consistent resolution
-3. Check if your dependencies conflict with hassette's requirements
-
-### Import Errors at Runtime
-
-If apps fail to import installed packages:
-
-1. Verify the package is listed in dependencies
-2. Check logs for installation errors
-3. Ensure `HASSETTE__APP_DIR` points to the correct location
+User projects with local path dependencies (e.g., `foo = { path = "../shared-lib" }`) will fail during the export step because `uv export` emits `file:///absolute/path` references that don't resolve inside the container. If your project uses monorepo-style local deps, use the custom image build pattern above — copy all relevant packages into the image at build time and install them before deploying.
 
 ## Complete Examples
 
@@ -304,6 +273,7 @@ services:
       - uv_cache:/uv_cache
     environment:
       - TZ=America/New_York
+      - HASSETTE__INSTALL_DEPS=1
 
 volumes:
   data:
