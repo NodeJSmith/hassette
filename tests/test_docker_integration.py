@@ -481,3 +481,172 @@ def test_docker_project_without_lockfile_warns():
         output = result.stderr + result.stdout
         assert result.returncode == 0, f"Container should still start. Output:\n{output}"
         assert "uv lock" in output, f"Expected lockfile warning. Output:\n{output}"
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_install_with_real_dep():
+    """Test that a project with an actual dependency gets it installed through constraints."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "pyproject.toml").write_text(
+            '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+            'requires-python = ">=3.11"\ndependencies = ["tabulate>=0.9"]\n'
+            '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+        )
+        subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{project_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__PROJECT_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        output = result.stderr + result.stdout
+        assert result.returncode == 0, f"Project install with real dep failed. Output:\n{output}"
+        assert "Project install complete." in output
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_constraint_conflict():
+    """Test that a project whose lockfile conflicts with hassette's constraints fails with a clear error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
+        (project_dir / "pyproject.toml").write_text(
+            '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+            'requires-python = ">=3.11"\ndependencies = ["aiohttp==3.0.0"]\n'
+            '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+        )
+        subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{project_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__PROJECT_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        output = result.stderr + result.stdout
+        assert result.returncode != 0, f"Expected non-zero exit for project constraint conflict. Output:\n{output}"
+        assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_deprecated_allow_unlocked_project_warns():
+    """Test that setting ALLOW_UNLOCKED_PROJECT logs a deprecation warning."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        apps_dir = tmp_path / "apps"
+        apps_dir.mkdir()
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{apps_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__ALLOW_UNLOCKED_PROJECT=1",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        output = result.stderr + result.stdout
+        assert result.returncode == 0, f"Deprecation warning should not crash. Output:\n{output}"
+        assert "ALLOW_UNLOCKED_PROJECT" in output, f"Expected deprecation warning. Output:\n{output}"
+        assert "deprecated" in output.lower(), f"Expected 'deprecated' in warning. Output:\n{output}"
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_no_project_no_deps_starts_clean():
+    """Test that a container with no project and INSTALL_DEPS unset starts cleanly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        apps_dir = tmp_path / "apps"
+        apps_dir.mkdir()
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{apps_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        output = result.stderr + result.stdout
+        assert result.returncode == 0, f"Clean start failed. Output:\n{output}"
+        assert "No project found" in output
+        assert "Runtime dependency installation disabled" in output
