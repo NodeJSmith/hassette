@@ -1,63 +1,177 @@
 #!/usr/bin/env bash
 
-set -eu
+set -euo pipefail
 
 # shellcheck disable=SC1091
 . /app/.venv/bin/activate
 
-HASSETTE_VERSION=$(uv version --short --directory /app)
-
-echo "Running Hassette version $HASSETTE_VERSION"
+# Validate venv health by importing hassette — catches corrupt images
+HASSETTE_VERSION=$(python -c "import importlib.metadata; print(importlib.metadata.version('hassette'))" 2>&1) || {
+    echo "ERROR: Failed to import hassette — the Docker image may be corrupt."
+    echo "       Details: ${HASSETTE_VERSION}"
+    exit 1
+}
+echo "Running Hassette version ${HASSETTE_VERSION}"
 
 # APP_DIR is where we start looking for actual *.py files that contain App/AppSync classes
 # PROJECT_DIR is where to look for a uv.lock or pyproject.toml file for a package
-
 APP_DIR="${HASSETTE__APP_DIR:-/apps}"
 PROJECT_DIR="${HASSETTE__PROJECT_DIR:-/apps}"
-
 CONFIG="${HASSETTE__CONFIG_DIR:-/config}"
-ALLOW_UNLOCKED_PROJECT="${HASSETTE__ALLOW_UNLOCKED_PROJECT:-0}"
+INSTALL_DEPS="${HASSETTE__INSTALL_DEPS:-0}"
+CONSTRAINTS="/app/constraints.txt"
 
 # Debian package is `fd-find`; binary name is usually `fdfind`.
-FD_BIN="$(command -v fdfind || command -v fd)"
+FD_BIN="$(command -v fdfind || command -v fd || true)"
+if [ -z "$FD_BIN" ]; then
+    echo "WARNING: fd (fdfind) not found — requirements.txt discovery will be skipped even if HASSETTE__INSTALL_DEPS=1."
+fi
 
-# Install project deps if present
+# Deprecation warning for removed env var
+if [ -n "${HASSETTE__ALLOW_UNLOCKED_PROJECT:-}" ]; then
+    echo "WARNING: HASSETTE__ALLOW_UNLOCKED_PROJECT is deprecated and has no effect."
+    echo "         Migration options:"
+    echo "           1. Run 'uv lock' locally, commit uv.lock, and mount your project."
+    echo "           2. Use HASSETTE__INSTALL_DEPS=1 with a requirements.txt file."
+fi
+
+# ── helper: run a uv command with timeout and friendly error messages ─────────
+# Usage: run_uv_install <timeout_seconds> <conflict_type> <uv args...>
+# conflict_type: "export", "project", or "requirements"
+run_uv_install() {
+    local timeout_secs="$1"
+    local conflict_type="$2"
+    shift 2
+
+    local exit_code=0
+    local uv_output
+    uv_output=$(timeout "${timeout_secs}" uv "$@" 2>&1) || exit_code=$?
+
+    if [ "${exit_code}" -eq 0 ]; then
+        [ -n "${uv_output}" ] && echo "${uv_output}"
+        return 0
+    fi
+
+    if [ "${exit_code}" -eq 124 ]; then
+        echo "ERROR: dependency install timed out after ${timeout_secs}s"
+        exit 1
+    fi
+
+    # User-friendly error banner printed BEFORE raw uv output
+    if [ "${conflict_type}" = "export" ]; then
+        echo "─────────────────────────────────────────────────────────"
+        echo "  EXPORT FAILED"
+        echo ""
+        echo "  Could not export your project's dependencies."
+        echo "  Common causes: local path deps, git deps not reachable,"
+        echo "  or a lockfile that needs regenerating."
+        echo ""
+        echo "  To fix: run 'uv lock' locally, commit uv.lock, and restart."
+        echo "  If your project has local path deps, use the custom image"
+        echo "  build pattern instead."
+        echo "─────────────────────────────────────────────────────────"
+    elif [ "${conflict_type}" = "project" ]; then
+        echo "─────────────────────────────────────────────────────────"
+        echo "  DEPENDENCY CONFLICT"
+        echo ""
+        echo "  Your project's dependencies conflict with this version"
+        echo "  of Hassette. This usually means your uv.lock was generated"
+        echo "  against a different Hassette version than this image."
+        echo ""
+        echo "  To fix: run 'uv lock' locally, commit uv.lock, and restart."
+        echo "─────────────────────────────────────────────────────────"
+    else
+        echo "─────────────────────────────────────────────────────────"
+        echo "  DEPENDENCY CONFLICT"
+        echo ""
+        echo "  A requirements.txt dependency conflicts with this version"
+        echo "  of Hassette."
+        echo ""
+        echo "  To fix: relax the version pin in your requirements.txt, or"
+        echo "  check which version hassette requires:"
+        echo "    cat /app/constraints.txt | grep <package>"
+        echo "─────────────────────────────────────────────────────────"
+    fi
+
+    # Raw uv output follows the banner so advanced users can see specifics
+    [ -n "${uv_output}" ] && echo "${uv_output}" >&2
+
+    echo "ERROR: dependency install failed (exit ${exit_code})"
+    exit 1
+}
+
+# ---------------------------------------------------------------------------
+# 1. Project-based install (export deps → install with constraints → install package)
+# ---------------------------------------------------------------------------
 if [ -f "$PROJECT_DIR/uv.lock" ]; then
-    echo "Installing locked project in $PROJECT_DIR"
-    uv sync --directory "$PROJECT_DIR" --locked --active
-elif [ -f "$PROJECT_DIR/pyproject.toml" ] && [ "$ALLOW_UNLOCKED_PROJECT" = "1" ]; then
-    echo "Installing unlocked project in $PROJECT_DIR (HASSETTE__ALLOW_UNLOCKED_PROJECT=1)"
-    uv sync --directory "$PROJECT_DIR" --active
-fi
+    echo "Installing locked project from $PROJECT_DIR..."
 
-echo "Completed sync of found project"
+    # Temp file for exported deps — cleaned up on exit (including early termination)
+    user_deps_file=$(mktemp /tmp/user-deps.XXXXXX)
+    trap 'rm -f "${user_deps_file}"' EXIT
 
-# Build list of roots that exist
-ROOTS=""
-[ -d "$CONFIG" ] && ROOTS="$ROOTS $CONFIG"
-[ -d "$APP_DIR" ] && ROOTS="$ROOTS $APP_DIR"
+    # Export resolved deps as a flat requirements list
+    # --output-file is preferred over stdout redirect: uv writes atomically (temp+rename)
+    run_uv_install 300 "export" export \
+        --no-hashes --frozen \
+        --directory "$PROJECT_DIR" \
+        --no-default-groups \
+        --no-dev --no-editable --no-emit-project \
+        --output-file "${user_deps_file}"
 
-found_files=0
+    # Install deps through constraints (catches conflicts with clear errors)
+    run_uv_install 300 "project" pip install \
+        -r "${user_deps_file}" \
+        -c "$CONSTRAINTS"
 
-# Install requirements files (fd ignores .git/.venv/node_modules by default)
-if [ -n "$ROOTS" ]; then
-    # shellcheck disable=SC2086
-    while IFS= read -r req; do
-        [ -s "$req" ] || continue
-        found_files=$((found_files + 1))
-        echo "Installing requirements from $req"
-        uv pip install -r "$req"
-    done < <("$FD_BIN" -t f -a -0 'requirements' --extension txt $ROOTS | sort -z | tr '\0' '\n')
-fi
+    # Install just the project package itself (for clean imports), no dep resolution
+    run_uv_install 120 "project" pip install \
+        --no-deps "$PROJECT_DIR"
 
-echo "Completed installation of $found_files found requirements.txt files"
+    echo "Project install complete."
 
-if [ -n "${HASSETTE_VERSION:-}" ]; then
-    # ensure correct version of hassette is still installed
-    echo "Ensuring hassette version ${HASSETTE_VERSION} is installed"
-    uv pip install /app
+elif [ -f "$PROJECT_DIR/pyproject.toml" ]; then
+    echo "Found pyproject.toml in $PROJECT_DIR but no uv.lock — run 'uv lock' to generate a lockfile, then restart."
 else
-    echo "No specific hassette version specified"
+    echo "No project found in $PROJECT_DIR — skipping project install"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Requirements.txt discovery (only when HASSETTE__INSTALL_DEPS=1)
+# ---------------------------------------------------------------------------
+if [ "${INSTALL_DEPS}" = "1" ]; then
+    if [ -z "$FD_BIN" ]; then
+        echo "ERROR: HASSETTE__INSTALL_DEPS=1 but fd is not installed in this image."
+        exit 1
+    fi
+
+    ROOTS=()
+    [ -d "$CONFIG" ] && ROOTS+=("$CONFIG")
+    [ -d "$APP_DIR" ] && ROOTS+=("$APP_DIR")
+
+    found_files=0
+
+    if [ "${#ROOTS[@]}" -gt 0 ]; then
+        # Exact match for requirements.txt only; NUL-safe read; max-depth 5
+        while IFS= read -r -d '' req; do
+            [ -s "$req" ] || continue
+            found_files=$((found_files + 1))
+            echo "Installing requirements from $req (with constraints)..."
+            run_uv_install 120 "requirements" pip install \
+                -r "$req" \
+                -c "$CONSTRAINTS"
+        done < <("$FD_BIN" -t f -a -0 --max-depth 5 '^requirements\.txt$' "${ROOTS[@]}" | sort -z)
+    fi
+
+    echo "Installed $found_files requirements.txt file(s)"
+else
+    # Hint if user tried a truthy value other than "1"
+    case "${INSTALL_DEPS}" in
+        true|yes|on|TRUE|YES|ON)
+            echo "WARNING: HASSETTE__INSTALL_DEPS='${INSTALL_DEPS}' — use '1' to enable (e.g., HASSETTE__INSTALL_DEPS=1)"
+            ;;
+    esac
+    echo "Runtime dependency installation disabled (set HASSETTE__INSTALL_DEPS=1 to enable)"
 fi
 
 exec hassette "$@"
