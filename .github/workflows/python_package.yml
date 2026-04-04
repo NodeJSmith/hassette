@@ -1,19 +1,29 @@
 name: Publish Python package
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "Release tag (e.g. v0.24.0) — passed by release-please"
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to publish (e.g. v0.24.0)"
+        required: true
+        type: string
 
 jobs:
   build-pypi-dists:
     name: Build Python package
-
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -26,6 +36,14 @@ jobs:
 
       - name: Install python packages
         run: uv sync
+
+      - name: Verify tag matches project version
+        if: inputs.tag_name != ''
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: |
+          PROJECT_VERSION=$(uv version --short)
+          uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
 
       - name: Build a binary wheel and a source tarball
         run: uv build
@@ -43,6 +61,7 @@ jobs:
       url: https://pypi.org/p/hassette
     needs: [build-pypi-dists]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
 
@@ -55,3 +74,5 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true

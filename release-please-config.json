@@ -1,0 +1,19 @@
+{
+	"bootstrap-sha": "d3be90797a918035ff6464ec1646de2ea613611b",
+	"packages": {
+		".": {
+			"release-type": "python",
+			"bump-minor-pre-major": true,
+			"changelog-sections": [
+				{ "type": "feat", "section": "Features" },
+				{ "type": "fix", "section": "Bug Fixes" },
+				{ "type": "perf", "section": "Performance Improvements" },
+				{ "type": "refactor", "section": "Refactoring" },
+				{ "type": "docs", "section": "Documentation" },
+				{ "type": "chore", "section": "Miscellaneous" },
+				{ "type": "ci", "section": "CI/CD" },
+				{ "type": "test", "section": "Tests" }
+			]
+		}
+	}
+}
