@@ -36,7 +36,7 @@ jobs:
 
     sync-lockfile:
         needs: release-please
-        if: needs.release-please.outputs.pr && !needs.release-please.outputs.release_created
+        if: needs.release-please.outputs.pr && needs.release-please.outputs.release_created != 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
@@ -67,7 +67,7 @@ jobs:
                       git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                       git add uv.lock
                       git commit -m "chore: sync uv.lock with version bump"
-                      git push
+                      git push origin HEAD
                   fi
 
     publish-pypi:
