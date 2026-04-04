@@ -23,8 +23,10 @@ CONSTRAINTS="/app/constraints.txt"
 
 # Debian package is `fd-find`; binary name is usually `fdfind`.
 FD_BIN="$(command -v fdfind || command -v fd || true)"
-if [ -z "$FD_BIN" ]; then
-    echo "WARNING: fd (fdfind) not found — requirements.txt discovery will be skipped even if HASSETTE__INSTALL_DEPS=1."
+if [ -z "$FD_BIN" ] && [ "${INSTALL_DEPS}" = "1" ]; then
+    echo "WARNING: fd (fdfind) not found — HASSETTE__INSTALL_DEPS=1 will not work."
+elif [ -z "$FD_BIN" ]; then
+    echo "NOTE: fd (fdfind) not found — if you enable HASSETTE__INSTALL_DEPS=1 later, it will require fd."
 fi
 
 # Deprecation warning for removed env var
@@ -93,8 +95,9 @@ run_uv_install() {
         echo "─────────────────────────────────────────────────────────"
     fi
 
-    # Raw uv output follows the banner so advanced users can see specifics
-    [ -n "${uv_output}" ] && echo "${uv_output}" >&2
+    echo "  Details below ↓"
+    echo ""
+    [ -n "${uv_output}" ] && echo "${uv_output}"
 
     echo "ERROR: dependency install failed (exit ${exit_code})"
     exit 1
@@ -168,7 +171,7 @@ else
     # Hint if user tried a truthy value other than "1"
     case "${INSTALL_DEPS}" in
         true|yes|on|TRUE|YES|ON)
-            echo "WARNING: HASSETTE__INSTALL_DEPS='${INSTALL_DEPS}' — use '1' to enable (e.g., HASSETTE__INSTALL_DEPS=1)"
+            echo "WARNING: HASSETTE__INSTALL_DEPS='${INSTALL_DEPS}' is not recognized — use '1' to enable. Your requirements.txt files will NOT be installed."
             ;;
     esac
     echo "Runtime dependency installation disabled (set HASSETTE__INSTALL_DEPS=1 to enable)"

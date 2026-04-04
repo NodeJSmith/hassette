@@ -47,7 +47,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --active --no-default-groups
 
 # Generate constraints file from declared dependency ranges (not lockfile pins)
-RUN python tools/generate_constraints.py > /app/constraints.txt
+RUN python tools/generate_constraints.py > /app/constraints.txt \
+ && python -c "lines=[l for l in open('/app/constraints.txt').read().splitlines() if l and not l.startswith('#')]; assert len(lines) >= 5, f'constraints.txt has only {len(lines)} entries — check generate_constraints.py'"
 
 # ---- Final stage ----
 FROM python:${PYTHON_VERSION}-slim

@@ -125,6 +125,32 @@ def test_no_duplicate_hassette(tmp_path: Path) -> None:
     assert len(hassette_lines) == 1, f"Expected exactly one hassette line, got: {hassette_lines}"
 
 
+PYPROJECT_MULTI_EXTRAS = textwrap.dedent(
+    """\
+    [project]
+    name = "hassette"
+    version = "0.24.0"
+    dependencies = [
+        "httpx[http2,brotli]>=0.25",
+        "tzdata>=2024.1; sys_platform == 'win32'",
+    ]
+    """
+)
+
+
+def test_multiple_comma_separated_extras_stripped(tmp_path: Path) -> None:
+    """httpx[http2,brotli]>=0.25 → httpx>=0.25."""
+    lines = run_generate(tmp_path, PYPROJECT_MULTI_EXTRAS)
+    assert any(line == "httpx>=0.25" for line in lines), f"Expected httpx>=0.25, got: {lines}"
+    assert not any("[" in line for line in lines if not line.startswith("#"))
+
+
+def test_environment_markers_preserved(tmp_path: Path) -> None:
+    """Deps with environment markers should pass through verbatim (marker preserved)."""
+    lines = run_generate(tmp_path, PYPROJECT_MULTI_EXTRAS)
+    assert any("tzdata>=2024.1; sys_platform" in line for line in lines), f"Expected marker preserved, got: {lines}"
+
+
 def test_no_blank_dep_lines(tmp_path: Path) -> None:
     """Output should have no blank lines between deps (comment + deps only)."""
     lines = run_generate(tmp_path, SIMPLE_PYPROJECT)

@@ -392,3 +392,92 @@ def test_docker_constraint_conflict():
         assert result.returncode != 0, f"Expected non-zero exit for conflict. Output:\n{output}"
         # Must display the DEPENDENCY CONFLICT banner
         assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_install_with_lockfile():
+    """Test that a project with uv.lock triggers the export-then-install path."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        # Create a minimal project with pyproject.toml + uv.lock
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "pyproject.toml").write_text(
+            '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+            'requires-python = ">=3.11"\ndependencies = []\n'
+            '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+        )
+        # Generate a lockfile
+        subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{project_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__PROJECT_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        output = result.stderr + result.stdout
+        assert result.returncode == 0, f"Project install failed. Output:\n{output}"
+        assert "Project install complete." in output
+
+
+@pytest.mark.integration
+@pytest.mark.docker
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
+def test_docker_project_without_lockfile_warns():
+    """Test that pyproject.toml without uv.lock logs a warning to run uv lock."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "pyproject.toml").write_text(
+            '[project]\nname = "test-proj"\nversion = "0.1.0"\ndependencies = []\n'
+        )
+
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{project_dir}:/apps:ro",
+                "-e",
+                "HASSETTE__APP_DIR=/apps",
+                "-e",
+                "HASSETTE__PROJECT_DIR=/apps",
+                "-e",
+                "HASSETTE__TOKEN=test_token",
+                "-e",
+                "HASSETTE__BASE_URL=http://test",
+                DOCKER_IMAGE,
+                "--version",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        output = result.stderr + result.stdout
+        assert result.returncode == 0, f"Container should still start. Output:\n{output}"
+        assert "uv lock" in output, f"Expected lockfile warning. Output:\n{output}"
