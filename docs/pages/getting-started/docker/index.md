@@ -141,6 +141,15 @@ Now Hassette will automatically restart apps when you change files in `./apps/`.
 !!! warning "Performance"
     File watching adds overhead. Only enable if you need it.
 
+### Graceful Shutdown
+
+Hassette handles `SIGTERM` (sent by `docker stop` and `docker compose down`) to shut down gracefully — finalizing the active session, draining pending database writes, and closing all connections cleanly.
+
+The compose examples include `stop_grace_period: 45s` to give Hassette enough time to complete its shutdown sequence. Docker's default of 10 seconds is too short and will force-kill the process before it finishes, leaving sessions marked as `unknown` on the next startup.
+
+!!! tip "Custom shutdown timeout"
+    If you override `total_shutdown_timeout_seconds` in your config, set `stop_grace_period` to at least 15 seconds more than your shutdown timeout to avoid Docker killing the process early.
+
 ## Viewing Logs
 
 ### Docker Compose Logs
