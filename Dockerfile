@@ -46,9 +46,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --active --no-default-groups
 
-# Generate constraints file from declared dependency ranges (not lockfile pins)
-RUN python tools/generate_constraints.py > /app/constraints.txt \
- && python -c "lines=[l for l in open('/app/constraints.txt').read().splitlines() if l and not l.startswith('#')]; assert len(lines) >= 5, f'constraints.txt has only {len(lines)} entries — check generate_constraints.py'"
+# Generate constraints file from declared dependency ranges (not lockfile pins).
+# Must use the venv Python so importlib.metadata can find the installed hassette version.
+RUN /app/.venv/bin/python tools/generate_constraints.py > /app/constraints.txt \
+ && /app/.venv/bin/python -c "lines=[l for l in open('/app/constraints.txt').read().splitlines() if l and not l.startswith('#')]; assert len(lines) >= 5, f'constraints.txt has only {len(lines)} entries — check generate_constraints.py'"
 
 # ---- Final stage ----
 FROM python:${PYTHON_VERSION}-slim

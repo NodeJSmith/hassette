@@ -402,7 +402,7 @@ def test_docker_project_install_with_lockfile():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
 
-        # Create a minimal project with pyproject.toml + uv.lock
+        # Create a minimal project with pyproject.toml + uv.lock + package dir
         project_dir = tmp_path / "project"
         project_dir.mkdir()
         (project_dir / "pyproject.toml").write_text(
@@ -410,6 +410,10 @@ def test_docker_project_install_with_lockfile():
             'requires-python = ">=3.11"\ndependencies = []\n'
             '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
         )
+        # Create minimal package so hatchling has something to build
+        pkg_dir = project_dir / "test_proj"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
         # Generate a lockfile
         subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
 
@@ -419,7 +423,7 @@ def test_docker_project_install_with_lockfile():
                 "run",
                 "--rm",
                 "-v",
-                f"{project_dir}:/apps:ro",
+                f"{project_dir}:/apps",
                 "-e",
                 "HASSETTE__APP_DIR=/apps",
                 "-e",
@@ -455,6 +459,9 @@ def test_docker_project_install_without_build_system():
         (project_dir / "pyproject.toml").write_text(
             '[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = []\n'
         )
+        pkg_dir = project_dir / "test_proj"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
         subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
 
         result = subprocess.run(
@@ -463,7 +470,7 @@ def test_docker_project_install_without_build_system():
                 "run",
                 "--rm",
                 "-v",
-                f"{project_dir}:/apps:ro",
+                f"{project_dir}:/apps",
                 "-e",
                 "HASSETTE__APP_DIR=/apps",
                 "-e",
@@ -505,7 +512,7 @@ def test_docker_project_without_lockfile_warns():
                 "run",
                 "--rm",
                 "-v",
-                f"{project_dir}:/apps:ro",
+                f"{project_dir}:/apps",
                 "-e",
                 "HASSETTE__APP_DIR=/apps",
                 "-e",
@@ -542,6 +549,9 @@ def test_docker_project_install_with_real_dep():
             'requires-python = ">=3.11"\ndependencies = ["tabulate>=0.9"]\n'
             '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
         )
+        pkg_dir = project_dir / "test_proj"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
         subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
 
         result = subprocess.run(
@@ -550,7 +560,7 @@ def test_docker_project_install_with_real_dep():
                 "run",
                 "--rm",
                 "-v",
-                f"{project_dir}:/apps:ro",
+                f"{project_dir}:/apps",
                 "-e",
                 "HASSETTE__APP_DIR=/apps",
                 "-e",
@@ -588,6 +598,9 @@ def test_docker_project_constraint_conflict():
             'requires-python = ">=3.11"\ndependencies = ["aiohttp==3.0.0"]\n'
             '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
         )
+        pkg_dir = project_dir / "test_proj"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
         subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
 
         result = subprocess.run(
@@ -596,7 +609,7 @@ def test_docker_project_constraint_conflict():
                 "run",
                 "--rm",
                 "-v",
-                f"{project_dir}:/apps:ro",
+                f"{project_dir}:/apps",
                 "-e",
                 "HASSETTE__APP_DIR=/apps",
                 "-e",
