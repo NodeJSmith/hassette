@@ -416,6 +416,8 @@ def test_docker_project_install_with_lockfile():
         (pkg_dir / "__init__.py").write_text("")
         # Generate a lockfile
         subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+        # Make writable for container's hassette user (UID 1000) — needed for egg-info/build artifacts
+        subprocess.run(["chmod", "-R", "a+rwX", str(project_dir)], check=True)
 
         result = subprocess.run(
             [
@@ -463,6 +465,8 @@ def test_docker_project_install_without_build_system():
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text("")
         subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+        # Make writable for container's hassette user (UID 1000) — needed for egg-info/build artifacts
+        subprocess.run(["chmod", "-R", "a+rwX", str(project_dir)], check=True)
 
         result = subprocess.run(
             [
@@ -553,6 +557,8 @@ def test_docker_project_install_with_real_dep():
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text("")
         subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+        # Make writable for container's hassette user (UID 1000) — needed for egg-info/build artifacts
+        subprocess.run(["chmod", "-R", "a+rwX", str(project_dir)], check=True)
 
         result = subprocess.run(
             [
@@ -602,6 +608,8 @@ def test_docker_project_constraint_conflict():
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text("")
         subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+        # Make writable for container's hassette user (UID 1000) — needed for egg-info/build artifacts
+        subprocess.run(["chmod", "-R", "a+rwX", str(project_dir)], check=True)
 
         result = subprocess.run(
             [
