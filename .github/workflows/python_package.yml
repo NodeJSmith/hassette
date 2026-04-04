@@ -41,7 +41,9 @@ jobs:
         if: inputs.tag_name != ''
         env:
           TAG_NAME: ${{ inputs.tag_name }}
-        run: uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$(uv version --short)"
+        run: |
+          PROJECT_VERSION=$(uv version --short)
+          uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
 
       - name: Build a binary wheel and a source tarball
         run: uv build

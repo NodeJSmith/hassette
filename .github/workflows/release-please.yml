@@ -15,6 +15,7 @@ concurrency:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -62,7 +63,14 @@ jobs:
         env:
           PYPI_RESULT: ${{ needs.publish-pypi.result }}
           DOCKER_RESULT: ${{ needs.publish-docker.result }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
         run: |
+          # Detect credential/setup failure (both skipped = release-please job failed)
+          if [ "$PYPI_RESULT" = "skipped" ] && [ "$DOCKER_RESULT" = "skipped" ]; then
+            echo "::error::Both publish jobs were skipped — release-please likely failed (check App token secrets)"
+            exit 1
+          fi
+
           failed=""
           if [ "$PYPI_RESULT" != "success" ]; then
             failed="$failed PyPI($PYPI_RESULT)"
@@ -71,7 +79,8 @@ jobs:
             failed="$failed Docker($DOCKER_RESULT)"
           fi
           if [ -n "$failed" ]; then
-            echo "::error::Partial release — failed:$failed"
+            echo "::error::Partial release $TAG_NAME — failed:$failed"
+            echo "::notice::Recovery: re-run failed jobs, or trigger workflow_dispatch with tag_name=$TAG_NAME"
             exit 1
           fi
-          echo "All publish jobs succeeded"
+          echo "All publish jobs succeeded for $TAG_NAME"
