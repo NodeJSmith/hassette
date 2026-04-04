@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,41 @@ import pytest
 # Allow overriding the Docker image for testing
 # Default to locally built image, can override with HASSETTE_TEST_IMAGE env var
 DOCKER_IMAGE = os.getenv("HASSETTE_TEST_IMAGE", "hassette:test")
+
+
+@pytest.fixture
+def docker_project_dir() -> Iterator[Path]:
+    """Temp directory for project-based Docker tests with UID-safe cleanup.
+
+    The container's hassette user (UID 1000) creates build artifacts (egg-info, build/)
+    that the CI runner (different UID) cannot delete. The teardown uses `docker run --user root`
+    to chmod everything before rmtree.
+    """
+    tmpdir = tempfile.mkdtemp()
+    project_dir = Path(tmpdir) / "project"
+    project_dir.mkdir()
+    yield project_dir
+    # Fix ownership so rmtree can clean up container-created files
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            "root",
+            "--entrypoint",
+            "chmod",
+            "-v",
+            f"{tmpdir}:/mnt",
+            DOCKER_IMAGE,
+            "-R",
+            "777",
+            "/mnt",
+        ],
+        capture_output=True,
+        timeout=30,
+    )
+    shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @pytest.mark.integration
@@ -397,246 +433,209 @@ def test_docker_constraint_conflict():
 @pytest.mark.integration
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
-def test_docker_project_install_with_lockfile():
+def test_docker_project_install_with_lockfile(docker_project_dir: Path):
     """Test that a project with uv.lock triggers the export-then-install path."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+        'requires-python = ">=3.11"\ndependencies = []\n'
+        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+    )
+    pkg_dir = docker_project_dir / "test_proj"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    subprocess.run(["uv", "lock", "--directory", str(docker_project_dir)], check=True, capture_output=True)
 
-        # Create a minimal project with pyproject.toml + uv.lock + package dir
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / "pyproject.toml").write_text(
-            '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
-            'requires-python = ">=3.11"\ndependencies = []\n'
-            '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
-        )
-        # Create minimal package so hatchling has something to build
-        pkg_dir = project_dir / "test_proj"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text("")
-        # Generate a lockfile
-        subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
-        # Make writable for container's hassette user (UID 1000) — needed for egg-info/build artifacts
-        subprocess.run(["chmod", "-R", "a+rwX", str(project_dir)], check=True)
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
 
-        result = subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                f"{project_dir}:/apps",
-                "-e",
-                "HASSETTE__APP_DIR=/apps",
-                "-e",
-                "HASSETTE__PROJECT_DIR=/apps",
-                "-e",
-                "HASSETTE__TOKEN=test_token",
-                "-e",
-                "HASSETTE__BASE_URL=http://test",
-                DOCKER_IMAGE,
-                "--version",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-        output = result.stderr + result.stdout
-        assert result.returncode == 0, f"Project install failed. Output:\n{output}"
-        assert "Project install complete." in output
+    output = result.stderr + result.stdout
+    assert result.returncode == 0, f"Project install failed. Output:\n{output}"
+    assert "Project install complete." in output
 
 
 @pytest.mark.integration
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
-def test_docker_project_install_without_build_system():
+def test_docker_project_install_without_build_system(docker_project_dir: Path):
     """Test that a project without [build-system] still installs via uv's default backend."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = []\n'
+    )
+    pkg_dir = docker_project_dir / "test_proj"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    subprocess.run(["uv", "lock", "--directory", str(docker_project_dir)], check=True, capture_output=True)
 
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        # No [build-system] table — uv handles this with its default backend
-        (project_dir / "pyproject.toml").write_text(
-            '[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = []\n'
-        )
-        pkg_dir = project_dir / "test_proj"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text("")
-        subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
-        # Make writable for container's hassette user (UID 1000) — needed for egg-info/build artifacts
-        subprocess.run(["chmod", "-R", "a+rwX", str(project_dir)], check=True)
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
 
-        result = subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                f"{project_dir}:/apps",
-                "-e",
-                "HASSETTE__APP_DIR=/apps",
-                "-e",
-                "HASSETTE__PROJECT_DIR=/apps",
-                "-e",
-                "HASSETTE__TOKEN=test_token",
-                "-e",
-                "HASSETTE__BASE_URL=http://test",
-                DOCKER_IMAGE,
-                "--version",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-        output = result.stderr + result.stdout
-        assert result.returncode == 0, f"Project without [build-system] should still work. Output:\n{output}"
-        assert "Project install complete." in output
+    output = result.stderr + result.stdout
+    assert result.returncode == 0, f"Project without [build-system] should still work. Output:\n{output}"
+    assert "Project install complete." in output
 
 
 @pytest.mark.integration
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
-def test_docker_project_without_lockfile_warns():
+def test_docker_project_without_lockfile_warns(docker_project_dir: Path):
     """Test that pyproject.toml without uv.lock logs a warning to run uv lock."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\ndependencies = []\n'
+    )
 
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / "pyproject.toml").write_text(
-            '[project]\nname = "test-proj"\nversion = "0.1.0"\ndependencies = []\n'
-        )
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
 
-        result = subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                f"{project_dir}:/apps",
-                "-e",
-                "HASSETTE__APP_DIR=/apps",
-                "-e",
-                "HASSETTE__PROJECT_DIR=/apps",
-                "-e",
-                "HASSETTE__TOKEN=test_token",
-                "-e",
-                "HASSETTE__BASE_URL=http://test",
-                DOCKER_IMAGE,
-                "--version",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-
-        output = result.stderr + result.stdout
-        assert result.returncode == 0, f"Container should still start. Output:\n{output}"
-        assert "uv lock" in output, f"Expected lockfile warning. Output:\n{output}"
+    output = result.stderr + result.stdout
+    assert result.returncode == 0, f"Container should still start. Output:\n{output}"
+    assert "uv lock" in output, f"Expected lockfile warning. Output:\n{output}"
 
 
 @pytest.mark.integration
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
-def test_docker_project_install_with_real_dep():
+def test_docker_project_install_with_real_dep(docker_project_dir: Path):
     """Test that a project with an actual dependency gets it installed through constraints."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+        'requires-python = ">=3.11"\ndependencies = ["tabulate>=0.9"]\n'
+        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+    )
+    pkg_dir = docker_project_dir / "test_proj"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    subprocess.run(["uv", "lock", "--directory", str(docker_project_dir)], check=True, capture_output=True)
 
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / "pyproject.toml").write_text(
-            '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
-            'requires-python = ">=3.11"\ndependencies = ["tabulate>=0.9"]\n'
-            '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
-        )
-        pkg_dir = project_dir / "test_proj"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text("")
-        subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
-        # Make writable for container's hassette user (UID 1000) — needed for egg-info/build artifacts
-        subprocess.run(["chmod", "-R", "a+rwX", str(project_dir)], check=True)
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
 
-        result = subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                f"{project_dir}:/apps",
-                "-e",
-                "HASSETTE__APP_DIR=/apps",
-                "-e",
-                "HASSETTE__PROJECT_DIR=/apps",
-                "-e",
-                "HASSETTE__TOKEN=test_token",
-                "-e",
-                "HASSETTE__BASE_URL=http://test",
-                DOCKER_IMAGE,
-                "--version",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-        output = result.stderr + result.stdout
-        assert result.returncode == 0, f"Project install with real dep failed. Output:\n{output}"
-        assert "Project install complete." in output
+    output = result.stderr + result.stdout
+    assert result.returncode == 0, f"Project install with real dep failed. Output:\n{output}"
+    assert "Project install complete." in output
 
 
 @pytest.mark.integration
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
-def test_docker_project_constraint_conflict():
+def test_docker_project_constraint_conflict(docker_project_dir: Path):
     """Test that a project whose lockfile conflicts with hassette's constraints fails with a clear error."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
+    # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
+    (docker_project_dir / "pyproject.toml").write_text(
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+        'requires-python = ">=3.11"\ndependencies = ["aiohttp==3.0.0"]\n'
+        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
+    )
+    pkg_dir = docker_project_dir / "test_proj"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    subprocess.run(["uv", "lock", "--directory", str(docker_project_dir)], check=True, capture_output=True)
 
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
-        (project_dir / "pyproject.toml").write_text(
-            '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
-            'requires-python = ">=3.11"\ndependencies = ["aiohttp==3.0.0"]\n'
-            '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
-        )
-        pkg_dir = project_dir / "test_proj"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text("")
-        subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
-        # Make writable for container's hassette user (UID 1000) — needed for egg-info/build artifacts
-        subprocess.run(["chmod", "-R", "a+rwX", str(project_dir)], check=True)
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{docker_project_dir}:/apps",
+            "-e",
+            "HASSETTE__APP_DIR=/apps",
+            "-e",
+            "HASSETTE__PROJECT_DIR=/apps",
+            "-e",
+            "HASSETTE__TOKEN=test_token",
+            "-e",
+            "HASSETTE__BASE_URL=http://test",
+            DOCKER_IMAGE,
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
 
-        result = subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                f"{project_dir}:/apps",
-                "-e",
-                "HASSETTE__APP_DIR=/apps",
-                "-e",
-                "HASSETTE__PROJECT_DIR=/apps",
-                "-e",
-                "HASSETTE__TOKEN=test_token",
-                "-e",
-                "HASSETTE__BASE_URL=http://test",
-                DOCKER_IMAGE,
-                "--version",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-        output = result.stderr + result.stdout
-        assert result.returncode != 0, f"Expected non-zero exit for project constraint conflict. Output:\n{output}"
-        assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
+    output = result.stderr + result.stdout
+    assert result.returncode != 0, f"Expected non-zero exit for project constraint conflict. Output:\n{output}"
+    assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
 
 
 @pytest.mark.integration
