@@ -6,6 +6,8 @@ reviewed: true
 
 # Design: Docker Startup Dependency Redesign
 
+**Status:** archived
+
 ## Problem
 
 The Docker startup script (`scripts/docker_start.sh`) installs user dependencies with no protection against framework downgrade, adds unnecessary startup latency, and couples container readiness to PyPI availability. An adversarial challenge review (2026-04-03) traced 5+ findings to this root cause, and a prior art survey confirmed the current pattern is a documented anti-pattern.

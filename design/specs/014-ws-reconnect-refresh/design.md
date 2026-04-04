@@ -1,5 +1,7 @@
 # 014: WebSocket Reconnect Stability & Auto-Refresh
 
+**Status:** archived
+
 ## Problem
 
 Two related issues in the Preact SPA's WebSocket infrastructure:
