@@ -17,11 +17,6 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
   return (
     <div class="ht-kpi-strip" data-testid="kpi-strip">
       <div class="ht-health-card">
-        <span class="ht-health-card__label">Apps</span>
-        <span class="ht-health-card__value">{appCount}</span>
-        <span class="ht-health-card__detail">{runningCount} running</span>
-      </div>
-      <div class="ht-health-card">
         <span class="ht-health-card__label">Error Rate</span>
         <span class={`ht-health-card__value ht-health-card__value--${errorRateToVariant(data.error_rate_class)}`}>
           {data.error_rate.toFixed(1)}%
@@ -31,6 +26,11 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
             ? `${data.total_errors + data.total_job_errors} / ${pluralize(data.total_invocations + data.total_executions, "invocation")}`
             : "No data"}
         </span>
+      </div>
+      <div class="ht-health-card">
+        <span class="ht-health-card__label">Apps</span>
+        <span class="ht-health-card__value">{appCount}</span>
+        <span class="ht-health-card__detail">{runningCount} running</span>
       </div>
       <div class="ht-health-card">
         <span class="ht-health-card__label">Handlers</span>

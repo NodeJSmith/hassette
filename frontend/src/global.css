@@ -179,16 +179,17 @@ code, pre {
 }
 
 a {
-  color: var(--ht-accent);
+  color: var(--ht-link);
   text-decoration: none;
 }
 
 a:hover {
+  color: var(--ht-link-hover);
   text-decoration: underline;
 }
 
 a code {
-  color: var(--ht-accent);
+  color: var(--ht-link);
 }
 
 a:hover code {
@@ -287,7 +288,7 @@ strong {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ht-accent);
+  color: var(--ht-text-secondary);
   text-decoration: none;
 }
 
@@ -322,14 +323,14 @@ strong {
 }
 
 .ht-nav-item:hover {
-  background: var(--ht-accent-light);
+  background: var(--ht-surface-recessed);
   color: var(--ht-text);
   text-decoration: none;
 }
 
 .ht-nav-item.is-active {
-  background: var(--ht-accent-light);
-  color: var(--ht-accent);
+  background: var(--ht-surface-recessed);
+  color: var(--ht-text);
 }
 
 .ht-nav-item svg {
@@ -408,13 +409,14 @@ strong {
 }
 
 .ht-scope-toggle__btn:hover:not(.is-active) {
-  background: var(--ht-accent-light);
+  background: var(--ht-surface-recessed);
   color: var(--ht-text);
 }
 
 .ht-scope-toggle__btn.is-active {
-  background: var(--ht-accent);
-  color: var(--ht-bg);
+  color: var(--ht-text);
+  background: var(--ht-surface-recessed);
+  border-bottom: 2px solid var(--ht-border-strong);
 }
 
 /* — Theme Toggle ——————————————————————————————————————— */
@@ -434,7 +436,7 @@ strong {
 }
 
 .ht-theme-toggle:hover {
-  background: var(--ht-accent-light);
+  background: var(--ht-surface-recessed);
   color: var(--ht-text);
   border-color: var(--ht-border-strong);
 }
@@ -471,6 +473,7 @@ strong {
 .ht-card {
   background: var(--ht-surface);
   border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
   border-radius: var(--ht-radius-md);
   box-shadow: var(--ht-shadow-sm);
   padding: var(--ht-sp-5);
@@ -660,7 +663,7 @@ strong {
 
 .ht-btn--ghost.ht-btn--success:hover { background: var(--ht-success-light); }
 .ht-btn--ghost.ht-btn--warning:hover { background: var(--ht-warning-light); }
-.ht-btn--ghost.ht-btn--info:hover { background: var(--ht-accent-light); }
+.ht-btn--ghost.ht-btn--info:hover { background: var(--ht-surface-recessed); }
 .ht-btn--ghost.ht-btn--danger:hover { background: var(--ht-danger-light); }
 
 .ht-btn--primary {
@@ -692,12 +695,12 @@ strong {
 }
 
 .ht-btn--info {
-  border-color: var(--ht-accent);
-  color: var(--ht-accent);
+  border-color: var(--ht-border-strong);
+  color: var(--ht-text);
 }
 
 .ht-btn--info:hover {
-  background: var(--ht-accent-light);
+  background: var(--ht-surface-recessed);
 }
 
 .ht-btn-group {
@@ -784,8 +787,8 @@ strong {
 }
 
 .ht-tabs li button[aria-pressed="true"] {
-  color: var(--ht-accent);
-  border-bottom-color: var(--ht-accent);
+  color: var(--ht-text);
+  border-bottom-color: var(--ht-text-secondary);
   font-weight: var(--ht-weight-semibold);
 }
 
@@ -990,6 +993,7 @@ strong {
   padding: var(--ht-sp-4);
   background: var(--ht-surface);
   border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
   border-radius: var(--ht-radius-md);
 }
 
@@ -1026,6 +1030,7 @@ strong {
   gap: var(--ht-sp-4);
 }
 
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .ht-health-strip {
     grid-template-columns: repeat(2, 1fr);
@@ -1174,7 +1179,7 @@ strong {
 }
 
 .ht-breadcrumb a:hover {
-  color: var(--ht-accent);
+  color: var(--ht-text);
   text-decoration: underline;
 }
 
@@ -1200,6 +1205,7 @@ strong {
 }
 
 /* — Responsive: sidebar hidden below 768px ————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .ht-layout {
     grid-template-columns: 1fr;
@@ -1274,6 +1280,45 @@ strong {
   .ht-heading-5 {
     font-size: var(--ht-text-base);
   }
+
+  /* Touch target enforcement (WCAG 2.5.8 — 44px minimum) */
+  .ht-scope-toggle__btn {
+    min-height: 44px;
+    padding: var(--ht-sp-2) var(--ht-sp-3);
+  }
+
+  .ht-theme-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .ht-tabs li button {
+    min-height: 44px;
+    padding: var(--ht-sp-2) var(--ht-sp-3);
+  }
+
+  .ht-btn--sm,
+  .ht-btn--xs {
+    min-height: 44px;
+  }
+
+  /* StatusBar: sticky so pulse dot and scope toggle stay visible */
+  .ht-status-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--ht-surface-sticky);
+  }
+
+  /* Main content: bottom padding for future bottom nav */
+  .ht-main {
+    padding-bottom: calc(var(--ht-sp-4) + 52px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Log table: hide App column (tag integration is WP03) */
+  .ht-table-log .ht-col-app {
+    display: none;
+  }
 }
 
 /* — Responsive: small phones (max-width: 480px) ———————— */
@@ -1295,15 +1340,14 @@ strong {
   margin-bottom: var(--ht-sp-6);
 }
 
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .ht-kpi-strip {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .ht-kpi-strip {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ht-kpi-strip > :first-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1317,12 +1361,14 @@ strong {
 .ht-app-card {
   background: var(--ht-surface);
   border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
   border-radius: var(--ht-radius-md);
-  transition: box-shadow var(--ht-motion-micro);
+  transition: background var(--ht-motion-micro), box-shadow var(--ht-motion-micro);
   overflow: hidden;
 }
 
 .ht-app-card:hover {
+  background: var(--ht-surface-recessed);
   box-shadow: var(--ht-shadow-md);
 }
 
@@ -1595,7 +1641,7 @@ strong {
 .ht-btn--link {
   border-color: transparent;
   background: transparent;
-  color: var(--ht-accent);
+  color: var(--ht-link);
   padding: 0;
 }
 
@@ -1617,6 +1663,7 @@ strong {
 /* — Light Mode Overrides ——————————————————————————————— */
 [data-theme="light"] .ht-card {
   border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
@@ -1640,7 +1687,7 @@ strong {
   height: auto;
   padding: var(--ht-sp-2) var(--ht-sp-4);
   background: var(--ht-surface);
-  color: var(--ht-accent);
+  color: var(--ht-text);
   border: 2px solid var(--ht-accent);
   border-radius: var(--ht-radius-md);
   font-family: var(--ht-font-body);
