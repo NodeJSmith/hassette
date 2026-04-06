@@ -2,8 +2,9 @@ import { signal } from "@preact/signals";
 import { useEffect, useRef, useCallback } from "preact/hooks";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
+import { useMediaQuery, BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useAppState } from "../../state/context";
-import { formatTimestamp, pluralize } from "../../utils/format";
+import { formatTimestamp, formatTimestampShort, pluralize } from "../../utils/format";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -48,6 +49,14 @@ export function sortEntries(entries: readonly LogEntry[], column: SortColumn, as
   });
 }
 
+const LEVEL_ABBREV: Record<string, string> = {
+  DEBUG: "D",
+  INFO: "I",
+  WARNING: "W",
+  ERROR: "E",
+  CRITICAL: "C",
+};
+
 interface Props {
   showAppColumn?: boolean;
   appKey?: string;
@@ -56,6 +65,7 @@ interface Props {
 }
 
 export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
+  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const { logs, updateLogSubscription, reconnectVersion } = useAppState();
   const minLevel = useRef(signal("INFO")).current; // default = INFO (matches WS subscription)
   const appFilter = useRef(signal("")).current; // "" = All Apps
@@ -283,7 +293,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                   <span>Timestamp</span>{" "}<span aria-hidden="true">{sortArrow("timestamp")}</span>
                 </button>
               </th>
-              {showAppColumn && (
+              {showAppColumn && !isMobile && (
                 <th class="ht-col-app" aria-sort={ariaSortFor("app")} data-testid="sort-app">
                   <button type="button" class="ht-sortable" onClick={() => handleSort("app")}>
                     <span>App</span>{" "}<span aria-hidden="true">{sortArrow("app")}</span>
@@ -301,7 +311,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={showAppColumn ? 5 : 4} class="ht-text-center ht-text-muted">
+                <td colSpan={showAppColumn && !isMobile ? 5 : 4} class="ht-text-center ht-text-muted">
                   No log entries.
                 </td>
               </tr>
@@ -312,11 +322,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
               <tr key={rowKey}>
                 <td>
                   <span class={`ht-badge ht-badge--sm ht-badge--${entry.level === "ERROR" || entry.level === "CRITICAL" ? "danger" : entry.level === "WARNING" ? "warning" : entry.level === "DEBUG" ? "neutral" : "success"}`}>
-                    {entry.level}
+                    {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
                   </span>
                 </td>
-                <td class="ht-text-mono">{formatTimestamp(entry.timestamp)}</td>
-                {showAppColumn && (
+                <td class="ht-text-mono">{isMobile ? formatTimestampShort(entry.timestamp) : formatTimestamp(entry.timestamp)}</td>
+                {showAppColumn && !isMobile && (
                   <td>
                     {entry.app_key ? (
                       <a href={`/apps/${entry.app_key}`} class="ht-text-mono">
@@ -347,7 +357,12 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                       onClick={toggle}
                       onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
                     >
-                      <div data-row-key={rowKey} class={`ht-log-message__text${isExpanded ? " is-expanded" : ""}`}>{entry.message}</div>
+                      <div data-row-key={rowKey} class={`ht-log-message__text${isExpanded ? " is-expanded" : ""}`}>
+                        {isMobile && showAppColumn && entry.app_key && (
+                          <span class="ht-log-app-tag ht-tag ht-tag--neutral">{entry.app_key}</span>
+                        )}
+                        {entry.message}
+                      </div>
                     </td>
                   );
                 })()}

@@ -7,6 +7,15 @@ export function formatTimestamp(ts: number): string {
   return `${month}/${day} ${time}`;
 }
 
+/** Format a Unix timestamp as "MM/DD HH:MM AM/PM" (no seconds) for mobile. */
+export function formatTimestampShort(ts: number): string {
+  const d = new Date(ts * 1000);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `${month}/${day} ${time}`;
+}
+
 /** Format a duration in milliseconds with one decimal (e.g., "158.0ms"). */
 export function formatDuration(ms: number): string {
   if (ms < 1) return "<1ms";

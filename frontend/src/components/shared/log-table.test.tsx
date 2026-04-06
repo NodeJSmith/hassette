@@ -8,6 +8,13 @@ import { AppStateContext } from "../../state/context";
 import { createAppState, type AppState } from "../../state/create-app-state";
 import type { WsLogPayload } from "../../api/ws-types";
 
+// Mock useMediaQuery — default to desktop (false), overridden in mobile tests
+const mockUseMediaQuery = vi.fn((_maxWidth: number) => false);
+vi.mock("../../hooks/use-media-query", () => ({
+  useMediaQuery: (maxWidth: number) => mockUseMediaQuery(maxWidth),
+  BREAKPOINT_MOBILE: 768,
+}));
+
 // Mock the API endpoint for initial log fetch
 vi.mock("../../api/endpoints", () => ({
   getRecentLogs: vi.fn().mockResolvedValue([]),
@@ -988,5 +995,101 @@ describe("Live streaming pause", () => {
     // REST entry still visible, WS entry hidden
     expect(queryByText("rest-entry")).not.toBeNull();
     expect(queryByText("ws-entry")).toBeNull();
+  });
+});
+
+// -- Mobile responsive rendering --
+
+describe("Mobile responsive rendering", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    entrySeq = 0;
+    mockUseMediaQuery.mockReturnValue(true); // mobile
+  });
+
+  afterEach(() => {
+    mockUseMediaQuery.mockReturnValue(false); // restore desktop
+  });
+
+  it("abbreviates level labels on mobile (INFO -> I)", () => {
+    state.logs.push(createLogEntry({ level: "INFO", message: "info msg" }));
+    state.logs.push(createLogEntry({ level: "WARNING", message: "warn msg" }));
+    state.logs.push(createLogEntry({ level: "ERROR", message: "error msg" }));
+    state.logs.push(createLogEntry({ level: "DEBUG", message: "debug msg" }));
+
+    // Need all levels visible
+    const { container, getByTestId } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
+
+    const badges = container.querySelectorAll(".ht-badge");
+    const badgeTexts = Array.from(badges).map((b) => b.textContent);
+    expect(badgeTexts).toContain("I");
+    expect(badgeTexts).toContain("W");
+    expect(badgeTexts).toContain("E");
+    expect(badgeTexts).toContain("D");
+    // Full labels should NOT appear
+    expect(badgeTexts).not.toContain("INFO");
+    expect(badgeTexts).not.toContain("WARNING");
+    expect(badgeTexts).not.toContain("ERROR");
+    expect(badgeTexts).not.toContain("DEBUG");
+  });
+
+  it("hides App column header on mobile", () => {
+    state.logs.push(createLogEntry({ app_key: "my_app" }));
+
+    const { container } = render(
+      <LogTable showAppColumn appKeys={["my_app"]} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("App"))).toBe(false);
+  });
+
+  it("shows app name as tag in message column on mobile", () => {
+    state.logs.push(createLogEntry({ app_key: "my_app", message: "test message" }));
+
+    const { container } = render(
+      <LogTable showAppColumn appKeys={["my_app"]} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const appTag = container.querySelector(".ht-log-app-tag");
+    expect(appTag).not.toBeNull();
+    expect(appTag!.textContent).toBe("my_app");
+    expect(appTag!.classList.contains("ht-tag")).toBe(true);
+    expect(appTag!.classList.contains("ht-tag--neutral")).toBe(true);
+  });
+
+  it("truncates timestamp seconds on mobile", () => {
+    // Timestamp for 2024-01-01 12:30:45 UTC
+    const ts = new Date("2024-01-01T12:30:45Z").getTime() / 1000;
+    state.logs.push(createLogEntry({ timestamp: ts, message: "ts test" }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const timeCells = container.querySelectorAll("td.ht-text-mono");
+    // Find the cell with the timestamp (not source cells)
+    const tsCell = Array.from(timeCells).find((td) => {
+      const text = td.textContent ?? "";
+      return text.includes("/") && text.includes(":");
+    });
+    expect(tsCell).not.toBeNull();
+    // Should NOT contain seconds (i.e., no ":45" pattern at end)
+    const tsText = tsCell!.textContent ?? "";
+    // Format should be MM/DD HH:MM AM/PM (no seconds)
+    // The full format has two colons (HH:MM:SS), short has only one (HH:MM)
+    const colonCount = (tsText.match(/:/g) ?? []).length;
+    expect(colonCount).toBe(1);
   });
 });

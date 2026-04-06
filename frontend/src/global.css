@@ -1315,7 +1315,7 @@ strong {
     padding-bottom: calc(var(--ht-sp-4) + 52px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* Log table: hide App column (tag integration is WP03) */
+  /* Log table: hide App column — app name shown as tag in message column */
   .ht-table-log .ht-col-app {
     display: none;
   }
@@ -1510,6 +1510,15 @@ strong {
 .ht-tag--neutral {
   color: var(--ht-text-secondary);
   background: var(--ht-surface-recessed);
+}
+
+.ht-log-app-tag {
+  margin-right: var(--ht-sp-1);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: baseline;
+  flex-shrink: 0;
 }
 
 .ht-tag--truncated {
