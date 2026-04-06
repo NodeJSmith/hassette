@@ -14,9 +14,9 @@ interface Props {
 export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
   if (!data) return null;
 
-  const hasUptime = data.uptime_seconds !== null && data.uptime_seconds !== undefined && data.uptime_seconds > 0;
-  const uptimeH = hasUptime ? Math.floor(data.uptime_seconds / 3600) : 0;
-  const uptimeM = hasUptime ? Math.floor((data.uptime_seconds % 3600) / 60) : 0;
+  const uptimeSec = data.uptime_seconds ?? 0;
+  const uptimeH = Math.floor(uptimeSec / 3600);
+  const uptimeM = Math.floor((uptimeSec % 3600) / 60);
 
   return (
     <div class="ht-kpi-strip" data-testid="kpi-strip">
@@ -49,11 +49,11 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
       <div class="ht-health-card">
         <span class="ht-health-card__label">Uptime</span>
         <span class="ht-health-card__value">
-          {hasUptime ? `${uptimeH}h ${uptimeM}m` : "—"}
+          {uptimeSec > 0 ? `${uptimeH}h ${uptimeM}m` : "—"}
         </span>
-        {hasUptime ? (
+        {uptimeSec > 0 ? (
           <span class="ht-health-card__detail">
-            Started {new Date(Date.now() - data.uptime_seconds * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            Started {new Date(Date.now() - uptimeSec * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
           </span>
         ) : null}
       </div>

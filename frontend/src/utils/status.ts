@@ -3,7 +3,7 @@ export type StatusVariant = "success" | "danger" | "warning" | "neutral";
 export type AppStatus = "running" | "failed" | "stopped" | "disabled" | "blocked" | "starting" | "shutting_down";
 
 /** Statuses that represent intentionally non-active apps (not failures). */
-export const INACTIVE_STATUSES: ReadonlySet<AppStatus> = new Set<AppStatus>(["stopped", "disabled", "shutting_down"]);
+export const INACTIVE_STATUSES: ReadonlySet<string> = new Set<AppStatus>(["stopped", "disabled", "shutting_down"]);
 export type ErrorRateClass = "good" | "warn" | "bad";
 
 const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
