@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Dashboard UI polish: KPI hierarchy (error rate prominent), remove health bars and session bar, quiet-canvas status pattern with faded inactive apps, sorted app grids, heading cleanup
+- Dashboard UI polish: KPI hierarchy (error rate prominent), remove health bars and session bar, quiet-canvas status pattern with faded inactive apps, sorted app grids, heading cleanup (#485)
 - Redesign Docker startup dependency installation with constraints-based protection (Airflow pattern) (#480)
 - Replace `uv sync` at runtime with export-then-install pattern through constraints file (#480)
 - Remove `git` from final Docker image stage (no runtime use) (#480)
