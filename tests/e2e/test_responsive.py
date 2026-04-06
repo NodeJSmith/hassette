@@ -149,8 +149,9 @@ def test_bottom_nav_no_content_overlap(page: Page, base_url: str) -> None:
     page.goto(base_url + "/")
     page.wait_for_timeout(500)
 
-    # Scroll the inner .ht-main container (not window — .ht-main is the scroll container)
-    page.evaluate("() => { const m = document.querySelector('.ht-main'); if (m) m.scrollTop = m.scrollHeight; }")
+    # Scroll the window to the bottom — .ht-main uses min-height (not height),
+    # so it grows to fit content and the actual scroll container is the viewport.
+    page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
     page.wait_for_timeout(300)
 
     # Use getBoundingClientRect for both elements so coordinates are in the same
