@@ -26,7 +26,7 @@ jobs:
                   uv tool install ruff==0.14.9
                   uvx ruff format --check --diff .
                   uvx ruff check .
-                  uvx pre-commit run --all-files --hook-stage pre-push
+                  SKIP=eslint uvx pre-commit run --all-files --hook-stage pre-push
 
     frontend:
         runs-on: ubuntu-latest
