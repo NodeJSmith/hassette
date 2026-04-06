@@ -35,11 +35,11 @@ export const APP_STATUSES: ReadonlySet<string> = new Set(APP_STATUS_MAP.keys());
 export const HEALTH_GRADES: ReadonlySet<string> = new Set(HEALTH_GRADE_MAP.keys());
 export const ERROR_RATE_CLASSES: ReadonlySet<string> = new Set(ERROR_RATE_MAP.keys());
 
-/** Map an app status string to a StatusVariant. Unknown values return "neutral" with a console.warn. */
+/** Map a status string to a StatusVariant. Unknown values return "neutral" with a console.warn. */
 export function statusToVariant(status: string): StatusVariant {
   const variant = APP_STATUS_MAP.get(status);
   if (variant !== undefined) return variant;
-  console.warn(`Unknown app status: "${status}"`);
+  console.warn(`Unknown status: "${status}"`);
   return "neutral";
 }
 

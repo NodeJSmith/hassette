@@ -66,7 +66,10 @@ interface Props {
 
 export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
-  const { logs, updateLogSubscription, reconnectVersion } = useAppState();
+  const { logs, updateLogSubscription, reconnectVersion, tick } = useAppState();
+
+  // Subscribe to tick signal so relative timestamps re-render every 30s on mobile
+  if (isMobile) void tick.value;
   const minLevel = useRef(signal("INFO")).current; // default = INFO (matches WS subscription)
   const appFilter = useRef(signal("")).current; // "" = All Apps
   const search = useRef(signal("")).current;
@@ -326,7 +329,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                 expandedRows.value = next;
               };
-              const mobileColCount = showAppColumn ? 3 : 3; // level + time + message (source hidden, app hidden on mobile)
+              const mobileColCount = 3; // level + time + message (source hidden, app hidden on mobile)
               const desktopColCount = showAppColumn ? 5 : 4;
               const colCount = isMobile ? mobileColCount : desktopColCount;
               const rows = [

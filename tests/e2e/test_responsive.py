@@ -57,11 +57,10 @@ def test_bottom_nav_navigation(page: Page, base_url: str, testid: str, expected_
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
     page.locator(f'[data-testid="{testid}"]').click()
-    page.wait_for_timeout(300)
     if expected_path == "/":
         expect(page).to_have_url(base_url + "/")
     else:
-        assert page.url.rstrip("/").endswith(expected_path.rstrip("/"))
+        expect(page).to_have_url(re.compile(re.escape(expected_path.rstrip("/")) + r"/?$"))
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -154,19 +153,23 @@ def test_bottom_nav_no_content_overlap(page: Page, base_url: str) -> None:
     page.evaluate("() => { const m = document.querySelector('.ht-main'); if (m) m.scrollTop = m.scrollHeight; }")
     page.wait_for_timeout(300)
 
-    nav_box = page.locator(".ht-bottom-nav").bounding_box()
-    assert nav_box is not None
-
-    # Find the last content child inside .ht-main and verify it doesn't overlap with the bottom nav.
-    last_content_bottom = page.evaluate("""
+    # Use getBoundingClientRect for both elements so coordinates are in the same
+    # viewport-relative system (bounding_box uses document coordinates which
+    # differ from viewport coordinates after scrolling).
+    overlap = page.evaluate("""
         () => {
             const main = document.querySelector('.ht-main');
-            if (!main || !main.lastElementChild) return 0;
-            return main.lastElementChild.getBoundingClientRect().bottom;
+            if (!main || !main.lastElementChild) return null;
+            const nav = document.querySelector('.ht-bottom-nav');
+            if (!nav) return null;
+            const contentBottom = main.lastElementChild.getBoundingClientRect().bottom;
+            const navTop = nav.getBoundingClientRect().top;
+            return { contentBottom, navTop };
         }
     """)
-    assert last_content_bottom <= nav_box["y"] + 1, (
-        f"Last content element bottom ({last_content_bottom}px) overlaps bottom nav top ({nav_box['y']}px)"
+    assert overlap is not None, "Could not find .ht-main content or .ht-bottom-nav"
+    assert overlap["contentBottom"] <= overlap["navTop"] + 1, (
+        f"Last content element bottom ({overlap['contentBottom']}px) overlaps bottom nav top ({overlap['navTop']}px)"
     )
 
 
@@ -203,7 +206,6 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
 
     # App name should appear as a tag inside the message column
     app_tags = page.locator(".ht-log-app-tag")
-    # The e2e fixture seeds entries with app_key="my_app" (and some without)
-    if app_tags.count() > 0:
-        expect(app_tags.first).to_be_visible()
-        expect(app_tags.first).to_have_class(re.compile(r"ht-tag"))
+    assert app_tags.count() > 0, "Expected at least one .ht-log-app-tag element"
+    expect(app_tags.first).to_be_visible()
+    expect(app_tags.first).to_have_class(re.compile(r"ht-tag"))
