@@ -535,7 +535,7 @@ strong {
 .ht-log-message-cell.is-expandable:hover,
 .ht-log-message-cell.is-expandable:focus-visible,
 .ht-log-message-cell.is-expanded {
-  background: var(--ht-surface-hover, rgba(255, 255, 255, 0.04));
+  background: var(--ht-surface-recessed);
 }
 
 .ht-log-message__text {
@@ -1311,9 +1311,9 @@ strong {
     background: var(--ht-surface-sticky);
   }
 
-  /* Bottom padding prevents content from hiding behind the fixed bottom nav (52px height + safe-area inset) */
+  /* Bottom padding prevents content from hiding behind the fixed bottom nav */
   .ht-main {
-    padding-bottom: calc(var(--ht-sp-4) + 52px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--ht-sp-4) + var(--ht-bottom-nav-height, 52px) + env(safe-area-inset-bottom, 0px));
   }
 
   /* Log table: hide App column — app name shown as tag in message column */
@@ -1708,11 +1708,12 @@ strong {
 /* — Bottom Navigation (mobile) ————————————————————————— */
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 .ht-bottom-nav {
+  --ht-bottom-nav-height: 52px;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  min-height: 52px;
+  min-height: var(--ht-bottom-nav-height);
   display: flex;
   background: var(--ht-surface);
   border-top: 1px solid var(--ht-border);

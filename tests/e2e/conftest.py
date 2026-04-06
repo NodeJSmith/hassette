@@ -34,6 +34,12 @@ from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runt
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
+# Shared viewport constants for e2e tests.
+# Mobile height 812 = iPhone X (safe-area / notch testing).
+# Desktop 1024x768 = standard desktop above mobile breakpoint.
+MOBILE_VIEWPORT = {"width": 375, "height": 812}
+DESKTOP_VIEWPORT = {"width": 1024, "height": 768}
+
 
 def _build_manifests() -> list:
     """Build a rich set of app manifests for e2e tests."""

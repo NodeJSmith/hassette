@@ -5,11 +5,11 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import DESKTOP_VIEWPORT, MOBILE_VIEWPORT
+
 pytestmark = pytest.mark.e2e
 
-MOBILE_VIEWPORT = {"width": 375, "height": 812}
 TABLET_VIEWPORT = {"width": 768, "height": 1024}
-DESKTOP_VIEWPORT = {"width": 1024, "height": 768}
 
 
 # ──────────────────────────────────────────────────────────────────────
