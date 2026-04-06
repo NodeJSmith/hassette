@@ -318,7 +318,18 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
             )}
             {sorted.slice(0, 500).map((entry) => {
               const rowKey = entry.seq ? String(entry.seq) : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
-              return (
+              const isExpanded = expandedRows.value.has(rowKey);
+              const canExpand = truncatedRows.value.has(rowKey) || isExpanded;
+              const toggle = () => {
+                if (!canExpand) return;
+                const next = new Set(expandedRows.value);
+                if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
+                expandedRows.value = next;
+              };
+              const mobileColCount = showAppColumn ? 3 : 3; // level + time + message (source hidden, app hidden on mobile)
+              const desktopColCount = showAppColumn ? 5 : 4;
+              const colCount = isMobile ? mobileColCount : desktopColCount;
+              const rows = [
               <tr key={rowKey}>
                 <td>
                   <span class={`ht-badge ht-badge--sm ht-badge--${entry.level === "ERROR" || entry.level === "CRITICAL" ? "danger" : entry.level === "WARNING" ? "warning" : entry.level === "DEBUG" ? "neutral" : "success"}`}>
@@ -340,34 +351,32 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 <td class="ht-col-source ht-text-mono ht-text-xs ht-text-muted" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
                   {entry.func_name}:{entry.lineno}
                 </td>
-                {(() => {
-                  const isExpanded = expandedRows.value.has(rowKey);
-                  const canExpand = truncatedRows.value.has(rowKey) || isExpanded;
-                  const toggle = () => {
-                    if (!canExpand) return;
-                    const next = new Set(expandedRows.value);
-                    if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
-                    expandedRows.value = next;
-                  };
-                  return (
-                    <td
-                      class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}`}
-                      {...(canExpand ? { role: "button", tabIndex: 0, "aria-expanded": isExpanded,
-                        "aria-label": isExpanded ? "Collapse log message" : "Expand log message" } : {})}
-                      onClick={toggle}
-                      onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
-                    >
-                      <div data-row-key={rowKey} class={`ht-log-message__text${isExpanded ? " is-expanded" : ""}`}>
-                        {isMobile && showAppColumn && entry.app_key && (
-                          <span class="ht-log-app-tag ht-tag ht-tag--neutral">{entry.app_key}</span>
-                        )}
-                        {entry.message}
-                      </div>
+                <td
+                  class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}${isMobile && isExpanded ? " is-mobile-expanded" : ""}`}
+                  {...(canExpand ? { role: "button", tabIndex: 0, "aria-expanded": isExpanded,
+                    "aria-label": isExpanded ? "Collapse log message" : "Expand log message" } : {})}
+                  onClick={toggle}
+                  onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
+                >
+                  <div data-row-key={rowKey} class={`ht-log-message__text${isExpanded && !isMobile ? " is-expanded" : ""}`}>
+                    {isMobile && showAppColumn && entry.app_key && (
+                      <span class="ht-log-app-tag ht-tag ht-tag--neutral">{entry.app_key}</span>
+                    )}
+                    {entry.message}
+                  </div>
+                </td>
+              </tr>,
+              ];
+              if (isMobile && isExpanded) {
+                rows.push(
+                  <tr key={`${rowKey}-expanded`} class="ht-log-expanded-row">
+                    <td colSpan={colCount} class="ht-log-expanded-cell">
+                      <div class="ht-log-expanded-message">{entry.message}</div>
                     </td>
-                  );
-                })()}
-              </tr>
-              );
+                  </tr>,
+                );
+              }
+              return rows;
             })}
           </tbody>
         </table>

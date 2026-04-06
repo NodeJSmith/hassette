@@ -46,10 +46,10 @@ describe("AppCard", () => {
   });
 
   it("shows instance badge when count > 1", () => {
-    const { getByTitle } = render(<AppCard app={createApp({ instance_count: 3 })} />);
-    const badge = getByTitle("3 instances");
+    const { getByText } = render(<AppCard app={createApp({ instance_count: 3 })} />);
+    const badge = getByText("3 instances");
     expect(badge).toBeDefined();
-    expect(badge.textContent).toContain("3");
+    expect(badge.className).toContain("ht-badge--neutral");
   });
 
   it("does not show instance badge when count is 0", () => {

@@ -552,6 +552,26 @@ strong {
   word-break: break-all;
 }
 
+/* Mobile: expanded message shown in full-width row below */
+.ht-log-message-cell.is-mobile-expanded .ht-log-message__text {
+  /* Keep collapsed appearance — the full text is in the row below */
+}
+
+.ht-log-expanded-row {
+  background: var(--ht-surface-recessed);
+}
+
+.ht-log-expanded-cell {
+  padding: var(--ht-sp-2) var(--ht-sp-3) !important;
+}
+
+.ht-log-expanded-message {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  font-size: var(--ht-text-sm);
+}
+
 .ht-table--dense th,
 .ht-table--dense td {
   padding: var(--ht-sp-1) var(--ht-sp-2);

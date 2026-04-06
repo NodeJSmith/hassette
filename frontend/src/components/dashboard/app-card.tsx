@@ -21,8 +21,8 @@ export function AppCard({ app }: Props) {
           <span class="ht-app-card__name">
             {app.display_name}
             {app.instance_count > 1 && (
-              <span class="ht-badge ht-badge--sm ht-badge--neutral" title={`${app.instance_count} instances`}>
-                {" "}&times;{app.instance_count}
+              <span class="ht-badge ht-badge--sm ht-badge--neutral ht-ml-1">
+                {pluralize(app.instance_count, "instance")}
               </span>
             )}
           </span>

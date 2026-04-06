@@ -2,38 +2,27 @@ import { useEffect } from "preact/hooks";
 import { getSessionList, type SessionListEntry } from "../api/endpoints";
 import { IconHistory } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
+import { StatusBadge } from "../components/shared/status-badge";
 import { useApi } from "../hooks/use-api";
 import { formatTimestamp } from "../utils/format";
-import type { StatusVariant } from "../utils/status";
-
-const SESSION_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map([
-  ["running", "success"],
-  ["success", "success"],
-  ["failure", "danger"],
-  ["unknown", "neutral"],
-]);
-
-function sessionStatusToVariant(status: string): StatusVariant {
-  return SESSION_STATUS_MAP.get(status) ?? "neutral";
-}
 
 function formatSessionDuration(seconds: number | null): string {
   if (seconds === null) return "-";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${minutes}m`;
+  const totalSeconds = Math.round(seconds);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  if (totalSeconds < 3600) return remainingSeconds > 0 ? `${totalMinutes}m ${remainingSeconds}s` : `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
 
 function SessionRow({ session }: { session: SessionListEntry }) {
-  const variant = sessionStatusToVariant(session.status);
   return (
     <tr>
       <td>
-        <span class={`ht-badge ht-badge--sm ht-badge--${variant}`}>
-          {session.status}
-        </span>
+        <StatusBadge status={session.status} size="small" />
       </td>
       <td>{formatTimestamp(session.started_at)}</td>
       <td>{session.stopped_at !== null ? formatTimestamp(session.stopped_at) : "-"}</td>

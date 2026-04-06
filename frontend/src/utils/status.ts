@@ -12,6 +12,10 @@ const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, Statu
   ["blocked", "warning"],  // Intentional: blocked = needs attention (matches small badge behavior)
   ["starting", "neutral"],
   ["shutting_down", "neutral"],
+  // Session statuses (shared map so StatusBadge works for both apps and sessions)
+  ["success", "success"],
+  ["failure", "danger"],
+  ["unknown", "neutral"],
 ]);
 
 const HEALTH_GRADE_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
