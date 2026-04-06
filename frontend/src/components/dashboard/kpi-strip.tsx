@@ -2,6 +2,9 @@ import type { DashboardKpis } from "../../api/endpoints";
 import { pluralize } from "../../utils/format";
 import { errorRateToVariant } from "../../utils/status";
 
+/** Drives CSS prominence rules in global.css (.ht-kpi-strip > [data-kpi]) */
+const KPI_ERROR_RATE = "error-rate";
+
 interface Props {
   data: DashboardKpis | null;
   appCount?: number;
@@ -16,7 +19,7 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
 
   return (
     <div class="ht-kpi-strip" data-testid="kpi-strip">
-      <div class="ht-health-card" data-kpi="error-rate">
+      <div class="ht-health-card" data-kpi={KPI_ERROR_RATE}>
         <span class="ht-health-card__label">Error Rate</span>
         <span class={`ht-health-card__value ht-health-card__value--${errorRateToVariant(data.error_rate_class)}`}>
           {data.error_rate.toFixed(1)}%
@@ -47,6 +50,11 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
         <span class="ht-health-card__value">
           {data.uptime_seconds ? `${uptimeH}h ${uptimeM}m` : "—"}
         </span>
+        {data.uptime_seconds ? (
+          <span class="ht-health-card__detail">
+            Started {new Date(Date.now() - data.uptime_seconds * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </span>
+        ) : null}
       </div>
     </div>
   );

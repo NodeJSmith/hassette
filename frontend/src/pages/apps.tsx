@@ -3,7 +3,6 @@ import { useEffect, useRef } from "preact/hooks";
 import { getManifests } from "../api/endpoints";
 import { ManifestList } from "../components/apps/manifest-list";
 import { StatusFilter, type FilterValue } from "../components/apps/status-filter";
-import { IconGrid } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 
@@ -24,10 +23,7 @@ export function AppsPage() {
 
   return (
     <div>
-      <h1 class="ht-heading-4 ht-mb-4">
-        <IconGrid />
-        <span>App Management</span>
-      </h1>
+      <h1 class="ht-heading-4 ht-mb-4">App Management</h1>
       {error.value && <p class="ht-text-danger">{error.value}</p>}
       <div class="ht-card">
         <StatusFilter active={filter} counts={counts} />

@@ -1,5 +1,4 @@
 import type { DashboardAppGridEntry } from "../../api/endpoints";
-import { HealthBar } from "../shared/health-bar";
 import { StatusBadge } from "../shared/status-badge";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { pluralize } from "../../utils/format";
@@ -11,8 +10,6 @@ interface Props {
 
 export function AppCard({ app }: Props) {
   const lastActivity = useRelativeTime(app.last_activity_ts);
-  const total = app.total_invocations + app.total_executions;
-  const errors = app.total_errors + app.total_job_errors;
 
   return (
     <div class="ht-app-card" data-testid={`app-card-${app.app_key}`}>
@@ -26,7 +23,7 @@ export function AppCard({ app }: Props) {
               </span>
             )}
           </span>
-          <StatusBadge status={app.status} size="small" />
+          {app.status !== "running" && <StatusBadge status={app.status} size="small" />}
         </div>
         <div class="ht-app-card__stats">
           <span class="ht-text-xs ht-text-muted">{pluralize(app.handler_count, "handler")}</span>
@@ -49,11 +46,6 @@ export function AppCard({ app }: Props) {
             )}
           </>
         )}
-        <HealthBar
-          healthStatus={app.health_status}
-          total={total}
-          errors={errors}
-        />
         <div class="ht-app-card__footer">
           <span class="ht-text-xs ht-text-muted">
             Last: {lastActivity || "—"}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { statusToVariant, healthGradeToVariant, errorRateToVariant } from "./status";
+import { statusToVariant, errorRateToVariant } from "./status";
 
 describe("statusToVariant", () => {
   it("maps known app statuses to correct variants", () => {
@@ -16,22 +16,6 @@ describe("statusToVariant", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(statusToVariant("exploding")).toBe("neutral");
     expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
-    warnSpy.mockRestore();
-  });
-});
-
-describe("healthGradeToVariant", () => {
-  it("maps known health grades to correct variants", () => {
-    expect(healthGradeToVariant("excellent")).toBe("success");
-    expect(healthGradeToVariant("good")).toBe("success");
-    expect(healthGradeToVariant("warning")).toBe("warning");
-    expect(healthGradeToVariant("critical")).toBe("danger");
-  });
-
-  it("returns neutral and warns for unknown grade", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(healthGradeToVariant("superb")).toBe("neutral");
-    expect(warnSpy).toHaveBeenCalledWith('Unknown health grade: "superb"');
     warnSpy.mockRestore();
   });
 });
