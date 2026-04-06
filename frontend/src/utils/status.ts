@@ -12,6 +12,10 @@ const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, Statu
   ["blocked", "warning"],  // Intentional: blocked = needs attention (matches small badge behavior)
   ["starting", "neutral"],
   ["shutting_down", "neutral"],
+  // Session statuses (shared map so StatusBadge works for both apps and sessions)
+  ["success", "success"],
+  ["failure", "danger"],
+  ["unknown", "neutral"],
 ]);
 
 const HEALTH_GRADE_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
@@ -31,11 +35,11 @@ export const APP_STATUSES: ReadonlySet<string> = new Set(APP_STATUS_MAP.keys());
 export const HEALTH_GRADES: ReadonlySet<string> = new Set(HEALTH_GRADE_MAP.keys());
 export const ERROR_RATE_CLASSES: ReadonlySet<string> = new Set(ERROR_RATE_MAP.keys());
 
-/** Map an app status string to a StatusVariant. Unknown values return "neutral" with a console.warn. */
+/** Map a status string to a StatusVariant. Unknown values return "neutral" with a console.warn. */
 export function statusToVariant(status: string): StatusVariant {
   const variant = APP_STATUS_MAP.get(status);
   if (variant !== undefined) return variant;
-  console.warn(`Unknown app status: "${status}"`);
+  console.warn(`Unknown status: "${status}"`);
   return "neutral";
 }
 

@@ -7,6 +7,7 @@ export function formatTimestamp(ts: number): string {
   return `${month}/${day} ${time}`;
 }
 
+
 /** Format a duration in milliseconds with one decimal (e.g., "158.0ms"). */
 export function formatDuration(ms: number): string {
   if (ms < 1) return "<1ms";

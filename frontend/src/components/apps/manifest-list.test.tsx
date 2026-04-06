@@ -9,6 +9,12 @@ import { createAppState, type AppState } from "../../state/create-app-state";
 import type { AppManifest, AppInstance } from "../../api/endpoints";
 import type { FilterValue } from "./status-filter";
 
+// Mock useMediaQuery to return desktop (false) so the table renders
+vi.mock("../../hooks/use-media-query", () => ({
+  useMediaQuery: () => false,
+  BREAKPOINT_MOBILE: 768,
+}));
+
 // Mock localStorage utilities — must include all exports used by createAppState
 vi.mock("../../utils/local-storage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../utils/local-storage")>();

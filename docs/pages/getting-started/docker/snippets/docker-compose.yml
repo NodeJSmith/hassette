@@ -16,9 +16,10 @@ services:
       - TZ=America/New_York # Set your timezone
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/api/health"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 60s
 
 volumes:
   uv_cache:

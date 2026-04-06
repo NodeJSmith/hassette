@@ -25,6 +25,7 @@ ADD ./src /app/src
 # Copy SPA build output from frontend stage (vite outputs to ../src/hassette/web/static/spa relative to WORKDIR)
 COPY --from=frontend /app/src/hassette/web/static/spa/ /app/src/hassette/web/static/spa/
 ADD ./scripts /app/scripts
+ADD ./tools /app/tools
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./uv.lock /app/uv.lock
 ADD ./README.md /app/README.md
@@ -34,6 +35,9 @@ ADD ./scripts/.ignore /app/.ignore
 
 ENV UV_LINK_MODE=copy
 
+# Fail the build if uv.lock is stale relative to pyproject.toml
+RUN uv lock --check
+
 # Install deps (without project)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-editable --active --no-default-groups
@@ -41,6 +45,17 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Install project into venv (not editable, root owns at this point)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --active --no-default-groups
+
+# Generate constraints file from declared dependency ranges (not lockfile pins).
+# Must use the venv Python so importlib.metadata can find the installed hassette version.
+RUN /app/.venv/bin/python tools/generate_constraints.py > /app/constraints.txt \
+ && /app/.venv/bin/python -c "\
+import tomllib; \
+lines=[l for l in open('/app/constraints.txt').read().splitlines() if l and not l.startswith('#')]; \
+deps=tomllib.load(open('/app/pyproject.toml','rb')).get('project',{}).get('dependencies',[]); \
+expected=len(deps)+1; \
+assert len(lines)==expected, f'constraints.txt has {len(lines)} entries, expected {expected}'; \
+assert lines[-1].startswith('hassette=='), f'last line should be hassette pin, got {lines[-1]!r}'"
 
 # ---- Final stage ----
 FROM python:${PYTHON_VERSION}-slim
@@ -53,7 +68,6 @@ RUN apt-get update \
     tini \
     tzdata \
     fd-find \
-    git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

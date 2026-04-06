@@ -1,7 +1,7 @@
 # Design Direction: Hassette Web UI
 
 **Date:** 2026-03-19
-**Updated:** 2026-03-19
+**Updated:** 2026-04-05
 **Completeness:** full
 
 ## Intent
@@ -13,6 +13,7 @@
 - **Linear**: The information density and monospace meta text. Compact rows that expand on click. Dense but scannable. Everything where you expect it.
 - **Vercel dashboard**: The KPI strip, status badges, flat-but-not-flat surface hierarchy. Quiet confidence.
 - **Terminal aesthetic (grown up)**: The dark mode direction — near-black with emerald and amber — has the vibe of a terminal that evolved into a product. Data-forward, chrome-minimal.
+- **Prefect (Miter Design)**: State-driven color where every hue earns its place by representing a workflow state. Colorblind-accessible themes. Speed as a core feature. Take the deliberateness of state color assignment; leave the radial/constellation visualizations (Hassette's domain is flat lists, not DAGs).
 
 ## Domain
 - **Concepts**: Wiring (handlers connected to entities), Pulse (system liveness via WebSocket), Threshold (state transitions trigger actions), Trace (following what happened from effect to cause), Registry (what's registered, active, dormant)
@@ -77,13 +78,13 @@
 - **Body**: DM Sans (400/500) — clean geometric sans that pairs well with Space Grotesk without competing. Readable at small sizes for meta text and descriptions.
 - **Mono**: JetBrains Mono (400/500/600) — entity IDs, timestamps, handler names, invocation data, log entries. The workhorse font — most data on the page is monospace.
 - **Scale**:
-  - `--ht-text-xs`: 10px — uppercase labels (INIT STATUS, FIRES, AVG)
-  - `--ht-text-sm`: 11px — meta text, badge text, timestamps
-  - `--ht-text-base`: 13px — handler summaries, table data, log entries
-  - `--ht-text-md`: 14px — body text, descriptions
-  - `--ht-text-lg`: 15px — section headings (Event Handlers, Scheduled Jobs)
-  - `--ht-text-xl`: 19px — page titles (Garage Proximity)
-  - `--ht-text-2xl`: 22px — hero numbers in health cards (0.4%, 18ms, 3m ago)
+  - `--ht-text-xs`: 12px — uppercase labels (INIT STATUS, FIRES, AVG)
+  - `--ht-text-sm`: 13px — meta text, badge text, timestamps
+  - `--ht-text-base`: 15px — handler summaries, table data, log entries
+  - `--ht-text-md`: 16px — body text, descriptions
+  - `--ht-text-lg`: 18px — section headings (Event Handlers, Scheduled Jobs)
+  - `--ht-text-xl`: 22px — page titles (Garage Proximity)
+  - `--ht-text-2xl`: 26px — hero numbers in health cards (0.4%, 18ms, 3m ago)
 - **Weights**: 400 (body), 500 (mono emphasis, meta strong values), 600 (headings, stat values), 700 (page title only)
 
 ### Spacing

@@ -52,6 +52,7 @@ export function Sidebar() {
                   class={`ht-nav-item${isActive ? " is-active" : ""}`}
                   data-testid={item.testId}
                   aria-label={item.label}
+                  aria-current={isActive ? "page" : undefined}
                 >
                   {item.icon}
                 </Link>

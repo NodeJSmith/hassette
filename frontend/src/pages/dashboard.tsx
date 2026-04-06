@@ -7,7 +7,7 @@ import {
 import { AppGrid } from "../components/dashboard/app-grid";
 import { ErrorFeed } from "../components/dashboard/error-feed";
 import { KpiStrip } from "../components/dashboard/kpi-strip";
-import { IconHeart, IconWarning } from "../components/shared/icons";
+import { IconCheck, IconHeart, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
@@ -91,7 +91,7 @@ export function DashboardPage() {
         </div>
       ) : (
         <div class="ht-empty-section ht-mb-4">
-          <IconWarning />
+          <IconCheck />
           <span class="ht-text-muted ht-text-xs">No recent errors. All systems healthy.</span>
         </div>
       )}

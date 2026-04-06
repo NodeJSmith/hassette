@@ -3,6 +3,7 @@ import { Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
 import { AlertBanner } from "./components/layout/alert-banner";
 import { ErrorBoundary } from "./components/layout/error-boundary";
+import { BottomNav } from "./components/layout/bottom-nav";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
 import { useApi } from "./hooks/use-api";
@@ -49,6 +50,7 @@ export function App() {
           </ErrorBoundary>
         </main>
       </div>
+      <BottomNav />
     </AppStateContext.Provider>
   );
 }

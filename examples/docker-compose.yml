@@ -4,6 +4,8 @@ services:
     container_name: hassette
     restart: unless-stopped
     stop_grace_period: 45s
+    # ports:
+    #   - "8126:8126"  # Uncomment to expose the web UI (unauthenticated — see docs)
     volumes:
       - ./config:/config
       - ./apps:/apps
@@ -13,9 +15,10 @@ services:
       - LOG_LEVEL=info
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/api/health"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 60s
 
 volumes:
   uv_cache:

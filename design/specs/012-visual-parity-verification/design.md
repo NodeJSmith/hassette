@@ -1,7 +1,7 @@
 # Design: Visual Parity Verification for Preact SPA Migration
 
 **Date:** 2026-03-21
-**Status:** approved
+**Status:** archived
 **Spec:** N/A (process design, not feature spec)
 
 ## Problem

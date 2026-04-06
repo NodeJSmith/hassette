@@ -173,16 +173,16 @@ Hassette includes a web UI at `http://<host>:8126/ui/` with a live dashboard, ap
 
 Override any configuration via environment variables using the `HASSETTE__` prefix:
 
-| Variable                           | Description                                                                 |
-| ---------------------------------- | --------------------------------------------------------------------------- |
-| `HASSETTE__TOKEN`                  | Home Assistant long-lived access token                                      |
-| `HASSETTE__BASE_URL`               | Home Assistant URL (e.g., `http://homeassistant:8123`)                      |
-| `HASSETTE__APP_DIR`                | Directory containing your app Python files                                  |
-| `HASSETTE__PROJECT_DIR`            | Directory containing `pyproject.toml`/`uv.lock` for dependency installation |
-| `HASSETTE__CONFIG_DIR`             | Directory containing configuration files                                    |
-| `HASSETTE__LOG_LEVEL`              | Logging level (`debug`, `info`, `warning`, `error`). Also accepts `LOG_LEVEL` as a shorthand alias. |
-| `HASSETTE__ALLOW_UNLOCKED_PROJECT` | Set to `1` to allow installing from `pyproject.toml` without a lockfile     |
-| `TZ`                               | System timezone (e.g., `America/New_York`)                                  |
+| Variable                | Description                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `HASSETTE__TOKEN`       | Home Assistant long-lived access token                                                               |
+| `HASSETTE__BASE_URL`    | Home Assistant URL (e.g., `http://homeassistant:8123`)                                               |
+| `HASSETTE__APP_DIR`     | Directory containing your app Python files                                                           |
+| `HASSETTE__PROJECT_DIR` | Directory containing `pyproject.toml`/`uv.lock` for dependency installation                         |
+| `HASSETTE__CONFIG_DIR`  | Directory containing configuration files                                                             |
+| `HASSETTE__LOG_LEVEL`   | Logging level (`debug`, `info`, `warning`, `error`). Also accepts `LOG_LEVEL` as a shorthand alias. |
+| `HASSETTE__INSTALL_DEPS`| Set to `1` to enable `requirements.txt` file discovery and installation at startup                   |
+| `TZ`                    | System timezone (e.g., `America/New_York`)                                                           |
 
 See [Managing Dependencies](dependencies.md) for details on `HASSETTE__APP_DIR` and `HASSETTE__PROJECT_DIR`.
 
