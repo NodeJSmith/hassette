@@ -11,20 +11,25 @@
 [data-theme="dark"] {
   /* Surfaces */
   --ht-bg: #111113;
-  --ht-surface: #1a1a1e;
-  --ht-surface-recessed: #222226;
-  --ht-surface-sticky: #1a1a1e;
+  --ht-surface: #222226;
+  --ht-surface-recessed: #2a2a2f;
+  --ht-surface-sticky: #222226;
 
   /* Borders */
   --ht-border: rgba(255, 255, 255, 0.06);
   --ht-border-strong: rgba(255, 255, 255, 0.10);
+  --ht-border-highlight: rgba(255, 255, 255, 0.08);
 
   /* Text */
   --ht-text: #ececef;
   --ht-text-secondary: #9898a0;
   --ht-text-dim: #5c5c66;
 
-  /* Accent (Emerald) */
+  /* Interactive (muted emerald — distinct from vivid status accent and neutral text) */
+  --ht-link: #6bab94;
+  --ht-link-hover: #8cc4ad;
+
+  /* Accent (Emerald — reserved for status: alive/connected/running) */
   --ht-accent: #34d399;
   --ht-accent-light: rgba(52, 211, 153, 0.10);
 
@@ -57,22 +62,27 @@
   /* Borders */
   --ht-border: rgba(0, 0, 0, 0.06);
   --ht-border-strong: rgba(0, 0, 0, 0.10);
+  --ht-border-highlight: rgba(0, 0, 0, 0.03);
 
   /* Text */
   --ht-text: #111113;
   --ht-text-secondary: #55555e;
   --ht-text-dim: #9898a0;
 
-  /* Accent (Emerald) */
-  --ht-accent: #059669;
-  --ht-accent-light: rgba(5, 150, 105, 0.07);
+  /* Interactive (muted emerald) */
+  --ht-link: #1a7a5a;
+  --ht-link-hover: #0f5c42;
+
+  /* Accent (Emerald — reserved for status) */
+  --ht-accent: #047857;
+  --ht-accent-light: rgba(4, 120, 87, 0.07);
 
   /* Value */
   --ht-value: #b45309;
 
   /* Semantic */
-  --ht-success: #059669;
-  --ht-success-light: rgba(5, 150, 105, 0.07);
+  --ht-success: #047857;
+  --ht-success-light: rgba(4, 120, 87, 0.07);
 
   --ht-danger: #dc2626;
   --ht-danger-light: rgba(220, 38, 38, 0.07);
