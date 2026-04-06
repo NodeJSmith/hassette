@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { statusToVariant, errorRateToVariant } from "./status";
+import { statusToVariant, errorRateToVariant, INACTIVE_STATUSES } from "./status";
 
 describe("statusToVariant", () => {
   it("maps known app statuses to correct variants", () => {
@@ -17,6 +17,19 @@ describe("statusToVariant", () => {
     expect(statusToVariant("exploding")).toBe("neutral");
     expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
     warnSpy.mockRestore();
+  });
+});
+
+describe("INACTIVE_STATUSES", () => {
+  it("contains exactly the intentionally non-active statuses", () => {
+    expect(INACTIVE_STATUSES).toEqual(new Set(["stopped", "disabled", "shutting_down"]));
+  });
+
+  it("does not include failure states that need attention", () => {
+    expect(INACTIVE_STATUSES.has("running" as any)).toBe(false);
+    expect(INACTIVE_STATUSES.has("failed" as any)).toBe(false);
+    expect(INACTIVE_STATUSES.has("blocked" as any)).toBe(false);
+    expect(INACTIVE_STATUSES.has("starting" as any)).toBe(false);
   });
 });
 

@@ -158,3 +158,12 @@ def test_dashboard_panels_visible(page: Page, base_url: str) -> None:
     body = page.locator("body")
     for heading in PANEL_HEADINGS:
         expect(body).to_contain_text(heading)
+
+
+def test_app_health_heading_links_to_apps(page: Page, base_url: str) -> None:
+    """The App Health heading is a link that navigates to the apps page."""
+    page.goto(base_url + "/")
+    link = page.get_by_role("link", name="App Health")
+    expect(link).to_be_visible()
+    link.click()
+    expect(page).to_have_url(re.compile(r"/apps/?$"))
