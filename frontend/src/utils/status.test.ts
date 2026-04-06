@@ -15,7 +15,7 @@ describe("statusToVariant", () => {
   it("returns neutral and warns for unknown status", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(statusToVariant("exploding")).toBe("neutral");
-    expect(warnSpy).toHaveBeenCalledWith('Unknown app status: "exploding"');
+    expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
     warnSpy.mockRestore();
   });
 });

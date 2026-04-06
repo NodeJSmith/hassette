@@ -179,16 +179,17 @@ code, pre {
 }
 
 a {
-  color: var(--ht-accent);
+  color: var(--ht-link);
   text-decoration: none;
 }
 
 a:hover {
+  color: var(--ht-link-hover);
   text-decoration: underline;
 }
 
 a code {
-  color: var(--ht-accent);
+  color: var(--ht-link);
 }
 
 a:hover code {
@@ -204,6 +205,7 @@ strong {
   display: grid;
   grid-template-columns: 56px 1fr;
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
 }
 
@@ -287,7 +289,7 @@ strong {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ht-accent);
+  color: var(--ht-text-secondary);
   text-decoration: none;
 }
 
@@ -322,14 +324,14 @@ strong {
 }
 
 .ht-nav-item:hover {
-  background: var(--ht-accent-light);
+  background: var(--ht-surface-recessed);
   color: var(--ht-text);
   text-decoration: none;
 }
 
 .ht-nav-item.is-active {
-  background: var(--ht-accent-light);
-  color: var(--ht-accent);
+  background: var(--ht-surface-recessed);
+  color: var(--ht-text);
 }
 
 .ht-nav-item svg {
@@ -408,13 +410,14 @@ strong {
 }
 
 .ht-scope-toggle__btn:hover:not(.is-active) {
-  background: var(--ht-accent-light);
+  background: var(--ht-surface-recessed);
   color: var(--ht-text);
 }
 
 .ht-scope-toggle__btn.is-active {
-  background: var(--ht-accent);
-  color: var(--ht-bg);
+  color: var(--ht-text);
+  background: var(--ht-surface-recessed);
+  border-bottom: 2px solid var(--ht-border-strong);
 }
 
 /* — Theme Toggle ——————————————————————————————————————— */
@@ -434,7 +437,7 @@ strong {
 }
 
 .ht-theme-toggle:hover {
-  background: var(--ht-accent-light);
+  background: var(--ht-surface-recessed);
   color: var(--ht-text);
   border-color: var(--ht-border-strong);
 }
@@ -471,6 +474,7 @@ strong {
 .ht-card {
   background: var(--ht-surface);
   border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
   border-radius: var(--ht-radius-md);
   box-shadow: var(--ht-shadow-sm);
   padding: var(--ht-sp-5);
@@ -531,7 +535,7 @@ strong {
 .ht-log-message-cell.is-expandable:hover,
 .ht-log-message-cell.is-expandable:focus-visible,
 .ht-log-message-cell.is-expanded {
-  background: var(--ht-surface-hover, rgba(255, 255, 255, 0.04));
+  background: var(--ht-surface-recessed);
 }
 
 .ht-log-message__text {
@@ -546,6 +550,26 @@ strong {
   max-height: none;
   white-space: normal;
   word-break: break-all;
+}
+
+/* Mobile: expanded message shown in full-width row below */
+.ht-log-message-cell.is-mobile-expanded .ht-log-message__text {
+  /* Keep collapsed appearance — the full text is in the row below */
+}
+
+.ht-log-expanded-row {
+  background: var(--ht-surface-recessed);
+}
+
+.ht-log-expanded-cell {
+  padding: var(--ht-sp-2) var(--ht-sp-3) !important;
+}
+
+.ht-log-expanded-message {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  font-size: var(--ht-text-sm);
 }
 
 .ht-table--dense th,
@@ -660,7 +684,7 @@ strong {
 
 .ht-btn--ghost.ht-btn--success:hover { background: var(--ht-success-light); }
 .ht-btn--ghost.ht-btn--warning:hover { background: var(--ht-warning-light); }
-.ht-btn--ghost.ht-btn--info:hover { background: var(--ht-accent-light); }
+.ht-btn--ghost.ht-btn--info:hover { background: var(--ht-surface-recessed); }
 .ht-btn--ghost.ht-btn--danger:hover { background: var(--ht-danger-light); }
 
 .ht-btn--primary {
@@ -692,12 +716,12 @@ strong {
 }
 
 .ht-btn--info {
-  border-color: var(--ht-accent);
-  color: var(--ht-accent);
+  border-color: var(--ht-border-strong);
+  color: var(--ht-text);
 }
 
 .ht-btn--info:hover {
-  background: var(--ht-accent-light);
+  background: var(--ht-surface-recessed);
 }
 
 .ht-btn-group {
@@ -784,8 +808,8 @@ strong {
 }
 
 .ht-tabs li button[aria-pressed="true"] {
-  color: var(--ht-accent);
-  border-bottom-color: var(--ht-accent);
+  color: var(--ht-text);
+  border-bottom-color: var(--ht-text-secondary);
   font-weight: var(--ht-weight-semibold);
 }
 
@@ -990,6 +1014,7 @@ strong {
   padding: var(--ht-sp-4);
   background: var(--ht-surface);
   border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
   border-radius: var(--ht-radius-md);
 }
 
@@ -1026,6 +1051,7 @@ strong {
   gap: var(--ht-sp-4);
 }
 
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .ht-health-strip {
     grid-template-columns: repeat(2, 1fr);
@@ -1174,7 +1200,7 @@ strong {
 }
 
 .ht-breadcrumb a:hover {
-  color: var(--ht-accent);
+  color: var(--ht-text);
   text-decoration: underline;
 }
 
@@ -1200,6 +1226,7 @@ strong {
 }
 
 /* — Responsive: sidebar hidden below 768px ————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .ht-layout {
     grid-template-columns: 1fr;
@@ -1274,6 +1301,45 @@ strong {
   .ht-heading-5 {
     font-size: var(--ht-text-base);
   }
+
+  /* Touch target enforcement (WCAG 2.5.8 — 44px minimum) */
+  .ht-scope-toggle__btn {
+    min-height: 44px;
+    padding: var(--ht-sp-2) var(--ht-sp-3);
+  }
+
+  .ht-theme-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .ht-tabs li button {
+    min-height: 44px;
+    padding: var(--ht-sp-2) var(--ht-sp-3);
+  }
+
+  .ht-btn--sm,
+  .ht-btn--xs {
+    min-height: 44px;
+  }
+
+  /* StatusBar: sticky so pulse dot and scope toggle stay visible */
+  .ht-status-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--ht-surface-sticky);
+  }
+
+  /* Bottom padding prevents content from hiding behind the fixed bottom nav */
+  .ht-main {
+    padding-bottom: calc(var(--ht-sp-4) + var(--ht-bottom-nav-height, 52px) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Log table: hide App column — app name shown as tag in message column */
+  .ht-table-log .ht-col-app {
+    display: none;
+  }
 }
 
 /* — Responsive: small phones (max-width: 480px) ———————— */
@@ -1295,15 +1361,14 @@ strong {
   margin-bottom: var(--ht-sp-6);
 }
 
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .ht-kpi-strip {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .ht-kpi-strip {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ht-kpi-strip > [data-kpi="error-rate"] {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1317,12 +1382,14 @@ strong {
 .ht-app-card {
   background: var(--ht-surface);
   border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
   border-radius: var(--ht-radius-md);
-  transition: box-shadow var(--ht-motion-micro);
+  transition: background var(--ht-motion-micro), box-shadow var(--ht-motion-micro);
   overflow: hidden;
 }
 
 .ht-app-card:hover {
+  background: var(--ht-surface-recessed);
   box-shadow: var(--ht-shadow-md);
 }
 
@@ -1466,6 +1533,15 @@ strong {
   background: var(--ht-surface-recessed);
 }
 
+.ht-log-app-tag {
+  margin-right: var(--ht-sp-1);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: baseline;
+  flex-shrink: 0;
+}
+
 .ht-tag--truncated {
   max-width: 140px;
   overflow: hidden;
@@ -1595,7 +1671,7 @@ strong {
 .ht-btn--link {
   border-color: transparent;
   background: transparent;
-  color: var(--ht-accent);
+  color: var(--ht-link);
   padding: 0;
 }
 
@@ -1617,6 +1693,7 @@ strong {
 /* — Light Mode Overrides ——————————————————————————————— */
 [data-theme="light"] .ht-card {
   border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
@@ -1640,12 +1717,174 @@ strong {
   height: auto;
   padding: var(--ht-sp-2) var(--ht-sp-4);
   background: var(--ht-surface);
-  color: var(--ht-accent);
+  color: var(--ht-text);
   border: 2px solid var(--ht-accent);
   border-radius: var(--ht-radius-md);
   font-family: var(--ht-font-body);
   font-size: var(--ht-text-base);
   z-index: 1000;
+}
+
+/* — Bottom Navigation (mobile) ————————————————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+.ht-bottom-nav {
+  --ht-bottom-nav-height: 52px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  min-height: var(--ht-bottom-nav-height);
+  display: flex;
+  background: var(--ht-surface);
+  border-top: 1px solid var(--ht-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 30;
+}
+
+.ht-bottom-nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ht-sp-1);
+  min-height: 44px;
+  color: var(--ht-text-dim);
+  text-decoration: none;
+  font-size: var(--ht-text-xs);
+  font-family: var(--ht-font-body);
+  transition: color var(--ht-motion-micro);
+}
+
+.ht-bottom-nav__item:hover,
+.ht-bottom-nav__item.is-active {
+  color: var(--ht-text);
+  background: var(--ht-surface-recessed);
+}
+
+.ht-bottom-nav__item svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 769px = 768px + 1 — hides bottom nav when sidebar becomes visible at max-width:768px */
+@media screen and (min-width: 769px) {
+  .ht-bottom-nav {
+    display: none;
+  }
+}
+
+/* — Manifest Card List (mobile apps view) —————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+.ht-manifest-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-3);
+}
+
+.ht-manifest-card {
+  background: var(--ht-surface);
+  border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
+  border-radius: var(--ht-radius-md);
+  padding: var(--ht-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-2);
+}
+
+.ht-manifest-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ht-sp-2);
+}
+
+.ht-manifest-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-1);
+  min-width: 0;
+}
+
+.ht-manifest-card__chevron {
+  background: none;
+  border: none;
+  color: var(--ht-text-dim);
+  cursor: pointer;
+  padding: var(--ht-sp-1);
+  font-size: var(--ht-text-sm);
+  line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ht-manifest-card__name {
+  color: var(--ht-link);
+  text-decoration: none;
+  font-weight: var(--ht-weight-medium);
+  font-size: var(--ht-text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-manifest-card__name:hover {
+  color: var(--ht-link-hover);
+}
+
+.ht-manifest-card__badges {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-1);
+  flex-shrink: 0;
+}
+
+.ht-manifest-card__actions {
+  display: flex;
+  gap: var(--ht-sp-2);
+  flex-wrap: wrap;
+}
+
+.ht-manifest-card__instance {
+  background: var(--ht-surface-recessed);
+  border-radius: var(--ht-radius-sm);
+  padding: var(--ht-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-2);
+}
+
+.ht-manifest-card__instance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ht-sp-2);
+}
+
+.ht-manifest-card__instance-name {
+  color: var(--ht-link);
+  text-decoration: none;
+  font-family: var(--ht-font-mono);
+  font-size: var(--ht-text-sm);
+}
+
+.ht-manifest-card__instance-name:hover {
+  color: var(--ht-link-hover);
+}
+
+.ht-manifest-card__instance-actions {
+  display: flex;
+  gap: var(--ht-sp-2);
+  flex-wrap: wrap;
 }
 
 /* — Reduced Motion ————————————————————————————————————— */

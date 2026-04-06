@@ -5,10 +5,9 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-pytestmark = pytest.mark.e2e
+from tests.e2e.conftest import DESKTOP_VIEWPORT, MOBILE_VIEWPORT
 
-DESKTOP_VIEWPORT = {"width": 1280, "height": 720}
-MOBILE_VIEWPORT = {"width": 375, "height": 667}
+pytestmark = pytest.mark.e2e
 
 PAGES = [
     ("/", "App Health"),
