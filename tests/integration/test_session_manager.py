@@ -132,9 +132,6 @@ async def test_session_manager_records_crash(session_manager: SessionManager, db
     )
 
     await session_manager.on_service_crashed(event)
-    # on_service_crashed uses enqueue() (fire-and-forget) — drain the queue before asserting
-    assert db_service._db_write_queue is not None
-    await db_service._db_write_queue.join()
 
     cursor = await db_service.db.execute(
         "SELECT status, error_type, error_message, error_traceback FROM sessions WHERE id = ?",
@@ -180,9 +177,6 @@ async def test_finalize_session_preserves_failure(session_manager: SessionManage
 
     event = _make_crashed_event()
     await session_manager.on_service_crashed(event)
-    # Drain the queue so the crash UPDATE completes before finalizing
-    assert db_service._db_write_queue is not None
-    await db_service._db_write_queue.join()
 
     db_path = db_service._db_path
     await session_manager.finalize_session()
@@ -211,9 +205,6 @@ async def test_on_service_crashed_no_session(session_manager: SessionManager, db
     """on_service_crashed returns early when no session has been created."""
     event = _make_crashed_event()
     await session_manager.on_service_crashed(event)
-    # Drain queue (no-op here since early return skips enqueue)
-    assert db_service._db_write_queue is not None
-    await db_service._db_write_queue.join()
 
     cursor = await db_service.db.execute("SELECT count(*) FROM sessions")
     row = await cursor.fetchone()
@@ -260,11 +251,8 @@ async def test_on_service_crashed_db_error(session_manager: SessionManager, db_s
     db_service.db.execute = AsyncMock(side_effect=sqlite3.OperationalError("disk I/O error"))
 
     event = _make_crashed_event()
+    # submit() awaits the result, but _do_on_service_crashed catches the exception internally
     await session_manager.on_service_crashed(event)
-    # Drain the queue so the worker processes the item and catches the error internally
-    assert db_service._db_write_queue is not None
-    await db_service._db_write_queue.join()
-    # Should not raise — _do_on_service_crashed catches the exception and logs
 
 
 async def test_finalize_session_db_error(session_manager: SessionManager, db_service: DatabaseService) -> None:

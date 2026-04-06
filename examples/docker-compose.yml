@@ -3,6 +3,7 @@ services:
     image: ghcr.io/nodejsmith/hassette:latest-py3.13
     container_name: hassette
     restart: unless-stopped
+    stop_grace_period: 45s
     # ports:
     #   - "8126:8126"  # Uncomment to expose the web UI (unauthenticated — see docs)
     volumes:

@@ -1,4 +1,5 @@
 import asyncio
+import signal
 from argparse import ArgumentParser
 from importlib.metadata import version
 from logging import getLogger
@@ -50,6 +51,12 @@ async def main() -> None:
     config = HassetteConfig()
 
     core = Hassette(config=config)
+
+    loop = asyncio.get_running_loop()
+    try:
+        loop.add_signal_handler(signal.SIGTERM, core.request_shutdown, "SIGTERM received")
+    except NotImplementedError:
+        LOGGER.warning("SIGTERM handler registration is not supported on this platform/event loop")
 
     await core.run_forever()
 

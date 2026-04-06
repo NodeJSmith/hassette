@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove `git` from final Docker image stage (no runtime use) (#480)
 - Add `start_period: 60s` to Docker Compose healthcheck examples (#480)
 
+### Fixed
+
+- Handle SIGTERM for graceful Docker shutdown — sessions no longer show `unknown` status after `docker stop` (#479)
+
 ## [0.24.0](https://github.com/NodeJSmith/hassette/compare/v0.23.0...v0.24.0) - 2026-04-03
 
 ### Breaking Changes
