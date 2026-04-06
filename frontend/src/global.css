@@ -205,6 +205,7 @@ strong {
   display: grid;
   grid-template-columns: 56px 1fr;
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
 }
 
@@ -1310,7 +1311,7 @@ strong {
     background: var(--ht-surface-sticky);
   }
 
-  /* Main content: bottom padding for future bottom nav */
+  /* Bottom padding prevents content from hiding behind the fixed bottom nav (52px height + safe-area inset) */
   .ht-main {
     padding-bottom: calc(var(--ht-sp-4) + 52px + env(safe-area-inset-bottom, 0px));
   }
@@ -1346,7 +1347,7 @@ strong {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .ht-kpi-strip > :first-child {
+  .ht-kpi-strip > [data-kpi="error-rate"] {
     grid-column: 1 / -1;
   }
 }
@@ -1711,7 +1712,7 @@ strong {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 52px;
+  min-height: 52px;
   display: flex;
   background: var(--ht-surface);
   border-top: 1px solid var(--ht-border);
@@ -1743,8 +1744,14 @@ strong {
 .ht-bottom-nav__item svg {
   width: 20px;
   height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
+/* 769px = 768px + 1 — hides bottom nav when sidebar becomes visible at max-width:768px */
 @media screen and (min-width: 769px) {
   .ht-bottom-nav {
     display: none;

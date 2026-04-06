@@ -58,6 +58,8 @@ export function ManifestCardList({ manifests, expanded, toggleExpand, appStatus 
                 )}
               </div>
             </div>
+            {/* TODO: handler/job counts — requires backend to expose handler_count/job_count
+               on AppManifestResponse (currently only on DashboardAppGridEntry). See design spec. */}
             <div class="ht-manifest-card__actions">
               <ActionButtons appKey={m.app_key} status={status} />
             </div>

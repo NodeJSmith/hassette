@@ -16,7 +16,7 @@ export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
 
   return (
     <div class="ht-kpi-strip" data-testid="kpi-strip">
-      <div class="ht-health-card">
+      <div class="ht-health-card" data-kpi="error-rate">
         <span class="ht-health-card__label">Error Rate</span>
         <span class={`ht-health-card__value ht-health-card__value--${errorRateToVariant(data.error_rate_class)}`}>
           {data.error_rate.toFixed(1)}%

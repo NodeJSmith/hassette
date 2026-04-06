@@ -4,7 +4,7 @@ import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useAppState } from "../../state/context";
-import { formatTimestamp, formatTimestampShort, pluralize } from "../../utils/format";
+import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -311,7 +311,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={showAppColumn && !isMobile ? 5 : 4} class="ht-text-center ht-text-muted">
+                <td colSpan={isMobile ? 3 : showAppColumn ? 5 : 4} class="ht-text-center ht-text-muted"> {/* source col CSS-hidden at mobile: -1 */}
                   No log entries.
                 </td>
               </tr>
@@ -325,7 +325,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
                   </span>
                 </td>
-                <td class="ht-text-mono">{isMobile ? formatTimestampShort(entry.timestamp) : formatTimestamp(entry.timestamp)}</td>
+                <td class="ht-text-mono">{isMobile ? formatRelativeTime(entry.timestamp) : formatTimestamp(entry.timestamp)}</td>
                 {showAppColumn && !isMobile && (
                   <td>
                     {entry.app_key ? (

@@ -150,28 +150,23 @@ def test_bottom_nav_no_content_overlap(page: Page, base_url: str) -> None:
     page.goto(base_url + "/")
     page.wait_for_timeout(500)
 
-    # Scroll to bottom to expose last content element
-    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    # Scroll the inner .ht-main container (not window — .ht-main is the scroll container)
+    page.evaluate("() => { const m = document.querySelector('.ht-main'); if (m) m.scrollTop = m.scrollHeight; }")
     page.wait_for_timeout(300)
 
     nav_box = page.locator(".ht-bottom-nav").bounding_box()
     assert nav_box is not None
 
-    # The main content area should have bottom padding preventing overlap.
-    # Check that the main element's bottom (in viewport) is at or above the nav top.
-    main_bottom = page.evaluate("""
+    # Find the last content child inside .ht-main and verify it doesn't overlap with the bottom nav.
+    last_content_bottom = page.evaluate("""
         () => {
             const main = document.querySelector('.ht-main');
-            if (!main) return 0;
-            const rect = main.getBoundingClientRect();
-            return rect.bottom;
+            if (!main || !main.lastElementChild) return 0;
+            return main.lastElementChild.getBoundingClientRect().bottom;
         }
     """)
-    # main_bottom should be <= viewport height (i.e., content ends before or at bottom of page)
-    # The padding-bottom on .ht-main ensures content doesn't hide behind the nav
-    viewport_height = MOBILE_VIEWPORT["height"]
-    assert main_bottom <= viewport_height + 1, (
-        f"Main content bottom ({main_bottom}px) exceeds viewport ({viewport_height}px)"
+    assert last_content_bottom <= nav_box["y"] + 1, (
+        f"Last content element bottom ({last_content_bottom}px) overlaps bottom nav top ({nav_box['y']}px)"
     )
 
 

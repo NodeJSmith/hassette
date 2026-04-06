@@ -45,6 +45,7 @@ export function BottomNav() {
             class={`ht-bottom-nav__item${isActive ? " is-active" : ""}`}
             data-testid={item.testId}
             aria-label={item.label}
+            aria-current={isActive ? "page" : undefined}
           >
             {item.icon}
             <span>{item.label}</span>

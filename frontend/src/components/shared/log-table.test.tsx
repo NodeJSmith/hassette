@@ -1068,9 +1068,9 @@ describe("Mobile responsive rendering", () => {
     expect(appTag!.classList.contains("ht-tag--neutral")).toBe(true);
   });
 
-  it("truncates timestamp seconds on mobile", () => {
-    // Timestamp for 2024-01-01 12:30:45 UTC
-    const ts = new Date("2024-01-01T12:30:45Z").getTime() / 1000;
+  it("shows relative timestamps on mobile", () => {
+    // Timestamp 5 minutes ago
+    const ts = Date.now() / 1000 - 300;
     state.logs.push(createLogEntry({ timestamp: ts, message: "ts test" }));
 
     const { container } = render(
@@ -1079,17 +1079,10 @@ describe("Mobile responsive rendering", () => {
     );
 
     const timeCells = container.querySelectorAll("td.ht-text-mono");
-    // Find the cell with the timestamp (not source cells)
     const tsCell = Array.from(timeCells).find((td) => {
       const text = td.textContent ?? "";
-      return text.includes("/") && text.includes(":");
+      return text.includes("ago") || text.includes("just now");
     });
     expect(tsCell).not.toBeNull();
-    // Should NOT contain seconds (i.e., no ":45" pattern at end)
-    const tsText = tsCell!.textContent ?? "";
-    // Format should be MM/DD HH:MM AM/PM (no seconds)
-    // The full format has two colons (HH:MM:SS), short has only one (HH:MM)
-    const colonCount = (tsText.match(/:/g) ?? []).length;
-    expect(colonCount).toBe(1);
   });
 });
