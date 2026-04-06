@@ -3,6 +3,7 @@ import type { AppManifest } from "../../api/endpoints";
 import { useAppState } from "../../state/context";
 import { useManifestState, EXPANDED_KEY } from "../../hooks/use-manifest-state";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
+import { INACTIVE_STATUSES } from "../../utils/status";
 import { ManifestRow } from "./manifest-row";
 import { ManifestCardList } from "./manifest-card-list";
 import type { FilterValue } from "./status-filter";
@@ -29,14 +30,26 @@ export function ManifestList({ manifests, filter }: Props) {
           return (live ?? m.status) === filter.value;
         });
 
-  if (filtered.length === 0) {
+  // Sort active-first then alphabetical (matches app-grid.tsx order).
+  // Flat sort here — no DOM split like the dashboard, since the table/card
+  // list already has per-row status badges making inactive rows obvious.
+  const sorted = [...filtered].sort((a, b) => {
+    const aStatus = appStatus.value[a.app_key]?.status ?? a.status;
+    const bStatus = appStatus.value[b.app_key]?.status ?? b.status;
+    const aInactive = INACTIVE_STATUSES.has(aStatus) ? 1 : 0;
+    const bInactive = INACTIVE_STATUSES.has(bStatus) ? 1 : 0;
+    if (aInactive !== bInactive) return aInactive - bInactive;
+    return a.display_name.localeCompare(b.display_name);
+  });
+
+  if (sorted.length === 0) {
     return <p class="ht-text-secondary">No apps match this filter.</p>;
   }
 
   if (isMobile) {
     return (
       <ManifestCardList
-        manifests={filtered}
+        manifests={sorted}
         expanded={expanded}
         toggleExpand={toggleExpand}
         appStatus={appStatus}
@@ -58,7 +71,7 @@ export function ManifestList({ manifests, filter }: Props) {
         </tr>
       </thead>
       <tbody>
-        {filtered.map((m) => (
+        {sorted.map((m) => (
           <ManifestRow
             key={m.app_key}
             manifest={m}

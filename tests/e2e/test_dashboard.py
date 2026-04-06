@@ -83,11 +83,11 @@ def test_app_card_links_to_detail(page: Page, base_url: str) -> None:
 
 
 def test_app_card_shows_status_badge(page: Page, base_url: str) -> None:
-    """App cards display status badges."""
+    """App cards display status badges only for non-running states."""
     page.goto(base_url + "/")
-    # Running app should have success badge (pill badge via StatusBadge)
+    # Running app should NOT show a badge (running is the implied default)
     running_card = page.locator("[data-testid='app-card-my_app']")
-    expect(running_card.locator(".ht-badge--success")).to_be_visible()
+    expect(running_card.locator(".ht-badge--success")).not_to_be_visible()
 
     # Failed app should have danger badge
     failed_card = page.locator("[data-testid='app-card-broken_app']")
@@ -144,18 +144,6 @@ def test_dashboard_renders_error_feed(page: Page, base_url: str) -> None:
     expect(error_feed).to_contain_text("Lock service timed out")
 
 
-# ── Session info ────────────────────────────────────────────────────
-
-
-def test_dashboard_renders_session_info(page: Page, base_url: str) -> None:
-    """Session bar shows session number and uptime."""
-    page.goto(base_url + "/")
-    session_bar = page.locator("[data-testid='session-info']")
-    expect(session_bar).to_be_visible()
-    # Should show Hassette version
-    expect(session_bar).to_contain_text("Hassette")
-
-
 # ── Existing tests (preserved from original) ────────────────────────
 
 PANEL_HEADINGS = [
@@ -172,21 +160,10 @@ def test_dashboard_panels_visible(page: Page, base_url: str) -> None:
         expect(body).to_contain_text(heading)
 
 
-VIEW_ALL_LINKS = [
-    ("App Health", "/apps"),
-]
-
-
-@pytest.mark.parametrize(
-    ("panel_heading", "target_path"),
-    VIEW_ALL_LINKS,
-    ids=[h for h, _ in VIEW_ALL_LINKS],
-)
-def test_dashboard_view_all_links(page: Page, base_url: str, panel_heading: str, target_path: str) -> None:
-    """'View All' / 'Manage Apps' links navigate to the correct full page."""
+def test_app_health_heading_links_to_apps(page: Page, base_url: str) -> None:
+    """The App Health heading is a link that navigates to the apps page."""
     page.goto(base_url + "/")
-    panel = page.locator(f".ht-card:has(h2:has-text('{panel_heading}'))")
-    link = panel.locator("a.ht-btn")
+    link = page.get_by_role("link", name="App Health")
     expect(link).to_be_visible()
     link.click()
-    expect(page).to_have_url(re.compile(re.escape(target_path)))
+    expect(page).to_have_url(re.compile(r"/apps/?$"))

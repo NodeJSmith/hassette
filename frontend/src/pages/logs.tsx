@@ -1,6 +1,5 @@
 import { useEffect } from "preact/hooks";
 import { getManifests } from "../api/endpoints";
-import { IconScroll } from "../components/shared/icons";
 import { LogTable } from "../components/shared/log-table";
 import { useApi } from "../hooks/use-api";
 
@@ -11,10 +10,7 @@ export function LogsPage() {
 
   return (
     <div>
-      <h1 class="ht-heading-4 ht-mb-4">
-        <IconScroll />
-        <span>Log Viewer</span>
-      </h1>
+      <h1 class="ht-heading-4 ht-mb-4">Log Viewer</h1>
       <div class="ht-card">
         <LogTable showAppColumn={true} appKeys={appKeys} />
       </div>

@@ -839,6 +839,16 @@ strong {
   gap: 0.35em;
 }
 
+.ht-heading-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ht-heading-link:hover {
+  color: var(--ht-link-hover);
+  text-decoration: none;
+}
+
 .ht-subheading-4 {
   font-family: var(--ht-font-heading);
   font-size: var(--ht-text-lg);
@@ -1032,6 +1042,9 @@ strong {
   font-weight: var(--ht-weight-bold);
   color: var(--ht-text);
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ht-health-card__value--success { color: var(--ht-success); }
@@ -1353,12 +1366,22 @@ strong {
   }
 }
 
-/* — KPI Strip (5-column grid of health cards) ————————— */
+/* — KPI Strip — 5 cards: error-rate (prominent, 1.4fr) + 4 standard (1fr)
+   Update repeat() count when cards are added/removed.
+   data-kpi="error-rate" drives the prominence rules below. */
 .ht-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: 1.4fr repeat(4, 1fr);
   gap: var(--ht-sp-4);
   margin-bottom: var(--ht-sp-6);
+}
+
+.ht-kpi-strip > [data-kpi="error-rate"] .ht-health-card__value {
+  font-size: var(--ht-text-2xl);
+}
+
+.ht-kpi-strip > [data-kpi="error-rate"] .ht-health-card__detail {
+  color: var(--ht-text-dim);
 }
 
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
@@ -1369,6 +1392,12 @@ strong {
 
   .ht-kpi-strip > [data-kpi="error-rate"] {
     grid-column: 1 / -1;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .ht-kpi-strip {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1386,6 +1415,24 @@ strong {
   border-radius: var(--ht-radius-md);
   transition: background var(--ht-motion-micro), box-shadow var(--ht-motion-micro);
   overflow: hidden;
+}
+
+.ht-app-grid--inactive .ht-app-card {
+  opacity: 0.55;
+}
+
+.ht-app-grid--inactive .ht-app-card:hover {
+  opacity: 0.85;
+}
+
+.ht-app-grid__section-label {
+  font-family: var(--ht-font-body);
+  font-size: var(--ht-text-xs);
+  font-weight: var(--ht-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ht-text-dim);
+  margin: var(--ht-sp-4) 0 var(--ht-sp-2);
 }
 
 .ht-app-card:hover {
@@ -1438,26 +1485,6 @@ strong {
   margin-top: var(--ht-sp-1);
 }
 
-/* — Health Bar (success rate gradient) ————————————————— */
-.ht-health-bar {
-  height: 4px;
-  background: var(--ht-surface-recessed);
-  border-radius: var(--ht-radius-full);
-  overflow: hidden;
-  margin-top: var(--ht-sp-1);
-}
-
-.ht-health-bar__fill {
-  height: 100%;
-  border-radius: var(--ht-radius-full);
-  transition: width var(--ht-motion-micro);
-}
-
-.ht-health-bar__fill--success { background: var(--ht-success); }
-.ht-health-bar__fill--warning { background: var(--ht-warning); }
-.ht-health-bar__fill--danger  { background: var(--ht-danger); }
-.ht-health-bar__fill--neutral { background: var(--ht-text-dim); }
-
 /* — Error Feed ————————————————————————————————————————— */
 .ht-error-feed {
   display: flex;
@@ -1465,23 +1492,6 @@ strong {
   gap: var(--ht-sp-2);
   max-height: 300px;
   overflow-y: auto;
-}
-
-/* — Session Bar ———————————————————————————————————————— */
-.ht-session-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--ht-sp-6);
-  padding: var(--ht-sp-3) var(--ht-sp-4);
-  background: var(--ht-surface-recessed);
-  border-radius: var(--ht-radius-md);
-  margin-top: var(--ht-sp-4);
-}
-
-.ht-session-bar__item {
-  display: flex;
-  align-items: center;
-  gap: var(--ht-sp-2);
 }
 
 /* — Spinner ———————————————————————————————————————————— */

@@ -7,7 +7,7 @@ import {
 import { AppGrid } from "../components/dashboard/app-grid";
 import { ErrorFeed } from "../components/dashboard/error-feed";
 import { KpiStrip } from "../components/dashboard/kpi-strip";
-import { IconCheck, IconHeart, IconWarning } from "../components/shared/icons";
+import { IconCheck, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
@@ -63,17 +63,11 @@ export function DashboardPage() {
       />
 
       <div class="ht-card ht-mb-4">
-        <h2 class="ht-heading-5">
-          <IconHeart />
-          <span>App Health</span>
-        </h2>
+        <h2 class="ht-heading-5"><a href="/apps" class="ht-heading-link">App Health</a></h2>
         {appGrid.error.value && (
           <p class="ht-text-danger">Failed to load app grid: {appGrid.error.value}</p>
         )}
         <AppGrid apps={appGrid.data.value} />
-        <div class="ht-mt-3">
-          <a href="/apps" class="ht-btn ht-btn--sm ht-btn--link">Manage Apps</a>
-        </div>
       </div>
 
       {errors.error.value ? (
@@ -96,20 +90,6 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Session info bar */}
-      <div class="ht-session-bar" data-testid="session-info">
-        <span class="ht-session-bar__item">
-          <span class="ht-text-xs ht-text-muted">Hassette</span>
-        </span>
-        {kpis.data.value?.uptime_seconds !== null && kpis.data.value?.uptime_seconds !== undefined && (
-          <span class="ht-session-bar__item">
-            <span class="ht-text-xs ht-text-muted">Started</span>
-            <span class="ht-text-xs">
-              {new Date(Date.now() - (kpis.data.value.uptime_seconds * 1000)).toLocaleString()}
-            </span>
-          </span>
-        )}
-      </div>
     </div>
   );
 }

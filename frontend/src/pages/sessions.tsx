@@ -1,6 +1,5 @@
 import { useEffect } from "preact/hooks";
 import { getSessionList, type SessionListEntry } from "../api/endpoints";
-import { IconHistory } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { StatusBadge } from "../components/shared/status-badge";
 import { useApi } from "../hooks/use-api";
@@ -44,10 +43,7 @@ export function SessionsPage() {
 
   return (
     <div>
-      <h1 class="ht-heading-4 ht-mb-4">
-        <IconHistory />
-        <span>Sessions</span>
-      </h1>
+      <h1 class="ht-heading-4 ht-mb-4">Sessions</h1>
       {sessions.error.value && (
         <p class="ht-text-danger">Failed to load sessions: {sessions.error.value}</p>
       )}
