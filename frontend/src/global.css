@@ -1695,6 +1695,161 @@ strong {
   z-index: 1000;
 }
 
+/* — Bottom Navigation (mobile) ————————————————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+.ht-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  display: flex;
+  background: var(--ht-surface);
+  border-top: 1px solid var(--ht-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 30;
+}
+
+.ht-bottom-nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ht-sp-1);
+  min-height: 44px;
+  color: var(--ht-text-dim);
+  text-decoration: none;
+  font-size: var(--ht-text-xs);
+  font-family: var(--ht-font-body);
+  transition: color var(--ht-motion-micro);
+}
+
+.ht-bottom-nav__item:hover,
+.ht-bottom-nav__item.is-active {
+  color: var(--ht-text);
+  background: var(--ht-surface-recessed);
+}
+
+.ht-bottom-nav__item svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media screen and (min-width: 769px) {
+  .ht-bottom-nav {
+    display: none;
+  }
+}
+
+/* — Manifest Card List (mobile apps view) —————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+.ht-manifest-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-3);
+}
+
+.ht-manifest-card {
+  background: var(--ht-surface);
+  border: 1px solid var(--ht-border);
+  border-top: 1px solid var(--ht-border-highlight);
+  border-radius: var(--ht-radius-md);
+  padding: var(--ht-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-2);
+}
+
+.ht-manifest-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ht-sp-2);
+}
+
+.ht-manifest-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-1);
+  min-width: 0;
+}
+
+.ht-manifest-card__chevron {
+  background: none;
+  border: none;
+  color: var(--ht-text-dim);
+  cursor: pointer;
+  padding: var(--ht-sp-1);
+  font-size: var(--ht-text-sm);
+  line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ht-manifest-card__name {
+  color: var(--ht-link);
+  text-decoration: none;
+  font-weight: var(--ht-weight-medium);
+  font-size: var(--ht-text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-manifest-card__name:hover {
+  color: var(--ht-link-hover);
+}
+
+.ht-manifest-card__badges {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-1);
+  flex-shrink: 0;
+}
+
+.ht-manifest-card__actions {
+  display: flex;
+  gap: var(--ht-sp-2);
+  flex-wrap: wrap;
+}
+
+.ht-manifest-card__instance {
+  background: var(--ht-surface-recessed);
+  border-radius: var(--ht-radius-sm);
+  padding: var(--ht-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-2);
+}
+
+.ht-manifest-card__instance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ht-sp-2);
+}
+
+.ht-manifest-card__instance-name {
+  color: var(--ht-link);
+  text-decoration: none;
+  font-family: var(--ht-font-mono);
+  font-size: var(--ht-text-sm);
+}
+
+.ht-manifest-card__instance-name:hover {
+  color: var(--ht-link-hover);
+}
+
+.ht-manifest-card__instance-actions {
+  display: flex;
+  gap: var(--ht-sp-2);
+  flex-wrap: wrap;
+}
+
 /* — Reduced Motion ————————————————————————————————————— */
 @media (prefers-reduced-motion: reduce) {
   *,
