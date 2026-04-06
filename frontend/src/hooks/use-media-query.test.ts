@@ -8,6 +8,13 @@ describe("BREAKPOINT_MOBILE", () => {
   });
 });
 
+describe("BREAKPOINT_TABLET", () => {
+  it("is exported as 1024", async () => {
+    const { BREAKPOINT_TABLET } = await import("./use-media-query");
+    expect(BREAKPOINT_TABLET).toBe(1024);
+  });
+});
+
 describe("useMediaQuery", () => {
   let listeners: Array<(e: { matches: boolean }) => void>;
   let currentMatches: boolean;

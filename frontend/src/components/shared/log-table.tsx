@@ -2,7 +2,7 @@ import { signal } from "@preact/signals";
 import { useEffect, useRef, useCallback } from "preact/hooks";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
-import { useMediaQuery, BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
+import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../hooks/use-media-query";
 import { useAppState } from "../../state/context";
 import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
 
@@ -66,6 +66,11 @@ interface Props {
 
 export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+  // Source column is CSS-hidden at max-width: 1024px (see global.css .ht-table-log .ht-col-source)
+  // Ideally the Source <th>/<td> would be conditionally rendered like the App column,
+  // but for now we just adjust the colSpan to match the CSS-only hide.
+  const isTablet = useMediaQuery(BREAKPOINT_TABLET);
+  const showSourceColumn = !isTablet;
   const { logs, updateLogSubscription, reconnectVersion, tick } = useAppState();
 
   // Subscribe to tick signal so relative timestamps re-render every 30s on mobile
@@ -314,7 +319,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isMobile ? 3 : showAppColumn ? 5 : 4} class="ht-text-center ht-text-muted"> {/* source col CSS-hidden at mobile: -1 */}
+                <td colSpan={isMobile ? 3 : (showAppColumn ? (showSourceColumn ? 5 : 4) : (showSourceColumn ? 4 : 3))} class="ht-text-center ht-text-muted">
                   No log entries.
                 </td>
               </tr>
@@ -330,7 +335,8 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 expandedRows.value = next;
               };
               const mobileColCount = 3; // level + time + message (source hidden, app hidden on mobile)
-              const desktopColCount = showAppColumn ? 5 : 4;
+              const sourceAdjust = showSourceColumn ? 0 : -1;
+              const desktopColCount = (showAppColumn ? 5 : 4) + sourceAdjust;
               const colCount = isMobile ? mobileColCount : desktopColCount;
               const rows = [
               <tr key={rowKey}>

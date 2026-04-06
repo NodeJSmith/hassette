@@ -13,6 +13,7 @@ const mockUseMediaQuery = vi.fn((_maxWidth: number) => false);
 vi.mock("../../hooks/use-media-query", () => ({
   useMediaQuery: (maxWidth: number) => mockUseMediaQuery(maxWidth),
   BREAKPOINT_MOBILE: 768,
+  BREAKPOINT_TABLET: 1024,
 }));
 
 // Mock the API endpoint for initial log fetch

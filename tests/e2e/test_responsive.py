@@ -72,7 +72,6 @@ def test_apps_card_layout_at_375px(page: Page, base_url: str) -> None:
     """Mobile viewport shows app cards, not the dense table."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
-    page.wait_for_timeout(500)
     cards = page.locator(".ht-manifest-card")
     expect(cards.first).to_be_visible()
     dense_table = page.locator("table.ht-table--dense")
@@ -83,7 +82,6 @@ def test_apps_table_layout_at_1024px(page: Page, base_url: str) -> None:
     """Desktop viewport shows the dense table, not cards."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
-    page.wait_for_timeout(500)
     dense_table = page.locator("table.ht-table--dense")
     expect(dense_table).to_be_visible()
     cards = page.locator(".ht-manifest-card")
@@ -99,7 +97,6 @@ def test_kpi_error_rate_first_at_375px(page: Page, base_url: str) -> None:
     """Error Rate KPI card is the first in the strip on mobile (spans full width)."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
-    page.wait_for_timeout(500)
     kpi_strip = page.locator('[data-testid="kpi-strip"]')
     first_label = kpi_strip.locator(".ht-health-card__label").first
     expect(first_label).to_have_text("Error Rate")
@@ -114,21 +111,20 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
     """Interactive elements meet the 44px minimum touch target on mobile."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
-    page.wait_for_timeout(500)
 
     # Scope toggle buttons
     scope_toggle = page.locator('[data-testid="scope-toggle"] button').first
-    if scope_toggle.count() > 0:
-        box = scope_toggle.bounding_box()
-        assert box is not None
-        assert box["height"] >= 44, f"Scope toggle height {box['height']}px < 44px"
+    expect(scope_toggle).to_be_visible()
+    box = scope_toggle.bounding_box()
+    assert box is not None
+    assert box["height"] >= 44, f"Scope toggle height {box['height']}px < 44px"
 
     # Theme toggle button
     theme_toggle = page.locator('[data-testid="theme-toggle"]')
-    if theme_toggle.count() > 0:
-        box = theme_toggle.bounding_box()
-        assert box is not None
-        assert box["height"] >= 44, f"Theme toggle height {box['height']}px < 44px"
+    expect(theme_toggle).to_be_visible()
+    box = theme_toggle.bounding_box()
+    assert box is not None
+    assert box["height"] >= 44, f"Theme toggle height {box['height']}px < 44px"
 
     # Bottom nav items
     nav_items = page.locator(".ht-bottom-nav__item")
@@ -183,7 +179,6 @@ def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:
     """At exactly 768px, the card layout shows (768 triggers max-width: 768px)."""
     page.set_viewport_size(TABLET_VIEWPORT)
     page.goto(base_url + "/apps")
-    page.wait_for_timeout(500)
     # At 768px, the mobile card layout should be active (max-width: 768px matches)
     cards = page.locator(".ht-manifest-card")
     expect(cards.first).to_be_visible()
@@ -198,7 +193,6 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     """Log table on mobile shows app name as tag in message column, no App column header."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/logs")
-    page.wait_for_timeout(500)
 
     # App column header should not be visible
     headers = page.locator(".ht-table-log th")

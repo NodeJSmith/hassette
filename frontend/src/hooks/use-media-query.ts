@@ -3,6 +3,9 @@ import { useEffect, useState } from "preact/hooks";
 /** Must match CSS `@media (max-width: 768px)` breakpoints in global.css */
 export const BREAKPOINT_MOBILE = 768;
 
+/** Must match CSS `@media (max-width: 1024px)` breakpoints in global.css */
+export const BREAKPOINT_TABLET = 1024;
+
 /**
  * Returns true when the viewport width is at or below `maxWidth`.
  * Uses `window.matchMedia` and cleans up the listener on unmount.
