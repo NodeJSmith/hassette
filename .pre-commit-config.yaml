@@ -24,6 +24,14 @@ repos:
 
   - repo: local
     hooks:
+      - id: eslint
+        name: eslint (frontend)
+        language: system
+        entry: npx --prefix frontend eslint
+        types_or: [ts, tsx]
+        files: ^frontend/src/
+
+
       # regenerate sync.py
       - id: generate_sync_facade
         name: Generate sync.py facade
