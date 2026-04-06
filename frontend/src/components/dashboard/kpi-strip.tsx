@@ -14,7 +14,7 @@ interface Props {
 export function KpiStrip({ data, appCount = 0, runningCount = 0 }: Props) {
   if (!data) return null;
 
-  const hasUptime = data.uptime_seconds != null && data.uptime_seconds > 0;
+  const hasUptime = data.uptime_seconds !== null && data.uptime_seconds !== undefined && data.uptime_seconds > 0;
   const uptimeH = hasUptime ? Math.floor(data.uptime_seconds / 3600) : 0;
   const uptimeM = hasUptime ? Math.floor((data.uptime_seconds % 3600) / 60) : 0;
 

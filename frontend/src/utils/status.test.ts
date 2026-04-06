@@ -26,10 +26,10 @@ describe("INACTIVE_STATUSES", () => {
   });
 
   it("does not include failure states that need attention", () => {
-    expect(INACTIVE_STATUSES.has("running" as any)).toBe(false);
-    expect(INACTIVE_STATUSES.has("failed" as any)).toBe(false);
-    expect(INACTIVE_STATUSES.has("blocked" as any)).toBe(false);
-    expect(INACTIVE_STATUSES.has("starting" as any)).toBe(false);
+    expect(INACTIVE_STATUSES.has("running")).toBe(false);
+    expect(INACTIVE_STATUSES.has("failed")).toBe(false);
+    expect(INACTIVE_STATUSES.has("blocked")).toBe(false);
+    expect(INACTIVE_STATUSES.has("starting")).toBe(false);
   });
 });
 
