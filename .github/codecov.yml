@@ -1,2 +1,5 @@
 codecov:
   branch: main
+
+ignore:
+  - "src/hassette/migrations/**"
