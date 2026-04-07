@@ -58,7 +58,7 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
 
 
 async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService) -> None:
-    """on_initialize creates all 5 tables and 13 indexes on a fresh database."""
+    """on_initialize creates all 5 tables and 12 indexes on a fresh database."""
     import sqlite3
 
     db_path = initialized_service._db_path

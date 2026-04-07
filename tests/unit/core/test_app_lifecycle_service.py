@@ -601,12 +601,6 @@ class TestStartApp:
         # start_app spawns initialize_instances but doesn't await it (task_bucket mock returns immediately)
         # The important thing is that clear_registrations is no longer called.
         mock_hassette.command_executor.reconcile_registrations.assert_not_awaited()
-        # clear_registrations must not exist on the command_executor mock
-        assert (
-            not hasattr(mock_hassette.command_executor, "clear_registrations")
-            or not callable(getattr(mock_hassette.command_executor, "clear_registrations", None))
-            or True
-        )  # just verify no AttributeError was raised starting the app
 
     async def test_skips_disabled_app(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_factory: MagicMock
