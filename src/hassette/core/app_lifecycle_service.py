@@ -126,7 +126,9 @@ class AppLifecycleService(Resource):
     ) -> None:
         """Initialize all instances for an app key.
 
-        Records failures directly to the registry.
+        Records failures directly to the registry. After all instances are
+        initialized, awaits pending DB registrations and runs post-ready
+        reconciliation to retire stale rows from previous sessions.
 
         Args:
             app_key: The app key
@@ -166,6 +168,10 @@ class AppLifecycleService(Resource):
                 inst.status = STOPPED
                 self.registry.record_failure(app_key, idx, e)
                 await self._emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
+
+        # Post-ready reconciliation: retire stale rows from previous sessions.
+        # Runs after the instance loop to ensure all registrations are complete.
+        await self._reconcile_app_registrations(app_key, instances)
 
     async def shutdown_instance(self, inst: "App[AppConfig]") -> None:
         """Shutdown a single app instance.
@@ -301,10 +307,6 @@ class AppLifecycleService(Resource):
 
         instances = self.registry.get_apps_by_key(app_key)
         if instances:
-            # Clear stale listener/job registrations from previous sessions before
-            # re-registration. History rows are preserved via ON DELETE SET NULL.
-            await self.hassette.command_executor.clear_registrations(app_key)
-
             handler = get_log_capture_handler()
             for inst in instances.values():
                 if handler:
@@ -512,3 +514,83 @@ class AppLifecycleService(Resource):
                     currently_blocked.add(app_key)
 
         return previously_blocked - currently_blocked
+
+    async def _reconcile_app_registrations(
+        self,
+        app_key: str,
+        instances: "dict[int, App[AppConfig]]",
+    ) -> None:
+        """Run post-ready reconciliation for an app after all instances are initialized.
+
+        Awaits pending DB registrations, collects live IDs from all instances,
+        applies the Router safety guard, then calls reconcile_registrations.
+        Failure is non-fatal — logs a warning and allows the app to continue.
+
+        Args:
+            app_key: The app key to reconcile.
+            instances: Dict of instance index -> App (may include failed instances).
+        """
+        try:
+            bus_service = self.hassette.bus_service
+
+            # Await barrier: ensure all pending listener registrations are flushed.
+            await bus_service.await_registrations_complete(app_key)
+
+            # Collect live listener IDs from all instances.
+            live_listener_ids: set[int] = set()
+            for inst in instances.values():
+                try:
+                    listeners = await inst.bus.get_listeners()
+                    for listener in listeners:
+                        if listener.db_id is not None:
+                            live_listener_ids.add(listener.db_id)
+                except Exception:
+                    self.logger.warning(
+                        "Failed to collect listener IDs from app '%s' instance — proceeding with partial set",
+                        app_key,
+                    )
+
+            # Router safety guard: union with IDs of listeners the Router knows
+            # are active, to avoid retiring rows for mid-session active handlers.
+            try:
+                router = bus_service.router
+                for inst in instances.values():
+                    router_listeners = await router.get_listeners_by_owner(inst.bus.owner_id)
+                    for listener in router_listeners:
+                        if listener.db_id is not None:
+                            live_listener_ids.add(listener.db_id)
+            except Exception:
+                self.logger.warning(
+                    "Router safety guard failed for app '%s' — proceeding with collected live IDs only",
+                    app_key,
+                )
+
+            # Collect live job IDs from all instances.
+            live_job_ids: list[int] = []
+            for inst in instances.values():
+                try:
+                    live_job_ids.extend(inst.scheduler.get_job_db_ids())
+                except Exception:
+                    self.logger.warning(
+                        "Failed to collect job IDs from app '%s' instance — proceeding with partial set",
+                        app_key,
+                    )
+
+            # Get current session ID for once=True guard.
+            try:
+                session_id: int | None = self.hassette.session_id
+            except Exception:
+                session_id = None
+
+            await self.hassette.command_executor.reconcile_registrations(
+                app_key,
+                list(live_listener_ids),
+                live_job_ids,
+                session_id=session_id,
+            )
+            self.logger.debug("Post-ready reconciliation complete for app '%s'", app_key)
+        except Exception:
+            self.logger.warning(
+                "Post-ready reconciliation failed for app '%s' — stale rows may remain until next restart",
+                app_key,
+            )

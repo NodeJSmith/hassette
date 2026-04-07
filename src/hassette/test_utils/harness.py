@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import itertools
 import logging
 import threading
 import typing
@@ -17,6 +18,7 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, Ty
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
+from hassette.core.command_executor import CommandExecutor
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
@@ -365,9 +367,15 @@ class HassetteHarness:
             if isinstance(cmd, InvokeHandler):
                 await cmd.listener.invoke(cmd.event)
 
-        mock_executor = AsyncMock()
+        _listener_id_counter = itertools.count(1)
+
+        async def _register_listener_stub(*_args: Any, **_kwargs: Any) -> int:
+            return next(_listener_id_counter)
+
+        mock_executor = AsyncMock(spec=CommandExecutor)
         mock_executor.execute = AsyncMock(side_effect=_stub_execute)
-        mock_executor.register_listener = AsyncMock(return_value=42)
+        mock_executor.register_listener = AsyncMock(side_effect=_register_listener_stub)
+        mock_executor.reconcile_registrations = AsyncMock()
         self.hassette._bus_service = self.hassette.add_child(
             BusService, stream=self.hassette._event_stream_service.receive_stream.clone(), executor=mock_executor
         )
@@ -384,7 +392,7 @@ class HassetteHarness:
 
         mock_executor = AsyncMock()
         mock_executor.execute = AsyncMock(side_effect=_stub_execute)
-        mock_executor.register_job = AsyncMock(return_value=0)
+        mock_executor.register_job = AsyncMock(side_effect=itertools.count(1).__next__)
         self.hassette._scheduler_service = self.hassette.add_child(SchedulerService, executor=mock_executor)
         self.hassette._scheduler = self.hassette.add_child(Scheduler)
 
@@ -395,8 +403,8 @@ class HassetteHarness:
         self.hassette._file_watcher = self.hassette.add_child(FileWatcherService)
 
     async def _start_app_handler(self) -> None:
-        self.hassette._command_executor = Mock()
-        self.hassette._command_executor.clear_registrations = AsyncMock()
+        self.hassette._command_executor = Mock(spec=CommandExecutor)
+        self.hassette._command_executor.reconcile_registrations = AsyncMock()
         self.hassette._app_handler = self.hassette.add_child(AppHandler)
         self.hassette._websocket_service = Mock()
         self.hassette._websocket_service.status = ResourceStatus.RUNNING

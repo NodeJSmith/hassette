@@ -159,6 +159,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     app_shutdown_timeout_seconds: int = Field(default=10)
     """Length of time to wait for an app to shut down before giving up."""
 
+    registration_await_timeout: int = Field(default=30)
+    """Timeout in seconds to wait for all pending listener/job DB registrations to flush
+    before post-ready reconciliation. Prevents indefinite hangs if the DB write queue stalls."""
+
     resource_shutdown_timeout_seconds: int = Field(
         default_factory=lambda data: data.get("app_shutdown_timeout_seconds", 10)
     )

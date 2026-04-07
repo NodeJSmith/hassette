@@ -233,51 +233,228 @@ async def test_register_job_inserts_and_returns_id(
 
 
 # ---------------------------------------------------------------------------
-# clear_registrations tests
+# reconcile_registrations tests
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_clear_registrations_deletes_by_app_key(
+async def test_reconcile_deletes_stale_without_history(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
 ) -> None:
-    """clear_registrations() removes all listeners and scheduled_jobs for an app_key."""
-    # Insert registrations for two different apps
-    reg_a = _make_listener_registration(topic="topic.a")
-    reg_b = _make_listener_registration(topic="topic.b")
+    """reconcile_registrations() deletes stale non-once listeners with no invocation history."""
+    listener_id = await repo.register_listener(_make_listener_registration())
+    job_id = await repo.register_job(_make_job_registration())
 
-    await repo.register_listener(reg_a)
-    await repo.register_listener(reg_b)
+    # Reconcile with empty live IDs — the rows have no history, so they should be deleted
+    await repo.reconcile_registrations("test_app", [], [])
 
-    # Manually insert a row for a different app to confirm it's untouched
+    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row[0] == 0, "Stale listener without history should be deleted"
+
+    cursor = await db.execute("SELECT COUNT(*) FROM scheduled_jobs WHERE id = ?", (job_id,))
+    row = await cursor.fetchone()
+    assert row[0] == 0, "Stale job without history should be deleted"
+
+
+@pytest.mark.asyncio
+async def test_reconcile_retires_stale_with_history(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """reconcile_registrations() sets retired_at on stale rows that have invocation history."""
+    listener_id = await repo.register_listener(_make_listener_registration())
+    job_id = await repo.register_job(_make_job_registration())
+
+    # Create history for both
     await db.execute(
-        """
-        INSERT INTO listeners (app_key, instance_index, handler_method, topic, once, priority, source_location)
-        VALUES ('other_app', 0, 'other_app.handler', 'topic.other', 0, 0, 'test.py:1')
-        """
+        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (listener_id, session_id, time.time(), 1.0, "success"),
     )
-
-    job_reg = _make_job_registration()
-    await repo.register_job(job_reg)
-
+    await db.execute(
+        "INSERT INTO job_executions (job_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (job_id, session_id, time.time(), 1.0, "success"),
+    )
     await db.commit()
 
-    # Clear registrations for test_app only
-    await repo.clear_registrations("test_app")
+    # Reconcile with empty live IDs — rows have history so they should be retired
+    await repo.reconcile_registrations("test_app", [], [])
 
-    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE app_key = 'test_app'")
+    cursor = await db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
-    assert row[0] == 0
+    assert row is not None
+    assert row[0] is not None, "Stale listener with history should have retired_at set"
 
-    cursor = await db.execute("SELECT COUNT(*) FROM scheduled_jobs WHERE app_key = 'test_app'")
+    cursor = await db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
-    assert row[0] == 0
+    assert row is not None
+    assert row[0] is not None, "Stale job with history should have retired_at set"
 
-    # other_app row should be untouched
-    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE app_key = 'other_app'")
+
+@pytest.mark.asyncio
+async def test_reconcile_preserves_live_listeners(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations() preserves listeners whose IDs are in the live set."""
+    reg_a = _make_listener_registration(topic="topic.a")
+    reg_b = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event_b",
+        topic="topic.b",
+        debounce=None,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test.py:1",
+        registration_source=None,
+    )
+    id_a = await repo.register_listener(reg_a)
+    id_b = await repo.register_listener(reg_b)
+
+    # Reconcile — keep id_a live, let id_b be stale (no history so it's deleted)
+    await repo.reconcile_registrations("test_app", [id_a], [])
+
+    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (id_a,))
     row = await cursor.fetchone()
-    assert row[0] == 1
+    assert row[0] == 1, "Live listener should be preserved"
+
+    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (id_b,))
+    row = await cursor.fetchone()
+    assert row[0] == 0, "Stale listener without history should be deleted"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("session_id")
+async def test_reconcile_deletes_once_true_previous_session(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations() deletes once=True rows from previous sessions (no current invocations)."""
+    # Register a once=True listener (always inserts fresh)
+    once_reg = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=True,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test.py:1",
+        registration_source=None,
+    )
+    once_id = await repo.register_listener(once_reg)
+
+    # Use a different session_id for current reconciliation to simulate a new session
+    now = time.time()
+    cursor = await db.execute(
+        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+        (now, now),
+    )
+    await db.commit()
+    new_session_id = cursor.lastrowid
+    assert new_session_id is not None
+
+    # Reconcile with new session — once_id should be deleted (no current session invocations)
+    await repo.reconcile_registrations("test_app", [], [], session_id=new_session_id)
+
+    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
+    row = await cursor.fetchone()
+    assert row[0] == 0, "once=True listener from previous session should be deleted"
+
+
+@pytest.mark.asyncio
+async def test_reconcile_preserves_once_true_with_current_invocations(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """reconcile_registrations() preserves once=True rows that have current-session invocations."""
+    once_reg = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=True,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test.py:1",
+        registration_source=None,
+    )
+    once_id = await repo.register_listener(once_reg)
+
+    # Create an invocation in the CURRENT session
+    await db.execute(
+        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (once_id, session_id, time.time(), 1.0, "success"),
+    )
+    await db.commit()
+
+    # Reconcile with current session_id — once row has current invocations so it should be preserved
+    await repo.reconcile_registrations("test_app", [], [], session_id=session_id)
+
+    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
+    row = await cursor.fetchone()
+    assert row[0] == 1, "once=True listener with current-session invocations should be preserved"
+
+
+@pytest.mark.asyncio
+async def test_reconcile_empty_ids_no_crash(
+    repo: TelemetryRepository,
+) -> None:
+    """reconcile_registrations() with empty live IDs does not crash (no NOT IN () SQL error)."""
+    # Should not raise
+    await repo.reconcile_registrations("test_app", [], [])
+
+
+@pytest.mark.asyncio
+async def test_reconcile_resets_retired_at_on_reupsert(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """After a row is retired, re-upserting it (same natural key) resets retired_at to NULL."""
+    reg = _make_listener_registration()
+    listener_id = await repo.register_listener(reg)
+
+    # Create history so reconciliation retires rather than deletes
+    await db.execute(
+        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (listener_id, session_id, time.time(), 1.0, "success"),
+    )
+    await db.commit()
+
+    # Reconcile with empty set — retires the row
+    await repo.reconcile_registrations("test_app", [], [])
+
+    cursor = await db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is not None, "Row should be retired after reconciliation"
+
+    # Re-upsert the same natural key — should reset retired_at to NULL and return same ID
+    new_id = await repo.register_listener(reg)
+    assert new_id == listener_id, "Re-upsert should return the same ID"
+
+    cursor = await db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "retired_at should be reset to NULL after re-upsert"
 
 
 # ---------------------------------------------------------------------------

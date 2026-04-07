@@ -1,5 +1,6 @@
 """TelemetryRepository: encapsulates all SQL writes for CommandExecutor telemetry."""
 
+import time
 import typing
 
 from hassette.bus.invocation_record import HandlerInvocationRecord
@@ -182,19 +183,185 @@ class TelemetryRepository:
             raise RuntimeError("RETURNING id returned no row after INSERT INTO scheduled_jobs — should never happen")
         return row[0]
 
-    async def clear_registrations(self, app_key: str) -> None:
-        """Delete all listener and scheduled job registrations for an app.
+    async def reconcile_registrations(
+        self,
+        app_key: str,
+        live_listener_ids: list[int],
+        live_job_ids: list[int],
+        *,
+        session_id: int | None = None,
+    ) -> None:
+        """Reconcile listener and job registrations for an app after initialization.
 
-        History rows (handler_invocations, job_executions) are preserved with
-        NULL parent references via ON DELETE SET NULL.
+        For non-once listeners and jobs not in the live ID sets:
+        - Rows without invocation/execution history are deleted outright.
+        - Rows with history have ``retired_at`` set to the current time.
+
+        For once=True listeners not in the live ID set and not in the current session,
+        deletes them (guarded by NOT EXISTS for current-session invocations).
 
         Args:
-            app_key: The app key whose registrations to delete.
+            app_key: The app key to reconcile.
+            live_listener_ids: IDs of currently active listener rows.
+            live_job_ids: IDs of currently active scheduled_job rows.
+            session_id: Current session ID, used to guard once=True row deletion.
+                When None, once=True rows are unconditionally deleted.
         """
         db = self._db_service.db
+        now = time.time()
+
         try:
-            await db.execute("DELETE FROM listeners WHERE app_key = ?", (app_key,))
-            await db.execute("DELETE FROM scheduled_jobs WHERE app_key = ?", (app_key,))
+            # --- Non-once listeners without history: delete ---
+            if live_listener_ids:
+                placeholders = ",".join("?" * len(live_listener_ids))
+                await db.execute(
+                    f"""
+                    DELETE FROM listeners
+                    WHERE app_key = ? AND once = 0
+                      AND id NOT IN ({placeholders})
+                      AND NOT EXISTS (
+                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
+                      )
+                    """,
+                    (app_key, *live_listener_ids),
+                )
+            else:
+                await db.execute(
+                    """
+                    DELETE FROM listeners
+                    WHERE app_key = ? AND once = 0
+                      AND NOT EXISTS (
+                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
+                      )
+                    """,
+                    (app_key,),
+                )
+
+            # --- Non-once listeners with history: retire ---
+            if live_listener_ids:
+                placeholders = ",".join("?" * len(live_listener_ids))
+                await db.execute(
+                    f"""
+                    UPDATE listeners SET retired_at = ?
+                    WHERE app_key = ? AND once = 0
+                      AND id NOT IN ({placeholders})
+                      AND retired_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
+                      )
+                    """,
+                    (now, app_key, *live_listener_ids),
+                )
+            else:
+                await db.execute(
+                    """
+                    UPDATE listeners SET retired_at = ?
+                    WHERE app_key = ? AND once = 0
+                      AND retired_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
+                      )
+                    """,
+                    (now, app_key),
+                )
+
+            # --- once=True listeners: delete from previous sessions ---
+            if session_id is not None:
+                if live_listener_ids:
+                    placeholders = ",".join("?" * len(live_listener_ids))
+                    await db.execute(
+                        f"""
+                        DELETE FROM listeners
+                        WHERE app_key = ? AND once = 1
+                          AND id NOT IN ({placeholders})
+                          AND NOT EXISTS (
+                              SELECT 1 FROM handler_invocations
+                              WHERE listener_id = listeners.id AND session_id = ?
+                          )
+                        """,
+                        (app_key, *live_listener_ids, session_id),
+                    )
+                else:
+                    await db.execute(
+                        """
+                        DELETE FROM listeners
+                        WHERE app_key = ? AND once = 1
+                          AND NOT EXISTS (
+                              SELECT 1 FROM handler_invocations
+                              WHERE listener_id = listeners.id AND session_id = ?
+                          )
+                        """,
+                        (app_key, session_id),
+                    )
+            else:
+                if live_listener_ids:
+                    placeholders = ",".join("?" * len(live_listener_ids))
+                    await db.execute(
+                        f"""
+                        DELETE FROM listeners
+                        WHERE app_key = ? AND once = 1
+                          AND id NOT IN ({placeholders})
+                        """,
+                        (app_key, *live_listener_ids),
+                    )
+                else:
+                    await db.execute(
+                        "DELETE FROM listeners WHERE app_key = ? AND once = 1",
+                        (app_key,),
+                    )
+
+            # --- Non-once jobs without history: delete ---
+            if live_job_ids:
+                placeholders = ",".join("?" * len(live_job_ids))
+                await db.execute(
+                    f"""
+                    DELETE FROM scheduled_jobs
+                    WHERE app_key = ? AND id NOT IN ({placeholders})
+                      AND NOT EXISTS (
+                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
+                      )
+                    """,
+                    (app_key, *live_job_ids),
+                )
+            else:
+                await db.execute(
+                    """
+                    DELETE FROM scheduled_jobs
+                    WHERE app_key = ?
+                      AND NOT EXISTS (
+                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
+                      )
+                    """,
+                    (app_key,),
+                )
+
+            # --- Non-once jobs with history: retire ---
+            if live_job_ids:
+                placeholders = ",".join("?" * len(live_job_ids))
+                await db.execute(
+                    f"""
+                    UPDATE scheduled_jobs SET retired_at = ?
+                    WHERE app_key = ? AND id NOT IN ({placeholders})
+                      AND retired_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
+                      )
+                    """,
+                    (now, app_key, *live_job_ids),
+                )
+            else:
+                await db.execute(
+                    """
+                    UPDATE scheduled_jobs SET retired_at = ?
+                    WHERE app_key = ?
+                      AND retired_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
+                      )
+                    """,
+                    (now, app_key),
+                )
+
             await db.commit()
         except Exception:
             await db.rollback()

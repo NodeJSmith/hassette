@@ -260,23 +260,35 @@ class CommandExecutor(Service):
         await self.hassette.wait_for_ready([self.hassette.database_service])
         return await self.hassette.database_service.submit(self.repository.register_job(registration))
 
-    # ------------------------------------------------------------------
-    # Registration cleanup
-    # ------------------------------------------------------------------
+    async def reconcile_registrations(
+        self,
+        app_key: str,
+        live_listener_ids: list[int],
+        live_job_ids: list[int],
+        *,
+        session_id: int | None = None,
+    ) -> None:
+        """Reconcile listener and job registrations for an app after initialization.
 
-    async def clear_registrations(self, app_key: str) -> None:
-        """Delete all listener and scheduled job registrations for an app.
-
-        Called at start_app() time before re-registration so that stale rows
-        from previous sessions (or removed handlers/jobs) are cleaned up.
-        History rows (handler_invocations, job_executions) are preserved with
-        NULL parent references via ON DELETE SET NULL.
+        Deletes stale rows without history, sets ``retired_at`` on stale rows with
+        history, and deletes ``once=True`` rows from previous sessions. Delegates
+        to ``TelemetryRepository.reconcile_registrations`` via ``DatabaseService.submit``.
 
         Args:
-            app_key: The app key whose registrations to delete.
+            app_key: The app key to reconcile.
+            live_listener_ids: IDs of currently active listener rows.
+            live_job_ids: IDs of currently active scheduled_job rows.
+            session_id: Current session ID, used to guard once=True row deletion.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
-        await self.hassette.database_service.submit(self.repository.clear_registrations(app_key))
+        await self.hassette.database_service.submit(
+            self.repository.reconcile_registrations(
+                app_key,
+                live_listener_ids,
+                live_job_ids,
+                session_id=session_id,
+            )
+        )
 
     # ------------------------------------------------------------------
     # Queue persistence

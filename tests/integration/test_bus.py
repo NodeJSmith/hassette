@@ -455,8 +455,9 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
 
         # The mock executor's register_listener should have been called
         hassette._bus_service._executor.register_listener.assert_called()
-        # db_id should be set by the background task (mock returns 42)
-        assert listener.db_id == 42
+        # db_id should be set by the background task (mock returns a distinct positive int per call)
+        assert listener.db_id is not None
+        assert listener.db_id > 0
     finally:
         # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
         bus.parent.app_key = ""  # pyright: ignore[reportOptionalMemberAccess]

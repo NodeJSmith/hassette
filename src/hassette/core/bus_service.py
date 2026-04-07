@@ -40,6 +40,9 @@ class BusService(Service):
     _excluded_entity_globs: tuple[str, ...]
     _has_exclusions: bool
 
+    _pending_registration_tasks: dict[str, list[asyncio.Task[None]]]
+    """Tracks pending DB registration tasks per app_key for await barrier support."""
+
     def __init__(
         self,
         hassette: "Hassette",
@@ -52,6 +55,7 @@ class BusService(Service):
         self.stream = stream
         self._executor = executor
         self.router = Router()
+        self._pending_registration_tasks = defaultdict(list)
         self._setup_exclusion_filters()
 
     @property
@@ -79,9 +83,14 @@ class BusService(Service):
         DB registration happen in a single task. For ``once=True`` listeners,
         registration completes first to prevent orphan DB rows. For regular
         listeners, the route is added first for immediate event delivery.
+
+        Registration tasks are tracked per ``app_key`` so
+        ``await_registrations_complete()`` can drain them before reconciliation.
         """
         if listener.app_key:
-            return self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
+            task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
+            self._pending_registration_tasks[listener.app_key].append(task)
+            return task
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
     async def _register_then_add_route(self, listener: "Listener") -> None:
@@ -149,6 +158,41 @@ class BusService(Service):
     def get_listeners_by_owner(self, owner: str) -> asyncio.Task[list["Listener"]]:
         """Get all listeners owned by a specific owner."""
         return self.task_bucket.spawn(self.router.get_listeners_by_owner(owner), name="bus:get_listeners_by_owner")
+
+    async def await_registrations_complete(self, app_key: str) -> None:
+        """Wait for all pending DB registration tasks for an app to complete.
+
+        Called by ``AppLifecycleService.initialize_instances()`` before reconciliation
+        to ensure all listener ``db_id`` values are populated. Tasks that error
+        (DB unavailable) complete with ``db_id = None`` — the listener is excluded
+        from ``live_listener_ids`` but not actively retired.
+
+        Has a configurable timeout (``config.registration_await_timeout``, default 30s)
+        to prevent indefinite hangs if the DB write queue stalls.
+
+        Args:
+            app_key: The app key whose pending registration tasks to await.
+        """
+        tasks = self._pending_registration_tasks.pop(app_key, [])
+        if not tasks:
+            return
+
+        # Filter out already-done tasks
+        pending = [t for t in tasks if not t.done()]
+        if not pending:
+            return
+
+        timeout = self.hassette.config.registration_await_timeout
+        try:
+            await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=float(timeout))
+        except TimeoutError:
+            self.logger.warning(
+                "await_registrations_complete timed out after %ss for app_key=%r — "
+                "%d registration task(s) incomplete; those listeners will be excluded from live IDs",
+                timeout,
+                app_key,
+                len([t for t in pending if not t.done()]),
+            )
 
     def _should_log_event(self, event: "Event[Any]") -> bool:
         """Determine if an event should be logged based on its type."""
