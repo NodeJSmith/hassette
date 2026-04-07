@@ -13,7 +13,7 @@ from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
 
 # ---------------------------------------------------------------------------
-# Schema DDL (mirrors migrations 001-004 final state)
+# Schema DDL (mirrors migrations 001-006 final state)
 # ---------------------------------------------------------------------------
 
 _DDL = """
@@ -41,8 +41,16 @@ CREATE TABLE listeners (
     predicate_description TEXT,
     human_description     TEXT,
     source_location       TEXT    NOT NULL,
-    registration_source   TEXT
+    registration_source   TEXT,
+    name                  TEXT,
+    retired_at            REAL
 );
+
+CREATE UNIQUE INDEX idx_listeners_natural
+    ON listeners(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
+    WHERE once = 0;
+
+CREATE INDEX idx_listeners_app ON listeners(app_key, instance_index);
 
 CREATE TABLE scheduled_jobs (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,8 +64,14 @@ CREATE TABLE scheduled_jobs (
     args_json             TEXT    NOT NULL DEFAULT '[]',
     kwargs_json           TEXT    NOT NULL DEFAULT '{}',
     source_location       TEXT    NOT NULL,
-    registration_source   TEXT
+    registration_source   TEXT,
+    retired_at            REAL
 );
+
+CREATE UNIQUE INDEX idx_scheduled_jobs_natural
+    ON scheduled_jobs(app_key, instance_index, job_name);
+
+CREATE INDEX idx_scheduled_jobs_app ON scheduled_jobs(app_key, instance_index);
 
 CREATE TABLE handler_invocations (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,6 +85,12 @@ CREATE TABLE handler_invocations (
     error_traceback       TEXT
 );
 
+CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_ts DESC);
+CREATE INDEX idx_hi_status_time ON handler_invocations(status, execution_start_ts DESC);
+CREATE INDEX idx_hi_time ON handler_invocations(execution_start_ts);
+CREATE INDEX idx_hi_session ON handler_invocations(session_id);
+
+
 CREATE TABLE job_executions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id                INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
@@ -82,6 +102,17 @@ CREATE TABLE job_executions (
     error_message         TEXT,
     error_traceback       TEXT
 );
+
+CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_ts DESC);
+CREATE INDEX idx_je_status_time ON job_executions(status, execution_start_ts DESC);
+CREATE INDEX idx_je_time ON job_executions(execution_start_ts);
+CREATE INDEX idx_je_session ON job_executions(session_id);
+
+CREATE VIEW active_listeners AS
+    SELECT * FROM listeners WHERE retired_at IS NULL;
+
+CREATE VIEW active_scheduled_jobs AS
+    SELECT * FROM scheduled_jobs WHERE retired_at IS NULL;
 """
 
 # ---------------------------------------------------------------------------
@@ -177,17 +208,6 @@ async def test_register_listener_inserts_and_returns_id(
     assert row["topic"] == "hass.event.state_changed"
 
 
-@pytest.mark.asyncio
-async def test_register_listener_two_calls_return_distinct_ids(
-    repo: TelemetryRepository,
-) -> None:
-    """Two calls to register_listener() return distinct IDs (no upsert)."""
-    reg = _make_listener_registration()
-    id1 = await repo.register_listener(reg)
-    id2 = await repo.register_listener(reg)
-    assert id1 != id2
-
-
 # ---------------------------------------------------------------------------
 # register_job tests
 # ---------------------------------------------------------------------------
@@ -210,17 +230,6 @@ async def test_register_job_inserts_and_returns_id(
     assert row is not None
     assert row["app_key"] == "test_app"
     assert row["job_name"] == "test_job"
-
-
-@pytest.mark.asyncio
-async def test_register_job_two_calls_return_distinct_ids(
-    repo: TelemetryRepository,
-) -> None:
-    """Two calls to register_job() return distinct IDs (no upsert)."""
-    reg = _make_job_registration()
-    id1 = await repo.register_job(reg)
-    id2 = await repo.register_job(reg)
-    assert id1 != id2
 
 
 # ---------------------------------------------------------------------------
@@ -368,3 +377,75 @@ async def test_persist_batch_handles_empty_lists(
     cursor = await db.execute("SELECT COUNT(*) FROM job_executions")
     row = await cursor.fetchone()
     assert row[0] == 0
+
+
+# ---------------------------------------------------------------------------
+# Migration 006 schema tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_schema_has_name_column(db: aiosqlite.Connection) -> None:
+    """Migration 006: listeners table includes the name column."""
+    cursor = await db.execute("PRAGMA table_info(listeners)")
+    rows = await cursor.fetchall()
+    column_names = [row["name"] for row in rows]
+    assert "name" in column_names
+
+
+@pytest.mark.asyncio
+async def test_schema_has_retired_at_column(db: aiosqlite.Connection) -> None:
+    """Migration 006: both listeners and scheduled_jobs have a retired_at column."""
+    cursor = await db.execute("PRAGMA table_info(listeners)")
+    rows = await cursor.fetchall()
+    listener_columns = [row["name"] for row in rows]
+    assert "retired_at" in listener_columns
+
+    cursor = await db.execute("PRAGMA table_info(scheduled_jobs)")
+    rows = await cursor.fetchall()
+    job_columns = [row["name"] for row in rows]
+    assert "retired_at" in job_columns
+
+
+@pytest.mark.asyncio
+async def test_unique_index_enforced(db: aiosqlite.Connection) -> None:
+    """Migration 006: two non-once listeners with same natural key raises IntegrityError."""
+    sql = """
+        INSERT INTO listeners
+            (app_key, instance_index, handler_method, topic, once, priority, source_location)
+        VALUES ('app', 0, 'app.handler', 'light.on', 0, 0, 'app.py:1')
+    """
+    await db.execute(sql)
+    await db.commit()
+
+    with pytest.raises(aiosqlite.IntegrityError):
+        await db.execute(sql)
+
+
+@pytest.mark.asyncio
+async def test_partial_index_allows_once_duplicates(db: aiosqlite.Connection) -> None:
+    """Migration 006: two once=1 listeners with same natural key succeeds (partial index)."""
+    sql = """
+        INSERT INTO listeners
+            (app_key, instance_index, handler_method, topic, once, priority, source_location)
+        VALUES ('app', 0, 'app.handler', 'light.on', 1, 0, 'app.py:1')
+    """
+    await db.execute(sql)
+    await db.execute(sql)
+    await db.commit()
+
+    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE once = 1 AND handler_method = 'app.handler'")
+    row = await cursor.fetchone()
+    assert row[0] == 2
+
+
+@pytest.mark.asyncio
+async def test_active_views_exist(db: aiosqlite.Connection) -> None:
+    """Migration 006: SELECT * FROM active_listeners and active_scheduled_jobs succeeds."""
+    cursor = await db.execute("SELECT * FROM active_listeners")
+    rows = await cursor.fetchall()
+    assert rows == []  # empty DB
+
+    cursor = await db.execute("SELECT * FROM active_scheduled_jobs")
+    rows = await cursor.fetchall()
+    assert rows == []  # empty DB

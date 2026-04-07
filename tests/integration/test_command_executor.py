@@ -312,51 +312,6 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
 
 # ---------------------------------------------------------------------------
-# Upsert / idempotency tests
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_register_listener_creates_separate_rows(
-    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
-) -> None:
-    """register_listener() creates a new row for each call (no upsert)."""
-    db_service, _ = initialized_db
-    reg = _make_listener_registration()
-    first_id = await executor.register_listener(reg)
-    second_id = await executor.register_listener(reg)
-
-    assert first_id != second_id
-
-    cursor = await db_service.db.execute(
-        "SELECT COUNT(*) FROM listeners WHERE app_key = ? AND handler_method = ? AND topic = ?",
-        (reg.app_key, reg.handler_method, reg.topic),
-    )
-    count_row = await cursor.fetchone()
-    assert count_row[0] == 2
-
-
-@pytest.mark.asyncio
-async def test_register_job_creates_separate_rows(
-    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
-) -> None:
-    """register_job() creates a new row for each call (no upsert)."""
-    db_service, _ = initialized_db
-    reg = _make_job_registration()
-    first_id = await executor.register_job(reg)
-    second_id = await executor.register_job(reg)
-
-    assert first_id != second_id
-
-    cursor = await db_service.db.execute(
-        "SELECT COUNT(*) FROM scheduled_jobs WHERE app_key = ? AND job_name = ?",
-        (reg.app_key, reg.job_name),
-    )
-    count_row = await cursor.fetchone()
-    assert count_row[0] == 2
-
-
-# ---------------------------------------------------------------------------
 # Job execution tests
 # ---------------------------------------------------------------------------
 
