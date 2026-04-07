@@ -390,9 +390,14 @@ class HassetteHarness:
             if isinstance(cmd, ExecuteJob):
                 await cmd.callable()
 
+        _job_id_counter = itertools.count(1)
+
+        async def _register_job_stub(*_args: Any, **_kwargs: Any) -> int:
+            return next(_job_id_counter)
+
         mock_executor = AsyncMock()
         mock_executor.execute = AsyncMock(side_effect=_stub_execute)
-        mock_executor.register_job = AsyncMock(side_effect=itertools.count(1).__next__)
+        mock_executor.register_job = AsyncMock(side_effect=_register_job_stub)
         self.hassette._scheduler_service = self.hassette.add_child(SchedulerService, executor=mock_executor)
         self.hassette._scheduler = self.hassette.add_child(Scheduler)
 
