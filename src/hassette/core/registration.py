@@ -43,6 +43,9 @@ class ListenerRegistration:
     registration_source: str | None
     """Source code snippet of the registration call, or None if unavailable."""
 
+    name: str | None = None
+    """Optional stable name for the listener, used as the natural key escape hatch."""
+
 
 @dataclass(frozen=True)
 class ScheduledJobRegistration:

@@ -58,7 +58,7 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
 
 
 async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService) -> None:
-    """on_initialize creates all 5 tables and 8 indexes on a fresh database."""
+    """on_initialize creates all 5 tables and 12 indexes on a fresh database."""
     import sqlite3
 
     db_path = initialized_service._db_path
@@ -73,17 +73,19 @@ async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService)
 
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
         indexes = sorted(row[0] for row in cursor.fetchall())
-        assert len(indexes) == 10
+        assert len(indexes) == 12
         assert "idx_hi_listener_time" in indexes
         assert "idx_hi_status_time" in indexes
         assert "idx_hi_time" in indexes
         assert "idx_hi_session" in indexes
         assert "idx_je_job_time" in indexes
         assert "idx_je_status_time" in indexes
-        assert "idx_listeners_app" in indexes
-        assert "idx_scheduled_jobs_app" in indexes
         assert "idx_je_time" in indexes
         assert "idx_je_session" in indexes
+        assert "idx_listeners_app" in indexes
+        assert "idx_listeners_natural" in indexes
+        assert "idx_scheduled_jobs_app" in indexes
+        assert "idx_scheduled_jobs_natural" in indexes
     finally:
         conn.close()
 
@@ -407,6 +409,8 @@ EXPECTED_TABLES = {
         "source_location",
         "registration_source",
         "human_description",
+        "name",
+        "retired_at",
     },
     "scheduled_jobs": {
         "id",
@@ -421,6 +425,7 @@ EXPECTED_TABLES = {
         "kwargs_json",
         "source_location",
         "registration_source",
+        "retired_at",
     },
     "handler_invocations": {
         "id",

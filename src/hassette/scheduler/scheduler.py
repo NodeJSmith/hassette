@@ -164,6 +164,18 @@ class Scheduler(Resource):
         self._jobs_by_name.clear()
         return self.scheduler_service.remove_jobs_by_owner(self.owner_id)
 
+    def get_job_db_ids(self) -> list[int]:
+        """Return the DB IDs of all registered jobs that have been persisted.
+
+        Used by post-ready reconciliation in ``AppLifecycleService.initialize_instances()``
+        to build the ``live_job_ids`` set. Jobs whose ``db_id`` is still ``None``
+        (registration pending) are excluded.
+
+        Returns:
+            List of integer DB row IDs for registered jobs with a resolved ``db_id``.
+        """
+        return [job.db_id for job in self._jobs_by_name.values() if job.db_id is not None]
+
     def schedule(
         self,
         func: "JobCallable",

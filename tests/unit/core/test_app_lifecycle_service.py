@@ -42,7 +42,14 @@ def mock_hassette() -> MagicMock:
     hassette.send_event = AsyncMock()
     hassette.wait_for_ready = AsyncMock(return_value=True)
     hassette.command_executor = MagicMock()
-    hassette.command_executor.clear_registrations = AsyncMock()
+    hassette.command_executor.reconcile_registrations = AsyncMock()
+    hassette.bus_service = MagicMock()
+    hassette.bus_service.await_registrations_complete = AsyncMock()
+    hassette.bus_service.router = MagicMock()
+    hassette.bus_service.router.get_listeners_by_owner = AsyncMock(return_value=[])
+    hassette.scheduler_service = MagicMock()
+    hassette.scheduler_service.await_registrations_complete = AsyncMock()
+    hassette.session_id = 1
     return hassette
 
 
@@ -103,6 +110,11 @@ def mock_app_instance() -> AsyncMock:
     app.shutdown = AsyncMock()
     app.mark_ready = Mock()
     app.logger = Mock()
+    app.bus = MagicMock()
+    app.bus.get_listeners = AsyncMock(return_value=[])
+    app.bus.owner_id = "MockApp.test_instance"
+    app.scheduler = MagicMock()
+    app.scheduler.get_job_db_ids = Mock(return_value=[])
     return app
 
 
@@ -202,11 +214,21 @@ class TestInitializeInstances:
         app1.app_config = MagicMock(instance_name="instance_0")
         app1.initialize = AsyncMock()
         app1.mark_ready = Mock()
+        app1.bus = MagicMock()
+        app1.bus.get_listeners = AsyncMock(return_value=[])
+        app1.bus.owner_id = "TestApp.instance_0"
+        app1.scheduler = MagicMock()
+        app1.scheduler.get_job_db_ids = Mock(return_value=[])
 
         app2 = AsyncMock()
         app2.app_config = MagicMock(instance_name="instance_1")
         app2.initialize = AsyncMock()
         app2.mark_ready = Mock()
+        app2.bus = MagicMock()
+        app2.bus.get_listeners = AsyncMock(return_value=[])
+        app2.bus.owner_id = "TestApp.instance_1"
+        app2.scheduler = MagicMock()
+        app2.scheduler.get_job_db_ids = Mock(return_value=[])
 
         instances = {0: app1, 1: app2}
 
@@ -262,11 +284,21 @@ class TestInitializeInstances:
         app1.app_config = MagicMock(instance_name="instance_0")
         app1.initialize = AsyncMock(side_effect=ValueError("Failed"))
         app1.status = ResourceStatus.NOT_STARTED
+        app1.bus = MagicMock()
+        app1.bus.get_listeners = AsyncMock(return_value=[])
+        app1.bus.owner_id = "TestApp.instance_0"
+        app1.scheduler = MagicMock()
+        app1.scheduler.get_job_db_ids = Mock(return_value=[])
 
         app2 = AsyncMock()
         app2.app_config = MagicMock(instance_name="instance_1")
         app2.initialize = AsyncMock()
         app2.mark_ready = Mock()
+        app2.bus = MagicMock()
+        app2.bus.get_listeners = AsyncMock(return_value=[])
+        app2.bus.owner_id = "TestApp.instance_1"
+        app2.scheduler = MagicMock()
+        app2.scheduler.get_job_db_ids = Mock(return_value=[])
 
         instances = {0: app1, 1: app2}
 
@@ -538,7 +570,7 @@ class TestStartApp:
         ]
         assert len(not_started_calls) == 1
 
-    async def test_clears_registrations_before_init(
+    async def test_reconcile_registrations_called_after_init(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
@@ -546,7 +578,18 @@ class TestStartApp:
         mock_app_instance: AsyncMock,
         mock_hassette: MagicMock,
     ) -> None:
-        """Clears stale listener/job registrations before re-registering."""
+        """reconcile_registrations() is called after instances are initialized (not before)."""
+        initialize_order: list[str] = []
+
+        async def _track_initialize() -> None:
+            initialize_order.append("initialize")
+
+        async def _track_reconcile(*_args: object, **_kwargs: object) -> None:
+            initialize_order.append("reconcile")
+
+        mock_app_instance.initialize = AsyncMock(side_effect=_track_initialize)
+        mock_hassette.command_executor.reconcile_registrations = AsyncMock(side_effect=_track_reconcile)
+
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
         lifecycle_service.task_bucket = Mock()
@@ -555,7 +598,9 @@ class TestStartApp:
         with patch("hassette.core.app_lifecycle_service.get_log_capture_handler", return_value=None):
             await lifecycle_service.start_app("test_app")
 
-        mock_hassette.command_executor.clear_registrations.assert_awaited_once_with("test_app")
+        # start_app spawns initialize_instances but doesn't await it (task_bucket mock returns immediately)
+        # The important thing is that clear_registrations is no longer called.
+        mock_hassette.command_executor.reconcile_registrations.assert_not_awaited()
 
     async def test_skips_disabled_app(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_factory: MagicMock
@@ -730,6 +775,111 @@ class TestRefreshConfig:
         mock_hassette.config.reload.assert_called_once()
         assert "app_a" in original
         assert "app_a" in current
+
+
+class TestReconcileAppRegistrations:
+    """Tests for _reconcile_app_registrations — the post-ready reconciliation helper."""
+
+    async def test_scheduler_barrier_awaited_before_job_ids_collected(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        mock_app_instance: AsyncMock,
+    ) -> None:
+        """Scheduler await barrier is called before live_job_ids are collected.
+
+        Finding 1 (CRITICAL): SchedulerService.await_registrations_complete() must be
+        awaited before collecting job db_ids to ensure all pending registration tasks
+        have flushed. Without this barrier, jobs whose registration tasks haven't
+        completed yet have db_id=None and are absent from live_job_ids — causing
+        reconciliation to incorrectly retire their DB rows.
+        """
+        call_order: list[str] = []
+
+        async def _track_scheduler_barrier(app_key: str) -> None:
+            call_order.append(f"scheduler_barrier:{app_key}")
+
+        def _track_get_job_ids() -> list[int]:
+            call_order.append("get_job_db_ids")
+            return []
+
+        mock_hassette.scheduler_service.await_registrations_complete = AsyncMock(side_effect=_track_scheduler_barrier)
+        mock_app_instance.scheduler.get_job_db_ids = Mock(side_effect=_track_get_job_ids)
+
+        instances = {0: mock_app_instance}
+        await lifecycle_service._reconcile_app_registrations("test_app", instances)
+
+        # scheduler barrier must appear before get_job_db_ids
+        assert "scheduler_barrier:test_app" in call_order, "Scheduler barrier was not called"
+        assert "get_job_db_ids" in call_order, "get_job_db_ids was not called"
+        scheduler_idx = call_order.index("scheduler_barrier:test_app")
+        job_ids_idx = call_order.index("get_job_db_ids")
+        assert scheduler_idx < job_ids_idx, (
+            f"Scheduler barrier ({scheduler_idx}) must come before get_job_db_ids ({job_ids_idx})"
+        )
+
+    async def test_bus_barrier_awaited_before_scheduler_barrier(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        mock_app_instance: AsyncMock,
+    ) -> None:
+        """Bus await barrier is called before scheduler barrier."""
+        call_order: list[str] = []
+
+        async def _track_bus_barrier(_app_key: str) -> None:
+            call_order.append("bus_barrier")
+
+        async def _track_scheduler_barrier(_app_key: str) -> None:
+            call_order.append("scheduler_barrier")
+
+        mock_hassette.bus_service.await_registrations_complete = AsyncMock(side_effect=_track_bus_barrier)
+        mock_hassette.scheduler_service.await_registrations_complete = AsyncMock(side_effect=_track_scheduler_barrier)
+
+        instances = {0: mock_app_instance}
+        await lifecycle_service._reconcile_app_registrations("test_app", instances)
+
+        assert call_order.index("bus_barrier") < call_order.index("scheduler_barrier")
+
+    async def test_reconcile_calls_reconcile_registrations(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        mock_app_instance: AsyncMock,
+    ) -> None:
+        """reconcile_registrations() is called with live IDs after barriers complete."""
+        instances = {0: mock_app_instance}
+        await lifecycle_service._reconcile_app_registrations("test_app", instances)
+
+        mock_hassette.command_executor.reconcile_registrations.assert_awaited_once()
+        call_kwargs = mock_hassette.command_executor.reconcile_registrations.call_args
+        assert call_kwargs.args[0] == "test_app"
+
+    async def test_reconcile_failure_logs_exc_info(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        mock_app_instance: AsyncMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Finding 7: reconciliation failure log includes exc_info for diagnostics."""
+        mock_hassette.command_executor.reconcile_registrations = AsyncMock(side_effect=RuntimeError("DB full"))
+
+        instances = {0: mock_app_instance}
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="hassette"):
+            await lifecycle_service._reconcile_app_registrations("test_app", instances)
+
+        # Warning was logged
+        assert any(
+            "reconciliation" in r.message.lower() or "reconciliation" in r.getMessage().lower() for r in caplog.records
+        )
+        # exc_info was set (record has exc_info tuple)
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert any(r.exc_info is not None for r in warning_records), (
+            "exc_info must be set on reconciliation failure warning"
+        )
 
 
 class TestSetAppsConfigs:

@@ -312,51 +312,6 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
 
 # ---------------------------------------------------------------------------
-# Upsert / idempotency tests
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_register_listener_creates_separate_rows(
-    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
-) -> None:
-    """register_listener() creates a new row for each call (no upsert)."""
-    db_service, _ = initialized_db
-    reg = _make_listener_registration()
-    first_id = await executor.register_listener(reg)
-    second_id = await executor.register_listener(reg)
-
-    assert first_id != second_id
-
-    cursor = await db_service.db.execute(
-        "SELECT COUNT(*) FROM listeners WHERE app_key = ? AND handler_method = ? AND topic = ?",
-        (reg.app_key, reg.handler_method, reg.topic),
-    )
-    count_row = await cursor.fetchone()
-    assert count_row[0] == 2
-
-
-@pytest.mark.asyncio
-async def test_register_job_creates_separate_rows(
-    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
-) -> None:
-    """register_job() creates a new row for each call (no upsert)."""
-    db_service, _ = initialized_db
-    reg = _make_job_registration()
-    first_id = await executor.register_job(reg)
-    second_id = await executor.register_job(reg)
-
-    assert first_id != second_id
-
-    cursor = await db_service.db.execute(
-        "SELECT COUNT(*) FROM scheduled_jobs WHERE app_key = ? AND job_name = ?",
-        (reg.app_key, reg.job_name),
-    )
-    count_row = await cursor.fetchone()
-    assert count_row[0] == 2
-
-
-# ---------------------------------------------------------------------------
 # Job execution tests
 # ---------------------------------------------------------------------------
 
@@ -600,3 +555,108 @@ async def test_concurrent_registrations_do_not_raise(
         assert all(isinstance(id_, int) and id_ > 0 for id_ in ids), f"All IDs must be positive ints, got: {ids}"
     finally:
         await db_service.on_shutdown()
+
+
+# ---------------------------------------------------------------------------
+# FK preservation / reconciliation tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fk_preserved_across_restart(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """Upsert same natural key across simulated restarts preserves FK from invocations.
+
+    Regression: before upsert, clear_registrations() deleted the row and re-INSERT
+    created a new ID, orphaning historical handler_invocations rows.
+    """
+    db_service, session_id = initialized_db
+
+    # Register listener (first "session")
+    reg = _make_listener_registration()
+    listener_id = await executor.register_listener(reg)
+    assert listener_id > 0
+
+    # Create an invocation history row
+    await db_service.db.execute(
+        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (listener_id, session_id, time.time(), 1.0, "success"),
+    )
+    await db_service.db.commit()
+
+    # Simulate restart: re-register with same natural key (upsert)
+    new_id = await executor.register_listener(reg)
+
+    # Must return the SAME ID — FK reference in handler_invocations is preserved
+    assert new_id == listener_id, (
+        f"Re-registration must return the same listener_id={listener_id}, got {new_id}. "
+        "FK references from handler_invocations would be orphaned if the ID changes."
+    )
+
+    # Verify the invocation still references the same listener
+    cursor = await db_service.db.execute(
+        "SELECT listener_id FROM handler_invocations WHERE listener_id = ?",
+        (listener_id,),
+    )
+    rows = await cursor.fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == listener_id
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_ordering(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """reconcile_registrations() correctly retires stale rows after re-registration.
+
+    This replaces the deleted clear_registrations test and verifies the post-ready
+    reconciliation contract: stale rows (not in live_ids) are retired/deleted, while
+    live rows are preserved.
+    """
+    db_service, session_id = initialized_db
+
+    # Register two listeners
+    reg_a = _make_listener_registration(topic="topic.a")
+    reg_b = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event_b",
+        topic="topic.b",
+        debounce=None,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test.py:1",
+        registration_source=None,
+    )
+    id_a = await executor.register_listener(reg_a)
+    id_b = await executor.register_listener(reg_b)
+
+    # Create history for id_b (so it gets retired, not deleted)
+    await db_service.db.execute(
+        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (id_b, session_id, time.time(), 1.0, "success"),
+    )
+    await db_service.db.commit()
+
+    # Reconcile: only id_a is live; id_b is stale but has history
+    await executor.reconcile_registrations("test_app", [id_a], [], session_id=session_id)
+
+    # id_a should be untouched
+    cursor = await db_service.db.execute("SELECT retired_at FROM listeners WHERE id = ?", (id_a,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "Live listener should not be retired"
+
+    # id_b should be retired (has history)
+    cursor = await db_service.db.execute("SELECT retired_at FROM listeners WHERE id = ?", (id_b,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is not None, "Stale listener with history should be retired"

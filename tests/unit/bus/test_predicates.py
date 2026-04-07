@@ -6,12 +6,35 @@ This module tests the core predicate system including:
 - Change detection predicates (StateDidChange, AttrDidChange)
 - Entity/Domain/Service matching predicates
 - Accessor functions for extracting event data
+- summarize() golden tests for all predicate types
 """
 
 from types import SimpleNamespace
 
 from hassette import A, P
 from hassette.const import MISSING_VALUE, NOT_PROVIDED
+from hassette.event_handling.predicates import (
+    AllOf,
+    AnyOf,
+    AttrComparison,
+    AttrDidChange,
+    AttrFrom,
+    AttrTo,
+    DidChange,
+    DomainMatches,
+    EntityMatches,
+    Guard,
+    IsMissing,
+    IsPresent,
+    Not,
+    ServiceDataWhere,
+    ServiceMatches,
+    StateComparison,
+    StateDidChange,
+    StateFrom,
+    StateTo,
+    ValueIs,
+)
 from hassette.test_utils import create_call_service_event, create_state_change_event
 
 
@@ -407,3 +430,161 @@ def test_get_path_with_real_event_structure() -> None:
 
     accessor = A.get_path("payload.metadata.missing")
     assert accessor(event) is MISSING_VALUE
+
+
+# ---------------------------------------------------------------------------
+# ValueIs.summarize() tests (RED → GREEN phase)
+# ---------------------------------------------------------------------------
+
+
+def test_value_is_summarize_literal_condition() -> None:
+    """ValueIs.summarize() returns literal condition value and source name for non-callable conditions."""
+    from hassette.event_handling.accessors import get_state_value_new
+
+    pred = ValueIs(source=get_state_value_new, condition="on")
+    result = pred.summarize()
+    assert "on" in result
+    assert "get_state_value_new" in result
+
+
+def test_value_is_summarize_callable_condition() -> None:
+    """ValueIs.summarize() returns 'custom condition from <source>' for callable conditions."""
+    from hassette.event_handling.accessors import get_state_value_new
+
+    pred = ValueIs(source=get_state_value_new, condition=lambda v: v > 50)
+    result = pred.summarize()
+    assert result.startswith("custom condition from")
+    assert "get_state_value_new" in result
+
+
+def test_value_is_summarize_distinguishes_sources() -> None:
+    """ValueIs with same condition but different sources produces distinct summarize() strings."""
+    from hassette.event_handling.accessors import get_state_value_new, get_state_value_old
+
+    pred_new = ValueIs(source=get_state_value_new, condition="on")
+    pred_old = ValueIs(source=get_state_value_old, condition="on")
+    assert pred_new.summarize() != pred_old.summarize()
+
+
+# ---------------------------------------------------------------------------
+# Golden/snapshot tests — exact summarize() output for all predicate types
+# ---------------------------------------------------------------------------
+# These are stability contract tests. When summarize() output changes, these
+# tests fail loudly, signalling a migration may be needed to avoid orphaning
+# historical rows that rely on human_description for natural key matching.
+
+
+def test_predicate_summarize_golden_entity_matches() -> None:
+    assert EntityMatches("light.kitchen").summarize() == "entity light.kitchen"
+
+
+def test_predicate_summarize_golden_domain_matches() -> None:
+    assert DomainMatches("light").summarize() == "domain light"
+
+
+def test_predicate_summarize_golden_service_matches() -> None:
+    assert ServiceMatches("turn_on").summarize() == "service turn_on"
+
+
+def test_predicate_summarize_golden_state_did_change() -> None:
+    assert StateDidChange().summarize() == "state changed"
+
+
+def test_predicate_summarize_golden_attr_did_change() -> None:
+    assert AttrDidChange(attr_name="brightness").summarize() == "attr brightness changed"
+
+
+def test_predicate_summarize_golden_state_to() -> None:
+    assert StateTo("on").summarize() == "\u2192 on"
+
+
+def test_predicate_summarize_golden_state_from() -> None:
+    assert StateFrom("off").summarize() == "from off"
+
+
+def test_predicate_summarize_golden_attr_to() -> None:
+    assert AttrTo(attr_name="brightness", condition=255).summarize() == "attr brightness \u2192 255"
+
+
+def test_predicate_summarize_golden_attr_from() -> None:
+    assert AttrFrom(attr_name="brightness", condition=100).summarize() == "attr brightness from 100"
+
+
+def test_predicate_summarize_golden_state_comparison() -> None:
+    from hassette.event_handling.conditions import Increased
+
+    assert StateComparison(condition=Increased()).summarize() == "state Increased()"
+
+
+def test_predicate_summarize_golden_attr_comparison() -> None:
+    from hassette.event_handling.conditions import Increased
+
+    assert AttrComparison(attr_name="brightness", condition=Increased()).summarize() == "attr brightness Increased()"
+
+
+def test_predicate_summarize_golden_value_is_literal() -> None:
+    """ValueIs with literal condition — exact format: 'value is <condition> from <source>'."""
+    from hassette.event_handling.accessors import get_state_value_new
+
+    assert ValueIs(source=get_state_value_new, condition="on").summarize() == "value is on from get_state_value_new"
+
+
+def test_predicate_summarize_golden_value_is_callable() -> None:
+    """ValueIs with callable condition — exact format: 'custom condition from <source>'."""
+    from hassette.event_handling.accessors import get_state_value_new
+
+    pred = ValueIs(source=get_state_value_new, condition=lambda v: v > 50)
+    assert pred.summarize() == "custom condition from get_state_value_new"
+
+
+def test_predicate_summarize_golden_guard() -> None:
+    assert Guard(lambda _e: True).summarize() == "custom condition"
+
+
+def test_predicate_summarize_golden_all_of() -> None:
+    pred = AllOf(predicates=(EntityMatches("light.kitchen"), StateTo("on")))
+    assert pred.summarize() == "entity light.kitchen and \u2192 on"
+
+
+def test_predicate_summarize_golden_any_of() -> None:
+    pred = AnyOf(predicates=(StateTo("on"), StateTo("off")))
+    assert pred.summarize() == "\u2192 on or \u2192 off"
+
+
+def test_predicate_summarize_golden_not() -> None:
+    assert Not(predicate=StateTo("on")).summarize() == "not \u2192 on"
+
+
+def test_predicate_summarize_golden_is_present() -> None:
+    from hassette.event_handling.accessors import get_state_value_new
+
+    assert IsPresent(source=get_state_value_new).summarize() == "is present"
+
+
+def test_predicate_summarize_golden_is_missing() -> None:
+    from hassette.event_handling.accessors import get_state_value_new
+
+    assert IsMissing(source=get_state_value_new).summarize() == "is missing"
+
+
+def test_predicate_summarize_golden_did_change() -> None:
+    from hassette.event_handling.accessors import get_state_value_old_new
+
+    assert DidChange(source=get_state_value_old_new).summarize() == "changed"
+
+
+def test_predicate_summarize_golden_service_data_where() -> None:
+    pred = ServiceDataWhere(spec={"entity_id": "light.kitchen"})
+    assert pred.summarize() == "service data where entity_id = light.kitchen"
+
+
+def test_predicate_summarize_golden_service_data_where_callable_condition() -> None:
+    """ServiceDataWhere with callable condition uses callable_name() — not memory address."""
+    pred = ServiceDataWhere(spec={"brightness": lambda v: v > 100, "entity_id": "light.kitchen"})
+    result = pred.summarize()
+    # Must not contain a memory address
+    assert "0x" not in result
+    # Callable condition shows as <callable>
+    assert "brightness = <callable>" in result
+    # Literal condition shows as-is
+    assert "entity_id = light.kitchen" in result

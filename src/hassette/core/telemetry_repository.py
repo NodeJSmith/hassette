@@ -1,5 +1,7 @@
 """TelemetryRepository: encapsulates all SQL writes for CommandExecutor telemetry."""
 
+import logging
+import time
 import typing
 
 from hassette.bus.invocation_record import HandlerInvocationRecord
@@ -25,43 +27,98 @@ class TelemetryRepository:
         self._db_service = db_service
 
     async def register_listener(self, registration: ListenerRegistration) -> int:
-        """Insert a listener registration into the listeners table.
+        """Upsert a listener registration into the listeners table.
+
+        For ``once=False`` listeners, uses ``INSERT ... ON CONFLICT DO UPDATE`` to
+        preserve the row ID across restarts (FK preservation). Mutable fields are
+        updated on conflict; identity fields (including ``human_description`` and
+        ``name``) are left unchanged. ``retired_at`` is reset to NULL when a retired
+        row is re-registered.
+
+        For ``once=True`` listeners, uses a plain ``INSERT`` — these are ephemeral
+        and are excluded from the partial unique index, so the upsert path does not
+        apply.
 
         Args:
             registration: The listener registration data.
 
         Returns:
-            The row ID of the inserted row.
+            The row ID of the inserted (or matched) row.
 
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
         db = self._db_service.db
-        cursor = await db.execute(
-            """
-            INSERT INTO listeners (
-                app_key, instance_index, handler_method, topic,
-                debounce, throttle, once, priority,
-                predicate_description, human_description,
-                source_location, registration_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id
-            """,
-            (
-                registration.app_key,
-                registration.instance_index,
-                registration.handler_method,
-                registration.topic,
-                registration.debounce,
-                registration.throttle,
-                1 if registration.once else 0,
-                registration.priority,
-                registration.predicate_description,
-                registration.human_description,
-                registration.source_location,
-                registration.registration_source,
-            ),
-        )
+
+        if registration.once:
+            # once=True listeners: always insert fresh — partial index (WHERE once = 0)
+            # excludes them from uniqueness enforcement, so ON CONFLICT would never fire.
+            cursor = await db.execute(
+                """
+                INSERT INTO listeners (
+                    app_key, instance_index, handler_method, topic,
+                    debounce, throttle, once, priority,
+                    predicate_description, human_description,
+                    source_location, registration_source, name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """,
+                (
+                    registration.app_key,
+                    registration.instance_index,
+                    registration.handler_method,
+                    registration.topic,
+                    registration.debounce,
+                    registration.throttle,
+                    1,
+                    registration.priority,
+                    registration.predicate_description,
+                    registration.human_description,
+                    registration.source_location,
+                    registration.registration_source,
+                    registration.name,
+                ),
+            )
+        else:
+            # once=False listeners: upsert — return existing ID on conflict so FK
+            # references in handler_invocations survive across restarts.
+            cursor = await db.execute(
+                """
+                INSERT INTO listeners (
+                    app_key, instance_index, handler_method, topic,
+                    debounce, throttle, once, priority,
+                    predicate_description, human_description,
+                    source_location, registration_source, name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
+                WHERE once = 0
+                DO UPDATE SET
+                    debounce = excluded.debounce,
+                    throttle = excluded.throttle,
+                    priority = excluded.priority,
+                    predicate_description = excluded.predicate_description,
+                    source_location = excluded.source_location,
+                    registration_source = excluded.registration_source,
+                    retired_at = NULL
+                RETURNING id
+                """,
+                (
+                    registration.app_key,
+                    registration.instance_index,
+                    registration.handler_method,
+                    registration.topic,
+                    registration.debounce,
+                    registration.throttle,
+                    0,
+                    registration.priority,
+                    registration.predicate_description,
+                    registration.human_description,
+                    registration.source_location,
+                    registration.registration_source,
+                    registration.name,
+                ),
+            )
+
         row = await cursor.fetchone()
         await db.commit()
         if row is None:
@@ -69,13 +126,18 @@ class TelemetryRepository:
         return row[0]
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
-        """Insert a scheduled job registration into the scheduled_jobs table.
+        """Upsert a scheduled job registration into the scheduled_jobs table.
+
+        Uses ``INSERT ... ON CONFLICT DO UPDATE`` to preserve the row ID across
+        restarts (FK preservation). Mutable fields are updated on conflict;
+        ``job_name`` (the natural key component) is left unchanged.
+        ``retired_at`` is reset to NULL when a retired row is re-registered.
 
         Args:
             registration: The scheduled job registration data.
 
         Returns:
-            The row ID of the inserted row.
+            The row ID of the inserted (or matched) row.
 
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
@@ -89,6 +151,17 @@ class TelemetryRepository:
                 args_json, kwargs_json,
                 source_location, registration_source
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(app_key, instance_index, job_name)
+            DO UPDATE SET
+                handler_method = excluded.handler_method,
+                trigger_type = excluded.trigger_type,
+                trigger_value = excluded.trigger_value,
+                repeat = excluded.repeat,
+                args_json = excluded.args_json,
+                kwargs_json = excluded.kwargs_json,
+                source_location = excluded.source_location,
+                registration_source = excluded.registration_source,
+                retired_at = NULL
             RETURNING id
             """,
             (
@@ -111,19 +184,179 @@ class TelemetryRepository:
             raise RuntimeError("RETURNING id returned no row after INSERT INTO scheduled_jobs — should never happen")
         return row[0]
 
-    async def clear_registrations(self, app_key: str) -> None:
-        """Delete all listener and scheduled job registrations for an app.
+    async def reconcile_registrations(
+        self,
+        app_key: str,
+        live_listener_ids: list[int],
+        live_job_ids: list[int],
+        *,
+        session_id: int | None = None,
+    ) -> None:
+        """Reconcile listener and job registrations for an app after initialization.
 
-        History rows (handler_invocations, job_executions) are preserved with
-        NULL parent references via ON DELETE SET NULL.
+        For non-once listeners and jobs not in the live ID sets:
+        - Rows without invocation/execution history are deleted outright.
+        - Rows with history have ``retired_at`` set to the current time.
+
+        For once=True listeners not in the live ID set and not in the current session,
+        deletes them (guarded by NOT EXISTS for current-session invocations).
 
         Args:
-            app_key: The app key whose registrations to delete.
+            app_key: The app key to reconcile.
+            live_listener_ids: IDs of currently active listener rows.
+            live_job_ids: IDs of currently active scheduled_job rows.
+            session_id: Current session ID, used to guard once=True row deletion.
+                When None, once=True rows are unconditionally deleted.
         """
         db = self._db_service.db
+        now = time.time()
+
         try:
-            await db.execute("DELETE FROM listeners WHERE app_key = ?", (app_key,))
-            await db.execute("DELETE FROM scheduled_jobs WHERE app_key = ?", (app_key,))
+            # --- Non-once listeners without history: delete ---
+            if live_listener_ids:
+                placeholders = ",".join("?" * len(live_listener_ids))
+                await db.execute(
+                    f"""
+                    DELETE FROM listeners
+                    WHERE app_key = ? AND once = 0
+                      AND id NOT IN ({placeholders})
+                      AND NOT EXISTS (
+                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
+                      )
+                    """,
+                    (app_key, *live_listener_ids),
+                )
+            else:
+                await db.execute(
+                    """
+                    DELETE FROM listeners
+                    WHERE app_key = ? AND once = 0
+                      AND NOT EXISTS (
+                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
+                      )
+                    """,
+                    (app_key,),
+                )
+
+            # --- Non-once listeners with history: retire ---
+            if live_listener_ids:
+                placeholders = ",".join("?" * len(live_listener_ids))
+                await db.execute(
+                    f"""
+                    UPDATE listeners SET retired_at = ?
+                    WHERE app_key = ? AND once = 0
+                      AND id NOT IN ({placeholders})
+                      AND retired_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
+                      )
+                    """,
+                    (now, app_key, *live_listener_ids),
+                )
+            else:
+                await db.execute(
+                    """
+                    UPDATE listeners SET retired_at = ?
+                    WHERE app_key = ? AND once = 0
+                      AND retired_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
+                      )
+                    """,
+                    (now, app_key),
+                )
+
+            # --- once=True listeners: delete from previous sessions ---
+            if session_id is not None:
+                if live_listener_ids:
+                    placeholders = ",".join("?" * len(live_listener_ids))
+                    await db.execute(
+                        f"""
+                        DELETE FROM listeners
+                        WHERE app_key = ? AND once = 1
+                          AND id NOT IN ({placeholders})
+                          AND NOT EXISTS (
+                              SELECT 1 FROM handler_invocations
+                              WHERE listener_id = listeners.id AND session_id = ?
+                          )
+                        """,
+                        (app_key, *live_listener_ids, session_id),
+                    )
+                else:
+                    await db.execute(
+                        """
+                        DELETE FROM listeners
+                        WHERE app_key = ? AND once = 1
+                          AND NOT EXISTS (
+                              SELECT 1 FROM handler_invocations
+                              WHERE listener_id = listeners.id AND session_id = ?
+                          )
+                        """,
+                        (app_key, session_id),
+                    )
+            else:
+                # session_id is unavailable (DB write queue backpressure at startup).
+                # Skip once=True deletion entirely — any row that fired before reconciliation
+                # but whose invocation hasn't flushed yet would be orphaned without the
+                # session-scoped NOT EXISTS guard. Defer cleanup to the next successful restart.
+                # This condition is correlated with heavy-load scenarios where the risk is real.
+                logging.getLogger(__name__).debug(
+                    "session_id unavailable for app '%s' — skipping once=True cleanup; deferred to next restart",
+                    app_key,
+                )
+
+            # --- Non-once jobs without history: delete ---
+            if live_job_ids:
+                placeholders = ",".join("?" * len(live_job_ids))
+                await db.execute(
+                    f"""
+                    DELETE FROM scheduled_jobs
+                    WHERE app_key = ? AND id NOT IN ({placeholders})
+                      AND NOT EXISTS (
+                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
+                      )
+                    """,
+                    (app_key, *live_job_ids),
+                )
+            else:
+                await db.execute(
+                    """
+                    DELETE FROM scheduled_jobs
+                    WHERE app_key = ?
+                      AND NOT EXISTS (
+                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
+                      )
+                    """,
+                    (app_key,),
+                )
+
+            # --- Non-once jobs with history: retire ---
+            if live_job_ids:
+                placeholders = ",".join("?" * len(live_job_ids))
+                await db.execute(
+                    f"""
+                    UPDATE scheduled_jobs SET retired_at = ?
+                    WHERE app_key = ? AND id NOT IN ({placeholders})
+                      AND retired_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
+                      )
+                    """,
+                    (now, app_key, *live_job_ids),
+                )
+            else:
+                await db.execute(
+                    """
+                    UPDATE scheduled_jobs SET retired_at = ?
+                    WHERE app_key = ?
+                      AND retired_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
+                      )
+                    """,
+                    (now, app_key),
+                )
+
             await db.commit()
         except Exception:
             await db.rollback()

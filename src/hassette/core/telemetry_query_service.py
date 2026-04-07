@@ -168,13 +168,13 @@ class TelemetryQueryService(Resource):
         # --- Build registration queries (instance 0 only) ---
         listener_reg_query = """
             SELECT l.app_key, COUNT(DISTINCT l.id) AS handler_count
-            FROM listeners l
+            FROM active_listeners l
             WHERE l.instance_index = 0
             GROUP BY l.app_key
         """
         job_reg_query = """
             SELECT sj.app_key, COUNT(DISTINCT sj.id) AS job_count
-            FROM scheduled_jobs sj
+            FROM active_scheduled_jobs sj
             WHERE sj.instance_index = 0
             GROUP BY sj.app_key
         """
@@ -291,7 +291,7 @@ class TelemetryQueryService(Resource):
         if session_id is not None:
             listener_query = """
                 SELECT
-                    (SELECT COUNT(*) FROM listeners) AS total_listeners,
+                    (SELECT COUNT(*) FROM active_listeners) AS total_listeners,
                     COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
                     COUNT(hi.rowid) AS total_invocations,
                     SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
@@ -303,7 +303,7 @@ class TelemetryQueryService(Resource):
             """
             job_query = """
                 SELECT
-                    (SELECT COUNT(*) FROM scheduled_jobs) AS total_jobs,
+                    (SELECT COUNT(*) FROM active_scheduled_jobs) AS total_jobs,
                     COUNT(DISTINCT je.job_id) AS executed_jobs,
                     COUNT(je.rowid) AS total_executions,
                     SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
@@ -316,7 +316,7 @@ class TelemetryQueryService(Resource):
         else:
             listener_query = """
                 SELECT
-                    (SELECT COUNT(*) FROM listeners) AS total_listeners,
+                    (SELECT COUNT(*) FROM active_listeners) AS total_listeners,
                     COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
                     COUNT(hi.rowid) AS total_invocations,
                     SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
@@ -327,7 +327,7 @@ class TelemetryQueryService(Resource):
             """
             job_query = """
                 SELECT
-                    (SELECT COUNT(*) FROM scheduled_jobs) AS total_jobs,
+                    (SELECT COUNT(*) FROM active_scheduled_jobs) AS total_jobs,
                     COUNT(DISTINCT je.job_id) AS executed_jobs,
                     COUNT(je.rowid) AS total_executions,
                     SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
@@ -427,7 +427,8 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
-                -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
+                -- INNER JOIN: listeners rows persist across restarts; this excludes only
+                -- once=True rows deleted during reconciliation (rare, invocation preserved as NULL FK)
                 JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
                     AND hi.execution_start_ts > ?
@@ -446,7 +447,8 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
-                -- INNER JOIN: excludes executions whose job was deleted by clear_registrations()
+                -- INNER JOIN: scheduled_job rows persist across restarts; this excludes only
+                -- rows deleted during reconciliation (rare, execution preserved as NULL FK)
                 JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
                     AND je.execution_start_ts > ?
@@ -468,7 +470,8 @@ class TelemetryQueryService(Resource):
                     hi.error_type,
                     hi.error_message
                 FROM handler_invocations hi
-                -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
+                -- INNER JOIN: listeners rows persist across restarts; this excludes only
+                -- once=True rows deleted during reconciliation (rare, invocation preserved as NULL FK)
                 JOIN listeners l ON l.id = hi.listener_id
                 WHERE hi.status = 'error'
                     AND hi.execution_start_ts > ?
@@ -486,7 +489,8 @@ class TelemetryQueryService(Resource):
                     je.error_type,
                     je.error_message
                 FROM job_executions je
-                -- INNER JOIN: excludes executions whose job was deleted by clear_registrations()
+                -- INNER JOIN: scheduled_job rows persist across restarts; this excludes only
+                -- rows deleted during reconciliation (rare, execution preserved as NULL FK)
                 JOIN scheduled_jobs sj ON sj.id = je.job_id
                 WHERE je.status = 'error'
                     AND je.execution_start_ts > ?
@@ -521,7 +525,8 @@ class TelemetryQueryService(Resource):
                 hi.execution_start_ts,
                 hi.duration_ms
             FROM handler_invocations hi
-            -- INNER JOIN: excludes invocations whose listener was deleted by clear_registrations()
+            -- INNER JOIN: listeners rows persist across restarts; this excludes only
+            -- once=True rows deleted during reconciliation (rare, invocation preserved as NULL FK)
             JOIN listeners l ON l.id = hi.listener_id
             WHERE hi.duration_ms > ?
             ORDER BY hi.duration_ms DESC

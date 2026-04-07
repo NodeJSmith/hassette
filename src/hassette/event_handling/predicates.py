@@ -53,6 +53,7 @@ from boltons.iterutils import is_collection
 
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
 from hassette.types import ChangeType, ComparisonCondition, EventT
+from hassette.utils.func_utils import callable_stable_name as callable_name
 from hassette.utils.glob_utils import is_glob
 
 from .accessors import (
@@ -70,14 +71,9 @@ from .accessors import (
 from .conditions import Glob, Present
 
 if typing.TYPE_CHECKING:
-    from hassette.events import Event
-    from hassette.types import ChangeType, Predicate
-
-
-if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
     from hassette.events import CallServiceEvent, Event, HassEvent
-    from hassette.types import Predicate
+    from hassette.types import ChangeType, Predicate
 
 V = TypeVar("V")
 
@@ -180,7 +176,10 @@ class ValueIs(Generic[EventT, V]):
         return compare_value(extracted, self.condition)
 
     def summarize(self) -> str:
-        return "custom condition"
+        source_name = callable_name(self.source)
+        if callable(self.condition):
+            return f"custom condition from {source_name}"
+        return f"value is {self.condition} from {source_name}"
 
 
 @dataclass(frozen=True)
@@ -456,7 +455,7 @@ class ServiceDataWhere:
         return all(p(value) for p in self._predicates)
 
     def summarize(self) -> str:
-        parts = [f"{k} = {v}" for k, v in self.spec.items()]
+        parts = [f"{k} = {callable_name(v) if callable(v) else v}" for k, v in self.spec.items()]
         return "service data where " + ", ".join(parts)
 
     @classmethod
