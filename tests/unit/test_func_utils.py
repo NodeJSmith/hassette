@@ -3,7 +3,7 @@
 import functools
 from functools import partial
 
-from hassette.utils.func_utils import callable_name, callable_short_name
+from hassette.utils.func_utils import callable_name, callable_short_name, callable_stable_name
 
 # --- Test helpers ---
 
@@ -93,6 +93,38 @@ class TestCallableName:
     def test_callable_name_no_lru_cache(self) -> None:
         """callable_name must not be decorated with lru_cache (memory leak risk)."""
         assert not hasattr(callable_name, "cache_info"), "callable_name should not have lru_cache"
+
+
+# --- callable_stable_name tests ---
+
+
+class TestCallableStableName:
+    """callable_stable_name returns cross-restart-stable names for identity keys."""
+
+    def test_regular_function(self) -> None:
+        """Returns __qualname__ for named functions."""
+        assert callable_stable_name(plain_function) == "plain_function"
+
+    def test_lambda(self) -> None:
+        """Returns '<callable>' for lambdas (no stable importable path)."""
+        lam = lambda v: v > 50  # noqa: E731
+        assert callable_stable_name(lam) == "<callable>"
+
+    def test_partial(self) -> None:
+        """Returns '<callable>' for functools.partial (no stable name)."""
+        p = partial(plain_function)
+        assert callable_stable_name(p) == "<callable>"
+
+    def test_bound_method(self) -> None:
+        """Returns __qualname__ for bound methods."""
+        obj = MyClass()
+        result = callable_stable_name(obj.method)
+        assert "method" in result
+
+    def test_decorated_function(self) -> None:
+        """Decorated functions with @wraps retain the original qualname."""
+        result = callable_stable_name(decorated_function)
+        assert "decorated_function" in result
 
 
 # --- callable_short_name tests ---

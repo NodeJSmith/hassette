@@ -90,6 +90,35 @@ def callable_name(fn: Any) -> str:
     return repr(fn)
 
 
+def callable_stable_name(fn: Any) -> str:
+    """Return a stable, human-readable name for a callable suitable for use as an identity key.
+
+    Unlike ``callable_name()``, this function prioritizes cross-restart stability over
+    informativeness. Callables without a stable importable path (lambdas, ``functools.partial``,
+    closures) return ``"<callable>"`` rather than an address-dependent or unstable representation.
+
+    - Named functions and bound methods: returns ``fn.__qualname__``
+    - Builtins with no ``__qualname__``: returns ``fn.__name__``
+    - ``functools.partial`` objects: returns ``"<callable>"`` (no stable identity)
+    - Lambdas (``__qualname__`` contains ``"<lambda>"``): returns ``"<callable>"``
+    - Anything else without a stable name: returns ``"<callable>"``
+
+    The ``name=`` escape hatch on ``Bus.on()`` covers cases where two listeners
+    with indistinguishable callable names would otherwise collide.
+    """
+    if isinstance(fn, partial):
+        return "<callable>"
+    qualname: str | None = getattr(fn, "__qualname__", None)
+    if qualname is not None:
+        if "<lambda>" in qualname:
+            return "<callable>"
+        return qualname
+    name: str | None = getattr(fn, "__name__", None)
+    if name is not None:
+        return name
+    return "<callable>"
+
+
 def callable_short_name(fn: Any, num_parts: int = 1) -> str:
     """Get a short name for a callable object.
 

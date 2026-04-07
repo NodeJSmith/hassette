@@ -267,7 +267,10 @@ Collect all registrations before any DB writes, then upsert+reconcile in one tra
 
 ## Open Questions
 
-- **Guard/ValueIs relationship**: Are `Guard` and `ValueIs` redundant? If `Guard` is just `ValueIs` with a different constructor, consolidating them would simplify predicate identity. (Not blocking — can investigate during implementation.)
+- **Guard/ValueIs relationship**: Investigated in WP01. **Not redundant — do not consolidate.**
+  - `Guard(fn)` wraps an arbitrary `Predicate[EventT]` — a single callable that takes a full event and returns bool. It has no internal structure (no source/condition split).
+  - `ValueIs(source, condition)` composes a value extractor (`source`) with a condition test (`condition`). It carries structured fields that participate in `callable_name()` summarization.
+  - The two serve orthogonal purposes: `Guard` is an escape hatch for any predicate callable; `ValueIs` is structured source+condition composition. Consolidating would require giving `Guard` a source/condition split, which is not how it's used. Both retain `summarize()` implementations appropriate to their structure.
 
 ## Impact
 
