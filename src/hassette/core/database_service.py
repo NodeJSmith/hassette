@@ -407,7 +407,8 @@ class DatabaseService(Service):
             total_hi_deleted += cursor_hi.rowcount or 0
             total_je_deleted += cursor_je.rowcount or 0
 
-            await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
+            vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
+            await vacuum_cursor.close()
             await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
             current_size = self._get_db_size_mb()
