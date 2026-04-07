@@ -126,6 +126,17 @@ class TestCallableStableName:
         result = callable_stable_name(decorated_function)
         assert "decorated_function" in result
 
+    def test_closure(self) -> None:
+        """Closures (nested functions) return '<callable>' since they have no importable path."""
+
+        def outer() -> None:
+            def inner() -> None:
+                pass
+
+            assert callable_stable_name(inner) == "<callable>"
+
+        outer()
+
 
 # --- callable_short_name tests ---
 

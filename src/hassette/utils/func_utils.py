@@ -101,6 +101,7 @@ def callable_stable_name(fn: Any) -> str:
     - Builtins with no ``__qualname__``: returns ``fn.__name__``
     - ``functools.partial`` objects: returns ``"<callable>"`` (no stable identity)
     - Lambdas (``__qualname__`` contains ``"<lambda>"``): returns ``"<callable>"``
+    - Closures/nested functions (``__qualname__`` contains ``"<locals>"``): returns ``"<callable>"``
     - Anything else without a stable name: returns ``"<callable>"``
 
     The ``name=`` escape hatch on ``Bus.on()`` covers cases where two listeners
@@ -110,7 +111,7 @@ def callable_stable_name(fn: Any) -> str:
         return "<callable>"
     qualname: str | None = getattr(fn, "__qualname__", None)
     if qualname is not None:
-        if "<lambda>" in qualname:
+        if "<lambda>" in qualname or "<locals>" in qualname:
             return "<callable>"
         return qualname
     name: str | None = getattr(fn, "__name__", None)
