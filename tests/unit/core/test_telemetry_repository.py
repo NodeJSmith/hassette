@@ -458,6 +458,174 @@ async def test_reconcile_resets_retired_at_on_reupsert(
 
 
 # ---------------------------------------------------------------------------
+# Upsert contract tests (WP04)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_upsert_same_natural_key_returns_same_id(
+    repo: TelemetryRepository,
+) -> None:
+    """register_listener() with same natural key returns the same ID (upsert)."""
+    reg = _make_listener_registration()
+    id1 = await repo.register_listener(reg)
+    id2 = await repo.register_listener(reg)
+    assert id1 == id2
+
+
+@pytest.mark.asyncio
+async def test_upsert_different_natural_key_returns_new_id(
+    repo: TelemetryRepository,
+) -> None:
+    """register_listener() with different topic returns a new ID."""
+    id1 = await repo.register_listener(_make_listener_registration(topic="topic.a"))
+    id2 = await repo.register_listener(_make_listener_registration(topic="topic.b"))
+    assert id1 != id2
+
+
+@pytest.mark.asyncio
+async def test_upsert_updates_mutable_fields(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """Upsert updates debounce (mutable field) on conflict."""
+    reg = _make_listener_registration()
+    listener_id = await repo.register_listener(reg)
+
+    updated_reg = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=5.0,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test_telemetry_repository.py:99",
+        registration_source=None,
+    )
+    id2 = await repo.register_listener(updated_reg)
+    assert id2 == listener_id
+
+    cursor = await db.execute("SELECT debounce FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 5.0
+
+
+@pytest.mark.asyncio
+async def test_once_true_always_inserts(
+    repo: TelemetryRepository,
+) -> None:
+    """once=True listeners always get a new row (no upsert)."""
+    reg = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=True,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test_telemetry_repository.py:1",
+        registration_source=None,
+    )
+    id1 = await repo.register_listener(reg)
+    id2 = await repo.register_listener(reg)
+    assert id1 != id2
+
+
+@pytest.mark.asyncio
+async def test_upsert_does_not_update_human_description(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """human_description is part of the key and is NOT updated on upsert."""
+    reg = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description="entity light.kitchen",
+        source_location="test_telemetry_repository.py:1",
+        registration_source=None,
+    )
+    listener_id = await repo.register_listener(reg)
+
+    # Re-register with same key — source_location is mutable, human_description is identity
+    reg2 = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description="entity light.kitchen",
+        source_location="test_telemetry_repository.py:99",
+        registration_source=None,
+    )
+    id2 = await repo.register_listener(reg2)
+    assert id2 == listener_id
+
+    cursor = await db.execute("SELECT human_description FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "entity light.kitchen"
+
+
+@pytest.mark.asyncio
+async def test_upsert_with_name_overrides_key(
+    repo: TelemetryRepository,
+) -> None:
+    """Two listeners with same handler+topic but different name= get different IDs."""
+    reg_a = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test_telemetry_repository.py:1",
+        registration_source=None,
+        name="listener_a",
+    )
+    reg_b = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test_telemetry_repository.py:1",
+        registration_source=None,
+        name="listener_b",
+    )
+    id_a = await repo.register_listener(reg_a)
+    id_b = await repo.register_listener(reg_b)
+    assert id_a != id_b
+
+
+# ---------------------------------------------------------------------------
 # persist_batch tests
 # ---------------------------------------------------------------------------
 

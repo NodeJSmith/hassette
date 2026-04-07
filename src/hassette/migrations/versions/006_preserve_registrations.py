@@ -6,7 +6,7 @@ Adds:
 - Partial unique expression index ``idx_listeners_natural`` on ``listeners`` (WHERE once = 0)
 - Unique index ``idx_scheduled_jobs_natural`` on ``scheduled_jobs``
 - Database views ``active_listeners`` and ``active_scheduled_jobs``
-- Covering index ``idx_hi_listener_id`` on ``handler_invocations(listener_id)``
+
 
 Child tables (handler_invocations, job_executions) are rebuilt after the parent table
 renames to restore correct FK references — this is required because SQLite silently
