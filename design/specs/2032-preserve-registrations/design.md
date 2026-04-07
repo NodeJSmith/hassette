@@ -1,7 +1,7 @@
 # Design: Preserve Listener/Job Registrations Across Sessions
 
 **Date:** 2026-04-06
-**Status:** approved
+**Status:** archived
 **Research:** design/research/2026-04-06-stable-identity-upsert/research.md, design/research/2026-04-06-predicate-description-stability/research.md
 **Issue:** #466
 
