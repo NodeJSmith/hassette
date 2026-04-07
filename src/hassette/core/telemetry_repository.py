@@ -25,43 +25,98 @@ class TelemetryRepository:
         self._db_service = db_service
 
     async def register_listener(self, registration: ListenerRegistration) -> int:
-        """Insert a listener registration into the listeners table.
+        """Upsert a listener registration into the listeners table.
+
+        For ``once=False`` listeners, uses ``INSERT ... ON CONFLICT DO UPDATE`` to
+        preserve the row ID across restarts (FK preservation). Mutable fields are
+        updated on conflict; identity fields (including ``human_description`` and
+        ``name``) are left unchanged. ``retired_at`` is reset to NULL when a retired
+        row is re-registered.
+
+        For ``once=True`` listeners, uses a plain ``INSERT`` — these are ephemeral
+        and are excluded from the partial unique index, so the upsert path does not
+        apply.
 
         Args:
             registration: The listener registration data.
 
         Returns:
-            The row ID of the inserted row.
+            The row ID of the inserted (or matched) row.
 
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
         db = self._db_service.db
-        cursor = await db.execute(
-            """
-            INSERT INTO listeners (
-                app_key, instance_index, handler_method, topic,
-                debounce, throttle, once, priority,
-                predicate_description, human_description,
-                source_location, registration_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id
-            """,
-            (
-                registration.app_key,
-                registration.instance_index,
-                registration.handler_method,
-                registration.topic,
-                registration.debounce,
-                registration.throttle,
-                1 if registration.once else 0,
-                registration.priority,
-                registration.predicate_description,
-                registration.human_description,
-                registration.source_location,
-                registration.registration_source,
-            ),
-        )
+
+        if registration.once:
+            # once=True listeners: always insert fresh — partial index (WHERE once = 0)
+            # excludes them from uniqueness enforcement, so ON CONFLICT would never fire.
+            cursor = await db.execute(
+                """
+                INSERT INTO listeners (
+                    app_key, instance_index, handler_method, topic,
+                    debounce, throttle, once, priority,
+                    predicate_description, human_description,
+                    source_location, registration_source, name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """,
+                (
+                    registration.app_key,
+                    registration.instance_index,
+                    registration.handler_method,
+                    registration.topic,
+                    registration.debounce,
+                    registration.throttle,
+                    1,
+                    registration.priority,
+                    registration.predicate_description,
+                    registration.human_description,
+                    registration.source_location,
+                    registration.registration_source,
+                    registration.name,
+                ),
+            )
+        else:
+            # once=False listeners: upsert — return existing ID on conflict so FK
+            # references in handler_invocations survive across restarts.
+            cursor = await db.execute(
+                """
+                INSERT INTO listeners (
+                    app_key, instance_index, handler_method, topic,
+                    debounce, throttle, once, priority,
+                    predicate_description, human_description,
+                    source_location, registration_source, name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
+                WHERE once = 0
+                DO UPDATE SET
+                    debounce = excluded.debounce,
+                    throttle = excluded.throttle,
+                    priority = excluded.priority,
+                    predicate_description = excluded.predicate_description,
+                    source_location = excluded.source_location,
+                    registration_source = excluded.registration_source,
+                    retired_at = NULL
+                RETURNING id
+                """,
+                (
+                    registration.app_key,
+                    registration.instance_index,
+                    registration.handler_method,
+                    registration.topic,
+                    registration.debounce,
+                    registration.throttle,
+                    0,
+                    registration.priority,
+                    registration.predicate_description,
+                    registration.human_description,
+                    registration.source_location,
+                    registration.registration_source,
+                    registration.name,
+                ),
+            )
+
         row = await cursor.fetchone()
         await db.commit()
         if row is None:
@@ -69,13 +124,18 @@ class TelemetryRepository:
         return row[0]
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
-        """Insert a scheduled job registration into the scheduled_jobs table.
+        """Upsert a scheduled job registration into the scheduled_jobs table.
+
+        Uses ``INSERT ... ON CONFLICT DO UPDATE`` to preserve the row ID across
+        restarts (FK preservation). Mutable fields are updated on conflict;
+        ``job_name`` (the natural key component) is left unchanged.
+        ``retired_at`` is reset to NULL when a retired row is re-registered.
 
         Args:
             registration: The scheduled job registration data.
 
         Returns:
-            The row ID of the inserted row.
+            The row ID of the inserted (or matched) row.
 
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
@@ -89,6 +149,17 @@ class TelemetryRepository:
                 args_json, kwargs_json,
                 source_location, registration_source
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(app_key, instance_index, job_name)
+            DO UPDATE SET
+                handler_method = excluded.handler_method,
+                trigger_type = excluded.trigger_type,
+                trigger_value = excluded.trigger_value,
+                repeat = excluded.repeat,
+                args_json = excluded.args_json,
+                kwargs_json = excluded.kwargs_json,
+                source_location = excluded.source_location,
+                registration_source = excluded.registration_source,
+                retired_at = NULL
             RETURNING id
             """,
             (
