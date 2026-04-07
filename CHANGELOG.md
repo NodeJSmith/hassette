@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Requirements file discovery now requires `HASSETTE__INSTALL_DEPS=1`** — add this env var to your `docker-compose.yml` if you use `requirements.txt` for dependency installation. (#480)
 - **Only `requirements.txt` (exact filename) is installed** — `requirements-dev.txt`, `requirements_test.txt`, and other variants are now silently skipped. Use the `pyproject.toml` + `uv.lock` path for complex dependency setups. (#480)
 
+### Added
+
+- Preserve listener/job registrations across app restarts — "All Time" telemetry now shows cross-session history instead of matching "This Session"
+- Optional `name=` parameter on `Bus.on()` for explicit listener identity when predicate-based keys collide
+
 ### Changed
 
 - Dashboard UI polish: KPI hierarchy (error rate prominent), remove health bars and session bar, quiet-canvas status pattern with faded inactive apps, sorted app grids, heading cleanup (#485)
