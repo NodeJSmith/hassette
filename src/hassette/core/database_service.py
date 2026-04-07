@@ -303,14 +303,28 @@ class DatabaseService(Service):
             cutoff = time.time() - (retention_days * 86400)
             cursor_hi = await self.db.execute("DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,))
             cursor_je = await self.db.execute("DELETE FROM job_executions WHERE execution_start_ts < ?", (cutoff,))
+            cursor_rl = await self.db.execute(
+                "DELETE FROM listeners WHERE retired_at IS NOT NULL AND retired_at < ?", (cutoff,)
+            )
+            cursor_rj = await self.db.execute(
+                "DELETE FROM scheduled_jobs WHERE retired_at IS NOT NULL AND retired_at < ?", (cutoff,)
+            )
             await self.db.commit()
             hi_deleted = cursor_hi.rowcount or 0
             je_deleted = cursor_je.rowcount or 0
+            rl_deleted = cursor_rl.rowcount or 0
+            rj_deleted = cursor_rj.rowcount or 0
             if hi_deleted or je_deleted:
                 self.logger.info(
                     "Retention cleanup: deleted %d handler_invocations, %d job_executions",
                     hi_deleted,
                     je_deleted,
+                )
+            if rl_deleted or rj_deleted:
+                self.logger.info(
+                    "Retention cleanup: deleted %d retired listeners, %d retired scheduled_jobs",
+                    rl_deleted,
+                    rj_deleted,
                 )
         except Exception:
             self.logger.exception("Failed to run retention cleanup")

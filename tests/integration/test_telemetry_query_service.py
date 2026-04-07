@@ -900,3 +900,178 @@ class TestGetCurrentSessionSummaryTyped:
         assert result.invocation_errors == 0
         assert result.total_executions == 1
         assert result.execution_errors == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: cross-session aggregation and retired-row view enforcement (WP06)
+# ---------------------------------------------------------------------------
+
+
+class TestCrossSessionAndRetiredRows:
+    async def test_all_time_aggregates_across_sessions(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """All-time query (no session_id) spans multiple sessions.
+
+        Register a listener in session 1, create invocations, then simulate
+        a restart (upsert the same row in session 2 by re-inserting with a new
+        session), create more invocations, and assert the all-time total covers
+        both sessions.
+        """
+        db_svc, session_1 = db
+
+        # Create session 2 (simulates a restart)
+        cursor = await db_svc.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+            (time.time(), time.time()),
+        )
+        session_2 = cursor.lastrowid
+        await db_svc.db.commit()
+
+        # Session 1: register listener and create 2 invocations
+        listener_id = await _insert_listener(db_svc, handler_method="on_event")
+        await _insert_invocation(db_svc, listener_id, session_1, status="success")
+        await _insert_invocation(db_svc, listener_id, session_1, status="error")
+
+        # Session 2: same listener row (FK still valid), 3 more invocations
+        await _insert_invocation(db_svc, listener_id, session_2, status="success")
+        await _insert_invocation(db_svc, listener_id, session_2, status="success")
+        await _insert_invocation(db_svc, listener_id, session_2, status="success")
+
+        # All-time query must aggregate across both sessions
+        summary = await svc.get_listener_summary("test_app", 0)
+        assert len(summary) == 1
+        row = summary[0]
+        assert row.total_invocations == 5
+        assert row.successful == 4
+        assert row.failed == 1
+
+    async def test_registration_counts_exclude_retired(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_global_summary total_listeners uses active_listeners view (excludes retired rows).
+
+        Register two listeners. Mark one retired via retired_at. The global summary
+        must report total_listeners = 1.
+        """
+        db_svc, _session_id = db
+
+        await _insert_listener(db_svc, handler_method="on_active")
+        retired_id = await _insert_listener(db_svc, handler_method="on_retired")
+
+        # Mark the second listener as retired
+        now = time.time()
+        await db_svc.db.execute(
+            "UPDATE listeners SET retired_at = ? WHERE id = ?",
+            (now, retired_id),
+        )
+        await db_svc.db.commit()
+
+        result = await svc.get_global_summary()
+        assert result.listeners.total_listeners == 1
+
+    async def test_listener_summary_includes_retired(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_listener_summary queries base tables and includes retired rows.
+
+        A retired listener with invocation history must still appear in the summary.
+        """
+        db_svc, session_id = db
+
+        retired_id = await _insert_listener(db_svc, handler_method="on_retired")
+        await _insert_invocation(db_svc, retired_id, session_id, status="success")
+        await _insert_invocation(db_svc, retired_id, session_id, status="error")
+
+        # Mark as retired
+        now = time.time()
+        await db_svc.db.execute(
+            "UPDATE listeners SET retired_at = ? WHERE id = ?",
+            (now, retired_id),
+        )
+        await db_svc.db.commit()
+
+        rows = await svc.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.handler_method == "on_retired"
+        assert row.total_invocations == 2
+        assert row.successful == 1
+        assert row.failed == 1
+
+    async def test_retention_cleanup_deletes_old_retired_rows(
+        self,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """_do_run_retention_cleanup deletes retired registration rows older than retention_days.
+
+        Insert a listener and a scheduled_job with old retired_at timestamps and
+        a recent one. After cleanup, the old ones must be deleted and the recent
+        one preserved.
+        """
+        db_svc, _session_id = db
+
+        now = time.time()
+        old_retired_at = now - (8 * 86400)  # 8 days ago — beyond 7-day retention
+        recent_retired_at = now - (1 * 86400)  # 1 day ago — within retention
+
+        # Insert old retired listener (no invocations needed)
+        cursor = await db_svc.db.execute(
+            "INSERT INTO listeners (app_key, instance_index, handler_method, topic, "
+            "debounce, throttle, once, priority, source_location, retired_at) "
+            "VALUES ('test_app', 0, 'on_old', 'hass.event', NULL, NULL, 0, 0, 'test.py:1', ?)",
+            (old_retired_at,),
+        )
+        old_listener_id = cursor.lastrowid
+
+        # Insert recent retired listener (should survive cleanup)
+        cursor = await db_svc.db.execute(
+            "INSERT INTO listeners (app_key, instance_index, handler_method, topic, "
+            "debounce, throttle, once, priority, source_location, retired_at) "
+            "VALUES ('test_app', 0, 'on_recent', 'hass.event', NULL, NULL, 0, 0, 'test.py:2', ?)",
+            (recent_retired_at,),
+        )
+        recent_listener_id = cursor.lastrowid
+
+        # Insert old retired scheduled_job
+        cursor = await db_svc.db.execute(
+            "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, "
+            "trigger_type, trigger_value, repeat, source_location, retired_at) "
+            "VALUES ('test_app', 0, 'old_job', 'run_old', 'interval', '60', 1, 'test.py:3', ?)",
+            (old_retired_at,),
+        )
+        old_job_id = cursor.lastrowid
+
+        # Insert recent retired scheduled_job (should survive cleanup)
+        cursor = await db_svc.db.execute(
+            "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, "
+            "trigger_type, trigger_value, repeat, source_location, retired_at) "
+            "VALUES ('test_app', 0, 'recent_job', 'run_recent', 'interval', '60', 1, 'test.py:4', ?)",
+            (recent_retired_at,),
+        )
+        recent_job_id = cursor.lastrowid
+
+        await db_svc.db.commit()
+
+        # Run retention cleanup
+        await db_svc._do_run_retention_cleanup()
+
+        # Old retired rows must be deleted
+        cursor = await db_svc.db.execute("SELECT id FROM listeners WHERE id = ?", (old_listener_id,))
+        assert await cursor.fetchone() is None, "Old retired listener must be deleted"
+
+        cursor = await db_svc.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (old_job_id,))
+        assert await cursor.fetchone() is None, "Old retired job must be deleted"
+
+        # Recent retired rows must be preserved
+        cursor = await db_svc.db.execute("SELECT id FROM listeners WHERE id = ?", (recent_listener_id,))
+        assert await cursor.fetchone() is not None, "Recent retired listener must survive"
+
+        cursor = await db_svc.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (recent_job_id,))
+        assert await cursor.fetchone() is not None, "Recent retired job must survive"
