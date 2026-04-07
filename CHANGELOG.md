@@ -15,8 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Preserve listener/job registrations across app restarts — "All Time" telemetry now shows cross-session history instead of matching "This Session"
-- Optional `name=` parameter on `Bus.on()` for explicit listener identity when predicate-based keys collide
+- Preserve listener/job registrations across app restarts — "All Time" telemetry now shows cross-session history instead of matching "This Session" (#487)
+- Optional `name=` parameter on `Bus.on()` for explicit listener identity when predicate-based keys collide (#487)
 
 ### Changed
 
