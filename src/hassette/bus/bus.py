@@ -116,6 +116,10 @@ class Options(TypedDict, total=False):
     throttle: float | None
     """Length of time in seconds to wait before allowing the handler to be invoked again."""
 
+    name: str | None
+    """Optional stable name for the listener. Used as the natural key escape hatch to disambiguate
+    registrations that would otherwise share the same natural key."""
+
 
 class Bus(Resource):
     """Individual event bus instance for a specific owner (e.g., App or Service)."""
@@ -129,10 +133,13 @@ class Bus(Resource):
         super().__init__(hassette, parent=parent)
         self.bus_service = self.hassette._bus_service
         self.priority = priority
+        self._registered_keys: set[tuple[str, int, str, str, str]] = set()
 
         assert self.bus_service is not None, "Bus service not initialized"
 
     async def on_initialize(self) -> None:
+        # Clear before any on() calls so partial-init failures don't leave stale keys.
+        self._registered_keys.clear()
         self.mark_ready(reason="Bus initialized")
 
     async def on_shutdown(self) -> None:
@@ -145,15 +152,47 @@ class Bus(Resource):
         return self.hassette.config.bus_service_log_level
 
     def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
-        """Add a listener to the bus."""
+        """Add a listener to the bus.
+
+        Raises:
+            ValueError: If the listener's natural key is already registered on this bus instance.
+        """
+        # Collision detection is synchronous so ValueError propagates to user code in on_initialize().
+        # (Detection in the async BusService._register_then_add_route() would be swallowed by the task runner.)
+        if listener.app_key:
+            natural_key = self._listener_natural_key(listener)
+            if natural_key in self._registered_keys:
+                key_str = natural_key[-1] or listener.handler_name
+                raise ValueError(
+                    f"Duplicate listener registration detected for handler '{listener.handler_name}' "
+                    f"on topic '{listener.topic}' (key={key_str!r}). "
+                    f"Add name= to disambiguate if intentional."
+                )
+            self._registered_keys.add(natural_key)
         return self.bus_service.add_listener(listener)
+
+    def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str, str]:
+        """Compute the natural key tuple for a listener (for collision tracking)."""
+        human_description: str = ""
+        if listener.predicate is not None and hasattr(listener.predicate, "summarize"):
+            human_description = listener.predicate.summarize() or ""  # pyright: ignore[reportAttributeAccessIssue]
+        return (
+            listener.app_key,
+            listener.instance_index,
+            listener.handler_name,
+            listener.topic,
+            listener.name if listener.name is not None else human_description,
+        )
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus."""
+        if listener.app_key:
+            self._registered_keys.discard(self._listener_natural_key(listener))
         return self.bus_service.remove_listener(listener)
 
     def remove_all_listeners(self) -> asyncio.Task[None]:
         """Remove all listeners owned by this bus's owner."""
+        self._registered_keys.clear()
         return self.bus_service.remove_listeners_by_owner(self.owner_id)
 
     def get_listeners(self) -> asyncio.Task[list["Listener"]]:
@@ -170,6 +209,7 @@ class Bus(Resource):
         once: bool = False,
         debounce: float | None = None,
         throttle: float | None = None,
+        name: str | None = None,
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -182,6 +222,8 @@ class Bus(Resource):
             once: If True, the handler will be called only once and then removed.
             debounce: If set, applies a debounce to the handler.
             throttle: If set, applies a throttle to the handler.
+            name: Optional stable name for this listener. When provided, it replaces the predicate
+                summary in the natural key and disambiguates registrations that would otherwise collide.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -203,6 +245,7 @@ class Bus(Resource):
             logger=self.logger,
             app_key=app_key,
             instance_index=instance_index,
+            name=name,
         )
 
         # Capture source while user code is still on the stack (before async spawn boundary)

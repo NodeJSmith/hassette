@@ -111,6 +111,7 @@ class BusService(Service):
             human_description=human_description,
             source_location=source_location,
             registration_source=registration_source,
+            name=listener.name,
         )
         if listener.once:
             listener.mark_registered(await self._executor.register_listener(reg))

@@ -99,6 +99,9 @@ class Listener:
     registration_source: str = ""
     """Captured source code snippet of the registration call."""
 
+    name: str | None = None
+    """Optional stable name for the listener (the name= escape hatch on Bus.on())."""
+
     _fired: bool = field(default=False, init=False, repr=False)
     """Guard for once=True listeners: set before the first invocation to prevent double-fire
     when two rapid events both match before the removal task executes."""
@@ -207,18 +210,19 @@ class Listener:
         logger: Logger = LOGGER,
         app_key: str = "",
         instance_index: int = 0,
+        name: str | None = None,
     ) -> "Listener":
         cls._validate_options(once=once, debounce=debounce, throttle=throttle)
 
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
-        name = callable_name(handler)
-        parts = name.rsplit(".", 1)
-        short_name = parts[-1] if parts else name
+        handler_name = callable_name(handler)
+        parts = handler_name.rsplit(".", 1)
+        short_name = parts[-1] if parts else handler_name
 
         # Create async handler and injector
         async_handler = make_async_handler(handler, task_bucket)
-        injector = ParameterInjector(name, signature)
+        injector = ParameterInjector(handler_name, signature)
 
         listener = cls(
             logger=logger,
@@ -235,8 +239,9 @@ class Listener:
             debounce=debounce,
             throttle=throttle,
             priority=priority,
-            handler_name=name,
+            handler_name=handler_name,
             handler_short_name=short_name,
+            name=name,
         )
 
         # One-time construction-phase init — _rate_limiter is set here (inside create()),
@@ -246,7 +251,7 @@ class Listener:
                 task_bucket=task_bucket,
                 debounce=debounce,
                 throttle=throttle,
-                handler_name=name,
+                handler_name=handler_name,
             )
 
         return listener
