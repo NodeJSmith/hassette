@@ -1,5 +1,6 @@
 """TelemetryRepository: encapsulates all SQL writes for CommandExecutor telemetry."""
 
+import logging
 import time
 import typing
 
@@ -294,21 +295,15 @@ class TelemetryRepository:
                         (app_key, session_id),
                     )
             else:
-                if live_listener_ids:
-                    placeholders = ",".join("?" * len(live_listener_ids))
-                    await db.execute(
-                        f"""
-                        DELETE FROM listeners
-                        WHERE app_key = ? AND once = 1
-                          AND id NOT IN ({placeholders})
-                        """,
-                        (app_key, *live_listener_ids),
-                    )
-                else:
-                    await db.execute(
-                        "DELETE FROM listeners WHERE app_key = ? AND once = 1",
-                        (app_key,),
-                    )
+                # session_id is unavailable (DB write queue backpressure at startup).
+                # Skip once=True deletion entirely — any row that fired before reconciliation
+                # but whose invocation hasn't flushed yet would be orphaned without the
+                # session-scoped NOT EXISTS guard. Defer cleanup to the next successful restart.
+                # This condition is correlated with heavy-load scenarios where the risk is real.
+                logging.getLogger(__name__).debug(
+                    "session_id unavailable for app '%s' — skipping once=True cleanup; deferred to next restart",
+                    app_key,
+                )
 
             # --- Non-once jobs without history: delete ---
             if live_job_ids:

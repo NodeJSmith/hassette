@@ -535,6 +535,8 @@ class AppLifecycleService(Resource):
 
             # Await barrier: ensure all pending listener registrations are flushed.
             await bus_service.await_registrations_complete(app_key)
+            # Await barrier: ensure all pending job registrations are flushed.
+            await self.hassette.scheduler_service.await_registrations_complete(app_key)
 
             # Collect live listener IDs from all instances.
             live_listener_ids: set[int] = set()
@@ -581,6 +583,11 @@ class AppLifecycleService(Resource):
                 session_id: int | None = self.hassette.session_id
             except Exception:
                 session_id = None
+                self.logger.warning(
+                    "session_id unavailable for app '%s' — reconciliation running in degraded mode; "
+                    "once=True cleanup skipped (deferred to next restart)",
+                    app_key,
+                )
 
             await self.hassette.command_executor.reconcile_registrations(
                 app_key,
@@ -591,6 +598,8 @@ class AppLifecycleService(Resource):
             self.logger.debug("Post-ready reconciliation complete for app '%s'", app_key)
         except Exception:
             self.logger.warning(
-                "Post-ready reconciliation failed for app '%s' — stale rows may remain until next restart",
+                "Post-ready reconciliation failed for app '%s' — reconciliation rolled back; "
+                "stale rows (including once=True cleanup) may remain until next restart",
                 app_key,
+                exc_info=True,
             )

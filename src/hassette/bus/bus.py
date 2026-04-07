@@ -159,7 +159,10 @@ class Bus(Resource):
         """
         # Collision detection is synchronous so ValueError propagates to user code in on_initialize().
         # (Detection in the async BusService._register_then_add_route() would be swallowed by the task runner.)
-        if listener.app_key:
+        # once=True listeners are excluded from collision detection: the partial unique index
+        # (WHERE once = 0) explicitly allows unlimited fresh inserts for the same natural key,
+        # so two once=True registrations for the same (handler, topic) are valid and expected.
+        if listener.app_key and not listener.once:
             natural_key = self._listener_natural_key(listener)
             if natural_key in self._registered_keys:
                 key_str = natural_key[-1] or listener.handler_name

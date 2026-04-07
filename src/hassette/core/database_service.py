@@ -303,11 +303,33 @@ class DatabaseService(Service):
             cutoff = time.time() - (retention_days * 86400)
             cursor_hi = await self.db.execute("DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,))
             cursor_je = await self.db.execute("DELETE FROM job_executions WHERE execution_start_ts < ?", (cutoff,))
+            # Only delete retired listeners when ALL their child invocations have also aged out.
+            # This prevents orphaning recent handler_invocations whose parent row would be
+            # deleted because retired_at (set at restart time) diverges from last invocation time.
             cursor_rl = await self.db.execute(
-                "DELETE FROM listeners WHERE retired_at IS NOT NULL AND retired_at < ?", (cutoff,)
+                """
+                DELETE FROM listeners
+                WHERE retired_at IS NOT NULL AND retired_at < ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM handler_invocations
+                      WHERE listener_id = listeners.id
+                        AND execution_start_ts >= ?
+                  )
+                """,
+                (cutoff, cutoff),
             )
+            # Same guard for scheduled_jobs / job_executions.
             cursor_rj = await self.db.execute(
-                "DELETE FROM scheduled_jobs WHERE retired_at IS NOT NULL AND retired_at < ?", (cutoff,)
+                """
+                DELETE FROM scheduled_jobs
+                WHERE retired_at IS NOT NULL AND retired_at < ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM job_executions
+                      WHERE job_id = scheduled_jobs.id
+                        AND execution_start_ts >= ?
+                  )
+                """,
+                (cutoff, cutoff),
             )
             await self.db.commit()
             hi_deleted = cursor_hi.rowcount or 0
@@ -327,6 +349,7 @@ class DatabaseService(Service):
                     rj_deleted,
                 )
         except Exception:
+            await self.db.rollback()
             self.logger.exception("Failed to run retention cleanup")
 
     def _get_db_size_mb(self) -> float:

@@ -88,8 +88,14 @@ class BusService(Service):
         ``await_registrations_complete()`` can drain them before reconciliation.
         """
         if listener.app_key:
+            # Prune completed tasks to prevent unbounded list growth for apps
+            # that register listeners dynamically after startup.
+            app_key = listener.app_key
+            existing = self._pending_registration_tasks.get(app_key)
+            if existing:
+                self._pending_registration_tasks[app_key] = [t for t in existing if not t.done()]
             task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
-            self._pending_registration_tasks[listener.app_key].append(task)
+            self._pending_registration_tasks[app_key].append(task)
             return task
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 

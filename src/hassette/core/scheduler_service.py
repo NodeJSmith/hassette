@@ -1,6 +1,7 @@
 import asyncio
 import heapq
 import typing
+from collections import defaultdict
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
@@ -40,12 +41,16 @@ class SchedulerService(Service):
     _executor: "CommandExecutor"
     """Command executor for running jobs and persisting registration/execution records."""
 
+    _pending_registration_tasks: dict[str, list[asyncio.Task[None]]]
+    """Tracks pending DB registration tasks per app_key for await barrier support."""
+
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._executor = executor
         self._job_queue = self.add_child(_ScheduledJobQueue)
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
+        self._pending_registration_tasks = defaultdict(list)
 
     @property
     def min_delay(self) -> float:
@@ -159,10 +164,57 @@ class SchedulerService(Service):
         first (so it can be dispatched immediately), then DB registration
         runs in the same task. Until ``db_id`` is set, the dispatch path
         uses direct invocation (no telemetry record).
+
+        Registration tasks are tracked per ``app_key`` so
+        ``await_registrations_complete()`` can drain them before reconciliation.
+        Completed tasks are pruned from the list on each call to prevent
+        unbounded growth for long-lived apps with dynamic job registration.
         """
         if job.app_key:
-            return self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
+            # Prune completed tasks to prevent unbounded list growth.
+            app_key = job.app_key
+            existing = self._pending_registration_tasks.get(app_key)
+            if existing:
+                self._pending_registration_tasks[app_key] = [t for t in existing if not t.done()]
+            task = self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
+            self._pending_registration_tasks[app_key].append(task)
+            return task
         return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
+
+    async def await_registrations_complete(self, app_key: str) -> None:
+        """Wait for all pending DB registration tasks for an app to complete.
+
+        Called by ``AppLifecycleService._reconcile_app_registrations()`` before
+        reconciliation to ensure all job ``db_id`` values are populated. Tasks
+        that error (DB unavailable) complete with ``db_id = None`` — the job is
+        excluded from ``live_job_ids`` but not actively retired.
+
+        Has a configurable timeout (``config.registration_await_timeout``, default 30s)
+        to prevent indefinite hangs if the DB write queue stalls.
+
+        Args:
+            app_key: The app key whose pending registration tasks to await.
+        """
+        tasks = self._pending_registration_tasks.pop(app_key, [])
+        if not tasks:
+            return
+
+        # Filter out already-done tasks
+        pending = [t for t in tasks if not t.done()]
+        if not pending:
+            return
+
+        timeout = self.hassette.config.registration_await_timeout
+        try:
+            await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=float(timeout))
+        except TimeoutError:
+            self.logger.warning(
+                "await_registrations_complete timed out after %ss for app_key=%r — "
+                "%d registration task(s) incomplete; those jobs will be excluded from live IDs",
+                timeout,
+                app_key,
+                len([t for t in pending if not t.done()]),
+            )
 
     async def _enqueue_then_register(self, job: "ScheduledJob") -> None:
         """Enqueue the job, then register in DB.
