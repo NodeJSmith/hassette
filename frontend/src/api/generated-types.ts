@@ -752,19 +752,25 @@ export interface components {
              */
             kind: "handler";
             /** Listener Id */
-            listener_id: number;
+            listener_id: number | null;
             /** Topic */
-            topic: string;
+            topic: string | null;
             /** Handler Method */
-            handler_method: string;
+            handler_method: string | null;
             /** Error Message */
-            error_message: string;
+            error_message: string | null;
             /** Error Type */
-            error_type: string;
+            error_type: string | null;
             /** Execution Start Ts */
             execution_start_ts: number;
             /** App Key */
-            app_key: string;
+            app_key: string | null;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
         };
         /**
          * HandlerInvocation
@@ -777,6 +783,12 @@ export interface components {
             duration_ms: number;
             /** Status */
             status: string;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
             /** Error Type */
             error_type: string | null;
             /** Error Message */
@@ -793,17 +805,23 @@ export interface components {
              */
             kind: "job";
             /** Job Id */
-            job_id: number;
+            job_id: number | null;
             /** Job Name */
-            job_name: string;
+            job_name: string | null;
             /** Error Message */
-            error_message: string;
+            error_message: string | null;
             /** Error Type */
-            error_type: string;
+            error_type: string | null;
             /** Execution Start Ts */
             execution_start_ts: number;
             /** App Key */
-            app_key: string;
+            app_key: string | null;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
         };
         /**
          * JobExecution
@@ -816,6 +834,12 @@ export interface components {
             duration_ms: number;
             /** Status */
             status: string;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
             /** Error Type */
             error_type: string | null;
             /** Error Message */
@@ -850,6 +874,12 @@ export interface components {
             source_location: string;
             /** Registration Source */
             registration_source: string | null;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
             /** Total Executions */
             total_executions: number;
             /** Successful */
@@ -947,6 +977,12 @@ export interface components {
              * @default
              */
             handler_summary: string;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
         };
         /** LogEntryResponse */
         LogEntryResponse: {
@@ -1001,6 +1037,12 @@ export interface components {
             stopped_at: number | null;
             /** Status */
             status: string;
+            /**
+             * Source Tier
+             * @default framework
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
             /** Error Type */
             error_type: string | null;
             /** Error Message */
@@ -1030,6 +1072,16 @@ export interface components {
         TelemetryStatusResponse: {
             /** Degraded */
             degraded: boolean;
+            /**
+             * Dropped Overflow
+             * @default 0
+             */
+            dropped_overflow: number;
+            /**
+             * Dropped Exhausted
+             * @default 0
+             */
+            dropped_exhausted: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -1453,9 +1505,12 @@ export interface operations {
             query?: {
                 instance_index?: number;
                 session_id?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
             };
             header?: never;
             path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
                 app_key: string;
             };
             cookie?: never;
@@ -1487,9 +1542,12 @@ export interface operations {
             query?: {
                 instance_index?: number;
                 session_id?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
             };
             header?: never;
             path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
                 app_key: string;
             };
             cookie?: never;
@@ -1521,9 +1579,12 @@ export interface operations {
             query?: {
                 instance_index?: number;
                 session_id?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
             };
             header?: never;
             path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
                 app_key: string;
             };
             cookie?: never;
@@ -1622,6 +1683,8 @@ export interface operations {
         parameters: {
             query?: {
                 session_id?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
             };
             header?: never;
             path?: never;
@@ -1684,6 +1747,8 @@ export interface operations {
         parameters: {
             query?: {
                 session_id?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
             };
             header?: never;
             path?: never;

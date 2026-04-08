@@ -7,7 +7,7 @@ interface Props {
 
 const KNOWN_KINDS = new Set(["handler", "job"]);
 
-function shortErrorType(t: string): string {
+function shortErrorType(t: string | null): string {
   if (!t) return "";
   const lastDot = t.lastIndexOf(".");
   return lastDot === -1 ? t : t.substring(lastDot + 1);
@@ -18,10 +18,10 @@ function kindClass(kind: string): string {
 }
 
 function errorEntryKey(err: DashboardErrorEntry, index: number): string {
-  // listener_id/job_id can be 0 (sentinel for unregistered) — treat as missing
+  // listener_id/job_id can be 0 or null (sentinel/orphan) — treat as missing
   const rawId = err.kind === "handler" ? err.listener_id : err.job_id;
   const id = rawId || `${err.execution_start_ts}-${index}`;
-  return `${err.kind}-${id}-${err.app_key}`;
+  return `${err.kind}-${id}-${err.app_key ?? "orphan"}`;
 }
 
 export function ErrorFeed({ errors }: Props) {
@@ -41,7 +41,16 @@ export function ErrorFeed({ errors }: Props) {
 function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
   const relativeTime = useRelativeTime(err.execution_start_ts);
   const badgeText = shortErrorType(err.error_type) || err.kind;
-  const subtitle = err.kind === "handler" ? err.handler_method : err.job_name;
+
+  // Orphan detection: null listener_id or job_id means the handler/job was deleted
+  const isOrphan = err.kind === "handler" ? err.listener_id === null : err.job_id === null;
+  const rawSubtitle = err.kind === "handler" ? err.handler_method : err.job_name;
+  const subtitle = isOrphan
+    ? (err.kind === "handler" ? "deleted handler" : "deleted job")
+    : rawSubtitle;
+
+  const appDisplay = err.app_key ?? (err.kind === "handler" ? "deleted handler" : "deleted job");
+  const isFramework = err.source_tier === "framework";
 
   return (
     <div class="ht-error-entry" data-testid="error-item">
@@ -51,9 +60,16 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
         >
           {badgeText}
         </span>
-        <a href={`/apps/${err.app_key}`} class="ht-text-sm">
-          {err.app_key}
-        </a>
+        {isFramework && (
+          <span class="ht-tag ht-tag--framework ht-tag--xs">Framework</span>
+        )}
+        {err.app_key ? (
+          <a href={`/apps/${err.app_key}`} class="ht-text-sm">
+            {err.app_key}
+          </a>
+        ) : (
+          <span class="ht-text-sm ht-text-muted">{appDisplay}</span>
+        )}
         {subtitle && (
           <>
             {" · "}

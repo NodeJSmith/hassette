@@ -3,9 +3,10 @@ import { setStoredValue } from "../../utils/local-storage";
 import { SessionScopeToggle } from "./session-scope-toggle";
 
 export function StatusBar() {
-  const { connection, theme, telemetryDegraded } = useAppState();
+  const { connection, theme, telemetryDegraded, droppedOverflow, droppedExhausted } = useAppState();
   const status = connection.value;
   const isDegraded = telemetryDegraded.value;
+  const droppedTotal = (droppedOverflow.value ?? 0) + (droppedExhausted.value ?? 0);
 
   const toggleTheme = () => {
     const next = theme.value === "dark" ? "light" : "dark";
@@ -36,6 +37,17 @@ export function StatusBar() {
         <span class="ht-ws-indicator is-degraded" aria-label="DB degraded">
           <span class="ht-pulse-dot degraded" />
           <span class="ht-text-xs">DB degraded</span>
+        </span>
+      )}
+      {droppedTotal > 0 && (
+        <span
+          class="ht-ws-indicator is-degraded"
+          aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
+          title={`Overflow: ${droppedOverflow.value ?? 0}, Exhausted: ${droppedExhausted.value ?? 0}`}
+          data-testid="dropped-events-indicator"
+        >
+          <span class="ht-pulse-dot degraded" />
+          <span class="ht-text-xs">{droppedTotal} dropped</span>
         </span>
       )}
       <SessionScopeToggle />

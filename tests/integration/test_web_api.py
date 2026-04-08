@@ -1067,8 +1067,10 @@ class TestDashboardErrorsOrphanRendering:
         assert len(data["errors"]) == 1
         entry = data["errors"][0]
         assert entry["kind"] == "handler"
-        assert entry["handler_method"] == "deleted handler"
-        assert entry["topic"] == "unknown"
+        assert entry["handler_method"] is None
+        assert entry["topic"] is None
+        assert entry["listener_id"] is None
+        assert entry["app_key"] is None
 
     async def test_dashboard_errors_orphan_job_renders_label(
         self, client: "AsyncClient", mock_hassette: MagicMock
@@ -1094,7 +1096,9 @@ class TestDashboardErrorsOrphanRendering:
         assert len(data["errors"]) == 1
         entry = data["errors"][0]
         assert entry["kind"] == "job"
-        assert entry["job_name"] == "deleted job"
+        assert entry["job_name"] is None
+        assert entry["job_id"] is None
+        assert entry["app_key"] is None
 
 
 class TestDashboardErrorsSinceTs:

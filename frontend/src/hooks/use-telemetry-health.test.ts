@@ -24,7 +24,7 @@ describe("useTelemetryHealth", () => {
     vi.useFakeTimers();
     mockLocation = "/";
     mockedGetTelemetryStatus.mockReset();
-    mockedGetTelemetryStatus.mockResolvedValue({ degraded: false });
+    mockedGetTelemetryStatus.mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0 });
   });
 
   afterEach(() => {
@@ -74,7 +74,7 @@ describe("useTelemetryHealth", () => {
 
   it("sets degraded true when endpoint reports degradation", async () => {
     const state = createAppState();
-    mockedGetTelemetryStatus.mockResolvedValue({ degraded: true });
+    mockedGetTelemetryStatus.mockResolvedValue({ degraded: true, dropped_overflow: 0, dropped_exhausted: 0 });
 
     renderHook(() => useTelemetryHealth(state));
 
@@ -136,8 +136,8 @@ describe("useTelemetryHealth", () => {
     // First call fails, second succeeds, third succeeds
     mockedGetTelemetryStatus
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValueOnce({ degraded: false })
-      .mockResolvedValue({ degraded: false });
+      .mockResolvedValueOnce({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0 })
+      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0 });
 
     renderHook(() => useTelemetryHealth(state));
 
@@ -170,7 +170,7 @@ describe("useTelemetryHealth", () => {
     // Fail initially to trigger backoff
     mockedGetTelemetryStatus
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValue({ degraded: false });
+      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0 });
 
     const { rerender } = renderHook(() => useTelemetryHealth(state));
 
@@ -231,5 +231,22 @@ describe("useTelemetryHealth", () => {
       vi.advanceTimersByTime(60_000);
     });
     expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates dropped_overflow and dropped_exhausted to app state", async () => {
+    const state = createAppState();
+    mockedGetTelemetryStatus.mockResolvedValue({
+      degraded: false,
+      dropped_overflow: 5,
+      dropped_exhausted: 3,
+    });
+
+    renderHook(() => useTelemetryHealth(state));
+
+    await vi.waitFor(() => {
+      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
+    });
+    expect(state.droppedOverflow.value).toBe(5);
+    expect(state.droppedExhausted.value).toBe(3);
   });
 });

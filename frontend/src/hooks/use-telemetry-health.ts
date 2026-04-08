@@ -32,6 +32,8 @@ export function useTelemetryHealth(appState: AppState): void {
       const result = await getTelemetryStatus(controller.signal);
       if (controller.signal.aborted) return; // Navigation cancelled us
       appState.telemetryDegraded.value = result.degraded;
+      appState.droppedOverflow.value = result.dropped_overflow ?? 0;
+      appState.droppedExhausted.value = result.dropped_exhausted ?? 0;
       // Reset backoff on success
       if (currentIntervalMs.current !== BASE_INTERVAL_MS) {
         currentIntervalMs.current = BASE_INTERVAL_MS;

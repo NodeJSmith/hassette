@@ -262,10 +262,12 @@ async def dashboard_kpis(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    source_tier: Literal["app", "framework", "all"] | None = _SOURCE_TIER_PARAM,
 ) -> DashboardKpisResponse:
     """Global KPI metrics for the dashboard strip."""
+    effective_tier = source_tier if source_tier is not None else "app"
     try:
-        summary = await telemetry.get_global_summary(session_id=session_id)
+        summary = await telemetry.get_global_summary(session_id=session_id, source_tier=effective_tier)
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
         status = runtime.get_system_status()
@@ -379,23 +381,25 @@ async def dashboard_errors(
             typed_errors.append(
                 JobErrorEntry(
                     job_id=err.job_id,
-                    job_name=err.job_name if err.job_name is not None else "deleted job",
+                    job_name=err.job_name,
                     error_message=err.error_message or "",
                     error_type=err.error_type or "",
                     execution_start_ts=err.execution_start_ts,
                     app_key=err.app_key,
+                    source_tier=err.source_tier,
                 )
             )
         elif isinstance(err, HandlerErrorRecord):
             typed_errors.append(
                 HandlerErrorEntry(
                     listener_id=err.listener_id,
-                    topic=err.topic if err.topic is not None else "unknown",
-                    handler_method=err.handler_method if err.handler_method is not None else "deleted handler",
+                    topic=err.topic,
+                    handler_method=err.handler_method,
                     error_message=err.error_message or "",
                     error_type=err.error_type or "",
                     execution_start_ts=err.execution_start_ts,
                     app_key=err.app_key,
+                    source_tier=err.source_tier,
                 )
             )
 

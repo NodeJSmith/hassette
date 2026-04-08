@@ -17,6 +17,7 @@ function createError(overrides: Partial<HandlerErrorEntry> = {}): HandlerErrorEn
     listener_id: 42,
     topic: "state_changed",
     handler_method: "on_light_change",
+    source_tier: "app",
     ...overrides,
   };
 }
@@ -30,6 +31,7 @@ function createJobError(overrides: Partial<JobErrorEntry> = {}): JobErrorEntry {
     app_key: "test_app",
     job_id: 7,
     job_name: "cleanup",
+    source_tier: "app",
     ...overrides,
   };
 }
@@ -82,6 +84,30 @@ describe("ErrorFeed", () => {
     );
     const badge = container.querySelector(".ht-tag");
     expect(badge?.className).toContain("ht-tag--neutral");
+  });
+
+  it("renders 'deleted handler' when listener_id is null", () => {
+    const err = createError({ listener_id: null as unknown as number, app_key: null as unknown as string });
+    const { getAllByText } = render(<ErrorFeed errors={[err]} />);
+    expect(getAllByText("deleted handler").length).toBeGreaterThan(0);
+  });
+
+  it("renders 'deleted job' when job_id is null", () => {
+    const err = createJobError({ job_id: null as unknown as number, app_key: null as unknown as string });
+    const { getAllByText } = render(<ErrorFeed errors={[err]} />);
+    expect(getAllByText("deleted job").length).toBeGreaterThan(0);
+  });
+
+  it("renders a 'Framework' tier badge when source_tier is 'framework'", () => {
+    const err = createError({ source_tier: "framework" } as Parameters<typeof createError>[0]);
+    const { getByText } = render(<ErrorFeed errors={[err]} />);
+    expect(getByText("Framework")).toBeDefined();
+  });
+
+  it("does not render tier badge for app-tier errors", () => {
+    const err = createError({ source_tier: "app" } as Parameters<typeof createError>[0]);
+    const { queryByText } = render(<ErrorFeed errors={[err]} />);
+    expect(queryByText("Framework")).toBeNull();
   });
 
   it("key uses listener_id not execution_start_ts+index", () => {
