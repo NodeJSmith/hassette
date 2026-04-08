@@ -28,7 +28,7 @@ from hassette.test_utils.harness import HassetteHarness
 @pytest.fixture
 def harness_config(tmp_path: Path) -> HassetteConfig:
     """Create a test config pointing to a temporary database."""
-    config = HassetteConfig(data_dir=tmp_path)
+    config = HassetteConfig(data_dir=tmp_path, token="test-token")
     config.telemetry_write_queue_max = 10  # Small queue for testing overflow
     return config
 

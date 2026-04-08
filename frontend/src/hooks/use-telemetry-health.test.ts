@@ -24,7 +24,7 @@ describe("useTelemetryHealth", () => {
     vi.useFakeTimers();
     mockLocation = "/";
     mockedGetTelemetryStatus.mockReset();
-    mockedGetTelemetryStatus.mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0 });
+    mockedGetTelemetryStatus.mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 });
   });
 
   afterEach(() => {
@@ -61,9 +61,23 @@ describe("useTelemetryHealth", () => {
     });
   });
 
-  it("sets degraded true on fetch failure", async () => {
+  it("does not set degraded on generic network error", async () => {
     const state = createAppState();
     mockedGetTelemetryStatus.mockRejectedValue(new Error("Network error"));
+
+    renderHook(() => useTelemetryHealth(state));
+
+    await vi.waitFor(() => {
+      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
+    });
+    // Network errors keep degraded false — only HTTP 503 means DB is degraded
+    expect(state.telemetryDegraded.value).toBe(false);
+  });
+
+  it("sets degraded true on HTTP 503 (ApiError)", async () => {
+    const { ApiError } = await import("../api/client");
+    const state = createAppState();
+    mockedGetTelemetryStatus.mockRejectedValue(new ApiError(503, "Service Unavailable"));
 
     renderHook(() => useTelemetryHealth(state));
 
@@ -74,7 +88,7 @@ describe("useTelemetryHealth", () => {
 
   it("sets degraded true when endpoint reports degradation", async () => {
     const state = createAppState();
-    mockedGetTelemetryStatus.mockResolvedValue({ degraded: true, dropped_overflow: 0, dropped_exhausted: 0 });
+    mockedGetTelemetryStatus.mockResolvedValue({ degraded: true, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 });
 
     renderHook(() => useTelemetryHealth(state));
 
@@ -136,16 +150,16 @@ describe("useTelemetryHealth", () => {
     // First call fails, second succeeds, third succeeds
     mockedGetTelemetryStatus
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValueOnce({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0 })
-      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0 });
+      .mockResolvedValueOnce({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 })
+      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 });
 
     renderHook(() => useTelemetryHealth(state));
 
-    // Initial poll fails
+    // Initial poll fails (network error — degraded stays false)
     await vi.waitFor(() => {
       expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
     });
-    expect(state.telemetryDegraded.value).toBe(true);
+    expect(state.telemetryDegraded.value).toBe(false);
 
     // After failure, backoff is 60s — advance to trigger second poll
     act(() => {
@@ -170,15 +184,15 @@ describe("useTelemetryHealth", () => {
     // Fail initially to trigger backoff
     mockedGetTelemetryStatus
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0 });
+      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 });
 
     const { rerender } = renderHook(() => useTelemetryHealth(state));
 
-    // Initial poll fails, backoff kicks in
+    // Initial poll fails (network error — degraded stays false), backoff kicks in
     await vi.waitFor(() => {
       expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
     });
-    expect(state.telemetryDegraded.value).toBe(true);
+    expect(state.telemetryDegraded.value).toBe(false);
 
     // Simulate navigation by changing mock location and re-rendering
     mockLocation = "/apps";
@@ -239,6 +253,8 @@ describe("useTelemetryHealth", () => {
       degraded: false,
       dropped_overflow: 5,
       dropped_exhausted: 3,
+      dropped_no_session: 2,
+      dropped_shutdown: 1,
     });
 
     renderHook(() => useTelemetryHealth(state));
@@ -248,5 +264,7 @@ describe("useTelemetryHealth", () => {
     });
     expect(state.droppedOverflow.value).toBe(5);
     expect(state.droppedExhausted.value).toBe(3);
+    expect(state.droppedNoSession.value).toBe(2);
+    expect(state.droppedShutdown.value).toBe(1);
   });
 });

@@ -87,7 +87,7 @@ export function FrameworkHealth() {
           ) : fwSummary.error.value ? (
             <p class="ht-text-danger ht-text-xs">Failed to load framework errors: {fwSummary.error.value}</p>
           ) : (
-            <ErrorFeed errors={fwSummary.data.value?.errors} />
+            <ErrorFeed errors={fwSummary.data.value?.errors ?? null} />
           )}
         </div>
       )}

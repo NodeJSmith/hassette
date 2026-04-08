@@ -385,6 +385,9 @@ export interface paths {
         /**
          * Dashboard App Grid
          * @description Per-app health data for the dashboard grid.
+         *
+         *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
+         *     not the manifest-driven app grid.
          */
         get: operations["dashboard_app_grid_api_telemetry_dashboard_app_grid_get"];
         put?: never;
@@ -407,6 +410,29 @@ export interface paths {
          * @description Recent errors for the dashboard error feed.
          */
         get: operations["dashboard_errors_api_telemetry_dashboard_errors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/telemetry/dashboard/framework-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard Framework Summary
+         * @description Combined framework KPIs + recent errors in one atomic response.
+         *
+         *     Eliminates the dual-fetch desync between error count badge and error feed
+         *     that occurs when two separate calls race under incident conditions.
+         */
+        get: operations["dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -738,6 +764,18 @@ export interface components {
             /** Uptime Seconds */
             uptime_seconds?: number | null;
         };
+        /**
+         * FrameworkSummaryResponse
+         * @description Combined framework KPIs + recent errors in one atomic response.
+         */
+        FrameworkSummaryResponse: {
+            /** Total Errors */
+            total_errors: number;
+            /** Total Job Errors */
+            total_job_errors: number;
+            /** Errors */
+            errors: (components["schemas"]["HandlerErrorEntry"] | components["schemas"]["JobErrorEntry"])[];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1037,18 +1075,32 @@ export interface components {
             stopped_at: number | null;
             /** Status */
             status: string;
-            /**
-             * Source Tier
-             * @default framework
-             * @enum {string}
-             */
-            source_tier: "app" | "framework";
             /** Error Type */
             error_type: string | null;
             /** Error Message */
             error_message: string | null;
             /** Duration Seconds */
             duration_seconds: number | null;
+            /**
+             * Dropped Overflow
+             * @default 0
+             */
+            dropped_overflow: number;
+            /**
+             * Dropped Exhausted
+             * @default 0
+             */
+            dropped_exhausted: number;
+            /**
+             * Dropped No Session
+             * @default 0
+             */
+            dropped_no_session: number;
+            /**
+             * Dropped Shutdown
+             * @default 0
+             */
+            dropped_shutdown: number;
         };
         /** SystemStatusResponse */
         SystemStatusResponse: {
@@ -1082,6 +1134,16 @@ export interface components {
              * @default 0
              */
             dropped_exhausted: number;
+            /**
+             * Dropped No Session
+             * @default 0
+             */
+            dropped_no_session: number;
+            /**
+             * Dropped Shutdown
+             * @default 0
+             */
+            dropped_shutdown: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -1763,6 +1825,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardErrorsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get: {
+        parameters: {
+            query?: {
+                session_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FrameworkSummaryResponse"];
                 };
             };
             /** @description Validation Error */
