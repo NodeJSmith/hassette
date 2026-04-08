@@ -92,6 +92,7 @@ class _HassetteMock(Resource):
         self._states: StateManager | None = None
         self.state_registry: StateRegistry | None = None
         self.type_registry: TypeRegistry | None = None
+        self._test_mode: bool = False
 
     @property
     def command_executor(self) -> Any:

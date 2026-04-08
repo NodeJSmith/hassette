@@ -350,6 +350,32 @@ class SchedulerService(Service):
         # One-time job, remove it
         await self._remove_job(job)
 
+    async def _test_trigger_due_jobs(self) -> int:
+        """Fire all jobs due at the current time. For test harnesses only.
+
+        Snapshots due jobs via a single ``pop_due_and_peek_next(date_utils.now())``
+        call, then awaits each ``_dispatch_and_log(job)`` inline (not via
+        ``task_bucket.spawn``). Jobs re-enqueued during dispatch (repeating jobs)
+        are not included in this invocation — only the initial snapshot is
+        processed, preventing infinite loops when the clock is frozen.
+
+        This method bypasses the ``serve()`` loop's timing and wakeup logic.
+        It is intended for use with ``AppTestHarness.trigger_due_jobs()`` and
+        should not be called in production code.
+
+        Returns:
+            The number of jobs dispatched.
+        """
+        current_time = date_utils.now()
+        due_jobs, _next_run = await self._job_queue.pop_due_and_peek_next(current_time)
+
+        count = 0
+        for job in due_jobs:
+            await self._dispatch_and_log(job)
+            count += 1
+
+        return count
+
     async def get_all_jobs(self) -> list["ScheduledJob"]:
         """Return all currently scheduled jobs across all apps."""
         return await self._job_queue.get_all()

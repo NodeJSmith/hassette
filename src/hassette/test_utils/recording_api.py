@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Never, Protocol, cast, runtime_checkable
 from unittest.mock import Mock
 
 from hassette.exceptions import EntityNotFoundError
+from hassette.models.entities.base import BaseEntity
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
@@ -27,10 +28,20 @@ if TYPE_CHECKING:
 class ApiCall:
     """Record of a single API method invocation.
 
+    Write methods (``call_service``, ``set_state``, ``fire_event``) record their
+    positional arguments in both ``args`` and ``kwargs`` so that
+    :meth:`RecordingApi.assert_called` can use kwargs-only matching uniformly::
+
+        recorder.assert_called("call_service", domain="light", service="turn_on")
+
+    ``args`` is available for direct positional inspection when needed, but
+    ``assert_called`` does not check it — use ``kwargs`` for assertions.
+
     Attributes:
         method: Name of the method that was called (e.g. "turn_on").
-        args: Positional arguments passed to the method.
-        kwargs: Keyword arguments passed to the method.
+        args: Positional arguments passed to the method (for inspection only).
+        kwargs: Keyword arguments — the primary assertion surface. Write methods
+            include positional args here as well for uniform kwargs-based matching.
     """
 
     method: str
@@ -246,16 +257,27 @@ class RecordingApi(Resource):
     async def get_entity(self, entity_id: str, model: type[Any] = BaseState) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded.
 
-        The ``model`` parameter is required to match the real ``Api.get_entity`` signature.
-        RecordingApi always returns BaseState from the state proxy — ``model`` is accepted
-        for call-signature fidelity but is not used for casting.
+        When ``model`` is a :class:`~hassette.models.entities.base.BaseEntity` subclass,
+        the raw state dict is validated through ``model.model_validate({"state": raw})``,
+        mirroring the real ``Api.get_entity`` behavior. This ensures tests catch type
+        mismatches that would surface in production.
+
+        When ``model`` is the default ``BaseState``, falls back to state-registry conversion
+        (same as :meth:`get_state`).
         """
-        return await self.get_state(entity_id)
+        raw = self._get_raw_state(entity_id)
+        if model is not BaseState and issubclass(model, BaseEntity):
+            return cast("BaseState", model.model_validate({"state": raw}))
+        return self._convert_state(raw, entity_id)
 
     async def get_entity_or_none(self, entity_id: str, model: type[Any] = BaseState) -> BaseState | None:
-        """Return the typed state for entity_id, or None if not seeded."""
+        """Return the typed state for entity_id, or None if not seeded.
+
+        Delegates to :meth:`get_entity`, which performs model validation when
+        ``model`` is a BaseEntity subclass.
+        """
         try:
-            return await self.get_state(entity_id)
+            return await self.get_entity(entity_id, model)
         except EntityNotFoundError:
             return None
 

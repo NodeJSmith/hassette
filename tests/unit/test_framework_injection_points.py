@@ -220,13 +220,17 @@ class TestAppApiFactory:
 class TestStateProxySeedState:
     """StateProxy._test_seed_state() writes to the state cache under the write lock."""
 
-    def _make_state_proxy(self) -> StateProxy:
+    def _make_state_proxy(self, *, test_mode: bool = True) -> StateProxy:
         """Build a StateProxy with a mock Hassette (no real initialization)."""
         proxy = object.__new__(StateProxy)
         # Initialize only the attributes we need (avoid calling __init__
         # which would add_child resources and trigger full lifecycle)
         proxy.states = {}  # pyright: ignore[reportAttributeAccessIssue]
         proxy.lock = FairAsyncRLock()  # pyright: ignore[reportAttributeAccessIssue]
+        # _test_seed_state requires hassette._test_mode = True
+        hassette_mock = Mock()
+        hassette_mock._test_mode = test_mode
+        proxy.hassette = hassette_mock  # pyright: ignore[reportAttributeAccessIssue]
         return proxy
 
     @pytest.mark.asyncio
@@ -306,3 +310,46 @@ class TestStateProxySeedState:
         await proxy._test_seed_state("sensor.temp", state_dict)
 
         assert not mark_ready_called, "_test_seed_state must not call mark_ready()"
+
+    @pytest.mark.asyncio
+    async def test_seed_state_rejects_non_test_mode(self) -> None:
+        """_test_seed_state raises RuntimeError when hassette._test_mode is not set."""
+        proxy = self._make_state_proxy(test_mode=False)
+        state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
+
+        with pytest.raises(RuntimeError, match="must not be called outside of test context"):
+            await proxy._test_seed_state("sensor.temp", state_dict)
+
+
+# ---------------------------------------------------------------------------
+# now() import invariant
+# ---------------------------------------------------------------------------
+
+
+class TestNowImportInvariant:
+    """Ensure no module uses 'from hassette.utils.date_utils import now'.
+
+    freeze_time patches ``hassette.utils.date_utils.now`` via module-attribute
+    access. Direct imports (``from ... import now``) bind a local reference that
+    the patch cannot reach, silently breaking time control.
+    """
+
+    def test_no_direct_now_import(self) -> None:
+        """No source file in src/hassette/ may use 'from hassette.utils.date_utils import now'."""
+        import re
+        from pathlib import Path
+
+        src_root = Path(__file__).resolve().parents[2] / "src" / "hassette"
+        pattern = re.compile(r"from\s+hassette\.utils\.date_utils\s+import\s+.*\bnow\b")
+        violations: list[str] = []
+
+        for py_file in src_root.rglob("*.py"):
+            text = py_file.read_text()
+            for i, line in enumerate(text.splitlines(), 1):
+                if pattern.search(line):
+                    violations.append(f"{py_file.relative_to(src_root.parent.parent)}:{i}: {line.strip()}")
+
+        assert not violations, (
+            "Direct 'from hassette.utils.date_utils import now' breaks freeze_time patching. "
+            "Use 'import hassette.utils.date_utils as date_utils' instead.\n" + "\n".join(violations)
+        )

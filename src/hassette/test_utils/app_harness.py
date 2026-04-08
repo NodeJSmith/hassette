@@ -37,14 +37,12 @@ import pydantic
 from pydantic_settings.sources import InitSettingsSource
 from whenever import Instant, ZonedDateTime
 
-import hassette.utils.date_utils as date_utils
 from hassette import context
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.app.utils import _get_app_config_class
 from hassette.bus import Bus
 from hassette.config.classes import AppManifest
-from hassette.config.config import HassetteConfig
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.test_utils.config import make_test_config
@@ -55,8 +53,15 @@ from hassette.types.enums import ResourceStatus
 
 LOGGER = logging.getLogger(__name__)
 
-# Module-level lock for freeze_time — prevents concurrent harnesses from
-# silently corrupting each other's time patches (Finding 3).
+# Process-global lock for freeze_time. Guards against concurrent *threaded*
+# workers (e.g., xdist with forked processes that share module state, or future
+# thread-pool test runners) both calling freeze_time simultaneously.
+#
+# Limitation: this lock does NOT protect against concurrent *asyncio coroutines*
+# within the same event loop — two coroutines calling freeze_time from different
+# AppTestHarness instances will both succeed (non-blocking acquire in synchronous
+# code), and the later patch silently overwrites the earlier one. Concurrent
+# freeze_time usage within the same event loop is unsupported.
 _FREEZE_TIME_LOCK = threading.Lock()
 
 # Per-class asyncio.Lock to prevent concurrent harnesses for the same App class
@@ -65,12 +70,12 @@ _CLASS_LOCKS: weakref.WeakKeyDictionary[type, asyncio.Lock] = weakref.WeakKeyDic
 
 
 def _get_class_lock(cls: type) -> asyncio.Lock:
-    """Return the per-class asyncio.Lock, creating one if needed."""
-    lock = _CLASS_LOCKS.get(cls)
-    if lock is None:
-        lock = asyncio.Lock()
-        _CLASS_LOCKS[cls] = lock
-    return lock
+    """Return the per-class asyncio.Lock, creating one if needed.
+
+    Uses setdefault to avoid the TOCTOU race where two concurrent callers
+    both see None and create separate Lock instances.
+    """
+    return _CLASS_LOCKS.setdefault(cls, asyncio.Lock())
 
 
 class _TestClock:
@@ -150,13 +155,41 @@ class AppConfigurationError(Exception):
         super().__init__(f"AppConfigurationError for {app_cls.__name__}: {summary}")
 
 
+# Cache of hermetic subclasses keyed by app_config_cls — avoids creating a new
+# subclass per _make_hermetic_config call, which would accumulate permanently in
+# __subclasses__() and Pydantic's internal model cache.
+_HERMETIC_CONFIG_CACHE: dict[type[AppConfig], type[AppConfig]] = {}
+
+
+def _get_hermetic_subclass(app_config_cls: type[AppConfig]) -> type[AppConfig]:
+    """Return a cached hermetic subclass of app_config_cls.
+
+    The subclass reads init_kwargs from a class variable ``_hermetic_init_kwargs``
+    set by the caller before instantiation. This avoids creating a new class per
+    call while still supporting per-call config dicts.
+    """
+    cached = _HERMETIC_CONFIG_CACHE.get(app_config_cls)
+    if cached is not None:
+        return cached
+
+    class _HermeticSettings(app_config_cls):  # pyright: ignore[reportGeneralTypeIssues]
+        _hermetic_init_kwargs: ClassVar[dict[str, Any]] = {}
+
+        @classmethod
+        def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
+            return (InitSettingsSource(settings_cls, init_kwargs=cls._hermetic_init_kwargs),)
+
+    _HERMETIC_CONFIG_CACHE[app_config_cls] = _HermeticSettings
+    return _HermeticSettings
+
+
 def _make_hermetic_config(
     app_cls: type[App], app_config_cls: type[AppConfig], config_dict: dict[str, Any]
 ) -> AppConfig:
     """Validate config_dict against app_config_cls using only InitSettingsSource.
 
-    Creates a transient subclass that suppresses env var, .env file, and all other
-    settings sources, leaving only the provided dict. Runs full Pydantic validation.
+    Uses a cached hermetic subclass per app_config_cls to avoid accumulating
+    subclass entries in __subclasses__() across repeated calls.
 
     Args:
         app_cls: The App class (used in error messages).
@@ -169,33 +202,13 @@ def _make_hermetic_config(
     Raises:
         AppConfigurationError: If validation fails.
     """
-
-    class _HermeticSettings(app_config_cls):  # pyright: ignore[reportGeneralTypeIssues]
-        @classmethod
-        def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-            return (InitSettingsSource(settings_cls, init_kwargs=config_dict),)
+    hermetic_cls = _get_hermetic_subclass(app_config_cls)
+    hermetic_cls._hermetic_init_kwargs = config_dict  # pyright: ignore[reportAttributeAccessIssue]
 
     try:
-        return _HermeticSettings()
+        return hermetic_cls()
     except pydantic.ValidationError as e:
         raise AppConfigurationError(app_cls, e) from e
-
-
-def _make_minimal_hassette_config(data_dir: Path) -> HassetteConfig:
-    """Create a minimal HassetteConfig suitable for unit testing.
-
-    Delegates to :func:`~hassette.test_utils.config.make_test_config` so the hermetic
-    config pattern is defined in one place. Suppresses env vars, .env file, TOML file,
-    and CLI args. State proxy polling is disabled to prevent _load_cache() from
-    overwriting seeded state.
-
-    Args:
-        data_dir: Directory for Hassette data (caches, etc.).
-
-    Returns:
-        A minimal HassetteConfig instance.
-    """
-    return make_test_config(data_dir=data_dir)
 
 
 def _synthesize_manifest(app_cls: type[App]) -> AppManifest:
@@ -318,7 +331,7 @@ class AppTestHarness:
             exit_stack.callback(self._cleanup_tmpdir, data_dir)
 
         # Step 2: Create minimal HassetteConfig
-        hassette_config = _make_minimal_hassette_config(data_dir)
+        hassette_config = make_test_config(data_dir=data_dir)
 
         # Step 3: Validate user config hermetically.
         # Use _get_app_config_class to resolve the generic type argument (App[MyConfig])
@@ -338,6 +351,10 @@ class AppTestHarness:
             .with_state_registry()
         )
         self._harness = harness
+
+        # Step 4b: Mark hassette as being in test mode — enables _test_seed_state
+        # and other test-only methods that have runtime guards.
+        harness.hassette._test_mode = True  # pyright: ignore[reportAttributeAccessIssue]
 
         # Step 5: Pre-configure hassette.api mock before state proxy starts.
         # HassetteHarness.start() checks "if not self.hassette.api" before setting it,
@@ -434,9 +451,14 @@ class AppTestHarness:
     def _restore_manifest(self, original: Any) -> None:
         """Restore app_cls.app_manifest to its original value."""
         if original is self._UNSET:
-            if hasattr(self._app_cls, "app_manifest"):
-                with contextlib.suppress(AttributeError):
-                    del self._app_cls.app_manifest
+            with contextlib.suppress(AttributeError):
+                del self._app_cls.app_manifest
+            # Verify deletion succeeded — del on an inherited attribute is a no-op.
+            if "app_manifest" in self._app_cls.__dict__:
+                LOGGER.warning(
+                    "_restore_manifest: could not delete app_manifest from %s.__dict__",
+                    self._app_cls.__name__,
+                )
         else:
             self._app_cls.app_manifest = original
 
@@ -445,6 +467,13 @@ class AppTestHarness:
         if original is self._UNSET:
             with contextlib.suppress(AttributeError):
                 del self._app_cls._api_factory  # pyright: ignore[reportAttributeAccessIssue]
+            # Verify deletion succeeded — del on an inherited attribute is a no-op.
+            # Force to the declared default (None) if still present.
+            if "_api_factory" in self._app_cls.__dict__:
+                self._app_cls._api_factory = None  # pyright: ignore[reportAttributeAccessIssue]
+                LOGGER.warning(
+                    "_restore_api_factory: del failed for %s, forced _api_factory to None", self._app_cls.__name__
+                )
         else:
             self._app_cls._api_factory = original  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -605,11 +634,19 @@ class AppTestHarness:
     ) -> None:
         """Create an attribute change event and send it through the bus.
 
-        Internally delegates to :meth:`simulate_state_change` with
-        ``old_value == new_value == current_state``. This means **any handler
-        registered via** ``bus.on_state_change`` **for the same entity will
-        also fire** — not just attribute-change handlers. If your test checks
-        handler call counts, account for this.
+        Note:
+            This method delegates to :meth:`simulate_state_change` under the hood,
+            which means **any** ``bus.on_state_change`` **handler registered for the
+            same entity will also fire** — not just attribute-change handlers. This
+            matches Home Assistant's real behavior (``state_changed`` events fire even
+            when only attributes change), but it affects handler call counts::
+
+                # If your app registers both:
+                self.bus.on_state_change("sensor.temp", handler=self.on_temp_state)
+                self.bus.on_attribute_change("sensor.temp", "temperature", handler=self.on_temp_attr)
+
+                # Then simulate_attribute_change fires BOTH handlers.
+                # Account for this in assert_call_count() assertions.
 
         The state value used for the event is resolved in this order:
         1. The explicit ``state`` argument, if provided.
@@ -639,6 +676,8 @@ class AppTestHarness:
         else:
             state_proxy = harness.hassette._state_proxy
             if state_proxy is not None:
+                # Lock-free read is safe: dict.get() is atomic in CPython, consistent
+                # with StateProxy.get_state()'s documented lock-free read pattern.
                 raw = state_proxy.states.get(entity_id)
                 current_state = raw["state"] if raw is not None else "unknown"
             else:
@@ -690,8 +729,10 @@ class AppTestHarness:
             raise RuntimeError("AppTestHarness is not active")
 
         bus_service = harness.hassette._bus_service
-        if bus_service is not None:
-            await bus_service.await_dispatch_idle(timeout=timeout)
+        assert bus_service is not None, (
+            "BusService unexpectedly None at drain time — harness setup may have partially failed"
+        )
+        await bus_service.await_dispatch_idle(timeout=timeout)
 
     # ------------------------------------------------------------------
     # Time control helpers
@@ -750,6 +791,13 @@ class AppTestHarness:
                 "time-controlling tests must be isolated (e.g., separate xdist workers)."
             )
 
+        # Register teardown BEFORE starting patchers — if p.start() raises, the
+        # lock is still released on exit. Only register once; subsequent freeze_time
+        # calls reuse this callback.
+        if not self._time_patcher_registered:
+            self._exit_stack.callback(self._release_freeze_time)
+            self._time_patcher_registered = True
+
         # Stop existing patchers if active (idempotent re-freeze)
         self._stop_time_patchers()
 
@@ -767,12 +815,6 @@ class AppTestHarness:
                 LOGGER.debug("freeze_time: could not patch %s (module does not import now)", target)
 
         self._time_patcher = patchers
-
-        # Register a single teardown callback (reads self._time_patcher at call time).
-        # Only register once — subsequent freeze_time calls reuse this callback.
-        if not self._time_patcher_registered:
-            self._exit_stack.callback(self._release_freeze_time)
-            self._time_patcher_registered = True
 
     def advance_time(self, *, seconds: float = 0, minutes: float = 0, hours: float = 0) -> None:
         """Advance frozen time by the given delta.
@@ -798,11 +840,15 @@ class AppTestHarness:
     async def trigger_due_jobs(self) -> int:
         """Fire all jobs that are due at the current (possibly frozen) time.
 
-        Snapshots due jobs via a single ``pop_due_and_peek_next(date_utils.now())`` call,
-        then awaits each ``_dispatch_and_log(job)`` inline. Jobs re-enqueued
-        during dispatch (repeating jobs) are not included in this invocation —
-        only the initial snapshot is processed, preventing infinite loops when
-        the clock is frozen.
+        Delegates to :meth:`SchedulerService._test_trigger_due_jobs`, which
+        snapshots due jobs and dispatches them inline. Jobs re-enqueued during
+        dispatch (repeating jobs) are not included — only the initial snapshot
+        is processed, preventing infinite loops when the clock is frozen.
+
+        Note:
+            This bypasses the scheduler's ``serve()`` loop — wakeup events and
+            shutdown guards are not exercised. For testing the scheduler's own
+            timing behavior, use the full harness with real time progression.
 
         Returns:
             The number of jobs that were dispatched and completed.
@@ -818,14 +864,4 @@ class AppTestHarness:
         if scheduler_service is None:
             raise RuntimeError("SchedulerService is not available — ensure with_scheduler() was called")
 
-        # Snapshot due jobs exactly once. Do NOT loop — repeating jobs re-enqueue
-        # during _dispatch_and_log and would fire infinitely with a frozen clock.
-        current_time = date_utils.now()
-        due_jobs, _next_run = await scheduler_service._job_queue.pop_due_and_peek_next(current_time)
-
-        count = 0
-        for job in due_jobs:
-            await scheduler_service._dispatch_and_log(job)
-            count += 1
-
-        return count
+        return await scheduler_service._test_trigger_due_jobs()

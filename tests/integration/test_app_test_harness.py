@@ -4,6 +4,7 @@ Tests the full lifecycle: setup, app initialization, event simulation, teardown,
 config validation, and state preservation.
 """
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -278,8 +279,6 @@ async def test_simulate_state_change_drains_handlers():
             self.bus.on_state_change("sensor.test", handler=self._slow_handler)
 
         async def _slow_handler(self, event: RawStateChangeEvent) -> None:
-            import asyncio
-
             await asyncio.sleep(0.05)  # Simulate async work
             self.handler_finished = True
 

@@ -56,6 +56,10 @@ class BusService(Service):
         self._executor = executor
         self.router = Router()
         self._pending_registration_tasks = defaultdict(list)
+        # Dispatch tracking for deterministic drain in test harnesses.
+        self._dispatch_pending: int = 0
+        self._dispatch_idle_event: asyncio.Event = asyncio.Event()
+        self._dispatch_idle_event.set()  # starts idle
         self._setup_exclusion_filters()
 
     @property
@@ -67,6 +71,13 @@ class BusService(Service):
     def config_log_all_events(self) -> bool:
         """Return whether to log all events."""
         return self.hassette.config.log_all_events
+
+    def _on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:
+        """Callback for dispatch task completion — decrements pending counter."""
+        self._dispatch_pending -= 1
+        if self._dispatch_pending <= 0:
+            self._dispatch_pending = 0  # guard against underflow
+            self._dispatch_idle_event.set()
 
     def _log_task_result(self, task: asyncio.Task[Any]) -> None:
         if task.cancelled():
@@ -253,7 +264,10 @@ class BusService(Service):
 
             self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
             for listener in listeners:
-                self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+                self._dispatch_pending += 1
+                self._dispatch_idle_event.clear()
+                task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+                task.add_done_callback(self._on_dispatch_done)
 
     def _expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
         payload = event.payload
@@ -369,12 +383,18 @@ class BusService(Service):
     async def await_dispatch_idle(self, *, timeout: float = 2.0) -> None:
         """Wait until all dispatched handler tasks have completed.
 
-        Yields to the event loop to let pending events route through the stream
-        and dispatch, then waits until only the long-running ``serve()`` task
-        remains in the task bucket.
+        Uses a monotonic dispatch counter (incremented on spawn, decremented on
+        task completion via ``_on_dispatch_done``) and an ``asyncio.Event`` that
+        is set when the counter reaches zero. This is deterministic — no magic
+        yield counts or bucket-size polling.
 
-        This is the formal drain contract for test harnesses — use this instead
-        of polling ``len(task_bucket)`` directly.
+        Before waiting on the event, yields to the event loop to let pending
+        events route through the stream and into ``dispatch()``.
+
+        Note:
+            This drains tasks spawned by ``BusService.dispatch()`` only. Handler
+            tasks that spawn secondary work via the app's own ``task_bucket`` are
+            not tracked here.
 
         Args:
             timeout: Maximum seconds to wait for dispatch tasks to complete.
@@ -387,20 +407,17 @@ class BusService(Service):
         for _ in range(10):
             await asyncio.sleep(0)
 
-        # Wait for dispatch tasks to drain. serve() is always running (count=1),
-        # so we wait for the count to drop to ≤1.
-        deadline = asyncio.get_running_loop().time() + timeout
-        while len(self.task_bucket) > 1:
-            if asyncio.get_running_loop().time() > deadline:
-                raise TimeoutError(
-                    f"BusService dispatch tasks did not complete within {timeout}s "
-                    f"({len(self.task_bucket)} tasks remaining in bucket)"
-                )
-            await asyncio.sleep(0.01)
+        # Wait for the dispatch counter to reach zero.
+        try:
+            await asyncio.wait_for(self._dispatch_idle_event.wait(), timeout=timeout)
+        except TimeoutError:
+            raise TimeoutError(
+                f"BusService dispatch tasks did not complete within {timeout}s "
+                f"({self._dispatch_pending} dispatch tasks still pending)"
+            ) from None
 
-        # Extra yields to let any tasks spawned by handlers complete.
-        for _ in range(5):
-            await asyncio.sleep(0)
+        # Final yield to let any synchronous follow-up work complete.
+        await asyncio.sleep(0)
 
     async def serve(self) -> None:
         """Worker loop that processes events from the stream."""

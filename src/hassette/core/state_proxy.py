@@ -316,7 +316,9 @@ class StateProxy(Resource):
 
         Acquires the write lock and inserts state_dict under entity_id without
         calling mark_ready() — lifecycle management is the harness's responsibility.
-        Do NOT call this method in production code.
+
+        Raises RuntimeError if the hassette instance does not have ``_test_mode``
+        set to True (set by AppTestHarness during setup).
 
         Note:
             This method bypasses the staleness guard used by ``_on_state_change``.
@@ -327,6 +329,11 @@ class StateProxy(Resource):
             entity_id: The entity ID to seed (e.g., "light.kitchen").
             state_dict: The raw state dictionary to insert.
         """
+        if not getattr(self.hassette, "_test_mode", False):
+            raise RuntimeError(
+                "_test_seed_state must not be called outside of test context. "
+                "Use AppTestHarness to seed state in tests."
+            )
         async with self.lock:
             self.states[entity_id] = state_dict
 
