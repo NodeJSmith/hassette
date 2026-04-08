@@ -73,8 +73,10 @@ async def test_turn_on_records_call():
     await api.turn_on("light.test", brightness=150)
     assert len(api.calls) == 1
     call = api.calls[0]
-    assert call.method == "turn_on"
-    assert "light.test" in call.args or call.kwargs.get("entity_id") == "light.test"
+    # turn_on delegates to call_service, matching real Api wire format
+    assert call.method == "call_service"
+    assert call.kwargs.get("target") == {"entity_id": "light.test"}
+    assert call.kwargs.get("brightness") == 150
 
 
 @pytest.mark.asyncio
@@ -132,7 +134,10 @@ async def test_turn_off_records_call():
     api = _make_recording_api()
     await api.turn_off("switch.fan")
     assert len(api.calls) == 1
-    assert api.calls[0].method == "turn_off"
+    call = api.calls[0]
+    assert call.method == "call_service"
+    assert call.kwargs.get("service") == "turn_off"
+    assert call.kwargs.get("target") == {"entity_id": "switch.fan"}
 
 
 @pytest.mark.asyncio
@@ -140,7 +145,10 @@ async def test_toggle_service_records_call():
     api = _make_recording_api()
     await api.toggle_service("light.kitchen")
     assert len(api.calls) == 1
-    assert api.calls[0].method == "toggle_service"
+    call = api.calls[0]
+    assert call.method == "call_service"
+    assert call.kwargs.get("service") == "toggle"
+    assert call.kwargs.get("target") == {"entity_id": "light.kitchen"}
 
 
 # ---------------------------------------------------------------------------
@@ -260,21 +268,22 @@ async def test_unstubbed_get_history_raises():
 async def test_assert_called_matching():
     api = _make_recording_api()
     await api.turn_on("light.kitchen")
-    api.assert_called("turn_on")
+    # turn_on delegates to call_service
+    api.assert_called("call_service", service="turn_on", target={"entity_id": "light.kitchen"})
 
 
 @pytest.mark.asyncio
 async def test_assert_called_with_kwargs():
     api = _make_recording_api()
     await api.turn_on("light.kitchen", brightness=150)
-    api.assert_called("turn_on", brightness=150)
+    api.assert_called("call_service", service="turn_on", brightness=150)
 
 
 @pytest.mark.asyncio
 async def test_assert_called_fails_when_not_called():
     api = _make_recording_api()
     with pytest.raises(AssertionError):
-        api.assert_called("turn_on")
+        api.assert_called("call_service")
 
 
 @pytest.mark.asyncio
@@ -282,13 +291,13 @@ async def test_assert_called_fails_when_kwargs_do_not_match():
     api = _make_recording_api()
     await api.turn_on("light.kitchen")
     with pytest.raises(AssertionError):
-        api.assert_called("turn_on", brightness=999)
+        api.assert_called("call_service", brightness=999)
 
 
 @pytest.mark.asyncio
 async def test_assert_not_called_passes_when_not_called():
     api = _make_recording_api()
-    api.assert_not_called("turn_on")  # should not raise
+    api.assert_not_called("call_service")  # should not raise
 
 
 @pytest.mark.asyncio
@@ -296,7 +305,7 @@ async def test_assert_not_called_fails_when_called():
     api = _make_recording_api()
     await api.turn_on("light.kitchen")
     with pytest.raises(AssertionError):
-        api.assert_not_called("turn_on")
+        api.assert_not_called("call_service")
 
 
 @pytest.mark.asyncio
@@ -304,7 +313,7 @@ async def test_assert_call_count():
     api = _make_recording_api()
     await api.turn_on("light.a")
     await api.turn_on("light.b")
-    api.assert_call_count("turn_on", 2)
+    api.assert_call_count("call_service", 2)
 
 
 @pytest.mark.asyncio
@@ -312,7 +321,7 @@ async def test_assert_call_count_fails_with_wrong_count():
     api = _make_recording_api()
     await api.turn_on("light.a")
     with pytest.raises(AssertionError):
-        api.assert_call_count("turn_on", 2)
+        api.assert_call_count("call_service", 2)
 
 
 @pytest.mark.asyncio
@@ -328,10 +337,13 @@ async def test_get_calls_all():
 async def test_get_calls_filtered():
     api = _make_recording_api()
     await api.turn_on("light.a")
-    await api.turn_off("light.b")
-    turn_on_calls = api.get_calls("turn_on")
-    assert len(turn_on_calls) == 1
-    assert turn_on_calls[0].method == "turn_on"
+    await api.set_state("sensor.x", "active")
+    # turn_on delegates to call_service; set_state is its own method
+    call_service_calls = api.get_calls("call_service")
+    assert len(call_service_calls) == 1
+    assert call_service_calls[0].method == "call_service"
+    set_state_calls = api.get_calls("set_state")
+    assert len(set_state_calls) == 1
 
 
 @pytest.mark.asyncio

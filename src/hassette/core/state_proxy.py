@@ -318,6 +318,11 @@ class StateProxy(Resource):
         calling mark_ready() — lifecycle management is the harness's responsibility.
         Do NOT call this method in production code.
 
+        Note:
+            This method bypasses the staleness guard used by ``_on_state_change``.
+            ``AppTestHarness.set_state`` relies on this bypass — see its docstring
+            for the ordering contract (seed before simulate, not after).
+
         Args:
             entity_id: The entity ID to seed (e.g., "light.kitchen").
             state_dict: The raw state dictionary to insert.

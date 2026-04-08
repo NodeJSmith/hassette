@@ -10,7 +10,7 @@ Typical usage::
         await harness.simulate_state_change(
             "binary_sensor.test", old_value="off", new_value="on"
         )
-        harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
+        harness.api_recorder.assert_called("call_service", service="turn_on", target={"entity_id": "light.kitchen"})
 
 See design/specs/2033-end-user-test-utils/design.md for architecture details.
 """
@@ -22,6 +22,8 @@ import logging
 import re
 import shutil
 import tempfile
+import threading
+import weakref
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -35,6 +37,7 @@ import pydantic
 from pydantic_settings.sources import InitSettingsSource
 from whenever import Instant, ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette import context
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -49,9 +52,25 @@ from hassette.test_utils.harness import HassetteHarness, wait_for
 from hassette.test_utils.helpers import create_call_service_event, create_state_change_event, make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types.enums import ResourceStatus
-from hassette.utils.date_utils import now
 
 LOGGER = logging.getLogger(__name__)
+
+# Module-level lock for freeze_time — prevents concurrent harnesses from
+# silently corrupting each other's time patches (Finding 3).
+_FREEZE_TIME_LOCK = threading.Lock()
+
+# Per-class asyncio.Lock to prevent concurrent harnesses for the same App class
+# from corrupting class-level _api_factory / app_manifest (Finding 2).
+_CLASS_LOCKS: weakref.WeakKeyDictionary[type, asyncio.Lock] = weakref.WeakKeyDictionary()
+
+
+def _get_class_lock(cls: type) -> asyncio.Lock:
+    """Return the per-class asyncio.Lock, creating one if needed."""
+    lock = _CLASS_LOCKS.get(cls)
+    if lock is None:
+        lock = asyncio.Lock()
+        _CLASS_LOCKS[cls] = lock
+    return lock
 
 
 class _TestClock:
@@ -276,7 +295,7 @@ class AppTestHarness:
         self._time_patcher_registered: bool = False
 
     async def __aenter__(self) -> "AppTestHarness":
-        """Set up the full harness in 12 steps with LIFO teardown via AsyncExitStack."""
+        """Set up the full harness in 13 steps with LIFO teardown via AsyncExitStack."""
         exit_stack = AsyncExitStack()
         self._exit_stack = exit_stack
 
@@ -350,18 +369,25 @@ class AppTestHarness:
             raise RuntimeError("StateProxy was not started — ensure with_state_proxy() is called")
         state_proxy.mark_ready(reason="AppTestHarness: mark ready for test")
 
-        # Step 9: Synthesize AppManifest and set on class with save/restore
+        # Step 9: Acquire per-class lock to prevent concurrent harnesses for the
+        # same App class from corrupting class-level attributes (Finding 2).
+        class_lock = _get_class_lock(self._app_cls)
+        await class_lock.acquire()
+        exit_stack.callback(class_lock.release)
+
+        # Step 10: Synthesize AppManifest and set on class with save/restore
         manifest = _synthesize_manifest(self._app_cls)
         original_manifest = getattr(self._app_cls, "app_manifest", self._UNSET)
         self._app_cls.app_manifest = manifest
         exit_stack.callback(self._restore_manifest, original_manifest)
 
-        # Step 10: Set _api_factory on class with save/restore
-        original_api_factory = getattr(self._app_cls, "_api_factory", self._UNSET)
+        # Step 11: Set _api_factory on class with save/restore
+        # Use __dict__ to check the class's own dict, not MRO — matches _restore_api_factory's delattr logic
+        original_api_factory = self._app_cls.__dict__.get("_api_factory", self._UNSET)
         self._app_cls._api_factory = RecordingApi  # pyright: ignore[reportAttributeAccessIssue]
         exit_stack.callback(self._restore_api_factory, original_api_factory)
 
-        # Step 11: Instantiate the app
+        # Step 12: Instantiate the app
         app = self._app_cls(
             hassette=harness.hassette,  # pyright: ignore[reportArgumentType]
             app_config=validated_config,
@@ -374,9 +400,10 @@ class AppTestHarness:
 
         self._app = app
 
-        # Step 12: Register app shutdown first (late registration = early unwind)
-        # This ensures app shuts down before harness.stop() runs
-        exit_stack.push_async_callback(app.shutdown)
+        # Step 13: Register app shutdown first (late registration = early unwind)
+        # This ensures app shuts down before harness.stop() runs.
+        # Wrapped to prevent shutdown exceptions from masking the original test failure.
+        exit_stack.push_async_callback(self._safe_app_shutdown, app)
 
         # Start the app lifecycle
         app.start()
@@ -385,6 +412,18 @@ class AppTestHarness:
             desc=f"{app.class_name} RUNNING",
             timeout=5.0,
         )
+
+    @staticmethod
+    async def _safe_app_shutdown(app: App) -> None:
+        """Shut down the app, logging but not re-raising exceptions.
+
+        Prevents a crashing ``app.shutdown()`` from masking the original test
+        failure during ``AsyncExitStack`` teardown.
+        """
+        try:
+            await app.shutdown()
+        except Exception:
+            LOGGER.warning("AppTestHarness: app.shutdown() raised during teardown", exc_info=True)
 
     def _cleanup_tmpdir(self, data_dir: Path) -> None:
         """Remove auto-created tmpdir on teardown."""
@@ -405,7 +444,8 @@ class AppTestHarness:
     def _restore_api_factory(self, original: Any) -> None:
         """Restore app_cls._api_factory to its original value."""
         if original is self._UNSET:
-            self._app_cls._api_factory = None  # pyright: ignore[reportAttributeAccessIssue]
+            with contextlib.suppress(AttributeError):
+                del self._app_cls._api_factory  # pyright: ignore[reportAttributeAccessIssue]
         else:
             self._app_cls._api_factory = original  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -460,8 +500,13 @@ class AppTestHarness:
         """Seed an entity's state in the StateProxy.
 
         Uses make_state_dict() internally with a past sentinel timestamp
-        (1970-01-01T00:00:00Z) so that any subsequent simulate_state_change()
-        with a current or future timestamp always supersedes the seeded value.
+        (1970-01-01T00:00:00Z). Simulated events sent via ``simulate_state_change``
+        bypass ``StateProxy``'s staleness guard entirely (they use
+        ``_test_seed_state``), so the epoch timestamp does not play a protective
+        ordering role — it simply marks seeded state as obviously synthetic.
+
+        Call ``set_state`` **before** ``simulate_state_change`` for the same entity.
+        Calling it afterward will overwrite the simulated state with the seeded value.
 
         This is for pre-test setup only and does NOT fire bus events.
 
@@ -561,10 +606,20 @@ class AppTestHarness:
     ) -> None:
         """Create an attribute change event and send it through the bus.
 
+        Internally delegates to :meth:`simulate_state_change` with
+        ``old_value == new_value == current_state``. This means **any handler
+        registered via** ``bus.on_state_change`` **for the same entity will
+        also fire** — not just attribute-change handlers. If your test checks
+        handler call counts, account for this.
+
         The state value used for the event is resolved in this order:
         1. The explicit ``state`` argument, if provided.
         2. The current cached state value for the entity in the StateProxy.
         3. ``"unknown"`` if the entity has not been seeded.
+
+        Tip:
+            Call :meth:`set_state` for the entity before
+            ``simulate_attribute_change`` to avoid the ``"unknown"`` fallback.
 
         Args:
             entity_id: The entity ID whose attribute changed.
@@ -625,13 +680,8 @@ class AppTestHarness:
     async def _drain_task_bucket(self, *, timeout: float = 2.0) -> None:
         """Wait until all bus-dispatched handler tasks have completed.
 
-        Yields control to the event loop (allowing BusService's serve() to process
-        the event and call dispatch, which spawns _dispatch tasks). Then waits until
-        only the BusService's long-running serve() task remains in the bucket
-        (all handler dispatch tasks have finished).
-
-        The BusService task bucket always contains at least 1 long-running task (serve()),
-        so we wait for the count to drop back to ≤1, not 0.
+        Delegates to :meth:`BusService.await_dispatch_idle` — the formal drain
+        contract that encapsulates the yield/poll logic.
 
         Args:
             timeout: Maximum seconds to wait.
@@ -640,60 +690,45 @@ class AppTestHarness:
         if harness is None:
             raise RuntimeError("AppTestHarness is not active")
 
-        # Yield to let BusService.serve() pick up the queued event and run dispatch().
-        # dispatch() spawns _dispatch tasks and returns. Multiple yields are needed to
-        # let the anyio memory channel route the event through EventStreamService to
-        # BusService, then for BusService to call dispatch, then for dispatch tasks to run.
-        for _ in range(10):
-            await asyncio.sleep(0)
-
-        # Wait for dispatch tasks to complete. BusService.task_bucket always has the
-        # serve() task running (count=1), so we wait for count to reach ≤1.
         bus_service = harness.hassette._bus_service
         if bus_service is not None:
-            await wait_for(
-                lambda: len(bus_service.task_bucket) <= 1,
-                timeout=timeout,
-                desc="bus dispatch tasks drained",
-            )
-
-        # Extra yields to let any tasks spawned by handlers complete (e.g., app.api.turn_on).
-        for _ in range(5):
-            await asyncio.sleep(0)
+            await bus_service.await_dispatch_idle(timeout=timeout)
 
     # ------------------------------------------------------------------
     # Time control helpers
     # ------------------------------------------------------------------
 
-    # Modules that import `now` via `from hassette.utils.date_utils import now`.
-    # All of these must be patched simultaneously for freeze_time to work correctly
-    # across production code and the harness itself. New import sites in production
-    # code should be added here.
-    _NOW_PATCH_TARGETS: ClassVar[tuple[str, ...]] = (
-        "hassette.utils.date_utils.now",
-        "hassette.core.scheduler_service.now",
-        "hassette.scheduler.scheduler.now",
-        "hassette.scheduler.classes.now",
-        "hassette.app.app.now",
-        "hassette.test_utils.app_harness.now",
-    )
+    # Single patch target for freeze_time. All production code accesses now() via
+    # the module attribute (date_utils.now()), so patching the canonical source
+    # is sufficient — no per-module patch list needed.
+    _NOW_PATCH_TARGETS: ClassVar[tuple[str, ...]] = ("hassette.utils.date_utils.now",)
 
     def _stop_time_patchers(self) -> None:
         """Stop all active time patchers. Called by exit stack on teardown."""
         if self._time_patcher is not None:
             for p in self._time_patcher:
-                p.stop()  # pyright: ignore[reportAttributeAccessIssue]
+                try:
+                    p.stop()  # pyright: ignore[reportAttributeAccessIssue]
+                except Exception:
+                    LOGGER.warning("freeze_time: failed to stop patcher %s", p, exc_info=True)
             self._time_patcher = None
+
+    def _release_freeze_time(self) -> None:
+        """Stop time patchers and release the process-global freeze_time lock."""
+        self._stop_time_patchers()
+        with contextlib.suppress(RuntimeError):
+            _FREEZE_TIME_LOCK.release()
 
     def freeze_time(self, instant: Instant | ZonedDateTime) -> None:
         """Freeze time at the given instant.
 
-        Patches all known ``now()`` import sites to return the frozen time.
+        Patches ``hassette.utils.date_utils.now`` to return the frozen time.
         Idempotent — calling again replaces the frozen time (stops old patchers first).
 
         The patchers are automatically stopped when the harness exits via the exit stack.
-        Time control is process-global — not safe for concurrent test execution within
-        the same process.
+        A process-global lock prevents concurrent harnesses from silently corrupting
+        each other's frozen clock. If another harness already holds the lock, a
+        ``RuntimeError`` is raised immediately.
 
         Must be called inside ``async with AppTestHarness(...) as harness:`` — raises
         RuntimeError if called before entering the context manager.
@@ -702,10 +737,19 @@ class AppTestHarness:
             instant: The time to freeze at, as an Instant or ZonedDateTime.
 
         Raises:
-            RuntimeError: If called outside the async with block.
+            RuntimeError: If called outside the async with block, or if another
+                harness already holds the freeze_time lock.
         """
         if self._exit_stack is None:
             raise RuntimeError("freeze_time() must be called inside 'async with AppTestHarness(...) as harness:'.")
+
+        # Acquire the process-global lock (non-blocking). Idempotent re-freeze
+        # from the same harness is allowed (we already hold the lock).
+        if self._time_patcher is None and not _FREEZE_TIME_LOCK.acquire(blocking=False):
+            raise RuntimeError(
+                "freeze_time is already held by another harness — "
+                "time-controlling tests must be isolated (e.g., separate xdist workers)."
+            )
 
         # Stop existing patchers if active (idempotent re-freeze)
         self._stop_time_patchers()
@@ -728,7 +772,7 @@ class AppTestHarness:
         # Register a single teardown callback (reads self._time_patcher at call time).
         # Only register once — subsequent freeze_time calls reuse this callback.
         if not self._time_patcher_registered:
-            self._exit_stack.callback(self._stop_time_patchers)
+            self._exit_stack.callback(self._release_freeze_time)
             self._time_patcher_registered = True
 
     def advance_time(self, *, seconds: float = 0, minutes: float = 0, hours: float = 0) -> None:
@@ -755,7 +799,7 @@ class AppTestHarness:
     async def trigger_due_jobs(self) -> int:
         """Fire all jobs that are due at the current (possibly frozen) time.
 
-        Snapshots due jobs via a single ``pop_due_and_peek_next(now())`` call,
+        Snapshots due jobs via a single ``pop_due_and_peek_next(date_utils.now())`` call,
         then awaits each ``_dispatch_and_log(job)`` inline. Jobs re-enqueued
         during dispatch (repeating jobs) are not included in this invocation —
         only the initial snapshot is processed, preventing infinite loops when
@@ -777,7 +821,7 @@ class AppTestHarness:
 
         # Snapshot due jobs exactly once. Do NOT loop — repeating jobs re-enqueue
         # during _dispatch_and_log and would fire infinitely with a frozen clock.
-        current_time = now()
+        current_time = date_utils.now()
         due_jobs, _next_run = await scheduler_service._job_queue.pop_due_and_peek_next(current_time)
 
         count = 0

@@ -366,6 +366,42 @@ class BusService(Service):
         self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()
 
+    async def await_dispatch_idle(self, *, timeout: float = 2.0) -> None:
+        """Wait until all dispatched handler tasks have completed.
+
+        Yields to the event loop to let pending events route through the stream
+        and dispatch, then waits until only the long-running ``serve()`` task
+        remains in the task bucket.
+
+        This is the formal drain contract for test harnesses — use this instead
+        of polling ``len(task_bucket)`` directly.
+
+        Args:
+            timeout: Maximum seconds to wait for dispatch tasks to complete.
+
+        Raises:
+            TimeoutError: If dispatch tasks are still running after ``timeout``.
+        """
+        # Yield to let EventStreamService → BusService.serve() → dispatch() run.
+        # Multiple yields are needed for the anyio memory channel hops.
+        for _ in range(10):
+            await asyncio.sleep(0)
+
+        # Wait for dispatch tasks to drain. serve() is always running (count=1),
+        # so we wait for the count to drop to ≤1.
+        deadline = asyncio.get_running_loop().time() + timeout
+        while len(self.task_bucket) > 1:
+            if asyncio.get_running_loop().time() > deadline:
+                raise TimeoutError(
+                    f"BusService dispatch tasks did not complete within {timeout}s "
+                    f"({len(self.task_bucket)} tasks remaining in bucket)"
+                )
+            await asyncio.sleep(0.01)
+
+        # Extra yields to let any tasks spawned by handlers complete.
+        for _ in range(5):
+            await asyncio.sleep(0)
+
     async def serve(self) -> None:
         """Worker loop that processes events from the stream."""
 

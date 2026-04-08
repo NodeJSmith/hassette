@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - End-user test utilities: `AppTestHarness`, `RecordingApi`, `make_test_config` — test hassette apps with `async with AppTestHarness(MyApp, config={...}) as harness:` pattern (#492)
 - Time control for scheduler tests: `freeze_time()`, `advance_time()`, `trigger_due_jobs()` (#492)
+- `RecordingApi.turn_on`/`turn_off`/`toggle_service` now delegate to `call_service`, matching real Api wire format — assert via `assert_called("call_service", service="turn_on", target={"entity_id": "light.kitchen"})` (#492)
+- Concurrency guards: per-class `asyncio.Lock` for `AppTestHarness`, `threading.Lock` for `freeze_time` — concurrent use now raises `RuntimeError` instead of silent corruption (#492)
 - `pip install hassette[test]` optional dependency group for test requirements (#492)
 - Preserve listener/job registrations across app restarts — "All Time" telemetry now shows cross-session history instead of matching "This Session" (#487)
 - Optional `name=` parameter on `Bus.on()` for explicit listener identity when predicate-based keys collide (#487)

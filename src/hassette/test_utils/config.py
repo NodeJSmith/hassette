@@ -57,13 +57,14 @@ def make_test_config(**overrides: Any) -> HassetteConfig:
     defaults: dict[str, Any] = {
         "token": "test-token",
         "base_url": "http://test.invalid:8123",
-        "data_dir": tempfile.mkdtemp(prefix="hassette_test_"),
         "disable_state_proxy_polling": True,
         "autodetect_apps": False,
         "run_web_api": False,
         "run_app_precheck": False,
     }
     merged = {**defaults, **overrides}
+    if "data_dir" not in merged:
+        merged["data_dir"] = tempfile.mkdtemp(prefix="hassette_test_")
 
     class _HermeticHassetteConfig(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {

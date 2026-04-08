@@ -5,6 +5,7 @@ from typing import Any, ClassVar, Generic, cast, final
 
 from whenever import ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.config.classes import AppManifest
@@ -15,7 +16,6 @@ from hassette.state_manager import StateManager
 from hassette.types import AppConfigT
 from hassette.types.enums import ResourceRole
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.date_utils import now
 
 from .app_config import AppConfig
 
@@ -128,7 +128,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     def now(self) -> ZonedDateTime:
         """Return the current date and time."""
-        return now()
+        return date_utils.now()
 
     async def send_event(self, event_name: str, event: Event[Any]) -> None:
         """Send an event to the event bus."""

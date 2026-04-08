@@ -35,12 +35,12 @@ async with AppTestHarness(MotionLights, config={"motion_entity": "binary_sensor.
     # harness.api_recorder — RecordingApi (for asserting app-initiated calls)
     # harness.states — StateManager with seeding helpers
     await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
-    harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
+    harness.api_recorder.assert_called("call_service", service="turn_on", target={"entity_id": "light.kitchen"})
 ```
 
-**Two APIs in tests**: `harness.api_recorder` is the `RecordingApi` wrapping `app.api` — it records calls the app makes (e.g., `turn_on`, `call_service`). The internal `hassette.api` (an `AsyncMock` used by `StateProxy` for cache loading) is a separate object not intended for assertion. This split is an architectural reality of the harness — `StateProxy`'s internal API calls are not user-visible behavior.
+**Two APIs in tests**: `harness.api_recorder` is the `RecordingApi` wrapping `app.api` — it records calls the app makes. Convenience methods (`turn_on`, `turn_off`, `toggle_service`) delegate to `call_service` matching the real Api's wire format, so assertions use `assert_called("call_service", service="turn_on", ...)` rather than `assert_called("turn_on", ...)`. The internal `hassette.api` (an `AsyncMock` used by `StateProxy` for cache loading) is a separate object not intended for assertion. This split is an architectural reality of the harness — `StateProxy`'s internal API calls are not user-visible behavior.
 
-**Concurrency constraint**: `AppTestHarness` mutates class-level attributes (`app_manifest`, `_api_factory`) with save/restore on teardown. This is safe for sequential tests and for parallel tests across separate processes (pytest-xdist workers). It is **not safe** for concurrent use within the same process for the same App class. Tests using the same App class must run in separate xdist workers (`--dist loadfile`) or sequentially.
+**Concurrency constraint**: `AppTestHarness` mutates class-level attributes (`app_manifest`, `_api_factory`) with save/restore on teardown, protected by a per-class `asyncio.Lock`. This is safe for sequential tests, parallel tests across separate processes (pytest-xdist workers), and concurrent harnesses for different App classes within the same process. Concurrent harnesses for the **same** App class are serialized by the lock.
 
 #### What `AppTestHarness.__init__` does
 
@@ -210,22 +210,20 @@ These use the existing `create_state_change_event()`, `create_call_service_event
 Methods on `AppTestHarness` that seed the `StateProxy` with initial entity state via a new `StateProxy._test_seed_state()` method:
 
 ```python
-def set_state(self, entity_id: str, state: str, **attributes: Any) -> None:
+async def set_state(self, entity_id: str, state: str, **attributes: Any) -> None:
     """Seed an entity's state in the StateProxy.
 
     Uses make_state_dict() internally with a past sentinel timestamp
-    (1970-01-01T00:00:00Z) so that any subsequent simulate_state_change()
-    with a current or future timestamp always supersedes the seeded value.
-    Users must not call freeze_time() at the sentinel timestamp.
-
-    This is for pre-test setup only and does NOT fire bus events.
+    (1970-01-01T00:00:00Z). Call set_state before simulate_state_change
+    for the same entity. This is for pre-test setup only and does NOT fire
+    bus events.
     """
 
-def set_states(self, states: dict[str, str | tuple[str, dict]]) -> None:
+async def set_states(self, states: dict[str, str | tuple[str, dict]]) -> None:
     """Seed multiple entities at once.
 
     Example:
-        harness.set_states({
+        await harness.set_states({
             "light.kitchen": "on",
             "sensor.temp": ("25.5", {"unit_of_measurement": "°C"}),
         })
@@ -300,7 +298,7 @@ harness.freeze_time(Instant.from_utc(2026, 4, 7, 6, 0))
 harness.advance_time(hours=1)
 count = await harness.trigger_due_jobs()  # fires the 7:00 job
 assert count == 1
-harness.api_recorder.assert_called("turn_on", entity_id="cover.blinds")
+harness.api_recorder.assert_called("call_service", service="turn_on", target={"entity_id": "cover.blinds"})
 ```
 
 ### Minimal config helper

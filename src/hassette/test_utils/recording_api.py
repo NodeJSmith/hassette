@@ -73,8 +73,8 @@ class ApiProtocol(Protocol):
     # Read methods
     async def get_state(self, entity_id: str) -> BaseState: ...
     async def get_states(self) -> list[BaseState]: ...
-    async def get_entity(self, entity_id: str, model: type[Any] | None = None) -> BaseState: ...
-    async def get_entity_or_none(self, entity_id: str, model: type[Any] | None = None) -> BaseState | None: ...
+    async def get_entity(self, entity_id: str, model: type[Any] = ...) -> BaseState: ...
+    async def get_entity_or_none(self, entity_id: str, model: type[Any] = ...) -> BaseState | None: ...
     async def entity_exists(self, entity_id: str) -> bool: ...
     async def get_state_or_none(self, entity_id: str) -> BaseState | None: ...
 
@@ -142,22 +142,17 @@ class RecordingApi(Resource):
     # ------------------------------------------------------------------
 
     async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
-        """Record a turn_on call. No-op stub."""
-        self.calls.append(
-            ApiCall(method="turn_on", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
-        )
+        """Record a turn_on call. Delegates to :meth:`call_service` matching the real Api."""
+        entity_id = str(entity_id)
+        await self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
 
     async def turn_off(self, entity_id: str, domain: str = "homeassistant") -> None:
-        """Record a turn_off call. No-op stub."""
-        self.calls.append(
-            ApiCall(method="turn_off", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain})
-        )
+        """Record a turn_off call. Delegates to :meth:`call_service` matching the real Api."""
+        await self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
 
     async def toggle_service(self, entity_id: str, domain: str = "homeassistant") -> None:
-        """Record a toggle_service call. No-op stub."""
-        self.calls.append(
-            ApiCall(method="toggle_service", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain})
-        )
+        """Record a toggle_service call. Delegates to :meth:`call_service` matching the real Api."""
+        await self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
 
     async def call_service(
         self,
@@ -243,28 +238,21 @@ class RecordingApi(Resource):
         return self._convert_state(raw, entity_id)
 
     async def get_states(self) -> list[BaseState]:
-        """Return typed states for all seeded entities.
+        """Return typed states for all seeded entities."""
+        # Snapshot the dict to avoid RuntimeError from concurrent mutation.
+        items = list(self._state_proxy.states.items())
+        return [self._convert_state(raw, eid) for eid, raw in items]
 
-        Note:
-            This method iterates ``StateProxy.states`` without holding the write lock.
-            In concurrent scenarios where ``_on_state_change`` mutates the dict while
-            iteration is in progress, a ``RuntimeError: dictionary changed size during
-            iteration`` may be raised. In typical test usage this is safe — tests are
-            single-threaded and do not mutate state concurrently — but callers that mix
-            ``get_states()`` with concurrent event simulation should be aware of this
-            limitation.
-        """
-        return [self._convert_state(raw, eid) for eid, raw in self._state_proxy.states.items()]
-
-    async def get_entity(self, entity_id: str, model: type[Any] | None = None) -> BaseState:
+    async def get_entity(self, entity_id: str, model: type[Any] = BaseState) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded.
 
-        The model parameter is accepted for signature compatibility with the real Api
-        but is not used — RecordingApi always returns BaseState from the state proxy.
+        The ``model`` parameter is required to match the real ``Api.get_entity`` signature.
+        RecordingApi always returns BaseState from the state proxy — ``model`` is accepted
+        for call-signature fidelity but is not used for casting.
         """
         return await self.get_state(entity_id)
 
-    async def get_entity_or_none(self, entity_id: str, model: type[Any] | None = None) -> BaseState | None:
+    async def get_entity_or_none(self, entity_id: str, model: type[Any] = BaseState) -> BaseState | None:
         """Return the typed state for entity_id, or None if not seeded."""
         try:
             return await self.get_state(entity_id)
@@ -335,6 +323,23 @@ class RecordingApi(Resource):
         _not_implemented("delete_entity")
 
     # ------------------------------------------------------------------
+    # Fallback for uncovered methods
+    # ------------------------------------------------------------------
+
+    def __getattr__(self, name: str) -> Any:
+        """Raise NotImplementedError for public attributes not defined on RecordingApi.
+
+        Private/dunder attributes fall through to the default AttributeError so that
+        Resource internals (e.g. ``_unique_name``) and Python machinery work correctly.
+        """
+        if name.startswith("_"):
+            raise AttributeError(name)
+        raise NotImplementedError(
+            f"RecordingApi.{name} is not implemented. "
+            "Use SimpleTestServer for full Api coverage, or seed state via AppTestHarness.set_state()."
+        )
+
+    # ------------------------------------------------------------------
     # Assertion helpers
     # ------------------------------------------------------------------
 
@@ -377,7 +382,7 @@ class RecordingApi(Resource):
                 # Check that all expected kwargs appear in the call's recorded kwargs.
                 # Write methods record positional args in both call.args and call.kwargs
                 # so kwargs-based assertions work uniformly for all methods.
-                if all(call.kwargs.get(k) == v for k, v in kwargs.items()):
+                if all(k in call.kwargs and call.kwargs[k] == v for k, v in kwargs.items()):
                     return
             raise AssertionError(
                 f"'{method}' was called {len(matching)} time(s), but none matched kwargs {kwargs!r}. "
@@ -417,7 +422,7 @@ class RecordingApi(Resource):
 
     def reset(self) -> None:
         """Clear all recorded calls."""
-        self.calls = []
+        self.calls.clear()
 
 
 # ---------------------------------------------------------------------------
