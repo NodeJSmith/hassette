@@ -161,10 +161,13 @@ class SessionRecord(BaseModel):
     started_at: float
     stopped_at: float | None
     status: str
-    source_tier: SourceTier = "framework"
     error_type: str | None
     error_message: str | None
     duration_seconds: float | None
+    dropped_overflow: int = 0
+    dropped_exhausted: int = 0
+    dropped_no_session: int = 0
+    dropped_shutdown: int = 0
 
 
 class SessionSummary(BaseModel):

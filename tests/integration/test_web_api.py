@@ -1007,21 +1007,25 @@ class TestStatusDropCounters:
 
     async def test_status_includes_drop_counters_zero(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Healthy status includes drop counters defaulting to zero."""
-        mock_hassette.get_drop_counters.return_value = (0, 0)
+        mock_hassette.get_drop_counters.return_value = (0, 0, 0, 0)
         response = await client.get("/api/telemetry/status")
         assert response.status_code == 200
         data = response.json()
         assert data["dropped_overflow"] == 0
         assert data["dropped_exhausted"] == 0
+        assert data["dropped_no_session"] == 0
+        assert data["dropped_shutdown"] == 0
 
     async def test_status_includes_nonzero_drop_counters(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Non-zero drop counters from Hassette.get_drop_counters() appear in the response."""
-        mock_hassette.get_drop_counters.return_value = (7, 3)
+        mock_hassette.get_drop_counters.return_value = (7, 3, 2, 1)
         response = await client.get("/api/telemetry/status")
         assert response.status_code == 200
         data = response.json()
         assert data["dropped_overflow"] == 7
         assert data["dropped_exhausted"] == 3
+        assert data["dropped_no_session"] == 2
+        assert data["dropped_shutdown"] == 1
 
     async def test_status_degraded_has_zero_drop_counters(
         self, client: "AsyncClient", mock_hassette: MagicMock

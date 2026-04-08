@@ -79,13 +79,16 @@ class TestFreshMigration:
         assert expected.issubset(tables)
 
     def test_all_tables_have_source_tier_column(self, tmp_path: Path) -> None:
-        """All 5 tables must have a source_tier column."""
+        """listeners, scheduled_jobs, handler_invocations, job_executions must have a source_tier column.
+
+        sessions does NOT have source_tier — it uses drop counter columns instead.
+        """
         db_path = str(tmp_path / "test.db")
         _run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
-            for table in ("sessions", "listeners", "scheduled_jobs", "handler_invocations", "job_executions"):
+            for table in ("listeners", "scheduled_jobs", "handler_invocations", "job_executions"):
                 cursor = conn.execute(f"PRAGMA table_info({table})")
                 cols = {row[1] for row in cursor.fetchall()}
                 assert "source_tier" in cols, f"source_tier missing from {table}"
@@ -127,10 +130,7 @@ class TestFreshMigration:
         conn.execute("PRAGMA foreign_keys = ON")
         try:
             # Insert a valid session first
-            conn.execute(
-                "INSERT INTO sessions (started_at, last_heartbeat_at, status, source_tier) "
-                "VALUES (1.0, 1.0, 'running', 'framework')"
-            )
+            conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
@@ -149,10 +149,7 @@ class TestFreshMigration:
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
         try:
-            conn.execute(
-                "INSERT INTO sessions (started_at, last_heartbeat_at, status, source_tier) "
-                "VALUES (1.0, 1.0, 'running', 'framework')"
-            )
+            conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
@@ -171,10 +168,7 @@ class TestFreshMigration:
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
         try:
-            conn.execute(
-                "INSERT INTO sessions (started_at, last_heartbeat_at, status, source_tier) "
-                "VALUES (1.0, 1.0, 'running', 'framework')"
-            )
+            conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
@@ -193,10 +187,7 @@ class TestFreshMigration:
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
         try:
-            conn.execute(
-                "INSERT INTO sessions (started_at, last_heartbeat_at, status, source_tier) "
-                "VALUES (1.0, 1.0, 'running', 'framework')"
-            )
+            conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.commit()
             conn.execute(
                 "INSERT INTO handler_invocations "
@@ -247,8 +238,8 @@ class TestFreshMigration:
         finally:
             conn.close()
 
-    def test_sessions_defaults_source_tier_to_framework(self, tmp_path: Path) -> None:
-        """sessions table should default source_tier to 'framework'."""
+    def test_sessions_drop_counters_default_to_zero(self, tmp_path: Path) -> None:
+        """sessions table should default all drop counters to 0."""
         db_path = str(tmp_path / "test.db")
         _run_migrations_to_head(db_path)
 
@@ -256,9 +247,12 @@ class TestFreshMigration:
         try:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.commit()
-            cursor = conn.execute("SELECT source_tier FROM sessions WHERE id = 1")
+            cursor = conn.execute(
+                "SELECT dropped_overflow, dropped_exhausted, dropped_no_session, dropped_shutdown "
+                "FROM sessions WHERE id = 1"
+            )
             row = cursor.fetchone()
-            assert row[0] == "framework"
+            assert row == (0, 0, 0, 0)
         finally:
             conn.close()
 

@@ -32,6 +32,7 @@ from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
+from hassette.types.types import FRAMEWORK_APP_KEY
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
@@ -524,10 +525,10 @@ async def _register_framework_job(
         raise RuntimeError("Command executor is not enabled on this harness")
 
     reg = ScheduledJobRegistration(
-        app_key="__hassette__",
+        app_key=FRAMEWORK_APP_KEY,
         instance_index=0,
         job_name=name,
-        handler_method=f"__hassette__.{name}",
+        handler_method=f"{FRAMEWORK_APP_KEY}.{name}",
         trigger_type=None,
         trigger_value=None,
         repeat=False,

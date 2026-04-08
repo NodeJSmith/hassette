@@ -1129,7 +1129,7 @@
           "telemetry"
         ],
         "summary": "Dashboard App Grid",
-        "description": "Per-app health data for the dashboard grid.",
+        "description": "Per-app health data for the dashboard grid.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
         "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
         "parameters": [
           {
@@ -1147,29 +1147,6 @@
               ],
               "title": "Session Id"
             }
-          },
-          {
-            "name": "source_tier",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "app",
-                    "framework",
-                    "all"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
-              "title": "Source Tier"
-            },
-            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
           }
         ],
         "responses": {
@@ -1252,6 +1229,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardErrorsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/dashboard/framework-summary": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Dashboard Framework Summary",
+        "description": "Combined framework KPIs + recent errors in one atomic response.\n\nEliminates the dual-fetch desync between error count badge and error feed\nthat occurs when two separate calls race under incident conditions.",
+        "operationId": "dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrameworkSummaryResponse"
                 }
               }
             }
@@ -1927,6 +1954,40 @@
         ],
         "title": "DashboardKpisResponse",
         "description": "Global KPI metrics for the dashboard strip."
+      },
+      "FrameworkSummaryResponse": {
+        "properties": {
+          "total_errors": {
+            "type": "integer",
+            "title": "Total Errors"
+          },
+          "total_job_errors": {
+            "type": "integer",
+            "title": "Total Job Errors"
+          },
+          "errors": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/HandlerErrorEntry"
+                },
+                {
+                  "$ref": "#/components/schemas/JobErrorEntry"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_errors",
+          "total_job_errors",
+          "errors"
+        ],
+        "title": "FrameworkSummaryResponse",
+        "description": "Combined framework KPIs + recent errors in one atomic response."
       },
       "HTTPValidationError": {
         "properties": {
@@ -2731,15 +2792,6 @@
             "type": "string",
             "title": "Status"
           },
-          "source_tier": {
-            "type": "string",
-            "enum": [
-              "app",
-              "framework"
-            ],
-            "title": "Source Tier",
-            "default": "framework"
-          },
           "error_type": {
             "anyOf": [
               {
@@ -2772,6 +2824,26 @@
               }
             ],
             "title": "Duration Seconds"
+          },
+          "dropped_overflow": {
+            "type": "integer",
+            "title": "Dropped Overflow",
+            "default": 0
+          },
+          "dropped_exhausted": {
+            "type": "integer",
+            "title": "Dropped Exhausted",
+            "default": 0
+          },
+          "dropped_no_session": {
+            "type": "integer",
+            "title": "Dropped No Session",
+            "default": 0
+          },
+          "dropped_shutdown": {
+            "type": "integer",
+            "title": "Dropped Shutdown",
+            "default": 0
           }
         },
         "type": "object",
@@ -2842,6 +2914,16 @@
           "dropped_exhausted": {
             "type": "integer",
             "title": "Dropped Exhausted",
+            "default": 0
+          },
+          "dropped_no_session": {
+            "type": "integer",
+            "title": "Dropped No Session",
+            "default": 0
+          },
+          "dropped_shutdown": {
+            "type": "integer",
+            "title": "Dropped Shutdown",
             "default": 0
           }
         },

@@ -19,7 +19,6 @@ from hassette.core.telemetry_models import (
     JobSummary,
     ListenerSummary,
     SessionRecord,
-    SessionSummary,
 )
 from hassette.core.telemetry_query_service import TelemetryQueryService
 
@@ -34,6 +33,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.data_dir = tmp_path
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
+    hassette.config.telemetry_write_queue_max = 500
     hassette.config.database_service_log_level = "INFO"
     hassette.config.log_level = "INFO"
     hassette.config.task_bucket_log_level = "INFO"
@@ -545,51 +545,6 @@ class TestGetSessionList:
 
 
 # ---------------------------------------------------------------------------
-# Tests: get_current_session_summary
-# ---------------------------------------------------------------------------
-
-
-class TestGetCurrentSessionSummary:
-    async def test_get_current_session_summary_running(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """1 running session with invocations — correct invocation/execution counts."""
-        db_svc, session_id = db
-
-        listener_id = await _insert_listener(db_svc)
-        job_id = await _insert_job(db_svc)
-
-        await _insert_invocation(db_svc, listener_id, session_id, status="success")
-        await _insert_invocation(db_svc, listener_id, session_id, status="error")
-        await _insert_execution(db_svc, job_id, session_id, status="success")
-        await _insert_execution(db_svc, job_id, session_id, status="error")
-
-        result = await svc.get_current_session_summary()
-        assert isinstance(result, SessionSummary)
-        assert result.total_invocations == 2
-        assert result.invocation_errors == 1
-        assert result.total_executions == 2
-        assert result.execution_errors == 1
-
-    async def test_get_current_session_summary_no_session(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """No running session — returns None."""
-        db_svc, session_id = db
-
-        # Mark the session as stopped
-        await db_svc.db.execute("UPDATE sessions SET status = 'stopped' WHERE id = ?", (session_id,))
-        await db_svc.db.commit()
-
-        result = await svc.get_current_session_summary()
-        assert result is None
-
-
-# ---------------------------------------------------------------------------
 # Tests: get_all_app_summaries
 # ---------------------------------------------------------------------------
 
@@ -879,33 +834,6 @@ class TestGetGlobalSummaryTyped:
         assert result.listeners.avg_duration_ms is None
         assert result.jobs.total_jobs == 0
         assert result.jobs.total_executions == 0
-
-
-# ---------------------------------------------------------------------------
-# Tests: get_current_session_summary returns typed model
-# ---------------------------------------------------------------------------
-
-
-class TestGetCurrentSessionSummaryTyped:
-    async def test_get_current_session_summary_returns_typed_model(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """get_current_session_summary returns SessionSummary, not dict."""
-        db_svc, session_id = db
-
-        l1 = await _insert_listener(db_svc)
-        j1 = await _insert_job(db_svc)
-        await _insert_invocation(db_svc, l1, session_id, status="success")
-        await _insert_execution(db_svc, j1, session_id, status="error")
-
-        result = await svc.get_current_session_summary()
-        assert isinstance(result, SessionSummary)
-        assert result.total_invocations == 1
-        assert result.invocation_errors == 0
-        assert result.total_executions == 1
-        assert result.execution_errors == 1
 
 
 # ---------------------------------------------------------------------------

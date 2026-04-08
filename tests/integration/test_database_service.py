@@ -22,6 +22,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.db_retention_days = 7
     hassette.config.db_max_size_mb = 500
     hassette.config.db_migration_timeout_seconds = 120
+    hassette.config.telemetry_write_queue_max = 500
     hassette.config.database_service_log_level = "INFO"
     hassette.config.log_level = "INFO"
     hassette.config.task_bucket_log_level = "INFO"
@@ -73,7 +74,7 @@ async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService)
 
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
         indexes = sorted(row[0] for row in cursor.fetchall())
-        assert len(indexes) == 12
+        assert len(indexes) == 14
         assert "idx_hi_listener_time" in indexes
         assert "idx_hi_status_time" in indexes
         assert "idx_hi_time" in indexes
@@ -394,7 +395,10 @@ EXPECTED_TABLES = {
         "error_type",
         "error_message",
         "error_traceback",
-        "source_tier",
+        "dropped_overflow",
+        "dropped_exhausted",
+        "dropped_no_session",
+        "dropped_shutdown",
     },
     "listeners": {
         "id",
@@ -412,7 +416,6 @@ EXPECTED_TABLES = {
         "human_description",
         "name",
         "retired_at",
-        "registered_session_id",
         "source_tier",
     },
     "scheduled_jobs": {

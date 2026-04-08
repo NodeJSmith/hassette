@@ -8,7 +8,6 @@ all-time aggregates.
 import sqlite3
 import time
 from logging import getLogger
-from typing import Literal
 
 from fastapi import APIRouter, Path, Query, Response
 
@@ -21,6 +20,7 @@ from hassette.core.telemetry_models import (
     JobSummary,
     SessionRecord,
 )
+from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
@@ -29,6 +29,7 @@ from hassette.web.models import (
     DashboardAppGridResponse,
     DashboardErrorsResponse,
     DashboardKpisResponse,
+    FrameworkSummaryResponse,
     HandlerErrorEntry,
     JobErrorEntry,
     ListenerWithSummary,
@@ -79,14 +80,20 @@ async def telemetry_status(
     except DB_ERRORS:
         LOGGER.warning("Telemetry database health check failed", exc_info=True)
         response.status_code = 503
-        return TelemetryStatusResponse(degraded=True, dropped_overflow=0, dropped_exhausted=0)
+        return TelemetryStatusResponse(degraded=True)
 
     try:
-        overflow, exhausted = hassette.get_drop_counters()
+        overflow, exhausted, no_session, shutdown = hassette.get_drop_counters()
     except (AttributeError, RuntimeError):
-        overflow, exhausted = 0, 0
+        overflow, exhausted, no_session, shutdown = 0, 0, 0, 0
 
-    return TelemetryStatusResponse(degraded=False, dropped_overflow=overflow, dropped_exhausted=exhausted)
+    return TelemetryStatusResponse(
+        degraded=False,
+        dropped_overflow=overflow,
+        dropped_exhausted=exhausted,
+        dropped_no_session=no_session,
+        dropped_shutdown=shutdown,
+    )
 
 
 @router.get("/sessions", response_model=list[SessionListEntry])
@@ -128,7 +135,7 @@ async def app_health(
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = 0,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: Literal["app", "framework", "all"] | None = _SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
     effective_tier = source_tier if source_tier is not None else "app"
@@ -183,7 +190,7 @@ async def app_listeners(
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = 0,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: Literal["app", "framework", "all"] | None = _SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
     """Listener metrics with human-readable handler summaries."""
     effective_tier = source_tier if source_tier is not None else "app"
@@ -205,7 +212,7 @@ async def app_jobs(
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = 0,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: Literal["app", "framework", "all"] | None = _SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
     """Job summaries for a single app instance."""
     effective_tier = source_tier if source_tier is not None else "app"
@@ -262,7 +269,7 @@ async def dashboard_kpis(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: Literal["app", "framework", "all"] | None = _SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> DashboardKpisResponse:
     """Global KPI metrics for the dashboard strip."""
     effective_tier = source_tier if source_tier is not None else "app"
@@ -311,13 +318,15 @@ async def dashboard_app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: Literal["app", "framework", "all"] | None = _SOURCE_TIER_PARAM,
 ) -> DashboardAppGridResponse:
-    """Per-app health data for the dashboard grid."""
-    effective_tier = source_tier or "app"
+    """Per-app health data for the dashboard grid.
+
+    Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
+    not the manifest-driven app grid.
+    """
     snapshot = runtime.get_all_manifests_snapshot()
     try:
-        summaries = await telemetry.get_all_app_summaries(session_id=session_id, source_tier=effective_tier)
+        summaries = await telemetry.get_all_app_summaries(session_id=session_id, source_tier="app")
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
@@ -364,7 +373,7 @@ async def dashboard_app_grid(
 async def dashboard_errors(
     telemetry: TelemetryDep,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: Literal["app", "framework", "all"] | None = _SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> DashboardErrorsResponse:
     """Recent errors for the dashboard error feed."""
     effective_tier = source_tier if source_tier is not None else "app"
@@ -406,3 +415,65 @@ async def dashboard_errors(
             )
 
     return DashboardErrorsResponse(errors=typed_errors)
+
+
+@router.get("/dashboard/framework-summary", response_model=FrameworkSummaryResponse)
+async def dashboard_framework_summary(
+    telemetry: TelemetryDep,
+    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+) -> FrameworkSummaryResponse:
+    """Combined framework KPIs + recent errors in one atomic response.
+
+    Eliminates the dual-fetch desync between error count badge and error feed
+    that occurs when two separate calls race under incident conditions.
+    """
+    total_errors = 0
+    total_job_errors = 0
+    typed_errors: list[HandlerErrorEntry | JobErrorEntry] = []
+
+    try:
+        summary = await telemetry.get_global_summary(session_id=session_id, source_tier="framework")
+        total_errors = summary.listeners.total_errors
+        total_job_errors = summary.jobs.total_errors
+    except DB_ERRORS:
+        LOGGER.warning("Failed to fetch framework global summary", exc_info=True)
+
+    since_ts = time.time() - 86400
+    try:
+        raw_errors = await telemetry.get_recent_errors(
+            since_ts=since_ts, limit=10, session_id=session_id, source_tier="framework"
+        )
+        for err in raw_errors:
+            if isinstance(err, JobErrorRecord):
+                typed_errors.append(
+                    JobErrorEntry(
+                        job_id=err.job_id,
+                        job_name=err.job_name,
+                        error_message=err.error_message or "",
+                        error_type=err.error_type or "",
+                        execution_start_ts=err.execution_start_ts,
+                        app_key=err.app_key,
+                        source_tier=err.source_tier,
+                    )
+                )
+            elif isinstance(err, HandlerErrorRecord):
+                typed_errors.append(
+                    HandlerErrorEntry(
+                        listener_id=err.listener_id,
+                        topic=err.topic,
+                        handler_method=err.handler_method,
+                        error_message=err.error_message or "",
+                        error_type=err.error_type or "",
+                        execution_start_ts=err.execution_start_ts,
+                        app_key=err.app_key,
+                        source_tier=err.source_tier,
+                    )
+                )
+    except DB_ERRORS:
+        LOGGER.warning("Failed to fetch framework recent errors", exc_info=True)
+
+    return FrameworkSummaryResponse(
+        total_errors=total_errors,
+        total_job_errors=total_job_errors,
+        errors=typed_errors,
+    )

@@ -8,6 +8,7 @@ import typing
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.types.types import FRAMEWORK_APP_KEY
 
 if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
@@ -26,6 +27,15 @@ class TelemetryRepository:
 
     def __init__(self, db_service: "DatabaseService") -> None:
         self._db_service = db_service
+
+    @staticmethod
+    def _validate_source_tier(app_key: str, source_tier: str) -> None:
+        """Guard against user apps injecting source_tier='framework'."""
+        if source_tier == "framework" and app_key != FRAMEWORK_APP_KEY:
+            raise ValueError(
+                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r}) may use source_tier='framework'; "
+                f"got app_key={app_key!r}"
+            )
 
     async def register_listener(self, registration: ListenerRegistration) -> int:
         """Upsert a listener registration into the listeners table.
@@ -49,6 +59,7 @@ class TelemetryRepository:
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
+        self._validate_source_tier(registration.app_key, registration.source_tier)
         db = self._db_service.db
 
         if registration.once:
@@ -101,6 +112,7 @@ class TelemetryRepository:
                     predicate_description = excluded.predicate_description,
                     source_location = excluded.source_location,
                     registration_source = excluded.registration_source,
+                    source_tier = excluded.source_tier,
                     retired_at = NULL
                 RETURNING id
                 """,
@@ -145,6 +157,7 @@ class TelemetryRepository:
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
+        self._validate_source_tier(registration.app_key, registration.source_tier)
         db = self._db_service.db
         cursor = await db.execute(
             """
@@ -164,6 +177,7 @@ class TelemetryRepository:
                 kwargs_json = excluded.kwargs_json,
                 source_location = excluded.source_location,
                 registration_source = excluded.registration_source,
+                source_tier = excluded.source_tier,
                 retired_at = NULL
             RETURNING id
             """,
@@ -212,10 +226,10 @@ class TelemetryRepository:
             session_id: Current session ID, used to guard once=True row deletion.
                 When None, once=True rows are unconditionally deleted.
         """
-        if app_key == "__hassette__":
+        if app_key == FRAMEWORK_APP_KEY:
             logging.getLogger(__name__).warning(
-                "reconcile_registrations() called for app_key='__hassette__' — "
-                "framework listeners are not reconciled; skipping"
+                "reconcile_registrations() called for app_key=%r — framework listeners are not reconciled; skipping",
+                FRAMEWORK_APP_KEY,
             )
             return
 
@@ -285,7 +299,7 @@ class TelemetryRepository:
                         f"""
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
-                          AND source_tier = 'app'
+                          AND source_tier = 'app'  -- app only; see FRAMEWORK_APP_KEY
                           AND id NOT IN ({placeholders})
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
@@ -299,7 +313,7 @@ class TelemetryRepository:
                         """
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
-                          AND source_tier = 'app'
+                          AND source_tier = 'app'  -- app only; see FRAMEWORK_APP_KEY
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
                               WHERE listener_id = listeners.id AND session_id = ?

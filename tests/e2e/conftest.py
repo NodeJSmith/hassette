@@ -23,7 +23,6 @@ from hassette.core.telemetry_models import (
     ListenerGlobalStats,
     ListenerSummary,
     SessionRecord,
-    SessionSummary,
 )
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
@@ -557,18 +556,6 @@ def mock_hassette():
 
     # Global summary for KPI strip — typed model. The actual mock is set up
     # further below after side-effect functions are defined.
-
-    # Current session summary for the session bar — typed model.
-    hassette._telemetry_query_service.get_current_session_summary = AsyncMock(
-        return_value=SessionSummary(
-            started_at=1704067200.0,
-            last_heartbeat_at=1704070800.0,
-            total_invocations=33,
-            invocation_errors=3,
-            total_executions=28,
-            execution_errors=6,
-        )
-    )
 
     # Session list for the sessions page.
     hassette._telemetry_query_service.get_session_list = AsyncMock(

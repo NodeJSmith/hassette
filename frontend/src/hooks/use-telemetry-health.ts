@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
+import { ApiError } from "../api/client";
 import { getTelemetryStatus } from "../api/endpoints";
 import type { AppState } from "../state/create-app-state";
 
@@ -34,6 +35,8 @@ export function useTelemetryHealth(appState: AppState): void {
       appState.telemetryDegraded.value = result.degraded;
       appState.droppedOverflow.value = result.dropped_overflow ?? 0;
       appState.droppedExhausted.value = result.dropped_exhausted ?? 0;
+      appState.droppedNoSession.value = result.dropped_no_session ?? 0;
+      appState.droppedShutdown.value = result.dropped_shutdown ?? 0;
       // Reset backoff on success
       if (currentIntervalMs.current !== BASE_INTERVAL_MS) {
         currentIntervalMs.current = BASE_INTERVAL_MS;
@@ -41,12 +44,20 @@ export function useTelemetryHealth(appState: AppState): void {
       }
     } catch (err) {
       // Ignore abort errors — navigation cancels in-flight requests via AbortController.
-      // The navigation effect immediately fires a fresh poll, so this stale completion
-      // should have no side effects. apiFetch throws ApiError on 503, so the catch path
-      // correctly sets degraded=true for server-reported degradation (the 503 response
-      // body is not parsed — external tools like Docker HEALTHCHECK use the status code).
       if (err instanceof DOMException && err.name === "AbortError") return;
-      appState.telemetryDegraded.value = true;
+
+      // Distinguish server-reported DB degradation (HTTP 503) from network
+      // unreachability. Only 503 means the DB is actually degraded; network
+      // errors during rolling restarts should not show "DB degraded".
+      if (err instanceof ApiError && err.status === 503) {
+        appState.telemetryDegraded.value = true;
+      } else {
+        // Network error or unexpected status — server unreachable, not DB-degraded.
+        // Keep telemetryDegraded at its current value (don't flip to true for
+        // transient connectivity issues). The backoff handles retry.
+        appState.telemetryDegraded.value = false;
+      }
+
       // Apply exponential backoff: double current interval, cap at MAX
       const nextInterval = Math.min(currentIntervalMs.current * 2, MAX_INTERVAL_MS);
       if (nextInterval !== currentIntervalMs.current) {

@@ -453,23 +453,27 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     await executor.execute(cmd)
 
     # Verify drop counter incremented
-    dropped_overflow, _dropped_exhausted = executor.get_drop_counters()
+    dropped_overflow, _exhausted, _no_session, _shutdown = executor.get_drop_counters()
     assert dropped_overflow > 0
 
 
 @pytest.mark.asyncio
 async def test_get_drop_counters_returns_tuple(mock_hassette_with_db: MagicMock) -> None:
-    """get_drop_counters() returns (overflow, exhausted) counters."""
+    """get_drop_counters() returns (overflow, exhausted, no_session, shutdown) counters."""
     hassette = mock_hassette_with_db
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
-    # Initially both counters should be 0
-    overflow, exhausted = executor.get_drop_counters()
+    # Initially all counters should be 0
+    overflow, exhausted, no_session, shutdown = executor.get_drop_counters()
     assert isinstance(overflow, int)
     assert isinstance(exhausted, int)
+    assert isinstance(no_session, int)
+    assert isinstance(shutdown, int)
     assert overflow == 0
     assert exhausted == 0
+    assert no_session == 0
+    assert shutdown == 0
 
 
 @pytest.mark.asyncio

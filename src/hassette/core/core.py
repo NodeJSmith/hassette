@@ -22,6 +22,7 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.types.enums import ResourceStatus, Topic
+from hassette.types.types import FRAMEWORK_APP_KEY
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -194,13 +195,15 @@ class Hassette(Resource):
         """CommandExecutor for telemetry recording."""
         return self._command_executor
 
-    def get_drop_counters(self) -> tuple[int, int]:
-        """Return (dropped_overflow, dropped_exhausted) from the CommandExecutor.
+    def get_drop_counters(self) -> tuple[int, int, int, int]:
+        """Return (dropped_overflow, dropped_exhausted, dropped_no_session, dropped_shutdown) from the CommandExecutor.
 
         Returns:
-            A tuple of (overflow_count, exhausted_count) where:
+            A tuple of counters where:
             - overflow_count: records dropped because the write queue was full.
             - exhausted_count: records dropped because max retries were exceeded.
+            - no_session_count: records dropped because session_id was unavailable.
+            - shutdown_count: records dropped during shutdown flush.
         """
         return self._command_executor.get_drop_counters()
 
@@ -339,13 +342,15 @@ class Hassette(Resource):
             return
 
         # Drain completed framework registration tasks to free stale Task references.
-        # Without this, _pending_registration_tasks['__hassette__'] holds N completed
+        # Without this, _pending_registration_tasks[FRAMEWORK_APP_KEY] holds N completed
         # Tasks for the process lifetime since no further register_framework_listener()
         # calls trigger the pruning logic.
-        await self._bus_service.await_registrations_complete("__hassette__")
+        await self._bus_service.await_registrations_complete(FRAMEWORK_APP_KEY)
 
-        # Clean up stale once=True listeners now that CommandExecutor is ready and
-        # all previous-session records have been flushed to the DB.
+        # Clean up stale once=True listeners from previous sessions. Safe to run here
+        # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the
+        # NOT EXISTS(... session_id = ?) guard prevents deletion of any listener that
+        # has current-session invocations still in the write queue.
         await self._session_manager.cleanup_stale_once_listeners()
 
         # does not take into consideration if apps failed to load, but those errors would have been logged already
@@ -442,4 +447,8 @@ class Hassette(Resource):
         except Exception:
             self.logger.exception("Failed to remove bus listeners during shutdown")
         finally:
-            await self._session_manager.finalize_session()
+            try:
+                counters = self._command_executor.get_drop_counters()
+            except Exception:
+                counters = (0, 0, 0, 0)
+            await self._session_manager.finalize_session(drop_counters=counters)

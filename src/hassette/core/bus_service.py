@@ -13,7 +13,7 @@ from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
 from hassette.events import Event, HassPayload
 from hassette.resources.base import Resource, Service
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -130,7 +130,7 @@ class BusService(Service):
         """
         listener = Listener.create(
             task_bucket=self.task_bucket,
-            owner_id=f"__hassette__:{name}",
+            owner_id=f"{FRAMEWORK_APP_KEY}:{name}",
             topic=topic,
             handler=handler,
             where=where,
@@ -139,7 +139,7 @@ class BusService(Service):
             throttle=throttle,
             priority=0,
             logger=self.logger,
-            app_key="__hassette__",
+            app_key=FRAMEWORK_APP_KEY,
             instance_index=0,
             name=name,
             source_tier="framework",

@@ -53,7 +53,11 @@ class DatabaseService(Service):
     """
 
     _db: aiosqlite.Connection | None
-    """The aiosqlite connection, set during on_initialize."""
+    """The aiosqlite write connection, set during on_initialize."""
+
+    _read_db: aiosqlite.Connection | None
+    """Dedicated read-only connection for TelemetryQueryService. Opened on a separate
+    WAL snapshot so reads never block the write worker."""
 
     _db_path: Path
     """Resolved path to the SQLite database file."""
@@ -62,7 +66,7 @@ class DatabaseService(Service):
     """Counter for consecutive heartbeat failures; triggers RuntimeError after threshold."""
 
     _db_write_queue: asyncio.Queue[_WriteQueueItem] | None
-    """Queue of pending write coroutines; each paired with an optional Future for result delivery."""
+    """Bounded queue of pending write coroutines; each paired with an optional Future for result delivery."""
 
     _db_worker_task: asyncio.Task[None] | None
     """Background task that drains _db_write_queue sequentially."""
@@ -73,6 +77,7 @@ class DatabaseService(Service):
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._db = None
+        self._read_db = None
         self._db_path = Path()
         self._consecutive_heartbeat_failures = 0
         self._consecutive_size_triggers = 0
@@ -86,7 +91,7 @@ class DatabaseService(Service):
 
     @property
     def db(self) -> aiosqlite.Connection:
-        """Return the active database connection.
+        """Return the active write database connection.
 
         Raises:
             RuntimeError: If the database connection is not initialized.
@@ -94,6 +99,19 @@ class DatabaseService(Service):
         if self._db is None:
             raise RuntimeError("Database connection is not initialized")
         return self._db
+
+    @property
+    def read_db(self) -> aiosqlite.Connection:
+        """Return the dedicated read-only database connection.
+
+        Uses a separate WAL snapshot so reads never block the write worker.
+
+        Raises:
+            RuntimeError: If the read connection is not initialized.
+        """
+        if self._read_db is None:
+            raise RuntimeError("Read database connection is not initialized")
+        return self._read_db
 
     async def on_initialize(self) -> None:
         """Set up the database: check schema version, run migrations and open connection."""
@@ -108,8 +126,15 @@ class DatabaseService(Service):
         timeout = self.hassette.config.db_migration_timeout_seconds
         await asyncio.wait_for(asyncio.to_thread(self._run_migrations), timeout=timeout)
 
-        self._db = await aiosqlite.connect(self._db_path)
+        self._db = await aiosqlite.connect(self._db_path, isolation_level=None)
         self._db.row_factory = aiosqlite.Row
+
+        # Open a dedicated read connection on a separate WAL snapshot (F1).
+        # This ensures read queries never block the write worker.
+        self._read_db = await aiosqlite.connect(self._db_path, isolation_level=None)
+        self._read_db.row_factory = aiosqlite.Row
+        await self._read_db.execute("PRAGMA query_only = ON")
+        await self._read_db.execute("PRAGMA busy_timeout = 5000")
 
         await self._set_pragmas()
         try:
@@ -117,7 +142,8 @@ class DatabaseService(Service):
         except Exception:
             self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
-        self._db_write_queue = asyncio.Queue()
+        queue_max = self.hassette.config.telemetry_write_queue_max * 2
+        self._db_write_queue = asyncio.Queue(maxsize=queue_max)
         self._db_worker_task = asyncio.create_task(self._db_write_worker())
 
     async def serve(self) -> None:
@@ -160,6 +186,14 @@ class DatabaseService(Service):
             self._db_worker_task.cancel()
             await asyncio.gather(self._db_worker_task, return_exceptions=True)
             self._db_worker_task = None
+
+        if self._read_db is not None:
+            try:
+                await self._read_db.close()
+            except Exception:
+                self.logger.exception("Failed to close read database connection")
+            finally:
+                self._read_db = None
 
         if self._db is not None:
             try:
@@ -230,7 +264,15 @@ class DatabaseService(Service):
         if self._db_write_queue is None:
             coro.close()
             raise RuntimeError("DatabaseService.enqueue() called before on_initialize()")
-        self._db_write_queue.put_nowait((coro, None))
+        try:
+            self._db_write_queue.put_nowait((coro, None))
+        except asyncio.QueueFull:
+            coro.close()
+            self.logger.error(
+                "DB write queue full (%d items) — dropping fire-and-forget task",
+                self._db_write_queue.qsize(),
+            )
+            return
         qsize = self._db_write_queue.qsize()
         if qsize > 0 and qsize % 100 == 0:
             self.logger.warning("DB write queue depth at %d items — potential backlog", qsize)
@@ -370,6 +412,10 @@ class DatabaseService(Service):
         db = self.db
         await db.execute("PRAGMA journal_mode = WAL")
         await db.execute("PRAGMA wal_autocheckpoint = 1000")
+        # NORMAL is an intentional performance tradeoff: in WAL mode, the last committed
+        # writes before an OS crash (not app crash) may be lost if not yet checkpointed.
+        # This is acceptable for operational telemetry — the orphan-session mechanism
+        # compensates for session rows but not for individual telemetry records.
         await db.execute("PRAGMA synchronous = NORMAL")
         await db.execute("PRAGMA busy_timeout = 5000")
         await db.execute("PRAGMA foreign_keys = ON")
@@ -418,6 +464,8 @@ class DatabaseService(Service):
     async def _run_retention_cleanup(self) -> None:
         """Enqueue a retention cleanup; fire-and-forget via enqueue()."""
         if self._db is None:
+            return
+        if self._db_write_queue is None:
             return
         self.enqueue(self._do_run_retention_cleanup())
 
@@ -559,5 +607,7 @@ class DatabaseService(Service):
     async def _run_size_failsafe(self) -> None:
         """Enqueue a size failsafe check; fire-and-forget via enqueue()."""
         if self._db is None:
+            return
+        if self._db_write_queue is None:
             return
         self.enqueue(self._check_size_failsafe())

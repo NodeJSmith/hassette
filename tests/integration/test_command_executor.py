@@ -135,7 +135,7 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.side_effect = asyncio.CancelledError()
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
+    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
 
     with pytest.raises(asyncio.CancelledError):
         await executor.execute(cmd)
@@ -156,7 +156,7 @@ async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.side_effect = DependencyError("missing dep")
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
+    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
 
     # Should not raise
     await executor.execute(cmd)
@@ -180,7 +180,7 @@ async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.side_effect = HassetteError("framework error")
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
+    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
 
     await executor.execute(cmd)
 
@@ -199,7 +199,7 @@ async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.side_effect = ValueError("oops")
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
+    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
 
     await executor.execute(cmd)
 
@@ -220,7 +220,7 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.return_value = None
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
+    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
 
     await executor.execute(cmd)
 
@@ -323,7 +323,7 @@ async def test_execute_job_success_record_queued(executor: CommandExecutor) -> N
     job = _make_mock_job()
     callable_mock = AsyncMock(return_value=None)
 
-    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42)
+    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app")
     await executor.execute(cmd)
 
     assert not executor._write_queue.empty()
@@ -340,7 +340,7 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     job = _make_mock_job()
     callable_mock = AsyncMock(side_effect=RuntimeError("job failed"))
 
-    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42)
+    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app")
     await executor.execute(cmd)
 
     assert not executor._write_queue.empty()
@@ -371,7 +371,7 @@ def test_build_record_uses_session_id_directly(mock_hassette: MagicMock) -> None
     listener = _make_mock_listener()
     from hassette.utils.execution import ExecutionResult
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=5)
+    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=5, source_tier="app")
     result = ExecutionResult()
     result.status = "success"
     result.duration_ms = 1.0

@@ -22,6 +22,12 @@ SourceTier = Literal["app", "framework"]
 QuerySourceTier = Literal["app", "framework", "all"]
 """Valid source_tier values for query-side filtering. 'all' disables the filter."""
 
+FRAMEWORK_APP_KEY = "__hassette__"
+"""Reserved app_key for framework-internal listeners and jobs.
+
+Referenced in SQL constraints (CHECK app_key != '__hassette__' OR source_tier = 'framework')
+and in Python guards throughout the codebase. All non-SQL usages should reference this constant."""
+
 CoroT = TypeVar("CoroT")
 CoroLikeT = Coroutine[Any, Any, CoroT]
 """A coroutine returning a value of type CoroT."""

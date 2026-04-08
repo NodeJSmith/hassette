@@ -302,6 +302,14 @@ class DashboardErrorsResponse(BaseModel):
     errors: list[HandlerErrorEntry | JobErrorEntry]
 
 
+class FrameworkSummaryResponse(BaseModel):
+    """Combined framework KPIs + recent errors in one atomic response."""
+
+    total_errors: int
+    total_job_errors: int
+    errors: list[HandlerErrorEntry | JobErrorEntry]
+
+
 SessionListEntry = SessionRecord
 
 
@@ -311,6 +319,8 @@ class TelemetryStatusResponse(BaseModel):
     degraded: bool
     dropped_overflow: int = 0
     dropped_exhausted: int = 0
+    dropped_no_session: int = 0
+    dropped_shutdown: int = 0
 
 
 class ActionResponse(BaseModel):

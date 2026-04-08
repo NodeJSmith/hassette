@@ -7,7 +7,7 @@
  */
 
 import { useSignal } from "@preact/signals";
-import { getDashboardErrors, getDashboardKpis } from "../../api/endpoints";
+import { getFrameworkSummary } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { ErrorFeed } from "./error-feed";
 import { IconWarning, IconCheck } from "../shared/icons";
@@ -37,11 +37,10 @@ function Chevron({ open }: ChevronProps) {
 export function FrameworkHealth() {
   const expanded = useSignal(false);
 
-  const fwKpis = useScopedApi((sid) => getDashboardKpis(sid, "framework"));
-  const fwErrors = useScopedApi((sid) => getDashboardErrors(sid, "framework").then((r) => r.errors));
+  const fwSummary = useScopedApi((sid) => getFrameworkSummary(sid));
 
-  const errorCount = fwKpis.data.value?.total_errors ?? 0;
-  const jobErrorCount = fwKpis.data.value?.total_job_errors ?? 0;
+  const errorCount = fwSummary.data.value?.total_errors ?? 0;
+  const jobErrorCount = fwSummary.data.value?.total_job_errors ?? 0;
   const totalFrameworkErrors = errorCount + jobErrorCount;
   const hasErrors = totalFrameworkErrors > 0;
 
@@ -83,12 +82,12 @@ export function FrameworkHealth() {
 
       {expanded.value && (
         <div id="framework-health-body" class="ht-framework-health__body">
-          {fwErrors.loading.value ? (
+          {fwSummary.loading.value ? (
             <p class="ht-text-muted ht-text-xs">Loading framework telemetry…</p>
-          ) : fwErrors.error.value ? (
-            <p class="ht-text-danger ht-text-xs">Failed to load framework errors: {fwErrors.error.value}</p>
+          ) : fwSummary.error.value ? (
+            <p class="ht-text-danger ht-text-xs">Failed to load framework errors: {fwSummary.error.value}</p>
           ) : (
-            <ErrorFeed errors={fwErrors.data.value} />
+            <ErrorFeed errors={fwSummary.data.value?.errors} />
           )}
         </div>
       )}

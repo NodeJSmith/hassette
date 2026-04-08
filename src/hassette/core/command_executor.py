@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import dataclasses
 import sqlite3
 import time
 import typing
@@ -64,6 +65,12 @@ class CommandExecutor(Service):
     _dropped_exhausted: int
     """Count of records dropped because retry_count exceeded the maximum."""
 
+    _dropped_no_session: int
+    """Count of records dropped because session_id was not yet available at drain time."""
+
+    _dropped_shutdown: int
+    """Count of records dropped during shutdown flush (DB unavailable)."""
+
     _last_capacity_warn_ts: float
     """Monotonic timestamp of the last 75%-capacity warning (rate-limiting)."""
 
@@ -73,6 +80,8 @@ class CommandExecutor(Service):
         self.repository = TelemetryRepository(hassette.database_service)
         self._dropped_overflow = 0
         self._dropped_exhausted = 0
+        self._dropped_no_session = 0
+        self._dropped_shutdown = 0
         self._last_capacity_warn_ts = 0.0
 
     @property
@@ -131,15 +140,17 @@ class CommandExecutor(Service):
                         "_drain_and_persist failed — records from this batch are dropped (already dequeued)"
                     )
 
-    def get_drop_counters(self) -> tuple[int, int]:
-        """Return (dropped_overflow, dropped_exhausted) counters.
+    def get_drop_counters(self) -> tuple[int, int, int, int]:
+        """Return (dropped_overflow, dropped_exhausted, dropped_no_session, dropped_shutdown) counters.
 
         Returns:
-            A tuple of (overflow_count, exhausted_count) where:
+            A tuple of counters where:
             - overflow_count: records dropped because the write queue was full.
             - exhausted_count: records dropped because max retries were exceeded.
+            - no_session_count: records dropped because session_id was unavailable at drain time.
+            - shutdown_count: records dropped during shutdown flush.
         """
-        return (self._dropped_overflow, self._dropped_exhausted)
+        return (self._dropped_overflow, self._dropped_exhausted, self._dropped_no_session, self._dropped_shutdown)
 
     # ------------------------------------------------------------------
     # Execution
@@ -463,11 +474,11 @@ class CommandExecutor(Service):
             await self._persist_batch(invocations, job_executions)
         except Exception:
             drop_count = len(invocations) + len(job_executions)
-            self._dropped_exhausted += drop_count
+            self._dropped_shutdown += drop_count
             self.logger.error(
-                "_flush_queue: failed to persist %d records during shutdown — dropped (total exhausted: %d)",
+                "_flush_queue: failed to persist %d records during shutdown — dropped (total shutdown: %d)",
                 drop_count,
-                self._dropped_exhausted,
+                self._dropped_shutdown,
             )
 
     async def _persist_batch(
@@ -505,37 +516,11 @@ class CommandExecutor(Service):
 
         if current_session_id is not None:
             invocations = [
-                HandlerInvocationRecord(
-                    listener_id=r.listener_id,
-                    session_id=current_session_id,
-                    execution_start_ts=r.execution_start_ts,
-                    duration_ms=r.duration_ms,
-                    status=r.status,
-                    source_tier=r.source_tier,
-                    is_di_failure=r.is_di_failure,
-                    error_type=r.error_type,
-                    error_message=r.error_message,
-                    error_traceback=r.error_traceback,
-                )
-                if r.session_id is None
-                else r
+                dataclasses.replace(r, session_id=current_session_id) if r.session_id is None else r
                 for r in invocations
             ]
             job_executions = [
-                JobExecutionRecord(
-                    job_id=r.job_id,
-                    session_id=current_session_id,
-                    execution_start_ts=r.execution_start_ts,
-                    duration_ms=r.duration_ms,
-                    status=r.status,
-                    source_tier=r.source_tier,
-                    is_di_failure=r.is_di_failure,
-                    error_type=r.error_type,
-                    error_message=r.error_message,
-                    error_traceback=r.error_traceback,
-                )
-                if r.session_id is None
-                else r
+                dataclasses.replace(r, session_id=current_session_id) if r.session_id is None else r
                 for r in job_executions
             ]
         else:
@@ -544,12 +529,12 @@ class CommandExecutor(Service):
             no_session_jobs = [r for r in job_executions if r.session_id is None]
             if no_session_invocations or no_session_jobs:
                 drop_count = len(no_session_invocations) + len(no_session_jobs)
-                self._dropped_exhausted += drop_count
+                self._dropped_no_session += drop_count
                 self.logger.warning(
                     "Session not yet created at drain time — dropping %d record(s) with no session_id "
-                    "(total exhausted: %d)",
+                    "(total no_session: %d)",
                     drop_count,
-                    self._dropped_exhausted,
+                    self._dropped_no_session,
                 )
             invocations = [r for r in invocations if r.session_id is not None]
             job_executions = [r for r in job_executions if r.session_id is not None]

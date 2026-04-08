@@ -16,11 +16,10 @@ from hassette.core.telemetry_models import (
     ListenerGlobalStats,
     ListenerSummary,
     SessionRecord,
-    SessionSummary,
     SlowHandlerRecord,
 )
 from hassette.resources.base import Resource
-from hassette.types.types import LOG_LEVEL_TYPE, QuerySourceTier
+from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE, QuerySourceTier
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -41,6 +40,8 @@ def _source_tier_clause(source_tier: QuerySourceTier, alias: str) -> tuple[str, 
         source_tier: One of ``'app'``, ``'framework'``, or ``'all'``.
         alias: The SQL table alias to qualify the ``source_tier`` column.
     """
+    if alias not in {"l", "hi", "je", "sj"}:
+        raise ValueError(f"Unexpected SQL alias: {alias!r}")
     match source_tier:
         case "all":
             return ("", [])
@@ -73,8 +74,11 @@ class TelemetryQueryService(Resource):
 
     @property
     def _db(self) -> aiosqlite.Connection:
-        """Return the active database connection from DatabaseService."""
-        return self.hassette.database_service.db
+        """Return the dedicated read-only database connection from DatabaseService.
+
+        Uses a separate WAL snapshot so reads never block the write worker.
+        """
+        return self.hassette.database_service.read_db
 
     async def get_listener_summary(
         self,
@@ -318,9 +322,10 @@ class TelemetryQueryService(Resource):
             listener_act_params = [*tier_params, *tier_l_params]
             job_act_params = [*tier_je_params, *tier_sj_params]
 
-        # Execute all four queries inside a read transaction for snapshot consistency (F24)
+        # BEGIN DEFERRED pins the WAL read mark on the read-only connection,
+        # ensuring all four queries see a consistent snapshot. ROLLBACK releases it.
         try:
-            await self._db.execute("BEGIN")
+            await self._db.execute("BEGIN DEFERRED")
             async with self._db.execute(listener_reg_query) as cursor:
                 listener_reg_rows = await cursor.fetchall()
             async with self._db.execute(listener_act_query, listener_act_params) as cursor:
@@ -353,8 +358,9 @@ class TelemetryQueryService(Resource):
             d = _row_to_dict(row)
             job_act[d["app_key"]] = d
 
-        # Merge into AppHealthSummary per app_key
+        # Merge into AppHealthSummary per app_key (exclude framework sentinel — see FRAMEWORK_APP_KEY)
         all_keys = set(listener_reg.keys()) | set(listener_act.keys()) | set(job_reg.keys()) | set(job_act.keys())
+        all_keys.discard(FRAMEWORK_APP_KEY)
         result: dict[str, AppHealthSummary] = {}
         for app_key in all_keys:
             lr = listener_reg.get(app_key, {})
@@ -392,12 +398,18 @@ class TelemetryQueryService(Resource):
         tier_hi_clause, tier_hi_params = _source_tier_clause(source_tier, "hi")
         tier_je_clause, tier_je_params = _source_tier_clause(source_tier, "je")
 
-        if source_tier == "app":
-            total_listeners_subq = "(SELECT COUNT(*) FROM active_app_listeners)"
-            total_jobs_subq = "(SELECT COUNT(*) FROM active_app_scheduled_jobs)"
-        else:
-            total_listeners_subq = "(SELECT COUNT(*) FROM active_listeners)"
-            total_jobs_subq = "(SELECT COUNT(*) FROM active_scheduled_jobs)"
+        match source_tier:
+            case "app":
+                total_listeners_subq = "(SELECT COUNT(*) FROM active_app_listeners)"
+                total_jobs_subq = "(SELECT COUNT(*) FROM active_app_scheduled_jobs)"
+            case "framework":
+                total_listeners_subq = "(SELECT COUNT(*) FROM active_framework_listeners)"
+                total_jobs_subq = "(SELECT COUNT(*) FROM active_framework_scheduled_jobs)"
+            case "all":
+                total_listeners_subq = "(SELECT COUNT(*) FROM active_listeners)"
+                total_jobs_subq = "(SELECT COUNT(*) FROM active_scheduled_jobs)"
+            case _ as unreachable:
+                assert_never(unreachable)
 
         if session_id is not None:
             listener_query = f"""
@@ -680,8 +692,11 @@ class TelemetryQueryService(Resource):
                 s.status,
                 s.error_type,
                 s.error_message,
-                s.source_tier,
-                (COALESCE(s.stopped_at, s.last_heartbeat_at) - s.started_at) AS duration_seconds
+                (COALESCE(s.stopped_at, s.last_heartbeat_at) - s.started_at) AS duration_seconds,
+                s.dropped_overflow,
+                s.dropped_exhausted,
+                s.dropped_no_session,
+                s.dropped_shutdown
             FROM sessions s
             ORDER BY s.started_at DESC
             LIMIT ?
@@ -691,53 +706,9 @@ class TelemetryQueryService(Resource):
         return [SessionRecord.model_validate(_row_to_dict(row)) for row in rows]
 
     async def check_health(self) -> None:
-        """Run a representative query that exercises the listeners -> handler_invocations join.
+        """Verify the database connection is alive.
 
         Raises on any database error; callers catch DB_ERRORS to derive degraded state.
         """
-        query = """
-            SELECT 1
-            FROM listeners l
-            LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
-            LIMIT 1
-        """
-        async with self._db.execute(query) as cursor:
+        async with self._db.execute("SELECT 1") as cursor:
             await cursor.fetchone()
-
-    async def get_current_session_summary(self, source_tier: QuerySourceTier = "app") -> SessionSummary | None:
-        """Return a summary of the current running session, or None if no session is running.
-
-        Args:
-            source_tier: Filter invocation/execution counts by source tier.
-                Defaults to ``'app'`` so the status bar shows user-app health only.
-        """
-        tier_hi_clause, tier_hi_params = _source_tier_clause(source_tier, "hi")
-        tier_je_clause, tier_je_params = _source_tier_clause(source_tier, "je")
-
-        # The subqueries use aliases (hi/je) for source_tier filtering
-        query = f"""
-            SELECT
-                s.started_at,
-                s.last_heartbeat_at,
-                (SELECT COUNT(*) FROM handler_invocations hi
-                    WHERE hi.session_id = s.id {tier_hi_clause}) AS total_invocations,
-                (SELECT COUNT(*) FROM handler_invocations hi
-                    WHERE hi.session_id = s.id AND hi.status = 'error' {tier_hi_clause}) AS invocation_errors,
-                (SELECT COUNT(*) FROM job_executions je
-                    WHERE je.session_id = s.id {tier_je_clause}) AS total_executions,
-                (SELECT COUNT(*) FROM job_executions je
-                    WHERE je.session_id = s.id AND je.status = 'error' {tier_je_clause}) AS execution_errors
-            FROM sessions s
-            WHERE s.status = 'running'
-        """
-        params = [
-            *tier_hi_params,  # total_invocations subquery
-            *tier_hi_params,  # invocation_errors subquery
-            *tier_je_params,  # total_executions subquery
-            *tier_je_params,  # execution_errors subquery
-        ]
-        async with self._db.execute(query, params) as cursor:
-            row = await cursor.fetchone()
-        if row is None:
-            return None
-        return SessionSummary.model_validate(_row_to_dict(row))

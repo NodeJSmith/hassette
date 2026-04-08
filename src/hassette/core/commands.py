@@ -25,8 +25,11 @@ class InvokeHandler:
     listener_id: int | None
     """FK to the listeners table; None when the listener hasn't been registered yet."""
 
-    source_tier: SourceTier = "app"
-    """Whether this invocation originates from a user app or the framework itself."""
+    source_tier: SourceTier
+    """Whether this invocation originates from a user app or the framework itself.
+
+    Required (no default) to prevent silent miscategorization.
+    """
 
 
 @dataclass(frozen=True)
@@ -42,5 +45,8 @@ class ExecuteJob:
     job_db_id: int | None
     """FK to the scheduled_jobs table; None when the job hasn't been registered yet."""
 
-    source_tier: SourceTier = "app"
-    """Whether this execution originates from a user app or the framework itself."""
+    source_tier: SourceTier
+    """Whether this execution originates from a user app or the framework itself.
+
+    Required (no default) to prevent silent miscategorization.
+    """

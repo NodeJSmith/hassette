@@ -34,8 +34,10 @@ def upgrade() -> None:
             error_type            TEXT,
             error_message         TEXT,
             error_traceback       TEXT,
-            source_tier           TEXT    NOT NULL DEFAULT 'framework'
-                CHECK (source_tier IN ('app', 'framework'))
+            dropped_overflow      INTEGER NOT NULL DEFAULT 0,
+            dropped_exhausted     INTEGER NOT NULL DEFAULT 0,
+            dropped_no_session    INTEGER NOT NULL DEFAULT 0,
+            dropped_shutdown      INTEGER NOT NULL DEFAULT 0
         )
     """)
 
@@ -59,7 +61,6 @@ def upgrade() -> None:
             registration_source   TEXT,
             name                  TEXT,
             retired_at            REAL,
-            registered_session_id INTEGER REFERENCES sessions(id),
             source_tier           TEXT    NOT NULL DEFAULT 'app'
                 CHECK (source_tier IN ('app', 'framework')),
             CHECK (app_key != '__hassette__' OR source_tier = 'framework')
@@ -129,6 +130,7 @@ def upgrade() -> None:
     op.execute("CREATE INDEX idx_hi_status_time ON handler_invocations(status, execution_start_ts DESC)")
     op.execute("CREATE INDEX idx_hi_time ON handler_invocations(execution_start_ts)")
     op.execute("CREATE INDEX idx_hi_session ON handler_invocations(session_id)")
+    op.execute("CREATE INDEX idx_hi_source_tier_time ON handler_invocations(source_tier, execution_start_ts DESC)")
 
     # -------------------------------------------------------------------------
     # job_executions
@@ -156,6 +158,7 @@ def upgrade() -> None:
     op.execute("CREATE INDEX idx_je_status_time ON job_executions(status, execution_start_ts DESC)")
     op.execute("CREATE INDEX idx_je_time ON job_executions(execution_start_ts)")
     op.execute("CREATE INDEX idx_je_session ON job_executions(session_id)")
+    op.execute("CREATE INDEX idx_je_source_tier_time ON job_executions(source_tier, execution_start_ts DESC)")
 
     # -------------------------------------------------------------------------
     # Views — split by source_tier + backward-compat aliases

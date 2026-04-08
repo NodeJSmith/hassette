@@ -79,18 +79,17 @@ class TestInvokeHandlerSourceTier:
         assert cmd.source_tier == "framework"
 
     def test_invoke_handler_default_source_tier(self) -> None:
-        """InvokeHandler source_tier defaults to 'app'."""
+        """InvokeHandler requires source_tier — omitting it raises TypeError."""
         listener = MagicMock()
         event = MagicMock()
 
-        cmd = InvokeHandler(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            listener_id=42,
-        )
-
-        assert cmd.source_tier == "app"
+        with pytest.raises(TypeError):
+            InvokeHandler(  # pyright: ignore[reportCallIssue]
+                listener=listener,
+                event=event,
+                topic="test.topic",
+                listener_id=42,
+            )
 
 
 # ---------------------------------------------------------------------------

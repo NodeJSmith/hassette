@@ -3,9 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
 from hassette.config.helpers import log_level_default_factory
-from hassette.types.types import LOG_LEVEL_TYPE
-
-_HASSETTE_SENTINEL = "__hassette__"
+from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE
 
 
 class AppConfig(BaseSettings):
@@ -33,7 +31,7 @@ class AppConfig(BaseSettings):
     @field_validator("app_key")
     @classmethod
     def _reject_hassette_sentinel(cls, v: str) -> str:
-        if v == _HASSETTE_SENTINEL:
+        if v == FRAMEWORK_APP_KEY:
             raise ValueError(
                 "'__hassette__' is a reserved app_key used by the framework internally. "
                 "Choose a different app_key for your application."

@@ -100,12 +100,19 @@ class SessionManager(Resource):
             self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
             await self._database_service.submit(self._do_on_service_crashed(event))
 
-    async def finalize_session(self) -> None:
-        """Write final session status before shutdown.
+    async def finalize_session(
+        self,
+        *,
+        drop_counters: tuple[int, int, int, int] = (0, 0, 0, 0),
+    ) -> None:
+        """Write final session status and drop counters before shutdown.
 
         If ``_session_error`` is True, a CRASHED event already wrote failure
         details — only set timestamps.  Otherwise write ``success``.
         Acquires ``_session_lock`` to coordinate with ``on_service_crashed()``.
+
+        Args:
+            drop_counters: (overflow, exhausted, no_session, shutdown) from CommandExecutor.
         """
         async with self._session_lock:
             if self._session_id is None:
@@ -117,7 +124,7 @@ class SessionManager(Resource):
                 self.logger.warning("Cannot finalize session — database not initialized")
                 return
 
-            await self._database_service.submit(self._do_finalize_session())
+            await self._database_service.submit(self._do_finalize_session(drop_counters))
 
     # ------------------------------------------------------------------
     # DB-worker callables (executed by the single-writer queue)
@@ -158,6 +165,7 @@ class SessionManager(Resource):
             )
             await self._database_service.db.commit()
         except Exception:
+            await self._database_service.db.rollback()
             self.logger.exception("Failed to record service crash for session %d", self._session_id)
 
     async def _do_cleanup_once_listeners(self, current_session_id: int) -> None:
@@ -199,20 +207,27 @@ class SessionManager(Resource):
             await self._database_service.db.rollback()
             self.logger.exception("Failed to clean up stale once=True listeners")
 
-    async def _do_finalize_session(self) -> None:
+    async def _do_finalize_session(self, drop_counters: tuple[int, int, int, int]) -> None:
         """Execute the finalize UPDATE; called by the write-queue worker."""
+        overflow, exhausted, no_session, shutdown = drop_counters
         try:
             now = time.time()
             if self._session_error:
-                # CRASHED event already wrote failure details — just set timestamps
+                # CRASHED event already wrote failure details — just set timestamps + counters
                 await self._database_service.db.execute(
-                    "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
-                    (now, now, self._session_id),
+                    "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ?,"
+                    " dropped_overflow = ?, dropped_exhausted = ?,"
+                    " dropped_no_session = ?, dropped_shutdown = ?"
+                    " WHERE id = ?",
+                    (now, now, overflow, exhausted, no_session, shutdown, self._session_id),
                 )
             else:
                 await self._database_service.db.execute(
-                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ? WHERE id = ?",
-                    ("success", now, now, self._session_id),
+                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
+                    " dropped_overflow = ?, dropped_exhausted = ?,"
+                    " dropped_no_session = ?, dropped_shutdown = ?"
+                    " WHERE id = ?",
+                    ("success", now, now, overflow, exhausted, no_session, shutdown, self._session_id),
                 )
             await self._database_service.db.commit()
         except Exception:
