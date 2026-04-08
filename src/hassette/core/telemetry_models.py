@@ -209,11 +209,16 @@ class JobErrorRecord(BaseModel):
 
 
 class SlowHandlerRecord(BaseModel):
-    """Slow handler invocation returned by ``get_slow_handlers()``."""
+    """Slow handler invocation returned by ``get_slow_handlers()``.
 
-    app_key: str
-    handler_method: str
-    topic: str
+    ``app_key``, ``handler_method``, and ``topic`` are nullable because
+    ``get_slow_handlers`` uses a LEFT JOIN.  Orphaned invocations (whose
+    listener row was deleted) are still returned with ``None`` for these fields.
+    """
+
+    app_key: str | None
+    handler_method: str | None
+    topic: str | None
     execution_start_ts: float
     duration_ms: float
     source_tier: SourceTier = "app"

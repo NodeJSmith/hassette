@@ -93,15 +93,16 @@ async def _insert_listener(
     instance_index: int = 0,
     handler_method: str = "on_event",
     topic: str = "hass.event.state_changed",
+    source_tier: str = "app",
 ) -> int:
     """Insert a listener row and return its id."""
     cursor = await db_svc.db.execute(
         """INSERT INTO listeners
                (app_key, instance_index, handler_method, topic,
                 debounce, throttle, once, priority,
-                source_location)
-           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1')""",
-        (app_key, instance_index, handler_method, topic),
+                source_location, source_tier)
+           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1', ?)""",
+        (app_key, instance_index, handler_method, topic, source_tier),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -115,15 +116,16 @@ async def _insert_job(
     instance_index: int = 0,
     job_name: str = "my_job",
     handler_method: str = "run_job",
+    source_tier: str = "app",
 ) -> int:
     """Insert a scheduled_job row and return its id."""
     cursor = await db_svc.db.execute(
         """INSERT INTO scheduled_jobs
                (app_key, instance_index, job_name, handler_method,
                 trigger_type, trigger_value, repeat,
-                source_location)
-           VALUES (?, ?, ?, ?, 'interval', '60', 1, 'test.py:1')""",
-        (app_key, instance_index, job_name, handler_method),
+                source_location, source_tier)
+           VALUES (?, ?, ?, ?, 'interval', '60', 1, 'test.py:1', ?)""",
+        (app_key, instance_index, job_name, handler_method, source_tier),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -140,15 +142,17 @@ async def _insert_invocation(
     error_type: str | None = None,
     error_message: str | None = None,
     execution_start_ts: float | None = None,
+    source_tier: str = "app",
+    is_di_failure: int = 0,
 ) -> int:
     """Insert a handler_invocations row and return its id."""
     ts = execution_start_ts if execution_start_ts is not None else time.time()
     cursor = await db_svc.db.execute(
         """INSERT INTO handler_invocations
                (listener_id, session_id, execution_start_ts, duration_ms,
-                status, error_type, error_message)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (listener_id, session_id, ts, duration_ms, status, error_type, error_message),
+                status, error_type, error_message, source_tier, is_di_failure)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (listener_id, session_id, ts, duration_ms, status, error_type, error_message, source_tier, is_di_failure),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -165,15 +169,17 @@ async def _insert_execution(
     error_type: str | None = None,
     error_message: str | None = None,
     execution_start_ts: float | None = None,
+    source_tier: str = "app",
+    is_di_failure: int = 0,
 ) -> int:
     """Insert a job_executions row and return its id."""
     ts = execution_start_ts if execution_start_ts is not None else time.time()
     cursor = await db_svc.db.execute(
         """INSERT INTO job_executions
                (job_id, session_id, execution_start_ts, duration_ms,
-                status, error_type, error_message)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (job_id, session_id, ts, duration_ms, status, error_type, error_message),
+                status, error_type, error_message, source_tier, is_di_failure)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (job_id, session_id, ts, duration_ms, status, error_type, error_message, source_tier, is_di_failure),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -1075,3 +1081,356 @@ class TestCrossSessionAndRetiredRows:
 
         cursor = await db_svc.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (recent_job_id,))
         assert await cursor.fetchone() is not None, "Recent retired job must survive"
+
+
+# ---------------------------------------------------------------------------
+# Tests: WP05 — source_tier filtering, UNION ALL, LEFT JOIN, is_di_failure
+# ---------------------------------------------------------------------------
+
+
+class TestGetRecentErrorsUnionAll:
+    async def test_get_recent_errors_union_all_ordering(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Mixed handler/job errors with known timestamps — verify correct ordering."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc, handler_method="on_a")
+        job_id = await _insert_job(db_svc, job_name="job_a")
+
+        base_ts = 2_000_000.0
+        # Insert handler errors at t=1,3,5 and job errors at t=2,4
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 5.0)
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 3.0)
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
+        await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 4.0)
+        await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 2.0)
+
+        rows = await svc.get_recent_errors(since_ts=base_ts)
+        assert len(rows) == 5
+        # Must be sorted DESC by execution_start_ts across both types
+        ts_values = [r.execution_start_ts for r in rows]
+        assert ts_values == sorted(ts_values, reverse=True)
+        assert ts_values[0] == pytest.approx(base_ts + 5.0)
+        assert ts_values[1] == pytest.approx(base_ts + 4.0)
+        assert ts_values[2] == pytest.approx(base_ts + 3.0)
+
+    async def test_get_recent_errors_limit_applies_globally(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """20 handler + 5 job errors, limit=10 → 10 most recent total."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc)
+        job_id = await _insert_job(db_svc)
+
+        base_ts = 3_000_000.0
+        # Handler errors at offsets 0..19 (ts 0-19)
+        for i in range(20):
+            await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + i)
+        # Job errors at offsets 20..24 (ts 20-24) — most recent
+        for i in range(20, 25):
+            await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + i)
+
+        rows = await svc.get_recent_errors(since_ts=base_ts - 1.0, limit=10)
+        assert len(rows) == 10
+        # Top 10 should be ts 24,23,22,21,20 (jobs) and ts 19,18,17,16,15 (handlers)
+        ts_values = [r.execution_start_ts for r in rows]
+        assert ts_values == sorted(ts_values, reverse=True)
+        assert ts_values[0] == pytest.approx(base_ts + 24.0)
+        # All 5 jobs in top 10
+        job_rows = [r for r in rows if isinstance(r, JobErrorRecord)]
+        assert len(job_rows) == 5
+
+    async def test_get_recent_errors_left_join_orphans(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Delete a listener; its error records still appear with null app_key."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc, handler_method="on_orphan")
+        base_ts = 4_000_000.0
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
+        # Delete the listener (FK becomes NULL via ON DELETE SET NULL)
+        await db_svc.db.execute("DELETE FROM listeners WHERE id = ?", (listener_id,))
+        await db_svc.db.commit()
+
+        rows = await svc.get_recent_errors(since_ts=base_ts)
+        handler_rows = [r for r in rows if isinstance(r, HandlerErrorRecord)]
+        assert len(handler_rows) == 1
+        # Orphaned row: app_key and handler_method should be None
+        assert handler_rows[0].app_key is None
+        assert handler_rows[0].handler_method is None
+
+    async def test_get_recent_errors_source_tier_filter_app(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='app' (default) excludes framework-tier errors."""
+        db_svc, session_id = db
+        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
+        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+        app_job = await _insert_job(db_svc, job_name="app_job", source_tier="app")
+        fw_job = await _insert_job(db_svc, job_name="fw_job", source_tier="framework")
+
+        base_ts = 5_000_000.0
+        await _insert_invocation(
+            db_svc, app_listener, session_id, status="error", execution_start_ts=base_ts + 1.0, source_tier="app"
+        )
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="error", execution_start_ts=base_ts + 2.0, source_tier="framework"
+        )
+        await _insert_execution(
+            db_svc, app_job, session_id, status="error", execution_start_ts=base_ts + 3.0, source_tier="app"
+        )
+        await _insert_execution(
+            db_svc, fw_job, session_id, status="error", execution_start_ts=base_ts + 4.0, source_tier="framework"
+        )
+
+        # Default source_tier='app'
+        rows = await svc.get_recent_errors(since_ts=base_ts)
+        assert len(rows) == 2
+        assert all(isinstance(r, HandlerErrorRecord | JobErrorRecord) for r in rows)
+
+    async def test_get_recent_errors_source_tier_filter_all(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='all' includes both app and framework errors."""
+        db_svc, session_id = db
+        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
+        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+
+        base_ts = 6_000_000.0
+        await _insert_invocation(
+            db_svc, app_listener, session_id, status="error", execution_start_ts=base_ts + 1.0, source_tier="app"
+        )
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="error", execution_start_ts=base_ts + 2.0, source_tier="framework"
+        )
+
+        rows = await svc.get_recent_errors(since_ts=base_ts, source_tier="all")
+        assert len(rows) == 2
+
+    async def test_get_recent_errors_source_tier_filter_framework(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='framework' returns only framework-tier errors."""
+        db_svc, session_id = db
+        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
+        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+
+        base_ts = 7_000_000.0
+        await _insert_invocation(
+            db_svc, app_listener, session_id, status="error", execution_start_ts=base_ts + 1.0, source_tier="app"
+        )
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="error", execution_start_ts=base_ts + 2.0, source_tier="framework"
+        )
+
+        rows = await svc.get_recent_errors(since_ts=base_ts, source_tier="framework")
+        assert len(rows) == 1
+        assert isinstance(rows[0], HandlerErrorRecord)
+
+
+class TestGetAllAppSummariesSourceTier:
+    async def test_get_all_app_summaries_excludes_hassette(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Framework actors (__hassette__) are excluded from get_all_app_summaries."""
+        db_svc, session_id = db
+
+        # App-tier listener
+        app_listener = await _insert_listener(db_svc, app_key="my_app", handler_method="on_a", source_tier="app")
+        # Framework-tier listener registered as __hassette__
+        fw_listener = await _insert_listener(
+            db_svc, app_key="__hassette__", handler_method="on_fw", source_tier="framework"
+        )
+
+        base_ts = 8_000_000.0
+        await _insert_invocation(
+            db_svc, app_listener, session_id, status="success", execution_start_ts=base_ts + 1.0, source_tier="app"
+        )
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="success", execution_start_ts=base_ts + 2.0, source_tier="framework"
+        )
+
+        result = await svc.get_all_app_summaries()
+        assert "__hassette__" not in result
+        assert "my_app" in result
+
+    async def test_get_all_app_summaries_activity_filtered_by_app_tier(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Framework invocations don't inflate app-tier counts in get_all_app_summaries."""
+        db_svc, session_id = db
+
+        # App-tier listener for "my_app"
+        app_listener = await _insert_listener(db_svc, app_key="my_app", handler_method="on_a", source_tier="app")
+        # Framework-tier listener for "my_app" (same app_key, different tier)
+        fw_listener = await _insert_listener(db_svc, app_key="my_app", handler_method="on_fw", source_tier="framework")
+
+        base_ts = 9_000_000.0
+        # 1 app-tier invocation
+        await _insert_invocation(
+            db_svc, app_listener, session_id, status="success", execution_start_ts=base_ts + 1.0, source_tier="app"
+        )
+        # 2 framework-tier invocations — must NOT be counted in app summary
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="success", execution_start_ts=base_ts + 2.0, source_tier="framework"
+        )
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="error", execution_start_ts=base_ts + 3.0, source_tier="framework"
+        )
+
+        result = await svc.get_all_app_summaries()
+        assert "my_app" in result
+        summary = result["my_app"]
+        # Only the 1 app-tier invocation should be counted
+        assert summary.total_invocations == 1
+        assert summary.total_errors == 0
+
+
+class TestDiFailureFlag:
+    async def test_di_failure_flag_query(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """is_di_failure=1 records are counted as di_failures in get_listener_summary."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc, handler_method="on_di")
+
+        # 2 DI failures (is_di_failure=1) and 1 regular error
+        await _insert_invocation(
+            db_svc, listener_id, session_id, status="error", error_type="DependencyError", is_di_failure=1
+        )
+        await _insert_invocation(
+            db_svc, listener_id, session_id, status="error", error_type="DependencyError", is_di_failure=1
+        )
+        await _insert_invocation(
+            db_svc, listener_id, session_id, status="error", error_type="ValueError", is_di_failure=0
+        )
+
+        rows = await svc.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.di_failures == 2
+        assert row.failed == 3
+
+    async def test_di_failure_flag_not_string_match(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Records with error_type LIKE 'Dependency%' but is_di_failure=0 are NOT counted."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc, handler_method="on_test")
+
+        # error_type looks like a DI error but flag is 0
+        await _insert_invocation(
+            db_svc, listener_id, session_id, status="error", error_type="DependencyError", is_di_failure=0
+        )
+        # Real DI failure with flag set
+        await _insert_invocation(
+            db_svc, listener_id, session_id, status="error", error_type="DependencyInjectionError", is_di_failure=1
+        )
+
+        rows = await svc.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        # Only the one with is_di_failure=1 should count
+        assert row.di_failures == 1
+
+
+class TestGetSlowHandlersLeftJoin:
+    async def test_get_slow_handlers_left_join(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Delete a listener; its slow invocations still appear with null app_key."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc, handler_method="on_slow")
+
+        await _insert_invocation(db_svc, listener_id, session_id, duration_ms=500.0)
+        # Delete the listener
+        await db_svc.db.execute("DELETE FROM listeners WHERE id = ?", (listener_id,))
+        await db_svc.db.commit()
+
+        rows = await svc.get_slow_handlers(threshold_ms=100.0)
+        assert len(rows) == 1
+        # Orphaned row: app_key should be None (LEFT JOIN with no match)
+        assert rows[0].duration_ms == pytest.approx(500.0)
+
+    async def test_get_slow_handlers_source_tier_filter(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='app' (default) excludes framework slow handlers."""
+        db_svc, session_id = db
+        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
+        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+
+        await _insert_invocation(db_svc, app_listener, session_id, duration_ms=500.0, source_tier="app")
+        await _insert_invocation(db_svc, fw_listener, session_id, duration_ms=1000.0, source_tier="framework")
+
+        rows = await svc.get_slow_handlers(threshold_ms=100.0)
+        assert len(rows) == 1
+        assert rows[0].duration_ms == pytest.approx(500.0)
+
+
+class TestGetGlobalSummarySourceTier:
+    async def test_get_global_summary_filters_app_tier(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_global_summary with default source_tier='app' excludes framework records."""
+        db_svc, session_id = db
+
+        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
+        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+        app_job = await _insert_job(db_svc, job_name="app_job", source_tier="app")
+        fw_job = await _insert_job(db_svc, job_name="fw_job", source_tier="framework")
+
+        await _insert_invocation(db_svc, app_listener, session_id, status="success", source_tier="app")
+        await _insert_invocation(db_svc, app_listener, session_id, status="error", source_tier="app")
+        await _insert_invocation(db_svc, fw_listener, session_id, status="success", source_tier="framework")
+        await _insert_execution(db_svc, app_job, session_id, status="success", source_tier="app")
+        await _insert_execution(db_svc, fw_job, session_id, status="success", source_tier="framework")
+
+        result = await svc.get_global_summary()
+        # Default source_tier='app' — only app invocations counted
+        assert result.listeners.total_invocations == 2
+        assert result.listeners.total_errors == 1
+        assert result.jobs.total_executions == 1
+
+    async def test_get_global_summary_all_tier_includes_framework(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_global_summary(source_tier='all') includes framework records."""
+        db_svc, session_id = db
+
+        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
+        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+
+        await _insert_invocation(db_svc, app_listener, session_id, status="success", source_tier="app")
+        await _insert_invocation(db_svc, fw_listener, session_id, status="success", source_tier="framework")
+
+        result = await svc.get_global_summary(source_tier="all")
+        assert result.listeners.total_invocations == 2
