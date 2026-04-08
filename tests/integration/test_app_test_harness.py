@@ -216,3 +216,81 @@ async def test_api_recorder_records_calls():
         await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
 
         harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
+
+
+# ---------------------------------------------------------------------------
+# State seeding tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_set_state_seeds_proxy():
+    """set_state populates the StateProxy so states.get() returns the value."""
+    async with AppTestHarness(SensorApp, config={}) as harness:
+        await harness.set_state("light.kitchen", "on", brightness=255)
+
+        state = harness.app.states.get("light.kitchen")
+        assert state is not None
+        assert state.entity_id == "light.kitchen"
+
+
+@pytest.mark.asyncio
+async def test_set_state_does_not_fire_events():
+    """set_state is silent — no bus events, no handler invocations."""
+    async with AppTestHarness(SensorApp, config={}) as harness:
+        # SensorApp listens to sensor.test — setting its state should NOT trigger the handler
+        await harness.set_state("sensor.test", "25.5")
+
+        assert harness.app.handler_calls == [], "set_state should not fire bus events"
+
+
+@pytest.mark.asyncio
+async def test_set_states_multiple():
+    """set_states seeds multiple entities at once."""
+    async with AppTestHarness(SensorApp, config={}) as harness:
+        await harness.set_states(
+            {
+                "light.kitchen": "on",
+                "sensor.temp": ("25.5", {"unit_of_measurement": "°C"}),
+                "switch.fan": "off",
+            }
+        )
+
+        assert harness.app.states.get("light.kitchen") is not None
+        assert harness.app.states.get("sensor.temp") is not None
+        assert harness.app.states.get("switch.fan") is not None
+
+
+# ---------------------------------------------------------------------------
+# Additional event simulation tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_drains_handlers():
+    """simulate_state_change returns only after the handler has fully completed."""
+
+    class SlowHandlerApp(App[SensorConfig]):
+        handler_finished: bool = False
+
+        async def on_initialize(self) -> None:
+            self.handler_finished = False
+            self.bus.on_state_change("sensor.test", handler=self._slow_handler)
+
+        async def _slow_handler(self, event: RawStateChangeEvent) -> None:
+            import asyncio
+
+            await asyncio.sleep(0.05)  # Simulate async work
+            self.handler_finished = True
+
+    async with AppTestHarness(SlowHandlerApp, config={}) as harness:
+        await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
+        assert harness.app.handler_finished, "Handler should have completed before simulate returned"
+
+
+@pytest.mark.asyncio
+async def test_simulate_call_service():
+    """simulate_call_service sends a call_service event through the bus without error."""
+    async with AppTestHarness(SensorApp, config={}) as harness:
+        # Verify the method executes without raising — the event is sent through the bus
+        await harness.simulate_call_service("light", "turn_on")
