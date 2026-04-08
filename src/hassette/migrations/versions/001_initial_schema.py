@@ -1,39 +1,24 @@
-"""Fresh unified schema: source_tier on all tables, nullable FKs, is_di_failure flag.
+"""Unified schema: source_tier on all tables, nullable FKs, is_di_failure flag.
 
-Replaces migrations 001-006 with a single clean schema. This migration strategy is
-destructive — the DatabaseService auto-recreates the DB when a version mismatch is
-detected, so backward compatibility is not required.
+Single clean schema — no prior migrations to upgrade from. The DatabaseService
+auto-recreates the DB when a version mismatch is detected, so backward
+compatibility is not required.
 
-New columns vs prior schema:
-- ``source_tier TEXT NOT NULL`` (with CHECK constraint) on all 5 tables
-- ``is_di_failure INTEGER NOT NULL DEFAULT 0`` on handler_invocations and job_executions
-- ``listener_id`` / ``job_id`` FKs are nullable (were NOT NULL in migration 001)
-- CHECK constraints on ``status`` and ``duration_ms`` in handler_invocations / job_executions
-- CHECK constraint on ``status`` in sessions
-- 4 new filtered views split by source_tier; 2 backward-compat aliases
-
-Revision ID: 007
+Revision ID: 001
 Revises: None
 """
 
 from alembic import op
-from sqlalchemy import text
 
-revision = "007"
+revision = "001"
 down_revision = None
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    # Enable incremental auto-vacuum. Must be set before any tables exist for a fresh DB.
-    # For an existing DB (unlikely given the destructive strategy), VACUUM activates it.
-    conn = op.get_bind()
-    result = conn.execute(text("PRAGMA auto_vacuum"))
-    current_mode = result.scalar()
-    if current_mode != 2:
-        conn.execute(text("PRAGMA auto_vacuum = INCREMENTAL"))
-        conn.execute(text("VACUUM"))
+    # auto_vacuum = INCREMENTAL is set by DatabaseService._run_migrations() before
+    # Alembic runs, so it's already active when this migration executes.
 
     # -------------------------------------------------------------------------
     # sessions
@@ -74,8 +59,10 @@ def upgrade() -> None:
             registration_source   TEXT,
             name                  TEXT,
             retired_at            REAL,
+            registered_session_id INTEGER REFERENCES sessions(id),
             source_tier           TEXT    NOT NULL DEFAULT 'app'
-                CHECK (source_tier IN ('app', 'framework'))
+                CHECK (source_tier IN ('app', 'framework')),
+            CHECK (app_key != '__hassette__' OR source_tier = 'framework')
         )
     """)
 
@@ -105,7 +92,8 @@ def upgrade() -> None:
             registration_source   TEXT,
             retired_at            REAL,
             source_tier           TEXT    NOT NULL DEFAULT 'app'
-                CHECK (source_tier IN ('app', 'framework'))
+                CHECK (source_tier IN ('app', 'framework')),
+            CHECK (app_key != '__hassette__' OR source_tier = 'framework')
         )
     """)
 

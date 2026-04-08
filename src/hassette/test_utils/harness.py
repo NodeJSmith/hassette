@@ -195,6 +195,10 @@ class HassetteHarness:
     caller having to add it explicitly.
     """
 
+    # Declared here for pyright; assigned at module level from standalone functions
+    register_framework_listener: Callable[..., Awaitable[None]]
+    register_framework_job: Callable[..., Awaitable[int]]
+
     def __init__(self, config: HassetteConfig, *, unused_tcp_port: int = 0) -> None:
         self.config = config
         self.unused_tcp_port = unused_tcp_port

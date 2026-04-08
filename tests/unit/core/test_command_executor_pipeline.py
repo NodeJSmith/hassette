@@ -140,10 +140,12 @@ async def test_retryable_batch_expanded_in_drain():
 
     captured_invocations = []
     captured_jobs = []
+    captured_retry_counts = []
 
-    async def fake_persist_batch(invocations, job_executions):
+    async def fake_persist_batch(invocations, job_executions, *, retry_count=0):
         captured_invocations.extend(invocations)
         captured_jobs.extend(job_executions)
+        captured_retry_counts.append(retry_count)
 
     executor._persist_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -151,6 +153,8 @@ async def test_retryable_batch_expanded_in_drain():
 
     assert inv in captured_invocations
     assert job in captured_jobs
+    # RetryableBatch should preserve its retry_count (was 1)
+    assert 1 in captured_retry_counts
 
 
 # ---------------------------------------------------------------------------
@@ -334,29 +338,24 @@ async def test_data_error_drops_immediately():
 
 @pytest.mark.asyncio
 async def test_integrity_error_row_by_row_fallback():
-    """IntegrityError triggers row-by-row fallback; violating row gets null FK."""
+    """IntegrityError triggers FK fallback via persist_batch_with_fk_fallback; dropped count tracked."""
     executor = _init_executor()
 
     inv_good = make_invocation(listener_id=1, session_id=1)
     inv_bad = make_invocation(listener_id=999, session_id=1)  # FK violation
     invocations = [inv_good, inv_bad]
 
-    # Simulate: batch call raises IntegrityError; good row succeeds; bad row raises IntegrityError
-    persist_calls: list[list] = []
-
-    async def fake_persist_batch(invs, jobs):
-        persist_calls.append([r.listener_id for r in invs] + [f"job:{r.job_id}" for r in jobs])
+    # Simulate: batch call raises IntegrityError; FK fallback returns 1 dropped record
+    async def fake_persist_batch(invs, _jobs):
         if len(invs) > 1:
-            # Batch call — raise IntegrityError
             raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
-        if invs and invs[0].listener_id == 999:
-            # Bad row individual call — FK violation
-            raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
-        # Good row or nulled row — succeed
+
+    async def fake_fk_fallback(_invs, _jobs):
+        return 1  # 1 record dropped
 
     executor.repository.persist_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_batch_with_fk_fallback = fake_fk_fallback  # pyright: ignore[reportAttributeAccessIssue]
 
-    # submit directly awaits the coroutine passed to it
     async def direct_submit(coro):
         return await coro
 
@@ -364,9 +363,8 @@ async def test_integrity_error_row_by_row_fallback():
 
     await CommandExecutor._persist_batch(executor, invocations, [])  # pyright: ignore[reportArgumentType]
 
-    # Should have logged a WARNING about nulled FK
-    warn_calls = [str(c) for c in executor.logger.warning.call_args_list]
-    assert any("null" in c.lower() or "fk" in c.lower() or "FK" in c or "foreign" in c.lower() for c in warn_calls)
+    # Should have incremented dropped_exhausted for the 1 record that failed even with null FK
+    assert executor._dropped_exhausted == 1
 
 
 # ---------------------------------------------------------------------------

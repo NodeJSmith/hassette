@@ -1,4 +1,4 @@
-"""Tests for the schema migration (007_source_tier_unification) and related components."""
+"""Tests for the schema migration (001_initial_schema) and related components."""
 
 import asyncio
 import sqlite3
@@ -291,8 +291,8 @@ class TestDbVersionMismatch:
         svc.logger = MagicMock()
 
         with (
-            patch.object(DatabaseService, "_get_current_db_revision", return_value="006"),
-            patch.object(DatabaseService, "_get_expected_head_revision", return_value="007"),
+            patch.object(DatabaseService, "_get_current_db_revision", return_value="000"),
+            patch.object(DatabaseService, "_get_expected_head_revision", return_value="001"),
         ):
             asyncio.run(svc._handle_schema_version(db_path))
             # DB file should have been deleted (on_initialize handles re-running migrations)
@@ -318,10 +318,10 @@ class TestDbVersionMismatch:
         svc.hassette = hassette_mock
         svc.logger = MagicMock()
 
-        # DB has revision 008, but code only knows about 007
+        # DB has revision 002, but code only knows about 001
         with (
-            patch.object(DatabaseService, "_get_current_db_revision", return_value="008"),
-            patch.object(DatabaseService, "_get_expected_head_revision", return_value="007"),
+            patch.object(DatabaseService, "_get_current_db_revision", return_value="002"),
+            patch.object(DatabaseService, "_get_expected_head_revision", return_value="001"),
             pytest.raises(RuntimeError, match="ahead"),
         ):
             asyncio.run(svc._handle_schema_version(db_path))

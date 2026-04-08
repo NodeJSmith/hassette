@@ -338,6 +338,16 @@ class Hassette(Resource):
             await self.shutdown()
             return
 
+        # Drain completed framework registration tasks to free stale Task references.
+        # Without this, _pending_registration_tasks['__hassette__'] holds N completed
+        # Tasks for the process lifetime since no further register_framework_listener()
+        # calls trigger the pruning logic.
+        await self._bus_service.await_registrations_complete("__hassette__")
+
+        # Clean up stale once=True listeners now that CommandExecutor is ready and
+        # all previous-session records have been flushed to the DB.
+        await self._session_manager.cleanup_stale_once_listeners()
+
         # does not take into consideration if apps failed to load, but those errors would have been logged already
         self.logger.info("All services started successfully.")
         self.logger.info("Hassette is running.")
@@ -368,8 +378,18 @@ class Hassette(Resource):
                 service.start()
 
     async def on_shutdown(self) -> None:
-        """Shutdown hook — children are shut down by _finalize_shutdown() propagation with timeout."""
-        pass
+        """Shut down CommandExecutor before DatabaseService.
+
+        CommandExecutor._flush_queue() calls database_service.submit(), so it must
+        complete before DatabaseService tears down its write queue. The base class
+        shuts all children concurrently, which races these two. We sequence
+        CommandExecutor first here, then let _finalize_shutdown handle the rest
+        (CommandExecutor.shutdown() is idempotent — the second call is a no-op).
+        """
+        try:
+            await self._command_executor.shutdown()
+        except Exception:
+            self.logger.exception("CommandExecutor shutdown failed during sequenced pre-shutdown")
 
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.

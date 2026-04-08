@@ -192,9 +192,12 @@ FR-21: The `"__hassette__"` sentinel `app_key` must be excluded from the `AppHan
 
 AC-1 and AC-2 require the ability to register framework actors in the database and query the error feed in a single test. The following framework actors are in scope for testing:
 
-- **Heartbeat job** (scheduled, repeating) — the primary framework scheduled job
 - **WebSocket reconnection handler** (event listener) — fires on connection loss events
 - **File watcher handler** (event listener) — fires on config file changes
+
+> **Note:** The heartbeat job (`DatabaseService._update_heartbeat()`) is a direct DB execute
+> loop, not a `ScheduledJob` — it does not produce job execution telemetry records.
+> A `register_framework_job()` API is tracked as a follow-up enhancement.
 
 `HassetteHarness` must be extended to support registering framework actors with `app_key = "__hassette__"` and `source_tier = "framework"`. A new integration test module is needed that combines live scheduler execution with queryable telemetry to verify AC-1, AC-2, and AC-11a/11b.
 

@@ -311,11 +311,13 @@ async def dashboard_app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    source_tier: Literal["app", "framework", "all"] | None = _SOURCE_TIER_PARAM,
 ) -> DashboardAppGridResponse:
     """Per-app health data for the dashboard grid."""
+    effective_tier = source_tier or "app"
     snapshot = runtime.get_all_manifests_snapshot()
     try:
-        summaries = await telemetry.get_all_app_summaries(session_id=session_id)
+        summaries = await telemetry.get_all_app_summaries(session_id=session_id, source_tier=effective_tier)
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}

@@ -12,8 +12,11 @@ class HandlerInvocationRecord:
     listener_id: int | None
     """FK to the listener that was invoked. None for framework-internal handlers."""
 
-    session_id: int
-    """Session during which the invocation occurred."""
+    session_id: int | None
+    """Session during which the invocation occurred.
+
+    None when enqueued before session creation; injected at drain time.
+    """
 
     execution_start_ts: float
     """Unix timestamp (epoch seconds) when execution began."""

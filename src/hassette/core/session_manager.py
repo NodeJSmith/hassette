@@ -66,6 +66,13 @@ class SessionManager(Resource):
         """Insert a new session row and store the session ID."""
         self._session_id = await self._database_service.submit(self._do_create_session())
         self.logger.info("Created session %d", self._session_id)
+
+    async def cleanup_stale_once_listeners(self) -> None:
+        """Delete stale once=True listeners from previous sessions.
+
+        Must be called after CommandExecutor is ready, not during session creation,
+        to avoid racing with unflushed invocation records from the previous session.
+        """
         session_id = self._session_id
         if session_id is not None:
             await self._database_service.submit(self._do_cleanup_once_listeners(session_id))
@@ -189,6 +196,7 @@ class SessionManager(Resource):
             await self._database_service.db.commit()
             self.logger.debug("Cleaned up stale once=True app listeners from previous sessions")
         except Exception:
+            await self._database_service.db.rollback()
             self.logger.exception("Failed to clean up stale once=True listeners")
 
     async def _do_finalize_session(self) -> None:

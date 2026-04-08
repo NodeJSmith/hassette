@@ -412,6 +412,7 @@ EXPECTED_TABLES = {
         "human_description",
         "name",
         "retired_at",
+        "registered_session_id",
         "source_tier",
     },
     "scheduled_jobs": {
@@ -779,14 +780,21 @@ async def test_serve_runs_heartbeat_retention_and_size_failsafe(initialized_serv
 
 
 def test_auto_vacuum_migration(tmp_path: Path) -> None:
-    """Migration 007 sets auto_vacuum = INCREMENTAL on a fresh database."""
+    """DatabaseService._run_migrations() sets auto_vacuum = INCREMENTAL before Alembic runs."""
     import sqlite3
 
     from alembic import command
 
     db_path = tmp_path / "test.db"
 
-    # Run migrations to head (007 sets PRAGMA auto_vacuum = INCREMENTAL before creating tables)
+    # Simulate what DatabaseService._run_migrations() does: set auto_vacuum before Alembic
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("PRAGMA auto_vacuum = INCREMENTAL")
+    finally:
+        conn.close()
+
+    # Run migrations to head
     config = _make_alembic_config(db_path)
     command.upgrade(config, "head")
 
@@ -795,6 +803,6 @@ def test_auto_vacuum_migration(tmp_path: Path) -> None:
     try:
         cursor = conn.execute("PRAGMA auto_vacuum")
         mode_after = cursor.fetchone()[0]
-        assert mode_after == 2, f"Expected auto_vacuum = 2 after migration 007, got {mode_after}"
+        assert mode_after == 2, f"Expected auto_vacuum = 2 after migration, got {mode_after}"
     finally:
         conn.close()

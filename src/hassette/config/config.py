@@ -506,6 +506,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
         app_manifest_dict: dict[str, AppManifest] = {}
         for k, v in cleaned_apps_dict.items():
+            if k == "__hassette__":
+                raise ValueError(
+                    f"App key '__hassette__' is reserved for framework internals. "
+                    f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
+                )
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
         self.app_manifests = app_manifest_dict

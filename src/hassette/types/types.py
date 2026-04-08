@@ -19,6 +19,9 @@ LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 SourceTier = Literal["app", "framework"]
 """Identifies whether a telemetry record originates from a user app or the framework itself."""
 
+QuerySourceTier = Literal["app", "framework", "all"]
+"""Valid source_tier values for query-side filtering. 'all' disables the filter."""
+
 CoroT = TypeVar("CoroT")
 CoroLikeT = Coroutine[Any, Any, CoroT]
 """A coroutine returning a value of type CoroT."""

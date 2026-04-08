@@ -1,6 +1,7 @@
 """TelemetryRepository: encapsulates all SQL writes for CommandExecutor telemetry."""
 
 import logging
+import sqlite3
 import time
 import typing
 
@@ -284,6 +285,7 @@ class TelemetryRepository:
                         f"""
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
+                          AND source_tier = 'app'
                           AND id NOT IN ({placeholders})
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
@@ -297,6 +299,7 @@ class TelemetryRepository:
                         """
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
+                          AND source_tier = 'app'
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
                               WHERE listener_id = listeners.id AND session_id = ?
@@ -371,6 +374,141 @@ class TelemetryRepository:
         except Exception:
             await db.rollback()
             raise
+
+    async def persist_batch_with_fk_fallback(
+        self,
+        invocations: list[HandlerInvocationRecord],
+        job_executions: list[JobExecutionRecord],
+    ) -> int:
+        """Write records with FK violation fallback — all within a single transaction.
+
+        First attempts a batch insert. On IntegrityError, falls back to row-by-row
+        insertion with FK fields nulled on violation. This runs as one submit() call
+        on the DB write queue, avoiding N round-trips.
+
+        Returns the number of records that were dropped (failed even with null FK).
+        """
+        db = self._db_service.db
+        dropped = 0
+        logger = logging.getLogger(__name__)
+
+        try:
+            await db.execute("BEGIN")
+            # Try each invocation individually, nulling FK on violation
+            for record in invocations:
+                try:
+                    await db.execute(
+                        """
+                        INSERT INTO handler_invocations (
+                            listener_id, session_id, execution_start_ts,
+                            duration_ms, status, source_tier, is_di_failure,
+                            error_type, error_message, error_traceback
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            record.listener_id,
+                            record.session_id,
+                            record.execution_start_ts,
+                            record.duration_ms,
+                            record.status,
+                            record.source_tier,
+                            1 if record.is_di_failure else 0,
+                            record.error_type,
+                            record.error_message,
+                            record.error_traceback,
+                        ),
+                    )
+                except sqlite3.IntegrityError:
+                    logger.warning(
+                        "FK violation on handler_invocations row (listener_id=%s) — nulling FK and retrying",
+                        record.listener_id,
+                    )
+                    try:
+                        await db.execute(
+                            """
+                            INSERT INTO handler_invocations (
+                                listener_id, session_id, execution_start_ts,
+                                duration_ms, status, source_tier, is_di_failure,
+                                error_type, error_message, error_traceback
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                None,
+                                record.session_id,
+                                record.execution_start_ts,
+                                record.duration_ms,
+                                record.status,
+                                record.source_tier,
+                                1 if record.is_di_failure else 0,
+                                record.error_type,
+                                record.error_message,
+                                record.error_traceback,
+                            ),
+                        )
+                    except Exception as exc:
+                        dropped += 1
+                        logger.error("Failed to persist handler_invocations row even with null FK — dropping: %s", exc)
+
+            for record in job_executions:
+                try:
+                    await db.execute(
+                        """
+                        INSERT INTO job_executions (
+                            job_id, session_id, execution_start_ts,
+                            duration_ms, status, source_tier, is_di_failure,
+                            error_type, error_message, error_traceback
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            record.job_id,
+                            record.session_id,
+                            record.execution_start_ts,
+                            record.duration_ms,
+                            record.status,
+                            record.source_tier,
+                            1 if record.is_di_failure else 0,
+                            record.error_type,
+                            record.error_message,
+                            record.error_traceback,
+                        ),
+                    )
+                except sqlite3.IntegrityError:
+                    logger.warning(
+                        "FK violation on job_executions row (job_id=%s) — nulling FK and retrying",
+                        record.job_id,
+                    )
+                    try:
+                        await db.execute(
+                            """
+                            INSERT INTO job_executions (
+                                job_id, session_id, execution_start_ts,
+                                duration_ms, status, source_tier, is_di_failure,
+                                error_type, error_message, error_traceback
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                None,
+                                record.session_id,
+                                record.execution_start_ts,
+                                record.duration_ms,
+                                record.status,
+                                record.source_tier,
+                                1 if record.is_di_failure else 0,
+                                record.error_type,
+                                record.error_message,
+                                record.error_traceback,
+                            ),
+                        )
+                    except Exception as exc:
+                        dropped += 1
+                        logger.error("Failed to persist job_executions row even with null FK — dropping: %s", exc)
+
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+        return dropped
 
     async def persist_batch(
         self,

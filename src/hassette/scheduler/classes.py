@@ -281,8 +281,11 @@ class JobExecutionRecord:
     job_id: int | None
     """FK to the scheduled_jobs table entry for this job. None for framework-internal jobs."""
 
-    session_id: int
-    """Session during which the execution occurred."""
+    session_id: int | None
+    """Session during which the execution occurred.
+
+    None when enqueued before session creation; injected at drain time.
+    """
 
     execution_start_ts: float
     """Unix timestamp (epoch seconds) when execution began."""

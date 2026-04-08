@@ -231,6 +231,9 @@ class DatabaseService(Service):
             coro.close()
             raise RuntimeError("DatabaseService.enqueue() called before on_initialize()")
         self._db_write_queue.put_nowait((coro, None))
+        qsize = self._db_write_queue.qsize()
+        if qsize > 0 and qsize % 100 == 0:
+            self.logger.warning("DB write queue depth at %d items — potential backlog", qsize)
 
     def _resolve_db_path(self) -> Path:
         """Resolve the database path from config or use default."""
@@ -243,6 +246,10 @@ class DatabaseService(Service):
 
         Reads the head from Alembic's migration scripts rather than hard-coding,
         so future migrations automatically update the expectation.
+
+        Validates that the revision ID is a zero-padded numeric string (project convention).
+        This assertion prevents future contributors from using Alembic's default hex IDs,
+        which would break the lexicographic ahead-check in _handle_schema_version.
         """
         config = Config()
         config.set_main_option("script_location", str(Path(__file__).parent.parent / "migrations"))
@@ -250,7 +257,14 @@ class DatabaseService(Service):
         heads = script.get_heads()
         if len(heads) != 1:
             raise RuntimeError(f"Expected exactly one Alembic head, got: {heads}")
-        return heads[0]
+        head = heads[0]
+        if not head.isdigit():
+            raise RuntimeError(
+                f"Alembic revision ID {head!r} is not a zero-padded numeric string. "
+                "This project uses numeric revision IDs (e.g. '001') for lexicographic comparison. "
+                "Use 'alembic revision --rev-id NNN' to generate correctly formatted IDs."
+            )
+        return head
 
     def _get_current_db_revision(self, db_path: Path) -> str | None:
         """Return the current Alembic revision in the on-disk DB, or None if none (synchronous)."""
@@ -297,7 +311,7 @@ class DatabaseService(Service):
         else:
             # Compare revision strings lexicographically as a heuristic for ahead-check.
             # A proper check compares against all known revisions; here we use the
-            # convention that revision IDs are padded numeric prefixes (e.g. "007").
+            # convention that revision IDs are padded numeric prefixes (e.g. "001").
             if current_rev > expected_head:
                 self.logger.error(
                     "Database schema version %r is ahead of the code's expected head %r. "
@@ -329,7 +343,23 @@ class DatabaseService(Service):
             ) from exc
 
     def _run_migrations(self) -> None:
-        """Run Alembic migrations to HEAD (synchronous, called via to_thread)."""
+        """Run Alembic migrations to HEAD (synchronous, called via to_thread).
+
+        Sets auto_vacuum = INCREMENTAL before Alembic creates any tables. This must
+        happen before the first CREATE TABLE (including alembic_version), because
+        SQLite requires VACUUM to change auto_vacuum on a database with existing pages.
+        """
+        conn = sqlite3.connect(self._db_path)
+        try:
+            current_mode = conn.execute("PRAGMA auto_vacuum").fetchone()[0]
+            if current_mode != 2:
+                conn.execute("PRAGMA auto_vacuum = INCREMENTAL")
+                # On a fresh (zero-page) DB this takes effect immediately.
+                # On an existing DB, this is a no-op without VACUUM — acceptable
+                # since _handle_schema_version deletes stale DBs before we get here.
+        finally:
+            conn.close()
+
         config = Config()
         config.set_main_option("script_location", str(Path(__file__).parent.parent / "migrations"))
         config.set_main_option("sqlalchemy.url", f"sqlite:///{self._db_path.as_posix()}")

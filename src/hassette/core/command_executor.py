@@ -239,12 +239,21 @@ class CommandExecutor(Service):
         result: ExecutionResult,
         execution_start_ts: float,
     ) -> HandlerInvocationRecord | JobExecutionRecord:
-        """Build the appropriate record type from the execution result and command."""
+        """Build the appropriate record type from the execution result and command.
+
+        session_id is set to None if the session hasn't been created yet (pre-Phase 1).
+        The actual session_id is injected at drain time in _persist_batch.
+        """
+        try:
+            session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            session_id = None
+
         match cmd:
             case InvokeHandler():
                 return HandlerInvocationRecord(
                     listener_id=cmd.listener_id,
-                    session_id=self.hassette.session_id,
+                    session_id=session_id,
                     execution_start_ts=execution_start_ts,
                     duration_ms=result.duration_ms,
                     status=result.status,
@@ -257,7 +266,7 @@ class CommandExecutor(Service):
             case ExecuteJob():
                 return JobExecutionRecord(
                     job_id=cmd.job_db_id,
-                    session_id=self.hassette.session_id,
+                    session_id=session_id,
                     execution_start_ts=execution_start_ts,
                     duration_ms=result.duration_ms,
                     status=result.status,
@@ -369,30 +378,38 @@ class CommandExecutor(Service):
         self,
         first_item: HandlerInvocationRecord | JobExecutionRecord | RetryableBatch | None = None,
     ) -> None:
-        """Drain up to 100 items from the write queue and persist them to DB.
+        """Drain up to 100 queue items and persist them to DB.
 
         Separates HandlerInvocationRecord and JobExecutionRecord items into
         separate batches, writing each with executemany in a single transaction.
-        RetryableBatch items are expanded into the current batch.
+        RetryableBatch items are processed separately to preserve their retry_count.
+
+        Note: the 100-item cap applies to *queue items*, not total records.
+        A single RetryableBatch counts as 1 queue item but may contain a full
+        prior batch's worth of records.  This is acceptable for append-only
+        telemetry — a large single transaction at recovery time is benign.
 
         Args:
             first_item: An already-dequeued item to include as the first record.
                 When provided, at most 99 additional items are drained from the queue
                 so that the total batch size stays at 100.
         """
-        invocations: list[HandlerInvocationRecord] = []
-        job_executions: list[JobExecutionRecord] = []
+        fresh_invocations: list[HandlerInvocationRecord] = []
+        fresh_job_executions: list[JobExecutionRecord] = []
+        retry_batches: list[RetryableBatch] = []
+
+        def _classify(item: HandlerInvocationRecord | JobExecutionRecord | RetryableBatch) -> None:
+            if isinstance(item, RetryableBatch):
+                retry_batches.append(item)
+            elif isinstance(item, HandlerInvocationRecord):
+                fresh_invocations.append(item)
+            elif isinstance(item, JobExecutionRecord):
+                fresh_job_executions.append(item)
+            else:
+                typing.assert_never(item)
 
         if first_item is not None:
-            if isinstance(first_item, RetryableBatch):
-                invocations.extend(first_item.invocations)
-                job_executions.extend(first_item.job_executions)
-            elif isinstance(first_item, HandlerInvocationRecord):
-                invocations.append(first_item)
-            elif isinstance(first_item, JobExecutionRecord):
-                job_executions.append(first_item)
-            else:
-                typing.assert_never(first_item)
+            _classify(first_item)
 
         # Drain remaining items up to a total batch size of 100 (non-blocking)
         for _ in range(99 if first_item is not None else 100):
@@ -400,18 +417,15 @@ class CommandExecutor(Service):
                 item = self._write_queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
+            _classify(item)
 
-            if isinstance(item, RetryableBatch):
-                invocations.extend(item.invocations)
-                job_executions.extend(item.job_executions)
-            elif isinstance(item, HandlerInvocationRecord):
-                invocations.append(item)
-            elif isinstance(item, JobExecutionRecord):
-                job_executions.append(item)
-            else:
-                typing.assert_never(item)
+        # Persist fresh records as a single batch (retry_count=0)
+        if fresh_invocations or fresh_job_executions:
+            await self._persist_batch(fresh_invocations, fresh_job_executions)
 
-        await self._persist_batch(invocations, job_executions)
+        # Process each RetryableBatch separately to preserve its retry_count
+        for batch in retry_batches:
+            await self._persist_batch(batch.invocations, batch.job_executions, retry_count=batch.retry_count)
 
     async def _flush_queue(self) -> None:
         """Drain and persist ALL remaining items in the write queue.
@@ -431,6 +445,8 @@ class CommandExecutor(Service):
                 break
 
             if isinstance(item, RetryableBatch):
+                # retry_count intentionally discarded — during shutdown, we make a
+                # single best-effort attempt regardless of prior failure count.
                 invocations.extend(item.invocations)
                 job_executions.extend(item.job_executions)
             elif isinstance(item, HandlerInvocationRecord):
@@ -479,6 +495,65 @@ class CommandExecutor(Service):
             job_executions: Job execution records to insert into job_executions.
             retry_count: The number of times this batch has already been retried.
         """
+        # ---- Drain-time session_id injection ----
+        # Records enqueued before session creation have session_id=None.
+        # Inject the real session_id now at persist time.
+        try:
+            current_session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            current_session_id = None
+
+        if current_session_id is not None:
+            invocations = [
+                HandlerInvocationRecord(
+                    listener_id=r.listener_id,
+                    session_id=current_session_id,
+                    execution_start_ts=r.execution_start_ts,
+                    duration_ms=r.duration_ms,
+                    status=r.status,
+                    source_tier=r.source_tier,
+                    is_di_failure=r.is_di_failure,
+                    error_type=r.error_type,
+                    error_message=r.error_message,
+                    error_traceback=r.error_traceback,
+                )
+                if r.session_id is None
+                else r
+                for r in invocations
+            ]
+            job_executions = [
+                JobExecutionRecord(
+                    job_id=r.job_id,
+                    session_id=current_session_id,
+                    execution_start_ts=r.execution_start_ts,
+                    duration_ms=r.duration_ms,
+                    status=r.status,
+                    source_tier=r.source_tier,
+                    is_di_failure=r.is_di_failure,
+                    error_type=r.error_type,
+                    error_message=r.error_message,
+                    error_traceback=r.error_traceback,
+                )
+                if r.session_id is None
+                else r
+                for r in job_executions
+            ]
+        else:
+            # Session still not ready — drop records with None session_id
+            no_session_invocations = [r for r in invocations if r.session_id is None]
+            no_session_jobs = [r for r in job_executions if r.session_id is None]
+            if no_session_invocations or no_session_jobs:
+                drop_count = len(no_session_invocations) + len(no_session_jobs)
+                self._dropped_exhausted += drop_count
+                self.logger.warning(
+                    "Session not yet created at drain time — dropping %d record(s) with no session_id "
+                    "(total exhausted: %d)",
+                    drop_count,
+                    self._dropped_exhausted,
+                )
+            invocations = [r for r in invocations if r.session_id is not None]
+            job_executions = [r for r in job_executions if r.session_id is not None]
+
         # ---- Sentinel guard: id == 0 → REGRESSION drop ----
         # session_id == 0 is also a regression sentinel
         bad_invocations = [r for r in invocations if r.listener_id == 0 or r.session_id == 0]
@@ -535,11 +610,11 @@ class CommandExecutor(Service):
                     )
                 except asyncio.QueueFull:
                     drop_count = len(invocations) + len(job_executions)
-                    self._dropped_overflow += drop_count
+                    self._dropped_exhausted += drop_count
                     self.logger.error(
-                        "Write queue full while re-enqueueing retry batch — dropping %d records (total dropped: %d)",
+                        "Write queue full while re-enqueueing retry batch — dropping %d records (total exhausted: %d)",
                         drop_count,
-                        self._dropped_overflow,
+                        self._dropped_exhausted,
                     )
 
         except sqlite3.IntegrityError:
@@ -570,71 +645,33 @@ class CommandExecutor(Service):
         invocations: list[HandlerInvocationRecord],
         job_executions: list[JobExecutionRecord],
     ) -> None:
-        """Handle an IntegrityError by re-inserting records individually.
+        """Handle an IntegrityError by re-inserting records with FK fallback.
 
-        For each record that fails with an IntegrityError (FK constraint), the
-        violating FK field (listener_id or job_id) is nulled and the insert is
-        retried. This preserves the execution history while severing the broken
-        FK reference.
+        Uses a single database_service.submit() call (one queue slot, one
+        transaction) to process all records row-by-row. For each record that
+        fails with an IntegrityError, the FK field is nulled and retried.
 
         Args:
             invocations: Handler invocation records to insert individually.
             job_executions: Job execution records to insert individually.
         """
-        for record in invocations:
-            try:
-                await self.hassette.database_service.submit(self.repository.persist_batch([record], []))
-            except sqlite3.IntegrityError:
-                # Null the listener_id and retry
-                nulled = HandlerInvocationRecord(
-                    listener_id=None,
-                    session_id=record.session_id,
-                    execution_start_ts=record.execution_start_ts,
-                    duration_ms=record.duration_ms,
-                    status=record.status,
-                    source_tier=record.source_tier,
-                    is_di_failure=record.is_di_failure,
-                    error_type=record.error_type,
-                    error_message=record.error_message,
-                    error_traceback=record.error_traceback,
+        try:
+            dropped = await self.hassette.database_service.submit(
+                self.repository.persist_batch_with_fk_fallback(invocations, job_executions)
+            )
+            if dropped > 0:
+                self._dropped_exhausted += dropped
+                self.logger.error(
+                    "FK violation fallback: %d record(s) dropped even with null FK (total exhausted: %d)",
+                    dropped,
+                    self._dropped_exhausted,
                 )
-                self.logger.warning(
-                    "FK violation on handler_invocations row (listener_id=%s) — nulling FK and retrying",
-                    record.listener_id,
-                )
-                try:
-                    await self.hassette.database_service.submit(self.repository.persist_batch([nulled], []))
-                except Exception as exc:
-                    self.logger.error(
-                        "Failed to persist handler_invocations row even with null FK — dropping: %s",
-                        exc,
-                    )
-
-        for record in job_executions:
-            try:
-                await self.hassette.database_service.submit(self.repository.persist_batch([], [record]))
-            except sqlite3.IntegrityError:
-                # Null the job_id and retry
-                nulled_job = JobExecutionRecord(
-                    job_id=None,
-                    session_id=record.session_id,
-                    execution_start_ts=record.execution_start_ts,
-                    duration_ms=record.duration_ms,
-                    status=record.status,
-                    source_tier=record.source_tier,
-                    is_di_failure=record.is_di_failure,
-                    error_type=record.error_type,
-                    error_message=record.error_message,
-                    error_traceback=record.error_traceback,
-                )
-                self.logger.warning(
-                    "FK violation on job_executions row (job_id=%s) — nulling FK and retrying",
-                    record.job_id,
-                )
-                try:
-                    await self.hassette.database_service.submit(self.repository.persist_batch([], [nulled_job]))
-                except Exception as exc:
-                    self.logger.error(
-                        "Failed to persist job_executions row even with null FK — dropping: %s",
-                        exc,
-                    )
+        except Exception as exc:
+            drop_count = len(invocations) + len(job_executions)
+            self._dropped_exhausted += drop_count
+            self.logger.error(
+                "FK violation fallback failed entirely — dropping %d record(s) (total exhausted: %d): %s",
+                drop_count,
+                self._dropped_exhausted,
+                exc,
+            )

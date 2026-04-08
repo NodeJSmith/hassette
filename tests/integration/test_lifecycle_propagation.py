@@ -98,18 +98,22 @@ class TestHassetteShutdownSinglePass:
             # Restore for other tests
             await bus.initialize()
 
-    async def test_hassette_on_shutdown_is_noop(self) -> None:
-        """Hassette.on_shutdown() does not manually shut down children."""
+    async def test_hassette_on_shutdown_does_not_bulk_shutdown_children(self) -> None:
+        """Hassette.on_shutdown() does not bulk-shutdown children (that's _finalize_shutdown's job).
+
+        It may sequence specific children (e.g. CommandExecutor before DatabaseService)
+        but must not iterate all children or use gather for shutdown.
+        """
         import inspect
 
         from hassette.core.core import Hassette
 
-        # Verify the real Hassette.on_shutdown is a no-op (pass body only)
         source = inspect.getsource(Hassette.on_shutdown)
-        # The method body should not contain gather, shutdown, or child iteration
+        # Should not gather all child shutdowns (that's _finalize_shutdown)
         assert "gather" not in source, "on_shutdown should not gather child shutdowns"
+        # Should not iterate children for shutdown
         assert "child.shutdown" not in source, "on_shutdown should not call child.shutdown()"
-        assert "resource.shutdown" not in source, "on_shutdown should not call resource.shutdown()"
+        assert "for child in" not in source, "on_shutdown should not iterate children"
 
 
 class TestCloseStreamsAfterChildrenStopped:
