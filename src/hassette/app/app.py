@@ -1,7 +1,7 @@
 import logging
 import typing
 from logging import getLogger
-from typing import Any, ClassVar, Generic, final
+from typing import Any, ClassVar, Generic, cast, final
 
 from whenever import ZonedDateTime
 
@@ -52,6 +52,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     _import_exception: ClassVar[Exception | None] = None
     """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
 
+    _api_factory: ClassVar[type[Resource] | None] = None
+    """Internal: factory for the Api resource. When set, App.__init__ uses this instead of Api.
+    Used by AppTestHarness to inject RecordingApi. Not a user-facing API."""
+
     role: ClassVar[ResourceRole] = ResourceRole.APP
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
@@ -91,7 +95,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.app_config = app_config
         self.index = index
         super().__init__(hassette, parent=parent)
-        self.api = self.add_child(Api)
+        factory = type(self)._api_factory or Api
+        self.api = cast("Api", self.add_child(factory))
         self.scheduler = self.add_child(Scheduler)
         self.bus = self.add_child(Bus, priority=0)
         self.states = self.add_child(StateManager)

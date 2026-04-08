@@ -311,6 +311,20 @@ class StateProxy(Resource):
             self.logger.exception("Failed to resync states after HA restart: %s", e)
             self.mark_not_ready(reason="Failed to resync states after HA restart")
 
+    async def _test_seed_state(self, entity_id: str, state_dict: "HassStateDict") -> None:
+        """Seed an entity's state directly into the cache. For test harnesses only.
+
+        Acquires the write lock and inserts state_dict under entity_id without
+        calling mark_ready() — lifecycle management is the harness's responsibility.
+        Do NOT call this method in production code.
+
+        Args:
+            entity_id: The entity ID to seed (e.g., "light.kitchen").
+            state_dict: The raw state dictionary to insert.
+        """
+        async with self.lock:
+            self.states[entity_id] = state_dict
+
     async def _load_cache(self) -> None:
         """Load the state cache from Home Assistant.
 
