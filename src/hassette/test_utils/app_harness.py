@@ -25,7 +25,7 @@ import tempfile
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 import pydantic
 from pydantic_settings.sources import InitSettingsSource
+from whenever import Instant, ZonedDateTime
 
 from hassette import context
 from hassette.app.app import App
@@ -47,8 +48,62 @@ from hassette.test_utils.harness import HassetteHarness, wait_for
 from hassette.test_utils.helpers import create_call_service_event, create_state_change_event, make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types.enums import ResourceStatus
+from hassette.utils.date_utils import now
 
 LOGGER = logging.getLogger(__name__)
+
+
+class _TestClock:
+    """Mutable test clock for controlling time in tests.
+
+    Patches ``hassette.utils.date_utils.now`` to return a controlled time.
+    Used internally by :meth:`AppTestHarness.freeze_time`.
+
+    Not part of the public API — subject to change without notice.
+    """
+
+    _current: ZonedDateTime
+
+    def __init__(self, instant: Instant | ZonedDateTime) -> None:
+        """Initialize the clock at the given time.
+
+        Args:
+            instant: Starting time as an Instant or ZonedDateTime.
+        """
+        self._current = self._to_zoned(instant)
+
+    @staticmethod
+    def _to_zoned(instant: Instant | ZonedDateTime) -> ZonedDateTime:
+        """Convert an Instant or ZonedDateTime to system-tz ZonedDateTime."""
+        if isinstance(instant, ZonedDateTime):
+            return instant
+        return instant.to_system_tz()
+
+    def current(self) -> ZonedDateTime:
+        """Return the current frozen time.
+
+        Returns:
+            The current ZonedDateTime.
+        """
+        return self._current
+
+    def set(self, instant: Instant | ZonedDateTime) -> None:
+        """Set the clock to a new time.
+
+        Args:
+            instant: New time as an Instant or ZonedDateTime.
+        """
+        self._current = self._to_zoned(instant)
+
+    def advance(self, *, seconds: float = 0, minutes: float = 0, hours: float = 0) -> None:
+        """Advance the clock by the given delta.
+
+        Args:
+            seconds: Seconds to advance.
+            minutes: Minutes to advance.
+            hours: Hours to advance.
+        """
+        self._current = self._current.add(seconds=seconds, minutes=minutes, hours=hours)
 
 
 class AppConfigurationError(Exception):
@@ -236,6 +291,11 @@ class AppTestHarness:
         self._harness: HassetteHarness | None = None
         self._app: App | None = None
         self._token = None  # Token from context.set_global_hassette()
+
+        # Time control (set by freeze_time)
+        self._test_clock: _TestClock | None = None
+        self._time_patcher: list[object] | None = None  # list of unittest.mock._patch instances
+        self._time_patcher_registered: bool = False
 
     async def __aenter__(self) -> "AppTestHarness":
         """Set up the full harness in 12 steps with LIFO teardown via AsyncExitStack."""
@@ -596,3 +656,129 @@ class AppTestHarness:
         # Extra yields to let any tasks spawned by handlers complete (e.g., app.api.turn_on).
         for _ in range(5):
             await asyncio.sleep(0)
+
+    # ------------------------------------------------------------------
+    # Time control helpers
+    # ------------------------------------------------------------------
+
+    # Modules that import `now` via `from hassette.utils.date_utils import now`.
+    # All of these must be patched simultaneously for freeze_time to work correctly
+    # across production code and the harness itself. New import sites in production
+    # code should be added here.
+    _NOW_PATCH_TARGETS: ClassVar[tuple[str, ...]] = (
+        "hassette.utils.date_utils.now",
+        "hassette.core.scheduler_service.now",
+        "hassette.scheduler.scheduler.now",
+        "hassette.scheduler.classes.now",
+        "hassette.app.app.now",
+        "hassette.test_utils.app_harness.now",
+    )
+
+    def _stop_time_patchers(self) -> None:
+        """Stop all active time patchers. Called by exit stack on teardown."""
+        if self._time_patcher is not None:
+            for p in self._time_patcher:
+                p.stop()  # pyright: ignore[reportAttributeAccessIssue]
+            self._time_patcher = None
+
+    def freeze_time(self, instant: Instant | ZonedDateTime) -> None:
+        """Freeze time at the given instant.
+
+        Patches all known ``now()`` import sites to return the frozen time.
+        Idempotent — calling again replaces the frozen time (stops old patchers first).
+
+        The patchers are automatically stopped when the harness exits via the exit stack.
+        Time control is process-global — not safe for concurrent test execution within
+        the same process.
+
+        Must be called inside ``async with AppTestHarness(...) as harness:`` — raises
+        RuntimeError if called before entering the context manager.
+
+        Args:
+            instant: The time to freeze at, as an Instant or ZonedDateTime.
+
+        Raises:
+            RuntimeError: If called outside the async with block.
+        """
+        if self._exit_stack is None:
+            raise RuntimeError("freeze_time() must be called inside 'async with AppTestHarness(...) as harness:'.")
+
+        # Stop existing patchers if active (idempotent re-freeze)
+        self._stop_time_patchers()
+
+        clock = _TestClock(instant)
+        self._test_clock = clock
+
+        patchers: list[object] = []
+        for target in self._NOW_PATCH_TARGETS:
+            try:
+                p = patch(target, side_effect=clock.current)
+                p.start()
+                patchers.append(p)
+            except AttributeError:
+                # Module may not import `now` — skip gracefully
+                LOGGER.debug("freeze_time: could not patch %s (module does not import now)", target)
+
+        self._time_patcher = patchers
+
+        # Register a single teardown callback (reads self._time_patcher at call time).
+        # Only register once — subsequent freeze_time calls reuse this callback.
+        if not self._time_patcher_registered:
+            self._exit_stack.callback(self._stop_time_patchers)
+            self._time_patcher_registered = True
+
+    def advance_time(self, *, seconds: float = 0, minutes: float = 0, hours: float = 0) -> None:
+        """Advance frozen time by the given delta.
+
+        Does NOT automatically trigger scheduled jobs — call :meth:`trigger_due_jobs`
+        explicitly after advancing time.
+
+        Args:
+            seconds: Seconds to advance.
+            minutes: Minutes to advance.
+            hours: Hours to advance.
+
+        Raises:
+            RuntimeError: If :meth:`freeze_time` has not been called first.
+        """
+        if self._test_clock is None:
+            raise RuntimeError(
+                "advance_time() requires freeze_time() to be called first. "
+                "Call harness.freeze_time(instant) before advancing time."
+            )
+        self._test_clock.advance(seconds=seconds, minutes=minutes, hours=hours)
+
+    async def trigger_due_jobs(self) -> int:
+        """Fire all jobs that are due at the current (possibly frozen) time.
+
+        Snapshots due jobs via a single ``pop_due_and_peek_next(now())`` call,
+        then awaits each ``_dispatch_and_log(job)`` inline. Jobs re-enqueued
+        during dispatch (repeating jobs) are not included in this invocation —
+        only the initial snapshot is processed, preventing infinite loops when
+        the clock is frozen.
+
+        Returns:
+            The number of jobs that were dispatched and completed.
+
+        Raises:
+            RuntimeError: If the harness is not active.
+        """
+        harness = self._harness
+        if harness is None:
+            raise RuntimeError("AppTestHarness is not active")
+
+        scheduler_service = harness.hassette._scheduler_service
+        if scheduler_service is None:
+            raise RuntimeError("SchedulerService is not available — ensure with_scheduler() was called")
+
+        # Snapshot due jobs exactly once. Do NOT loop — repeating jobs re-enqueue
+        # during _dispatch_and_log and would fire infinitely with a frozen clock.
+        current_time = now()
+        due_jobs, _next_run = await scheduler_service._job_queue.pop_due_and_peek_next(current_time)
+
+        count = 0
+        for job in due_jobs:
+            await scheduler_service._dispatch_and_log(job)
+            count += 1
+
+        return count
