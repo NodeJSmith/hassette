@@ -2,13 +2,15 @@
 
 from dataclasses import dataclass
 
+from hassette.types.types import SourceTier
+
 
 @dataclass(frozen=True)
 class HandlerInvocationRecord:
     """Record of a single handler invocation for metrics and audit tracking."""
 
-    listener_id: int
-    """FK to the listener that was invoked."""
+    listener_id: int | None
+    """FK to the listener that was invoked. None for framework-internal handlers."""
 
     session_id: int
     """Session during which the invocation occurred."""
@@ -22,11 +24,14 @@ class HandlerInvocationRecord:
     status: str
     """Outcome: 'success', 'error', or 'cancelled'."""
 
-    error_type: str | None
+    source_tier: SourceTier = "app"
+    """Whether this invocation originates from a user app or the framework itself."""
+
+    error_type: str | None = None
     """Exception class name if status is 'error', otherwise None."""
 
-    error_message: str | None
+    error_message: str | None = None
     """Exception message if status is 'error', otherwise None."""
 
-    error_traceback: str | None
+    error_traceback: str | None = None
     """Full traceback string if status is 'error', otherwise None."""

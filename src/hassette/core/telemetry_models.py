@@ -15,6 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from hassette.types.types import SourceTier
+
 
 class AppHealthSummary(BaseModel):
     """Per-app health summary returned by ``get_all_app_summaries()``."""
@@ -62,6 +64,7 @@ class ListenerSummary(BaseModel):
     human_description: str | None
     source_location: str
     registration_source: str | None
+    source_tier: SourceTier = "app"
     total_invocations: int
     successful: int
     failed: int
@@ -82,6 +85,7 @@ class HandlerInvocation(BaseModel):
     execution_start_ts: float
     duration_ms: float
     status: str
+    source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
     error_traceback: str | None
@@ -102,6 +106,7 @@ class JobSummary(BaseModel):
     kwargs_json: str
     source_location: str
     registration_source: str | None
+    source_tier: SourceTier = "app"
     total_executions: int
     successful: int
     failed: int
@@ -116,6 +121,7 @@ class JobExecution(BaseModel):
     execution_start_ts: float
     duration_ms: float
     status: str
+    source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
 
@@ -155,6 +161,7 @@ class SessionRecord(BaseModel):
     started_at: float
     stopped_at: float | None
     status: str
+    source_tier: SourceTier = "framework"
     error_type: str | None
     error_message: str | None
     duration_seconds: float | None
@@ -175,12 +182,13 @@ class HandlerErrorRecord(BaseModel):
     """Handler error returned by ``get_recent_errors()``."""
 
     kind: Literal["handler"] = "handler"
-    listener_id: int
-    app_key: str
-    handler_method: str
-    topic: str
+    listener_id: int | None
+    app_key: str | None
+    handler_method: str | None
+    topic: str | None
     execution_start_ts: float
     duration_ms: float
+    source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
 
@@ -189,12 +197,13 @@ class JobErrorRecord(BaseModel):
     """Job error returned by ``get_recent_errors()``."""
 
     kind: Literal["job"] = "job"
-    job_id: int
-    app_key: str
-    job_name: str
-    handler_method: str
+    job_id: int | None
+    app_key: str | None
+    job_name: str | None
+    handler_method: str | None
     execution_start_ts: float
     duration_ms: float
+    source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
 
@@ -207,3 +216,4 @@ class SlowHandlerRecord(BaseModel):
     topic: str
     execution_start_ts: float
     duration_ms: float
+    source_tier: SourceTier = "app"

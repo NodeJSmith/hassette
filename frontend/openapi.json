@@ -1806,23 +1806,58 @@
             "default": "handler"
           },
           "listener_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Listener Id"
           },
           "topic": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Topic"
           },
           "handler_method": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Handler Method"
           },
           "error_message": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Error Message"
           },
           "error_type": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Error Type"
           },
           "execution_start_ts": {
@@ -1830,8 +1865,24 @@
             "title": "Execution Start Ts"
           },
           "app_key": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "App Key"
+          },
+          "source_tier": {
+            "type": "string",
+            "enum": [
+              "app",
+              "framework"
+            ],
+            "title": "Source Tier",
+            "default": "app"
           }
         },
         "type": "object",
@@ -1859,6 +1910,15 @@
           "status": {
             "type": "string",
             "title": "Status"
+          },
+          "source_tier": {
+            "type": "string",
+            "enum": [
+              "app",
+              "framework"
+            ],
+            "title": "Source Tier",
+            "default": "app"
           },
           "error_type": {
             "anyOf": [
@@ -1915,19 +1975,47 @@
             "default": "job"
           },
           "job_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Job Id"
           },
           "job_name": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Job Name"
           },
           "error_message": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Error Message"
           },
           "error_type": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Error Type"
           },
           "execution_start_ts": {
@@ -1935,8 +2023,24 @@
             "title": "Execution Start Ts"
           },
           "app_key": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "App Key"
+          },
+          "source_tier": {
+            "type": "string",
+            "enum": [
+              "app",
+              "framework"
+            ],
+            "title": "Source Tier",
+            "default": "app"
           }
         },
         "type": "object",
@@ -1963,6 +2067,15 @@
           "status": {
             "type": "string",
             "title": "Status"
+          },
+          "source_tier": {
+            "type": "string",
+            "enum": [
+              "app",
+              "framework"
+            ],
+            "title": "Source Tier",
+            "default": "app"
           },
           "error_type": {
             "anyOf": [
@@ -2068,6 +2181,15 @@
               }
             ],
             "title": "Registration Source"
+          },
+          "source_tier": {
+            "type": "string",
+            "enum": [
+              "app",
+              "framework"
+            ],
+            "title": "Source Tier",
+            "default": "app"
           },
           "total_executions": {
             "type": "integer",
@@ -2295,6 +2417,15 @@
             "type": "string",
             "title": "Handler Summary",
             "default": ""
+          },
+          "source_tier": {
+            "type": "string",
+            "enum": [
+              "app",
+              "framework"
+            ],
+            "title": "Source Tier",
+            "default": "app"
           }
         },
         "type": "object",
@@ -2456,6 +2587,15 @@
             "type": "string",
             "title": "Status"
           },
+          "source_tier": {
+            "type": "string",
+            "enum": [
+              "app",
+              "framework"
+            ],
+            "title": "Source Tier",
+            "default": "framework"
+          },
           "error_type": {
             "anyOf": [
               {
@@ -2549,6 +2689,16 @@
           "degraded": {
             "type": "boolean",
             "title": "Degraded"
+          },
+          "dropped_overflow": {
+            "type": "integer",
+            "title": "Dropped Overflow",
+            "default": 0
+          },
+          "dropped_exhausted": {
+            "type": "integer",
+            "title": "Dropped Exhausted",
+            "default": 0
           }
         },
         "type": "object",

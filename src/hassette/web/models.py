@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
 from hassette.core.telemetry_models import SessionRecord
+from hassette.types.types import SourceTier
 
 
 class SystemStatusResponse(BaseModel):
@@ -178,23 +179,25 @@ WsServerMessage = Annotated[
 
 class HandlerErrorEntry(BaseModel):
     kind: Literal["handler"] = "handler"
-    listener_id: int
-    topic: str
-    handler_method: str
-    error_message: str
-    error_type: str
+    listener_id: int | None
+    topic: str | None
+    handler_method: str | None
+    error_message: str | None
+    error_type: str | None
     execution_start_ts: float
-    app_key: str
+    app_key: str | None
+    source_tier: SourceTier = "app"
 
 
 class JobErrorEntry(BaseModel):
     kind: Literal["job"] = "job"
-    job_id: int
-    job_name: str
-    error_message: str
-    error_type: str
+    job_id: int | None
+    job_name: str | None
+    error_message: str | None
+    error_type: str | None
     execution_start_ts: float
-    app_key: str
+    app_key: str | None
+    source_tier: SourceTier = "app"
 
 
 RecentErrorEntry = Annotated[HandlerErrorEntry | JobErrorEntry, Field(discriminator="kind")]
@@ -245,6 +248,7 @@ class ListenerWithSummary(BaseModel):
     source_location: str = ""
     registration_source: str | None = None
     handler_summary: str = ""
+    source_tier: SourceTier = "app"
 
 
 class DashboardKpisResponse(BaseModel):
@@ -305,6 +309,8 @@ class TelemetryStatusResponse(BaseModel):
     """Health check response for the telemetry database."""
 
     degraded: bool
+    dropped_overflow: int = 0
+    dropped_exhausted: int = 0
 
 
 class ActionResponse(BaseModel):
