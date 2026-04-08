@@ -12,6 +12,7 @@ Tests cover:
 
 import asyncio
 import threading
+from enum import StrEnum
 from typing import cast
 from unittest.mock import AsyncMock, Mock
 
@@ -295,6 +296,22 @@ async def test_assert_called_fails_when_kwargs_do_not_match():
 
 
 @pytest.mark.asyncio
+async def test_assert_called_rejects_absent_key_matching_none():
+    """assert_called must distinguish 'kwarg absent' from 'kwarg=None'.
+
+    When a kwarg key is entirely absent from the recorded call, asserting
+    that key equals None must fail — not silently pass because dict.get()
+    returns None for missing keys.
+    """
+    api = _make_recording_api()
+    # Manually record a call with no 'brightness' key at all
+    api.calls.append(ApiCall(method="test_method", kwargs={"entity_id": "light.x"}))
+    # brightness is absent from kwargs — asserting brightness=None must fail
+    with pytest.raises(AssertionError):
+        api.assert_called("test_method", brightness=None)
+
+
+@pytest.mark.asyncio
 async def test_assert_not_called_passes_when_not_called():
     api = _make_recording_api()
     api.assert_not_called("call_service")  # should not raise
@@ -404,3 +421,24 @@ def test_api_call_dataclass():
     assert call.method == "turn_on"
     assert call.args == ("light.x",)
     assert call.kwargs == {"brightness": 100}
+
+
+# ---------------------------------------------------------------------------
+# StrEnum conversion in turn_on
+# ---------------------------------------------------------------------------
+
+
+class _TestEntityId(StrEnum):
+    KITCHEN = "light.kitchen"
+
+
+@pytest.mark.asyncio
+async def test_turn_on_converts_strenum_to_str():
+    """turn_on converts StrEnum entity_id to str, matching real Api behavior."""
+    api = _make_recording_api()
+    await api.turn_on(_TestEntityId.KITCHEN)
+    call = api.calls[0]
+    target = call.kwargs.get("target", {})
+    entity_id = target.get("entity_id")
+    assert type(entity_id) is str, f"Expected plain str, got {type(entity_id).__name__} (StrEnum not converted)"
+    assert entity_id == "light.kitchen"

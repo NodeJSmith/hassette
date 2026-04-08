@@ -38,3 +38,9 @@ def test_data_dir_is_tmpdir() -> None:
     # Should be inside the system tmp directory or similar
     tmpdir = tempfile.gettempdir()
     assert str(config.data_dir).startswith(tmpdir) or config.data_dir.exists(), "data_dir should be a temp directory"
+
+
+def test_data_dir_override_respected(tmp_path) -> None:
+    """When data_dir is provided, make_test_config uses it instead of creating a new tmpdir."""
+    config = make_test_config(data_dir=tmp_path)
+    assert config.data_dir == tmp_path, "data_dir override was ignored — make_test_config created its own tmpdir"

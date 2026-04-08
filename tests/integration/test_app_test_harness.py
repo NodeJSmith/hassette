@@ -294,3 +294,37 @@ async def test_simulate_call_service():
     async with AppTestHarness(SensorApp, config={}) as harness:
         # Verify the method executes without raising — the event is sent through the bus
         await harness.simulate_call_service("light", "turn_on")
+
+
+# ---------------------------------------------------------------------------
+# simulate_attribute_change with explicit state= argument
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_attribute_change_uses_explicit_state():
+    """When state= is passed, simulate_attribute_change uses it instead of proxy lookup.
+
+    Patches simulate_state_change to capture the call args, verifying the explicit
+    state= value is forwarded rather than the cached proxy value.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    async with AppTestHarness(SensorApp, config={}) as harness:
+        await harness.set_state("sensor.test", "20.0")
+
+        # Patch simulate_state_change to capture call args without actually sending
+        with patch.object(harness, "simulate_state_change", new_callable=AsyncMock) as mock_ssc:
+            await harness.simulate_attribute_change(
+                "sensor.test",
+                "unit_of_measurement",
+                old_value="°C",
+                new_value="°F",
+                state="25.0",
+            )
+
+            mock_ssc.assert_called_once()
+            call_kwargs = mock_ssc.call_args
+            # The state values should be "25.0" (explicit), not "20.0" (cached)
+            assert call_kwargs.kwargs["old_value"] == "25.0"
+            assert call_kwargs.kwargs["new_value"] == "25.0"
