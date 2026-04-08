@@ -4,6 +4,7 @@ They currently are not meant to be used by external users and will likely not be
 However, if you find them useful, knock yourself out.
 """
 
+from .app_harness import AppConfigurationError, AppTestHarness
 from .fixtures import (
     build_harness,
     hassette_harness,
@@ -34,6 +35,7 @@ from .helpers import (
     write_app_toml,
     write_test_app_with_decorator,
 )
+from .recording_api import ApiCall, RecordingApi
 from .test_server import SimpleTestServer
 from .web_helpers import (
     make_full_snapshot,
@@ -47,7 +49,11 @@ from .web_helpers import (
 from .web_mocks import create_hassette_stub, create_mock_runtime_query_service, create_test_fastapi_app
 
 __all__ = [
+    "ApiCall",
+    "AppConfigurationError",
+    "AppTestHarness",
     "HassetteHarness",
+    "RecordingApi",
     "SimpleTestServer",
     "build_harness",
     "create_app_manifest",

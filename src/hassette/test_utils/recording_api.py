@@ -20,6 +20,7 @@ from hassette.resources.base import Resource
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.state_proxy import StateProxy
+    from hassette.events import HassStateDict
 
 
 @dataclass
@@ -102,20 +103,33 @@ class RecordingApi(Resource):
     """
 
     calls: list[ApiCall]
-    _state_proxy: "StateProxy"
     sync: Mock
 
     def __init__(
         self,
         hassette: "Hassette",
         *,
-        state_proxy: "StateProxy",
+        state_proxy: "StateProxy | None" = None,
         parent: Resource | None = None,
     ) -> None:
         super().__init__(hassette, parent=parent)
-        self._state_proxy = state_proxy
+        # state_proxy may be injected directly (e.g. in unit tests) or resolved
+        # lazily from hassette._state_proxy (when created via App.add_child()).
+        self._state_proxy_override = state_proxy
         self.calls = []
         self.sync = Mock()
+
+    @property
+    def _state_proxy(self) -> "StateProxy":
+        """Resolve the state proxy: injected override takes precedence, else hassette._state_proxy."""
+        if self._state_proxy_override is not None:
+            return self._state_proxy_override
+        sp = self.hassette._state_proxy
+        if sp is None:
+            raise RuntimeError(
+                "RecordingApi: no StateProxy available. Ensure HassetteHarness is started with with_state_proxy()."
+            )
+        return sp
 
     async def on_initialize(self) -> None:
         """Mark this resource ready. Called by Resource.initialize()."""
@@ -128,15 +142,21 @@ class RecordingApi(Resource):
 
     async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
         """Record a turn_on call. No-op stub."""
-        self.calls.append(ApiCall(method="turn_on", args=(entity_id,), kwargs={"domain": domain, **data}))
+        self.calls.append(
+            ApiCall(method="turn_on", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
+        )
 
     async def turn_off(self, entity_id: str, domain: str = "homeassistant") -> None:
         """Record a turn_off call. No-op stub."""
-        self.calls.append(ApiCall(method="turn_off", args=(entity_id,), kwargs={"domain": domain}))
+        self.calls.append(
+            ApiCall(method="turn_off", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain})
+        )
 
     async def toggle_service(self, entity_id: str, domain: str = "homeassistant") -> None:
         """Record a toggle_service call. No-op stub."""
-        self.calls.append(ApiCall(method="toggle_service", args=(entity_id,), kwargs={"domain": domain}))
+        self.calls.append(
+            ApiCall(method="toggle_service", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain})
+        )
 
     async def call_service(
         self,
@@ -193,14 +213,14 @@ class RecordingApi(Resource):
     # Read methods — delegate to StateProxy, convert via state registry.
     # ------------------------------------------------------------------
 
-    def _get_raw_state(self, entity_id: str) -> dict:
+    def _get_raw_state(self, entity_id: str) -> "HassStateDict":
         """Look up raw state dict from the proxy, raising EntityNotFoundError if absent."""
         raw = self._state_proxy.states.get(entity_id)
         if raw is None:
             raise EntityNotFoundError(f"Entity '{entity_id}' not found in StateProxy (not seeded).")
         return raw
 
-    def _convert_state(self, raw: dict) -> BaseState:
+    def _convert_state(self, raw: "HassStateDict") -> BaseState:
         """Convert a raw HassStateDict to a typed BaseState via the state registry."""
         return self.hassette.state_registry.try_convert_state(raw)
 
