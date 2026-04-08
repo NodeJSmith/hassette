@@ -198,6 +198,7 @@ class RecordingApi(Resource):
         attributes: dict[str, Any] | None = None,
     ) -> dict:
         """Record a set_state call. Returns an empty dict stub."""
+        entity_id = str(entity_id)
         self.calls.append(
             ApiCall(
                 method="set_state",

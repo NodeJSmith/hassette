@@ -53,15 +53,15 @@ from hassette.types.enums import ResourceStatus
 
 LOGGER = logging.getLogger(__name__)
 
-# Process-global lock for freeze_time. Guards against concurrent *threaded*
-# workers (e.g., xdist with forked processes that share module state, or future
-# thread-pool test runners) both calling freeze_time simultaneously.
+# Process-local lock for freeze_time within this Python interpreter. Guards
+# against overlapping freeze_time calls from multiple threads, and also from
+# multiple asyncio coroutines running in the same process/event loop thread,
+# because acquisition happens synchronously before patching time.
 #
-# Limitation: this lock does NOT protect against concurrent *asyncio coroutines*
-# within the same event loop — two coroutines calling freeze_time from different
-# AppTestHarness instances will both succeed (non-blocking acquire in synchronous
-# code), and the later patch silently overwrites the earlier one. Concurrent
-# freeze_time usage within the same event loop is unsupported.
+# Limitations: this lock does not coordinate across separate processes, is not
+# re-entrant, and is not awaitable. Callers use a non-blocking acquire in
+# synchronous code, so concurrent attempts fail immediately rather than waiting
+# for the active freeze_time scope to finish.
 _FREEZE_TIME_LOCK = threading.Lock()
 
 # Per-class asyncio.Lock to prevent concurrent harnesses for the same App class
