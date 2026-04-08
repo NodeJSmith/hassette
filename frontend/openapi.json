@@ -625,8 +625,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Use `__hassette__` to query framework-internal actor telemetry.",
               "title": "App Key"
-            }
+            },
+            "description": "Use `__hassette__` to query framework-internal actor telemetry."
           },
           {
             "name": "instance_index",
@@ -653,6 +655,29 @@
               ],
               "title": "Session Id"
             }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
           }
         ],
         "responses": {
@@ -694,8 +719,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Use `__hassette__` to query framework-internal actor telemetry.",
               "title": "App Key"
-            }
+            },
+            "description": "Use `__hassette__` to query framework-internal actor telemetry."
           },
           {
             "name": "instance_index",
@@ -722,6 +749,29 @@
               ],
               "title": "Session Id"
             }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
           }
         ],
         "responses": {
@@ -767,8 +817,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Use `__hassette__` to query framework-internal actor telemetry.",
               "title": "App Key"
-            }
+            },
+            "description": "Use `__hassette__` to query framework-internal actor telemetry."
           },
           {
             "name": "instance_index",
@@ -795,6 +847,29 @@
               ],
               "title": "Session Id"
             }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
           }
         ],
         "responses": {
@@ -1099,6 +1174,29 @@
               ],
               "title": "Session Id"
             }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
           }
         ],
         "responses": {

@@ -872,3 +872,266 @@ class TestTelemetryAvailableWithoutUI:
         """The mock_hassette has run_web_ui=False — telemetry should still work."""
         response = await client.get("/api/telemetry/dashboard/kpis")
         assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# WP06: source_tier parameter, DB_ERRORS guards, status counters
+# ---------------------------------------------------------------------------
+
+
+class TestSourceTierParameter:
+    """Verify source_tier query parameter is accepted and forwarded correctly."""
+
+    async def test_dashboard_errors_defaults_to_app_tier(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """Call without source_tier — service receives source_tier='app'."""
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
+        assert call_kwargs["source_tier"] == "app"
+
+    async def test_dashboard_errors_framework_filter(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """?source_tier=framework passes 'framework' to the service."""
+        response = await client.get("/api/telemetry/dashboard/errors?source_tier=framework")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
+        assert call_kwargs["source_tier"] == "framework"
+
+    async def test_dashboard_errors_all_filter(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """?source_tier=all passes 'all' to the service."""
+        response = await client.get("/api/telemetry/dashboard/errors?source_tier=all")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
+        assert call_kwargs["source_tier"] == "all"
+
+    async def test_source_tier_invalid_returns_422(self, client: "AsyncClient") -> None:
+        """?source_tier=invalid returns 422 (FastAPI Literal validation)."""
+        response = await client.get("/api/telemetry/dashboard/errors?source_tier=invalid")
+        assert response.status_code == 422
+
+    async def test_app_health_accepts_source_tier(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/{key}/health?source_tier=all passes source_tier to service."""
+        response = await client.get("/api/telemetry/app/my_app/health?source_tier=all")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["source_tier"] == "all"
+
+    async def test_app_listeners_accepts_source_tier(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/{key}/listeners?source_tier=framework passes through."""
+        response = await client.get("/api/telemetry/app/my_app/listeners?source_tier=framework")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["source_tier"] == "framework"
+
+    async def test_app_jobs_accepts_source_tier(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/{key}/jobs?source_tier=all passes through."""
+        response = await client.get("/api/telemetry/app/my_app/jobs?source_tier=all")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_job_summary.call_args.kwargs
+        assert call_kwargs["source_tier"] == "all"
+
+    async def test_app_health_invalid_source_tier_returns_422(self, client: "AsyncClient") -> None:
+        """Invalid source_tier on /health returns 422."""
+        response = await client.get("/api/telemetry/app/my_app/health?source_tier=bad")
+        assert response.status_code == 422
+
+
+class TestDbErrorGuards:
+    """Verify DB_ERRORS guards on previously-unguarded endpoints."""
+
+    async def test_app_health_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """sqlite3.Error on app_health returns 503 with zero-value response."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/app/my_app/health")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["error_rate"] == 0.0
+        assert data["health_status"] == "excellent"
+
+    async def test_app_listeners_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """sqlite3.Error on app_listeners returns 503 with empty list."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/app/my_app/listeners")
+        assert response.status_code == 503
+        data = response.json()
+        assert data == []
+
+    async def test_app_jobs_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """sqlite3.Error on app_jobs returns 503 with empty list."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/app/my_app/jobs")
+        assert response.status_code == 503
+        data = response.json()
+        assert data == []
+
+    async def test_handler_invocations_db_error_returns_503(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """sqlite3.Error on handler_invocations returns 503 with empty list."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/handler/1/invocations")
+        assert response.status_code == 503
+        data = response.json()
+        assert data == []
+
+    async def test_job_executions_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """sqlite3.Error on job_executions returns 503 with empty list."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/job/1/executions")
+        assert response.status_code == 503
+        data = response.json()
+        assert data == []
+
+
+class TestStatusDropCounters:
+    """Verify /telemetry/status returns dropped_overflow and dropped_exhausted."""
+
+    async def test_status_includes_drop_counters_zero(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """Healthy status includes drop counters defaulting to zero."""
+        mock_hassette.get_drop_counters.return_value = (0, 0)
+        response = await client.get("/api/telemetry/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["dropped_overflow"] == 0
+        assert data["dropped_exhausted"] == 0
+
+    async def test_status_includes_nonzero_drop_counters(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """Non-zero drop counters from Hassette.get_drop_counters() appear in the response."""
+        mock_hassette.get_drop_counters.return_value = (7, 3)
+        response = await client.get("/api/telemetry/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["dropped_overflow"] == 7
+        assert data["dropped_exhausted"] == 3
+
+    async def test_status_degraded_has_zero_drop_counters(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """When DB is degraded, dropped counters default to 0 (safe fallback)."""
+        import sqlite3
+
+        mock_hassette.telemetry_query_service.check_health = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/status")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["degraded"] is True
+        assert data["dropped_overflow"] == 0
+        assert data["dropped_exhausted"] == 0
+
+
+class TestDashboardErrorsOrphanRendering:
+    """Verify orphaned records (null FKs) render as 'deleted handler'/'deleted job'."""
+
+    async def test_dashboard_errors_orphan_handler_renders_label(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """Handler error with null listener_id renders 'deleted handler' label."""
+        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
+            return_value=[
+                HandlerErrorRecord(
+                    listener_id=None,
+                    topic=None,
+                    handler_method=None,
+                    error_message="boom",
+                    error_type="RuntimeError",
+                    execution_start_ts=1234567890.0,
+                    duration_ms=1.0,
+                    app_key=None,
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["errors"]) == 1
+        entry = data["errors"][0]
+        assert entry["kind"] == "handler"
+        assert entry["handler_method"] == "deleted handler"
+        assert entry["topic"] == "unknown"
+
+    async def test_dashboard_errors_orphan_job_renders_label(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """Job error with null job_id renders 'deleted job' label."""
+        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
+            return_value=[
+                JobErrorRecord(
+                    job_id=None,
+                    job_name=None,
+                    handler_method=None,
+                    error_message="timeout",
+                    error_type="TimeoutError",
+                    execution_start_ts=1234567891.0,
+                    duration_ms=5000.0,
+                    app_key=None,
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["errors"]) == 1
+        entry = data["errors"][0]
+        assert entry["kind"] == "job"
+        assert entry["job_name"] == "deleted job"
+
+
+class TestDashboardErrorsSinceTs:
+    """Verify since_ts defaults to last 24h instead of 0."""
+
+    async def test_dashboard_errors_default_since_ts_is_recent(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """Without explicit since_ts, get_recent_errors called with ts > now-86401."""
+        import time
+
+        before = time.time()
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
+        since = call_kwargs["since_ts"]
+        after = time.time()
+        # since_ts must be approximately now - 86400
+        assert since >= before - 86401
+        assert since <= after - 86399
+
+
+class TestHassetteAppKey:
+    """Verify __hassette__ app_key returns framework data (OpenAPI doc coverage)."""
+
+    async def test_hassette_app_key_accepted_on_health(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/__hassette__/health is accepted (200)."""
+        response = await client.get("/api/telemetry/app/__hassette__/health")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["app_key"] == "__hassette__"
+
+    async def test_hassette_app_key_accepted_on_listeners(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """GET /telemetry/app/__hassette__/listeners is accepted (200)."""
+        response = await client.get("/api/telemetry/app/__hassette__/listeners")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["app_key"] == "__hassette__"

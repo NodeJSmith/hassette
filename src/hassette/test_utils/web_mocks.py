@@ -136,6 +136,9 @@ def create_hassette_stub(
     if config_dump is not None:
         hassette.config.model_dump.return_value = config_dump
 
+    # --- Drop counters (telemetry pipeline) ---
+    hassette.get_drop_counters.return_value = (0, 0)
+
     # --- Children for system status ---
     hassette.children = []
 
