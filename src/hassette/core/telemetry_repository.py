@@ -59,8 +59,8 @@ class TelemetryRepository:
                     app_key, instance_index, handler_method, topic,
                     debounce, throttle, once, priority,
                     predicate_description, human_description,
-                    source_location, registration_source, name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_location, registration_source, name, source_tier
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """,
                 (
@@ -77,6 +77,7 @@ class TelemetryRepository:
                     registration.source_location,
                     registration.registration_source,
                     registration.name,
+                    registration.source_tier,
                 ),
             )
         else:
@@ -88,8 +89,8 @@ class TelemetryRepository:
                     app_key, instance_index, handler_method, topic,
                     debounce, throttle, once, priority,
                     predicate_description, human_description,
-                    source_location, registration_source, name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_location, registration_source, name, source_tier
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
                 WHERE once = 0
                 DO UPDATE SET
@@ -116,6 +117,7 @@ class TelemetryRepository:
                     registration.source_location,
                     registration.registration_source,
                     registration.name,
+                    registration.source_tier,
                 ),
             )
 
@@ -149,8 +151,8 @@ class TelemetryRepository:
                 app_key, instance_index, job_name, handler_method,
                 trigger_type, trigger_value, repeat,
                 args_json, kwargs_json,
-                source_location, registration_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source_location, registration_source, source_tier
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
                 handler_method = excluded.handler_method,
@@ -176,6 +178,7 @@ class TelemetryRepository:
                 registration.kwargs_json,
                 registration.source_location,
                 registration.registration_source,
+                registration.source_tier,
             ),
         )
         row = await cursor.fetchone()
@@ -208,6 +211,13 @@ class TelemetryRepository:
             session_id: Current session ID, used to guard once=True row deletion.
                 When None, once=True rows are unconditionally deleted.
         """
+        if app_key == "__hassette__":
+            logging.getLogger(__name__).warning(
+                "reconcile_registrations() called for app_key='__hassette__' — "
+                "framework listeners are not reconciled; skipping"
+            )
+            return
+
         db = self._db_service.db
         now = time.time()
 

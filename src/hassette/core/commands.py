@@ -39,8 +39,8 @@ class ExecuteJob:
     callable: AsyncHandlerType
     """The async callable to invoke."""
 
-    job_db_id: int
-    """FK to the scheduled_jobs table; set when the job is registered."""
+    job_db_id: int | None
+    """FK to the scheduled_jobs table; None when the job hasn't been registered yet."""
 
     source_tier: SourceTier = "app"
     """Whether this execution originates from a user app or the framework itself."""

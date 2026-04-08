@@ -13,13 +13,15 @@ from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
+from hassette.event_handling import predicates as Predicates
+from hassette.event_handling.accessors import get_path
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ResourceStatus, Topic
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -325,7 +327,12 @@ class Hassette(Resource):
             return
 
         try:
-            self._bus.on_hassette_service_crashed(handler=self._session_manager.on_service_crashed)
+            self._bus_service.register_framework_listener(
+                topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
+                handler=self._session_manager.on_service_crashed,
+                name="hassette.session_manager.on_service_crashed",
+                where=Predicates.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
+            )
         except Exception:
             self.logger.exception("Failed to initialize session tracking")
             await self.shutdown()

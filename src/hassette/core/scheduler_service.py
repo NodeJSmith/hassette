@@ -221,7 +221,7 @@ class SchedulerService(Service):
 
         The job is enqueued first so it can be dispatched immediately.
         ``db_id`` is set once DB registration completes; until then, dispatch
-        uses the direct-invoke path (no telemetry record).
+        produces an orphan execution record with ``job_id=None``.
         """
         source_location = job.source_location
         registration_source: str | None = job.registration_source or None
@@ -247,6 +247,7 @@ class SchedulerService(Service):
             kwargs_json=safe_json_serialize(job.kwargs),
             source_location=source_location,
             registration_source=registration_source,
+            source_tier=job.source_tier,
         )
         await self._enqueue_job(job)
         job.mark_registered(await self._executor.register_job(reg))
@@ -282,6 +283,10 @@ class SchedulerService(Service):
     async def run_job(self, job: "ScheduledJob") -> None:
         """Run a scheduled job by delegating to the CommandExecutor.
 
+        All jobs go through ``ExecuteJob`` regardless of whether ``db_id`` is set.
+        When ``db_id`` is ``None`` (job not yet registered), ``ExecuteJob`` is created
+        with ``job_db_id=None`` and the ``CommandExecutor`` records an orphan execution row.
+
         Args:
             job: The job to run.
         """
@@ -301,17 +306,11 @@ class SchedulerService(Service):
         async def _bound_callable() -> None:
             await async_fn(*job.args, **job.kwargs)
 
-        if job.db_id is None:
-            # Internal job — run directly without telemetry record
-            try:
-                await _bound_callable()
-            except Exception:
-                self.logger.exception("Internal job error (job=%r)", job)
-            return
         cmd = ExecuteJob(
             job=job,
             callable=_bound_callable,
             job_db_id=job.db_id,
+            source_tier=job.source_tier,
         )
         await self._executor.execute(cmd)
 

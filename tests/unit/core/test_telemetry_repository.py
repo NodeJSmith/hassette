@@ -43,6 +43,7 @@ CREATE TABLE listeners (
     source_location       TEXT    NOT NULL,
     registration_source   TEXT,
     name                  TEXT,
+    source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
     retired_at            REAL
 );
 
@@ -65,6 +66,7 @@ CREATE TABLE scheduled_jobs (
     kwargs_json           TEXT    NOT NULL DEFAULT '{}',
     source_location       TEXT    NOT NULL,
     registration_source   TEXT,
+    source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
     retired_at            REAL
 );
 

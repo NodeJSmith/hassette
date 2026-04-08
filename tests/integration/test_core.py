@@ -184,8 +184,8 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
     hassette_instance._session_manager.create_session = AsyncMock()
-    bus_subscribe = Mock()
-    hassette_instance._bus.on_hassette_service_crashed = bus_subscribe
+    framework_listener = Mock(return_value=AsyncMock())
+    hassette_instance._bus_service.register_framework_listener = framework_listener
 
     task = asyncio.create_task(hassette_instance.run_forever())
     asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
@@ -196,8 +196,9 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     start_db.assert_called_once()
     # Phase 2: remaining resources started after session creation
     start_remaining.assert_called_once()
-    # wait_for_ready called twice: DB first, then all children
-    assert hassette_instance.wait_for_ready.await_count == 2
+    # wait_for_ready called at least twice: DB first, then all children.
+    # Background tasks (e.g. framework listener registration) may add additional calls.
+    assert hassette_instance.wait_for_ready.await_count >= 2
     hassette_instance.wait_for_ready.assert_any_await(
         [hassette_instance.database_service], timeout=hassette_instance.config.startup_timeout_seconds
     )
@@ -207,7 +208,8 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     # Session created between phase 1 and phase 2
     hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()
     hassette_instance._session_manager.create_session.assert_awaited_once()
-    bus_subscribe.assert_called_once_with(handler=hassette_instance._session_manager.on_service_crashed)
+    # Framework listener registered for session crash tracking
+    framework_listener.assert_called_once()
     hassette_instance.shutdown.assert_awaited()
     assert hassette_instance._loop is asyncio.get_running_loop(), f"Event loop does not match {hassette_instance._loop}"
     assert hassette_instance._loop_thread_id == threading.get_ident(), "Thread ID does not match"

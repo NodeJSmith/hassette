@@ -66,6 +66,9 @@ class SessionManager(Resource):
         """Insert a new session row and store the session ID."""
         self._session_id = await self._database_service.submit(self._do_create_session())
         self.logger.info("Created session %d", self._session_id)
+        session_id = self._session_id
+        if session_id is not None:
+            await self._database_service.submit(self._do_cleanup_once_listeners(session_id))
 
     async def on_service_crashed(self, event: HassetteServiceEvent) -> None:
         """Record service crash details in the session row.
@@ -149,6 +152,44 @@ class SessionManager(Resource):
             await self._database_service.db.commit()
         except Exception:
             self.logger.exception("Failed to record service crash for session %d", self._session_id)
+
+    async def _do_cleanup_once_listeners(self, current_session_id: int) -> None:
+        """Delete stale once=True app listeners from previous sessions.
+
+        Runs after session creation.  Removes ``once=True`` listener rows where:
+        - ``source_tier = 'app'`` (framework once=True listeners are preserved)
+        - The owning session has already stopped (``stopped_at IS NOT NULL``)
+        - No invocation for this listener exists in the current session
+
+        This prevents unbounded row growth from once=True listeners registered by
+        long-running apps that restart across sessions.
+        """
+        try:
+            await self._database_service.db.execute(
+                """
+                DELETE FROM listeners
+                WHERE once = 1
+                  AND source_tier = 'app'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM handler_invocations
+                      WHERE listener_id = listeners.id AND session_id = ?
+                  )
+                  AND EXISTS (
+                      SELECT 1 FROM sessions
+                      WHERE id = (
+                          SELECT session_id FROM handler_invocations
+                          WHERE listener_id = listeners.id
+                          LIMIT 1
+                      )
+                      AND stopped_at IS NOT NULL
+                  )
+                """,
+                (current_session_id,),
+            )
+            await self._database_service.db.commit()
+            self.logger.debug("Cleaned up stale once=True app listeners from previous sessions")
+        except Exception:
+            self.logger.exception("Failed to clean up stale once=True listeners")
 
     async def _do_finalize_session(self) -> None:
         """Execute the finalize UPDATE; called by the write-queue worker."""

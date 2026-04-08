@@ -536,8 +536,13 @@ async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
     assert isinstance(cmd, InvokeHandler), f"Expected InvokeHandler, got {type(cmd)}"
 
 
-async def test_dispatch_internal_handler_bypasses_executor(hassette_with_bus: "Hassette") -> None:
-    """Internal listeners (db_id=None) invoke directly, bypassing CommandExecutor."""
+async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_bus: "Hassette") -> None:
+    """All listeners (including those with no app_key and db_id=None) route through CommandExecutor.
+
+    The unified dispatch path calls executor.execute(InvokeHandler(...)) for every listener,
+    producing an orphan record (listener_id=None) when the listener has not yet been registered.
+    """
+    from hassette.core.commands import InvokeHandler
     from hassette.events.base import Event
 
     hassette = hassette_with_bus
@@ -557,12 +562,20 @@ async def test_dispatch_internal_handler_bypasses_executor(hassette_with_bus: "H
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
 
-    # Executor should NOT have been called for internal handlers
-    executor.execute.assert_not_called()
+    # Executor MUST be called even for non-app listeners — unified dispatch path
+    executor.execute.assert_called()
+    cmd = executor.execute.call_args_list[-1].args[0]
+    assert isinstance(cmd, InvokeHandler)
+    assert cmd.listener_id is None  # orphan record — not yet registered
 
 
-async def test_dispatch_internal_handler_logs_error_on_exception(hassette_with_bus: "Hassette") -> None:
-    """Internal handler exceptions are logged, not propagated or sent to CommandExecutor."""
+async def test_dispatch_handler_exception_routed_through_executor(hassette_with_bus: "Hassette") -> None:
+    """Handler exceptions are captured by CommandExecutor, not propagated or silently dropped.
+
+    The unified dispatch path passes all invocations through the executor regardless of
+    whether the listener has been registered (db_id set or not).
+    """
+    from hassette.core.commands import InvokeHandler
     from hassette.events.base import Event
 
     hassette = hassette_with_bus
@@ -584,8 +597,10 @@ async def test_dispatch_internal_handler_logs_error_on_exception(hassette_with_b
     # Allow the exception to propagate through the dispatch path
     await asyncio.sleep(0.05)
 
-    # Executor should NOT have been called
-    executor.execute.assert_not_called()
+    # Executor MUST be called — it captures the error in the execution record
+    executor.execute.assert_called()
+    cmd = executor.execute.call_args_list[-1].args[0]
+    assert isinstance(cmd, InvokeHandler)
 
 
 async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "Hassette") -> None:
@@ -681,11 +696,11 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
 
 
 async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bus: "Hassette") -> None:
-    """Internal listener (db_id=None) with debounce coalesces rapid events.
+    """Non-app listener (db_id=None) with debounce coalesces rapid events.
 
-    Unlike tracked dispatch, internal dispatch wraps the handler in a try/except
-    rather than routing through CommandExecutor.  This test verifies the debounce
-    path works correctly for internal listeners.
+    The unified dispatch path routes all listeners through CommandExecutor, so execute() IS
+    called once (for the coalesced event). The debounce behavior is unchanged — only one
+    handler invocation fires regardless of how many rapid events arrive.
     """
     hassette = hassette_with_bus
     call_count = 0
@@ -696,7 +711,7 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
         call_count += 1
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    # Internal bus (no app_key) — listener gets db_id=None
+    # Internal bus (no app_key) — listener gets db_id=None, but still routes through executor
     hassette._bus.on(topic="custom.internal_debounce", handler=handler, debounce=0.1)
 
     executor = hassette._bus_service._executor
@@ -712,12 +727,17 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks drained")
 
     assert call_count == 1, f"Expected 1 call (debounce coalesce), got {call_count}"
-    # Executor should NOT be involved for internal handlers
-    executor.execute.assert_not_called()
+    # Unified dispatch: executor IS called once (coalesced event)
+    executor.execute.assert_called_once()
 
 
 async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "Hassette") -> None:
-    """Internal listener (db_id=None) with throttle fires once and drops subsequent events."""
+    """Non-app listener (db_id=None) with throttle fires once and drops subsequent events.
+
+    The unified dispatch path routes all listeners through CommandExecutor, so execute() IS
+    called for the one event that passes the throttle. Subsequent events are dropped by the
+    throttle before reaching the executor.
+    """
     hassette = hassette_with_bus
     call_count = 0
     event_handled = asyncio.Event()
@@ -742,13 +762,19 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
     assert call_count == 1, f"Expected 1 call (throttle), got {call_count}"
-    executor.execute.assert_not_called()
+    # Unified dispatch: executor IS called (once, for the event that passed the throttle)
+    executor.execute.assert_called_once()
 
 
-async def test_internal_dispatch_with_debounce_logs_handler_error(
-    hassette_with_bus: "Hassette", caplog: pytest.LogCaptureFixture
+async def test_internal_dispatch_with_debounce_routes_through_executor(
+    hassette_with_bus: "Hassette",
 ) -> None:
-    """Internal debounced handler exceptions are logged, not propagated."""
+    """Debounced non-app handler exceptions are captured by CommandExecutor.
+
+    The unified dispatch path routes all listeners through the executor. Errors from
+    handler invocation are recorded as execution records (status='error') by the executor,
+    not logged by a silent error-absorbing wrapper.
+    """
     hassette = hassette_with_bus
     error_raised = asyncio.Event()
 
@@ -758,6 +784,9 @@ async def test_internal_dispatch_with_debounce_logs_handler_error(
 
     hassette._bus.on(topic="custom.internal_debounce_error", handler=failing_handler, debounce=0.05)
 
+    executor = hassette._bus_service._executor
+    executor.execute.reset_mock()
+
     await hassette.send_event(
         "custom.internal_debounce_error",
         Event(topic="custom.internal_debounce_error", payload="test"),
@@ -766,10 +795,8 @@ async def test_internal_dispatch_with_debounce_logs_handler_error(
     await asyncio.wait_for(error_raised.wait(), timeout=1.0)
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks drained")
 
-    # Error is absorbed by safe_invoke() and logged, not propagated
-    assert any("Internal handler error" in r.message for r in caplog.records), (
-        "Expected 'Internal handler error' log record from safe_invoke()"
-    )
+    # Unified dispatch: executor IS called even for debounced non-app handlers
+    executor.execute.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
