@@ -287,7 +287,6 @@ class AppTestHarness:
         self._exit_stack: AsyncExitStack | None = None
         self._harness: HassetteHarness | None = None
         self._app: App | None = None
-        self._token = None  # Token from context.set_global_hassette()
 
         # Time control (set by freeze_time)
         self._test_clock: _TestClock | None = None

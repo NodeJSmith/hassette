@@ -191,7 +191,7 @@ class RecordingApi(Resource):
             ApiCall(
                 method="set_state",
                 args=(entity_id, state),
-                kwargs={"attributes": attributes},
+                kwargs={"entity_id": entity_id, "state": state, "attributes": attributes},
             )
         )
         return {}
@@ -206,7 +206,7 @@ class RecordingApi(Resource):
             ApiCall(
                 method="fire_event",
                 args=(event_type,),
-                kwargs={"event_data": event_data},
+                kwargs={"event_type": event_type, "event_data": event_data},
             )
         )
         return {}
@@ -426,7 +426,10 @@ class RecordingApi(Resource):
 
 
 # ---------------------------------------------------------------------------
-# Static conformance assertion: verified at import time by Pyright.
-# Runtime cast confirms the pattern is valid.
+# Annotation convention — cast() is a runtime no-op and Pyright does not
+# verify structural conformance through casts. This serves as documentation
+# that RecordingApi intends to satisfy ApiProtocol. Actual safety nets:
+# (1) __getattr__ raises NotImplementedError for uncovered methods.
+# (2) ApiProtocol covers the subset of Api methods that RecordingApi stubs.
 # ---------------------------------------------------------------------------
 _: ApiProtocol = cast("ApiProtocol", RecordingApi)
