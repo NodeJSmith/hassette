@@ -15,9 +15,12 @@ Typical usage::
 See design/specs/2033-end-user-test-utils/design.md for architecture details.
 """
 
+import asyncio
 import contextlib
 import inspect
 import logging
+import re
+import shutil
 import tempfile
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -158,8 +161,6 @@ def _synthesize_manifest(app_cls: type[App]) -> AppManifest:
     """
     class_name = app_cls.__name__
     # Convert CamelCase to snake_case for app_key
-    import re
-
     app_key = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
 
     try:
@@ -344,8 +345,6 @@ class AppTestHarness:
 
     def _cleanup_tmpdir(self, data_dir: Path) -> None:
         """Remove auto-created tmpdir on teardown."""
-        import shutil
-
         try:
             shutil.rmtree(data_dir, ignore_errors=True)
         except Exception as e:
@@ -573,8 +572,6 @@ class AppTestHarness:
         Args:
             timeout: Maximum seconds to wait.
         """
-        import asyncio
-
         harness = self._harness
         if harness is None:
             raise RuntimeError("AppTestHarness is not active")
