@@ -16,6 +16,9 @@ if TYPE_CHECKING:
 LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 """Log levels for configuring logging."""
 
+SourceTier = Literal["app", "framework"]
+"""Identifies whether a telemetry record originates from a user app or the framework itself."""
+
 CoroT = TypeVar("CoroT")
 CoroLikeT = Coroutine[Any, Any, CoroT]
 """A coroutine returning a value of type CoroT."""

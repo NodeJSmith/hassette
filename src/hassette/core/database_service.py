@@ -9,6 +9,9 @@ from typing import Any
 import aiosqlite
 from alembic import command
 from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine
 
 from hassette.resources.base import Service
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -93,11 +96,13 @@ class DatabaseService(Service):
         return self._db
 
     async def on_initialize(self) -> None:
-        """Set up the database: run migrations and open connection."""
+        """Set up the database: check schema version, run migrations and open connection."""
         self._consecutive_heartbeat_failures = 0
         self._consecutive_size_triggers = 0
         self._db_path = self._resolve_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        await self._handle_schema_version(self._db_path)
 
         self.logger.info("Running database migrations for %s", self._db_path)
         timeout = self.hassette.config.db_migration_timeout_seconds
@@ -232,6 +237,96 @@ class DatabaseService(Service):
         if self.hassette.config.db_path is not None:
             return self.hassette.config.db_path.resolve()
         return self.hassette.config.data_dir / "hassette.db"
+
+    def _get_expected_head_revision(self) -> str:
+        """Return the Alembic head revision this code expects (synchronous).
+
+        Reads the head from Alembic's migration scripts rather than hard-coding,
+        so future migrations automatically update the expectation.
+        """
+        config = Config()
+        config.set_main_option("script_location", str(Path(__file__).parent.parent / "migrations"))
+        script = ScriptDirectory.from_config(config)
+        heads = script.get_heads()
+        if len(heads) != 1:
+            raise RuntimeError(f"Expected exactly one Alembic head, got: {heads}")
+        return heads[0]
+
+    def _get_current_db_revision(self, db_path: Path) -> str | None:
+        """Return the current Alembic revision in the on-disk DB, or None if none (synchronous)."""
+        engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+        try:
+            with engine.connect() as conn:
+                ctx = MigrationContext.configure(conn)
+                return ctx.get_current_revision()
+        finally:
+            engine.dispose()
+
+    async def _handle_schema_version(self, db_path: Path) -> None:
+        """Check schema version and handle mismatches.
+
+        If the DB file does not exist yet, does nothing (migrations will create it).
+        If the DB version matches the expected head, does nothing.
+        If the DB version is older than head, logs a WARNING and deletes the DB file
+        so that migrations recreate it cleanly.
+        If the DB version is *ahead* of head (newer DB on older binary), logs an ERROR
+        and raises RuntimeError — auto-delete is refused in this case.
+
+        Args:
+            db_path: Path to the SQLite database file.
+
+        Raises:
+            RuntimeError: When the DB version is ahead of the expected head revision.
+            RuntimeError: When the DB file cannot be deleted due to permissions.
+        """
+        if not db_path.exists():
+            return
+
+        expected_head = await asyncio.to_thread(self._get_expected_head_revision)
+        current_rev = await asyncio.to_thread(self._get_current_db_revision, db_path)
+
+        if current_rev == expected_head:
+            return
+
+        if current_rev is None:
+            # No alembic_version table — treat as stale schema needing recreation
+            self.logger.warning(
+                "Database has no schema version (expected %s) — recreating database (no production data to preserve).",
+                expected_head,
+            )
+        else:
+            # Compare revision strings lexicographically as a heuristic for ahead-check.
+            # A proper check compares against all known revisions; here we use the
+            # convention that revision IDs are padded numeric prefixes (e.g. "007").
+            if current_rev > expected_head:
+                self.logger.error(
+                    "Database schema version %r is ahead of the code's expected head %r. "
+                    "This usually means a newer binary created this database. "
+                    "Refusing to auto-delete — upgrade the binary or remove the database manually.",
+                    current_rev,
+                    expected_head,
+                )
+                raise RuntimeError(
+                    f"Database schema version {current_rev!r} is ahead of expected head "
+                    f"{expected_head!r}. Cannot start safely."
+                )
+
+            self.logger.warning(
+                "Database schema version mismatch (current=%r, expected=%r) — "
+                "recreating database (no production data to preserve).",
+                current_rev,
+                expected_head,
+            )
+
+        try:
+            db_path.unlink(missing_ok=True)
+            # Also remove WAL and SHM side-car files if present
+            for suffix in ("-wal", "-shm"):
+                Path(str(db_path) + suffix).unlink(missing_ok=True)
+        except PermissionError as exc:
+            raise RuntimeError(
+                f"Cannot delete stale database file {db_path}: {exc}. Please remove it manually and restart."
+            ) from exc
 
     def _run_migrations(self) -> None:
         """Run Alembic migrations to HEAD (synchronous, called via to_thread)."""

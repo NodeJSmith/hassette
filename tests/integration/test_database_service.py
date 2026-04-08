@@ -394,6 +394,7 @@ EXPECTED_TABLES = {
         "error_type",
         "error_message",
         "error_traceback",
+        "source_tier",
     },
     "listeners": {
         "id",
@@ -411,6 +412,7 @@ EXPECTED_TABLES = {
         "human_description",
         "name",
         "retired_at",
+        "source_tier",
     },
     "scheduled_jobs": {
         "id",
@@ -426,6 +428,7 @@ EXPECTED_TABLES = {
         "source_location",
         "registration_source",
         "retired_at",
+        "source_tier",
     },
     "handler_invocations": {
         "id",
@@ -437,6 +440,8 @@ EXPECTED_TABLES = {
         "error_type",
         "error_message",
         "error_traceback",
+        "is_di_failure",
+        "source_tier",
     },
     "job_executions": {
         "id",
@@ -448,6 +453,8 @@ EXPECTED_TABLES = {
         "error_type",
         "error_message",
         "error_traceback",
+        "is_di_failure",
+        "source_tier",
     },
 }
 
@@ -470,7 +477,7 @@ def test_migration_chain_has_no_gaps(tmp_path: Path) -> None:
     script = ScriptDirectory.from_config(config)
 
     revisions = list(script.walk_revisions())
-    assert len(revisions) >= 3, f"Expected at least 3 revisions, got {len(revisions)}"
+    assert len(revisions) >= 1, f"Expected at least 1 revision, got {len(revisions)}"
 
     # Build a set of all known revision IDs
     revision_ids = {rev.revision for rev in revisions}
@@ -772,34 +779,22 @@ async def test_serve_runs_heartbeat_retention_and_size_failsafe(initialized_serv
 
 
 def test_auto_vacuum_migration(tmp_path: Path) -> None:
-    """Migration 005 converts an existing database to auto_vacuum = INCREMENTAL."""
+    """Migration 007 sets auto_vacuum = INCREMENTAL on a fresh database."""
     import sqlite3
 
     from alembic import command
 
     db_path = tmp_path / "test.db"
 
-    # Create a DB with tables at migration 004 (auto_vacuum defaults to 0 = NONE)
+    # Run migrations to head (007 sets PRAGMA auto_vacuum = INCREMENTAL before creating tables)
     config = _make_alembic_config(db_path)
-    command.upgrade(config, "004")
+    command.upgrade(config, "head")
 
-    # Verify auto_vacuum is NOT incremental before migration 005
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.execute("PRAGMA auto_vacuum")
-        mode_before = cursor.fetchone()[0]
-        assert mode_before != 2, f"Expected auto_vacuum != 2 before migration 005, got {mode_before}"
-    finally:
-        conn.close()
-
-    # Run migration 005
-    command.upgrade(config, "005")
-
-    # Verify auto_vacuum is now INCREMENTAL (2)
+    # Verify auto_vacuum is INCREMENTAL (2)
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.execute("PRAGMA auto_vacuum")
         mode_after = cursor.fetchone()[0]
-        assert mode_after == 2, f"Expected auto_vacuum = 2 after migration 005, got {mode_after}"
+        assert mode_after == 2, f"Expected auto_vacuum = 2 after migration 007, got {mode_after}"
     finally:
         conn.close()

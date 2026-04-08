@@ -291,6 +291,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     db_migration_timeout_seconds: int = Field(default=120, ge=10)
     """Maximum seconds to wait for Alembic migrations to complete at startup."""
 
+    telemetry_write_queue_max: int = Field(default=1000, ge=1)
+    """Maximum number of pending write operations in the telemetry DB write queue before
+    backpressure is applied. Prevents unbounded memory growth during high-throughput bursts."""
+
     # Service log levels
     #
     # Convention (see design/config-log-level-convention.md):
