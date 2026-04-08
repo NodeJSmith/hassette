@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Preserve listener/job registrations across app restarts — "All Time" telemetry now shows cross-session history instead of matching "This Session" (#487)
 - Optional `name=` parameter on `Bus.on()` for explicit listener identity when predicate-based keys collide (#487)
+- `source_tier` column on all telemetry tables — filter dashboard views by `app`, `framework`, or `all` (#484)
+- Framework listener registration via `BusService.register_framework_listener()` with `source_tier='framework'` (#484)
+- Combined `/telemetry/dashboard/framework-summary` endpoint — atomic KPI + error feed for framework health widget (#484)
+- `FRAMEWORK_APP_KEY` constant exported from `hassette.types` — single source of truth for the `__hassette__` sentinel (#484)
+- Per-session drop counters persisted to `sessions` table: `dropped_overflow`, `dropped_exhausted`, `dropped_no_session`, `dropped_shutdown` (#484)
+- `source_tier` + `execution_start_ts` composite indexes on `handler_invocations` and `job_executions` (#484)
+- Dedicated read-only database connection for `TelemetryQueryService` — WAL isolation prevents read queries from blocking the write worker (#484)
+- Bounded `DatabaseService._db_write_queue` with `maxsize` — prevents OOM on embedded devices under I/O pressure (#484)
 
 ### Changed
 
@@ -25,10 +33,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace `uv sync` at runtime with export-then-install pattern through constraints file (#480)
 - Remove `git` from final Docker image stage (no runtime use) (#480)
 - Add `start_period: 60s` to Docker Compose healthcheck examples (#480)
+- `InvokeHandler` and `ExecuteJob` now require `source_tier` (no default) — prevents silent miscategorization of telemetry records (#484)
+- `source_tier` parameter removed from `/dashboard/app-grid` endpoint — app grid is manifest-driven, framework actors shown via FrameworkHealth widget (#484)
+- Route `source_tier` parameter annotations use `QuerySourceTier` type alias instead of inline `Literal` (#484)
+- `useTelemetryHealth` distinguishes HTTP 503 (DB degraded) from network errors — "DB degraded" indicator no longer fires during rolling restarts (#484)
+- Fresh schema migration (001) — `DatabaseService` auto-recreates DB on version mismatch, no backward compatibility needed (#484)
 
 ### Fixed
 
 - Handle SIGTERM for graceful Docker shutdown — sessions no longer show `unknown` status after `docker stop` (#479)
+- `source_tier` now included in upsert `DO UPDATE SET` — re-registered listeners no longer retain stale tier values (#484)
+- `get_global_summary` returns correct counts for `source_tier='framework'` — was using all-tier views instead of framework-specific views (#484)
+- `get_all_app_summaries` no longer leaks `__hassette__` framework entries into app grid results (#484)
+- Python guard prevents user apps from registering with `source_tier='framework'` (#484)
+- `_do_on_service_crashed` now calls `rollback()` on commit failure — prevents dirty connection state (#484)
+- `_run_retention_cleanup` and `_run_size_failsafe` now check `_db_write_queue is None` — matches `_update_heartbeat` guard pattern (#484)
 
 ## [0.24.0](https://github.com/NodeJSmith/hassette/compare/v0.23.0...v0.24.0) - 2026-04-03
 
