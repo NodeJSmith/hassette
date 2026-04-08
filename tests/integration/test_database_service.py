@@ -809,3 +809,180 @@ def test_auto_vacuum_migration(tmp_path: Path) -> None:
         assert mode_after == 2, f"Expected auto_vacuum = 2 after migration, got {mode_after}"
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# read_db property (lines 142-143)
+# ---------------------------------------------------------------------------
+
+
+async def test_read_db_property_works_after_init(initialized_service: DatabaseService) -> None:
+    """read_db property returns the read-only connection after initialization."""
+    conn = initialized_service.read_db
+    assert conn is not None
+
+    cursor = await conn.execute("SELECT 1")
+    row = await cursor.fetchone()
+    assert row[0] == 1
+
+
+async def test_read_db_property_raises_before_init(service: DatabaseService) -> None:
+    """read_db property raises RuntimeError before on_initialize()."""
+    with pytest.raises(RuntimeError, match="Read database connection is not initialized"):
+        _ = service.read_db
+
+
+# ---------------------------------------------------------------------------
+# enqueue() — QueueFull handling (lines 264-278)
+# ---------------------------------------------------------------------------
+
+
+async def test_enqueue_raises_before_init(service: DatabaseService) -> None:
+    """enqueue() raises RuntimeError when called before on_initialize()."""
+
+    async def noop() -> None:
+        pass
+
+    with pytest.raises(RuntimeError, match="called before on_initialize"):
+        service.enqueue(noop())
+
+
+async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseService) -> None:
+    """enqueue() drops the coroutine and logs an error when the queue is full."""
+    import asyncio
+
+    assert initialized_service._db_write_queue is not None
+
+    # Block the worker so nothing drains by using a gate coroutine
+    gate = asyncio.Event()
+    drained: list[int] = []
+
+    async def gated_coro(index: int) -> None:
+        await gate.wait()
+        drained.append(index)
+
+    # Fill the queue to capacity
+    queue = initialized_service._db_write_queue
+    max_size = queue.maxsize
+
+    # Put items directly so we don't trigger the put_nowait path yet
+    for i in range(max_size):
+        await queue.put((gated_coro(i), None))
+
+    # Now queue is full — enqueue() should log an error and return without raising
+    dropped_coro_executed = False
+
+    async def should_be_dropped() -> None:
+        nonlocal dropped_coro_executed
+        dropped_coro_executed = True
+
+    # This must not raise; the coro should be closed (not executed)
+    initialized_service.enqueue(should_be_dropped())
+
+    # Release the gate so the worker can drain
+    gate.set()
+    await queue.join()
+
+    # The dropped coroutine must never have executed
+    assert not dropped_coro_executed
+
+
+async def test_enqueue_logs_backlog_warning_at_100_multiple(initialized_service: DatabaseService) -> None:
+    """enqueue() logs a warning when queue depth is a nonzero multiple of 100."""
+    import asyncio
+
+    assert initialized_service._db_write_queue is not None
+
+    gate = asyncio.Event()
+
+    async def gated_coro() -> None:
+        await gate.wait()
+
+    queue = initialized_service._db_write_queue
+
+    # Fill 99 slots directly (bypassing enqueue's logging) so the next enqueue hits depth 100
+    for _ in range(99):
+        await queue.put((gated_coro(), None))
+
+    # The 100th item via enqueue() should trigger the depth warning
+    with patch.object(initialized_service, "logger") as mock_logger:
+        initialized_service.enqueue(gated_coro())
+        # Check that logger.warning was called with "backlog" somewhere in the message
+        warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
+        assert any("backlog" in c or "depth" in c for c in warning_calls), (
+            f"Expected backlog warning, got: {warning_calls}"
+        )
+
+    gate.set()
+    await queue.join()
+
+
+# ---------------------------------------------------------------------------
+# _check_size_failsafe — skips when max_size_mb == 0 and logs consecutive triggers
+# (lines 524-526 cover the consecutive_size_triggers > 1 warning branch)
+# ---------------------------------------------------------------------------
+
+
+async def test_size_failsafe_skips_when_limit_is_zero(initialized_service: DatabaseService) -> None:
+    """_check_size_failsafe() returns immediately when db_max_size_mb == 0."""
+    initialized_service.hassette.config.db_max_size_mb = 0
+
+    # Patch _get_db_size_mb to detect if it is ever called
+    with patch.object(initialized_service, "_get_db_size_mb") as mock_size:
+        await initialized_service._check_size_failsafe()
+        mock_size.assert_not_called()
+
+
+async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_service: DatabaseService) -> None:
+    """_check_size_failsafe() logs a WARNING on the second and subsequent triggers."""
+    session_id = initialized_service.hassette.session_id
+    db = initialized_service.db
+
+    # Insert a listener for FK reference
+    await db.execute(
+        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("test.App", 0, "on_event", "state_changed", "test.py:1"),
+    )
+    await db.commit()
+
+    # Insert some records so there is something to delete
+    import time as _time
+
+    now = _time.time()
+    for i in range(10):
+        ts = now - (100 - i)
+        await db.execute(
+            "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
+            "VALUES (1, ?, ?, 10.0, 'success')",
+            (session_id, ts),
+        )
+    await db.commit()
+
+    initialized_service.hassette.config.db_max_size_mb = 0.0001  # guaranteed to trigger
+
+    # First trigger — counter goes to 1, no warning logged
+    with patch.object(initialized_service, "logger") as mock_logger:
+        await initialized_service._check_size_failsafe()
+        warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+        assert not any("consecutive" in c for c in warning_calls)
+
+    assert initialized_service._consecutive_size_triggers == 1
+
+    # Re-insert records for second trigger
+    for i in range(10):
+        ts = now - (50 - i)
+        await db.execute(
+            "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
+            "VALUES (1, ?, ?, 10.0, 'success')",
+            (session_id, ts),
+        )
+    await db.commit()
+
+    # Second trigger — counter goes to 2, warning IS logged
+    with patch.object(initialized_service, "logger") as mock_logger:
+        await initialized_service._check_size_failsafe()
+        warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+        assert any("consecutive" in c for c in warning_calls), (
+            f"Expected consecutive-trigger warning on second call, got: {warning_calls}"
+        )

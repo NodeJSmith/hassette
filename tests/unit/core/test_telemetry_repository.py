@@ -1,8 +1,9 @@
 """Unit tests for TelemetryRepository using an in-memory SQLite database."""
 
+import sqlite3
 import time
 from collections.abc import AsyncIterator
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import aiosqlite
 import pytest
@@ -11,6 +12,7 @@ from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.types.types import FRAMEWORK_APP_KEY
 
 # ---------------------------------------------------------------------------
 # Schema DDL (mirrors migrations 001-006 final state)
@@ -128,9 +130,10 @@ CREATE VIEW active_scheduled_jobs AS
 
 @pytest.fixture
 async def db() -> AsyncIterator[aiosqlite.Connection]:
-    """Provide an in-memory SQLite connection with the full schema applied."""
+    """Provide an in-memory SQLite connection with the full schema applied and FK enforcement on."""
     async with aiosqlite.connect(":memory:") as conn:
         conn.row_factory = aiosqlite.Row
+        await conn.execute("PRAGMA foreign_keys = ON")
         await conn.executescript(_DDL)
         await conn.commit()
         yield conn
@@ -800,3 +803,468 @@ async def test_active_views_exist(db: aiosqlite.Connection) -> None:
     cursor = await db.execute("SELECT * FROM active_scheduled_jobs")
     rows = await cursor.fetchall()
     assert rows == []  # empty DB
+
+
+# ---------------------------------------------------------------------------
+# _validate_source_tier tests (line 35)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_source_tier_raises_for_user_app_with_framework_tier() -> None:
+    """_validate_source_tier() raises ValueError when a user app claims source_tier='framework'."""
+    with pytest.raises(ValueError, match="Only the framework"):
+        TelemetryRepository._validate_source_tier("some_user_app", "framework")
+
+
+def test_validate_source_tier_passes_for_framework_app_key() -> None:
+    """_validate_source_tier() does not raise when app_key is FRAMEWORK_APP_KEY with source_tier='framework'."""
+    # Should not raise
+    TelemetryRepository._validate_source_tier(FRAMEWORK_APP_KEY, "framework")
+
+
+def test_validate_source_tier_passes_for_user_app_with_app_tier() -> None:
+    """_validate_source_tier() does not raise when a user app uses source_tier='app'."""
+    # Should not raise
+    TelemetryRepository._validate_source_tier("some_user_app", "app")
+
+
+@pytest.mark.asyncio
+async def test_register_listener_raises_for_invalid_source_tier(
+    repo: TelemetryRepository,
+) -> None:
+    """register_listener() propagates ValueError when source_tier='framework' and app_key is not framework."""
+    reg = ListenerRegistration(
+        app_key="some_user_app",
+        instance_index=0,
+        handler_method="some_user_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test.py:1",
+        registration_source=None,
+        source_tier="framework",
+    )
+    with pytest.raises(ValueError, match="Only the framework"):
+        await repo.register_listener(reg)
+
+
+# ---------------------------------------------------------------------------
+# register_job RuntimeError path (line 202) and register_listener RuntimeError path (line 140)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_register_job_raises_for_invalid_source_tier(
+    repo: TelemetryRepository,
+) -> None:
+    """register_job() propagates ValueError when source_tier='framework' and app_key is not framework."""
+    reg = ScheduledJobRegistration(
+        app_key="some_user_app",
+        instance_index=0,
+        job_name="my_job",
+        handler_method="some_user_app.my_job",
+        trigger_type=None,
+        trigger_value=None,
+        repeat=False,
+        args_json="[]",
+        kwargs_json="{}",
+        source_location="test.py:1",
+        registration_source=None,
+        source_tier="framework",
+    )
+    with pytest.raises(ValueError, match="Only the framework"):
+        await repo.register_job(reg)
+
+
+# ---------------------------------------------------------------------------
+# reconcile_registrations — live_job_ids non-empty paths (lines 337-338, 362-363)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reconcile_deletes_stale_job_not_in_live_set(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations() deletes stale jobs NOT in live_job_ids when live_job_ids is non-empty."""
+    job_id_a = await repo.register_job(_make_job_registration(job_name="job_a"))
+    job_id_b = await repo.register_job(_make_job_registration(job_name="job_b"))
+
+    # Keep job_a live, let job_b be stale (no history → deleted)
+    await repo.reconcile_registrations("test_app", [], [job_id_a])
+
+    cursor = await db.execute("SELECT COUNT(*) FROM scheduled_jobs WHERE id = ?", (job_id_a,))
+    row = await cursor.fetchone()
+    assert row[0] == 1, "Live job should be preserved"
+
+    cursor = await db.execute("SELECT COUNT(*) FROM scheduled_jobs WHERE id = ?", (job_id_b,))
+    row = await cursor.fetchone()
+    assert row[0] == 0, "Stale job without history should be deleted (non-empty live_job_ids branch)"
+
+
+@pytest.mark.asyncio
+async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """reconcile_registrations() retires stale jobs with history when live_job_ids is non-empty."""
+    job_id_a = await repo.register_job(_make_job_registration(job_name="job_a"))
+    job_id_b = await repo.register_job(_make_job_registration(job_name="job_b"))
+
+    # Give job_b some history so it gets retired rather than deleted
+    await db.execute(
+        "INSERT INTO job_executions (job_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (job_id_b, session_id, time.time(), 1.0, "success"),
+    )
+    await db.commit()
+
+    # Keep job_a live, job_b is stale with history → retired
+    await repo.reconcile_registrations("test_app", [], [job_id_a])
+
+    cursor = await db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id_b,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is not None, "Stale job with history should have retired_at set (non-empty live_job_ids branch)"
+
+    cursor = await db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id_a,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "Live job should not be retired"
+
+
+@pytest.mark.asyncio
+async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations() deletes once=True listeners not in live IDs when live_listener_ids is non-empty."""
+    # Register a regular (once=False) listener to populate live_listener_ids
+    live_reg = _make_listener_registration(topic="topic.live")
+    live_id = await repo.register_listener(live_reg)
+
+    # Register a once=True listener from a previous session
+    once_reg = ListenerRegistration(
+        app_key="test_app",
+        instance_index=0,
+        handler_method="test_app.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=True,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test.py:1",
+        registration_source=None,
+    )
+    once_id = await repo.register_listener(once_reg)
+
+    # Use a new session (once_id has no invocations in new_session)
+    now = time.time()
+    cursor = await db.execute(
+        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+        (now, now),
+    )
+    await db.commit()
+    new_session_id = cursor.lastrowid
+    assert new_session_id is not None
+
+    # Reconcile with live_id in live set — exercises the non-empty live_listener_ids once=True branch
+    await repo.reconcile_registrations("test_app", [live_id], [], session_id=new_session_id)
+
+    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
+    row = await cursor.fetchone()
+    assert row[0] == 0, (
+        "once=True listener from previous session should be deleted (non-empty live_listener_ids branch)"
+    )
+
+    cursor = await db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (live_id,))
+    row = await cursor.fetchone()
+    assert row[0] == 1, "Live listener should be preserved"
+
+
+@pytest.mark.asyncio
+async def test_reconcile_rollback_on_exception(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations() rolls back the transaction on unexpected errors (lines 388-390)."""
+    # Patch db.execute to raise after the first call succeeds
+    original_execute = db.execute
+    call_count = 0
+
+    async def failing_execute(sql, params=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count > 1:
+            raise RuntimeError("simulated DB error")
+        if params is not None:
+            return await original_execute(sql, params)
+        return await original_execute(sql)
+
+    with (
+        patch.object(db, "execute", side_effect=failing_execute),
+        pytest.raises(RuntimeError, match="simulated DB error"),
+    ):
+        await repo.reconcile_registrations("test_app", [], [])
+
+
+# ---------------------------------------------------------------------------
+# persist_batch_with_fk_fallback tests (lines 405-525)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_with_fk_fallback_success_path(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """persist_batch_with_fk_fallback() inserts records when no FK violations occur."""
+    listener_id = await repo.register_listener(_make_listener_registration())
+    job_id = await repo.register_job(_make_job_registration())
+
+    now = time.time()
+    invocation = HandlerInvocationRecord(
+        listener_id=listener_id,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=5.0,
+        status="success",
+    )
+    job_exec = JobExecutionRecord(
+        job_id=job_id,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=10.0,
+        status="success",
+    )
+
+    dropped = await repo.persist_batch_with_fk_fallback([invocation], [job_exec])
+
+    assert dropped == 0
+
+    cursor = await db.execute("SELECT listener_id FROM handler_invocations WHERE listener_id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == listener_id
+
+    cursor = await db.execute("SELECT job_id FROM job_executions WHERE job_id = ?", (job_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == job_id
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_with_fk_fallback_nulls_listener_fk_on_violation(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """persist_batch_with_fk_fallback() nulls listener_id on FK violation and still inserts."""
+    now = time.time()
+    # Use a listener_id that does not exist in the DB
+    bad_listener_id = 99999
+    invocation = HandlerInvocationRecord(
+        listener_id=bad_listener_id,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=5.0,
+        status="success",
+    )
+
+    dropped = await repo.persist_batch_with_fk_fallback([invocation], [])
+
+    assert dropped == 0
+
+    # Row should exist with listener_id = NULL
+    cursor = await db.execute("SELECT listener_id FROM handler_invocations")
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "listener_id should be nulled after FK violation"
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_with_fk_fallback_nulls_job_fk_on_violation(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """persist_batch_with_fk_fallback() nulls job_id on FK violation and still inserts."""
+    now = time.time()
+    bad_job_id = 99999
+    job_exec = JobExecutionRecord(
+        job_id=bad_job_id,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=10.0,
+        status="success",
+    )
+
+    dropped = await repo.persist_batch_with_fk_fallback([], [job_exec])
+
+    assert dropped == 0
+
+    cursor = await db.execute("SELECT job_id FROM job_executions")
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "job_id should be nulled after FK violation"
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_with_fk_fallback_drops_row_on_second_failure(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """persist_batch_with_fk_fallback() increments dropped count when null-FK retry also fails."""
+    now = time.time()
+    invocation = HandlerInvocationRecord(
+        listener_id=None,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=5.0,
+        status="success",
+    )
+
+    original_execute = db.execute
+    call_count = 0
+
+    # Simulate the first INSERT raising IntegrityError, then the second (null-FK) also failing
+    async def patched_execute(sql, params=None):
+        nonlocal call_count
+        if "INSERT INTO handler_invocations" in sql:
+            call_count += 1
+            if call_count == 1:
+                raise sqlite3.IntegrityError("simulated FK violation on first try")
+            if call_count == 2:
+                raise Exception("simulated hard failure on null-FK retry")
+        if params is not None:
+            return await original_execute(sql, params)
+        return await original_execute(sql)
+
+    with patch.object(db, "execute", side_effect=patched_execute):
+        dropped = await repo.persist_batch_with_fk_fallback([invocation], [])
+
+    assert dropped == 1, "Row that fails even with null FK should be counted as dropped"
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_with_fk_fallback_drops_job_row_on_second_failure(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """persist_batch_with_fk_fallback() increments dropped count for job_executions when null-FK retry fails."""
+    now = time.time()
+    job_exec = JobExecutionRecord(
+        job_id=None,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=10.0,
+        status="success",
+    )
+
+    original_execute = db.execute
+    call_count = 0
+
+    async def patched_execute(sql, params=None):
+        nonlocal call_count
+        if "INSERT INTO job_executions" in sql:
+            call_count += 1
+            if call_count == 1:
+                raise sqlite3.IntegrityError("simulated FK violation on first try")
+            if call_count == 2:
+                raise Exception("simulated hard failure on null-FK retry")
+        if params is not None:
+            return await original_execute(sql, params)
+        return await original_execute(sql)
+
+    with patch.object(db, "execute", side_effect=patched_execute):
+        dropped = await repo.persist_batch_with_fk_fallback([], [job_exec])
+
+    assert dropped == 1, "Job row that fails even with null FK should be counted as dropped"
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_with_fk_fallback_empty_lists(
+    repo: TelemetryRepository,
+) -> None:
+    """persist_batch_with_fk_fallback() with empty lists returns 0 dropped."""
+    dropped = await repo.persist_batch_with_fk_fallback([], [])
+    assert dropped == 0
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_with_fk_fallback_rollback_on_exception(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """persist_batch_with_fk_fallback() rolls back on unexpected errors (lines 521-523)."""
+    now = time.time()
+    invocation = HandlerInvocationRecord(
+        listener_id=None,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=5.0,
+        status="success",
+    )
+
+    original_execute = db.execute
+
+    async def patched_execute(sql, params=None):
+        if "BEGIN" in sql:
+            raise RuntimeError("simulated connection failure")
+        if params is not None:
+            return await original_execute(sql, params)
+        return await original_execute(sql)
+
+    with (
+        patch.object(db, "execute", side_effect=patched_execute),
+        pytest.raises(RuntimeError, match="simulated connection failure"),
+    ):
+        await repo.persist_batch_with_fk_fallback([invocation], [])
+
+
+# ---------------------------------------------------------------------------
+# persist_batch exception path (lines 602-604)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_persist_batch_rollback_on_exception(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+    session_id: int,
+) -> None:
+    """persist_batch() rolls back and re-raises on unexpected error (lines 602-604)."""
+    listener_id = await repo.register_listener(_make_listener_registration())
+    now = time.time()
+    invocation = HandlerInvocationRecord(
+        listener_id=listener_id,
+        session_id=session_id,
+        execution_start_ts=now,
+        duration_ms=5.0,
+        status="success",
+    )
+
+    async def failing_executemany(_sql, _params):
+        raise RuntimeError("simulated executemany failure")
+
+    with (
+        patch.object(db, "executemany", side_effect=failing_executemany),
+        pytest.raises(RuntimeError, match="simulated executemany failure"),
+    ):
+        await repo.persist_batch([invocation], [])
+
+    # Confirm the row was not committed
+    cursor = await db.execute("SELECT COUNT(*) FROM handler_invocations")
+    row = await cursor.fetchone()
+    assert row[0] == 0, "No rows should be committed after rollback"

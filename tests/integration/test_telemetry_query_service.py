@@ -1,6 +1,7 @@
 """Integration tests for TelemetryQueryService with real SQLite database."""
 
 import asyncio
+import sqlite3
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -1362,3 +1363,245 @@ class TestGetGlobalSummarySourceTier:
 
         result = await svc.get_global_summary(source_tier="all")
         assert result.listeners.total_invocations == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: _source_tier_clause — uncovered branches (lines 44, 50-51)
+# ---------------------------------------------------------------------------
+
+
+class TestSourceTierClause:
+    def test_invalid_alias_raises_value_error(self) -> None:
+        """_source_tier_clause raises ValueError for an alias not in the allowed set."""
+        from hassette.core.telemetry_query_service import _source_tier_clause
+
+        with pytest.raises(ValueError, match="Unexpected SQL alias"):
+            _source_tier_clause("app", "x")
+
+    def test_framework_tier_returns_filter_fragment(self) -> None:
+        """_source_tier_clause('framework', ...) returns an AND clause with 'framework' param."""
+        from hassette.core.telemetry_query_service import _source_tier_clause
+
+        fragment, params = _source_tier_clause("framework", "l")
+        assert "source_tier" in fragment
+        assert params == ["framework"]
+
+    def test_all_tier_returns_empty(self) -> None:
+        """_source_tier_clause('all', ...) returns an empty fragment and empty params."""
+        from hassette.core.telemetry_query_service import _source_tier_clause
+
+        fragment, params = _source_tier_clause("all", "hi")
+        assert fragment == ""
+        assert params == []
+
+    def test_app_tier_returns_filter_fragment(self) -> None:
+        """_source_tier_clause('app', ...) returns an AND clause with 'app' param."""
+        from hassette.core.telemetry_query_service import _source_tier_clause
+
+        fragment, params = _source_tier_clause("app", "je")
+        assert "source_tier" in fragment
+        assert params == ["app"]
+
+    def test_all_valid_aliases_accepted(self) -> None:
+        """All four valid aliases are accepted without raising."""
+        from hassette.core.telemetry_query_service import _source_tier_clause
+
+        for alias in ("l", "hi", "je", "sj"):
+            # Should not raise
+            _source_tier_clause("app", alias)
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_job_summary with session_id — uncovered lines 175-176
+# ---------------------------------------------------------------------------
+
+
+class TestGetJobSummarySessionScoped:
+    async def test_get_job_summary_session_scoped(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """session_id restricts job execution counts to a single session."""
+        db_svc, session_a = db
+
+        cursor = await db_svc.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
+            (time.time(), time.time()),
+        )
+        session_b = cursor.lastrowid
+        await db_svc.db.commit()
+
+        j1 = await _insert_job(db_svc, job_name="job_a")
+
+        # Session A: 2 executions
+        await _insert_execution(db_svc, j1, session_a, status="success", duration_ms=10.0)
+        await _insert_execution(db_svc, j1, session_a, status="error", duration_ms=20.0)
+        # Session B: 1 execution (should NOT be counted)
+        await _insert_execution(db_svc, j1, session_b, status="success", duration_ms=30.0)
+
+        rows = await svc.get_job_summary("test_app", 0, session_id=session_a)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.total_executions == 2
+        assert row.successful == 1
+        assert row.failed == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_all_app_summaries with source_tier='framework' (lines 237-244)
+# ---------------------------------------------------------------------------
+
+
+class TestGetAllAppSummariesFrameworkTier:
+    async def test_get_all_app_summaries_framework_tier(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='framework' selects active_framework_listeners and active_framework_scheduled_jobs."""
+        db_svc, session_id = db
+
+        # Framework-tier listener and job under __hassette__
+        fw_listener = await _insert_listener(
+            db_svc, app_key="__hassette__", handler_method="on_fw", source_tier="framework"
+        )
+        fw_job = await _insert_job(db_svc, app_key="__hassette__", job_name="fw_job", source_tier="framework")
+
+        # App-tier listener and job (should NOT appear for framework query)
+        _app_listener = await _insert_listener(db_svc, app_key="my_app", handler_method="on_app", source_tier="app")
+        _app_job = await _insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
+
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="success", duration_ms=5.0, source_tier="framework"
+        )
+        await _insert_execution(db_svc, fw_job, session_id, status="success", duration_ms=10.0, source_tier="framework")
+
+        result = await svc.get_all_app_summaries(source_tier="framework")
+
+        # Framework data lives under __hassette__ key, which is discarded by FRAMEWORK_APP_KEY guard
+        # So result should be empty (the __hassette__ key is excluded)
+        assert "my_app" not in result
+
+    async def test_get_all_app_summaries_framework_tier_non_hassette_app_key(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='framework' shows framework-tier records for non-__hassette__ app_key."""
+        db_svc, session_id = db
+
+        # A regular app with mixed-tier listeners
+        fw_listener = await _insert_listener(db_svc, app_key="my_app", handler_method="on_fw", source_tier="framework")
+        await _insert_listener(db_svc, app_key="my_app", handler_method="on_app", source_tier="app")
+
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="success", duration_ms=5.0, source_tier="framework"
+        )
+
+        result = await svc.get_all_app_summaries(source_tier="framework")
+        # my_app has 1 framework-tier listener (instance 0)
+        assert "my_app" in result
+        summary = result["my_app"]
+        assert summary.handler_count == 1  # only the framework listener
+        assert summary.total_invocations == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_global_summary with source_tier='framework' (lines 406-412, 415-437)
+# ---------------------------------------------------------------------------
+
+
+class TestGetGlobalSummaryFrameworkTier:
+    async def test_get_global_summary_framework_tier_no_session(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_global_summary(source_tier='framework') uses active_framework_listeners/jobs views."""
+        db_svc, session_id = db
+
+        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+        fw_job = await _insert_job(db_svc, job_name="fw_job", source_tier="framework")
+        _app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
+        _app_job = await _insert_job(db_svc, job_name="app_job", source_tier="app")
+
+        await _insert_invocation(db_svc, fw_listener, session_id, status="success", source_tier="framework")
+        await _insert_invocation(db_svc, fw_listener, session_id, status="error", source_tier="framework")
+        # App-tier invocations must not count
+        await _insert_invocation(db_svc, _app_listener, session_id, status="success", source_tier="app")
+        await _insert_execution(db_svc, fw_job, session_id, status="success", source_tier="framework")
+        # App-tier execution must not count
+        await _insert_execution(db_svc, _app_job, session_id, status="success", source_tier="app")
+
+        result = await svc.get_global_summary(source_tier="framework")
+        assert isinstance(result, GlobalSummary)
+        # Only framework-tier counts
+        assert result.listeners.total_invocations == 2
+        assert result.listeners.total_errors == 1
+        assert result.jobs.total_executions == 1
+        # total_listeners and total_jobs from framework views only
+        assert result.listeners.total_listeners == 1
+        assert result.jobs.total_jobs == 1
+
+    async def test_get_global_summary_framework_tier_with_session(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_global_summary(source_tier='framework', session_id=...) uses WHERE session_id + framework filter."""
+        db_svc, session_a = db
+
+        cursor = await db_svc.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
+            (time.time(), time.time()),
+        )
+        session_b = cursor.lastrowid
+        await db_svc.db.commit()
+
+        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+
+        # Session A: 2 framework invocations
+        await _insert_invocation(db_svc, fw_listener, session_a, status="success", source_tier="framework")
+        await _insert_invocation(db_svc, fw_listener, session_a, status="error", source_tier="framework")
+        # Session B: 1 framework invocation (must NOT count)
+        await _insert_invocation(db_svc, fw_listener, session_b, status="success", source_tier="framework")
+
+        result = await svc.get_global_summary(source_tier="framework", session_id=session_a)
+        assert result.listeners.total_invocations == 2
+        assert result.listeners.total_errors == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: check_health (lines 713-714)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckHealth:
+    async def test_check_health_succeeds_on_live_db(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """check_health() completes without raising when the database is live."""
+        # Should not raise
+        await svc.check_health()
+
+    async def test_check_health_raises_on_closed_db(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """check_health() raises when the read_db connection is closed."""
+        import aiosqlite
+
+        db_svc, _session_id = db
+        # Close the read connection to simulate a failed connection
+        await db_svc._read_db.close()
+        try:
+            with pytest.raises(sqlite3.Error):
+                await svc.check_health()
+        finally:
+            # Restore so fixture teardown doesn't crash
+            db_svc._read_db = await aiosqlite.connect(db_svc._db_path, isolation_level=None)
+            db_svc._read_db.row_factory = aiosqlite.Row
