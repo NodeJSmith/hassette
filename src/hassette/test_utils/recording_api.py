@@ -243,7 +243,17 @@ class RecordingApi(Resource):
         return self._convert_state(raw, entity_id)
 
     async def get_states(self) -> list[BaseState]:
-        """Return typed states for all seeded entities."""
+        """Return typed states for all seeded entities.
+
+        Note:
+            This method iterates ``StateProxy.states`` without holding the write lock.
+            In concurrent scenarios where ``_on_state_change`` mutates the dict while
+            iteration is in progress, a ``RuntimeError: dictionary changed size during
+            iteration`` may be raised. In typical test usage this is safe — tests are
+            single-threaded and do not mutate state concurrently — but callers that mix
+            ``get_states()`` with concurrent event simulation should be aware of this
+            limitation.
+        """
         return [self._convert_state(raw, eid) for eid, raw in self._state_proxy.states.items()]
 
     async def get_entity(self, entity_id: str, model: type[Any] | None = None) -> BaseState:

@@ -44,6 +44,7 @@ from hassette.config.classes import AppManifest
 from hassette.config.config import HassetteConfig
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
+from hassette.test_utils.config import make_test_config
 from hassette.test_utils.harness import HassetteHarness, wait_for
 from hassette.test_utils.helpers import create_call_service_event, create_state_change_event, make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
@@ -164,8 +165,10 @@ def _make_hermetic_config(
 def _make_minimal_hassette_config(data_dir: Path) -> HassetteConfig:
     """Create a minimal HassetteConfig suitable for unit testing.
 
-    Suppresses env vars, .env file, TOML file, and CLI args. Uses only init_kwargs.
-    State proxy polling is disabled to prevent _load_cache() from overwriting seeded state.
+    Delegates to :func:`~hassette.test_utils.config.make_test_config` so the hermetic
+    config pattern is defined in one place. Suppresses env vars, .env file, TOML file,
+    and CLI args. State proxy polling is disabled to prevent _load_cache() from
+    overwriting seeded state.
 
     Args:
         data_dir: Directory for Hassette data (caches, etc.).
@@ -173,32 +176,7 @@ def _make_minimal_hassette_config(data_dir: Path) -> HassetteConfig:
     Returns:
         A minimal HassetteConfig instance.
     """
-
-    class _HermeticHassetteConfig(HassetteConfig):
-        model_config = HassetteConfig.model_config.copy() | {
-            "cli_parse_args": False,
-            "toml_file": None,
-            "env_file": None,
-        }
-
-        @classmethod
-        def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-            return (
-                InitSettingsSource(
-                    settings_cls,
-                    init_kwargs={
-                        "token": "test-token",
-                        "base_url": "http://test.invalid:8123",
-                        "data_dir": data_dir,
-                        "disable_state_proxy_polling": True,
-                        "autodetect_apps": False,
-                        "run_web_api": False,
-                        "run_app_precheck": False,
-                    },
-                ),
-            )
-
-    return _HermeticHassetteConfig()
+    return make_test_config(data_dir=data_dir)
 
 
 def _synthesize_manifest(app_cls: type[App]) -> AppManifest:
@@ -356,10 +334,15 @@ class AppTestHarness:
         await harness.start()
         exit_stack.push_async_callback(harness.stop)
 
-        # Step 7: Set global hassette ContextVar — store token for reset on teardown
-        token = context.set_global_hassette(cast("Hassette", harness.hassette))  # pyright: ignore[reportArgumentType]
-        if token is not None:
-            exit_stack.callback(context.HASSETTE_INSTANCE.reset, token)
+        # Step 7: Set global hassette ContextVar — use context.use() so cleanup is always
+        # registered unconditionally. set_global_hassette() returns None when the same
+        # instance is already set (e.g., nested harnesses), which would silently skip token
+        # cleanup and leave the next test with a stale ContextVar value. context.use()
+        # always calls var.set() and registers var.reset(token) on exit, regardless of
+        # whether the value was already present.
+        exit_stack.enter_context(
+            context.use(context.HASSETTE_INSTANCE, cast("Hassette", harness.hassette))  # pyright: ignore[reportArgumentType]
+        )
 
         # Step 8: Mark state proxy ready
         state_proxy = harness.hassette._state_proxy
@@ -510,7 +493,7 @@ class AppTestHarness:
 
         Example::
 
-            harness.set_states({
+            await harness.set_states({
                 "light.kitchen": "on",
                 "sensor.temp": ("25.5", {"unit_of_measurement": "°C"}),
             })
