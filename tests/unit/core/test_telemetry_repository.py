@@ -80,6 +80,8 @@ CREATE TABLE handler_invocations (
     execution_start_ts    REAL    NOT NULL,
     duration_ms           REAL    NOT NULL,
     status                TEXT    NOT NULL,
+    source_tier           TEXT    NOT NULL DEFAULT 'app',
+    is_di_failure         INTEGER NOT NULL DEFAULT 0,
     error_type            TEXT,
     error_message         TEXT,
     error_traceback       TEXT
@@ -98,6 +100,8 @@ CREATE TABLE job_executions (
     execution_start_ts    REAL    NOT NULL,
     duration_ms           REAL    NOT NULL,
     status                TEXT    NOT NULL,
+    source_tier           TEXT    NOT NULL DEFAULT 'app',
+    is_di_failure         INTEGER NOT NULL DEFAULT 0,
     error_type            TEXT,
     error_message         TEXT,
     error_traceback       TEXT

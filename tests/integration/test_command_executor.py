@@ -35,6 +35,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.resource_shutdown_timeout_seconds = 5
     hassette.config.task_cancellation_timeout_seconds = 5
     hassette.config.command_executor_log_level = "INFO"
+    hassette.config.telemetry_write_queue_max = 1000
     hassette.ready_event = asyncio.Event()
     return hassette
 
@@ -356,46 +357,31 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_safe_session_id_returns_zero_and_logs_on_missing_session(mock_hassette: MagicMock) -> None:
-    """_safe_session_id() falls back to 0 when no session exists.
+def test_build_record_uses_session_id_directly(mock_hassette: MagicMock) -> None:
+    """_build_record() reads session_id from self.hassette.session_id directly.
 
-    Returns 0 (sentinel) so exception handlers don't crash cascade.
-    The persist guard drops the record and logs at ERROR.
+    _safe_session_id() was removed in WP03. session_id is now always read directly.
+    The phased startup contract guarantees a valid session_id exists before any
+    handler can fire, so RuntimeError from session_id is a programming error.
     """
-
-    class _NoSession:
-        @property
-        def session_id(self) -> int:
-            raise RuntimeError("No active session")
-
+    mock_hassette.config.telemetry_write_queue_max = 1000
     exc = CommandExecutor(mock_hassette, parent=mock_hassette)
-    exc.hassette = _NoSession()  # pyright: ignore[reportAttributeAccessIssue]
-    assert exc._safe_session_id() == 0
-
-
-@pytest.mark.asyncio
-async def test_execute_queues_sentinel_record_when_no_session(executor: CommandExecutor) -> None:
-    """execute() queues a record with session_id=0 when session is unavailable.
-
-    Does not crash — the persist guard drops the record at write time.
-    """
-
-    class _NoSession:
-        @property
-        def session_id(self) -> int:
-            raise RuntimeError("No active session")
-
-    executor.hassette = _NoSession()  # pyright: ignore[reportAttributeAccessIssue]
+    mock_hassette.session_id = 99
 
     listener = _make_mock_listener()
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1)
+    from hassette.utils.execution import ExecutionResult
 
-    await executor.execute(cmd)
+    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=5)
+    result = ExecutionResult()
+    result.status = "success"
+    result.duration_ms = 1.0
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
+    import time
+
+    record = exc._build_record(cmd, result, time.time())
     assert isinstance(record, HandlerInvocationRecord)
-    assert record.session_id == 0
+    assert record.session_id == 99
+    assert record.listener_id == 5
 
 
 @pytest.mark.asyncio

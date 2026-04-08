@@ -192,6 +192,16 @@ class Hassette(Resource):
         """CommandExecutor for telemetry recording."""
         return self._command_executor
 
+    def get_drop_counters(self) -> tuple[int, int]:
+        """Return (dropped_overflow, dropped_exhausted) from the CommandExecutor.
+
+        Returns:
+            A tuple of (overflow_count, exhausted_count) where:
+            - overflow_count: records dropped because the write queue was full.
+            - exhausted_count: records dropped because max retries were exceeded.
+        """
+        return self._command_executor.get_drop_counters()
+
     @property
     def database_service(self) -> DatabaseService:
         """DatabaseService instance for SQLite telemetry storage."""

@@ -389,8 +389,9 @@ class TelemetryRepository:
                     """
                     INSERT INTO handler_invocations (
                         listener_id, session_id, execution_start_ts,
-                        duration_ms, status, error_type, error_message, error_traceback
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        duration_ms, status, source_tier, is_di_failure,
+                        error_type, error_message, error_traceback
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -399,6 +400,8 @@ class TelemetryRepository:
                             r.execution_start_ts,
                             r.duration_ms,
                             r.status,
+                            r.source_tier,
+                            1 if r.is_di_failure else 0,
                             r.error_type,
                             r.error_message,
                             r.error_traceback,
@@ -412,8 +415,9 @@ class TelemetryRepository:
                     """
                     INSERT INTO job_executions (
                         job_id, session_id, execution_start_ts,
-                        duration_ms, status, error_type, error_message, error_traceback
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        duration_ms, status, source_tier, is_di_failure,
+                        error_type, error_message, error_traceback
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -422,6 +426,8 @@ class TelemetryRepository:
                             r.execution_start_ts,
                             r.duration_ms,
                             r.status,
+                            r.source_tier,
+                            1 if r.is_di_failure else 0,
                             r.error_type,
                             r.error_message,
                             r.error_traceback,

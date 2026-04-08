@@ -292,6 +292,9 @@ class JobExecutionRecord:
     source_tier: SourceTier = "app"
     """Whether this execution originates from a user app or the framework itself."""
 
+    is_di_failure: bool = False
+    """True when the execution failed due to a DependencyError (or subclass)."""
+
     error_message: str | None = None
     error_type: str | None = None
     error_traceback: str | None = None

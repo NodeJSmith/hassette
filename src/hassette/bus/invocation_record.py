@@ -27,6 +27,9 @@ class HandlerInvocationRecord:
     source_tier: SourceTier = "app"
     """Whether this invocation originates from a user app or the framework itself."""
 
+    is_di_failure: bool = False
+    """True when the invocation failed due to a DependencyError (or subclass)."""
+
     error_type: str | None = None
     """Exception class name if status is 'error', otherwise None."""
 
