@@ -734,6 +734,12 @@ dependencies = [
     { name = "whenever" },
 ]
 
+[package.optional-dependencies]
+test = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "bcrypt" },
@@ -786,6 +792,8 @@ requires-dist = [
     { name = "packaging", specifier = ">=25.0" },
     { name = "platformdirs", specifier = ">=4.3.8" },
     { name = "pydantic-settings", specifier = ">=2.10.0" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0" },
+    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=1.0.0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "typing-extensions", specifier = "==4.15.*" },
@@ -793,6 +801,7 @@ requires-dist = [
     { name = "watchfiles", specifier = ">=1.1.0" },
     { name = "whenever", specifier = "==0.9.*" },
 ]
+provides-extras = ["test"]
 
 [package.metadata.requires-dev]
 dev = [
