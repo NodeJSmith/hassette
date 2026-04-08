@@ -573,25 +573,46 @@ class AppTestHarness:
         *,
         old_value: Any,
         new_value: Any,
+        state: str | None = None,
         timeout: float = 2.0,
     ) -> None:
         """Create an attribute change event and send it through the bus.
+
+        The state value used for the event is resolved in this order:
+        1. The explicit ``state`` argument, if provided.
+        2. The current cached state value for the entity in the StateProxy.
+        3. ``"unknown"`` if the entity has not been seeded.
 
         Args:
             entity_id: The entity ID whose attribute changed.
             attribute: The attribute name.
             old_value: Previous attribute value.
             new_value: New attribute value.
+            state: Optional explicit state value to use for the event. If omitted, the
+                current cached state for the entity is used (defaulting to ``"unknown"``
+                if the entity is unseeded).
             timeout: Maximum seconds to wait for handlers to complete.
         """
-        old_attrs = {attribute: old_value}
-        new_attrs = {attribute: new_value}
+        harness = self._harness
+        if harness is None:
+            raise RuntimeError("AppTestHarness is not active")
+
+        if state is not None:
+            current_state = state
+        else:
+            state_proxy = harness.hassette._state_proxy
+            if state_proxy is not None:
+                raw = state_proxy.states.get(entity_id)
+                current_state = raw["state"] if raw is not None else "unknown"
+            else:
+                current_state = "unknown"
+
         await self.simulate_state_change(
             entity_id,
-            old_value="unknown",
-            new_value="unknown",
-            old_attrs=old_attrs,
-            new_attrs=new_attrs,
+            old_value=current_state,
+            new_value=current_state,
+            old_attrs={attribute: old_value},
+            new_attrs={attribute: new_value},
             timeout=timeout,
         )
 

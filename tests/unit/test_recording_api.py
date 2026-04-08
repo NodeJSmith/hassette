@@ -240,7 +240,8 @@ async def test_unstubbed_method_raises_not_implemented():
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         await api.render_template("{{ states('sensor.temp') }}")
-    assert "use_api_server=True" in str(exc_info.value).lower() or "use_api_server" in str(exc_info.value)
+    # H2 fix: error message now references SimpleTestServer instead of non-existent use_api_server=True
+    assert "simpletestserver" in str(exc_info.value).lower()
 
 
 @pytest.mark.asyncio

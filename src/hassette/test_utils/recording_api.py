@@ -4,7 +4,7 @@ Records write-method calls for test assertions. Delegates read methods to
 StateProxy. Implements ApiProtocol for static conformance checking.
 
 Intended for use with AppTestHarness. Users who need full HTTP-level
-fidelity should pass use_api_server=True to AppTestHarness instead.
+fidelity should use SimpleTestServer instead.
 """
 
 from dataclasses import dataclass, field
@@ -80,9 +80,10 @@ class ApiProtocol(Protocol):
 
 
 def _not_implemented(method_name: str) -> Never:
-    """Raise NotImplementedError with a helpful message directing users to use_api_server=True."""
+    """Raise NotImplementedError with a helpful message directing users to SimpleTestServer."""
     raise NotImplementedError(
-        f"RecordingApi.{method_name}() is not implemented. Use use_api_server=True for full Api coverage."
+        f"RecordingApi.{method_name}() is not implemented. "
+        "Use SimpleTestServer for full Api coverage, or seed state via AppTestHarness.set_state()."
     )
 
 
@@ -96,10 +97,10 @@ class RecordingApi(Resource):
     on_initialize() calls self.mark_ready() — required for the Resource lifecycle.
 
     sync attribute is a Mock() instance. Apps using self.api.sync.* in the paths
-    under test must use use_api_server=True for those code paths.
+    under test must use SimpleTestServer for those code paths.
 
     Unstubbed methods raise NotImplementedError with a message directing users to
-    use_api_server=True.
+    SimpleTestServer.
     """
 
     calls: list[ApiCall]
@@ -171,7 +172,13 @@ class RecordingApi(Resource):
             ApiCall(
                 method="call_service",
                 args=(domain, service),
-                kwargs={"target": target, "return_response": return_response, **data},
+                kwargs={
+                    "domain": domain,
+                    "service": service,
+                    "target": target,
+                    "return_response": return_response,
+                    **data,
+                },
             )
         )
         if return_response:
@@ -220,18 +227,24 @@ class RecordingApi(Resource):
             raise EntityNotFoundError(f"Entity '{entity_id}' not found in StateProxy (not seeded).")
         return raw
 
-    def _convert_state(self, raw: "HassStateDict") -> BaseState:
-        """Convert a raw HassStateDict to a typed BaseState via the state registry."""
-        return self.hassette.state_registry.try_convert_state(raw)
+    def _convert_state(self, raw: "HassStateDict", entity_id: str | None = None) -> BaseState:
+        """Convert a raw HassStateDict to a typed BaseState via the state registry.
+
+        Args:
+            raw: Raw state dict from the StateProxy.
+            entity_id: Optional entity ID passed to the state registry for accurate domain
+                resolution. Matches the behaviour of the real Api and StateManager.
+        """
+        return self.hassette.state_registry.try_convert_state(raw, entity_id)
 
     async def get_state(self, entity_id: str) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded."""
         raw = self._get_raw_state(entity_id)
-        return self._convert_state(raw)
+        return self._convert_state(raw, entity_id)
 
     async def get_states(self) -> list[BaseState]:
         """Return typed states for all seeded entities."""
-        return [self._convert_state(raw) for raw in self._state_proxy.states.values()]
+        return [self._convert_state(raw, eid) for eid, raw in self._state_proxy.states.items()]
 
     async def get_entity(self, entity_id: str, model: type[Any] | None = None) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded.
@@ -264,51 +277,51 @@ class RecordingApi(Resource):
     # ------------------------------------------------------------------
 
     async def get_state_raw(self, entity_id: str) -> dict:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("get_state_raw")
         raise RuntimeError("unreachable")  # for type checker
 
     async def get_states_raw(self) -> list[dict]:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("get_states_raw")
         raise RuntimeError("unreachable")
 
     async def get_state_value(self, entity_id: str) -> Any:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("get_state_value")
 
     async def get_state_value_typed(self, entity_id: str) -> Any:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("get_state_value_typed")
 
     async def get_attribute(self, entity_id: str, attribute: str) -> Any:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("get_attribute")
 
     async def get_history(self, entity_id: str, *args: Any, **kwargs: Any) -> list:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("get_history")
         raise RuntimeError("unreachable")
 
     async def render_template(self, template: str, variables: dict | None = None) -> str:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("render_template")
         raise RuntimeError("unreachable")
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("ws_send_and_wait")
 
     async def ws_send_json(self, **data: Any) -> None:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("ws_send_json")
 
     async def rest_request(self, method: str, url: str, **kwargs: Any) -> Any:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("rest_request")
 
     async def delete_entity(self, entity_id: str) -> None:
-        """Not implemented. Use use_api_server=True for full coverage."""
+        """Not implemented. Use SimpleTestServer for full coverage."""
         _not_implemented("delete_entity")
 
     # ------------------------------------------------------------------
@@ -331,6 +344,13 @@ class RecordingApi(Resource):
     def assert_called(self, method: str, **kwargs) -> None:
         """Assert that method was called at least once with matching kwargs.
 
+        Performs partial (subset) matching: the call passes if all specified
+        ``kwargs`` are present in the recorded call's kwargs with matching values.
+        Positional arguments recorded in ``call.args`` are also checked via the
+        recorded ``kwargs`` dict — write methods record their positional args as
+        both ``args`` and ``kwargs`` so assertions like
+        ``assert_called("call_service", domain="light", service="turn_on")`` work.
+
         Args:
             method: Method name to check.
             **kwargs: Expected keyword arguments that must appear in at least one call.
@@ -344,12 +364,14 @@ class RecordingApi(Resource):
 
         if kwargs:
             for call in matching:
-                # Check that all expected kwargs appear in the call's recorded kwargs
+                # Check that all expected kwargs appear in the call's recorded kwargs.
+                # Write methods record positional args in both call.args and call.kwargs
+                # so kwargs-based assertions work uniformly for all methods.
                 if all(call.kwargs.get(k) == v for k, v in kwargs.items()):
                     return
             raise AssertionError(
                 f"'{method}' was called {len(matching)} time(s), but none matched kwargs {kwargs!r}. "
-                f"Calls recorded: {[c.kwargs for c in matching]}"
+                f"Calls recorded: {[{'args': c.args, 'kwargs': c.kwargs} for c in matching]}"
             )
 
     def assert_not_called(self, method: str) -> None:
