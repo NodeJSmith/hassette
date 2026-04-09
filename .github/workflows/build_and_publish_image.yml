@@ -2,7 +2,9 @@ name: Build & Publish Image
 
 on:
     pull_request:
-        branches: [main] # publish sha-only image for PR testing
+        branches: [main] # publish pr-N tagged image for PR testing
+    push:
+        branches: [main] # publish main tagged image for bleeding-edge testing
     workflow_call: # called by release-please workflow
         inputs:
             tag_name:
@@ -28,8 +30,8 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                # PRs build only 3.13 for speed; releases build all supported versions
-                python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.13"]') || fromJSON('["3.11", "3.12", "3.13"]') }}
+                # PRs and main-branch pushes build only 3.13 for speed; releases build all supported versions
+                python-version: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && fromJSON('["3.13"]') || fromJSON('["3.11", "3.12", "3.13"]') }}
         env:
             IMAGE_NAME: hassette
             REGISTRY: ghcr.io
@@ -86,11 +88,14 @@ jobs:
                       latest=false
                       suffix=-py${{ env.PYTHON_VERSION }}
                   tags: |
-                      type=sha,prefix=sha-,format=short
+                      type=ref,event=pr
+                      type=ref,event=branch
                       type=raw,value=${{ env.VERSION }},enable=${{ env.IS_RELEASE == 'true' }}
                       type=raw,value=latest,enable=${{ env.IS_RELEASE == 'true' && env.IS_STABLE_RELEASE == 'true' }}
 
             - name: Build & Push
+              # Fork-PR guard: skip only when the PR comes from a fork (forks can't push to GHCR).
+              # push/workflow_call/workflow_dispatch always publish.
               if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
               uses: docker/build-push-action@v6
               with:

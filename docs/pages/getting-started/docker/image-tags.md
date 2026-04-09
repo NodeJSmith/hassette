@@ -37,19 +37,37 @@ ghcr.io/nodejsmith/hassette:latest-py<python>
 !!! note "Stable Releases Only"
     These tags only point to stable releases. Pre-releases (`.dev`, `a`, `b`, `rc`, etc.) are never published to `latest-py*` tags.
 
-### Development / CI Usage
+### Testing Open Pull Requests
 
-For debugging or CI pinning to a specific commit:
+Every open pull request has a stable, mutable tag that points at the latest build of that PR:
 
 ```
-ghcr.io/nodejsmith/hassette:sha-<commit>-py<python>
+ghcr.io/nodejsmith/hassette:pr-<number>-py<python>
 ```
 
 **Example:**
 
-- `ghcr.io/nodejsmith/hassette:sha-a1b2c3d-py3.13`
+- `ghcr.io/nodejsmith/hassette:pr-497-py3.13`
 
-These tags are immutable but intended for internal/testing use.
+The tag is updated on every push to the PR branch, so `docker pull` always fetches the most recent build. Use these to try out changes before they land in `main`.
+
+!!! warning "Mutable Tag"
+    `pr-<N>` tags are mutable and will change as the PR evolves. Do not use them for reproducible builds — pin a version tag instead.
+
+### Bleeding-Edge Main Branch
+
+Every merge to `main` publishes a `main` tag for testing the latest unreleased code:
+
+```
+ghcr.io/nodejsmith/hassette:main-py<python>
+```
+
+**Example:**
+
+- `ghcr.io/nodejsmith/hassette:main-py3.13`
+
+!!! warning "Mutable Tag"
+    `main-py<python>` is mutable and updates on every merge to `main`. It may contain unreleased, unvetted changes. Do not use in production — pin a version tag instead.
 
 ## Tags NOT Published
 
