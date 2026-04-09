@@ -7,9 +7,8 @@ Intended for use with AppTestHarness. Users who need full HTTP-level
 fidelity should use a full integration test with a live HA connection.
 """
 
-from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Never, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
 from unittest.mock import Mock
 
 from hassette.exceptions import EntityNotFoundError
@@ -17,36 +16,12 @@ from hassette.models.entities.base import BaseEntity
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
+from hassette.test_utils.api_call import ApiCall
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.state_proxy import StateProxy
     from hassette.events import HassStateDict
-
-
-@dataclass
-class ApiCall:
-    """Record of a single API method invocation.
-
-    Write methods (``call_service``, ``set_state``, ``fire_event``) record their
-    positional arguments in both ``args`` and ``kwargs`` so that
-    :meth:`RecordingApi.assert_called` can use kwargs-only matching uniformly::
-
-        recorder.assert_called("call_service", domain="light", service="turn_on")
-
-    ``args`` is available for direct positional inspection when needed, but
-    ``assert_called`` does not check it — use ``kwargs`` for assertions.
-
-    Attributes:
-        method: Name of the method that was called (e.g. "turn_on").
-        args: Positional arguments passed to the method (for inspection only).
-        kwargs: Keyword arguments — the primary assertion surface. Write methods
-            include positional args here as well for uniform kwargs-based matching.
-    """
-
-    method: str
-    args: tuple = field(default_factory=tuple)
-    kwargs: dict = field(default_factory=dict)
 
 
 @runtime_checkable
@@ -59,8 +34,8 @@ class ApiProtocol(Protocol):
 
     # Write methods
     async def turn_on(self, entity_id: str | StrEnum, domain: str = ..., **data) -> None: ...
-    async def turn_off(self, entity_id: str, domain: str = ...) -> None: ...
-    async def toggle_service(self, entity_id: str, domain: str = ...) -> None: ...
+    async def turn_off(self, entity_id: str | StrEnum, domain: str = ...) -> None: ...
+    async def toggle_service(self, entity_id: str | StrEnum, domain: str = ...) -> None: ...
     async def call_service(
         self,
         domain: str,
@@ -112,10 +87,25 @@ class RecordingApi(Resource):
     under test must use a full integration test for those code paths.
 
     Unstubbed methods raise NotImplementedError with guidance on alternatives.
+
+    Example::
+
+        async with AppTestHarness(MotionLights, config={}) as harness:
+            await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
+            harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
     """
 
     calls: list[ApiCall]
     sync: Mock
+
+    # Methods whose __getattr__ message should redirect users to get_state()
+    _STATE_CONVERSION_METHODS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "get_state_value",
+            "get_state_value_typed",
+            "get_attribute",
+        }
+    )
 
     def __init__(
         self,
@@ -153,17 +143,37 @@ class RecordingApi(Resource):
     # ------------------------------------------------------------------
 
     async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
-        """Record a turn_on call. Delegates to :meth:`call_service` matching the real Api."""
+        """Record a turn_on call directly under its own method name."""
         entity_id = str(entity_id)
-        await self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
+        self.calls.append(
+            ApiCall(
+                method="turn_on",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id, "domain": domain, **data},
+            )
+        )
 
-    async def turn_off(self, entity_id: str, domain: str = "homeassistant") -> None:
-        """Record a turn_off call. Delegates to :meth:`call_service` matching the real Api."""
-        await self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
+    async def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
+        """Record a turn_off call directly under its own method name."""
+        entity_id = str(entity_id)
+        self.calls.append(
+            ApiCall(
+                method="turn_off",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id, "domain": domain},
+            )
+        )
 
-    async def toggle_service(self, entity_id: str, domain: str = "homeassistant") -> None:
-        """Record a toggle_service call. Delegates to :meth:`call_service` matching the real Api."""
-        await self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
+    async def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
+        """Record a toggle_service call directly under its own method name."""
+        entity_id = str(entity_id)
+        self.calls.append(
+            ApiCall(
+                method="toggle_service",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id, "domain": domain},
+            )
+        )
 
     async def call_service(
         self,
@@ -307,18 +317,6 @@ class RecordingApi(Resource):
         _not_implemented("get_states_raw")
         raise RuntimeError("unreachable")
 
-    async def get_state_value(self, entity_id: str) -> Any:
-        """Not implemented — raises NotImplementedError."""
-        _not_implemented("get_state_value")
-
-    async def get_state_value_typed(self, entity_id: str) -> Any:
-        """Not implemented — raises NotImplementedError."""
-        _not_implemented("get_state_value_typed")
-
-    async def get_attribute(self, entity_id: str, attribute: str) -> Any:
-        """Not implemented — raises NotImplementedError."""
-        _not_implemented("get_attribute")
-
     async def get_history(self, entity_id: str, *args: Any, **kwargs: Any) -> list:
         """Not implemented — raises NotImplementedError."""
         _not_implemented("get_history")
@@ -354,9 +352,18 @@ class RecordingApi(Resource):
 
         Private/dunder attributes fall through to the default AttributeError so that
         Resource internals (e.g. ``_unique_name``) and Python machinery work correctly.
+
+        State-conversion methods (get_state_value, get_state_value_typed, get_attribute)
+        get a tailored message directing users to ``await self.api.get_state(entity_id)``.
+        All other unimplemented methods get the generic "Seed state" guidance.
         """
         if name.startswith("_"):
             raise AttributeError(name)
+        if name in self._STATE_CONVERSION_METHODS:
+            raise NotImplementedError(
+                f"RecordingApi.{name} is not implemented. "
+                f"Call `await self.api.get_state(entity_id)` and read the returned state directly."
+            )
         raise NotImplementedError(
             f"RecordingApi.{name}() is not implemented. "
             "Seed state via AppTestHarness.set_state() for read methods, "
@@ -388,7 +395,7 @@ class RecordingApi(Resource):
         Positional arguments recorded in ``call.args`` are also checked via the
         recorded ``kwargs`` dict — write methods record their positional args as
         both ``args`` and ``kwargs`` so assertions like
-        ``assert_called("call_service", domain="light", service="turn_on")`` work.
+        ``assert_called("turn_on", entity_id="light.kitchen")`` work.
 
         Args:
             method: Method name to check.

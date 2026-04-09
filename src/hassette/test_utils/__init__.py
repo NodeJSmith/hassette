@@ -45,6 +45,7 @@ from ._internal import wire_up_app_running_listener as wire_up_app_running_liste
 from ._internal import wire_up_app_state_listener as wire_up_app_state_listener
 from ._internal import write_app_toml as write_app_toml
 from ._internal import write_test_app_with_decorator as write_test_app_with_decorator
+from .api_call import ApiCall
 from .app_harness import AppConfigurationError, AppTestHarness
 from .config import make_test_config
 from .helpers import (
@@ -55,7 +56,7 @@ from .helpers import (
     make_state_dict,
     make_switch_state_dict,
 )
-from .recording_api import ApiCall, RecordingApi
+from .recording_api import RecordingApi
 
 __all__ = [
     # Tier 1 only

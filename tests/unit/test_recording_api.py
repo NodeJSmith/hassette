@@ -8,6 +8,9 @@ Tests cover:
 - NotImplementedError for unstubbed methods
 - mark_ready called in on_initialize
 - ApiProtocol conformance (smoke test)
+- ApiCall extraction to api_call module
+- StrEnum coercion for turn_on, turn_off, toggle_service
+- Tailored __getattr__ messages
 """
 
 import asyncio
@@ -22,8 +25,10 @@ from hassette.conversion import STATE_REGISTRY
 from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.services import ServiceResponse
+from hassette.test_utils import ApiCall as ApiCallFromInit
+from hassette.test_utils.api_call import ApiCall
 from hassette.test_utils.helpers import make_state_dict
-from hassette.test_utils.recording_api import ApiCall, ApiProtocol, RecordingApi
+from hassette.test_utils.recording_api import ApiProtocol, RecordingApi
 
 # ---------------------------------------------------------------------------
 # Test harness helpers
@@ -74,10 +79,9 @@ async def test_turn_on_records_call():
     await api.turn_on("light.test", brightness=150)
     assert len(api.calls) == 1
     call = api.calls[0]
-    # turn_on delegates to call_service, matching real Api wire format
-    assert call.method == "call_service"
-    assert call.kwargs.get("target") == {"entity_id": "light.test"}
-    assert call.kwargs.get("brightness") == 150
+    assert call.method == "turn_on"
+    assert call.args == ("light.test",)
+    assert call.kwargs == {"entity_id": "light.test", "domain": "homeassistant", "brightness": 150}
 
 
 @pytest.mark.asyncio
@@ -136,9 +140,9 @@ async def test_turn_off_records_call():
     await api.turn_off("switch.fan")
     assert len(api.calls) == 1
     call = api.calls[0]
-    assert call.method == "call_service"
-    assert call.kwargs.get("service") == "turn_off"
-    assert call.kwargs.get("target") == {"entity_id": "switch.fan"}
+    assert call.method == "turn_off"
+    assert call.args == ("switch.fan",)
+    assert call.kwargs == {"entity_id": "switch.fan", "domain": "homeassistant"}
 
 
 @pytest.mark.asyncio
@@ -147,9 +151,9 @@ async def test_toggle_service_records_call():
     await api.toggle_service("light.kitchen")
     assert len(api.calls) == 1
     call = api.calls[0]
-    assert call.method == "call_service"
-    assert call.kwargs.get("service") == "toggle"
-    assert call.kwargs.get("target") == {"entity_id": "light.kitchen"}
+    assert call.method == "toggle_service"
+    assert call.args == ("light.kitchen",)
+    assert call.kwargs == {"entity_id": "light.kitchen", "domain": "homeassistant"}
 
 
 # ---------------------------------------------------------------------------
@@ -268,15 +272,14 @@ async def test_unstubbed_get_history_raises():
 async def test_assert_called_matching():
     api = _make_recording_api()
     await api.turn_on("light.kitchen")
-    # turn_on delegates to call_service
-    api.assert_called("call_service", service="turn_on", target={"entity_id": "light.kitchen"})
+    api.assert_called("turn_on", entity_id="light.kitchen")
 
 
 @pytest.mark.asyncio
 async def test_assert_called_with_kwargs():
     api = _make_recording_api()
     await api.turn_on("light.kitchen", brightness=150)
-    api.assert_called("call_service", service="turn_on", brightness=150)
+    api.assert_called("turn_on", entity_id="light.kitchen", brightness=150)
 
 
 @pytest.mark.asyncio
@@ -291,7 +294,7 @@ async def test_assert_called_fails_when_kwargs_do_not_match():
     api = _make_recording_api()
     await api.turn_on("light.kitchen")
     with pytest.raises(AssertionError):
-        api.assert_called("call_service", brightness=999)
+        api.assert_called("turn_on", brightness=999)
 
 
 @pytest.mark.asyncio
@@ -321,7 +324,7 @@ async def test_assert_not_called_fails_when_called():
     api = _make_recording_api()
     await api.turn_on("light.kitchen")
     with pytest.raises(AssertionError):
-        api.assert_not_called("call_service")
+        api.assert_not_called("turn_on")
 
 
 @pytest.mark.asyncio
@@ -329,7 +332,7 @@ async def test_assert_call_count():
     api = _make_recording_api()
     await api.turn_on("light.a")
     await api.turn_on("light.b")
-    api.assert_call_count("call_service", 2)
+    api.assert_call_count("turn_on", 2)
 
 
 @pytest.mark.asyncio
@@ -337,7 +340,7 @@ async def test_assert_call_count_fails_with_wrong_count():
     api = _make_recording_api()
     await api.turn_on("light.a")
     with pytest.raises(AssertionError):
-        api.assert_call_count("call_service", 2)
+        api.assert_call_count("turn_on", 2)
 
 
 @pytest.mark.asyncio
@@ -354,10 +357,10 @@ async def test_get_calls_filtered():
     api = _make_recording_api()
     await api.turn_on("light.a")
     await api.set_state("sensor.x", "active")
-    # turn_on delegates to call_service; set_state is its own method
-    call_service_calls = api.get_calls("call_service")
-    assert len(call_service_calls) == 1
-    assert call_service_calls[0].method == "call_service"
+    # turn_on now records directly as "turn_on"; set_state is its own method
+    turn_on_calls = api.get_calls("turn_on")
+    assert len(turn_on_calls) == 1
+    assert turn_on_calls[0].method == "turn_on"
     set_state_calls = api.get_calls("set_state")
     assert len(set_state_calls) == 1
 
@@ -437,7 +440,83 @@ async def test_turn_on_converts_strenum_to_str():
     api = _make_recording_api()
     await api.turn_on(_TestEntityId.KITCHEN)
     call = api.calls[0]
-    target = call.kwargs.get("target", {})
-    entity_id = target.get("entity_id")
+    entity_id = call.kwargs.get("entity_id")
     assert type(entity_id) is str, f"Expected plain str, got {type(entity_id).__name__} (StrEnum not converted)"
     assert entity_id == "light.kitchen"
+
+
+# ---------------------------------------------------------------------------
+# New tests: WP01 additions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_turn_on_accepts_strenum():
+    """turn_on stores entity_id as plain str (not StrEnum) in ApiCall.kwargs."""
+    api = _make_recording_api()
+    await api.turn_on(_TestEntityId.KITCHEN)
+    call = api.calls[0]
+    assert call.method == "turn_on"
+    entity_id = call.kwargs["entity_id"]
+    assert type(entity_id) is str
+    assert entity_id == "light.kitchen"
+
+
+@pytest.mark.asyncio
+async def test_turn_off_accepts_strenum():
+    """turn_off stores entity_id as plain str (not StrEnum) in ApiCall.kwargs."""
+    api = _make_recording_api()
+    await api.turn_off(_TestEntityId.KITCHEN)
+    call = api.calls[0]
+    assert call.method == "turn_off"
+    entity_id = call.kwargs["entity_id"]
+    assert type(entity_id) is str
+    assert entity_id == "light.kitchen"
+
+
+@pytest.mark.asyncio
+async def test_toggle_service_accepts_strenum():
+    """toggle_service stores entity_id as plain str (not StrEnum) in ApiCall.kwargs."""
+    api = _make_recording_api()
+    await api.toggle_service(_TestEntityId.KITCHEN)
+    call = api.calls[0]
+    assert call.method == "toggle_service"
+    entity_id = call.kwargs["entity_id"]
+    assert type(entity_id) is str
+    assert entity_id == "light.kitchen"
+
+
+@pytest.mark.asyncio
+async def test_call_service_still_records_as_call_service():
+    """call_service continues to record as method='call_service' unchanged."""
+    api = _make_recording_api()
+    await api.call_service("light", "turn_on", target={"entity_id": "light.x"})
+    assert len(api.calls) == 1
+    call = api.calls[0]
+    assert call.method == "call_service"
+    assert call.kwargs["domain"] == "light"
+    assert call.kwargs["service"] == "turn_on"
+    assert call.kwargs["target"] == {"entity_id": "light.x"}
+
+
+@pytest.mark.asyncio
+async def test_getattr_tailored_message_for_state_conversion():
+    """__getattr__ gives tailored message for get_state_value, get_state_value_typed, get_attribute."""
+    api = _make_recording_api()
+    with pytest.raises(NotImplementedError) as exc_info:
+        await api.get_state_value("sensor.temp")
+    assert "Call `await self.api.get_state(entity_id)`" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_getattr_default_message_for_other_methods():
+    """__getattr__ gives generic seed-state guidance for non-state-conversion methods."""
+    api = _make_recording_api()
+    with pytest.raises(NotImplementedError) as exc_info:
+        api.__getattr__("some_unimplemented_method")
+    assert "Seed state via AppTestHarness.set_state()" in str(exc_info.value)
+
+
+def test_apicall_import_from_api_call_module():
+    """ApiCall from hassette.test_utils.api_call is the same class as hassette.test_utils.ApiCall."""
+    assert ApiCall is ApiCallFromInit

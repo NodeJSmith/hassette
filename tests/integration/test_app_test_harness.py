@@ -216,7 +216,7 @@ async def test_api_recorder_records_calls():
 
         await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
 
-        harness.api_recorder.assert_called("call_service", service="turn_on", target={"entity_id": "light.kitchen"})
+        harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
 
 
 # ---------------------------------------------------------------------------

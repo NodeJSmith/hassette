@@ -10,7 +10,7 @@ Typical usage::
         await harness.simulate_state_change(
             "binary_sensor.test", old_value="off", new_value="on"
         )
-        harness.api_recorder.assert_called("call_service", service="turn_on", target={"entity_id": "light.kitchen"})
+        harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
 
 See design/specs/2033-end-user-test-utils/design.md for architecture details.
 """
