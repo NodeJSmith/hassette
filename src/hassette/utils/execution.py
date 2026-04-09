@@ -11,6 +11,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
+from hassette.exceptions import DependencyError
+
 
 @dataclass
 class ExecutionResult:
@@ -22,6 +24,8 @@ class ExecutionResult:
     error_message: str | None = None
     error_type: str | None = None
     error_traceback: str | None = None
+    is_di_failure: bool = False
+    """True when the execution failed due to a DependencyError (or subclass)."""
 
     @property
     def is_success(self) -> bool:
@@ -75,6 +79,7 @@ async def track_execution(
         result.status = "error"
         result.error_message = str(exc)
         result.error_type = type(exc).__name__
+        result.is_di_failure = isinstance(exc, DependencyError)
         if known_errors and isinstance(exc, known_errors):
             result.error_traceback = None
         else:

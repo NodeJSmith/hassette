@@ -101,8 +101,8 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
     assert executed_cmds[0].job is scheduled_job, "ExecuteJob.job should be the scheduled job"
 
 
-async def test_run_job_internal_bypasses_executor(hassette_with_scheduler: Hassette) -> None:
-    """Internal jobs (db_id=None) run directly, bypassing CommandExecutor."""
+async def test_run_job_unregistered_routes_through_executor(hassette_with_scheduler: Hassette) -> None:
+    """Jobs with db_id=None (unregistered) still route through CommandExecutor as orphan records."""
     job_executed = asyncio.Event()
 
     async def target() -> None:
@@ -118,8 +118,12 @@ async def test_run_job_internal_bypasses_executor(hassette_with_scheduler: Hasse
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
 
-    # Executor should NOT have been called for internal jobs
-    executor.execute.assert_not_called()
+    # All jobs now route through CommandExecutor regardless of db_id;
+    # db_id=None produces an orphan JobExecutionRecord with job_db_id=None.
+    executor.execute.assert_called_once()
+    cmd = executor.execute.call_args[0][0]
+    assert isinstance(cmd, ExecuteJob)
+    assert cmd.job_db_id is None, "Unregistered job should produce orphan record with job_db_id=None"
 
 
 async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) -> None:

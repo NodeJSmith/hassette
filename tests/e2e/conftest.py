@@ -23,7 +23,6 @@ from hassette.core.telemetry_models import (
     ListenerGlobalStats,
     ListenerSummary,
     SessionRecord,
-    SessionSummary,
 )
 from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_helpers import (
@@ -555,37 +554,8 @@ def mock_hassette():
         },
     )
 
-    # Global summary for KPI strip — typed model.
-    hassette._telemetry_query_service.get_global_summary = AsyncMock(
-        return_value=GlobalSummary(
-            listeners=ListenerGlobalStats(
-                total_listeners=3,
-                invoked_listeners=3,
-                total_invocations=33,
-                total_errors=3,
-                total_di_failures=0,
-                avg_duration_ms=2.5,
-            ),
-            jobs=JobGlobalStats(
-                total_jobs=3,
-                executed_jobs=3,
-                total_executions=28,
-                total_errors=6,
-            ),
-        )
-    )
-
-    # Current session summary for the session bar — typed model.
-    hassette._telemetry_query_service.get_current_session_summary = AsyncMock(
-        return_value=SessionSummary(
-            started_at=1704067200.0,
-            last_heartbeat_at=1704070800.0,
-            total_invocations=33,
-            invocation_errors=3,
-            total_executions=28,
-            execution_errors=6,
-        )
-    )
+    # Global summary for KPI strip — typed model. The actual mock is set up
+    # further below after side-effect functions are defined.
 
     # Session list for the sessions page.
     hassette._telemetry_query_service.get_session_list = AsyncMock(
@@ -620,40 +590,122 @@ def mock_hassette():
         ]
     )
 
-    # Recent errors for the error feed — includes errors from multiple apps.
+    # App-tier errors — shown in the default error feed.
+    app_tier_errors = [
+        HandlerErrorRecord(
+            app_key="my_app",
+            listener_id=42,
+            handler_method="on_light_change",
+            topic="state_changed.light.kitchen",
+            execution_start_ts=1704067100.0,
+            duration_ms=3.1,
+            source_tier="app",
+            error_type="ValueError",
+            error_message="Bad state value",
+        ),
+        JobErrorRecord(
+            app_key="my_app",
+            job_id=7,
+            handler_method="check_lights",
+            job_name="check_lights",
+            execution_start_ts=1704067000.0,
+            duration_ms=4.2,
+            source_tier="app",
+            error_type="TimeoutError",
+            error_message="Light service unavailable",
+        ),
+        HandlerErrorRecord(
+            app_key="broken_app",
+            listener_id=43,
+            handler_method="on_door_open",
+            topic="state_changed.binary_sensor.door",
+            execution_start_ts=1704067050.0,
+            duration_ms=10.0,
+            source_tier="app",
+            error_type="RuntimeError",
+            error_message="Lock service timed out",
+        ),
+        # Orphan error — listener_id is None (handler was deleted)
+        HandlerErrorRecord(
+            app_key=None,
+            listener_id=None,
+            handler_method=None,
+            topic=None,
+            execution_start_ts=1704067000.5,
+            duration_ms=1.0,
+            source_tier="app",
+            error_type="RuntimeError",
+            error_message="Orphan error from deleted listener",
+        ),
+    ]
+
+    # Framework-tier errors — shown only in System Health affordance.
+    framework_tier_errors = [
+        HandlerErrorRecord(
+            app_key="__hassette__",
+            listener_id=999,
+            handler_method="on_state_change_dispatch",
+            topic="state_changed",
+            execution_start_ts=1704067200.0,
+            duration_ms=1.5,
+            source_tier="framework",
+            error_type="DispatchError",
+            error_message="Framework dispatch failed",
+        ),
+    ]
+
+    def _make_errors_side_effect(source_tier: str = "app", **_kwargs):
+        if source_tier == "framework":
+            return framework_tier_errors
+        # "app" or "all" (default: app)
+        return app_tier_errors
+
     hassette._telemetry_query_service.get_recent_errors = AsyncMock(
-        return_value=[
-            HandlerErrorRecord(
-                app_key="my_app",
-                listener_id=42,
-                handler_method="on_light_change",
-                topic="state_changed.light.kitchen",
-                execution_start_ts=1704067100.0,
-                duration_ms=3.1,
-                error_type="ValueError",
-                error_message="Bad state value",
-            ),
-            JobErrorRecord(
-                app_key="my_app",
-                job_id=7,
-                handler_method="check_lights",
-                job_name="check_lights",
-                execution_start_ts=1704067000.0,
-                duration_ms=4.2,
-                error_type="TimeoutError",
-                error_message="Light service unavailable",
-            ),
-            HandlerErrorRecord(
-                app_key="broken_app",
-                listener_id=43,
-                handler_method="on_door_open",
-                topic="state_changed.binary_sensor.door",
-                execution_start_ts=1704067050.0,
-                duration_ms=10.0,
-                error_type="RuntimeError",
-                error_message="Lock service timed out",
-            ),
-        ]
+        side_effect=lambda **kwargs: _make_errors_side_effect(**kwargs)
+    )
+
+    # Framework-tier global summary for the System Health KPIs.
+    framework_global_summary = GlobalSummary(
+        listeners=ListenerGlobalStats(
+            total_listeners=2,
+            invoked_listeners=1,
+            total_invocations=5,
+            total_errors=1,
+            total_di_failures=0,
+            avg_duration_ms=1.5,
+        ),
+        jobs=JobGlobalStats(
+            total_jobs=1,
+            executed_jobs=1,
+            total_executions=3,
+            total_errors=0,
+        ),
+    )
+
+    default_global_summary = GlobalSummary(
+        listeners=ListenerGlobalStats(
+            total_listeners=3,
+            invoked_listeners=3,
+            total_invocations=33,
+            total_errors=3,
+            total_di_failures=0,
+            avg_duration_ms=2.5,
+        ),
+        jobs=JobGlobalStats(
+            total_jobs=3,
+            executed_jobs=3,
+            total_executions=28,
+            total_errors=6,
+        ),
+    )
+
+    def _make_summary_side_effect(source_tier: str = "app", **_kwargs):
+        if source_tier == "framework":
+            return framework_global_summary
+        return default_global_summary
+
+    hassette._telemetry_query_service.get_global_summary = AsyncMock(
+        side_effect=lambda **kwargs: _make_summary_side_effect(**kwargs)
     )
 
     hassette.telemetry_query_service = hassette._telemetry_query_service

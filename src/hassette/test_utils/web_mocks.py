@@ -46,7 +46,6 @@ def _wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts.get_recent_errors = AsyncMock(return_value=[])
     ts.get_slow_handlers = AsyncMock(return_value=[])
     ts.get_session_list = AsyncMock(return_value=[])
-    ts.get_current_session_summary = AsyncMock(return_value=None)
     ts.check_health = AsyncMock(return_value=None)
     hassette.telemetry_query_service = ts
 
@@ -135,6 +134,9 @@ def create_hassette_stub(
     # --- Config endpoint ---
     if config_dump is not None:
         hassette.config.model_dump.return_value = config_dump
+
+    # --- Drop counters (telemetry pipeline) ---
+    hassette.get_drop_counters.return_value = (0, 0, 0, 0)
 
     # --- Children for system status ---
     hassette.children = []

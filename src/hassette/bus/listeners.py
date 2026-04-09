@@ -8,6 +8,7 @@ from typing import Any, cast
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
+from hassette.types.types import SourceTier
 from hassette.utils.func_utils import callable_name
 from hassette.utils.type_utils import get_typed_signature
 
@@ -101,6 +102,9 @@ class Listener:
 
     name: str | None = None
     """Optional stable name for the listener (the name= escape hatch on Bus.on())."""
+
+    source_tier: SourceTier = "app"
+    """Whether this listener originates from a user app or the framework itself."""
 
     _fired: bool = field(default=False, init=False, repr=False)
     """Guard for once=True listeners: set before the first invocation to prevent double-fire
@@ -211,6 +215,7 @@ class Listener:
         app_key: str = "",
         instance_index: int = 0,
         name: str | None = None,
+        source_tier: SourceTier = "app",
     ) -> "Listener":
         cls._validate_options(once=once, debounce=debounce, throttle=throttle)
 
@@ -242,6 +247,7 @@ class Listener:
             handler_name=handler_name,
             handler_short_name=short_name,
             name=name,
+            source_tier=source_tier,
         )
 
         # One-time construction-phase init — _rate_limiter is set here (inside create()),

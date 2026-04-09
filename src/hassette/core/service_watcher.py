@@ -2,6 +2,8 @@ import asyncio
 import typing
 
 from hassette.bus import Bus
+from hassette.event_handling import predicates as P
+from hassette.event_handling.accessors import get_path
 from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
@@ -210,7 +212,28 @@ class ServiceWatcher(Resource):
 
     def _register_internal_event_listeners(self) -> None:
         """Register internal event listeners for resource lifecycle."""
-        self.bus.on_hassette_service_failed(handler=self.restart_service)
-        self.bus.on_hassette_service_crashed(handler=self.shutdown_if_crashed)
-        self.bus.on_hassette_service_status(handler=self.log_service_event)
-        self.bus.on_hassette_service_started(handler=self._on_service_running)
+        bus_service = self.hassette._bus_service
+        topic = str(Topic.HASSETTE_EVENT_SERVICE_STATUS)
+        bus_service.register_framework_listener(
+            topic=topic,
+            handler=self.restart_service,
+            name="hassette.service_watcher.restart_service",
+            where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.FAILED),
+        )
+        bus_service.register_framework_listener(
+            topic=topic,
+            handler=self.shutdown_if_crashed,
+            name="hassette.service_watcher.shutdown_if_crashed",
+            where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
+        )
+        bus_service.register_framework_listener(
+            topic=topic,
+            handler=self.log_service_event,
+            name="hassette.service_watcher.log_service_event",
+        )
+        bus_service.register_framework_listener(
+            topic=topic,
+            handler=self._on_service_running,
+            name="hassette.service_watcher._on_service_running",
+            where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.RUNNING),
+        )

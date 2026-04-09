@@ -6,6 +6,7 @@ import {
 } from "../api/endpoints";
 import { AppGrid } from "../components/dashboard/app-grid";
 import { ErrorFeed } from "../components/dashboard/error-feed";
+import { FrameworkHealth } from "../components/dashboard/framework-health";
 import { KpiStrip } from "../components/dashboard/kpi-strip";
 import { IconCheck, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
@@ -89,6 +90,8 @@ export function DashboardPage() {
           <span class="ht-text-muted ht-text-xs">No recent errors. All systems healthy.</span>
         </div>
       )}
+
+      <FrameworkHealth />
 
     </div>
   );

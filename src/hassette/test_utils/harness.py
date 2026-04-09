@@ -4,7 +4,7 @@ import itertools
 import logging
 import threading
 import typing
-from collections.abc import Callable, Generator
+from collections.abc import Awaitable, Callable, Generator
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
@@ -21,6 +21,7 @@ from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
+from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.websocket_service import WebsocketService
@@ -31,6 +32,7 @@ from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
+from hassette.types.types import FRAMEWORK_APP_KEY
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
@@ -194,6 +196,10 @@ class HassetteHarness:
     at startup — e.g. `with_state_proxy()` will pull in `bus` without the
     caller having to add it explicitly.
     """
+
+    # Declared here for pyright; assigned at module level from standalone functions
+    register_framework_listener: Callable[..., Awaitable[None]]
+    register_framework_job: Callable[..., Awaitable[int]]
 
     def __init__(self, config: HassetteConfig, *, unused_tcp_port: int = 0, skip_global_set: bool = False) -> None:
         self.config = config
@@ -470,3 +476,73 @@ class HassetteHarness:
         "state_proxy": _start_state_proxy,
         "state_registry": _start_state_registry,
     }
+
+
+# ============================================================================
+# HassetteHarness Extension Methods
+# ============================================================================
+
+
+async def _register_framework_listener(
+    self: HassetteHarness,
+    *,
+    topic: str,
+    handler: "Callable[..., Awaitable[None]]",
+    name: str,
+) -> None:
+    """Register a framework listener and wait for DB registration to complete.
+
+    Convenience method that calls BusService.register_framework_listener()
+    and awaits completion of the registration task.
+
+    Args:
+        topic: Event topic to subscribe to.
+        handler: Async handler function.
+        name: Stable component-prefixed name, e.g., 'hassette.core.on_service_crashed'.
+    """
+    if not self.hassette._bus_service:
+        raise RuntimeError("Bus is not enabled on this harness")
+    task = self.hassette._bus_service.register_framework_listener(topic=topic, handler=handler, name=name)
+    await task
+
+
+async def _register_framework_job(
+    self: HassetteHarness,
+    *,
+    name: str,
+) -> int:
+    """Register a framework scheduled job and return its DB ID.
+
+    Convenience method that delegates to the command executor's
+    register_job method with a ScheduledJobRegistration set up for
+    framework-internal use (app_key='__hassette__', source_tier='framework').
+
+    Args:
+        name: Stable component-prefixed name, e.g., 'hassette.core.periodic_check'.
+
+    Returns:
+        The DB ID of the registered job.
+    """
+    if not self.hassette._command_executor:
+        raise RuntimeError("Command executor is not enabled on this harness")
+
+    reg = ScheduledJobRegistration(
+        app_key=FRAMEWORK_APP_KEY,
+        instance_index=0,
+        job_name=name,
+        handler_method=f"{FRAMEWORK_APP_KEY}.{name}",
+        trigger_type=None,
+        trigger_value=None,
+        repeat=False,
+        args_json="[]",
+        kwargs_json="{}",
+        source_location="harness.py:framework",
+        registration_source=None,
+        source_tier="framework",
+    )
+    return await self.hassette._command_executor.register_job(reg)
+
+
+# Add convenience methods to HassetteHarness
+HassetteHarness.register_framework_listener = _register_framework_listener
+HassetteHarness.register_framework_job = _register_framework_job

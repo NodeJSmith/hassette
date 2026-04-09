@@ -9,6 +9,7 @@ from croniter import croniter
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.types.types import SourceTier
 
 if typing.TYPE_CHECKING:
     from hassette.types import JobCallable, TriggerProtocol
@@ -220,6 +221,9 @@ class ScheduledJob:
     registration_source: str = field(default="", compare=False)
     """Captured source code snippet of the scheduling call."""
 
+    source_tier: SourceTier = field(default="app", compare=False)
+    """Whether this job originates from a user app or the framework itself."""
+
     def __repr__(self) -> str:
         return f"ScheduledJob(name={self.name!r}, owner_id={self.owner_id})"
 
@@ -274,17 +278,26 @@ class ScheduledJob:
 class JobExecutionRecord:
     """Record of a single job execution for metrics tracking."""
 
-    job_id: int
-    """FK to the scheduled_jobs table entry for this job."""
+    job_id: int | None
+    """FK to the scheduled_jobs table entry for this job. None for framework-internal jobs."""
 
-    session_id: int
-    """Session during which the execution occurred."""
+    session_id: int | None
+    """Session during which the execution occurred.
+
+    None when enqueued before session creation; injected at drain time.
+    """
 
     execution_start_ts: float
     """Unix timestamp (epoch seconds) when execution began."""
 
     duration_ms: float
     status: str  # "success", "error", "cancelled"
+    source_tier: SourceTier = "app"
+    """Whether this execution originates from a user app or the framework itself."""
+
+    is_di_failure: bool = False
+    """True when the execution failed due to a DependencyError (or subclass)."""
+
     error_message: str | None = None
     error_type: str | None = None
     error_traceback: str | None = None

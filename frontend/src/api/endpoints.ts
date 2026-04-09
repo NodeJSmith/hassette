@@ -54,14 +54,31 @@ export const getHandlerInvocations = (listenerId: number, limit = 50, sessionId?
 export const getJobExecutions = (jobId: number, limit = 50, sessionId?: number | null) =>
   apiFetch<JobExecutionData[]>(withSession(`/telemetry/job/${jobId}/executions?limit=${limit}`, sessionId));
 
-export const getDashboardKpis = (sessionId?: number | null) =>
-  apiFetch<DashboardKpis>(withSession("/telemetry/dashboard/kpis", sessionId));
+export type SourceTier = "app" | "framework" | "all";
+
+export const getDashboardKpis = (sessionId?: number | null, sourceTier?: SourceTier) => {
+  let url = withSession("/telemetry/dashboard/kpis", sessionId);
+  if (sourceTier) url += (url.includes("?") ? "&" : "?") + `source_tier=${sourceTier}`;
+  return apiFetch<DashboardKpis>(url);
+};
 
 export const getDashboardAppGrid = (sessionId?: number | null) =>
   apiFetch<{ apps: DashboardAppGridEntry[] }>(withSession("/telemetry/dashboard/app-grid", sessionId));
 
-export const getDashboardErrors = (sessionId?: number | null) =>
-  apiFetch<{ errors: DashboardErrorEntry[] }>(withSession("/telemetry/dashboard/errors", sessionId));
+export type FrameworkSummary = {
+  total_errors: number;
+  total_job_errors: number;
+  errors: DashboardErrorEntry[];
+};
+
+export const getFrameworkSummary = (sessionId?: number | null) =>
+  apiFetch<FrameworkSummary>(withSession("/telemetry/dashboard/framework-summary", sessionId));
+
+export const getDashboardErrors = (sessionId?: number | null, sourceTier?: SourceTier) => {
+  let url = withSession("/telemetry/dashboard/errors", sessionId);
+  if (sourceTier) url += (url.includes("?") ? "&" : "?") + `source_tier=${sourceTier}`;
+  return apiFetch<{ errors: DashboardErrorEntry[] }>(url);
+};
 
 export const getTelemetryStatus = (signal?: AbortSignal) =>
   apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);

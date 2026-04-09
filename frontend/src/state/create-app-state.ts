@@ -103,6 +103,30 @@ export function createAppState() {
     telemetryDegraded: signal(false),
 
     /**
+     * Count of telemetry events dropped due to queue overflow.
+     * Updated by the telemetry health poller from /api/telemetry/status.
+     * Non-zero indicates the DB writer is falling behind.
+     */
+    droppedOverflow: signal(0),
+
+    /**
+     * Count of telemetry events dropped due to queue exhaustion (backpressure).
+     * Updated by the telemetry health poller from /api/telemetry/status.
+     */
+    droppedExhausted: signal(0),
+
+    /**
+     * Count of telemetry events dropped because session_id was unavailable at drain time.
+     * Startup-transient — typically ignorable unless chronic.
+     */
+    droppedNoSession: signal(0),
+
+    /**
+     * Count of telemetry events dropped during shutdown flush (DB unavailable).
+     */
+    droppedShutdown: signal(0),
+
+    /**
      * Request the server to update the minimum log level for WS log streaming.
      * Wired by useWebSocket once the socket is ready; no-op before that.
      */

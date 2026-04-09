@@ -50,6 +50,8 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.db_retention_days = 7
     hassette.config.db_migration_timeout_seconds = 120
     hassette.config.db_max_size_mb = 0
+    hassette.config.telemetry_write_queue_max = 500
+    hassette.config.db_write_queue_max = 2000
     hassette.config.database_service_log_level = "INFO"
     hassette.config.log_level = "INFO"
     hassette.config.task_bucket_log_level = "INFO"

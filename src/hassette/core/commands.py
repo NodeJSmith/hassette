@@ -6,7 +6,7 @@ from typing import Any
 from hassette.bus.listeners import Listener
 from hassette.events.base import Event
 from hassette.scheduler.classes import ScheduledJob
-from hassette.types import AsyncHandlerType
+from hassette.types import AsyncHandlerType, SourceTier
 
 
 @dataclass(frozen=True)
@@ -22,8 +22,14 @@ class InvokeHandler:
     topic: str
     """The event topic this handler is being invoked for."""
 
-    listener_id: int
-    """FK to the listeners table; set when the listener is registered."""
+    listener_id: int | None
+    """FK to the listeners table; None when the listener hasn't been registered yet."""
+
+    source_tier: SourceTier
+    """Whether this invocation originates from a user app or the framework itself.
+
+    Required (no default) to prevent silent miscategorization.
+    """
 
 
 @dataclass(frozen=True)
@@ -36,5 +42,11 @@ class ExecuteJob:
     callable: AsyncHandlerType
     """The async callable to invoke."""
 
-    job_db_id: int
-    """FK to the scheduled_jobs table; set when the job is registered."""
+    job_db_id: int | None
+    """FK to the scheduled_jobs table; None when the job hasn't been registered yet."""
+
+    source_tier: SourceTier
+    """Whether this execution originates from a user app or the framework itself.
+
+    Required (no default) to prevent silent miscategorization.
+    """

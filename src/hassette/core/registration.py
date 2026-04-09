@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from hassette.types.types import SourceTier
+
 
 @dataclass(frozen=True)
 class ListenerRegistration:
@@ -46,6 +48,9 @@ class ListenerRegistration:
     name: str | None = None
     """Optional stable name for the listener, used as the natural key escape hatch."""
 
+    source_tier: SourceTier = "app"
+    """Whether this listener originates from a user app or the framework itself."""
+
 
 @dataclass(frozen=True)
 class ScheduledJobRegistration:
@@ -83,3 +88,6 @@ class ScheduledJobRegistration:
 
     registration_source: str | None
     """Source code snippet of the registration call, or None if unavailable."""
+
+    source_tier: SourceTier = "app"
+    """Whether this job originates from a user app or the framework itself."""

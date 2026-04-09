@@ -3,9 +3,15 @@ import { setStoredValue } from "../../utils/local-storage";
 import { SessionScopeToggle } from "./session-scope-toggle";
 
 export function StatusBar() {
-  const { connection, theme, telemetryDegraded } = useAppState();
+  const { connection, theme, telemetryDegraded, droppedOverflow, droppedExhausted, droppedNoSession, droppedShutdown } =
+    useAppState();
   const status = connection.value;
   const isDegraded = telemetryDegraded.value;
+  const overflow = droppedOverflow.value ?? 0;
+  const exhausted = droppedExhausted.value ?? 0;
+  const noSession = droppedNoSession.value ?? 0;
+  const shutdown = droppedShutdown.value ?? 0;
+  const droppedTotal = overflow + exhausted + noSession + shutdown;
 
   const toggleTheme = () => {
     const next = theme.value === "dark" ? "light" : "dark";
@@ -36,6 +42,17 @@ export function StatusBar() {
         <span class="ht-ws-indicator is-degraded" aria-label="DB degraded">
           <span class="ht-pulse-dot degraded" />
           <span class="ht-text-xs">DB degraded</span>
+        </span>
+      )}
+      {droppedTotal > 0 && (
+        <span
+          class="ht-ws-indicator is-degraded"
+          aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
+          title={`Overflow: ${overflow}, Exhausted: ${exhausted}, No-session: ${noSession}, Shutdown: ${shutdown}`}
+          data-testid="dropped-events-indicator"
+        >
+          <span class="ht-pulse-dot degraded" />
+          <span class="ht-text-xs">{droppedTotal} dropped</span>
         </span>
       )}
       <SessionScopeToggle />

@@ -132,9 +132,9 @@ def test_dashboard_renders_error_feed(page: Page, base_url: str) -> None:
     error_feed = page.locator("[data-testid='dashboard-errors']")
     expect(error_feed).to_be_visible()
 
-    # Should contain seeded error data
+    # Should contain seeded error data (3 app errors + 1 orphan = 4)
     error_items = error_feed.locator("[data-testid='error-item']")
-    expect(error_items).to_have_count(3)
+    expect(error_items).to_have_count(4)
 
     # Check errors from multiple apps
     expect(error_feed).to_contain_text("my_app")
@@ -167,3 +167,71 @@ def test_app_health_heading_links_to_apps(page: Page, base_url: str) -> None:
     expect(link).to_be_visible()
     link.click()
     expect(page).to_have_url(re.compile(r"/apps/?$"))
+
+
+# ── Framework Health affordance ─────────────────────────────────────
+
+
+def test_dashboard_default_shows_app_errors_only(page: Page, base_url: str) -> None:
+    """Default error feed shows app-tier errors only (not framework errors).
+
+    Framework errors have source_tier='framework' and must NOT appear in the
+    default error feed. They are only accessible via the System Health section.
+    """
+    page.goto(base_url + "/")
+    error_feed = page.locator("[data-testid='dashboard-errors']")
+    expect(error_feed).to_be_visible()
+
+    # App-tier errors should be visible
+    expect(error_feed).to_contain_text("my_app")
+    expect(error_feed).to_contain_text("Bad state value")
+
+    # Framework-tier error must NOT appear in the default feed
+    expect(error_feed).not_to_contain_text("DispatchError")
+    expect(error_feed).not_to_contain_text("Framework dispatch failed")
+
+
+def test_framework_affordance_visible(page: Page, base_url: str) -> None:
+    """A visible framework health element is present on the default dashboard.
+
+    The System Health section must be present even without clicking any link.
+    AC-18: it must be visible by default on the dashboard.
+    """
+    page.goto(base_url + "/")
+    framework_section = page.locator("[data-testid='framework-health']")
+    expect(framework_section).to_be_visible()
+    expect(framework_section).to_contain_text("System Health")
+
+    # Error count badge should be present
+    error_badge = page.locator("[data-testid='framework-error-count']")
+    expect(error_badge).to_be_visible()
+
+
+def test_framework_affordance_shows_framework_errors(page: Page, base_url: str) -> None:
+    """Clicking System Health affordance shows framework errors with tier tag."""
+    page.goto(base_url + "/")
+    framework_section = page.locator("[data-testid='framework-health']")
+    expect(framework_section).to_be_visible()
+
+    # Click to expand
+    framework_section.click()
+
+    # Framework errors should appear
+    expect(framework_section).to_contain_text("DispatchError")
+    expect(framework_section).to_contain_text("Framework dispatch failed")
+
+    # Framework tier badge should be visible on the framework error
+    framework_tag = framework_section.locator(".ht-tag--framework")
+    expect(framework_tag).to_be_visible()
+    expect(framework_tag).to_contain_text("Framework")
+
+
+def test_orphan_error_renders_deleted_label(page: Page, base_url: str) -> None:
+    """Orphan error (null listener_id) renders 'deleted handler' label instead of crashing."""
+    page.goto(base_url + "/")
+    error_feed = page.locator("[data-testid='dashboard-errors']")
+    expect(error_feed).to_be_visible()
+
+    # The orphan error has no app_key and no listener_id —
+    # the UI must show "deleted handler" instead of a blank or crashing
+    expect(error_feed).to_contain_text("deleted handler")

@@ -13,13 +13,16 @@ from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
+from hassette.event_handling import predicates as Predicates
+from hassette.event_handling.accessors import get_path
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ResourceStatus, Topic
+from hassette.types.types import FRAMEWORK_APP_KEY
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -192,6 +195,18 @@ class Hassette(Resource):
         """CommandExecutor for telemetry recording."""
         return self._command_executor
 
+    def get_drop_counters(self) -> tuple[int, int, int, int]:
+        """Return (dropped_overflow, dropped_exhausted, dropped_no_session, dropped_shutdown) from the CommandExecutor.
+
+        Returns:
+            A tuple of counters where:
+            - overflow_count: records dropped because the write queue was full.
+            - exhausted_count: records dropped because max retries were exceeded.
+            - no_session_count: records dropped because session_id was unavailable.
+            - shutdown_count: records dropped during shutdown flush.
+        """
+        return self._command_executor.get_drop_counters()
+
     @property
     def database_service(self) -> DatabaseService:
         """DatabaseService instance for SQLite telemetry storage."""
@@ -315,11 +330,28 @@ class Hassette(Resource):
             return
 
         try:
-            self._bus.on_hassette_service_crashed(handler=self._session_manager.on_service_crashed)
+            self._bus_service.register_framework_listener(
+                topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
+                handler=self._session_manager.on_service_crashed,
+                name="hassette.session_manager.on_service_crashed",
+                where=Predicates.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
+            )
         except Exception:
             self.logger.exception("Failed to initialize session tracking")
             await self.shutdown()
             return
+
+        # Drain completed framework registration tasks to free stale Task references.
+        # Without this, _pending_registration_tasks[FRAMEWORK_APP_KEY] holds N completed
+        # Tasks for the process lifetime since no further register_framework_listener()
+        # calls trigger the pruning logic.
+        await self._bus_service.await_registrations_complete(FRAMEWORK_APP_KEY)
+
+        # Clean up stale once=True listeners from previous sessions. Safe to run here
+        # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the
+        # NOT EXISTS(... session_id = ?) guard prevents deletion of any listener that
+        # has current-session invocations still in the write queue.
+        await self._session_manager.cleanup_stale_once_listeners()
 
         # does not take into consideration if apps failed to load, but those errors would have been logged already
         self.logger.info("All services started successfully.")
@@ -351,8 +383,18 @@ class Hassette(Resource):
                 service.start()
 
     async def on_shutdown(self) -> None:
-        """Shutdown hook — children are shut down by _finalize_shutdown() propagation with timeout."""
-        pass
+        """Shut down CommandExecutor before DatabaseService.
+
+        CommandExecutor._flush_queue() calls database_service.submit(), so it must
+        complete before DatabaseService tears down its write queue. The base class
+        shuts all children concurrently, which races these two. We sequence
+        CommandExecutor first here, then let _finalize_shutdown handle the rest
+        (CommandExecutor.shutdown() is idempotent — the second call is a no-op).
+        """
+        try:
+            await self._command_executor.shutdown()
+        except Exception:
+            self.logger.exception("CommandExecutor shutdown failed during sequenced pre-shutdown")
 
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.
@@ -405,4 +447,8 @@ class Hassette(Resource):
         except Exception:
             self.logger.exception("Failed to remove bus listeners during shutdown")
         finally:
-            await self._session_manager.finalize_session()
+            try:
+                counters = self._command_executor.get_drop_counters()
+            except Exception:
+                counters = (0, 0, 0, 0)
+            await self._session_manager.finalize_session(drop_counters=counters)

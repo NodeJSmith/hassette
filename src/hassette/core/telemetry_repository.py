@@ -1,15 +1,26 @@
 """TelemetryRepository: encapsulates all SQL writes for CommandExecutor telemetry."""
 
 import logging
+import sqlite3
 import time
 import typing
 
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.types.types import FRAMEWORK_APP_KEY
 
 if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
+
+
+def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
+    """Return True if the IntegrityError is a foreign key constraint violation.
+
+    SQLite error messages for FK violations contain "FOREIGN KEY". Other
+    IntegrityError subtypes (CHECK, NOT NULL, UNIQUE) use different messages.
+    """
+    return "FOREIGN KEY" in str(exc).upper()
 
 
 class TelemetryRepository:
@@ -25,6 +36,15 @@ class TelemetryRepository:
 
     def __init__(self, db_service: "DatabaseService") -> None:
         self._db_service = db_service
+
+    @staticmethod
+    def _validate_source_tier(app_key: str, source_tier: str) -> None:
+        """Guard against user apps injecting source_tier='framework'."""
+        if source_tier == "framework" and app_key != FRAMEWORK_APP_KEY:
+            raise ValueError(
+                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r}) may use source_tier='framework'; "
+                f"got app_key={app_key!r}"
+            )
 
     async def register_listener(self, registration: ListenerRegistration) -> int:
         """Upsert a listener registration into the listeners table.
@@ -48,6 +68,7 @@ class TelemetryRepository:
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
+        self._validate_source_tier(registration.app_key, registration.source_tier)
         db = self._db_service.db
 
         if registration.once:
@@ -59,8 +80,8 @@ class TelemetryRepository:
                     app_key, instance_index, handler_method, topic,
                     debounce, throttle, once, priority,
                     predicate_description, human_description,
-                    source_location, registration_source, name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_location, registration_source, name, source_tier
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """,
                 (
@@ -77,6 +98,7 @@ class TelemetryRepository:
                     registration.source_location,
                     registration.registration_source,
                     registration.name,
+                    registration.source_tier,
                 ),
             )
         else:
@@ -88,8 +110,8 @@ class TelemetryRepository:
                     app_key, instance_index, handler_method, topic,
                     debounce, throttle, once, priority,
                     predicate_description, human_description,
-                    source_location, registration_source, name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_location, registration_source, name, source_tier
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
                 WHERE once = 0
                 DO UPDATE SET
@@ -99,6 +121,7 @@ class TelemetryRepository:
                     predicate_description = excluded.predicate_description,
                     source_location = excluded.source_location,
                     registration_source = excluded.registration_source,
+                    source_tier = excluded.source_tier,
                     retired_at = NULL
                 RETURNING id
                 """,
@@ -116,6 +139,7 @@ class TelemetryRepository:
                     registration.source_location,
                     registration.registration_source,
                     registration.name,
+                    registration.source_tier,
                 ),
             )
 
@@ -142,6 +166,7 @@ class TelemetryRepository:
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
+        self._validate_source_tier(registration.app_key, registration.source_tier)
         db = self._db_service.db
         cursor = await db.execute(
             """
@@ -149,8 +174,8 @@ class TelemetryRepository:
                 app_key, instance_index, job_name, handler_method,
                 trigger_type, trigger_value, repeat,
                 args_json, kwargs_json,
-                source_location, registration_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source_location, registration_source, source_tier
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
                 handler_method = excluded.handler_method,
@@ -161,6 +186,7 @@ class TelemetryRepository:
                 kwargs_json = excluded.kwargs_json,
                 source_location = excluded.source_location,
                 registration_source = excluded.registration_source,
+                source_tier = excluded.source_tier,
                 retired_at = NULL
             RETURNING id
             """,
@@ -176,6 +202,7 @@ class TelemetryRepository:
                 registration.kwargs_json,
                 registration.source_location,
                 registration.registration_source,
+                registration.source_tier,
             ),
         )
         row = await cursor.fetchone()
@@ -208,6 +235,13 @@ class TelemetryRepository:
             session_id: Current session ID, used to guard once=True row deletion.
                 When None, once=True rows are unconditionally deleted.
         """
+        if app_key == FRAMEWORK_APP_KEY:
+            logging.getLogger(__name__).warning(
+                "reconcile_registrations() called for app_key=%r — framework listeners are not reconciled; skipping",
+                FRAMEWORK_APP_KEY,
+            )
+            return
+
         db = self._db_service.db
         now = time.time()
 
@@ -274,6 +308,7 @@ class TelemetryRepository:
                         f"""
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
+                          AND source_tier = 'app'  -- app only; see FRAMEWORK_APP_KEY
                           AND id NOT IN ({placeholders})
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
@@ -287,6 +322,7 @@ class TelemetryRepository:
                         """
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
+                          AND source_tier = 'app'  -- app only; see FRAMEWORK_APP_KEY
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
                               WHERE listener_id = listeners.id AND session_id = ?
@@ -362,6 +398,146 @@ class TelemetryRepository:
             await db.rollback()
             raise
 
+    async def persist_batch_with_fk_fallback(
+        self,
+        invocations: list[HandlerInvocationRecord],
+        job_executions: list[JobExecutionRecord],
+    ) -> int:
+        """Insert records row-by-row with FK violation fallback, in a single transaction.
+
+        Called by ``CommandExecutor._handle_fk_violation`` after a batch INSERT already
+        failed with IntegrityError. Each record is inserted individually; on FK violation
+        the FK field is nulled and retried. Runs as one ``submit()`` call on the DB write
+        queue, avoiding N round-trips.
+
+        Returns the number of records that were dropped (failed even with null FK).
+        """
+        db = self._db_service.db
+        dropped = 0
+        logger = logging.getLogger(__name__)
+
+        try:
+            await db.execute("BEGIN")
+            # Try each invocation individually, nulling FK on violation
+            for record in invocations:
+                try:
+                    await db.execute(
+                        """
+                        INSERT INTO handler_invocations (
+                            listener_id, session_id, execution_start_ts,
+                            duration_ms, status, source_tier, is_di_failure,
+                            error_type, error_message, error_traceback
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            record.listener_id,
+                            record.session_id,
+                            record.execution_start_ts,
+                            record.duration_ms,
+                            record.status,
+                            record.source_tier,
+                            1 if record.is_di_failure else 0,
+                            record.error_type,
+                            record.error_message,
+                            record.error_traceback,
+                        ),
+                    )
+                except sqlite3.IntegrityError as exc:
+                    if not _is_fk_violation(exc):
+                        raise  # CHECK/NOT NULL/UNIQUE — not recoverable by nulling FK
+                    logger.warning(
+                        "FK violation on handler_invocations row (listener_id=%s) — nulling FK and retrying",
+                        record.listener_id,
+                    )
+                    try:
+                        await db.execute(
+                            """
+                            INSERT INTO handler_invocations (
+                                listener_id, session_id, execution_start_ts,
+                                duration_ms, status, source_tier, is_di_failure,
+                                error_type, error_message, error_traceback
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                None,
+                                record.session_id,
+                                record.execution_start_ts,
+                                record.duration_ms,
+                                record.status,
+                                record.source_tier,
+                                1 if record.is_di_failure else 0,
+                                record.error_type,
+                                record.error_message,
+                                record.error_traceback,
+                            ),
+                        )
+                    except Exception as exc:
+                        dropped += 1
+                        logger.error("Failed to persist handler_invocations row even with null FK — dropping: %s", exc)
+
+            for record in job_executions:
+                try:
+                    await db.execute(
+                        """
+                        INSERT INTO job_executions (
+                            job_id, session_id, execution_start_ts,
+                            duration_ms, status, source_tier, is_di_failure,
+                            error_type, error_message, error_traceback
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            record.job_id,
+                            record.session_id,
+                            record.execution_start_ts,
+                            record.duration_ms,
+                            record.status,
+                            record.source_tier,
+                            1 if record.is_di_failure else 0,
+                            record.error_type,
+                            record.error_message,
+                            record.error_traceback,
+                        ),
+                    )
+                except sqlite3.IntegrityError as exc:
+                    if not _is_fk_violation(exc):
+                        raise  # CHECK/NOT NULL/UNIQUE — not recoverable by nulling FK
+                    logger.warning(
+                        "FK violation on job_executions row (job_id=%s) — nulling FK and retrying",
+                        record.job_id,
+                    )
+                    try:
+                        await db.execute(
+                            """
+                            INSERT INTO job_executions (
+                                job_id, session_id, execution_start_ts,
+                                duration_ms, status, source_tier, is_di_failure,
+                                error_type, error_message, error_traceback
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                None,
+                                record.session_id,
+                                record.execution_start_ts,
+                                record.duration_ms,
+                                record.status,
+                                record.source_tier,
+                                1 if record.is_di_failure else 0,
+                                record.error_type,
+                                record.error_message,
+                                record.error_traceback,
+                            ),
+                        )
+                    except Exception as exc:
+                        dropped += 1
+                        logger.error("Failed to persist job_executions row even with null FK — dropping: %s", exc)
+
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+        return dropped
+
     async def persist_batch(
         self,
         invocations: list[HandlerInvocationRecord],
@@ -389,8 +565,9 @@ class TelemetryRepository:
                     """
                     INSERT INTO handler_invocations (
                         listener_id, session_id, execution_start_ts,
-                        duration_ms, status, error_type, error_message, error_traceback
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        duration_ms, status, source_tier, is_di_failure,
+                        error_type, error_message, error_traceback
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -399,6 +576,8 @@ class TelemetryRepository:
                             r.execution_start_ts,
                             r.duration_ms,
                             r.status,
+                            r.source_tier,
+                            1 if r.is_di_failure else 0,
                             r.error_type,
                             r.error_message,
                             r.error_traceback,
@@ -412,8 +591,9 @@ class TelemetryRepository:
                     """
                     INSERT INTO job_executions (
                         job_id, session_id, execution_start_ts,
-                        duration_ms, status, error_type, error_message, error_traceback
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        duration_ms, status, source_tier, is_di_failure,
+                        error_type, error_message, error_traceback
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -422,6 +602,8 @@ class TelemetryRepository:
                             r.execution_start_ts,
                             r.duration_ms,
                             r.status,
+                            r.source_tier,
+                            1 if r.is_di_failure else 0,
                             r.error_type,
                             r.error_message,
                             r.error_traceback,

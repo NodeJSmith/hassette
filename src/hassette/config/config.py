@@ -24,7 +24,7 @@ from hassette.config.helpers import (
     get_dev_mode,
     log_level_default_factory,
 )
-from hassette.types.types import LOG_LEVEL_TYPE, AppDict, RawAppDict
+from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE, AppDict, RawAppDict
 from hassette.utils.app_utils import autodetect_apps, clean_app
 
 LOGGER = getLogger(__name__)
@@ -291,6 +291,14 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     db_migration_timeout_seconds: int = Field(default=120, ge=10)
     """Maximum seconds to wait for Alembic migrations to complete at startup."""
 
+    telemetry_write_queue_max: int = Field(default=1000, ge=1)
+    """Maximum pending records in the CommandExecutor write queue before records are dropped."""
+
+    db_write_queue_max: int = Field(default=2000, ge=1)
+    """Maximum pending coroutines in the DatabaseService write queue. Bounds memory growth
+    under sustained I/O pressure. Fire-and-forget tasks are dropped on overflow; submit()
+    callers block until space is available."""
+
     # Service log levels
     #
     # Convention (see design/config-log-level-convention.md):
@@ -502,6 +510,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
         app_manifest_dict: dict[str, AppManifest] = {}
         for k, v in cleaned_apps_dict.items():
+            if k == FRAMEWORK_APP_KEY:
+                raise ValueError(
+                    f"App key {FRAMEWORK_APP_KEY!r} is reserved for framework internals. "
+                    f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
+                )
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
         self.app_manifests = app_manifest_dict

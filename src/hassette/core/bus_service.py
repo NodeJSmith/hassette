@@ -8,11 +8,12 @@ from typing import Any
 
 from fair_async_rlock import FairAsyncRLock
 
+from hassette.bus.listeners import Listener
 from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
 from hassette.events import Event, HassPayload
 from hassette.resources.base import Resource, Service
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -20,7 +21,6 @@ if typing.TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream
 
     from hassette import Hassette
-    from hassette.bus import Listener
     from hassette.core.command_executor import CommandExecutor
     from hassette.events import EventPayload
 
@@ -110,14 +110,67 @@ class BusService(Service):
             return task
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
-    async def _register_then_add_route(self, listener: "Listener") -> None:
+    def register_framework_listener(
+        self,
+        *,
+        topic: str,
+        handler: "Callable[..., Awaitable[None]]",
+        name: str,
+        where: "Any | None" = None,
+        once: bool = False,
+        debounce: float | None = None,
+        throttle: float | None = None,
+    ) -> asyncio.Task[None]:
+        """Register a framework-internal listener with ``source_tier='framework'``.
+
+        Framework listeners are registered with ``app_key='__hassette__'`` and
+        ``source_tier='framework'``.  They are excluded from app-level reconciliation
+        by the guard in ``TelemetryRepository.reconcile_registrations()``.
+
+        Args:
+            topic: The event topic to subscribe to.
+            handler: The coroutine function to call when the event fires.
+            name: Component-prefixed stable name, e.g. ``'hassette.core.on_service_crashed'``.
+            where: Optional predicate(s) to filter events.
+            once: If True, remove the listener after one invocation.
+            debounce: Debounce window in seconds.
+            throttle: Throttle interval in seconds.
+
+        Returns:
+            The task spawned to register the listener.
+        """
+        listener = Listener.create(
+            task_bucket=self.task_bucket,
+            owner_id=f"{FRAMEWORK_APP_KEY}:{name}",
+            topic=topic,
+            handler=handler,
+            where=where,
+            once=once,
+            debounce=debounce,
+            throttle=throttle,
+            priority=0,
+            logger=self.logger,
+            app_key=FRAMEWORK_APP_KEY,
+            instance_index=0,
+            name=name,
+            source_tier="framework",
+        )
+        app_key = listener.app_key
+        existing = self._pending_registration_tasks.get(app_key)
+        if existing:
+            self._pending_registration_tasks[app_key] = [t for t in existing if not t.done()]
+        task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_framework_listener")
+        self._pending_registration_tasks[app_key].append(task)
+        return task
+
+    async def _register_then_add_route(self, listener: Listener) -> None:
         """Register a listener in the DB and add its route.
 
         For ``once=True`` listeners, DB registration completes before the route
         is added to prevent orphan rows (the listener could fire and be removed
         before registration finishes). For regular listeners, the route is added
         first so events are received immediately; ``db_id`` is set once DB
-        registration completes, and dispatch uses the direct-invoke path until then.
+        registration completes, and invocations before then produce orphan records.
         """
         source_location = listener.source_location
         registration_source: str | None = listener.registration_source or None
@@ -138,6 +191,7 @@ class BusService(Service):
             source_location=source_location,
             registration_source=registration_source,
             name=listener.name,
+            source_tier=listener.source_tier,
         )
         if listener.once:
             listener.mark_registered(await self._executor.register_listener(reg))
@@ -293,14 +347,12 @@ class BusService(Service):
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener.
 
-        Selects an invoke function based on whether the listener has a ``db_id``
-        (tracked via CommandExecutor) or not (internal, error-catching only), then
-        applies rate limiting and once-cleanup in a single shared path.
+        All listeners go through ``_make_tracked_invoke_fn`` regardless of whether
+        ``db_id`` is set.  When ``db_id`` is ``None`` (listener not yet registered),
+        ``InvokeHandler`` is created with ``listener_id=None`` and the
+        ``CommandExecutor`` records an orphan invocation row.
 
-        Error contract of the invoke functions:
-            - ``_make_internal_invoke_fn`` catches ``Exception`` subclasses (logs, does not
-              propagate).  ``CancelledError`` (a ``BaseException``) still propagates
-              intentionally — it signals shutdown and must reach the task runner.
+        Error contract:
             - ``_make_tracked_invoke_fn`` can propagate ``CancelledError`` — the
               ``CommandExecutor`` re-raises it after recording the cancellation.
             - The ``finally`` clause is safe because ``once + rate_limiting`` is
@@ -318,10 +370,7 @@ class BusService(Service):
         # New closure per dispatch: debounce always fires with the latest event's closure.
         # RateLimiter._debounced_call replaces (cancel-then-create) the previous task each
         # time, so the handler sees the event from the most recent dispatch call.
-        if listener.db_id is None:
-            invoke_fn = self._make_internal_invoke_fn(topic, event, listener)
-        else:
-            invoke_fn = self._make_tracked_invoke_fn(topic, event, listener)
+        invoke_fn = self._make_tracked_invoke_fn(topic, event, listener)
 
         if listener.once and listener.rate_limiter:
             raise RuntimeError("once + rate_limiting is prohibited; see Listener.create() validation")
@@ -331,47 +380,28 @@ class BusService(Service):
             if listener.once:
                 self.remove_listener(listener)
 
-    def _make_internal_invoke_fn(
-        self, topic: str, event: "Event[Any]", listener: "Listener"
-    ) -> Callable[[], "Awaitable[None]"]:
-        """Build an invoke function for internal (non-app) listeners.
-
-        Wraps ``listener.invoke()`` in a try/except that logs and absorbs all
-        exceptions, preventing handler failures from crashing the bus dispatch loop.
-        """
-
-        async def safe_invoke() -> None:
-            try:
-                await listener.invoke(event)
-            except Exception:
-                self.logger.exception("Internal handler error (topic=%s, handler=%r)", topic, listener)
-
-        return safe_invoke
-
     def _make_tracked_invoke_fn(
         self, topic: str, event: "Event[Any]", listener: "Listener"
     ) -> Callable[[], "Awaitable[None]"]:
-        """Build an invoke function for app-owned listeners with telemetry.
+        """Build an invoke function for all listeners with telemetry.
 
         The closure reads ``listener.db_id`` lazily at call time (not capture time)
         so that debounced handlers see the correct ``db_id`` after async registration
-        completes.  If ``db_id`` is still ``None`` at fire time, falls back to direct
-        invocation with error logging.
+        completes.  When ``db_id`` is still ``None`` at fire time, ``InvokeHandler``
+        is created with ``listener_id=None`` and produces an orphan record.
 
         Can propagate ``CancelledError`` — the ``CommandExecutor`` re-raises it after
         recording a cancellation record.
         """
 
         async def execute_fn() -> None:
-            db_id = listener.db_id
-            if db_id is None:
-                self.logger.warning("Listener db_id not yet set, invoking directly without telemetry (topic=%s)", topic)
-                try:
-                    await listener.invoke(event)
-                except Exception:
-                    self.logger.exception("Handler error (topic=%s, handler=%r, db_id pending)", topic, listener)
-                return
-            cmd = InvokeHandler(listener=listener, event=event, topic=topic, listener_id=db_id)
+            cmd = InvokeHandler(
+                listener=listener,
+                event=event,
+                topic=topic,
+                listener_id=listener.db_id,
+                source_tier=listener.source_tier,
+            )
             await self._executor.execute(cmd)
 
         return execute_fn
