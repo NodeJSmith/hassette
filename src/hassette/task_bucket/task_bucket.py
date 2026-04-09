@@ -22,7 +22,7 @@ T = TypeVar("T")
 P = ParamSpec("P")
 R = TypeVar("R")
 
-ExceptionRecorderT = Callable[["asyncio.Task[Any]", BaseException], None]
+ExceptionRecorderT = Callable[[asyncio.Task[Any], BaseException], None]
 """Callback signature for recording task exceptions during drain.
 
 Called by ``TaskBucket._done`` when a tracked task completes with a

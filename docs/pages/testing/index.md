@@ -210,7 +210,7 @@ await harness.simulate_state_change(
 ```
 
 !!! note "Task chains drain to completion — and surface exceptions via `DrainError`"
-    The drain is iterative: after the bus dispatch queue clears, any tasks spawned by `self.task_bucket.add(...)` inside a handler are awaited in turn, and tasks those tasks spawn are awaited too — to arbitrary depth. `simulate_*` does not return until the full chain is settled.
+    The drain is iterative: after the bus dispatch queue clears, any tasks spawned by `self.task_bucket.spawn(...)` inside a handler are awaited in turn, and tasks those tasks spawn are awaited too — to arbitrary depth. `simulate_*` does not return until the full chain is settled.
 
     If any task in the chain raises an exception, `simulate_*` re-raises it as a `DrainError`:
 
@@ -222,7 +222,7 @@ await harness.simulate_state_change(
             "binary_sensor.motion", old_value="off", new_value="on"
         )
     except DrainError as e:
-        # e.task_exceptions is a list of (task, exception) pairs
+        # e.task_exceptions is a list of (task_name, exception) pairs
         raise
     ```
 
