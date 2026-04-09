@@ -9,7 +9,6 @@ fidelity should use a full integration test with a live HA connection.
 
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
-from unittest.mock import Mock
 
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.base import BaseEntity
@@ -17,6 +16,7 @@ from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
 from hassette.test_utils.api_call import ApiCall
+from hassette.test_utils.sync_facade import _RecordingSyncFacade
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -83,8 +83,9 @@ class RecordingApi(Resource):
 
     on_initialize() calls self.mark_ready() — required for the Resource lifecycle.
 
-    sync attribute is a Mock() instance. Apps using self.api.sync.* in the paths
-    under test must use a full integration test for those code paths.
+    sync attribute is a _RecordingSyncFacade instance. Write calls via api.sync.*
+    are recorded to the same `calls` list as the async side. Read methods delegate
+    to the StateProxy. Methods not covered by the facade raise NotImplementedError.
 
     Unstubbed methods raise NotImplementedError with guidance on alternatives.
 
@@ -96,7 +97,7 @@ class RecordingApi(Resource):
     """
 
     calls: list[ApiCall]
-    sync: Mock
+    sync: "_RecordingSyncFacade"
 
     # Methods whose __getattr__ message should redirect users to get_state()
     _STATE_CONVERSION_METHODS: ClassVar[frozenset[str]] = frozenset(
@@ -119,7 +120,7 @@ class RecordingApi(Resource):
         # lazily from hassette._state_proxy (when created via App.add_child()).
         self._state_proxy_override = state_proxy
         self.calls = []
-        self.sync = Mock()
+        self.sync = _RecordingSyncFacade(self)
 
     @property
     def _state_proxy(self) -> "StateProxy":

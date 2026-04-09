@@ -17,7 +17,7 @@ import asyncio
 import threading
 from enum import StrEnum
 from typing import cast
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -400,17 +400,6 @@ def test_protocol_conformance_smoke():
     # The module-level assertion fires at import time; this test confirms import succeeds
     # and the cast is valid.
     _: ApiProtocol = cast("ApiProtocol", RecordingApi)
-
-
-# ---------------------------------------------------------------------------
-# Subtask 3: sync attribute is a Mock
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_sync_attribute_is_mock():
-    api = _make_recording_api()
-    assert isinstance(api.sync, Mock)
 
 
 # ---------------------------------------------------------------------------
