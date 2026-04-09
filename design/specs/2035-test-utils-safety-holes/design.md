@@ -540,6 +540,13 @@ def __getattr__(self, name: str) -> Any:
     )
 ```
 
+**Implementation note**: The final implementation uses explicit method stubs on
+`_RecordingSyncFacade` for `get_state_value`/`get_state_value_typed`/`get_attribute`
+rather than `__getattr__` routing with a `ClassVar`. Python finds explicit methods
+before `__getattr__`, so the `ClassVar` is unnecessary on the sync facade.
+`RecordingApi` retains the `ClassVar`-based approach since it does not have explicit
+stubs for those names and the `__getattr__` dispatch is the only path there.
+
 ### Test and doc updates
 
 **Source extraction**:

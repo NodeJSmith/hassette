@@ -47,6 +47,15 @@ def test_recording_sync_facade_covers_api_sync_facade() -> None:
     matching method in ApiSyncFacade. This test fails if _RecordingSyncFacade
     is not updated to match, catching the drift that would otherwise silently
     recreate the RecordingApi.sync=Mock() safety hole for new methods.
+
+    SCOPE: This test checks name presence only, NOT method signatures.
+    Signature drift (e.g., a new parameter added to ApiSyncFacade.turn_off)
+    will surface as TypeError at call time rather than as a CI failure here.
+    Properties are also excluded because inspect.isfunction returns False for
+    them — property drift must be caught by type checking or call-time errors.
+    Code generation (see follow-up issue) will close both gaps by generating
+    _RecordingSyncFacade bodies directly from ApiSyncFacade, making name and
+    signature parity structurally guaranteed rather than test-asserted.
     """
     sync_facade_methods = _public_methods(ApiSyncFacade)
     recording_facade_methods = _public_methods(_RecordingSyncFacade)

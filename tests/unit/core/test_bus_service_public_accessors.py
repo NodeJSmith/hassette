@@ -56,6 +56,10 @@ def test_is_dispatch_idle_true_when_no_pending(bus_service: BusService) -> None:
 
     BusService initialises with the idle event set, so a fresh instance must
     report idle.
+
+    Direct private access is acceptable here — we are testing that the public
+    properties delegate correctly to these fields. Production code must use
+    ``is_dispatch_idle`` and ``dispatch_pending_count``.
     """
     assert bus_service._dispatch_idle_event.is_set()
     assert bus_service.is_dispatch_idle is True
@@ -111,3 +115,20 @@ def test_dispatch_pending_count_tracks_increments(bus_service: BusService) -> No
     for expected in range(1, 6):
         bus_service._dispatch_pending = expected
         assert bus_service.dispatch_pending_count == expected
+
+
+def test_is_dispatch_idle_is_authoritative_over_pending_count(bus_service: BusService) -> None:
+    """is_dispatch_idle reads the idle event, not the pending counter.
+
+    When the event is set but _dispatch_pending is non-zero, the property must
+    still return True — the event is the authoritative idle signal. This covers
+    the inverse inconsistency case where a counter drift or concurrent update
+    could produce a misleading False result if the wrong field were consulted.
+    """
+    # Set up the inconsistent state: counter says "busy", event says "idle"
+    bus_service._dispatch_pending = 1
+    bus_service._dispatch_idle_event.set()
+    # Event is authoritative: is_dispatch_idle should be True
+    assert bus_service.is_dispatch_idle is True
+    # Counter is still 1 but is not authoritative for the idle check
+    assert bus_service.dispatch_pending_count == 1

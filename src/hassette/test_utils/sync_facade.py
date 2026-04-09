@@ -85,7 +85,9 @@ class _RecordingSyncFacade:
                 kwargs={
                     "domain": domain,
                     "service": service,
-                    "target": target,
+                    # Shallow-copy target at record time so later caller mutations do not
+                    # alter the recorded assertion surface (immutability principle).
+                    "target": dict(target) if target is not None else None,
                     "return_response": return_response,
                     **data,
                 },
@@ -107,7 +109,13 @@ class _RecordingSyncFacade:
             ApiCall(
                 method="set_state",
                 args=(entity_id, state),
-                kwargs={"entity_id": entity_id, "state": state, "attributes": attributes},
+                # Shallow-copy attributes at record time so later caller mutations do not
+                # alter the recorded assertion surface (immutability principle).
+                kwargs={
+                    "entity_id": entity_id,
+                    "state": state,
+                    "attributes": dict(attributes) if attributes is not None else None,
+                },
             )
         )
         return {}
@@ -118,7 +126,9 @@ class _RecordingSyncFacade:
             ApiCall(
                 method="fire_event",
                 args=(event_type,),
-                kwargs={"event_type": event_type, "event_data": event_data},
+                # Shallow-copy event_data at record time so later caller mutations do not
+                # alter the recorded assertion surface (immutability principle).
+                kwargs={"event_type": event_type, "event_data": dict(event_data) if event_data is not None else None},
             )
         )
         return {}
@@ -356,6 +366,12 @@ class _RecordingSyncFacade:
     # Fallback for any future methods not yet explicitly stubbed
     # ------------------------------------------------------------------
 
+    # NOTE: __getattr__ raises AttributeError for names starting with `_`, including `_parent`.
+    # If `_parent` lookup falls through here (e.g., during mock construction before __init__
+    # completes, or in a subclass that skips super().__init__), the error will be
+    # AttributeError: _parent — which is by design; partial construction is an error.
+    # When mocking this class, prefer spec_set=_RecordingSyncFacade to surface the
+    # partial-construction case at the mock boundary rather than at first attribute access.
     def __getattr__(self, name: str) -> Any:
         """Raise NotImplementedError for public attributes not defined on _RecordingSyncFacade.
 

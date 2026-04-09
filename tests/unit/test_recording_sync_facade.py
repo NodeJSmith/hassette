@@ -348,6 +348,25 @@ async def test_sync_getattr_raises_notimplementederror_with_default_message_for_
     assert "Seed state via AppTestHarness.set_state()" in str(exc_info.value)
 
 
+# ---------------------------------------------------------------------------
+# F4: dict shallow-copy at record time (sync side)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sync_call_service_target_dict_is_shallow_copied():
+    """sync.call_service records a copy of target; mutating the original does not change the recording."""
+    api = _make_recording_api()
+    target = {"entity_id": "light.kitchen"}
+    api.sync.call_service("light", "turn_on", target=target)
+    # Mutate the original dict after the call
+    target["entity_id"] = "light.other"
+    recorded_target = api.calls[0].kwargs["target"]
+    assert recorded_target == {"entity_id": "light.kitchen"}, (
+        "Recorded target was mutated — sync.call_service must shallow-copy target at record time"
+    )
+
+
 async def test_sync_private_attributes_raise_attribute_error():
     """Accessing a private attribute on sync raises AttributeError, not NotImplementedError."""
     api = _make_recording_api()

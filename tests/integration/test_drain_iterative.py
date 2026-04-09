@@ -91,9 +91,18 @@ async def test_drain_waits_for_depth_2_task_chain() -> None:
 
 
 class Depth3App(App[DrainTestConfig]):
-    """Handler spawns task A, which spawns task B, which calls api.turn_on."""
+    """Handler spawns task A, which spawns task B, which calls api.turn_on.
+
+    task_b_gate is an asyncio.Event that task_b awaits before calling api.turn_on.
+    Tests can verify that the drain has NOT returned before releasing the gate,
+    proving that the drain actually blocked on task_b rather than merely observing
+    that task_b happened to complete before the assertion.
+    """
+
+    task_b_gate: asyncio.Event
 
     async def on_initialize(self) -> None:
+        self.task_b_gate = asyncio.Event()
         self.bus.on_state_change("sensor.test", handler=self._on_change)
 
     async def _on_change(self, event: RawStateChangeEvent) -> None:
@@ -103,13 +112,36 @@ class Depth3App(App[DrainTestConfig]):
         self.task_bucket.spawn(self._task_b(), name="task_b")
 
     async def _task_b(self) -> None:
+        # Gate: wait until the test releases us, proving the drain had to block here.
+        await self.task_b_gate.wait()
         await self.api.turn_on("light.bedroom")
 
 
 async def test_drain_waits_for_depth_3_task_chain() -> None:
-    """Depth-3: handler → task A → task B; drain waits for the full chain."""
+    """Depth-3: handler → task A → task B; drain waits for the full chain.
+
+    Uses an asyncio.Event gate on task_b to prove the drain actually blocked
+    on task_b, rather than merely asserting that turn_on was eventually called.
+    The gate prevents task_b from completing until we verify the drain is still
+    in progress (following the regression test pattern from CLAUDE.md).
+    """
     async with AppTestHarness(Depth3App, config={}) as harness:
-        await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
+        # Start the drain in the background — it must block on task_b's gate
+        drain_task = asyncio.create_task(
+            harness.simulate_state_change("sensor.test", old_value="off", new_value="on"),
+            name="drain_outer",
+        )
+        # Yield to let the drain run until it blocks on task_b_gate
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        # The drain should NOT be done yet because task_b is gated
+        assert not drain_task.done(), (
+            "Drain returned before task_b_gate was set — drain did not actually block on task_b"
+        )
+        # Release the gate; drain should now complete
+        harness.app.task_b_gate.set()
+        await drain_task
         harness.api_recorder.assert_called("turn_on", entity_id="light.bedroom")
 
 

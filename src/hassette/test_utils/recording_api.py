@@ -40,7 +40,7 @@ class ApiProtocol(Protocol):
         self,
         domain: str,
         service: str,
-        target: dict | None = None,
+        target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
         **data,
     ) -> ServiceResponse | None: ...
@@ -97,6 +97,9 @@ class RecordingApi(Resource):
     """
 
     calls: list[ApiCall]
+    # `_RecordingSyncFacade` is intentionally private (underscore prefix). Users should
+    # access the sync facade only via `harness.api_recorder.sync`; do not import the
+    # type directly — it is not part of the public API surface.
     sync: "_RecordingSyncFacade"
 
     # Methods whose __getattr__ message should redirect users to get_state()
@@ -192,7 +195,9 @@ class RecordingApi(Resource):
                 kwargs={
                     "domain": domain,
                     "service": service,
-                    "target": target,
+                    # Shallow-copy target at record time so later caller mutations do not
+                    # alter the recorded assertion surface (immutability principle).
+                    "target": dict(target) if target is not None else None,
                     "return_response": return_response,
                     **data,
                 },
@@ -214,7 +219,13 @@ class RecordingApi(Resource):
             ApiCall(
                 method="set_state",
                 args=(entity_id, state),
-                kwargs={"entity_id": entity_id, "state": state, "attributes": attributes},
+                # Shallow-copy attributes at record time so later caller mutations do not
+                # alter the recorded assertion surface (immutability principle).
+                kwargs={
+                    "entity_id": entity_id,
+                    "state": state,
+                    "attributes": dict(attributes) if attributes is not None else None,
+                },
             )
         )
         return {}
@@ -229,7 +240,9 @@ class RecordingApi(Resource):
             ApiCall(
                 method="fire_event",
                 args=(event_type,),
-                kwargs={"event_type": event_type, "event_data": event_data},
+                # Shallow-copy event_data at record time so later caller mutations do not
+                # alter the recorded assertion surface (immutability principle).
+                kwargs={"event_type": event_type, "event_data": dict(event_data) if event_data is not None else None},
             )
         )
         return {}
@@ -453,8 +466,14 @@ class RecordingApi(Resource):
             )
 
     def reset(self) -> None:
-        """Clear all recorded calls."""
-        self.calls.clear()
+        """Clear all recorded calls.
+
+        Replaces the calls list with a new empty list rather than mutating the
+        existing list in place. This preserves any snapshots callers hold
+        (e.g., ``saved = api.calls`` before a ``simulate_*`` call) — they
+        will still see the original calls after reset, as expected.
+        """
+        self.calls = []
 
 
 # ---------------------------------------------------------------------------

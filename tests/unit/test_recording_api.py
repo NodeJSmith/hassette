@@ -509,3 +509,71 @@ async def test_getattr_default_message_for_other_methods():
 def test_apicall_import_from_api_call_module():
     """ApiCall from hassette.test_utils.api_call is the same class as hassette.test_utils.ApiCall."""
     assert ApiCall is ApiCallFromInit
+
+
+# ---------------------------------------------------------------------------
+# F4: dict shallow-copy at record time (async side)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_call_service_target_dict_is_shallow_copied():
+    """call_service records a copy of target; mutating the original does not change the recording."""
+    api = _make_recording_api()
+    target = {"entity_id": "light.kitchen"}
+    await api.call_service("light", "turn_on", target=target)
+    # Mutate the original dict after the call
+    target["entity_id"] = "light.other"
+    recorded_target = api.calls[0].kwargs["target"]
+    assert recorded_target == {"entity_id": "light.kitchen"}, (
+        "Recorded target was mutated — call_service must shallow-copy target at record time"
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_state_attributes_dict_is_shallow_copied():
+    """set_state records a copy of attributes; mutating the original does not change the recording."""
+    api = _make_recording_api()
+    attributes = {"brightness": 200}
+    await api.set_state("light.kitchen", "on", attributes)
+    # Mutate the original after the call
+    attributes["brightness"] = 50
+    recorded_attrs = api.calls[0].kwargs["attributes"]
+    assert recorded_attrs == {"brightness": 200}, (
+        "Recorded attributes was mutated — set_state must shallow-copy attributes at record time"
+    )
+
+
+@pytest.mark.asyncio
+async def test_fire_event_event_data_dict_is_shallow_copied():
+    """fire_event records a copy of event_data; mutating the original does not change the recording."""
+    api = _make_recording_api()
+    event_data = {"zone": "kitchen"}
+    await api.fire_event("my_event", event_data)
+    # Mutate the original after the call
+    event_data["zone"] = "bedroom"
+    recorded_event_data = api.calls[0].kwargs["event_data"]
+    assert recorded_event_data == {"zone": "kitchen"}, (
+        "Recorded event_data was mutated — fire_event must shallow-copy event_data at record time"
+    )
+
+
+# ---------------------------------------------------------------------------
+# F9: reset() replaces list (does not mutate in place)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reset_replaces_calls_list_not_in_place():
+    """reset() replaces self.calls with a new list; saved references are not cleared."""
+    api = _make_recording_api()
+    await api.turn_on("light.a")
+    saved = api.calls  # save reference to the current list
+    api.reset()
+    # The new list is empty
+    assert len(api.calls) == 0
+    # But the old reference still has the original call
+    assert len(saved) == 1, (
+        "reset() must replace the list (self.calls = []), not clear it in place (self.calls.clear()). "
+        "Callers holding a reference to the old list must not see it emptied."
+    )

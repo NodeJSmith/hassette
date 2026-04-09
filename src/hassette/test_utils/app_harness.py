@@ -724,12 +724,28 @@ class AppTestHarness:
         Exits only when both are quiescent after a yield cycle. Covers arbitrary-depth
         task chains (A→B→C) and surfaces any handler exceptions via DrainError.
 
+        Exceptions are collected via an exception recorder installed on ``app.task_bucket``
+        for the duration of the drain. The recorder fires from the task's done callback,
+        which guarantees that fast-completing tasks (those that finish between successive
+        ``pending_tasks()`` snapshots) are still captured — closing the snapshot-timing
+        window that the ``asyncio.wait`` iteration pattern cannot cover.
+
         Args:
             timeout: Maximum seconds to wait.
 
         Raises:
             TimeoutError: If drain does not reach quiescence within ``timeout``.
+                When exceptions were also collected, raises ``DrainError`` chained
+                from the ``TimeoutError`` so the handler crash is visible.
             DrainError: If any handler task raised a non-cancellation exception.
+
+        Note:
+            Only ``app.task_bucket`` is drained. Tasks spawned by Bus-owned callbacks
+            (including debounce and throttle handlers registered directly at the Bus
+            level, outside an App context) land in ``bus.task_bucket`` and are NOT
+            visible to this drain. For full-fidelity draining, route listeners
+            through App-level registration via ``self.bus.on_state_change`` inside
+            an App.
         """
         harness = self._harness
         if harness is None:
@@ -744,77 +760,97 @@ class AppTestHarness:
         deadline = asyncio.get_running_loop().time() + timeout
         collected_exceptions: list[tuple[str, BaseException]] = []
 
-        while True:
-            # Top-of-loop deadline guard: prevents infinite spin on perpetually-spawning handlers
-            if asyncio.get_running_loop().time() >= deadline:
-                self._raise_drain_timeout(timeout, bus_service, app)
+        # Install an exception recorder on app.task_bucket for the duration of the drain.
+        # This captures exceptions from tasks that complete at any point during the drain,
+        # including fast-completing tasks that finish between pending_tasks() snapshots.
+        # The seen_tasks guard prevents double-counting if a task's done callbacks fire
+        # in an order that would otherwise expose the same exception twice.
+        seen_tasks: set[asyncio.Task] = set()
 
-            # Step 1: wait for bus dispatch queue to clear. Wrap await_dispatch_idle
-            # to translate its TimeoutError into our diagnostic.
-            remaining = deadline - asyncio.get_running_loop().time()
-            if remaining <= 0:
-                self._raise_drain_timeout(timeout, bus_service, app)
-            try:
-                await bus_service.await_dispatch_idle(timeout=remaining)
-            except TimeoutError:
-                self._raise_drain_timeout(timeout, bus_service, app)
+        def _recorder(task: asyncio.Task, exc: BaseException) -> None:
+            if task in seen_tasks:
+                return
+            seen_tasks.add(task)
+            collected_exceptions.append((task.get_name(), exc))
 
-            # Step 2: wait for any pending tasks in the app's task_bucket.
-            # Collect exceptions from completed tasks so they surface via DrainError.
+        if app is not None:
+            app.task_bucket.install_exception_recorder(_recorder)
+
+        try:
+            while True:
+                # Top-of-loop deadline guard: prevents infinite spin on perpetually-spawning handlers
+                if asyncio.get_running_loop().time() >= deadline:
+                    self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+
+                # Step 1: wait for bus dispatch queue to clear. Wrap await_dispatch_idle
+                # to translate its TimeoutError into our diagnostic.
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+                try:
+                    await bus_service.await_dispatch_idle(timeout=remaining)
+                except TimeoutError:
+                    self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+
+                # Step 2: wait for any pending tasks in the app's task_bucket.
+                # Exceptions are collected via the recorder installed above — no per-task
+                # collection needed here. We still await the tasks to pace the loop.
+                if app is not None:
+                    pending = app.task_bucket.pending_tasks()
+                    if pending:
+                        remaining = deadline - asyncio.get_running_loop().time()
+                        if remaining <= 0:
+                            self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+                        _done, still_pending = await asyncio.wait(pending, timeout=remaining)
+                        if still_pending:
+                            self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+
+                # Step 3: stability check via await_dispatch_idle, which has its own 5ms anyio
+                # stability window. No-op when dispatch is already idle; re-runs the stability
+                # check if new events arrived during step 2. Re-check the deadline first —
+                # passing timeout=0 collapses the 5ms anyio window to nothing, defeating the
+                # whole point of using await_dispatch_idle here.
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+                try:
+                    await bus_service.await_dispatch_idle(timeout=remaining)
+                except TimeoutError:
+                    self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+
+                # Step 4: exit condition — both sides quiescent.
+                if app is None or not app.task_bucket.pending_tasks():
+                    if bus_service.is_dispatch_idle:
+                        # All quiescent; surface any collected exceptions.
+                        if collected_exceptions:
+                            raise DrainError(collected_exceptions)
+                        return
+                # else: loop back for another pass
+        finally:
             if app is not None:
-                pending = app.task_bucket.pending_tasks()
-                if pending:
-                    remaining = deadline - asyncio.get_running_loop().time()
-                    if remaining <= 0:
-                        self._raise_drain_timeout(timeout, bus_service, app)
-                    done, still_pending = await asyncio.wait(pending, timeout=remaining)
-                    if still_pending:
-                        self._raise_drain_timeout(timeout, bus_service, app)
-                    # Collect exceptions from any done tasks (except CancelledError)
-                    for task in done:
-                        if task.cancelled():
-                            continue
-                        exc = task.exception()
-                        if exc is not None:
-                            collected_exceptions.append((task.get_name(), exc))
-
-            # Step 3: stability check via await_dispatch_idle, which has its own 5ms anyio
-            # stability window. No-op when dispatch is already idle; re-runs the stability
-            # check if new events arrived during step 2. Re-check the deadline first —
-            # passing timeout=0 collapses the 5ms anyio window to nothing, defeating the
-            # whole point of using await_dispatch_idle here.
-            remaining = deadline - asyncio.get_running_loop().time()
-            if remaining <= 0:
-                self._raise_drain_timeout(timeout, bus_service, app)
-            try:
-                await bus_service.await_dispatch_idle(timeout=remaining)
-            except TimeoutError:
-                self._raise_drain_timeout(timeout, bus_service, app)
-
-            # Step 4: exit condition — both sides quiescent.
-            if app is None or not app.task_bucket.pending_tasks():
-                if bus_service.is_dispatch_idle:
-                    # All quiescent; surface any collected exceptions.
-                    if collected_exceptions:
-                        raise DrainError(collected_exceptions)
-                    return
-            # else: loop back for another pass
+                app.task_bucket.uninstall_exception_recorder()
 
     def _raise_drain_timeout(
         self,
         timeout: float,
         bus_service: "BusService",
         app: "App | None",
+        collected_exceptions: "list[tuple[str, BaseException]]",
     ) -> None:
         """Build and raise a diagnostic TimeoutError with pending task names and debounce hint.
+
+        When exceptions have already been collected, raises ``DrainError`` chained from
+        the ``TimeoutError`` so the handler crash is visible as the primary failure.
 
         Args:
             timeout: The drain timeout that elapsed.
             bus_service: The BusService instance to query for dispatch state.
             app: The app whose task_bucket to query (may be None).
+            collected_exceptions: Exceptions gathered by the recorder so far.
 
         Raises:
-            TimeoutError: Always.
+            DrainError: When ``collected_exceptions`` is non-empty (chained from TimeoutError).
+            TimeoutError: When no exceptions were collected.
         """
         task_names: list[str] = []
         if app is not None:
@@ -833,6 +869,10 @@ class AppTestHarness:
                 "than the handler's debounce window. Pass `timeout=` larger than your largest "
                 "debounce delay."
             )
+        if collected_exceptions:
+            drain_err = DrainError(collected_exceptions)
+            timeout_err = TimeoutError(base)
+            raise drain_err from timeout_err
         raise TimeoutError(base)
 
     # ------------------------------------------------------------------
