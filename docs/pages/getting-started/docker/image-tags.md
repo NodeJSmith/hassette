@@ -37,19 +37,46 @@ ghcr.io/nodejsmith/hassette:latest-py<python>
 !!! note "Stable Releases Only"
     These tags only point to stable releases. Pre-releases (`.dev`, `a`, `b`, `rc`, etc.) are never published to `latest-py*` tags.
 
-### Development / CI Usage
+### Testing Open Pull Requests
 
-For debugging or CI pinning to a specific commit:
+Pull requests opened from branches **in this repository** get a stable, mutable tag pointing at the latest build of that PR:
 
 ```
-ghcr.io/nodejsmith/hassette:sha-<commit>-py<python>
+ghcr.io/nodejsmith/hassette:pr-<number>-py3.13
 ```
 
 **Example:**
 
-- `ghcr.io/nodejsmith/hassette:sha-a1b2c3d-py3.13`
+- `ghcr.io/nodejsmith/hassette:pr-497-py3.13`
 
-These tags are immutable but intended for internal/testing use.
+The tag is updated on every push to the PR branch, so `docker pull` always fetches the most recent build. Use these to try out changes before they land in `main`.
+
+!!! note "Python 3.13 Only"
+    PR images are only built for Python 3.13 to keep CI fast. Releases still build all supported Python versions.
+
+!!! note "Fork PRs Not Published"
+    PRs opened from forks do **not** publish images — fork-PR workflows do not have the credentials or write permissions needed to push to this repository's GHCR package. To test a fork PR, pull the contributor's branch locally and build the image yourself, or ask a maintainer to rebase the PR into the main repository.
+
+!!! warning "Mutable Tag"
+    `pr-<N>-py3.13` tags are mutable and will change as the PR evolves. Do not use them for reproducible builds — pin a version tag instead.
+
+### Bleeding-Edge Main Branch
+
+Every merge to `main` publishes a `main` tag for testing the latest unreleased code:
+
+```
+ghcr.io/nodejsmith/hassette:main-py3.13
+```
+
+**Example:**
+
+- `ghcr.io/nodejsmith/hassette:main-py3.13`
+
+!!! note "Python 3.13 Only"
+    `main` images are only built for Python 3.13 to keep CI fast. Releases still build all supported Python versions.
+
+!!! warning "Mutable Tag"
+    `main-py3.13` is mutable and updates on every merge to `main`. It may contain unreleased, unvetted changes. Do not use in production — pin a version tag instead.
 
 ## Tags NOT Published
 

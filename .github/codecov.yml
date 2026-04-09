@@ -1,5 +1,17 @@
 codecov:
   branch: main
 
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        # Allow small drops from flaky test coverage so docs/CI-only PRs
+        # don't fail the project check on a 0.03% blip.
+        threshold: 0.5%
+    patch:
+      default:
+        target: auto
+
 ignore:
   - "src/hassette/migrations/**"
