@@ -74,7 +74,14 @@ class TaskBucket(Resource):
                 self.logger.error("[%s] task %s crashed", self.unique_name, t.get_name(), exc_info=exc)
                 recorder = self._exception_recorder
                 if recorder is not None:
-                    recorder(t, exc)
+                    try:
+                        recorder(t, exc)
+                    except Exception:
+                        self.logger.exception(
+                            "[%s] exception recorder failed for task %s",
+                            self.unique_name,
+                            t.get_name(),
+                        )
 
         task.add_done_callback(lambda t: self._tasks.discard(t))
         task.add_done_callback(_done)

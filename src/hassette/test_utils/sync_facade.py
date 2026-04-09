@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from hassette.test_utils.recording_api import RecordingApi
 
 
-class _RecordingSyncFacade:
+class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     """Synchronous recording facade for RecordingApi.
 
     Instances are created by RecordingApi.__init__ and share the parent's
