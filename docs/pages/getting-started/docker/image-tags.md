@@ -42,7 +42,7 @@ ghcr.io/nodejsmith/hassette:latest-py<python>
 Every open pull request has a stable, mutable tag that points at the latest build of that PR:
 
 ```
-ghcr.io/nodejsmith/hassette:pr-<number>-py<python>
+ghcr.io/nodejsmith/hassette:pr-<number>-py3.13
 ```
 
 **Example:**
@@ -51,23 +51,29 @@ ghcr.io/nodejsmith/hassette:pr-<number>-py<python>
 
 The tag is updated on every push to the PR branch, so `docker pull` always fetches the most recent build. Use these to try out changes before they land in `main`.
 
+!!! note "Python 3.13 Only"
+    PR images are only built for Python 3.13 to keep CI fast. Releases still build all supported Python versions.
+
 !!! warning "Mutable Tag"
-    `pr-<N>` tags are mutable and will change as the PR evolves. Do not use them for reproducible builds — pin a version tag instead.
+    `pr-<N>-py3.13` tags are mutable and will change as the PR evolves. Do not use them for reproducible builds — pin a version tag instead.
 
 ### Bleeding-Edge Main Branch
 
 Every merge to `main` publishes a `main` tag for testing the latest unreleased code:
 
 ```
-ghcr.io/nodejsmith/hassette:main-py<python>
+ghcr.io/nodejsmith/hassette:main-py3.13
 ```
 
 **Example:**
 
 - `ghcr.io/nodejsmith/hassette:main-py3.13`
 
+!!! note "Python 3.13 Only"
+    `main` images are only built for Python 3.13 to keep CI fast. Releases still build all supported Python versions.
+
 !!! warning "Mutable Tag"
-    `main-py<python>` is mutable and updates on every merge to `main`. It may contain unreleased, unvetted changes. Do not use in production — pin a version tag instead.
+    `main-py3.13` is mutable and updates on every merge to `main`. It may contain unreleased, unvetted changes. Do not use in production — pin a version tag instead.
 
 ## Tags NOT Published
 

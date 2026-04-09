@@ -88,8 +88,8 @@ jobs:
                       latest=false
                       suffix=-py${{ env.PYTHON_VERSION }}
                   tags: |
-                      type=ref,event=pr
-                      type=ref,event=branch
+                      type=ref,event=pr,enable=${{ github.event_name == 'pull_request' }}
+                      type=ref,event=branch,enable=${{ github.event_name == 'push' }}
                       type=raw,value=${{ env.VERSION }},enable=${{ env.IS_RELEASE == 'true' }}
                       type=raw,value=latest,enable=${{ env.IS_RELEASE == 'true' && env.IS_STABLE_RELEASE == 'true' }}
 
