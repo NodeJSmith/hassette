@@ -48,6 +48,7 @@ from ._internal import write_test_app_with_decorator as write_test_app_with_deco
 from .api_call import ApiCall
 from .app_harness import AppConfigurationError, AppTestHarness
 from .config import make_test_config
+from .exceptions import DrainError
 from .helpers import (
     create_call_service_event,
     create_state_change_event,
@@ -63,6 +64,7 @@ __all__ = [
     "ApiCall",
     "AppConfigurationError",
     "AppTestHarness",
+    "DrainError",
     "RecordingApi",
     "create_call_service_event",
     "create_state_change_event",
