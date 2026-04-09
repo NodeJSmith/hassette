@@ -213,6 +213,18 @@ class TaskBucket(Resource):
         with ctx.use_task_bucket(self):
             return self.hassette.loop.create_task(coro, name=name)
 
+    def pending_tasks(self) -> list[asyncio.Task[Any]]:
+        """Return a snapshot list of non-completed tasks in this bucket.
+
+        This is the recommended public accessor for drain helpers and test
+        infrastructure. Returns a fresh list so callers can safely iterate after
+        mutations to the internal WeakSet without risking a ``RuntimeError``.
+
+        Returns:
+            A list of tasks that are currently running (not yet done).
+        """
+        return [t for t in list(self._tasks) if not t.done()]
+
     def cancel_all_sync(self) -> None:
         """Cancel all tracked tasks without awaiting completion (fire-and-forget).
 
