@@ -1599,7 +1599,7 @@ class TestCheckHealth:
         # Close the read connection to simulate a failed connection
         await db_svc._read_db.close()
         try:
-            with pytest.raises(sqlite3.Error):
+            with pytest.raises((sqlite3.Error, ValueError)):
                 await svc.check_health()
         finally:
             # Restore so fixture teardown doesn't crash

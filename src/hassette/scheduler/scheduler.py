@@ -72,10 +72,10 @@ from typing import Any, Literal
 
 from whenever import Time, TimeDelta, ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.date_utils import now
 from hassette.utils.source_capture import capture_registration_source
 
 from .classes import CronTrigger, IntervalTrigger, ScheduledJob
@@ -290,7 +290,7 @@ class Scheduler(Resource):
 
         start_dtme = get_start_dtme(start)
 
-        first_run = start_dtme if start_dtme else now().add(seconds=interval_seconds)
+        first_run = start_dtme if start_dtme else date_utils.now().add(seconds=interval_seconds)
         trigger = IntervalTrigger.from_arguments(seconds=interval_seconds, start=first_run)
 
         return self.schedule(
@@ -329,7 +329,7 @@ class Scheduler(Resource):
 
         start_dtme = get_start_dtme(start)
 
-        run_at = start_dtme if start_dtme else now().add(seconds=delay_seconds)
+        run_at = start_dtme if start_dtme else date_utils.now().add(seconds=delay_seconds)
         return self.schedule(func, run_at, name=name, if_exists=if_exists, args=args, kwargs=kwargs)
 
     def run_minutely(
@@ -365,7 +365,7 @@ class Scheduler(Resource):
         start_dtme = get_start_dtme(start)
 
         trigger = IntervalTrigger.from_arguments(minutes=minutes, start=start_dtme)
-        first_run = start_dtme if start_dtme else now().add(minutes=minutes)
+        first_run = start_dtme if start_dtme else date_utils.now().add(minutes=minutes)
         return self.schedule(
             func, first_run, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
         )
@@ -403,7 +403,7 @@ class Scheduler(Resource):
         start_dtme = get_start_dtme(start)
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
-        first_run = start_dtme if start_dtme else now().add(hours=hours)
+        first_run = start_dtme if start_dtme else date_utils.now().add(hours=hours)
         return self.schedule(
             func, first_run, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
         )
@@ -445,7 +445,7 @@ class Scheduler(Resource):
         start_dtme = get_start_dtme(start)
 
         trigger = IntervalTrigger.from_arguments(hours=hours, start=start_dtme)
-        first_run = start_dtme if start_dtme else now().add(hours=hours)
+        first_run = start_dtme if start_dtme else date_utils.now().add(hours=hours)
         return self.schedule(
             func, first_run, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
         )
@@ -500,7 +500,7 @@ class Scheduler(Resource):
             day_of_week=day_of_week,
             start=start_dtme,
         )
-        run_at = trigger.first_run_time(now())
+        run_at = trigger.first_run_time(date_utils.now())
         return self.schedule(
             func, run_at, trigger=trigger, repeat=True, name=name, if_exists=if_exists, args=args, kwargs=kwargs
         )
@@ -529,7 +529,7 @@ def get_start_dtme(start: "ScheduleStartType") -> ZonedDateTime | None:
 
     if isinstance(start, TimeDelta):
         # we can add these directly to get a new ZonedDateTime
-        return now() + start
+        return date_utils.now() + start
 
     # if we have time/Time then no change
     # if we have (hour, minute) tuple then convert to time
@@ -541,13 +541,18 @@ def get_start_dtme(start: "ScheduleStartType") -> ZonedDateTime | None:
         start_time = time(*start)
     elif isinstance(start, int | float):
         # treat as seconds from now
-        return now().add(seconds=start)
+        return date_utils.now().add(seconds=start)
     else:
         raise TypeError(f"Start time must be a Time, time, or (hour, minute) tuple, got {type(start).__name__}")
 
     # convert to ZonedDateTime for today at the specified time
     # if this ends up in the past, the trigger will handle advancing to the next valid time
+    current = date_utils.now()
     start_dtme = ZonedDateTime.from_system_tz(
-        year=now().year, month=now().month, day=now().day, hour=start_time.hour, minute=start_time.minute
+        year=current.year,
+        month=current.month,
+        day=current.day,
+        hour=start_time.hour,
+        minute=start_time.minute,
     )
     return start_dtme

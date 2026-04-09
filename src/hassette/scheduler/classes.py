@@ -8,8 +8,8 @@ from typing import Any, Self
 from croniter import croniter
 from whenever import TimeDelta, ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette.types.types import SourceTier
-from hassette.utils.date_utils import now
 
 if typing.TYPE_CHECKING:
     from hassette.types import JobCallable, TriggerProtocol
@@ -34,7 +34,7 @@ class IntervalTrigger:
         if interval.in_seconds() <= 0:
             raise ValueError("IntervalTrigger interval must be positive")
         self.interval = interval
-        self.start = start or now()
+        self.start = start or date_utils.now()
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, IntervalTrigger):
@@ -86,7 +86,7 @@ class CronTrigger:
         self.cron_expression = cron_expression
         self.start = start
         # Validate expression eagerly at construction time
-        base = start or now()
+        base = start or date_utils.now()
         croniter(cron_expression, base.py_datetime(), ret_type=datetime)
 
     def __eq__(self, other: object) -> bool:

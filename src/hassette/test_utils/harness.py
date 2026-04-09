@@ -94,6 +94,7 @@ class _HassetteMock(Resource):
         self._states: StateManager | None = None
         self.state_registry: StateRegistry | None = None
         self.type_registry: TypeRegistry | None = None
+        self._test_mode: bool = False
 
     @property
     def command_executor(self) -> Any:
@@ -200,7 +201,7 @@ class HassetteHarness:
     register_framework_listener: Callable[..., Awaitable[None]]
     register_framework_job: Callable[..., Awaitable[int]]
 
-    def __init__(self, config: HassetteConfig, *, unused_tcp_port: int = 0) -> None:
+    def __init__(self, config: HassetteConfig, *, unused_tcp_port: int = 0, skip_global_set: bool = False) -> None:
         self.config = config
         self.unused_tcp_port = unused_tcp_port
         self._components: set[str] = set()
@@ -215,7 +216,8 @@ class HassetteHarness:
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
-        context.set_global_hassette(cast("Hassette", self.hassette))
+        if not skip_global_set:
+            context.set_global_hassette(cast("Hassette", self.hassette))
         self.config.set_validated_app_manifests()
 
     # --- Builder methods (return self for chaining) ---

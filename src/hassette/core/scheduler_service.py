@@ -9,12 +9,12 @@ from typing import Any, Generic, TypeVar, cast
 from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import CronTrigger, IntervalTrigger
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.date_utils import now
 from hassette.utils.serialization import safe_json_serialize
 
 if typing.TYPE_CHECKING:
@@ -84,7 +84,7 @@ class SchedulerService(Service):
                 self.logger.debug("Scheduler exiting")
                 return
 
-            due_jobs, next_run_time = await self._job_queue.pop_due_and_peek_next(now())
+            due_jobs, next_run_time = await self._job_queue.pop_due_and_peek_next(date_utils.now())
 
             if due_jobs:
                 for job in due_jobs:
@@ -148,7 +148,7 @@ class SchedulerService(Service):
         """
         if next_run_time is not None:
             self.logger.debug("Next job scheduled at %s", next_run_time)
-            delay = max((next_run_time - now()).in_seconds(), self.min_delay)
+            delay = max((next_run_time - date_utils.now()).in_seconds(), self.min_delay)
         else:
             delay = self.default_delay
 
@@ -295,7 +295,7 @@ class SchedulerService(Service):
             await self._remove_job(job)
             return
 
-        run_at_delta = job.next_run - now()
+        run_at_delta = job.next_run - date_utils.now()
         if run_at_delta.in_seconds() < -self.hassette.config.scheduler_behind_schedule_threshold_seconds:
             self.logger.warning(
                 "Job %s is behind schedule by %s seconds, running now.", job, abs(run_at_delta.in_seconds())
@@ -328,7 +328,7 @@ class SchedulerService(Service):
 
         if job.repeat and job.trigger:
             curr_next_run = job.next_run
-            next_run = job.trigger.next_run_time(job.next_run, now())
+            next_run = job.trigger.next_run_time(job.next_run, date_utils.now())
             job.set_next_run(next_run)
             next_run_time_delta = job.next_run - curr_next_run
             secs = next_run_time_delta.in_seconds()
@@ -348,6 +348,32 @@ class SchedulerService(Service):
 
         # One-time job, remove it
         await self._remove_job(job)
+
+    async def _test_trigger_due_jobs(self) -> int:
+        """Fire all jobs due at the current time. For test harnesses only.
+
+        Snapshots due jobs via a single ``pop_due_and_peek_next(date_utils.now())``
+        call, then awaits each ``_dispatch_and_log(job)`` inline (not via
+        ``task_bucket.spawn``). Jobs re-enqueued during dispatch (repeating jobs)
+        are not included in this invocation — only the initial snapshot is
+        processed, preventing infinite loops when the clock is frozen.
+
+        This method bypasses the ``serve()`` loop's timing and wakeup logic.
+        It is intended for use with ``AppTestHarness.trigger_due_jobs()`` and
+        should not be called in production code.
+
+        Returns:
+            The number of jobs dispatched.
+        """
+        current_time = date_utils.now()
+        due_jobs, _next_run = await self._job_queue.pop_due_and_peek_next(current_time)
+
+        count = 0
+        for job in due_jobs:
+            await self._dispatch_and_log(job)
+            count += 1
+
+        return count
 
     async def get_all_jobs(self) -> list["ScheduledJob"]:
         """Return all currently scheduled jobs across all apps."""
@@ -407,14 +433,14 @@ class _ScheduledJobQueue(Resource):
         due_jobs: list[ScheduledJob] = []
 
         async with self._lock:
-            current_time = reference_time or now()
+            current_time = reference_time or date_utils.now()
             while not self._queue.is_empty():
                 candidate = self._queue.peek()
                 if candidate is None or candidate.next_run > current_time:
                     break
 
                 due_jobs.append(self._queue.pop())
-                current_time = now()
+                current_time = date_utils.now()
 
         if due_jobs:
             self.logger.debug("Dequeued %d due jobs", len(due_jobs))
@@ -436,7 +462,7 @@ class _ScheduledJobQueue(Resource):
                     break
 
                 due_jobs.append(self._queue.pop())
-                current_time = now()
+                current_time = date_utils.now()
 
             upcoming = self._queue.peek()
             next_run = upcoming.next_run if upcoming else None

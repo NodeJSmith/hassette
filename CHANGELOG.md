@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- End-user test utilities: `AppTestHarness`, `RecordingApi`, `make_test_config` — test hassette apps with `async with AppTestHarness(MyApp, config={...}) as harness:` pattern (#492)
+- `pip install hassette[test]` optional dependency group for test requirements (#492)
 - Preserve listener/job registrations across app restarts — "All Time" telemetry now shows cross-session history instead of matching "This Session" (#487)
 - Optional `name=` parameter on `Bus.on()` for explicit listener identity when predicate-based keys collide (#487)
 - `source_tier` column on all telemetry tables — filter dashboard views by `app`, `framework`, or `all` (#484)
