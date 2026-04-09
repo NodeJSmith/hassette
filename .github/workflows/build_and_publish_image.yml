@@ -27,6 +27,13 @@ jobs:
     build:
         runs-on: ubuntu-latest
         timeout-minutes: 60
+        # Concurrency is keyed by event_name so PR, push-to-main, and release runs
+        # never share a bucket and therefore never cancel each other. Only mutable-tag
+        # paths (pull_request, push) enable cancel-in-progress — releases must run to
+        # completion so version/latest tags are never published half-finished.
+        concurrency:
+            group: ${{ github.workflow }}-${{ github.event_name }}-${{ inputs.tag_name || github.event.pull_request.number || github.ref }}-${{ matrix.python-version }}
+            cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
         strategy:
             fail-fast: false
             matrix:

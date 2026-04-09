@@ -39,7 +39,7 @@ ghcr.io/nodejsmith/hassette:latest-py<python>
 
 ### Testing Open Pull Requests
 
-Every open pull request has a stable, mutable tag that points at the latest build of that PR:
+Pull requests opened from branches **in this repository** get a stable, mutable tag pointing at the latest build of that PR:
 
 ```
 ghcr.io/nodejsmith/hassette:pr-<number>-py3.13
@@ -53,6 +53,9 @@ The tag is updated on every push to the PR branch, so `docker pull` always fetch
 
 !!! note "Python 3.13 Only"
     PR images are only built for Python 3.13 to keep CI fast. Releases still build all supported Python versions.
+
+!!! note "Fork PRs Not Published"
+    PRs opened from forks do **not** publish images — forks cannot authenticate to GHCR. To test a fork PR, pull the contributor's branch locally and build the image yourself, or ask a maintainer to rebase the PR into the main repository.
 
 !!! warning "Mutable Tag"
     `pr-<N>-py3.13` tags are mutable and will change as the PR evolves. Do not use them for reproducible builds — pin a version tag instead.
