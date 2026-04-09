@@ -32,6 +32,12 @@ The status bar at the bottom of every page includes a **This Session / All Time*
 
 Your selection is saved in the browser's localStorage and persists across page reloads.
 
+## Registration Persistence Across Sessions
+
+Listener and job registrations persist across sessions. When Hassette restarts, the Dashboard shows handler and job counts from persisted registrations, even before the current session has fired any events. Registrations from prior sessions that are no longer active are marked as retired rather than deleted, so historical counts remain accurate.
+
+See [Registration Persistence](../core-concepts/database-telemetry.md#registration-persistence) for details.
+
 ## Status Badges
 
 | Badge | Meaning |

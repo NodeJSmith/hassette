@@ -4,7 +4,7 @@ Records write-method calls for test assertions. Delegates read methods to
 StateProxy. Implements ApiProtocol for static conformance checking.
 
 Intended for use with AppTestHarness. Users who need full HTTP-level
-fidelity should use SimpleTestServer instead.
+fidelity should use a full integration test with a live HA connection.
 """
 
 from dataclasses import dataclass, field
@@ -91,10 +91,11 @@ class ApiProtocol(Protocol):
 
 
 def _not_implemented(method_name: str) -> Never:
-    """Raise NotImplementedError with a helpful message directing users to SimpleTestServer."""
+    """Raise NotImplementedError with a helpful message."""
     raise NotImplementedError(
         f"RecordingApi.{method_name}() is not implemented. "
-        "Use SimpleTestServer for full Api coverage, or seed state via AppTestHarness.set_state()."
+        "Seed state via AppTestHarness.set_state() for read methods, "
+        "or use a full integration test for methods requiring a live HA connection."
     )
 
 
@@ -108,10 +109,9 @@ class RecordingApi(Resource):
     on_initialize() calls self.mark_ready() — required for the Resource lifecycle.
 
     sync attribute is a Mock() instance. Apps using self.api.sync.* in the paths
-    under test must use SimpleTestServer for those code paths.
+    under test must use a full integration test for those code paths.
 
-    Unstubbed methods raise NotImplementedError with a message directing users to
-    SimpleTestServer.
+    Unstubbed methods raise NotImplementedError with guidance on alternatives.
     """
 
     calls: list[ApiCall]
@@ -298,51 +298,51 @@ class RecordingApi(Resource):
     # ------------------------------------------------------------------
 
     async def get_state_raw(self, entity_id: str) -> dict:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("get_state_raw")
         raise RuntimeError("unreachable")  # for type checker
 
     async def get_states_raw(self) -> list[dict]:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("get_states_raw")
         raise RuntimeError("unreachable")
 
     async def get_state_value(self, entity_id: str) -> Any:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("get_state_value")
 
     async def get_state_value_typed(self, entity_id: str) -> Any:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("get_state_value_typed")
 
     async def get_attribute(self, entity_id: str, attribute: str) -> Any:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("get_attribute")
 
     async def get_history(self, entity_id: str, *args: Any, **kwargs: Any) -> list:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("get_history")
         raise RuntimeError("unreachable")
 
     async def render_template(self, template: str, variables: dict | None = None) -> str:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("render_template")
         raise RuntimeError("unreachable")
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("ws_send_and_wait")
 
     async def ws_send_json(self, **data: Any) -> None:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("ws_send_json")
 
     async def rest_request(self, method: str, url: str, **kwargs: Any) -> Any:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("rest_request")
 
     async def delete_entity(self, entity_id: str) -> None:
-        """Not implemented. Use SimpleTestServer for full coverage."""
+        """Not implemented — raises NotImplementedError."""
         _not_implemented("delete_entity")
 
     # ------------------------------------------------------------------
@@ -358,8 +358,9 @@ class RecordingApi(Resource):
         if name.startswith("_"):
             raise AttributeError(name)
         raise NotImplementedError(
-            f"RecordingApi.{name} is not implemented. "
-            "Use SimpleTestServer for full Api coverage, or seed state via AppTestHarness.set_state()."
+            f"RecordingApi.{name}() is not implemented. "
+            "Seed state via AppTestHarness.set_state() for read methods, "
+            "or use a full integration test for methods requiring a live HA connection."
         )
 
     # ------------------------------------------------------------------

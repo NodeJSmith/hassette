@@ -98,6 +98,37 @@ self.bus.on_component_loaded(
 
 Both `debounce` and `throttle` must be positive; zero or negative values raise `ValueError` at registration. Specifying both `debounce` and `throttle` together also raises `ValueError` — only one rate-limiting strategy may be active at a time. Combining `once=True` with either also raises `ValueError`.
 
+## Registration Identity
+
+All subscription methods accept an optional `name=` parameter that sets a stable natural key for the listener:
+
+```python
+async def on_initialize(self):
+    self.bus.on_state_change(
+        "binary_sensor.motion",
+        handler=self.on_motion,
+        name="motion_sensor_main",
+    )
+
+    self.bus.on_state_change(
+        "binary_sensor.motion",
+        handler=self.on_motion_log,
+        name="motion_sensor_log",
+    )
+```
+
+Without `name=`, Hassette derives a natural key from the handler function name, topic, and predicate signature. If two subscriptions share the same derived key — for example, two calls to `on_state_change` for the same entity with the same handler — registering the second one raises a `ValueError`:
+
+```
+ValueError: Duplicate listener registration detected for handler 'on_motion'
+on topic 'hass.event.state_changed.binary_sensor.motion' (key='on_motion'). Add name= to disambiguate if intentional.
+```
+
+The `name=` parameter resolves this: it replaces the derived key with your explicit value, making each registration distinct.
+
+!!! note "Persistence"
+    Listener and job names survive restarts. When Hassette starts, existing registrations are matched by their natural key and updated in place rather than re-inserted. See [Registration Persistence](../database-telemetry.md#registration-persistence) for details.
+
 ## Next Steps
 
 - **[Writing Handlers](handlers.md)**: Learn how to write handlers using Dependency Injection to extract clean data.

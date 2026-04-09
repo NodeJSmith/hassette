@@ -12,6 +12,10 @@ Hassette records three types of telemetry:
 
 Telemetry is collected automatically. You do not need to enable it or write any code — it works out of the box.
 
+### Source Tier
+
+Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are recorded with `source_tier='framework'` and excluded from Dashboard KPIs. The **Handlers** and **Jobs** counts on the Dashboard reflect only your app registrations — not Hassette's own housekeeping listeners.
+
 ## Configuration
 
 All database settings are optional. The defaults work well for most installations.
@@ -70,6 +74,12 @@ services:
 !!! note "Choosing the right endpoint"
     Use `/api/health` for container orchestration and uptime monitoring. Use `/api/telemetry/status` if you specifically need to know whether the telemetry database is functional.
 
+## Registration Persistence
+
+Listener and job registrations are stored in the database and survive restarts. When Hassette starts, existing registrations are matched by their natural key (handler name, topic, and predicate signature — or the explicit `name=` value) and updated in place via upsert semantics. Registrations that no longer exist in the new session are marked with a `retired_at` timestamp rather than deleted.
+
+This means the Dashboard shows accurate handler and job counts even for registrations that predate the current session. Historical registrations from prior sessions remain visible in the web UI until they age out of the retention window.
+
 ## Degraded Mode
 
 When the telemetry database becomes unavailable (disk full, permissions error, corruption), Hassette enters **degraded mode**:
@@ -77,6 +87,7 @@ When the telemetry database becomes unavailable (disk full, permissions error, c
 - The web UI continues to work, but telemetry-backed panels (KPIs, error rates, handler/job metrics) show empty or zeroed-out data.
 - The Dashboard displays a degraded indicator to alert you.
 - Your automations continue to run normally — telemetry is an observability layer, not a dependency for app execution.
+- All telemetry is unavailable — including [persisted registrations](#registration-persistence). Because registration data lives in the same SQLite file, handler and job counts will also show zero until the database recovers.
 
 ### Recovery
 
