@@ -410,6 +410,32 @@ class BusService(Service):
         self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()
 
+    @property
+    def is_dispatch_idle(self) -> bool:
+        """Return True when no dispatch tasks are in flight.
+
+        Delegates to ``_dispatch_idle_event.is_set()``. This is the recommended
+        public accessor for drain helpers and test infrastructure — prefer this
+        over reading ``_dispatch_idle_event`` directly.
+
+        Returns:
+            True if no handler dispatch tasks are currently running.
+        """
+        return self._dispatch_idle_event.is_set()
+
+    @property
+    def dispatch_pending_count(self) -> int:
+        """Return the number of currently in-flight dispatch tasks.
+
+        Delegates to ``_dispatch_pending``. This is the recommended public
+        accessor for drain helpers and test infrastructure — prefer this over
+        reading ``_dispatch_pending`` directly.
+
+        Returns:
+            The count of handler dispatch tasks currently running.
+        """
+        return self._dispatch_pending
+
     async def await_dispatch_idle(self, *, timeout: float = 2.0) -> None:
         """Wait until all dispatched handler tasks have completed.
 

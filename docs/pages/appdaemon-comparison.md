@@ -1011,7 +1011,7 @@ class MyApp(App):
 - [ ] Update scheduler calls to use `self.scheduler`
 - [ ] Migrate API calls to use `self.api` (with `await`)
 - [ ] Replace `self.log()` with `self.logger` methods
-- [ ] Test each app incrementally
+- [ ] Test each app incrementally — see [Testing Your Apps](testing/index.md)
 
 ### Common Pitfalls
 
@@ -1035,4 +1035,5 @@ class MyApp(App):
 - **[Local Setup](getting-started/index.md)** — get Hassette running in minutes
 - **[Docker Deployment](getting-started/docker/index.md)** — production setup with Docker Compose
 - **[Core Concepts](core-concepts/index.md)** — architecture overview and key components
+- **[Testing Your Apps](testing/index.md)** — test your automations with AppTestHarness, event simulation, and time control
 - **[Troubleshooting](troubleshooting.md)** — common issues and solutions

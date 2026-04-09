@@ -1,6 +1,6 @@
 # Web UI
 
-Hassette ships with a dashboard for monitoring and managing your automations.
+Hassette ships with a mobile-responsive dashboard for monitoring and managing your automations.
 
 ![Dashboard](../../_static/web_ui_dashboard.png)
 

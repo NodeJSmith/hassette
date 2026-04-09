@@ -32,7 +32,7 @@ Hassette brings Python's power to Home Assistant automations. This unlocks capab
 - Complex logic with conditionals, loops, and data structures
 - Reusable functions and shared code across automations
 - Type safety with Python type hints and Pydantic models
-- Built-in testing and debugging tools from Python's ecosystem
+- Built-in [testing harness](../testing/index.md) — test your apps with `AppTestHarness`, event simulation, and time control
 - Persistent state management without workarounds
 - Async/await for efficient concurrent operations
 

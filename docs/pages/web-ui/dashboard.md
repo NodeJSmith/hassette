@@ -12,8 +12,8 @@ A row of health cards across the top summarizes the system at a glance:
 |------|-------------|
 | **Apps** | Total registered apps and how many are running. |
 | **Error Rate** | Combined error rate across all handler invocations and job executions. Color-coded: green (healthy), yellow (elevated), red (critical). |
-| **Handlers** | Total registered event handlers and their invocation count. |
-| **Jobs** | Total scheduled jobs and their execution count. |
+| **Handlers** | Total registered event handlers and their invocation count. Counts reflect [persisted registrations](../core-concepts/database-telemetry.md#registration-persistence) and survive restarts. Only your app's handlers are counted — framework-internal handlers are excluded. |
+| **Jobs** | Total scheduled jobs and their execution count. Counts reflect persisted registrations and survive restarts. |
 | **Uptime** | How long Hassette has been running (hours and minutes). |
 
 ## App Health Grid

@@ -63,6 +63,8 @@ nav:
       - Apps: pages/web-ui/apps.md
       - Sessions: pages/web-ui/sessions.md
       - Logs: pages/web-ui/logs.md
+  - Testing:
+      - Testing Your Apps: pages/testing/index.md
   - Advanced:
       - Overview: pages/advanced/index.md
       - Dependency Injection: pages/advanced/dependency-injection.md

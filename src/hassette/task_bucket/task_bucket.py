@@ -22,6 +22,13 @@ T = TypeVar("T")
 P = ParamSpec("P")
 R = TypeVar("R")
 
+ExceptionRecorderT = Callable[[asyncio.Task[Any], BaseException], None]
+"""Callback signature for recording task exceptions during drain.
+
+Called by ``TaskBucket._done`` when a tracked task completes with a
+non-cancellation exception. See :meth:`TaskBucket.install_exception_recorder`.
+"""
+
 
 class TaskBucket(Resource):
     """Track and clean up a set of tasks for a service/app."""
@@ -29,9 +36,13 @@ class TaskBucket(Resource):
     _tasks: "weakref.WeakSet[asyncio.Task[Any]]"
     """Weak set of tasks tracked by this bucket."""
 
+    _exception_recorder: "ExceptionRecorderT | None"
+    """Optional recorder called on each non-CancelledError task exception."""
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._tasks = weakref.WeakSet()
+        self._exception_recorder = None
         self.mark_ready(reason="TaskBucket initialized")
 
     @property
@@ -61,9 +72,40 @@ class TaskBucket(Resource):
                 return
             if exc:
                 self.logger.error("[%s] task %s crashed", self.unique_name, t.get_name(), exc_info=exc)
+                recorder = self._exception_recorder
+                if recorder is not None:
+                    try:
+                        recorder(t, exc)
+                    except Exception:
+                        self.logger.exception(
+                            "[%s] exception recorder failed for task %s",
+                            self.unique_name,
+                            t.get_name(),
+                        )
 
         task.add_done_callback(lambda t: self._tasks.discard(t))
         task.add_done_callback(_done)
+
+    def install_exception_recorder(self, recorder: "ExceptionRecorderT") -> None:
+        """Install a callback that is called for each non-CancelledError task exception.
+
+        Called from the task's done callback, after the error is logged.
+        The recorder receives the completed task and the exception.
+
+        Intended for test infrastructure (e.g., AppTestHarness drain) that needs to
+        collect task exceptions regardless of whether the task completed during a
+        ``asyncio.wait`` call or between iterations.
+
+        Args:
+            recorder: Callable ``(task, exc) -> None`` invoked on each non-cancellation
+                exception. Only one recorder can be installed at a time; calling this a
+                second time replaces the previous recorder.
+        """
+        self._exception_recorder = recorder
+
+    def uninstall_exception_recorder(self) -> None:
+        """Remove the installed exception recorder (no-op if none installed)."""
+        self._exception_recorder = None
 
     def spawn(self, coro: CoroLikeT[T], *, name: str | None = None) -> asyncio.Task[T]:
         """Convenience: create and track a new task."""
@@ -212,6 +254,18 @@ class TaskBucket(Resource):
         """Create a task on the main event loop thread, in this bucket's context."""
         with ctx.use_task_bucket(self):
             return self.hassette.loop.create_task(coro, name=name)
+
+    def pending_tasks(self) -> list[asyncio.Task[Any]]:
+        """Return a snapshot list of non-completed tasks in this bucket.
+
+        This is the recommended public accessor for drain helpers and test
+        infrastructure. Returns a fresh list so callers can safely iterate after
+        mutations to the internal WeakSet without risking a ``RuntimeError``.
+
+        Returns:
+            A list of tasks that are currently running (not yet done).
+        """
+        return [t for t in list(self._tasks) if not t.done()]
 
     def cancel_all_sync(self) -> None:
         """Cancel all tracked tasks without awaiting completion (fire-and-forget).
