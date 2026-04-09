@@ -49,27 +49,13 @@ async def test_light_turns_on_when_motion_detected():
             "binary_sensor.hallway", old_value="off", new_value="on"
         )
         harness.api_recorder.assert_called(
-            "call_service",
+            "turn_on",
+            entity_id="light.hallway",
             domain="light",
-            service="turn_on",
-            target={"entity_id": "light.hallway"},
         )
 ```
 
 After `async with`, the app is fully initialized and ready to receive events. The harness tears everything down cleanly when the `async with` block exits.
-
-!!! warning "`turn_on`, `turn_off`, and `toggle_service` are recorded as `call_service`"
-    Hassette's convenience methods (`self.api.turn_on`, `turn_off`, `toggle_service`) delegate to `call_service` internally, matching the real HA API. Your assertions must target `"call_service"`, not `"turn_on"`:
-
-    ```python
-    # ✅ Correct — matches the real delegation
-    harness.api_recorder.assert_called("call_service", service="turn_on", ...)
-
-    # ❌ Wrong — always fails silently with an AssertionError
-    harness.api_recorder.assert_called("turn_on", ...)
-    ```
-
-    See [Asserting API Calls](#asserting-api-calls) for the full assertion surface.
 
 ## The Test Harness
 
@@ -223,13 +209,24 @@ await harness.simulate_state_change(
 )
 ```
 
-!!! warning "Fire-and-forget handler work is not tracked"
-    The drain waits for the bus dispatch queue to clear, but handlers that spawn fire-and-forget tasks via `self.task_bucket.add(...)` are **not** tracked — `simulate_*` may return before that secondary work completes, producing a false-idle signal.
+!!! note "Task chains drain to completion — and surface exceptions via `DrainError`"
+    The drain is iterative: after the bus dispatch queue clears, any tasks spawned by `self.task_bucket.add(...)` inside a handler are awaited in turn, and tasks those tasks spawn are awaited too — to arbitrary depth. `simulate_*` does not return until the full chain is settled.
 
-    If your test seems to pass but side effects don't appear, try one of:
+    If any task in the chain raises an exception, `simulate_*` re-raises it as a `DrainError`:
 
-    - Restructure the handler to `await` the work inline instead of spawning a detached task
-    - Add `await asyncio.sleep(0.1)` after the `simulate_*` call to let the background task run (a timing-dependent workaround — prefer the restructure)
+    ```python
+    from hassette.test_utils import AppTestHarness, DrainError
+
+    try:
+        await harness.simulate_state_change(
+            "binary_sensor.motion", old_value="off", new_value="on"
+        )
+    except DrainError as e:
+        # e.task_exceptions is a list of (task, exception) pairs
+        raise
+    ```
+
+    If the drain times out, the `TimeoutError` message includes the names of the pending tasks and a hint to check for debounced handlers.
 
 ## Asserting API Calls
 
@@ -240,34 +237,37 @@ await harness.simulate_state_change(
 Passes if the method was called at least once with kwargs that match **all** specified values (partial matching — additional kwargs in the recorded call are allowed).
 
 ```python
-# Assert a specific call_service call
+# Assert turn_on was called for a specific entity
 harness.api_recorder.assert_called(
-    "call_service",
+    "turn_on",
+    entity_id="light.kitchen",
     domain="light",
-    service="turn_on",
-    target={"entity_id": "light.kitchen"},
 )
 
 # Assert fire_event was called with a specific event type
 harness.api_recorder.assert_called("fire_event", event_type="my_custom_event")
+
+# Assert call_service was called directly (for services without a named wrapper)
+harness.api_recorder.assert_called(
+    "call_service",
+    domain="light",
+    service="set_color_temp",
+    target={"entity_id": "light.kitchen"},
+)
 ```
 
-!!! note "`turn_on`, `turn_off`, and `toggle_service` are recorded as `call_service`"
-    These convenience methods delegate to `call_service` internally, matching real Home Assistant API behavior. Assert them by checking `call_service` with the corresponding `service` kwarg:
+!!! note "`turn_on`, `turn_off`, and `toggle_service` record under their own names"
+    These convenience methods record calls using their own method name — not `call_service`. Assert them directly:
 
     ```python
     # Your app calls: await self.api.turn_on("light.kitchen", domain="light")
-    # Assert it like this:
-    harness.api_recorder.assert_called(
-        "call_service",
-        domain="light",
-        service="turn_on",
-        target={"entity_id": "light.kitchen"},
-    )
+    harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen", domain="light")
 
-    # NOT like this — "turn_on" is never recorded as its own method:
-    harness.api_recorder.assert_called("turn_on", ...)  # will always fail
+    # Your app calls: await self.api.turn_off("light.kitchen", domain="light")
+    harness.api_recorder.assert_called("turn_off", entity_id="light.kitchen", domain="light")
     ```
+
+    Use `assert_called("call_service", ...)` only for direct `self.api.call_service(...)` calls.
 
 ### `assert_not_called`
 
@@ -300,7 +300,7 @@ await harness.simulate_state_change("binary_sensor.motion", old_value="off", new
 harness.api_recorder.reset()  # ignore calls from the above simulate
 
 await harness.simulate_state_change("binary_sensor.motion", old_value="on", new_value="off")
-harness.api_recorder.assert_called("call_service", service="turn_off")
+harness.api_recorder.assert_called("turn_off", entity_id="light.hallway", domain="light")
 ```
 
 ## Time Control
@@ -563,8 +563,15 @@ config = make_test_config(data_dir=tmp_path, token="my-real-token", run_web_api=
 
 For these methods, seed the data you need via `harness.set_state()` and use the read methods that delegate to `StateProxy`: `get_state()`, `get_states()`, `get_entity()`, `get_entity_or_none()`, `entity_exists()`, `get_state_or_none()`.
 
-!!! warning "`api.sync` is a `Mock()` instance"
-    `harness.api_recorder.sync` is a `unittest.mock.Mock()`. Any attribute access or method call on it silently returns another `Mock` rather than raising `NotImplementedError`. If your app uses `self.api.sync.*` in the code path under test, `RecordingApi` will not catch that — your test may produce a false green. Use a full integration test for code paths that depend on `api.sync`.
+!!! note "`api.sync` is a recording facade"
+    `harness.api_recorder.sync` is a `_RecordingSyncFacade` — a recording proxy, not a `Mock`. Write calls made via `self.api.sync.*` appear in the same `api_recorder.calls` list as their async counterparts and can be asserted with the same API:
+
+    ```python
+    # Your app calls: self.api.sync.turn_on("light.kitchen", domain="light")
+    harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen", domain="light")
+    ```
+
+    Methods not covered by the facade raise `NotImplementedError` rather than silently succeeding.
 
 ### Concurrency
 
