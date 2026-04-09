@@ -36,6 +36,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.task_cancellation_timeout_seconds = 5
     hassette.config.command_executor_log_level = "INFO"
     hassette.config.telemetry_write_queue_max = 1000
+    hassette.config.db_write_queue_max = 2000
     hassette.ready_event = asyncio.Event()
     return hassette
 
@@ -365,6 +366,7 @@ def test_build_record_uses_session_id_directly(mock_hassette: MagicMock) -> None
     handler can fire, so RuntimeError from session_id is a programming error.
     """
     mock_hassette.config.telemetry_write_queue_max = 1000
+    mock_hassette.config.db_write_queue_max = 2000
     exc = CommandExecutor(mock_hassette, parent=mock_hassette)
     mock_hassette.session_id = 99
 
@@ -521,6 +523,7 @@ async def test_concurrent_registrations_do_not_raise(
     mock_hassette.config.resource_shutdown_timeout_seconds = 5
     mock_hassette.config.task_cancellation_timeout_seconds = 5
     mock_hassette.config.command_executor_log_level = "INFO"
+    mock_hassette.config.db_write_queue_max = 2000
     mock_hassette.ready_event = asyncio.Event()
 
     db_service = DatabaseService(mock_hassette, parent=mock_hassette)

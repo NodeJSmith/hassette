@@ -142,8 +142,7 @@ class DatabaseService(Service):
         except Exception:
             self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
-        queue_max = self.hassette.config.telemetry_write_queue_max * 2
-        self._db_write_queue = asyncio.Queue(maxsize=queue_max)
+        self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.db_write_queue_max)
         self._db_worker_task = asyncio.create_task(self._db_write_worker())
 
     async def serve(self) -> None:
@@ -300,9 +299,9 @@ class DatabaseService(Service):
         if len(heads) != 1:
             raise RuntimeError(f"Expected exactly one Alembic head, got: {heads}")
         head = heads[0]
-        if not head.isdigit():
+        if not head.isdigit() or len(head) < 3:
             raise RuntimeError(
-                f"Alembic revision ID {head!r} is not a zero-padded numeric string. "
+                f"Alembic revision ID {head!r} is not a zero-padded numeric string (≥3 digits). "
                 "This project uses numeric revision IDs (e.g. '001') for lexicographic comparison. "
                 "Use 'alembic revision --rev-id NNN' to generate correctly formatted IDs."
             )

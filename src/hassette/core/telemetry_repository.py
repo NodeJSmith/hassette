@@ -14,6 +14,15 @@ if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
 
+def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
+    """Return True if the IntegrityError is a foreign key constraint violation.
+
+    SQLite error messages for FK violations contain "FOREIGN KEY". Other
+    IntegrityError subtypes (CHECK, NOT NULL, UNIQUE) use different messages.
+    """
+    return "FOREIGN KEY" in str(exc).upper()
+
+
 class TelemetryRepository:
     """Encapsulates all write-side SQL for handler and job telemetry.
 
@@ -394,11 +403,12 @@ class TelemetryRepository:
         invocations: list[HandlerInvocationRecord],
         job_executions: list[JobExecutionRecord],
     ) -> int:
-        """Write records with FK violation fallback — all within a single transaction.
+        """Insert records row-by-row with FK violation fallback, in a single transaction.
 
-        First attempts a batch insert. On IntegrityError, falls back to row-by-row
-        insertion with FK fields nulled on violation. This runs as one submit() call
-        on the DB write queue, avoiding N round-trips.
+        Called by ``CommandExecutor._handle_fk_violation`` after a batch INSERT already
+        failed with IntegrityError. Each record is inserted individually; on FK violation
+        the FK field is nulled and retried. Runs as one ``submit()`` call on the DB write
+        queue, avoiding N round-trips.
 
         Returns the number of records that were dropped (failed even with null FK).
         """
@@ -432,7 +442,9 @@ class TelemetryRepository:
                             record.error_traceback,
                         ),
                     )
-                except sqlite3.IntegrityError:
+                except sqlite3.IntegrityError as exc:
+                    if not _is_fk_violation(exc):
+                        raise  # CHECK/NOT NULL/UNIQUE — not recoverable by nulling FK
                     logger.warning(
                         "FK violation on handler_invocations row (listener_id=%s) — nulling FK and retrying",
                         record.listener_id,
@@ -486,7 +498,9 @@ class TelemetryRepository:
                             record.error_traceback,
                         ),
                     )
-                except sqlite3.IntegrityError:
+                except sqlite3.IntegrityError as exc:
+                    if not _is_fk_violation(exc):
+                        raise  # CHECK/NOT NULL/UNIQUE — not recoverable by nulling FK
                     logger.warning(
                         "FK violation on job_executions row (job_id=%s) — nulling FK and retrying",
                         record.job_id,

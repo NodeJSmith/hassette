@@ -1142,7 +1142,7 @@ async def test_persist_batch_with_fk_fallback_drops_row_on_second_failure(
         if "INSERT INTO handler_invocations" in sql:
             call_count += 1
             if call_count == 1:
-                raise sqlite3.IntegrityError("simulated FK violation on first try")
+                raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
             if call_count == 2:
                 raise Exception("simulated hard failure on null-FK retry")
         if params is not None:
@@ -1179,7 +1179,7 @@ async def test_persist_batch_with_fk_fallback_drops_job_row_on_second_failure(
         if "INSERT INTO job_executions" in sql:
             call_count += 1
             if call_count == 1:
-                raise sqlite3.IntegrityError("simulated FK violation on first try")
+                raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
             if call_count == 2:
                 raise Exception("simulated hard failure on null-FK retry")
         if params is not None:

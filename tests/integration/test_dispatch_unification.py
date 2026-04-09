@@ -58,6 +58,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.log_all_hass_events = False
     hassette.config.log_all_hassette_events = False
     hassette.config.telemetry_write_queue_max = 1000
+    hassette.config.db_write_queue_max = 2000
     hassette.ready_event = asyncio.Event()
     return hassette
 

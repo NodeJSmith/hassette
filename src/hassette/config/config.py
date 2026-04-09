@@ -292,8 +292,12 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Maximum seconds to wait for Alembic migrations to complete at startup."""
 
     telemetry_write_queue_max: int = Field(default=1000, ge=1)
-    """Maximum number of pending write operations in the telemetry DB write queue before
-    backpressure is applied. Prevents unbounded memory growth during high-throughput bursts."""
+    """Maximum pending records in the CommandExecutor write queue before records are dropped."""
+
+    db_write_queue_max: int = Field(default=2000, ge=1)
+    """Maximum pending coroutines in the DatabaseService write queue. Bounds memory growth
+    under sustained I/O pressure. Fire-and-forget tasks are dropped on overflow; submit()
+    callers block until space is available."""
 
     # Service log levels
     #

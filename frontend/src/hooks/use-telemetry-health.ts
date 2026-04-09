@@ -51,12 +51,10 @@ export function useTelemetryHealth(appState: AppState): void {
       // errors during rolling restarts should not show "DB degraded".
       if (err instanceof ApiError && err.status === 503) {
         appState.telemetryDegraded.value = true;
-      } else {
-        // Network error or unexpected status — server unreachable, not DB-degraded.
-        // Keep telemetryDegraded at its current value (don't flip to true for
-        // transient connectivity issues). The backoff handles retry.
-        appState.telemetryDegraded.value = false;
       }
+      // Network error or unexpected status — leave telemetryDegraded unchanged.
+      // A prior 503 keeps it true; a fresh start keeps it false. The backoff
+      // handles retry and the next successful poll will clear it.
 
       // Apply exponential backoff: double current interval, cap at MAX
       const nextInterval = Math.min(currentIntervalMs.current * 2, MAX_INTERVAL_MS);

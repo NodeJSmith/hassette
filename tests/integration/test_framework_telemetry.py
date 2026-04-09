@@ -49,6 +49,7 @@ async def mock_hassette_with_db(tmp_path: Path) -> MagicMock:
     hassette.config.task_cancellation_timeout_seconds = 5
     hassette.config.command_executor_log_level = "INFO"
     hassette.config.telemetry_write_queue_max = 1000
+    hassette.config.db_write_queue_max = 2000
     hassette.ready_event = asyncio.Event()
 
     db_service = DatabaseService(hassette, parent=hassette)
