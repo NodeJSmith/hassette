@@ -55,7 +55,7 @@ The tag is updated on every push to the PR branch, so `docker pull` always fetch
     PR images are only built for Python 3.13 to keep CI fast. Releases still build all supported Python versions.
 
 !!! note "Fork PRs Not Published"
-    PRs opened from forks do **not** publish images — forks cannot authenticate to GHCR. To test a fork PR, pull the contributor's branch locally and build the image yourself, or ask a maintainer to rebase the PR into the main repository.
+    PRs opened from forks do **not** publish images — fork-PR workflows do not have the credentials or write permissions needed to push to this repository's GHCR package. To test a fork PR, pull the contributor's branch locally and build the image yourself, or ask a maintainer to rebase the PR into the main repository.
 
 !!! warning "Mutable Tag"
     `pr-<N>-py3.13` tags are mutable and will change as the PR evolves. Do not use them for reproducible builds — pin a version tag instead.
