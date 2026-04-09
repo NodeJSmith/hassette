@@ -2,6 +2,8 @@
 
 Hassette ships with `hassette.test_utils` — a set of utilities for testing your automations in isolation, without a running Home Assistant instance. You can simulate state changes, inspect API calls your app makes, and control time for scheduler tests.
 
+The core idea: `AppTestHarness` runs your app against a test-grade Hassette environment with a `RecordingApi` in place of a live HA connection. When your app calls `self.api.turn_on()`, `self.api.call_service()`, or any other API method, `RecordingApi` records those calls instead of contacting Home Assistant — you then assert on the recorder via `harness.api_recorder`.
+
 ## Installation
 
 `hassette.test_utils` is part of the main `hassette` package — no extra install required. You only need to add your test runner:
@@ -23,18 +25,21 @@ Add this to your `pyproject.toml` to configure pytest-asyncio:
 asyncio_mode = "auto"
 ```
 
+With `asyncio_mode = "auto"`, any `async def test_*` function is automatically treated as an async test — no `@pytest.mark.asyncio` decorator required. If you skip this config, your async tests will silently succeed **without actually running** — a silent false-green failure mode. The examples on this page assume `asyncio_mode = "auto"` is set.
+
+!!! note "`whenever` is installed automatically"
+    Time control examples on this page import from [`whenever`](https://whenever.readthedocs.io/) — Hassette's date/time library. It's a direct dependency of `hassette`, so it's installed automatically. No separate install needed.
+
 ## Quick Start
 
 Here's a complete test for an app that turns on a light when motion is detected:
 
 ```python
-import pytest
 from hassette.test_utils import AppTestHarness
 
 from my_apps.motion_lights import MotionLights
 
 
-@pytest.mark.asyncio
 async def test_light_turns_on_when_motion_detected():
     async with AppTestHarness(
         MotionLights,
@@ -43,15 +48,28 @@ async def test_light_turns_on_when_motion_detected():
         await harness.simulate_state_change(
             "binary_sensor.hallway", old_value="off", new_value="on"
         )
-        # turn_on delegates to call_service — assert on "call_service", not "turn_on"
         harness.api_recorder.assert_called(
             "call_service",
+            domain="light",
             service="turn_on",
             target={"entity_id": "light.hallway"},
         )
 ```
 
 After `async with`, the app is fully initialized and ready to receive events. The harness tears everything down cleanly when the `async with` block exits.
+
+!!! warning "`turn_on`, `turn_off`, and `toggle_service` are recorded as `call_service`"
+    Hassette's convenience methods (`self.api.turn_on`, `turn_off`, `toggle_service`) delegate to `call_service` internally, matching the real HA API. Your assertions must target `"call_service"`, not `"turn_on"`:
+
+    ```python
+    # ✅ Correct — matches the real delegation
+    harness.api_recorder.assert_called("call_service", service="turn_on", ...)
+
+    # ❌ Wrong — always fails silently with an AssertionError
+    harness.api_recorder.assert_called("turn_on", ...)
+    ```
+
+    See [Asserting API Calls](#asserting-api-calls) for the full assertion surface.
 
 ## The Test Harness
 
@@ -71,7 +89,7 @@ AppTestHarness(
 | Parameter | Description |
 |-----------|-------------|
 | `app_cls` | Your `App` subclass to test. |
-| `config` | Dict of config values, validated against the app's `AppConfig` subclass. |
+| `config` | Dict of config values. Keys must match the fields defined on your app's `AppConfig` subclass (see [App Configuration](../core-concepts/apps/configuration.md)). Invalid or missing fields raise `AppConfigurationError` during harness setup. |
 | `tmp_path` | Optional directory for Hassette data files. Created and cleaned up automatically if omitted. In pytest, pass the built-in `tmp_path` fixture to share a directory across multiple harnesses in one test. |
 
 ### Properties
@@ -105,10 +123,14 @@ async with AppTestHarness(ThermostatApp, config={...}) as harness:
 
 `set_states()` accepts either a plain state string or a `(state, attributes)` tuple.
 
-!!! warning "Seed state before simulating events"
-    `set_state()` is pre-test setup only — it does not fire bus events. Always call it **before** any `simulate_*` calls for the same entity. Calling `set_state()` after `simulate_state_change()` will silently overwrite the simulated state with the seeded value, which can produce misleading test results.
+!!! warning "`set_state()` does not fire bus events"
+    `set_state()` is for pre-test setup only. It writes directly to the state proxy without publishing a `state_changed` event, so **no handlers will fire**. Do not use `set_state()` mid-test to simulate a state transition — use [`simulate_state_change()`](#simulating-events) instead.
+
+    A second hazard: calling `set_state()` *after* a `simulate_state_change()` for the same entity will silently overwrite the simulated state with the seeded value, which can make subsequent reads return wrong values. Seed first, simulate second.
 
 ## Simulating Events
+
+If your handler reads entity state during handling (e.g., `self.states.light.get("light.kitchen")`), seed it first with [`harness.set_state()`](#state-seeding). Simulating an event does not update the state proxy automatically unless your handler writes back via the API.
 
 ### State changes
 
@@ -141,6 +163,20 @@ await harness.simulate_attribute_change(
     "brightness",
     old_value=128,
     new_value=255,
+)
+```
+
+The generated event carries the entity's current cached state for the `state` field. If you haven't seeded the entity with `set_state()` first, that field defaults to `"unknown"` — which silently breaks any state-conditional predicates on the same entity. You can pass an explicit `state=` to avoid this:
+
+```python
+await harness.set_state("light.kitchen", "on", brightness=128)
+# ...or pass state= explicitly for a one-off:
+await harness.simulate_attribute_change(
+    "light.kitchen",
+    "brightness",
+    old_value=128,
+    new_value=255,
+    state="on",  # avoids the "unknown" fallback
 )
 ```
 
@@ -187,8 +223,13 @@ await harness.simulate_state_change(
 )
 ```
 
-!!! note "Secondary work is not tracked"
-    Handlers that spawn additional work via `self.task_bucket.add(...)` are not tracked by the idle drain. The harness may return before that secondary work completes. Structure long-running work as awaited calls within the handler itself when possible.
+!!! warning "Fire-and-forget handler work is not tracked"
+    The drain waits for the bus dispatch queue to clear, but handlers that spawn fire-and-forget tasks via `self.task_bucket.add(...)` are **not** tracked — `simulate_*` may return before that secondary work completes, producing a false-idle signal.
+
+    If your test seems to pass but side effects don't appear, try one of:
+
+    - Restructure the handler to `await` the work inline instead of spawning a detached task
+    - Add `await asyncio.sleep(0.1)` after the `simulate_*` call to let the background task run (a timing-dependent workaround — prefer the restructure)
 
 ## Asserting API Calls
 
@@ -271,13 +312,11 @@ The canonical sequence for any time-control test is:
 ```python
 from whenever import Instant
 
-import pytest
 from hassette.test_utils import AppTestHarness
 
 from my_apps.reminder import ReminderApp
 
 
-@pytest.mark.asyncio
 async def test_reminder_fires_after_one_hour():
     async with AppTestHarness(ReminderApp, config={}) as harness:
         # 1. Freeze time at a known point
@@ -309,7 +348,7 @@ from whenever import Instant, ZonedDateTime
 harness.freeze_time(Instant.from_utc(2024, 6, 1, 8, 0, 0))
 
 # From a ZonedDateTime (when local time matters)
-harness.freeze_time(ZonedDateTime.from_tz_id(2024, 6, 1, 8, 0, 0, tz="America/Chicago"))
+harness.freeze_time(ZonedDateTime(2024, 6, 1, 8, 0, 0, tz="America/Chicago"))
 ```
 
 `freeze_time` is idempotent — calling it again replaces the frozen time. The clock is automatically unfrozen when the `async with` block exits.
@@ -447,7 +486,7 @@ state = make_switch_state_dict(entity_id="switch.outlet", state="off")
 
 ## Configuration Errors
 
-If the `config` dict you pass to `AppTestHarness` fails validation against your app's `AppConfig` class, the harness raises `AppConfigurationError` immediately — before the `async with` block is entered.
+If the `config` dict you pass to `AppTestHarness` fails validation against your app's `AppConfig` class, the harness raises `AppConfigurationError` during setup — the `async with` body is never entered, so your test code inside the block does not run.
 
 ```python
 from hassette.test_utils import AppConfigurationError
@@ -486,10 +525,11 @@ def test_config_defaults(tmp_path):
 
 `make_test_config` reads nothing from TOML files, env vars, or the CLI — only the values you pass are used. Pydantic validation still runs.
 
-**Defaults applied by `make_test_config`:**
+`data_dir` is **required** — pass a `tmp_path` fixture value in pytest. All other fields have test-appropriate defaults:
 
 | Field | Default |
 |-------|---------|
+| `data_dir` | **required — no default** |
 | `token` | `"test-token"` |
 | `base_url` | `"http://test.invalid:8123"` |
 | `disable_state_proxy_polling` | `True` |
@@ -497,7 +537,7 @@ def test_config_defaults(tmp_path):
 | `run_web_api` | `False` |
 | `run_app_precheck` | `False` |
 
-Pass `**overrides` to replace any of these:
+Pass `**overrides` to replace any of the defaults:
 
 ```python
 config = make_test_config(data_dir=tmp_path, token="my-real-token", run_web_api=True)
@@ -521,18 +561,34 @@ config = make_test_config(data_dir=tmp_path, token="my-real-token", run_web_api=
 - `rest_request()`
 - `delete_entity()`
 
-For these methods, seed the data you need via `harness.set_state()` and use the read methods that delegate to `StateProxy` (`get_state()`, `get_entity()`, `get_entity_or_none()`, `entity_exists()`, `get_state_or_none()`).
+For these methods, seed the data you need via `harness.set_state()` and use the read methods that delegate to `StateProxy`: `get_state()`, `get_states()`, `get_entity()`, `get_entity_or_none()`, `entity_exists()`, `get_state_or_none()`.
 
 !!! warning "`api.sync` is a `Mock()` instance"
     `harness.api_recorder.sync` is a `unittest.mock.Mock()`. Any attribute access or method call on it silently returns another `Mock` rather than raising `NotImplementedError`. If your app uses `self.api.sync.*` in the code path under test, `RecordingApi` will not catch that — your test may produce a false green. Use a full integration test for code paths that depend on `api.sync`.
 
-### Concurrency and xdist
+### Concurrency
 
-`freeze_time` uses a **process-global non-reentrant lock**. Only one harness at a time may hold the lock in a process, regardless of which App class it tests.
+The harness has two independent isolation mechanisms. Understanding which applies when prevents confusing deadlocks.
+
+#### Same-class concurrency (always applies)
+
+`AppTestHarness` holds a **per-App-class `asyncio.Lock`** for the entire `async with` block. This applies to every harness, whether or not you call `freeze_time`.
+
+- Two harnesses for the **same App class** cannot run concurrently in the same event loop. Do not use `asyncio.gather()` with multiple harnesses that share a class — the second one will deadlock waiting for the first's lock.
+- Two harnesses for **different App classes** can run concurrently in the same event loop without conflict.
+
+#### Time-control concurrency (`freeze_time` only)
+
+`freeze_time` additionally uses a **process-global non-reentrant lock**. Only one harness at a time may hold the time lock in a process, regardless of which App class it tests.
 
 - Sequential tests in the same worker are safe — the lock is released when the `async with` block exits cleanly.
-- Two harnesses for the same App class cannot run concurrently in the same event loop (no `asyncio.gather` with multiple harnesses).
-- For parallelized test suites with `pytest-xdist`, mark all tests that call `freeze_time` with the same group so they run on the same worker:
+- If two harnesses compete for the time lock, the second one raises `RuntimeError: freeze_time is already held by another harness`.
+
+#### Parallel test suites (pytest-xdist)
+
+If you run tests with `pytest-xdist` (`pytest -n auto` or `pytest -n <N>`), two parallel workers can each try to acquire the time lock in their own processes — but because the lock is process-global, each worker's lock is independent. The problem is that two time-control tests scheduled to *different* workers can race on which one actually sees frozen time for your assertions.
+
+Mark all tests that call `freeze_time` with the same `xdist_group` so they run on the same worker sequentially:
 
 ```python
 @pytest.mark.xdist_group("time_control")
@@ -542,7 +598,7 @@ async def test_reminder_fires_after_one_hour():
         ...
 ```
 
-If two harnesses compete for the lock, the second one raises `RuntimeError: freeze_time is already held by another harness`.
+If you run pytest sequentially (no `-n` flag), you do not need this marker.
 
 ### Harness startup failures
 
