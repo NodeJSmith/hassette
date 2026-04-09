@@ -1,6 +1,6 @@
 # Design: Close Three Safety Holes in hassette.test_utils
 
-**Status:** approved
+**Status:** archived
 **Spec:** 2035-test-utils-safety-holes
 **Date:** 2026-04-09
 **Revision:** 3 (applies findings from two rounds of challenge review)
