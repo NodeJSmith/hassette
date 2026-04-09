@@ -2,7 +2,7 @@ import inspect
 import typing
 from collections.abc import Generator
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from logging import getLogger
 from typing import Any, TypeVar
 
@@ -23,11 +23,19 @@ T = TypeVar("T")
 ## Setters ##
 
 
-def set_global_hassette(hassette: "Hassette") -> None:
-    """Set the global Hassette instance."""
+def set_global_hassette(hassette: "Hassette") -> "Token[Hassette] | None":
+    """Set the global Hassette instance.
+
+    Returns the Token from ContextVar.set() so the caller can later reset the
+    ContextVar (e.g., test harnesses that need to undo the context after teardown).
+    Returns None when the same instance is already set (early-return path — no token
+    is produced because no set() call was made).
+
+    Raises RuntimeError if a different Hassette instance is already set.
+    """
     curr_inst = HASSETTE_INSTANCE.get(None)
     if curr_inst is hassette:
-        return  # already set to the same instance
+        return None  # already set to the same instance
 
     if curr_inst is not None:
         extra_msg = f"Set at {HASSETTE_SET_LOCATION.get()}" if HASSETTE_SET_LOCATION.get() else ""
@@ -47,7 +55,7 @@ def set_global_hassette(hassette: "Hassette") -> None:
         where = "<unknown location>"
 
     HASSETTE_SET_LOCATION.set(where)
-    HASSETTE_INSTANCE.set(hassette)
+    return HASSETTE_INSTANCE.set(hassette)
 
 
 def set_global_hassette_config(config: "HassetteConfig") -> None:

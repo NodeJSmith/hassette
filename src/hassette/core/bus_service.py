@@ -56,6 +56,10 @@ class BusService(Service):
         self._executor = executor
         self.router = Router()
         self._pending_registration_tasks = defaultdict(list)
+        # Dispatch tracking for deterministic drain in test harnesses.
+        self._dispatch_pending: int = 0
+        self._dispatch_idle_event: asyncio.Event = asyncio.Event()
+        self._dispatch_idle_event.set()  # starts idle
         self._setup_exclusion_filters()
 
     @property
@@ -67,6 +71,13 @@ class BusService(Service):
     def config_log_all_events(self) -> bool:
         """Return whether to log all events."""
         return self.hassette.config.log_all_events
+
+    def _on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:
+        """Callback for dispatch task completion — decrements pending counter."""
+        self._dispatch_pending -= 1
+        if self._dispatch_pending <= 0:
+            self._dispatch_pending = 0  # guard against underflow
+            self._dispatch_idle_event.set()
 
     def _log_task_result(self, task: asyncio.Task[Any]) -> None:
         if task.cancelled():
@@ -253,7 +264,10 @@ class BusService(Service):
 
             self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
             for listener in listeners:
-                self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+                self._dispatch_pending += 1
+                self._dispatch_idle_event.clear()
+                task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+                task.add_done_callback(self._on_dispatch_done)
 
     def _expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
         payload = event.payload
@@ -365,6 +379,58 @@ class BusService(Service):
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()
+
+    async def await_dispatch_idle(self, *, timeout: float = 2.0) -> None:
+        """Wait until all dispatched handler tasks have completed.
+
+        Uses a monotonic dispatch counter (incremented on spawn, decremented on
+        task completion via ``_on_dispatch_done``) and an ``asyncio.Event`` that
+        is set when the counter reaches zero.
+
+        The method polls in a tight loop with short sleeps until the dispatch
+        counter reaches zero and *stays* zero after a stability check. This
+        handles the anyio memory channel pipeline: events may still be in
+        transit between ``EventStreamService.send_event()`` and
+        ``BusService.dispatch()`` when this method is first called. The
+        stability check (idle event set after a yield) confirms no new
+        dispatches were triggered by in-flight events.
+
+        Note:
+            This drains tasks spawned by ``BusService.dispatch()`` only. Handler
+            tasks that spawn secondary work via the app's own ``task_bucket`` are
+            not tracked here.
+
+        Args:
+            timeout: Maximum seconds to wait for dispatch tasks to complete.
+
+        Raises:
+            TimeoutError: If dispatch tasks are still running after ``timeout``.
+        """
+        deadline = asyncio.get_running_loop().time() + timeout
+
+        while True:
+            # Wait for in-flight dispatches to complete.
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"BusService dispatch tasks did not complete within {timeout}s "
+                    f"({self._dispatch_pending} dispatch tasks still pending)"
+                )
+            try:
+                await asyncio.wait_for(self._dispatch_idle_event.wait(), timeout=remaining)
+            except TimeoutError:
+                raise TimeoutError(
+                    f"BusService dispatch tasks did not complete within {timeout}s "
+                    f"({self._dispatch_pending} dispatch tasks still pending)"
+                ) from None
+
+            # Stability check: yield to let any in-transit events from the
+            # anyio memory channel reach serve() → dispatch(). If idle_event
+            # is still set after the yield, no new dispatches were triggered
+            # by in-flight events and we are truly idle.
+            await asyncio.sleep(0.005)
+            if self._dispatch_idle_event.is_set():
+                break
 
     async def serve(self) -> None:
         """Worker loop that processes events from the stream."""
