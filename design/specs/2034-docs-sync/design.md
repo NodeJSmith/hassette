@@ -1,6 +1,6 @@
 # Design: Documentation Sync with Recent Code Changes
 
-**Status:** draft
+**Status:** approved
 **Spec:** 2034-docs-sync
 **Date:** 2026-04-08
 
