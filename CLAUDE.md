@@ -208,6 +208,12 @@ Internal design documents live in `design/`, not in `docs/` (which is the readth
 
 See `design/README.md` for the full guide on what goes where.
 
+## Changelog
+
+**Do NOT manually edit `CHANGELOG.md`.** This repo uses [release-please](https://github.com/googleapis/release-please) to generate the changelog automatically from conventional commit messages. Manual edits will conflict with release-please's PR and get overwritten.
+
+The changelog is derived entirely from commit types (`feat`, `fix`, `perf`, etc.) — write good commit messages and the changelog takes care of itself.
+
 ## Code Style
 
 - Line length: 120 characters
