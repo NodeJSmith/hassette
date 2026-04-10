@@ -6,6 +6,7 @@ that the two sides share the same calls list.
 """
 
 import asyncio
+import inspect
 import threading
 import types
 from enum import StrEnum
@@ -333,8 +334,16 @@ async def test_sync_get_state_or_none_returns_none_for_unseeded():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_sync_getattr_raises_notimplementederror_with_default_message_for_unknown_method():
-    """Accessing an unknown public method on sync raises NotImplementedError via __getattr__ with seed-state message."""
+    """Accessing an unknown public method on sync raises NotImplementedError via __getattr__ with seed-state message.
+
+    Marked ``@pytest.mark.asyncio`` explicitly (rather than relying on the global
+    ``asyncio_mode = "auto"`` setting) so the test survives a future switch to
+    ``asyncio_mode = "strict"``. The function is ``async`` because
+    ``_make_hassette_stub()`` calls ``asyncio.get_running_loop()`` during
+    construction, which requires an active event loop.
+    """
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.some_unknown_method()
@@ -360,8 +369,16 @@ async def test_sync_call_service_target_dict_is_shallow_copied():
     )
 
 
+@pytest.mark.asyncio
 async def test_sync_private_attributes_raise_attribute_error():
-    """Accessing a private attribute on sync raises AttributeError, not NotImplementedError."""
+    """Accessing a private attribute on sync raises AttributeError, not NotImplementedError.
+
+    Marked ``@pytest.mark.asyncio`` explicitly (rather than relying on the global
+    ``asyncio_mode = "auto"`` setting) so the test survives a future switch to
+    ``asyncio_mode = "strict"``. The function is ``async`` because
+    ``_make_hassette_stub()`` calls ``asyncio.get_running_loop()`` during
+    construction, which requires an active event loop.
+    """
     api = _make_recording_api()
     with pytest.raises(AttributeError):
         _ = api.sync._something_private
@@ -436,6 +453,31 @@ async def test_body_copied_methods_are_sync():
         ("turn_off", ("sensor.test",), {}),
         ("turn_on", ("sensor.test",), {}),
     ]
+
+    # Drift guard: the set of methods we invoke above must exactly match the set of
+    # body-copied methods on the live generated class. Without this, adding a new
+    # body-copied method to RecordingApi would silently escape the smoke test — giving
+    # false confidence that a newly-body-copied method returning a coroutine would be
+    # caught. Body-copied methods are identified by the ABSENCE of the generator's
+    # standard stub template. The generator emits stubs as either
+    # ``raise NotImplementedError(_STUB_MSG_GENERIC.format(...))`` or
+    # ``raise NotImplementedError(_STUB_MSG_STATE_CONVERSION.format(...))``; any method
+    # whose source contains neither marker has a real (body-copied) implementation.
+    body_copied_on_class: set[str] = set()
+    for method_name, member in inspect.getmembers(_RecordingSyncFacade, predicate=inspect.isfunction):
+        if method_name.startswith("_"):
+            continue
+        src = inspect.getsource(member)
+        if "_STUB_MSG_GENERIC" not in src and "_STUB_MSG_STATE_CONVERSION" not in src:
+            body_copied_on_class.add(method_name)
+
+    invoked_names = {name for name, _, _ in invocations}
+    assert invoked_names == body_copied_on_class, (
+        f"Smoke test invocation list drifted from the generated _RecordingSyncFacade class.\n"
+        f"  In facade but not invoked: {sorted(body_copied_on_class - invoked_names)}\n"
+        f"  Invoked but not in facade: {sorted(invoked_names - body_copied_on_class)}\n"
+        f"Update `invocations` in this test to match the generator's current output."
+    )
 
     for method_name, args, kwargs in invocations:
         method = getattr(facade, method_name)

@@ -6,13 +6,24 @@ parity check as collateral damage.
 """
 
 import inspect
+import sys
+from pathlib import Path
 
 from hassette.api.api import Api
 from hassette.test_utils.recording_api import RecordingApi
 
-# Write-method names from ApiProtocol (the source-of-truth for what RecordingApi
-# must implement). These are derived from the "# Write methods" section of
-# ApiProtocol and must be updated if Api gains new write methods.
+# Import LIFECYCLE_METHODS from the generator so this test shares the exact same
+# set of lifecycle hook names with the generator's filtering logic. Without this,
+# an override of a lifecycle hook (e.g. on_initialize) on either Api or RecordingApi
+# would be miscategorized by the parity test as a "write method" and pass or fail
+# based on whether the other side happens to also override it — a brittle coincidence.
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(_REPO_ROOT / "tools"))
+from generate_sync_facade import LIFECYCLE_METHODS  # noqa: E402
+
+# Read-method names — these are excluded from the write-method derivation below.
+# Lifecycle hooks are handled separately via LIFECYCLE_METHODS (imported above) so
+# this set only needs to enumerate actual read methods, not hook overrides.
 #
 # Identifying write vs read methods: any method that mutates HA state or fires
 # an event is a write method. The authoritative list lives in ApiProtocol, which
@@ -80,10 +91,10 @@ def test_api_write_methods_covered_by_recording_api() -> None:
     api_async_methods = _public_async_methods(Api)
     recording_api_async_methods = _public_async_methods(RecordingApi)
 
-    # Derive write methods: Api's public async methods minus the known-read set.
-    # This is conservative — if Api has a new method we haven't classified, it
-    # will appear here and force an explicit classification decision.
-    write_methods_on_api = api_async_methods - _KNOWN_READ_METHODS
+    # Derive write methods: Api's public async methods minus read methods and
+    # lifecycle hooks. This is conservative — if Api has a new method we haven't
+    # classified, it will appear here and force an explicit classification decision.
+    write_methods_on_api = api_async_methods - _KNOWN_READ_METHODS - LIFECYCLE_METHODS
 
     missing = write_methods_on_api - recording_api_async_methods
     assert not missing, (

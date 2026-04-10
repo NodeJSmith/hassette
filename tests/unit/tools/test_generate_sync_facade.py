@@ -21,6 +21,7 @@ from generate_sync_facade import (  # noqa: E402
     _collect_referenced_symbols,
     _derive_recording_imports_strict,
     _format_via_ruff,
+    _is_not_implemented_only,
     _RecordingBodyRewriter,
     gen_recording_method,
     generate_sync_recording,
@@ -339,3 +340,73 @@ def test_generate_recording_produces_valid_python() -> None:
         py_compile.compile(tmp_path, doraise=True)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Test 11: _is_not_implemented_only authoring contract
+# ---------------------------------------------------------------------------
+
+
+def test_is_not_implemented_only_recognizes_canonical_stub_idiom() -> None:
+    """The canonical RecordingApi stub idiom is recognized as a stub.
+
+    This is the ACTUAL idiom used throughout ``RecordingApi``: a bare
+    ``_not_implemented("name")`` expression followed by a ``raise RuntimeError("unreachable")``
+    sentinel for the type checker. This test exercises the ``ast.Expr(ast.Call)`` branch
+    of ``_is_not_implemented_only`` — the branch that handles the real stub shape — so
+    a regression that breaks the ``_not_implemented`` name-check would be caught here
+    rather than silently slipping through via the blanket ``ast.Raise`` fallback.
+    """
+    func = _parse_func(
+        """\
+async def foo(self):
+    _not_implemented("foo")
+    raise RuntimeError("unreachable")
+"""
+    )
+    assert _is_not_implemented_only(func) is True
+
+
+def test_is_not_implemented_only_recognizes_bare_not_implemented_call() -> None:
+    """A body consisting of only ``_not_implemented("name")`` (no trailing raise) is a stub.
+
+    This exercises the ``ast.Expr(ast.Call)`` branch in isolation — without the
+    ``ast.Raise`` sentinel that the canonical idiom adds for the type checker.
+    """
+    func = _parse_func(
+        """\
+async def foo(self):
+    _not_implemented("foo")
+"""
+    )
+    assert _is_not_implemented_only(func) is True
+
+
+def test_is_not_implemented_only_recognizes_direct_raise_notimplementederror() -> None:
+    """A body that uses ``raise NotImplementedError(...)`` directly is also a stub.
+
+    ``_is_not_implemented_only`` treats any ``raise`` statement as a stub marker, so
+    both the canonical ``_not_implemented(name)`` idiom and a direct
+    ``raise NotImplementedError(...)`` are classified as stubs. This pins the behavior
+    so the authoring-contract documentation in ``RecordingApi``'s class docstring stays
+    honest about both forms being accepted.
+    """
+    func = _parse_func(
+        """\
+async def foo(self):
+    raise NotImplementedError("foo is not supported")
+"""
+    )
+    assert _is_not_implemented_only(func) is True
+
+
+def test_is_not_implemented_only_rejects_real_body() -> None:
+    """A body with real work (e.g. calls, returns, assignments) is NOT a stub."""
+    func = _parse_func(
+        """\
+async def foo(self):
+    x = self._do_work()
+    return x
+"""
+    )
+    assert _is_not_implemented_only(func) is False

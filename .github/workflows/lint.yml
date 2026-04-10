@@ -29,8 +29,13 @@ jobs:
                   SKIP=eslint uvx pre-commit run --all-files --hook-stage pre-push
 
             - name: Fail if generators produced drift
+              # Uses the generator's --check mode, which runs ruff on both the committed
+              # file and the freshly generated content inside the same invocation. This
+              # makes the comparison ruff-version-agnostic — the same ruff binary
+              # normalizes both sides. A plain `git diff` approach would depend on the
+              # pre-commit hook and `uv tool install ruff==X` staying in lockstep.
               run: |
-                  if ! git diff --exit-code; then
+                  if ! uv run tools/generate_sync_facade.py --target both --check; then
                     echo ""
                     echo "ERROR: generated files are out of date. Re-run locally and commit:"
                     echo "  uv run tools/generate_sync_facade.py --target both"

@@ -4,9 +4,11 @@
 # ///
 import argparse
 import ast
+import builtins
 import contextlib
 import copy
 import itertools
+import py_compile
 import subprocess
 import sys
 import tempfile
@@ -30,7 +32,10 @@ _STUB_MSG_GENERIC = (
 _STATE_CONVERSION_METHODS = frozenset({"get_state_value", "get_state_value_typed", "get_attribute"})
 
 # Module-level sets for filtering body-referenced Name nodes during import derivation.
-_BUILTIN_NAMES: frozenset[str] = frozenset(dir(__builtins__))  # pyright: ignore[reportArgumentType]
+# Use the `builtins` module directly rather than `__builtins__`, which is a dict when
+# this file is imported as a module (e.g., under pytest) and returns dict methods instead
+# of the 159 actual Python builtins.
+_BUILTIN_NAMES: frozenset[str] = frozenset(dir(builtins))
 _WELL_KNOWN_NAMES: frozenset[str] = frozenset(
     {"self", "None", "True", "False", "NotImplementedError", "RuntimeError", "TypeError"}
 )
@@ -411,6 +416,53 @@ def run_ruff(path: Path) -> None:
         raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
     except subprocess.TimeoutExpired as exc:
         raise SystemExit("ruff timed out after 30s — check for filesystem stall") from exc
+
+
+def _atomic_write_generated(out_path: Path, content: str) -> None:
+    """Atomically write generated source, run ruff + py_compile, then rename into place.
+
+    A previous non-atomic implementation wrote the raw output in-place and then ran ruff
+    over the committed file. A Ctrl-C, OOM kill, or ruff timeout between those steps left
+    the committed file in an unformatted or partially-written state — which the CI drift
+    gate then flagged spuriously on the next push.
+
+    This helper writes to a temp file in the same directory (so ``Path.replace`` is
+    atomic on the same filesystem), runs the full ``ruff`` pipeline and a ``py_compile``
+    safety net against the temp file, and only atomically replaces the committed file
+    if every step succeeds. If anything fails, the temp file is removed and the
+    committed file is left untouched.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Path | None = None
+    try:
+        # delete=False so we can close, run ruff on the path, then os.replace it.
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf8",
+            dir=out_path.parent,
+            prefix=f".{out_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as fp:
+            fp.write(content)
+            tmp_path = Path(fp.name)
+
+        run_ruff(tmp_path)
+
+        # Post-generation safety net: verify the output compiles. Catches missing imports
+        # for type-annotation-only symbols that slip past ``ruff check`` but would fail
+        # at import/type-check time.
+        try:
+            py_compile.compile(str(tmp_path), doraise=True)
+        except py_compile.PyCompileError as exc:
+            raise SystemExit(f"Generated file failed py_compile (target: {out_path}): {exc}") from exc
+
+        tmp_path.replace(out_path)
+        tmp_path = None
+    finally:
+        if tmp_path is not None:
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
 
 
 # ---------------------------------------------------------------------------
@@ -1014,10 +1066,15 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
                 type_checking_extra_lines.append(f"    {precise}")
     type_checking_imports = ("\n" + "\n".join(type_checking_extra_lines) + "\n") if type_checking_extra_lines else "\n"
 
-    # Optional: warn about signature default mismatches
+    # Optional: warn about signature default mismatches. Only applies to body-copied
+    # methods — stub-tier methods inherit their signature from Api and never carry
+    # RecordingApi defaults, so a "mismatch" there is a false positive that trains
+    # developers to ignore the warning entirely.
     for api_func in api_methods:
         if api_func.name in recording_async_map:
             rec_func_check = recording_async_map[api_func.name]
+            if _is_not_implemented_only(rec_func_check):
+                continue
             api_defaults = [ast.unparse(d) for d in api_func.args.defaults]
             rec_defaults = [ast.unparse(d) for d in rec_func_check.args.defaults]
             if api_defaults != rec_defaults:
@@ -1137,8 +1194,7 @@ def main() -> None:
             if not _check_drift(out_path, api_code, "ApiSyncFacade"):
                 any_drift = True
         else:
-            out_path.write_text(api_code, encoding="utf8")
-            run_ruff(out_path)
+            _atomic_write_generated(out_path, api_code)
             print(f"Wrote {out_path}")
 
     if run_recording:
@@ -1149,8 +1205,7 @@ def main() -> None:
             if not _check_drift(recording_out, recording_code, "_RecordingSyncFacade"):
                 any_drift = True
         else:
-            recording_out.write_text(recording_code, encoding="utf8")
-            run_ruff(recording_out)
+            _atomic_write_generated(recording_out, recording_code)
             print(f"Wrote {recording_out}")
 
     if args.check and any_drift:

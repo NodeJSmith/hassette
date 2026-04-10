@@ -7,6 +7,7 @@ Intended for use with AppTestHarness. Users who need full HTTP-level
 fidelity should use a full integration test with a live HA connection.
 """
 
+import copy
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
 
@@ -89,11 +90,22 @@ class RecordingApi(Resource):
 
     Unstubbed methods raise NotImplementedError with guidance on alternatives.
 
-    Authoring constraint: Methods on this class must not call other ``async def``
-    methods on ``self`` directly; use sync helpers (``_get_raw_state``,
-    ``_convert_state``) instead. Violating this constraint will fail the
-    ``_RecordingSyncFacade`` generator with a clear error pointing at the
-    offending call site.
+    Authoring constraints (enforced by the ``_RecordingSyncFacade`` generator):
+
+    1. Methods must not call other ``async def`` methods on ``self`` directly;
+       use sync helpers (``_get_raw_state``, ``_convert_state``) instead.
+       Violating this constraint will fail the generator with a clear error
+       pointing at the offending call site.
+
+    2. Stub methods — those that should raise ``NotImplementedError`` on the
+       sync side rather than be body-copied into the facade — should use
+       ``self._not_implemented(name)`` for the canonical helpful error message
+       on the async side. The ``_RecordingSyncFacade`` generator detects
+       stub-tier methods by recognizing any body that contains only
+       docstrings, ``raise`` statements, and/or ``_not_implemented()`` calls,
+       so ``raise NotImplementedError(...)`` works too, but
+       ``self._not_implemented(name)`` is preferred because the helper returns
+       an exception with the project's standard seed-state guidance.
 
     Example::
 
@@ -201,9 +213,11 @@ class RecordingApi(Resource):
                 kwargs={
                     "domain": domain,
                     "service": service,
-                    # Shallow-copy target at record time so later caller mutations do not
-                    # alter the recorded assertion surface (immutability principle).
-                    "target": dict(target) if target is not None else None,
+                    # Deep-copy target at record time so later caller mutations — including
+                    # mutations to nested lists like `{"entity_id": [...]}`, which HA entity
+                    # targets frequently contain — do not alter the recorded assertion
+                    # surface (immutability principle).
+                    "target": copy.deepcopy(target),
                     "return_response": return_response,
                     **data,
                 },
@@ -225,12 +239,13 @@ class RecordingApi(Resource):
             ApiCall(
                 method="set_state",
                 args=(entity_id, state),
-                # Shallow-copy attributes at record time so later caller mutations do not
-                # alter the recorded assertion surface (immutability principle).
+                # Deep-copy attributes at record time so later caller mutations —
+                # including mutations to nested structures — do not alter the recorded
+                # assertion surface (immutability principle).
                 kwargs={
                     "entity_id": entity_id,
                     "state": state,
-                    "attributes": dict(attributes) if attributes is not None else None,
+                    "attributes": copy.deepcopy(attributes),
                 },
             )
         )
@@ -246,9 +261,10 @@ class RecordingApi(Resource):
             ApiCall(
                 method="fire_event",
                 args=(event_type,),
-                # Shallow-copy event_data at record time so later caller mutations do not
-                # alter the recorded assertion surface (immutability principle).
-                kwargs={"event_type": event_type, "event_data": dict(event_data) if event_data is not None else None},
+                # Deep-copy event_data at record time so later caller mutations —
+                # including mutations to nested structures — do not alter the recorded
+                # assertion surface (immutability principle).
+                kwargs={"event_type": event_type, "event_data": copy.deepcopy(event_data)},
             )
         )
         return {}

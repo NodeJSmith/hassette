@@ -32,10 +32,14 @@ repos:
         files: ^frontend/src/
 
       # regenerate sync.py
+      # language: system + uv run so the hook uses the same PEP 723 script metadata
+      # path as local development — otherwise any future generator dependency added
+      # to the `# /// script` block would install locally but silently not install
+      # under the hook's implicit `python` environment.
       - id: generate_sync_facade
         name: Generate sync.py facade
-        language: python
-        entry: python tools/generate_sync_facade.py --target api
+        language: system
+        entry: uv run tools/generate_sync_facade.py --target api
         pass_filenames: false
         files: src/hassette/api/api.py
         stages:
@@ -44,8 +48,8 @@ repos:
       # regenerate _RecordingSyncFacade in sync_facade.py
       - id: generate_recording_sync_facade
         name: Generate _RecordingSyncFacade
-        language: python
-        entry: python tools/generate_sync_facade.py --target recording
+        language: system
+        entry: uv run tools/generate_sync_facade.py --target recording
         pass_filenames: false
         files: (src/hassette/test_utils/recording_api\.py|src/hassette/api/api\.py|tools/generate_sync_facade\.py)
         stages:
