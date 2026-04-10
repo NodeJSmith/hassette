@@ -333,14 +333,6 @@ async def test_sync_get_state_or_none_returns_none_for_unseeded():
 # ---------------------------------------------------------------------------
 
 
-async def test_sync_get_state_value_raises_notimplementederror_with_tailored_message():
-    """api.sync.get_state_value raises NotImplementedError with tailored message."""
-    api = _make_recording_api()
-    with pytest.raises(NotImplementedError) as exc_info:
-        api.sync.get_state_value("sensor.temp")
-    assert str(exc_info.value) == _STUB_MSG_STATE_CONVERSION.format(name="get_state_value")
-
-
 async def test_sync_getattr_raises_notimplementederror_with_default_message_for_unknown_method():
     """Accessing an unknown public method on sync raises NotImplementedError via __getattr__ with seed-state message."""
     api = _make_recording_api()

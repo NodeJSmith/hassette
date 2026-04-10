@@ -332,10 +332,22 @@ def generate_sync(api_path: Path) -> str:
 
 
 def _format_via_ruff(content: str) -> str:
-    """Write content to a temp file, run ruff format on it, return formatted content.
+    """Write content to a temp file, normalize it through ruff, return the result.
 
     The temp file is placed in tempfile.gettempdir() (outside the repo) so that
     --check mode never leaves files inside the worktree that would confuse git.
+
+    Applies the **byte-affecting** subset of ``run_ruff``'s steps — ``ruff
+    format`` and the import-sort fix (``ruff check --fix --select I``) — so
+    that --check-mode comparison and the on-disk write path produce
+    byte-identical output. The third step ``run_ruff`` runs (``ruff check``
+    validation, no --fix) is intentionally skipped here because it does not
+    modify file bytes; running it would only slow check mode without
+    affecting the comparison.
+
+    Without the isort step here, the generator's raw output (with unsorted
+    imports) would never byte-equal the on-disk committed file (which was
+    sorted by ``run_ruff`` at write time), producing a false drift signal.
     """
     tmp_path: str | None = None
     try:
@@ -352,6 +364,13 @@ def _format_via_ruff(content: str) -> str:
         try:
             subprocess.run(
                 ["ruff", "format", tmp_path],
+                check=True,
+                timeout=30,
+            )
+            # Apply the same isort step as run_ruff() so the comparison is
+            # symmetric — the on-disk committed file was sorted at write time.
+            subprocess.run(
+                ["ruff", "check", "--fix", "--select", "I", tmp_path],
                 check=True,
                 timeout=30,
             )

@@ -52,14 +52,16 @@ _KNOWN_READ_METHODS: frozenset[str] = frozenset(
 
 
 def _public_async_methods(cls: type) -> set[str]:
-    """Return public async method names defined on cls or its non-Resource ancestors.
+    """Return public async method names defined directly on cls (not inherited).
 
-    Excludes methods that start with underscore.
+    Uses ``vars(cls)`` (not ``inspect.getmembers``) so that ``Resource``
+    lifecycle methods inherited by both ``Api`` and ``RecordingApi`` do NOT
+    appear in the comparison. Otherwise, an override of a lifecycle method on
+    one side but not the other would surface as a confusing "write method
+    missing" failure here.
     """
     return {
-        name
-        for name, member in inspect.getmembers(cls, predicate=inspect.iscoroutinefunction)
-        if not name.startswith("_")
+        name for name, member in vars(cls).items() if not name.startswith("_") and inspect.iscoroutinefunction(member)
     }
 
 
