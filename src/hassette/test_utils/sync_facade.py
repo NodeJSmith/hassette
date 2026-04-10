@@ -9,7 +9,7 @@ import copy
 import typing
 from collections.abc import Generator
 from enum import StrEnum
-from typing import Any, cast
+from typing import Any
 
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
@@ -193,36 +193,38 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         return entity_id in self._parent._state_proxy.states
 
-    def get_entity(self, entity_id: str, model: type[Any] = BaseState) -> BaseState:
-        """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded.
+    def get_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity:
+        """Return a pydantic-validated entity wrapper for entity_id.
 
-        When ``model`` is a :class:`~hassette.models.entities.base.BaseEntity` subclass,
-        the raw state dict is validated through ``model.model_validate({"state": raw})``,
-        mirroring the real ``Api.get_entity`` behavior. This ensures tests catch type
-        mismatches that would surface in production.
+        Matches the real ``Api.get_entity`` signature exactly — ``model`` is required
+        and must be a :class:`~hassette.models.entities.base.BaseEntity` subclass.
+        Callers that want registry-converted state without a specific entity model
+        should call :meth:`get_state` instead.
 
-        When ``model`` is the default ``BaseState``, falls back to state-registry conversion
-        (same as :meth:`get_state`)."""
+        Raises:
+            TypeError: If ``model`` is not a ``BaseEntity`` subclass.
+            EntityNotFoundError: If ``entity_id`` is not seeded."""
 
+        if not issubclass(model, BaseEntity):
+            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
         raw = self._parent._get_raw_state(entity_id)
-        if model is not BaseState and issubclass(model, BaseEntity):
-            return cast("BaseState", model.model_validate({"state": raw}))
-        return self._parent._convert_state(raw, entity_id)
+        return model.model_validate({"state": raw})
 
-    def get_entity_or_none(self, entity_id: str, model: type[Any] = BaseState) -> BaseState | None:
-        """Return the typed state for entity_id, or None if not seeded.
+    def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None:
+        """Return a pydantic-validated entity wrapper for entity_id, or None if not seeded.
 
         Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
         ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``_RecordingSyncFacade`` generator."""
+        by the ``_RecordingSyncFacade`` generator. Matches the real
+        ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics."""
 
+        if not issubclass(model, BaseEntity):
+            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
         try:
             raw = self._parent._get_raw_state(entity_id)
         except EntityNotFoundError:
             return None
-        if model is not BaseState and issubclass(model, BaseEntity):
-            return cast("BaseState", model.model_validate({"state": raw}))
-        return self._parent._convert_state(raw, entity_id)
+        return model.model_validate({"state": raw})
 
     def get_state(self, entity_id: str) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded."""

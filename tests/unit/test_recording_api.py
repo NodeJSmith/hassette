@@ -222,27 +222,12 @@ async def test_get_states_returns_list_of_base_states():
     assert entity_ids == {"light.a", "light.b"}
 
 
-@pytest.mark.asyncio
-async def test_get_entity_delegates_to_state_proxy():
-    state_dict = make_state_dict(entity_id="light.kitchen", state="on")
-    api = _make_recording_api(states={"light.kitchen": state_dict})
-
-    result = await api.get_entity("light.kitchen")
-    assert result.entity_id == "light.kitchen"
-
-
-@pytest.mark.asyncio
-async def test_get_entity_raises_for_missing():
-    api = _make_recording_api(states={})
-    with pytest.raises(EntityNotFoundError):
-        await api.get_entity("light.missing")
-
-
-@pytest.mark.asyncio
-async def test_get_entity_or_none_returns_none():
-    api = _make_recording_api(states={})
-    result = await api.get_entity_or_none("light.missing")
-    assert result is None
+# Note: the "no-model" path that used to live here as test_get_entity_*
+# tests is now served by the existing get_state/get_state_or_none coverage
+# above. RecordingApi.get_entity / get_entity_or_none require an explicit
+# BaseEntity subclass model (matching the real Api.get_entity signature);
+# the "registry-converted typed state, no specific entity model" use case
+# is get_state's job.
 
 
 # ---------------------------------------------------------------------------

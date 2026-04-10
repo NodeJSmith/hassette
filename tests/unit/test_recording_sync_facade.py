@@ -17,6 +17,7 @@ import pytest
 from hassette.conversion import STATE_REGISTRY
 from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError
+from hassette.models.entities.light import LightEntity
 from hassette.models.services import ServiceResponse
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
@@ -275,31 +276,9 @@ async def test_sync_get_states_returns_all_seeded_entities():
     assert entity_ids == {"light.a", "light.b"}
 
 
-# ---------------------------------------------------------------------------
-# Read method: get_entity
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_sync_get_entity_with_base_state_model():
-    """sync.get_entity with default model returns typed state via state registry."""
-    state_dict = make_state_dict(entity_id="light.kitchen", state="on")
-    api = _make_recording_api(states={"light.kitchen": state_dict})
-    result = api.sync.get_entity("light.kitchen")
-    assert result.entity_id == "light.kitchen"
-
-
-# ---------------------------------------------------------------------------
-# Read method: get_entity_or_none
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_sync_get_entity_or_none_returns_none_for_unseeded():
-    """sync.get_entity_or_none returns None (not an exception) for unseeded entities."""
-    api = _make_recording_api(states={})
-    result = api.sync.get_entity_or_none("light.missing")
-    assert result is None
+# Note: sync.get_entity / sync.get_entity_or_none require an explicit BaseEntity
+# subclass model (matching the real Api signature). The "registry-converted typed
+# state, no specific entity model" use case is served by sync.get_state above.
 
 
 # ---------------------------------------------------------------------------
@@ -434,8 +413,11 @@ async def test_body_copied_methods_are_sync():
     get_state, get_state_or_none, get_states, set_state, toggle_service,
     turn_off, turn_on
     """
-    state_dict = make_state_dict(entity_id="sensor.test", state="on", attributes={})
-    api = _make_recording_api(states={"sensor.test": state_dict})
+    # Seed both a sensor (for get_state-style calls) and a light (for get_entity
+    # calls that require a real BaseEntity subclass).
+    sensor_state = make_state_dict(entity_id="sensor.test", state="on", attributes={})
+    light_state = make_state_dict(entity_id="light.test", state="on", attributes={"brightness": 200})
+    api = _make_recording_api(states={"sensor.test": sensor_state, "light.test": light_state})
     facade = api.sync
 
     # Each entry is (method_name, positional_args, keyword_args)
@@ -443,8 +425,8 @@ async def test_body_copied_methods_are_sync():
         ("call_service", ("light", "turn_on"), {}),
         ("entity_exists", ("sensor.test",), {}),
         ("fire_event", ("custom_event",), {}),
-        ("get_entity", ("sensor.test",), {}),
-        ("get_entity_or_none", ("sensor.test",), {}),
+        ("get_entity", ("light.test", LightEntity), {}),
+        ("get_entity_or_none", ("light.test", LightEntity), {}),
         ("get_state", ("sensor.test",), {}),
         ("get_state_or_none", ("sensor.test",), {}),
         ("get_states", (), {}),
