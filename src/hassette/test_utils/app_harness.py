@@ -47,7 +47,7 @@ from hassette.config.classes import AppManifest
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.test_utils.config import make_test_config
-from hassette.test_utils.exceptions import DrainError
+from hassette.test_utils.exceptions import DrainError, DrainTimeout
 from hassette.test_utils.harness import HassetteHarness, wait_for
 from hassette.test_utils.helpers import create_call_service_event, create_state_change_event, make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
@@ -609,6 +609,17 @@ class AppTestHarness:
             old_attrs: Previous attributes dict (optional).
             new_attrs: New attributes dict (optional).
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler task raised a non-cancellation exception.
+                When a timeout also occurs, this is the primary exception
+                raised, chained from a ``DrainTimeout``.
+            DrainTimeout: If the drain does not reach quiescence within
+                ``timeout`` and no handler exceptions were collected.
+
+        Both ``DrainError`` and ``DrainTimeout`` inherit from ``DrainFailure``,
+        so callers can catch either outcome uniformly with
+        ``except DrainFailure:``.
         """
         harness = self._harness
         if harness is None:
@@ -668,6 +679,17 @@ class AppTestHarness:
                 current cached state for the entity is used (defaulting to ``"unknown"``
                 if the entity is unseeded).
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler task raised a non-cancellation exception.
+                When a timeout also occurs, this is the primary exception
+                raised, chained from a ``DrainTimeout``.
+            DrainTimeout: If the drain does not reach quiescence within
+                ``timeout`` and no handler exceptions were collected.
+
+        Both ``DrainError`` and ``DrainTimeout`` inherit from ``DrainFailure``,
+        so callers can catch either outcome uniformly with
+        ``except DrainFailure:``.
         """
         harness = self._harness
         if harness is None:
@@ -708,6 +730,17 @@ class AppTestHarness:
             service: Service name (e.g., "turn_on").
             timeout: Maximum seconds to wait for handlers to complete.
             **data: Service call data.
+
+        Raises:
+            DrainError: If any handler task raised a non-cancellation exception.
+                When a timeout also occurs, this is the primary exception
+                raised, chained from a ``DrainTimeout``.
+            DrainTimeout: If the drain does not reach quiescence within
+                ``timeout`` and no handler exceptions were collected.
+
+        Both ``DrainError`` and ``DrainTimeout`` inherit from ``DrainFailure``,
+        so callers can catch either outcome uniformly with
+        ``except DrainFailure:``.
         """
         harness = self._harness
         if harness is None:
@@ -734,10 +767,16 @@ class AppTestHarness:
             timeout: Maximum seconds to wait.
 
         Raises:
-            TimeoutError: If drain does not reach quiescence within ``timeout``.
-                When exceptions were also collected, raises ``DrainError`` chained
-                from the ``TimeoutError`` so the handler crash is visible.
             DrainError: If any handler task raised a non-cancellation exception.
+                When a timeout also occurs, this is the primary exception
+                raised, chained from a ``DrainTimeout`` so the handler crash
+                is visible as the root failure.
+            DrainTimeout: If the drain does not reach quiescence within
+                ``timeout`` and no handler exceptions were collected.
+
+        Both ``DrainError`` and ``DrainTimeout`` inherit from ``DrainFailure``,
+        so callers can catch either outcome uniformly with
+        ``except DrainFailure:``.
 
         Note:
             Only ``app.task_bucket`` is drained. Tasks spawned by Bus-owned callbacks
@@ -837,10 +876,10 @@ class AppTestHarness:
         app: "App | None",
         collected_exceptions: "list[tuple[str, BaseException]]",
     ) -> None:
-        """Build and raise a diagnostic TimeoutError with pending task names and debounce hint.
+        """Build and raise a diagnostic DrainTimeout with pending task names and debounce hint.
 
         When exceptions have already been collected, raises ``DrainError`` chained from
-        the ``TimeoutError`` so the handler crash is visible as the primary failure.
+        the ``DrainTimeout`` so the handler crash is visible as the primary failure.
 
         Args:
             timeout: The drain timeout that elapsed.
@@ -849,8 +888,8 @@ class AppTestHarness:
             collected_exceptions: Exceptions gathered by the recorder so far.
 
         Raises:
-            DrainError: When ``collected_exceptions`` is non-empty (chained from TimeoutError).
-            TimeoutError: When no exceptions were collected.
+            DrainError: When ``collected_exceptions`` is non-empty (chained from DrainTimeout).
+            DrainTimeout: When no exceptions were collected.
         """
         task_names: list[str] = []
         if app is not None:
@@ -871,9 +910,9 @@ class AppTestHarness:
             )
         if collected_exceptions:
             drain_err = DrainError(collected_exceptions)
-            timeout_err = TimeoutError(base)
+            timeout_err = DrainTimeout(base)
             raise drain_err from timeout_err
-        raise TimeoutError(base)
+        raise DrainTimeout(base)
 
     # ------------------------------------------------------------------
     # Time control helpers

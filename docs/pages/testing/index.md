@@ -209,13 +209,18 @@ await harness.simulate_state_change(
 )
 ```
 
-!!! note "Task chains drain to completion — and surface exceptions via `DrainError`"
+!!! note "Task chains drain to completion — and surface failures via `DrainFailure`"
     The drain is iterative: after the bus dispatch queue clears, any tasks spawned by `self.task_bucket.spawn(...)` inside a handler are awaited in turn, and tasks those tasks spawn are awaited too — to arbitrary depth. `simulate_*` does not return until the full chain is settled.
 
-    If any task in the chain raises an exception, `simulate_*` re-raises it as a `DrainError`:
+    Drain failures are rooted at a single base class — `DrainFailure` — with two concrete subclasses:
+
+    * `DrainError` — one or more spawned handler tasks raised a non-cancellation exception.
+    * `DrainTimeout` — the drain did not reach quiescence within the configured timeout.
+
+    Catch either outcome uniformly with a single `except DrainFailure:` clause, or branch on the concrete type when you need to react differently:
 
     ```python
-    from hassette.test_utils import AppTestHarness, DrainError
+    from hassette.test_utils import AppTestHarness, DrainError, DrainFailure, DrainTimeout
 
     try:
         await harness.simulate_state_change(
@@ -224,9 +229,12 @@ await harness.simulate_state_change(
     except DrainError as e:
         # e.task_exceptions is a list of (task_name, exception) pairs
         raise
+    except DrainTimeout:
+        # diagnostic message includes pending task names and a debounce hint
+        raise
     ```
 
-    If the drain times out, the `TimeoutError` message includes the names of the pending tasks and a hint to check for debounced handlers.
+    `DrainTimeout` does **not** inherit from `TimeoutError` — catch `DrainTimeout` (or `DrainFailure`) instead. The diagnostic message includes the names of the pending tasks and a hint to check for debounced handlers.
 
 ## Asserting API Calls
 
@@ -610,6 +618,9 @@ If you run pytest sequentially (no `-n` flag), you do not need this marker.
 ### Harness startup failures
 
 If the harness raises `TimeoutError: Timed out waiting for <YourApp> RUNNING`, the app's `on_initialize()` either raised an exception or took longer than 5 seconds to complete.
+
+!!! info "This is a bare `TimeoutError`, not `DrainTimeout`"
+    Harness startup timeouts are distinct from drain timeouts. The startup wait still raises a plain `TimeoutError` — catch `TimeoutError` here, not `DrainTimeout` or `DrainFailure`. Drain-related failures only happen once the harness is running and you call `simulate_*`.
 
 Check test output for earlier log lines — exceptions raised during `on_initialize()` are caught and logged at `WARNING` level during teardown, so the `TimeoutError` is the surface symptom, not the root cause.
 

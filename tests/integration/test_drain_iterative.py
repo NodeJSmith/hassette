@@ -20,7 +20,7 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils.app_harness import AppTestHarness
-from hassette.test_utils.exceptions import DrainError
+from hassette.test_utils.exceptions import DrainError, DrainTimeout
 
 # ---------------------------------------------------------------------------
 # Shared minimal config
@@ -172,18 +172,18 @@ class PerpetualSpawnApp(App[DrainTestConfig]):
 
 
 async def test_drain_times_out_on_perpetually_spawning_handler() -> None:
-    """Perpetually-spawning handler causes drain to raise TimeoutError."""
+    """Perpetually-spawning handler causes drain to raise DrainTimeout."""
     async with AppTestHarness(PerpetualSpawnApp, config={}) as harness:
-        with pytest.raises(TimeoutError):
+        with pytest.raises(DrainTimeout):
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on", timeout=0.15)
         # Stop the spawner to allow clean teardown
         harness.app._keep_spawning = False
 
 
 async def test_drain_timeout_message_includes_pending_task_names() -> None:
-    """TimeoutError message includes pending task names from task_bucket."""
+    """DrainTimeout message includes pending task names from task_bucket."""
     async with AppTestHarness(PerpetualSpawnApp, config={}) as harness:
-        with pytest.raises(TimeoutError) as exc_info:
+        with pytest.raises(DrainTimeout) as exc_info:
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on", timeout=0.15)
         harness.app._keep_spawning = False
 
@@ -315,7 +315,7 @@ class DebounceHintApp(App[DrainTestConfig]):
 async def test_drain_timeout_message_has_debounce_hint_when_applicable() -> None:
     """When a 'handler:debounce'-named task is pending and drain times out, message includes debounce hint."""
     async with AppTestHarness(DebounceHintApp, config={}) as harness:
-        with pytest.raises(TimeoutError) as exc_info:
+        with pytest.raises(DrainTimeout) as exc_info:
             # timeout=0.15 is shorter than the 5s sleep, so drain times out
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on", timeout=0.15)
         msg = str(exc_info.value)

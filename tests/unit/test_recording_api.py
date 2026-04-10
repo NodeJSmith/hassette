@@ -11,6 +11,7 @@ Tests cover:
 - ApiCall extraction to api_call module
 - StrEnum coercion for turn_on, turn_off, toggle_service
 - Tailored __getattr__ messages
+- get_entity_or_none BaseEntity subclass path (regression for WP01 inline refactor)
 """
 
 import asyncio
@@ -24,6 +25,7 @@ import pytest
 from hassette.conversion import STATE_REGISTRY
 from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError
+from hassette.models.entities.light import LightEntity
 from hassette.models.services import ServiceResponse
 from hassette.test_utils import ApiCall as ApiCallFromInit
 from hassette.test_utils.api_call import ApiCall
@@ -220,27 +222,12 @@ async def test_get_states_returns_list_of_base_states():
     assert entity_ids == {"light.a", "light.b"}
 
 
-@pytest.mark.asyncio
-async def test_get_entity_delegates_to_state_proxy():
-    state_dict = make_state_dict(entity_id="light.kitchen", state="on")
-    api = _make_recording_api(states={"light.kitchen": state_dict})
-
-    result = await api.get_entity("light.kitchen")
-    assert result.entity_id == "light.kitchen"
-
-
-@pytest.mark.asyncio
-async def test_get_entity_raises_for_missing():
-    api = _make_recording_api(states={})
-    with pytest.raises(EntityNotFoundError):
-        await api.get_entity("light.missing")
-
-
-@pytest.mark.asyncio
-async def test_get_entity_or_none_returns_none():
-    api = _make_recording_api(states={})
-    result = await api.get_entity_or_none("light.missing")
-    assert result is None
+# Note: the "no-model" path that used to live here as test_get_entity_*
+# tests is now served by the existing get_state/get_state_or_none coverage
+# above. RecordingApi.get_entity / get_entity_or_none require an explicit
+# BaseEntity subclass model (matching the real Api.get_entity signature);
+# the "registry-converted typed state, no specific entity model" use case
+# is get_state's job.
 
 
 # ---------------------------------------------------------------------------
@@ -577,3 +564,36 @@ async def test_reset_replaces_calls_list_not_in_place():
         "reset() must replace the list (self.calls = []), not clear it in place (self.calls.clear()). "
         "Callers holding a reference to the old list must not see it emptied."
     )
+
+
+# ---------------------------------------------------------------------------
+# WP01: get_entity_or_none BaseEntity subclass regression tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_entity_or_none_returns_base_entity_subclass():
+    """get_entity_or_none with a BaseEntity subclass model returns an instance of that subclass.
+
+    Regression test for the WP01 inline refactor — pins the issubclass(model, BaseEntity)
+    branch behavior that was previously delegated via await self.get_entity().
+    """
+    state_dict = make_state_dict(entity_id="light.kitchen", state="on", attributes={"brightness": 200})
+    api = _make_recording_api(states={"light.kitchen": state_dict})
+
+    result = await api.get_entity_or_none("light.kitchen", model=LightEntity)
+
+    assert result is not None
+    assert isinstance(result, LightEntity), f"Expected LightEntity instance, got {type(result)}"
+    assert result.state.entity_id == "light.kitchen"
+    assert result.state.value == "on"
+
+
+@pytest.mark.asyncio
+async def test_get_entity_or_none_returns_none_for_missing_entity_with_model():
+    """get_entity_or_none returns None (not raises) when entity is not seeded, even with a BaseEntity model."""
+    api = _make_recording_api(states={})
+
+    result = await api.get_entity_or_none("sensor.unseeded", model=LightEntity)
+
+    assert result is None

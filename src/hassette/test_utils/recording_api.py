@@ -7,6 +7,7 @@ Intended for use with AppTestHarness. Users who need full HTTP-level
 fidelity should use a full integration test with a live HA connection.
 """
 
+import copy
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
 
@@ -59,8 +60,8 @@ class ApiProtocol(Protocol):
     # Read methods
     async def get_state(self, entity_id: str) -> BaseState: ...
     async def get_states(self) -> list[BaseState]: ...
-    async def get_entity(self, entity_id: str, model: type[Any] = ...) -> BaseState: ...
-    async def get_entity_or_none(self, entity_id: str, model: type[Any] = ...) -> BaseState | None: ...
+    async def get_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity: ...
+    async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None: ...
     async def entity_exists(self, entity_id: str) -> bool: ...
     async def get_state_or_none(self, entity_id: str) -> BaseState | None: ...
 
@@ -88,6 +89,23 @@ class RecordingApi(Resource):
     to the StateProxy. Methods not covered by the facade raise NotImplementedError.
 
     Unstubbed methods raise NotImplementedError with guidance on alternatives.
+
+    Authoring constraints (enforced by the ``_RecordingSyncFacade`` generator):
+
+    1. Methods must not call other ``async def`` methods on ``self`` directly;
+       use sync helpers (``_get_raw_state``, ``_convert_state``) instead.
+       Violating this constraint will fail the generator with a clear error
+       pointing at the offending call site.
+
+    2. Stub methods — those that should raise ``NotImplementedError`` on the
+       sync side rather than be body-copied into the facade — should use
+       ``self._not_implemented(name)`` for the canonical helpful error message
+       on the async side. The ``_RecordingSyncFacade`` generator detects
+       stub-tier methods by recognizing any body that contains only
+       docstrings, ``raise`` statements, and/or ``_not_implemented()`` calls,
+       so ``raise NotImplementedError(...)`` works too, but
+       ``self._not_implemented(name)`` is preferred because the helper returns
+       an exception with the project's standard seed-state guidance.
 
     Example::
 
@@ -195,9 +213,11 @@ class RecordingApi(Resource):
                 kwargs={
                     "domain": domain,
                     "service": service,
-                    # Shallow-copy target at record time so later caller mutations do not
-                    # alter the recorded assertion surface (immutability principle).
-                    "target": dict(target) if target is not None else None,
+                    # Deep-copy target at record time so later caller mutations — including
+                    # mutations to nested lists like `{"entity_id": [...]}`, which HA entity
+                    # targets frequently contain — do not alter the recorded assertion
+                    # surface (immutability principle).
+                    "target": copy.deepcopy(target),
                     "return_response": return_response,
                     **data,
                 },
@@ -219,12 +239,13 @@ class RecordingApi(Resource):
             ApiCall(
                 method="set_state",
                 args=(entity_id, state),
-                # Shallow-copy attributes at record time so later caller mutations do not
-                # alter the recorded assertion surface (immutability principle).
+                # Deep-copy attributes at record time so later caller mutations —
+                # including mutations to nested structures — do not alter the recorded
+                # assertion surface (immutability principle).
                 kwargs={
                     "entity_id": entity_id,
                     "state": state,
-                    "attributes": dict(attributes) if attributes is not None else None,
+                    "attributes": copy.deepcopy(attributes),
                 },
             )
         )
@@ -240,9 +261,10 @@ class RecordingApi(Resource):
             ApiCall(
                 method="fire_event",
                 args=(event_type,),
-                # Shallow-copy event_data at record time so later caller mutations do not
-                # alter the recorded assertion surface (immutability principle).
-                kwargs={"event_type": event_type, "event_data": dict(event_data) if event_data is not None else None},
+                # Deep-copy event_data at record time so later caller mutations —
+                # including mutations to nested structures — do not alter the recorded
+                # assertion surface (immutability principle).
+                kwargs={"event_type": event_type, "event_data": copy.deepcopy(event_data)},
             )
         )
         return {}
@@ -279,43 +301,57 @@ class RecordingApi(Resource):
         items = list(self._state_proxy.states.items())
         return [self._convert_state(raw, eid) for eid, raw in items]
 
-    async def get_entity(self, entity_id: str, model: type[Any] = BaseState) -> BaseState:
-        """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded.
+    async def get_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity:
+        """Return a pydantic-validated entity wrapper for entity_id.
 
-        When ``model`` is a :class:`~hassette.models.entities.base.BaseEntity` subclass,
-        the raw state dict is validated through ``model.model_validate({"state": raw})``,
-        mirroring the real ``Api.get_entity`` behavior. This ensures tests catch type
-        mismatches that would surface in production.
+        Matches the real ``Api.get_entity`` signature exactly — ``model`` is required
+        and must be a :class:`~hassette.models.entities.base.BaseEntity` subclass.
+        Callers that want registry-converted state without a specific entity model
+        should call :meth:`get_state` instead.
 
-        When ``model`` is the default ``BaseState``, falls back to state-registry conversion
-        (same as :meth:`get_state`).
+        Raises:
+            TypeError: If ``model`` is not a ``BaseEntity`` subclass.
+            EntityNotFoundError: If ``entity_id`` is not seeded.
         """
+        if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
+            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
+
         raw = self._get_raw_state(entity_id)
-        if model is not BaseState and issubclass(model, BaseEntity):
-            return cast("BaseState", model.model_validate({"state": raw}))
-        return self._convert_state(raw, entity_id)
+        return model.model_validate({"state": raw})
 
-    async def get_entity_or_none(self, entity_id: str, model: type[Any] = BaseState) -> BaseState | None:
-        """Return the typed state for entity_id, or None if not seeded.
+    async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None:
+        """Return a pydantic-validated entity wrapper for entity_id, or None if not seeded.
 
-        Delegates to :meth:`get_entity`, which performs model validation when
-        ``model`` is a BaseEntity subclass.
+        Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
+        ``async def`` calls on ``self`` — to satisfy the authoring constraint required
+        by the ``_RecordingSyncFacade`` generator. Matches the real
+        ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
         """
+        if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
+            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
+
         try:
-            return await self.get_entity(entity_id, model)
+            raw = self._get_raw_state(entity_id)
         except EntityNotFoundError:
             return None
+        return model.model_validate({"state": raw})
 
     async def entity_exists(self, entity_id: str) -> bool:
         """Return True if entity_id is seeded in the StateProxy."""
         return entity_id in self._state_proxy.states
 
     async def get_state_or_none(self, entity_id: str) -> BaseState | None:
-        """Return the typed state for entity_id, or None if not seeded."""
+        """Return the typed state for entity_id, or None if not seeded.
+
+        Inlines the logic from :meth:`get_state` using sync helpers only — no peer
+        ``async def`` calls on ``self`` — to satisfy the authoring constraint required
+        by the ``_RecordingSyncFacade`` generator.
+        """
         try:
-            return await self.get_state(entity_id)
+            raw = self._get_raw_state(entity_id)
         except EntityNotFoundError:
             return None
+        return self._convert_state(raw, entity_id)
 
     # ------------------------------------------------------------------
     # Unstubbed methods — raise NotImplementedError with helpful message.
