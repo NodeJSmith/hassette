@@ -122,6 +122,10 @@ async def test_cleanup_on_aenter_failure():
         async def on_initialize(self) -> None:
             raise RuntimeError("Intentional failure during on_initialize")
 
+    # The RuntimeError is re-raised from on_initialize; the TimeoutError is the
+    # harness startup timeout from wait_for() in harness.py — NOT a drain timeout.
+    # Harness startup still uses a bare TimeoutError, so DrainTimeout is not the
+    # right exception to expect here.
     with pytest.raises((RuntimeError, TimeoutError)):
         async with AppTestHarness(BrokenApp, config={}):
             pass  # Should not reach here

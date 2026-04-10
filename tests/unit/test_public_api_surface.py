@@ -11,6 +11,8 @@ TIER1_SYMBOLS = {
     "AppConfigurationError",
     "AppTestHarness",
     "DrainError",
+    "DrainFailure",
+    "DrainTimeout",
     "RecordingApi",
     "create_call_service_event",
     "create_state_change_event",
