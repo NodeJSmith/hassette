@@ -1,7 +1,7 @@
 # Design: Auto-generate `_RecordingSyncFacade` from `RecordingApi`
 
 **Date:** 2026-04-10
-**Status:** approved
+**Status:** archived
 **Issue:** [#500](https://github.com/anthropics/hassette/issues/500)
 **Spec:** N/A — issue body + planner brief serve as spec
 **Research:** N/A — investigation conducted inline by `mine.design`
