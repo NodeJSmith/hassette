@@ -35,9 +35,19 @@ repos:
       - id: generate_sync_facade
         name: Generate sync.py facade
         language: python
-        entry: python tools/generate_sync_facade.py
+        entry: python tools/generate_sync_facade.py --target api
         pass_filenames: false
         files: src/hassette/api/api.py
+        stages:
+          - pre-push
+
+      # regenerate _RecordingSyncFacade in sync_facade.py
+      - id: generate_recording_sync_facade
+        name: Generate _RecordingSyncFacade
+        language: python
+        entry: python tools/generate_sync_facade.py --target recording
+        pass_filenames: false
+        files: (src/hassette/test_utils/recording_api\.py|src/hassette/api/api\.py|tools/generate_sync_facade\.py)
         stages:
           - pre-push
 

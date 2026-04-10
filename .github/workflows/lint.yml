@@ -28,6 +28,16 @@ jobs:
                   uvx ruff check .
                   SKIP=eslint uvx pre-commit run --all-files --hook-stage pre-push
 
+            - name: Fail if generators produced drift
+              run: |
+                  if ! git diff --exit-code; then
+                    echo ""
+                    echo "ERROR: generated files are out of date. Re-run locally and commit:"
+                    echo "  uv run tools/generate_sync_facade.py --target both"
+                    echo ""
+                    exit 1
+                  fi
+
     frontend:
         runs-on: ubuntu-latest
         steps:
