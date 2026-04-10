@@ -89,6 +89,12 @@ class RecordingApi(Resource):
 
     Unstubbed methods raise NotImplementedError with guidance on alternatives.
 
+    Authoring constraint: Methods on this class must not call other ``async def``
+    methods on ``self`` directly; use sync helpers (``_get_raw_state``,
+    ``_convert_state``) instead. Violating this constraint will fail the
+    ``_RecordingSyncFacade`` generator with a clear error pointing at the
+    offending call site.
+
     Example::
 
         async with AppTestHarness(MotionLights, config={}) as harness:
@@ -298,24 +304,34 @@ class RecordingApi(Resource):
     async def get_entity_or_none(self, entity_id: str, model: type[Any] = BaseState) -> BaseState | None:
         """Return the typed state for entity_id, or None if not seeded.
 
-        Delegates to :meth:`get_entity`, which performs model validation when
-        ``model`` is a BaseEntity subclass.
+        Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
+        ``async def`` calls on ``self`` — to satisfy the authoring constraint required
+        by the ``_RecordingSyncFacade`` generator.
         """
         try:
-            return await self.get_entity(entity_id, model)
+            raw = self._get_raw_state(entity_id)
         except EntityNotFoundError:
             return None
+        if model is not BaseState and issubclass(model, BaseEntity):
+            return cast("BaseState", model.model_validate({"state": raw}))
+        return self._convert_state(raw, entity_id)
 
     async def entity_exists(self, entity_id: str) -> bool:
         """Return True if entity_id is seeded in the StateProxy."""
         return entity_id in self._state_proxy.states
 
     async def get_state_or_none(self, entity_id: str) -> BaseState | None:
-        """Return the typed state for entity_id, or None if not seeded."""
+        """Return the typed state for entity_id, or None if not seeded.
+
+        Inlines the logic from :meth:`get_state` using sync helpers only — no peer
+        ``async def`` calls on ``self`` — to satisfy the authoring constraint required
+        by the ``_RecordingSyncFacade`` generator.
+        """
         try:
-            return await self.get_state(entity_id)
+            raw = self._get_raw_state(entity_id)
         except EntityNotFoundError:
             return None
+        return self._convert_state(raw, entity_id)
 
     # ------------------------------------------------------------------
     # Unstubbed methods — raise NotImplementedError with helpful message.
