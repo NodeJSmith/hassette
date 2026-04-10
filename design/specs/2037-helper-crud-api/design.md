@@ -666,7 +666,7 @@ None. No new third-party libraries. All code uses existing `pydantic`, `whenever
 ### Documentation
 
 - `docs/` (readthedocs) has API reference pages auto-generated from `Api` docstrings — the new methods will appear automatically
-- One narrative guide: `docs/guides/managing-helpers.md` — includes the **simple 5-line bootstrap pattern as the default** worked example for self-provisioning apps, plus an "Advanced: concurrent provisioning" section with the race-safe 13-line variant for the narrow case where multiple apps might bootstrap the same helper simultaneously. The advanced section explicitly notes the `if e.code != "name_in_use": raise` narrowing requirement, so readers don't introduce a bare `except` that masks real transport errors. This is in scope for the PR (not deferred) so users who discover the feature also discover the recommended pattern and the concurrency caveat together.
+- One narrative guide: `docs/pages/advanced/managing-helpers.md` (consistent with existing advanced docs like `state-registry.md` and `dependency-injection.md`; the repo does not use a `docs/guides/` directory) — includes the **simple 5-line bootstrap pattern as the default** worked example for self-provisioning apps, plus an "Advanced: concurrent provisioning" section with the race-safe 13-line variant for the narrow case where multiple apps might bootstrap the same helper simultaneously. The advanced section explicitly notes the `if e.code != "name_in_use": raise` narrowing requirement, so readers don't introduce a bare `except` that masks real transport errors. This is in scope for the PR (not deferred) so users who discover the feature also discover the recommended pattern and the concurrency caveat together.
 
 ### Rollout
 
