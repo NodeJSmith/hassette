@@ -42,8 +42,13 @@ def test_generator_check_mode_exits_zero() -> None:
 def test_generator_check_mode_api_exits_zero() -> None:
     """Generator --target api --check exits 0 when sync.py is current.
 
-    Smoke-tests the existing api-generation path through --check mode.
-    Serves as a regression guard on the WP02 robustness fixes to run_ruff().
+    Smoke-tests the existing api-generation path through --check mode. Acts
+    as a regression guard against any future change to ``run_ruff()``,
+    ``_format_via_ruff()``, or the api-generation pipeline that would cause
+    --check to spuriously fail on a current ``src/hassette/api/sync.py``
+    (e.g., adding a byte-affecting ruff step on the write path without also
+    adding it to the check path, the way the WP02→WP03 isort gap was
+    discovered).
     """
     result = subprocess.run(
         ["uv", "run", "tools/generate_sync_facade.py", "--target", "api", "--check"],
