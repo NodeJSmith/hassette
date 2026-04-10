@@ -7,6 +7,7 @@ that the two sides share the same calls list.
 
 import asyncio
 import threading
+import types
 from enum import StrEnum
 from unittest.mock import AsyncMock
 
@@ -18,7 +19,7 @@ from hassette.exceptions import EntityNotFoundError
 from hassette.models.services import ServiceResponse
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
-from hassette.test_utils.sync_facade import _RecordingSyncFacade
+from hassette.test_utils.sync_facade import _STUB_MSG_GENERIC, _STUB_MSG_STATE_CONVERSION, _RecordingSyncFacade
 
 # ---------------------------------------------------------------------------
 # Test harness helpers (mirroring test_recording_api.py pattern)
@@ -337,7 +338,7 @@ async def test_sync_get_state_value_raises_notimplementederror_with_tailored_mes
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.get_state_value("sensor.temp")
-    assert "harness.api_recorder.sync.get_state(entity_id)" in str(exc_info.value)
+    assert str(exc_info.value) == _STUB_MSG_STATE_CONVERSION.format(name="get_state_value")
 
 
 async def test_sync_getattr_raises_notimplementederror_with_default_message_for_unknown_method():
@@ -345,7 +346,7 @@ async def test_sync_getattr_raises_notimplementederror_with_default_message_for_
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.some_unknown_method()
-    assert "Seed state via AppTestHarness.set_state()" in str(exc_info.value)
+    assert str(exc_info.value) == _STUB_MSG_GENERIC.format(name="some_unknown_method")
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +386,7 @@ async def test_sync_get_state_value_raises_not_implemented():
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.get_state_value("sensor.temp")
-    assert "harness.api_recorder.sync.get_state(entity_id)" in str(exc_info.value)
+    assert str(exc_info.value) == _STUB_MSG_STATE_CONVERSION.format(name="get_state_value")
 
 
 @pytest.mark.asyncio
@@ -394,7 +395,7 @@ async def test_sync_get_state_value_typed_raises_not_implemented():
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.get_state_value_typed("sensor.temp")
-    assert "harness.api_recorder.sync.get_state(entity_id)" in str(exc_info.value)
+    assert str(exc_info.value) == _STUB_MSG_STATE_CONVERSION.format(name="get_state_value_typed")
 
 
 @pytest.mark.asyncio
@@ -403,4 +404,53 @@ async def test_sync_get_attribute_raises_not_implemented():
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.get_attribute("sensor.temp", "unit_of_measurement")
-    assert "harness.api_recorder.sync.get_state(entity_id)" in str(exc_info.value)
+    assert str(exc_info.value) == _STUB_MSG_STATE_CONVERSION.format(name="get_attribute")
+
+
+# ---------------------------------------------------------------------------
+# Runtime smoke test: body-copied methods must not return coroutines
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_body_copied_methods_are_sync():
+    """Every body-copied method on _RecordingSyncFacade must return a plain value, not a coroutine.
+
+    Iterates every body-copied method, invokes with stub args, and asserts the
+    return value is not a CoroutineType or AsyncGeneratorType. Closes leaked
+    coroutines to suppress RuntimeWarning: coroutine was never awaited.
+
+    Body-copied methods (keep in sync with the generator's output):
+    call_service, entity_exists, fire_event, get_entity, get_entity_or_none,
+    get_state, get_state_or_none, get_states, set_state, toggle_service,
+    turn_off, turn_on
+    """
+    state_dict = make_state_dict(entity_id="sensor.test", state="on", attributes={})
+    api = _make_recording_api(states={"sensor.test": state_dict})
+    facade = api.sync
+
+    # Each entry is (method_name, positional_args, keyword_args)
+    invocations: list[tuple[str, tuple, dict]] = [
+        ("call_service", ("light", "turn_on"), {}),
+        ("entity_exists", ("sensor.test",), {}),
+        ("fire_event", ("custom_event",), {}),
+        ("get_entity", ("sensor.test",), {}),
+        ("get_entity_or_none", ("sensor.test",), {}),
+        ("get_state", ("sensor.test",), {}),
+        ("get_state_or_none", ("sensor.test",), {}),
+        ("get_states", (), {}),
+        ("set_state", ("sensor.test", "off"), {}),
+        ("toggle_service", ("sensor.test",), {}),
+        ("turn_off", ("sensor.test",), {}),
+        ("turn_on", ("sensor.test",), {}),
+    ]
+
+    for method_name, args, kwargs in invocations:
+        method = getattr(facade, method_name)
+        result = method(*args, **kwargs)
+        if isinstance(result, (types.CoroutineType, types.AsyncGeneratorType)):
+            if isinstance(result, types.CoroutineType):
+                result.close()  # suppress "coroutine was never awaited" warning
+            raise AssertionError(
+                f"{method_name}() returned a {type(result).__name__} — body-copy produced hidden async call"
+            )
