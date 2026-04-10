@@ -336,6 +336,29 @@ def generate_sync(api_path: Path) -> str:
     return HEADER + CLASS_HEADER + wrappers_str
 
 
+def _run_ruff_step(cmd: list[str], step_name: str) -> None:
+    """Run a single ruff subprocess step, converting expected failure modes to ``SystemExit``.
+
+    Wraps ``subprocess.run(..., check=True)`` with handlers for ``FileNotFoundError``
+    (missing ruff binary), ``TimeoutExpired`` (30s cap exceeded), and
+    ``CalledProcessError`` (ruff exited non-zero on e.g. invalid syntax in the generated
+    output), so callers never surface a raw Python traceback to the pre-commit hook or
+    CI log. The ruff process is run with stdout/stderr streaming to the terminal, so on
+    a ``CalledProcessError`` the human-readable diagnostic is already visible above the
+    ``SystemExit`` message — we just tell the user to look up.
+    """
+    try:
+        subprocess.run(cmd, check=True, timeout=30)
+    except FileNotFoundError as exc:
+        raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"ruff {step_name} timed out after 30s — check for filesystem stall") from exc
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(
+            f"ruff {step_name} failed with exit code {exc.returncode}. See the ruff output above for details."
+        ) from exc
+
+
 def _format_via_ruff(content: str) -> str:
     """Write content to a temp file, normalize it through ruff, return the result.
 
@@ -366,23 +389,10 @@ def _format_via_ruff(content: str) -> str:
             tmp.write(content)
             tmp_path = tmp.name
 
-        try:
-            subprocess.run(
-                ["ruff", "format", tmp_path],
-                check=True,
-                timeout=30,
-            )
-            # Apply the same isort step as run_ruff() so the comparison is
-            # symmetric — the on-disk committed file was sorted at write time.
-            subprocess.run(
-                ["ruff", "check", "--fix", "--select", "I", tmp_path],
-                check=True,
-                timeout=30,
-            )
-        except FileNotFoundError as exc:
-            raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
-        except subprocess.TimeoutExpired as exc:
-            raise SystemExit("ruff timed out after 30s — check for filesystem stall") from exc
+        _run_ruff_step(["ruff", "format", tmp_path], "format")
+        # Apply the same isort step as run_ruff() so the comparison is
+        # symmetric — the on-disk committed file was sorted at write time.
+        _run_ruff_step(["ruff", "check", "--fix", "--select", "I", tmp_path], "isort")
 
         return Path(tmp_path).read_text(encoding="utf-8")
     finally:
@@ -393,29 +403,11 @@ def _format_via_ruff(content: str) -> str:
 
 def run_ruff(path: Path) -> None:
     """Run ruff format + import-sort fix + ruff check on path, raising SystemExit on any failure."""
-    # format
-    try:
-        subprocess.run(["ruff", "format", str(path)], check=True, timeout=30)
-    except FileNotFoundError as exc:
-        raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise SystemExit("ruff timed out after 30s — check for filesystem stall") from exc
-
+    _run_ruff_step(["ruff", "format", str(path)], "format")
     # auto-fix import ordering (I001 / isort) — safe fixable-only rule
-    try:
-        subprocess.run(["ruff", "check", "--fix", "--select", "I", str(path)], check=True, timeout=30)
-    except FileNotFoundError as exc:
-        raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise SystemExit("ruff timed out after 30s — check for filesystem stall") from exc
-
+    _run_ruff_step(["ruff", "check", "--fix", "--select", "I", str(path)], "isort")
     # validate (all rules, no --fix)
-    try:
-        subprocess.run(["ruff", "check", str(path)], check=True, timeout=30)
-    except FileNotFoundError as exc:
-        raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise SystemExit("ruff timed out after 30s — check for filesystem stall") from exc
+    _run_ruff_step(["ruff", "check", str(path)], "check")
 
 
 def _atomic_write_generated(out_path: Path, content: str) -> None:
@@ -732,7 +724,7 @@ def _derive_recording_imports_strict(
     Used **only by the unit test for the error case**. Production generation
     uses ``_build_precise_import_block`` directly (which is silently lenient
     about unknown symbols and emits only the lines for symbols it can resolve)
-    because body bodies reference many lowercase symbols that are local
+    because method bodies reference many lowercase symbols that are local
     variables, parameters, or comprehension targets — not imports.
     """
     referenced_symbols = _collect_referenced_symbols(body_nodes)
