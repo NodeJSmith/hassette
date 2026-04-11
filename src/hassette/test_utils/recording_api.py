@@ -8,11 +8,15 @@ fidelity should use a full integration test with a live HA connection.
 """
 
 import copy
+from collections.abc import Generator
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
 
+import aiohttp
 from slugify import slugify as _py_slugify
+from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.const.misc import FalseySentinel
 from hassette.exceptions import EntityNotFoundError, FailedMessageError
 from hassette.models.entities.base import BaseEntity
 from hassette.models.helpers import (
@@ -41,6 +45,7 @@ from hassette.models.helpers import (
     UpdateInputTextParams,
     UpdateTimerParams,
 )
+from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
@@ -120,6 +125,28 @@ class ApiProtocol(Protocol):
     time via the module-level ``_: ApiProtocol = cast(...)`` assertion.
     """
 
+    # WebSocket methods
+    async def ws_send_and_wait(self, **data: Any) -> Any: ...
+    async def ws_send_json(self, **data: Any) -> None: ...
+
+    # REST methods
+    async def rest_request(
+        self,
+        method: str,
+        url: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        suppress_error_message: bool = False,
+        **kwargs,
+    ) -> aiohttp.ClientResponse: ...
+    async def get_rest_request(
+        self, url: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> aiohttp.ClientResponse: ...
+    async def post_rest_request(
+        self, url: str, data: dict[str, Any] | None = None, **kwargs
+    ) -> aiohttp.ClientResponse: ...
+    async def delete_rest_request(self, url: str, **kwargs) -> aiohttp.ClientResponse: ...
+
     # Write methods
     async def turn_on(self, entity_id: str | StrEnum, domain: str = ..., **data) -> None: ...
     async def turn_off(self, entity_id: str | StrEnum, domain: str = ...) -> None: ...
@@ -143,14 +170,69 @@ class ApiProtocol(Protocol):
         event_type: str,
         event_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
+    async def delete_entity(self, entity_id: str) -> None: ...
 
     # Read methods
     async def get_state(self, entity_id: str) -> BaseState: ...
+    async def get_state_raw(self, entity_id: str) -> "HassStateDict": ...
     async def get_states(self) -> list[BaseState]: ...
+    async def get_states_raw(self) -> list["HassStateDict"]: ...
+    async def get_states_iterator(self) -> Generator[BaseState[Any], Any, None]: ...
     async def get_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity: ...
     async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None: ...
     async def entity_exists(self, entity_id: str) -> bool: ...
     async def get_state_or_none(self, entity_id: str) -> BaseState | None: ...
+    async def get_state_value(self, entity_id: str) -> Any: ...
+    async def get_state_value_typed(self, entity_id: str) -> Any: ...
+    async def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel: ...
+
+    # Configuration and metadata
+    async def get_config(self) -> dict[str, Any]: ...
+    async def get_services(self) -> dict[str, Any]: ...
+    async def get_panels(self) -> dict[str, Any]: ...
+
+    # History, logbook, calendars, camera, template
+    async def get_history(
+        self,
+        entity_id: str,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str | None = None,
+        significant_changes_only: bool = False,
+        minimal_response: bool = False,
+        no_attributes: bool = False,
+    ) -> list[HistoryEntry]: ...
+    async def get_histories(
+        self,
+        entity_ids: list[str],
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str | None = None,
+        significant_changes_only: bool = False,
+        minimal_response: bool = False,
+        no_attributes: bool = False,
+    ) -> dict[str, list[HistoryEntry]]: ...
+    async def get_logbook(
+        self,
+        entity_id: str,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str,
+    ) -> list[dict]: ...
+    async def get_calendars(self) -> list[dict]: ...
+    async def get_calendar_events(
+        self,
+        calendar_id: str,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str,
+    ) -> list[dict]: ...
+    async def get_camera_image(
+        self,
+        entity_id: str,
+        timestamp: PlainDateTime | ZonedDateTime | Date | str | None = None,
+    ) -> bytes: ...
+    async def render_template(
+        self,
+        template: str,
+        variables: dict | None = None,
+    ) -> str: ...
 
     # input_boolean CRUD
     async def list_input_booleans(self) -> list[InputBooleanRecord]: ...

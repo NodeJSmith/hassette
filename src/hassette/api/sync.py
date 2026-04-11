@@ -248,7 +248,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.turn_on(entity_id, domain, **data))
 
-    def turn_off(self, entity_id: str, domain: str = "homeassistant"):
+    def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant"):
         """Turn off a specific entity in Home Assistant.
 
         Args:
@@ -257,7 +257,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain))
 
-    def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
+    def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant"):
         """Toggle a specific entity in Home Assistant.
 
         Args:

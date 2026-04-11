@@ -531,7 +531,7 @@ class Api(Resource):
         self.logger.debug("Turning on entity %s", entity_id)
         return await self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
 
-    async def turn_off(self, entity_id: str, domain: str = "homeassistant"):
+    async def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant"):
         """Turn off a specific entity in Home Assistant.
 
         Args:
@@ -539,10 +539,11 @@ class Api(Resource):
             domain: The domain of the entity (default: "homeassistant").
 
         """
+        entity_id = str(entity_id)
         self.logger.debug("Turning off entity %s", entity_id)
         return await self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
 
-    async def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
+    async def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant"):
         """Toggle a specific entity in Home Assistant.
 
         Args:
@@ -550,6 +551,7 @@ class Api(Resource):
             domain: The domain of the entity (default: "homeassistant").
 
         """
+        entity_id = str(entity_id)
         self.logger.debug("Toggling entity %s", entity_id)
         return await self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
 
