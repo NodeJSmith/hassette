@@ -295,6 +295,12 @@ class WebsocketService(Service):
             error_envelope = message.get("error") or {}
             err = error_envelope.get("message", "Unknown error")
             code = error_envelope.get("code")
+            if code is None and error_envelope:
+                self.logger.debug(
+                    "HA error envelope has no 'code' field (raw envelope: %r). "
+                    "e.code will be None — caller code-guards will fall through.",
+                    error_envelope,
+                )
             fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
 
     async def send_json(self, **data) -> None:

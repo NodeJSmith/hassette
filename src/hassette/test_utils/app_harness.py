@@ -583,6 +583,11 @@ class AppTestHarness:
                 f"Unknown helper record type: {type(record).__name__}. "
                 f"Expected one of: {sorted(t.__name__ for t in _RECORD_TYPE_TO_DOMAIN)}"
             ) from e
+        if record.id in self.api_recorder.helper_definitions[domain]:  # pyright: ignore[reportAttributeAccessIssue]
+            raise ValueError(
+                f"A {type(record).__name__} with id={record.id!r} is already seeded. "  # pyright: ignore[reportAttributeAccessIssue]
+                f"Use a unique id or call harness.api_recorder.reset() first."
+            )
         self.api_recorder.helper_definitions[domain][record.id] = record  # pyright: ignore[reportAttributeAccessIssue]
 
     async def set_states(self, states: dict[str, str | tuple[str, dict]]) -> None:

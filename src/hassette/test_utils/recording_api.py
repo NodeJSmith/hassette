@@ -90,14 +90,29 @@ _RECORD_TYPE_TO_DOMAIN: dict[type, str] = {
     TimerRecord: "timer",
 }
 
+assert set(_RECORD_TYPE_TO_DOMAIN.values()) == _SUPPORTED_HELPER_DOMAINS, (
+    "_RECORD_TYPE_TO_DOMAIN and _SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains"
+)
 
-def _slugify_helper_name(name: str) -> str:
-    """Slugify a helper name exactly as HA does — using python-slugify with separator='_'.
 
-    This is harness-only logic. Production Api.create_* methods do NOT call this;
-    they let HA slugify server-side.
+def _slugify_helper_name(name: str | None) -> str:
+    """Convert an HA helper name into its stored id, mirroring homeassistant.util.slugify.
+
+    Three branches:
+
+    - Returns ``""`` for ``None`` or empty-string input — matches HA, where
+      an unnamed helper has no slug to derive an id from.
+    - Returns ``"unknown"`` when a non-empty input slugifies to an empty
+      string (e.g. ``"%%%"``) — matches HA's fallback in ``util.slugify``.
+    - Otherwise returns the ``python-slugify`` output with ``separator="_"``.
+
+    This is harness-only logic. Production ``Api.create_*`` methods do NOT
+    call this; they let HA slugify server-side.
     """
-    return _py_slugify(name, separator="_")
+    if name == "" or name is None:
+        return ""
+    slug = _py_slugify(name, separator="_")
+    return "unknown" if slug == "" else slug
 
 
 def _generate_helper_id(existing_ids: set[str], name: str) -> str:
@@ -389,8 +404,23 @@ class RecordingApi(Resource):
         Private sync helper called by create_* methods. The sync facade generator
         rewrites ``self._new_helper_id(...)`` → ``self._parent._new_helper_id(...)``
         so body-copied create methods in _RecordingSyncFacade call this correctly.
+
+        Emits a DEBUG log when the returned id was auto-suffixed due to a
+        collision — otherwise a test author who expected ``vacation_mode`` but
+        got ``vacation_mode_2`` has no log signal explaining why.
         """
-        return _generate_helper_id(set(self.helper_definitions[domain].keys()), name)
+        existing_ids = set(self.helper_definitions[domain].keys())
+        generated = _generate_helper_id(existing_ids, name)
+        base_slug = _slugify_helper_name(name)
+        if generated != base_slug:
+            self.logger.debug(
+                "RecordingApi %s: name %r -> id %r (base slug %r was already taken; auto-suffixed)",
+                domain,
+                name,
+                generated,
+                base_slug,
+            )
+        return generated
 
     # ------------------------------------------------------------------
     # Write methods — record ApiCall, then return a stub value.
@@ -634,8 +664,11 @@ class RecordingApi(Resource):
     # --- input_boolean ---
 
     async def list_input_booleans(self) -> list[InputBooleanRecord]:
-        """Return all seeded input_boolean helpers."""
-        return cast("list[InputBooleanRecord]", list(self.helper_definitions["input_boolean"].values()))
+        """Return all seeded input_boolean helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputBooleanRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_boolean"].values()],
+        )
 
     async def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
         """Record the call and add a record to helper_definitions.
@@ -652,7 +685,7 @@ class RecordingApi(Resource):
         generated_id = self._new_helper_id("input_boolean", params.name)
         record = InputBooleanRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self.helper_definitions["input_boolean"][record.id] = record
-        return record
+        return record.model_copy()
 
     async def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
         """Record the call and mutate the seeded record.
@@ -675,7 +708,7 @@ class RecordingApi(Resource):
         existing = self.helper_definitions["input_boolean"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self.helper_definitions["input_boolean"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     async def delete_input_boolean(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -700,8 +733,11 @@ class RecordingApi(Resource):
     # --- input_number ---
 
     async def list_input_numbers(self) -> list[InputNumberRecord]:
-        """Return all seeded input_number helpers."""
-        return cast("list[InputNumberRecord]", list(self.helper_definitions["input_number"].values()))
+        """Return all seeded input_number helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputNumberRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_number"].values()],
+        )
 
     async def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
         """Record the call and add a record to helper_definitions."""
@@ -715,7 +751,7 @@ class RecordingApi(Resource):
         generated_id = self._new_helper_id("input_number", params.name)
         record = InputNumberRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self.helper_definitions["input_number"][record.id] = record
-        return record
+        return record.model_copy()
 
     async def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
         """Record the call and mutate the seeded record.
@@ -738,7 +774,7 @@ class RecordingApi(Resource):
         existing = self.helper_definitions["input_number"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self.helper_definitions["input_number"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     async def delete_input_number(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -763,8 +799,11 @@ class RecordingApi(Resource):
     # --- input_text ---
 
     async def list_input_texts(self) -> list[InputTextRecord]:
-        """Return all seeded input_text helpers."""
-        return cast("list[InputTextRecord]", list(self.helper_definitions["input_text"].values()))
+        """Return all seeded input_text helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputTextRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_text"].values()],
+        )
 
     async def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
         """Record the call and add a record to helper_definitions."""
@@ -778,7 +817,7 @@ class RecordingApi(Resource):
         generated_id = self._new_helper_id("input_text", params.name)
         record = InputTextRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self.helper_definitions["input_text"][record.id] = record
-        return record
+        return record.model_copy()
 
     async def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
         """Record the call and mutate the seeded record.
@@ -801,7 +840,7 @@ class RecordingApi(Resource):
         existing = self.helper_definitions["input_text"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self.helper_definitions["input_text"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     async def delete_input_text(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -826,8 +865,20 @@ class RecordingApi(Resource):
     # --- input_select ---
 
     async def list_input_selects(self) -> list[InputSelectRecord]:
-        """Return all seeded input_select helpers."""
-        return cast("list[InputSelectRecord]", list(self.helper_definitions["input_select"].values()))
+        """Return all seeded input_select helpers as isolated copies.
+
+        Uses ``model_copy(deep=True)`` because ``InputSelectRecord.options``
+        is a ``list[str]`` — the only nested mutable field across all eight
+        helper record types. Shallow copies would alias the list between the
+        stored record and the returned copy, allowing a caller's
+        ``record.options.append(...)`` to silently corrupt harness state.
+        Other domains continue to use shallow copies because their fields
+        are all scalars.
+        """
+        return cast(
+            "list[InputSelectRecord]",
+            [r.model_copy(deep=True) for r in self.helper_definitions["input_select"].values()],
+        )
 
     async def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
         """Record the call and add a record to helper_definitions."""
@@ -841,7 +892,8 @@ class RecordingApi(Resource):
         generated_id = self._new_helper_id("input_select", params.name)
         record = InputSelectRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self.helper_definitions["input_select"][record.id] = record
-        return record
+        # deep=True because InputSelectRecord.options is a list[str] — see list_input_selects.
+        return record.model_copy(deep=True)
 
     async def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
         """Record the call and mutate the seeded record.
@@ -864,7 +916,8 @@ class RecordingApi(Resource):
         existing = self.helper_definitions["input_select"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self.helper_definitions["input_select"][helper_id] = updated
-        return updated
+        # deep=True because InputSelectRecord.options is a list[str] — see list_input_selects.
+        return updated.model_copy(deep=True)
 
     async def delete_input_select(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -889,8 +942,11 @@ class RecordingApi(Resource):
     # --- input_datetime ---
 
     async def list_input_datetimes(self) -> list[InputDatetimeRecord]:
-        """Return all seeded input_datetime helpers."""
-        return cast("list[InputDatetimeRecord]", list(self.helper_definitions["input_datetime"].values()))
+        """Return all seeded input_datetime helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputDatetimeRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_datetime"].values()],
+        )
 
     async def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
         """Record the call and add a record to helper_definitions."""
@@ -904,7 +960,7 @@ class RecordingApi(Resource):
         generated_id = self._new_helper_id("input_datetime", params.name)
         record = InputDatetimeRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self.helper_definitions["input_datetime"][record.id] = record
-        return record
+        return record.model_copy()
 
     async def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
         """Record the call and mutate the seeded record.
@@ -927,7 +983,7 @@ class RecordingApi(Resource):
         existing = self.helper_definitions["input_datetime"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self.helper_definitions["input_datetime"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     async def delete_input_datetime(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -952,8 +1008,11 @@ class RecordingApi(Resource):
     # --- input_button ---
 
     async def list_input_buttons(self) -> list[InputButtonRecord]:
-        """Return all seeded input_button helpers."""
-        return cast("list[InputButtonRecord]", list(self.helper_definitions["input_button"].values()))
+        """Return all seeded input_button helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputButtonRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_button"].values()],
+        )
 
     async def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
         """Record the call and add a record to helper_definitions."""
@@ -967,7 +1026,7 @@ class RecordingApi(Resource):
         generated_id = self._new_helper_id("input_button", params.name)
         record = InputButtonRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self.helper_definitions["input_button"][record.id] = record
-        return record
+        return record.model_copy()
 
     async def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
         """Record the call and mutate the seeded record.
@@ -990,7 +1049,7 @@ class RecordingApi(Resource):
         existing = self.helper_definitions["input_button"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self.helper_definitions["input_button"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     async def delete_input_button(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -1015,8 +1074,11 @@ class RecordingApi(Resource):
     # --- counter ---
 
     async def list_counters(self) -> list[CounterRecord]:
-        """Return all seeded counter helpers."""
-        return cast("list[CounterRecord]", list(self.helper_definitions["counter"].values()))
+        """Return all seeded counter helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[CounterRecord]",
+            [r.model_copy() for r in self.helper_definitions["counter"].values()],
+        )
 
     async def create_counter(self, params: CreateCounterParams) -> CounterRecord:
         """Record the call and add a record to helper_definitions."""
@@ -1030,7 +1092,7 @@ class RecordingApi(Resource):
         generated_id = self._new_helper_id("counter", params.name)
         record = CounterRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self.helper_definitions["counter"][record.id] = record
-        return record
+        return record.model_copy()
 
     async def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
         """Record the call and mutate the seeded record.
@@ -1053,7 +1115,7 @@ class RecordingApi(Resource):
         existing = self.helper_definitions["counter"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self.helper_definitions["counter"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     async def delete_counter(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -1078,8 +1140,11 @@ class RecordingApi(Resource):
     # --- timer ---
 
     async def list_timers(self) -> list[TimerRecord]:
-        """Return all seeded timer helpers."""
-        return cast("list[TimerRecord]", list(self.helper_definitions["timer"].values()))
+        """Return all seeded timer helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[TimerRecord]",
+            [r.model_copy() for r in self.helper_definitions["timer"].values()],
+        )
 
     async def create_timer(self, params: CreateTimerParams) -> TimerRecord:
         """Record the call and add a record to helper_definitions."""
@@ -1093,7 +1158,7 @@ class RecordingApi(Resource):
         generated_id = self._new_helper_id("timer", params.name)
         record = TimerRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self.helper_definitions["timer"][record.id] = record
-        return record
+        return record.model_copy()
 
     async def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
         """Record the call and mutate the seeded record.
@@ -1116,7 +1181,7 @@ class RecordingApi(Resource):
         existing = self.helper_definitions["timer"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self.helper_definitions["timer"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     async def delete_timer(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.

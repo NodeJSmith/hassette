@@ -18,6 +18,8 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import BaseModel
 
+from hassette.app.app import App
+from hassette.app.app_config import AppConfig
 from hassette.conversion import STATE_REGISTRY
 from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import FailedMessageError
@@ -25,11 +27,26 @@ from hassette.models.helpers import (
     CounterRecord,
     CreateCounterParams,
     CreateInputBooleanParams,
+    CreateInputSelectParams,
     InputBooleanRecord,
+    InputSelectRecord,
     TimerRecord,
     UpdateInputBooleanParams,
 )
-from hassette.test_utils.recording_api import _RECORD_TYPE_TO_DOMAIN, RecordingApi
+from hassette.test_utils.app_harness import AppTestHarness
+from hassette.test_utils.recording_api import _RECORD_TYPE_TO_DOMAIN, RecordingApi, _slugify_helper_name
+
+
+class _HarnessConfig(AppConfig):
+    """Minimal AppConfig for harness tests in this module."""
+
+
+class _HarnessApp(App[_HarnessConfig]):
+    """Minimal App subclass used to exercise AppTestHarness.seed_helper paths."""
+
+    async def on_initialize(self) -> None:
+        pass
+
 
 # ---------------------------------------------------------------------------
 # Test harness helpers (mirrors test_recording_api.py pattern)
@@ -283,3 +300,110 @@ async def test_counter_action_records_api_call_reset():
     call = api.calls[0]
     assert call.method == "reset_counter"
     assert call.kwargs["entity_id"] == "counter.baz"
+
+
+# ---------------------------------------------------------------------------
+# _slugify_helper_name — HA-aligned fallback for empty slugs
+# ---------------------------------------------------------------------------
+
+
+def test_slugify_helper_name_fallback_for_empty_slug():
+    """Cover all three branches of _slugify_helper_name.
+
+    - Non-empty inputs that slugify to "" fall back to "unknown" (matching HA).
+    - ``""`` and ``None`` inputs return ``""`` directly (no fallback).
+    - Otherwise the python-slugify output is returned as-is.
+    """
+    assert _slugify_helper_name("%%") == "unknown"
+    assert _slugify_helper_name("!!!") == "unknown"
+    assert _slugify_helper_name("") == ""
+    assert _slugify_helper_name(None) == ""
+    assert _slugify_helper_name("Vacation Mode") == "vacation_mode"
+
+
+# ---------------------------------------------------------------------------
+# list_* returns isolated copies (mutation on returned list items does not
+# alter the stored helper_definitions state).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_returns_isolated_copies():
+    """Mutating records returned by list_* must not affect the stored state."""
+    api = _make_recording_api()
+    api.helper_definitions["input_boolean"]["x"] = InputBooleanRecord(id="x", name="Original")
+
+    returned = (await api.list_input_booleans())[0]
+    returned.name = "Mutated"
+
+    refetched = (await api.list_input_booleans())[0]
+    assert refetched.name == "Original"
+
+
+@pytest.mark.asyncio
+async def test_list_isolation_preserves_nested_collections():
+    """InputSelectRecord.options must be deep-copied on list/create returns.
+
+    Shallow ``model_copy()`` would alias ``options: list[str]`` between the
+    stored record and the returned copy, so a caller appending to the
+    returned record would silently corrupt harness state. Verify both the
+    list_* path (pre-seeded record) and the create_* path (newly-created
+    record) return isolated copies.
+    """
+    api = _make_recording_api()
+
+    # --- list_* path ---
+    api.helper_definitions["input_select"]["mode"] = InputSelectRecord(id="mode", name="Mode", options=["a", "b"])
+
+    listed = (await api.list_input_selects())[0]
+    listed.options.append("MUTATED")
+
+    refetched = (await api.list_input_selects())[0]
+    assert refetched.options == ["a", "b"]
+
+    # --- create_* path ---
+    created = await api.create_input_select(CreateInputSelectParams(name="Another", options=["x", "y"]))
+    created.options.append("ALSO_MUTATED")
+
+    fetched_after_create = next(r for r in await api.list_input_selects() if r.id == created.id)
+    assert fetched_after_create.options == ["x", "y"]
+
+
+# ---------------------------------------------------------------------------
+# seed_helper — duplicate id guard and ValueError path via public API
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_seed_helper_rejects_duplicate_id():
+    """seed_helper raises ValueError when seeding a duplicate id in the same domain."""
+    async with AppTestHarness(_HarnessApp, config={}) as harness:
+        harness.seed_helper(InputBooleanRecord(id="vacation_mode", name="First"))
+
+        def _seed_duplicate() -> None:
+            harness.seed_helper(InputBooleanRecord(id="vacation_mode", name="Second"))
+
+        with pytest.raises(ValueError, match="already seeded"):
+            _seed_duplicate()
+
+
+@pytest.mark.asyncio
+async def test_harness_seed_helper_rejects_unknown_record_type():
+    """seed_helper raises ValueError (not KeyError) when given an unregistered BaseModel."""
+
+    class UnknownRecord(BaseModel):
+        id: str
+        name: str
+
+    async with AppTestHarness(_HarnessApp, config={}) as harness:
+        unknown = UnknownRecord(id="foo", name="Foo")
+
+        def _seed_unknown() -> None:
+            harness.seed_helper(unknown)
+
+        with pytest.raises(ValueError, match="Unknown helper record type") as exc_info:
+            _seed_unknown()
+
+    message = str(exc_info.value)
+    assert "UnknownRecord" in message
+    assert "InputBooleanRecord" in message

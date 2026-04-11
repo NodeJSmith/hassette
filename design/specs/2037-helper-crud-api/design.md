@@ -385,7 +385,7 @@ Usage: `harness.seed_helper(InputBooleanRecord(id="vacation_mode", name="Vacatio
 
 ```python
 def reset(self) -> None:
-    self.calls.clear()
+    self.calls = []  # (rebind, not mutate — preserves any snapshot references callers held before the reset)
     self.helper_definitions = {d: {} for d in _SUPPORTED_HELPER_DOMAINS}
 ```
 
@@ -441,7 +441,7 @@ When `Api` gains a new public async method, this test fails until `ApiProtocol` 
 
 Verified against `tools/generate_sync_facade.py:179-192, 509-551, 559-632`: the generator
 
-1. **Walks `api.py`'s AST** to derive imports automatically from the methods it emits (line 559-632). New imports from `hassette.models.helpers.*` flow through without any `HEADER` constant update.
+1. **Walks `api.py`'s AST** to derive imports automatically for the `--target recording` path (via `_collect_module_level_import_map` / `_build_precise_import_block`, lines 559-632). The `--target api` path uses a hardcoded `HEADER` constant at `tools/generate_sync_facade.py:44-97` and must be updated manually when new imports are needed.
 2. **Enforces an authoring constraint** (line 509) that body-copied methods on `RecordingApi` must not call async peer methods — this is why counter action methods on `RecordingApi` record `ApiCall` directly instead of delegating to `self.call_service(...)`.
 3. Has two targets (`--target api` and `--target recording`) with drift tests at `tests/unit/test_recording_sync_facade_generation.py::test_generator_check_mode_{api,recording}_exits_zero` that run on every local `pytest`. Forgetting to regenerate either target surfaces immediately.
 

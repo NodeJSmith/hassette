@@ -180,14 +180,14 @@ async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketS
         "type": "result",
         "id": 9,
         "success": False,
-        "error": {"code": "name_in_use", "message": "failure"},
+        "error": {"code": "invalid_format", "message": "failure"},
     }
     websocket_service._respond_if_necessary(original_message)
 
     assert pending_future.done()
     exception = pending_future.exception()
     assert isinstance(exception, FailedMessageError)
-    assert exception.code == "name_in_use"
+    assert exception.code == "invalid_format"
     assert exception.original_data == original_message
 
 

@@ -239,6 +239,11 @@ async def _ws_helper_call(api: "Api", domain: str, operation: str, **data: Any) 
     Preserves ``code`` and ``original_data`` from the original FailedMessageError
     so callers can inspect them via ``except FailedMessageError as e: e.code``.
     Chains through ``raise ... from e`` so the original traceback is retained.
+
+    Note: a WebSocket disconnect during the call raises
+    ``RetryableConnectionClosedError``, which propagates through this wrapper
+    unwrapped. Callers that need uniform exception handling should catch both
+    ``FailedMessageError`` and ``RetryableConnectionClosedError``.
     """
     try:
         return await api.ws_send_and_wait(type=f"{domain}/{operation}", **data)

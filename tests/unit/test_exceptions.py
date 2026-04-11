@@ -33,12 +33,12 @@ def test_failed_message_error_stores_kwargs() -> None:
     """``code`` and ``original_data`` are stored as instance attributes."""
     e = FailedMessageError(
         "boom",
-        code="name_in_use",
+        code="invalid_format",
         original_data={"source": "test"},
     )
 
     assert str(e) == "boom"
-    assert e.code == "name_in_use"
+    assert e.code == "invalid_format"
     assert e.original_data == {"source": "test"}
 
 
@@ -55,11 +55,11 @@ def test_failed_message_error_from_error_response_forwards_all_fields() -> None:
     """
     e = FailedMessageError.from_error_response(
         error="already exists",
-        code="name_in_use",
+        code="invalid_format",
         original_data={"type": "input_boolean/create"},
     )
 
-    assert e.code == "name_in_use"
+    assert e.code == "invalid_format"
     assert e.original_data == {"type": "input_boolean/create"}
     assert "WebSocket message failed" in str(e)
     assert "for failed" not in str(e)

@@ -346,9 +346,12 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_entity"))
 
     def list_input_booleans(self) -> list[InputBooleanRecord]:
-        """Return all seeded input_boolean helpers."""
+        """Return all seeded input_boolean helpers (shallow copies — safe to mutate)."""
 
-        return cast("list[InputBooleanRecord]", list(self._parent.helper_definitions["input_boolean"].values()))
+        return cast(
+            "list[InputBooleanRecord]",
+            [r.model_copy() for r in self._parent.helper_definitions["input_boolean"].values()],
+        )
 
     def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
         """Record the call and add a record to helper_definitions.
@@ -361,7 +364,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         generated_id = self._parent._new_helper_id("input_boolean", params.name)
         record = InputBooleanRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_boolean"][record.id] = record
-        return record
+        return record.model_copy()
 
     def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
         """Record the call and mutate the seeded record.
@@ -384,7 +387,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         existing = self._parent.helper_definitions["input_boolean"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_boolean"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     def delete_input_boolean(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -400,9 +403,12 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         del self._parent.helper_definitions["input_boolean"][helper_id]
 
     def list_input_numbers(self) -> list[InputNumberRecord]:
-        """Return all seeded input_number helpers."""
+        """Return all seeded input_number helpers (shallow copies — safe to mutate)."""
 
-        return cast("list[InputNumberRecord]", list(self._parent.helper_definitions["input_number"].values()))
+        return cast(
+            "list[InputNumberRecord]",
+            [r.model_copy() for r in self._parent.helper_definitions["input_number"].values()],
+        )
 
     def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
         """Record the call and add a record to helper_definitions."""
@@ -413,7 +419,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         generated_id = self._parent._new_helper_id("input_number", params.name)
         record = InputNumberRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_number"][record.id] = record
-        return record
+        return record.model_copy()
 
     def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
         """Record the call and mutate the seeded record.
@@ -436,7 +442,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         existing = self._parent.helper_definitions["input_number"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_number"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     def delete_input_number(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -452,9 +458,11 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         del self._parent.helper_definitions["input_number"][helper_id]
 
     def list_input_texts(self) -> list[InputTextRecord]:
-        """Return all seeded input_text helpers."""
+        """Return all seeded input_text helpers (shallow copies — safe to mutate)."""
 
-        return cast("list[InputTextRecord]", list(self._parent.helper_definitions["input_text"].values()))
+        return cast(
+            "list[InputTextRecord]", [r.model_copy() for r in self._parent.helper_definitions["input_text"].values()]
+        )
 
     def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
         """Record the call and add a record to helper_definitions."""
@@ -465,7 +473,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         generated_id = self._parent._new_helper_id("input_text", params.name)
         record = InputTextRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_text"][record.id] = record
-        return record
+        return record.model_copy()
 
     def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
         """Record the call and mutate the seeded record.
@@ -487,7 +495,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         existing = self._parent.helper_definitions["input_text"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_text"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     def delete_input_text(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -503,9 +511,20 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         del self._parent.helper_definitions["input_text"][helper_id]
 
     def list_input_selects(self) -> list[InputSelectRecord]:
-        """Return all seeded input_select helpers."""
+        """Return all seeded input_select helpers as isolated copies.
 
-        return cast("list[InputSelectRecord]", list(self._parent.helper_definitions["input_select"].values()))
+        Uses ``model_copy(deep=True)`` because ``InputSelectRecord.options``
+        is a ``list[str]`` — the only nested mutable field across all eight
+        helper record types. Shallow copies would alias the list between the
+        stored record and the returned copy, allowing a caller's
+        ``record.options.append(...)`` to silently corrupt harness state.
+        Other domains continue to use shallow copies because their fields
+        are all scalars."""
+
+        return cast(
+            "list[InputSelectRecord]",
+            [r.model_copy(deep=True) for r in self._parent.helper_definitions["input_select"].values()],
+        )
 
     def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
         """Record the call and add a record to helper_definitions."""
@@ -516,7 +535,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         generated_id = self._parent._new_helper_id("input_select", params.name)
         record = InputSelectRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_select"][record.id] = record
-        return record
+        return record.model_copy(deep=True)
 
     def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
         """Record the call and mutate the seeded record.
@@ -539,7 +558,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         existing = self._parent.helper_definitions["input_select"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_select"][helper_id] = updated
-        return updated
+        return updated.model_copy(deep=True)
 
     def delete_input_select(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -555,9 +574,12 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         del self._parent.helper_definitions["input_select"][helper_id]
 
     def list_input_datetimes(self) -> list[InputDatetimeRecord]:
-        """Return all seeded input_datetime helpers."""
+        """Return all seeded input_datetime helpers (shallow copies — safe to mutate)."""
 
-        return cast("list[InputDatetimeRecord]", list(self._parent.helper_definitions["input_datetime"].values()))
+        return cast(
+            "list[InputDatetimeRecord]",
+            [r.model_copy() for r in self._parent.helper_definitions["input_datetime"].values()],
+        )
 
     def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
         """Record the call and add a record to helper_definitions."""
@@ -568,7 +590,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         generated_id = self._parent._new_helper_id("input_datetime", params.name)
         record = InputDatetimeRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_datetime"][record.id] = record
-        return record
+        return record.model_copy()
 
     def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
         """Record the call and mutate the seeded record.
@@ -591,7 +613,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         existing = self._parent.helper_definitions["input_datetime"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_datetime"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     def delete_input_datetime(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -607,9 +629,12 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         del self._parent.helper_definitions["input_datetime"][helper_id]
 
     def list_input_buttons(self) -> list[InputButtonRecord]:
-        """Return all seeded input_button helpers."""
+        """Return all seeded input_button helpers (shallow copies — safe to mutate)."""
 
-        return cast("list[InputButtonRecord]", list(self._parent.helper_definitions["input_button"].values()))
+        return cast(
+            "list[InputButtonRecord]",
+            [r.model_copy() for r in self._parent.helper_definitions["input_button"].values()],
+        )
 
     def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
         """Record the call and add a record to helper_definitions."""
@@ -620,7 +645,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         generated_id = self._parent._new_helper_id("input_button", params.name)
         record = InputButtonRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_button"][record.id] = record
-        return record
+        return record.model_copy()
 
     def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
         """Record the call and mutate the seeded record.
@@ -643,7 +668,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         existing = self._parent.helper_definitions["input_button"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["input_button"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     def delete_input_button(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -659,9 +684,11 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         del self._parent.helper_definitions["input_button"][helper_id]
 
     def list_counters(self) -> list[CounterRecord]:
-        """Return all seeded counter helpers."""
+        """Return all seeded counter helpers (shallow copies — safe to mutate)."""
 
-        return cast("list[CounterRecord]", list(self._parent.helper_definitions["counter"].values()))
+        return cast(
+            "list[CounterRecord]", [r.model_copy() for r in self._parent.helper_definitions["counter"].values()]
+        )
 
     def create_counter(self, params: CreateCounterParams) -> CounterRecord:
         """Record the call and add a record to helper_definitions."""
@@ -672,7 +699,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         generated_id = self._parent._new_helper_id("counter", params.name)
         record = CounterRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["counter"][record.id] = record
-        return record
+        return record.model_copy()
 
     def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
         """Record the call and mutate the seeded record.
@@ -694,7 +721,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         existing = self._parent.helper_definitions["counter"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["counter"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     def delete_counter(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.
@@ -708,9 +735,9 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         del self._parent.helper_definitions["counter"][helper_id]
 
     def list_timers(self) -> list[TimerRecord]:
-        """Return all seeded timer helpers."""
+        """Return all seeded timer helpers (shallow copies — safe to mutate)."""
 
-        return cast("list[TimerRecord]", list(self._parent.helper_definitions["timer"].values()))
+        return cast("list[TimerRecord]", [r.model_copy() for r in self._parent.helper_definitions["timer"].values()])
 
     def create_timer(self, params: CreateTimerParams) -> TimerRecord:
         """Record the call and add a record to helper_definitions."""
@@ -719,7 +746,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         generated_id = self._parent._new_helper_id("timer", params.name)
         record = TimerRecord(id=generated_id, **params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["timer"][record.id] = record
-        return record
+        return record.model_copy()
 
     def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
         """Record the call and mutate the seeded record.
@@ -741,7 +768,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         existing = self._parent.helper_definitions["timer"][helper_id]
         updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
         self._parent.helper_definitions["timer"][helper_id] = updated
-        return updated
+        return updated.model_copy()
 
     def delete_timer(self, helper_id: str) -> None:
         """Record the call and remove the seeded record.

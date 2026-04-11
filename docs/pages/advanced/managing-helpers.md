@@ -154,6 +154,17 @@ Use `harness.seed_helper(record)` to pre-populate the `RecordingApi`'s helper st
 before your app's `on_initialize` runs. The harness derives the helper domain from the
 record's class — there is no `domain` parameter.
 
+The harness starts the app during `__aenter__`, so by the time the `async with`
+body begins, `on_initialize` has already run. Two patterns follow from this:
+
+1. **Test the first-run (create) path**: enter the harness with no seed, then
+   assert that the expected `create_*` call was recorded.
+2. **Test the reuse (no-create) path**: seed the helper *before* the app's
+   idempotency check runs. The simplest way is to pre-populate the recording
+   API's helper store directly via a fixture, but `seed_helper` is also
+   available for tests that interact with the stored helpers after the app
+   has started.
+
 ```python
 from hassette.models.helpers import InputBooleanRecord
 from hassette.test_utils import AppTestHarness
@@ -161,21 +172,23 @@ from hassette.test_utils import AppTestHarness
 from myapp import VacationModeApp
 
 
-async def test_vacation_mode_reuses_existing_helper():
+async def test_vacation_mode_creates_helper_on_first_run():
     async with AppTestHarness(VacationModeApp, config={}) as harness:
+        # No seed — store is empty; on_initialize ran during __aenter__
+        # and issued exactly one create_input_boolean call.
+        harness.api_recorder.assert_call_count("create_input_boolean", 1)
+
+
+async def test_vacation_mode_seed_helper_round_trip():
+    async with AppTestHarness(VacationModeApp, config={}) as harness:
+        # seed_helper is available after __aenter__ returns. Use it to set up
+        # state for tests that exercise list_*/update_*/delete_* paths.
         harness.seed_helper(
             InputBooleanRecord(id="vacation_mode", name="Vacation Mode", initial=False)
         )
-        await harness.initialize()
-        # The helper already existed, so no create should have been issued
-        harness.api_recorder.assert_not_called("create_input_boolean")
-
-
-async def test_vacation_mode_creates_helper_on_first_run():
-    async with AppTestHarness(VacationModeApp, config={}) as harness:
-        # No seed — store is empty
-        await harness.initialize()
-        harness.api_recorder.assert_call_count("create_input_boolean", 1)
+        records = await harness.api_recorder.list_input_booleans()
+        assert len(records) == 1
+        assert records[0].name == "Vacation Mode"
 ```
 
 For more working examples, see `tests/unit/test_recording_api_helpers.py` in the
@@ -219,6 +232,12 @@ repository.
   unlike volatile entity state. A helper you create in `on_initialize` today will still
   be there next week. The idempotent-bootstrap pattern above exists precisely because of
   this: on the second run your helper is already there.
+
+- **`RetryableConnectionClosedError` is a second exception class callers may receive.**
+  A WebSocket disconnect mid-CRUD propagates as `RetryableConnectionClosedError`, not
+  `FailedMessageError`. Callers whose `except FailedMessageError` block contains cleanup
+  logic should add a separate `except (FailedMessageError, RetryableConnectionClosedError):`
+  or wrap in a broader `except Exception:` where appropriate.
 
 ## Not Included / Out of Scope
 

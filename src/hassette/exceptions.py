@@ -56,9 +56,13 @@ class FailedMessageError(HassetteError):
     react programmatically::
 
         try:
-            await api.ws_send_and_wait(type="input_boolean/create", name="x")
+            await api.update_input_boolean(
+                "vacation_mode",
+                UpdateInputBooleanParams(initial=False),
+            )
         except FailedMessageError as e:
-            if e.code == "name_in_use":
+            if e.code == "not_found":
+                # Helper was deleted between list and update — recreate it
                 ...
 
     ``code`` is populated when the error originates from an HA error envelope

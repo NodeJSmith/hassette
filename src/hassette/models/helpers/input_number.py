@@ -50,7 +50,13 @@ class CreateInputNumberParams(BaseModel):
 
 
 class UpdateInputNumberParams(BaseModel):
-    """Parameters accepted by ``input_number/update``."""
+    """Parameters accepted by ``input_number/update``.
+
+    Note: HA requires ``min``/``max`` to be valid floats when set — passing
+    explicit ``None`` for these fields is not a valid operation. The harness
+    does not enforce this constraint; production HA will reject the request
+    server-side.
+    """
 
     model_config = ConfigDict(extra="ignore")
 

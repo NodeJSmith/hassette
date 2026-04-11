@@ -116,7 +116,7 @@ async def test_ws_helper_call_propagates_success():
 
 async def test_ws_helper_call_chains_error_with_context():
     """_ws_helper_call re-raises FailedMessageError with domain/op context and preserves code/original_data."""
-    original = FailedMessageError("orig", code="name_in_use", original_data={"a": 1})
+    original = FailedMessageError("orig", code="invalid_format", original_data={"a": 1})
     mock_api = MagicMock(spec=Api)
     mock_api.ws_send_and_wait = AsyncMock(side_effect=original)
 
@@ -124,7 +124,7 @@ async def test_ws_helper_call_chains_error_with_context():
         await _ws_helper_call(mock_api, "d", "op", key="val")
     e = exc_info.value
     assert "d/op failed for" in str(e)
-    assert e.code == "name_in_use"
+    assert e.code == "invalid_format"
     assert e.original_data == {"a": 1}
     assert e.__cause__ is original
 
