@@ -248,8 +248,13 @@ async def _ws_helper_call(api: "Api", domain: str, operation: str, **data: Any) 
     try:
         return await api.ws_send_and_wait(type=f"{domain}/{operation}", **data)
     except FailedMessageError as e:
+        # Include only field names in the error message — values may contain
+        # sensitive data (e.g., `input_text.initial` on a password-mode helper)
+        # that would leak into application logs. Full payload is preserved on
+        # `original_data` for debugging contexts that need it.
+        field_names = sorted(data.keys())
         raise FailedMessageError(
-            f"{domain}/{operation} failed for {data!r}: {e}",
+            f"{domain}/{operation} failed (fields: {field_names}): {e}",
             code=e.code,
             original_data=e.original_data,
         ) from e

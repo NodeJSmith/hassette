@@ -407,3 +407,23 @@ async def test_harness_seed_helper_rejects_unknown_record_type():
     message = str(exc_info.value)
     assert "UnknownRecord" in message
     assert "InputBooleanRecord" in message
+
+
+@pytest.mark.asyncio
+async def test_seed_helper_isolates_caller_mutations():
+    """seed_helper deep-copies the record so later caller-side mutations don't leak."""
+    from hassette.models.helpers import InputSelectRecord
+
+    async with AppTestHarness(_HarnessApp, config={}) as harness:
+        caller_record = InputSelectRecord(id="mode", name="Mode", options=["a", "b"])
+        harness.seed_helper(caller_record)
+
+        # Mutate the caller-side record after seeding — scalar and nested list.
+        caller_record.name = "Mutated"
+        caller_record.options.append("c")
+
+        # The harness store should be untouched.
+        listed = await harness.api_recorder.list_input_selects()
+        assert len(listed) == 1
+        assert listed[0].name == "Mode"
+        assert listed[0].options == ["a", "b"]

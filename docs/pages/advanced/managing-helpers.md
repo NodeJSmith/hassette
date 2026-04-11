@@ -4,11 +4,9 @@ Home Assistant **helpers** (`input_boolean`, `input_number`, `input_text`, `inpu
 `input_datetime`, `input_button`, `counter`, `timer`) are persistent entities stored in
 HA's `.storage/` directory — they survive restarts and are visible in the HA UI. Apps that
 want to self-provision their own helpers (a vacation-mode toggle, a motion-event cycle
-counter, a user-facing mode selector) can create and manage them directly through the
-typed `Api` methods added in Hassette 0.25. The full surface is 32 CRUD methods covering
-8 domains, plus 3 counter service-call shortcuts. Subscribe commands and a framework-level
-`ensure_helper` wrapper are deliberately outside this feature's scope — see
-[Not Included](#not-included-out-of-scope) for details.
+counter, a user-facing mode selector) can create and manage them directly through typed
+`Api` methods. The full surface is 32 CRUD methods covering 8 domains, plus 3 counter
+service-call shortcuts.
 
 ## Typed Models
 
@@ -150,20 +148,9 @@ one-off and the full `call_service` signature makes the intent explicit.
 
 ## Testing with the Harness
 
-Use `harness.seed_helper(record)` to pre-populate the `RecordingApi`'s helper store
-before your app's `on_initialize` runs. The harness derives the helper domain from the
-record's class — there is no `domain` parameter.
-
-The harness starts the app during `__aenter__`, so by the time the `async with`
-body begins, `on_initialize` has already run. Two patterns follow from this:
-
-1. **Test the first-run (create) path**: enter the harness with no seed, then
-   assert that the expected `create_*` call was recorded.
-2. **Test the reuse (no-create) path**: seed the helper *before* the app's
-   idempotency check runs. The simplest way is to pre-populate the recording
-   API's helper store directly via a fixture, but `seed_helper` is also
-   available for tests that interact with the stored helpers after the app
-   has started.
+`AppTestHarness` exposes a `seed_helper(record)` method that pre-populates the harness's
+helper store. The harness derives the helper domain from the record's class, so there is
+no `domain` parameter — just pass the typed record.
 
 ```python
 from hassette.models.helpers import InputBooleanRecord
@@ -174,15 +161,13 @@ from myapp import VacationModeApp
 
 async def test_vacation_mode_creates_helper_on_first_run():
     async with AppTestHarness(VacationModeApp, config={}) as harness:
-        # No seed — store is empty; on_initialize ran during __aenter__
-        # and issued exactly one create_input_boolean call.
+        # No helper was seeded, so the app's idempotent-bootstrap check
+        # falls through to create_input_boolean.
         harness.api_recorder.assert_call_count("create_input_boolean", 1)
 
 
-async def test_vacation_mode_seed_helper_round_trip():
+async def test_list_returns_seeded_helper():
     async with AppTestHarness(VacationModeApp, config={}) as harness:
-        # seed_helper is available after __aenter__ returns. Use it to set up
-        # state for tests that exercise list_*/update_*/delete_* paths.
         harness.seed_helper(
             InputBooleanRecord(id="vacation_mode", name="Vacation Mode", initial=False)
         )
@@ -191,23 +176,20 @@ async def test_vacation_mode_seed_helper_round_trip():
         assert records[0].name == "Vacation Mode"
 ```
 
-For more working examples, see `tests/unit/test_recording_api_helpers.py` in the
-repository.
+Seeded records are stored as deep copies, so later mutations to the record you passed
+in won't leak into harness state.
 
 ## Gotchas
 
 - **HA auto-suffixes on name collision.** When you call `create_input_boolean` (or any
   `create_*`) with a `name` that slugifies to an `id` already in storage, HA does **not**
-  raise an error. Home Assistant's `IDManager.generate_id` silently appends `_2`, `_3`,
-  and so on until it finds a free slot. Two concurrent creators of the same-named helper
-  will both succeed, leaving two semantically-duplicate records in storage. There is no
+  raise an error. Home Assistant's collection storage silently appends `_2`, `_3`, and so
+  on until it finds a free slot. Two concurrent creators of the same-named helper will
+  both succeed, leaving two semantically-duplicate records in storage. There is no
   `name_in_use` error code to catch. The correct mitigation is **naming discipline**:
-  prefix every helper with an identifier unique to its owning app
-  (e.g., `motionapp_cycles` rather than `cycles`) so collisions cannot happen in the
-  first place, and ensure only one app ever provisions any given helper. See
-  `design/specs/2037-helper-crud-api/design.md` → *HA WebSocket Commands* →
-  *HA does NOT reject duplicate create names — it silently suffixes* for the
-  full trace through HA source at tag `2026.4.1`.
+  prefix every helper with an identifier unique to its owning app (e.g., `motionapp_cycles`
+  rather than `cycles`) so collisions cannot happen in the first place, and ensure only
+  one app ever provisions any given helper.
 
 - **`CreateInputDatetimeParams` requires `has_date=True` or `has_time=True`.** Both
   `False` raises `ValidationError` at construction time — before any network call is
@@ -241,19 +223,10 @@ repository.
 
 ## Not Included / Out of Scope
 
-- **`{domain}/subscribe` commands.** HA's `DictStorageCollectionWebsocket` also registers
-  subscribe commands that stream config-change events. These require async generators or
-  callback registration and are deferred to a follow-up issue.
-
-- **Framework-level `ensure_helper` wrapper.** An earlier draft of this feature proposed
-  a generic `ensure_helper(domain, name, **fields)` convenience method. Adversarial design
-  review surfaced seven distinct problems with it (TOCTOU race, matching by mutable `name`
-  instead of stable `id`, `dict[str, Any]` return erasing type information, untestability
-  via the harness, round-trip breakage after HA upgrades, unbounded list calls, and
-  create→subscribe ordering gotchas). The correct answer is the 5-line user-written loop
-  documented above, not a wrapper that papers over those concerns. For the full rationale,
-  see `design/specs/2037-helper-crud-api/design.md` → *Alternatives Considered → A. Keep
-  `ensure_helper` and fix its individual flaws*.
+- **Subscribe commands.** Hassette does not currently expose a typed wrapper for HA's
+  helper config-change subscribe commands. Apps that need to react to stored-config
+  changes in real time should subscribe to entity state changes instead, or fall back to
+  raw `ws_send_and_wait()`.
 
 ## See Also
 

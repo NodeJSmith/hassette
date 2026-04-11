@@ -115,15 +115,27 @@ async def test_ws_helper_call_propagates_success():
 
 
 async def test_ws_helper_call_chains_error_with_context():
-    """_ws_helper_call re-raises FailedMessageError with domain/op context and preserves code/original_data."""
+    """_ws_helper_call re-raises FailedMessageError with domain/op context and preserves code/original_data.
+
+    Error message includes the *field names* of the outbound payload but NOT the values —
+    values may contain sensitive data (e.g., password-mode input_text helpers) that would
+    otherwise leak into application logs. Full payload stays on e.original_data.
+    """
     original = FailedMessageError("orig", code="invalid_format", original_data={"a": 1})
     mock_api = MagicMock(spec=Api)
     mock_api.ws_send_and_wait = AsyncMock(side_effect=original)
 
     with pytest.raises(FailedMessageError) as exc_info:
-        await _ws_helper_call(mock_api, "d", "op", key="val")
+        await _ws_helper_call(mock_api, "d", "op", key="secret-value", other_field="also-secret")
     e = exc_info.value
-    assert "d/op failed for" in str(e)
+    msg = str(e)
+    assert "d/op failed" in msg
+    # Field names present
+    assert "key" in msg
+    assert "other_field" in msg
+    # Values NOT present (would be a sensitive-data leak)
+    assert "secret-value" not in msg
+    assert "also-secret" not in msg
     assert e.code == "invalid_format"
     assert e.original_data == {"a": 1}
     assert e.__cause__ is original

@@ -570,11 +570,16 @@ class AppTestHarness:
         Domain is derived from the record class. Passing a record of a type
         not registered in _RECORD_TYPE_TO_DOMAIN raises ValueError immediately.
 
+        The record is deep-copied before storage, so later mutations of the
+        caller's `record` object will not leak into harness state — matching
+        the isolation guarantees of ``list_*`` / ``create_*`` / ``update_*``.
+
         Args:
             record: A helper Record model instance (e.g., InputBooleanRecord).
 
         Raises:
-            ValueError: If the record's type is not a known helper record type.
+            ValueError: If the record's type is not a known helper record type,
+                or if a record with the same id is already seeded.
         """
         try:
             domain = _RECORD_TYPE_TO_DOMAIN[type(record)]
@@ -588,7 +593,9 @@ class AppTestHarness:
                 f"A {type(record).__name__} with id={record.id!r} is already seeded. "  # pyright: ignore[reportAttributeAccessIssue]
                 f"Use a unique id or call harness.api_recorder.reset() first."
             )
-        self.api_recorder.helper_definitions[domain][record.id] = record  # pyright: ignore[reportAttributeAccessIssue]
+        # Deep-copy to isolate the harness store from later caller-side mutations.
+        # Shallow copy is insufficient for InputSelectRecord because of options: list[str].
+        self.api_recorder.helper_definitions[domain][record.id] = record.model_copy(deep=True)  # pyright: ignore[reportAttributeAccessIssue]
 
     async def set_states(self, states: dict[str, str | tuple[str, dict]]) -> None:
         """Seed multiple entities at once.
