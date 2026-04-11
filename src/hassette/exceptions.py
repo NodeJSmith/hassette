@@ -50,16 +50,42 @@ class RetryableConnectionClosedError(ConnectionClosedError):
 
 
 class FailedMessageError(HassetteError):
-    """Custom exception to indicate that a message sent to the WebSocket failed."""
+    """Custom exception to indicate that a message sent to the WebSocket failed.
+
+    Exposes HA's structured error surface as instance attributes so callers can
+    react programmatically::
+
+        try:
+            await api.ws_send_and_wait(type="input_boolean/create", name="x")
+        except FailedMessageError as e:
+            if e.code == "name_in_use":
+                ...
+
+    ``code`` is populated when the error originates from an HA error envelope
+    (see ``FailedMessageError.from_error_response``). It is ``None`` for
+    locally-synthesized failures such as transport timeouts.
+    """
+
+    def __init__(
+        self,
+        msg: str,
+        *,
+        code: str | None = None,
+        original_data: dict | None = None,
+    ) -> None:
+        super().__init__(msg)
+        self.code = code
+        self.original_data = original_data
 
     @classmethod
     def from_error_response(
         cls,
         error: str | None = None,
+        code: str | None = None,
         original_data: dict | None = None,
-    ):
-        msg = f"WebSocket message for failed with response '{error}' (data={original_data})"
-        return cls(msg)
+    ) -> "FailedMessageError":
+        msg = f"WebSocket message failed with response '{error}' (data={original_data})"
+        return cls(msg, code=code, original_data=original_data)
 
 
 class InvalidAuthError(FatalError):

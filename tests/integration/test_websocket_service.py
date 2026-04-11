@@ -166,17 +166,29 @@ async def test_respond_if_necessary_sets_result(websocket_service: WebsocketServ
 
 
 async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketService) -> None:
-    """Attach FailedMessageError when result payloads report failure."""
+    """Attach FailedMessageError when result payloads report failure.
+
+    Verifies the end-to-end path _respond_if_necessary → from_error_response →
+    FailedMessageError.code / .original_data is wired correctly: HA's error
+    envelope `code` field must flow through to the exception's `code` attribute
+    so callers can do `except FailedMessageError as e: if e.code == "...": ...`.
+    """
     pending_future = websocket_service.hassette.loop.create_future()
     websocket_service._response_futures[9] = pending_future
 
-    websocket_service._respond_if_necessary(
-        {"type": "result", "id": 9, "success": False, "error": {"message": "failure"}}
-    )
+    original_message = {
+        "type": "result",
+        "id": 9,
+        "success": False,
+        "error": {"code": "name_in_use", "message": "failure"},
+    }
+    websocket_service._respond_if_necessary(original_message)
 
     assert pending_future.done()
     exception = pending_future.exception()
     assert isinstance(exception, FailedMessageError)
+    assert exception.code == "name_in_use"
+    assert exception.original_data == original_message
 
 
 async def test_authenticate_happy_path(websocket_service: WebsocketService) -> None:
