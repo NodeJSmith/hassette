@@ -164,7 +164,7 @@ async def _ws_helper_call(
         ) from e
 ```
 
-Without this wrapper, a failed `create_input_boolean(name="vacation_mode")` produces a log line like `"FailedMessageError: Name is already in use"` with no hint about which domain, name, or operation was involved. With the wrapper, the log line reads `"input_boolean/create failed for {'name': 'vacation_mode'}: Name is already in use"`, AND the caller can still do `except FailedMessageError as e: if e.code == "name_in_use": ...` because the structured fields are preserved through the chain.
+Without this wrapper, a failed `update_input_boolean(helper_id="missing")` produces a log line like `"FailedMessageError: Unable to find input_boolean_id missing"` with no hint about which domain, id, or operation was involved. With the wrapper, the log line reads `"input_boolean/update failed for {'input_boolean_id': 'missing', ...}: Unable to find input_boolean_id missing"`, AND the caller can still inspect `e.code == "not_found"` because the structured fields are preserved through the chain.
 
 Call sites pass `self` as the first argument: `await _ws_helper_call(self, "input_boolean", "create", **params.model_dump(exclude_unset=True))`.
 
@@ -172,26 +172,25 @@ Call sites pass `self` as the first argument: `await _ws_helper_call(self, "inpu
 
 ```python
 try:
-    await self.api.create_input_boolean(
-        CreateInputBooleanParams(name="vacation_mode", initial=False)
+    await self.api.update_input_boolean(
+        "vacation_mode",
+        UpdateInputBooleanParams(initial=False),
     )
 except FailedMessageError as e:
-    if e.code == "name_in_use":
-        # Recover gracefully — helper already exists, update instead
-        for record in await self.api.list_input_booleans():
-            if record.id == "vacation_mode":
-                await self.api.update_input_boolean(
-                    record.id,
-                    UpdateInputBooleanParams(initial=False),
-                )
-                break
+    if e.code == "not_found":
+        # Helper doesn't exist yet — create it instead
+        await self.api.create_input_boolean(
+            CreateInputBooleanParams(name="vacation_mode", initial=False)
+        )
     else:
-        # Includes transport timeouts, disconnects, and other failures where
-        # HA never returned an error envelope — `e.code is None` for those
-        # cases. They are not recoverable via helper CRUD retry and fall
-        # through to `raise`.
+        # Includes transport timeouts, disconnects, unauthorized, and other
+        # failures where HA returned a different error (or no envelope at
+        # all — `e.code is None` for transport-level failures). Not
+        # recoverable via helper CRUD retry; fall through to `raise`.
         raise
 ```
+
+The full catalogue of error codes Hassette may see on the helper CRUD path is documented in the `## HA WebSocket Commands` → "Error codes Hassette may see" section below, verified against HA's `websocket_api/const.py`. **Note:** HA does **not** emit a `name_in_use` error code for duplicate-create attempts; `IDManager.generate_id` silently auto-suffixes (`vacation_mode`, `vacation_mode_2`, ...). See the "HA does NOT reject duplicate create names" section for details and the naming-discipline recommendation.
 
 ### Method signatures (representative — `input_boolean`)
 
@@ -375,9 +374,9 @@ Usage: `harness.seed_helper(InputBooleanRecord(id="vacation_mode", name="Vacatio
 **Per-method behavior on `RecordingApi`:**
 
 - **`list_{domain}`** — returns `cast(list[{Domain}Record], list(self.helper_definitions["{domain}"].values()))`. No recording (it's a read). Operates purely against the seeded state.
-- **`create_{domain}(params)`** — records an `ApiCall`, constructs `{Domain}Record(id=_slugify_helper_name(params.name), **params.model_dump(exclude_unset=True))` where `_slugify_helper_name` is a **module-level function defined in `src/hassette/test_utils/recording_api.py`** (NOT in `api.py` — it is harness-only logic; the real `Api.create_*` methods never slugify because HA assigns the id server-side). The function normalizes the display name to HA's ID format. A caller who does `create_input_boolean(CreateInputBooleanParams(name="Vacation Mode"))` then `update_input_boolean("vacation_mode", ...)` sees consistent behavior between harness and real HA. WP01 verifies HA's exact slug rule — if hassette already has a slugify utility, reuse it; otherwise a small local implementation in `recording_api.py` is fine (`name.lower().replace(" ", "_")` handles the common cases; edge cases like punctuation need the WP01 rule).
-- **`update_{domain}(helper_id, params)`** — records an `ApiCall`, constructs a new record via `existing.model_copy(update=params.model_dump(exclude_unset=True))` (immutability), replaces `helper_definitions[domain][helper_id]`, returns the new record. **Raises `KeyError` with a diagnostic message** if `helper_id` is not in the seed dict — tests that expect an update on nonexistent state fail fast with a clear message rather than silently succeeding.
-- **`delete_{domain}(helper_id)`** — records an `ApiCall`, removes from `helper_definitions[domain]`. **Raises `KeyError` with a diagnostic message** on missing `helper_id`, consistent with `update_*`. The earlier draft proposed silent ignore "matching HA behavior," but real HA's `DictStorageCollectionWebsocket` delete-of-nonexistent behavior is not actually silent — it returns an error response. WP01 verifies the exact HA behavior; the default is strict (raise) because strict-in-harness catches bugs that lax-in-harness would hide. Internal consistency with `update_*` is a secondary but important reason.
+- **`create_{domain}(params)`** — records an `ApiCall`, computes the new id via `_generate_helper_id(set(self.helper_definitions["{domain}"].keys()), params.name)` (a module-level helper in `src/hassette/test_utils/recording_api.py` that mirrors HA's `IDManager.generate_id` — uses `_slugify_helper_name` for the base id, then auto-suffixes `_2`/`_3`/... on collision), constructs `{Domain}Record(id=generated_id, **params.model_dump(exclude_unset=True))`, inserts into `helper_definitions["{domain}"][record.id]`, returns the record. Both helpers (`_slugify_helper_name` and `_generate_helper_id`) are **harness-only**, defined in `recording_api.py`, NOT in `api.py` — the real `Api.create_*` methods never slugify or generate ids because HA assigns the id server-side. WP01 verified HA's exact slug rule (it uses `python-slugify` with `separator="_"`) and the auto-suffix collision loop; see `## HA WebSocket Commands` for the source trace.
+- **`update_{domain}(helper_id, params)`** — records an `ApiCall`, constructs a new record via `existing.model_copy(update=params.model_dump(exclude_unset=True))` (immutability), replaces `helper_definitions[domain][helper_id]`, returns the new record. **Raises `FailedMessageError(code="not_found")` with a diagnostic message** if `helper_id` is not in the seed dict — matches real HA's `ItemNotFound → ERR_NOT_FOUND` behavior (verified in `## HA WebSocket Commands → HA delete-of-nonexistent behavior`). Tests that expect an update on nonexistent state can catch the same exception class they would use against real HA.
+- **`delete_{domain}(helper_id)`** — records an `ApiCall`, removes from `helper_definitions[domain]`. **Raises `FailedMessageError(code="not_found")` with a diagnostic message** on missing `helper_id`, consistent with `update_*` and with real HA's behavior. Exception-class parity with real HA means test code can use `except FailedMessageError as e: if e.code == "not_found": ...` against both the harness and a live HA instance without branching on the environment.
 - **Counter action methods** (`increment_counter`, `decrement_counter`, `reset_counter`) — record an `ApiCall` with method name + entity_id (same pattern as `turn_on` in `recording_api.py:167-176`). They do NOT delegate to `self.call_service(...)` because the sync facade generator's `_check_no_async_peer_calls` guard at `generate_sync_facade.py:509` aborts on any method body that calls another async peer method — that's an explicit authoring constraint documented at `recording_api.py:88-95`.
 
 **`reset()` must clear `helper_definitions`**:
@@ -500,13 +499,402 @@ The design assumes HA's update/delete commands accept domain-specific ID keys (`
 4. Any unexpected per-domain asymmetries
 5. **HA's slug-derivation rule** for converting a create-time `name` into a stored `id` (needed by `RecordingApi.create_*` to match real HA behavior — e.g., `"Vacation Mode"` → `"vacation_mode"`)
 6. **HA's WS error envelope structure**: does HA's `{"success": false, "error": {...}}` response include a `code` field alongside `message`? This drives the `FailedMessageError.code` population pathway. If HA only sends `{"error": "message"}` without a code, the `code` attribute stays `None` in practice but the exception signature is still correct.
-7. **HA's delete-of-nonexistent behavior**: does `{domain}/delete` with an unknown ID return an error response, or silently succeed? This validates (or refutes) the design's choice to have `RecordingApi.delete_*` raise `KeyError` strictly.
+7. **HA's delete-of-nonexistent behavior**: does `{domain}/delete` with an unknown ID return an error response, or silently succeed? (**Resolved by WP01**: HA raises `ItemNotFound` → returns `code="not_found"`. See `## HA WebSocket Commands → HA delete-of-nonexistent behavior`. The design's choice of strict-not-silent is confirmed; the exception class was refined from `KeyError` to `FailedMessageError(code="not_found")` for parity with real HA.)
 
 Results land in a `## HA WebSocket Commands` section of this design doc (added during WP01) and drive:
 - An `_ID_KEYS_BY_DOMAIN: dict[str, str]` lookup table in `api.py` if HA is not consistent across domains. If HA IS consistent, we can use plain string interpolation; but the verification must happen either way.
 - A module-level `_slugify_helper_name(name: str) -> str` function in **`src/hassette/test_utils/recording_api.py`** (harness-only; real `Api.create_*` methods never slugify because HA assigns the id server-side). Verify via `grep -r slugify src/hassette/` whether hassette already has a slugify utility; if so, reuse it, otherwise a small local implementation is fine.
 
 If possible, add at least one `@pytest.mark.requires_ha` integration smoke test that exercises `create`/`update`/`delete` against a real HA instance for at least one domain — to catch ID key mismatches that mocked tests cannot.
+
+**WP01 status: complete.** The verification results are documented in the `## HA WebSocket Commands` section below (added 2026-04-10 against HA tag `2026.4.1`, commit `b981ece163707338ef05cb227c3c14a2ca392b6e`). That section is the authoritative contract for WP02–WP05 implementation. Subsequent WPs should not re-read HA source for the items it covers — they should cite the section.
+
+## HA WebSocket Commands
+
+This section documents HA's WebSocket API for helper CRUD commands, verified against Home Assistant source at tag **`2026.4.1`** (commit SHA `b981ece163707338ef05cb227c3c14a2ca392b6e`). All subsequent WPs implement against this verified contract rather than assumptions. Raw file URLs follow the pattern:
+
+```
+https://raw.githubusercontent.com/home-assistant/core/2026.4.1/homeassistant/<path>
+```
+
+### Shared infrastructure — `DictStorageCollectionWebsocket`
+
+All 8 helper domains register their CRUD WebSocket surface via `collection.DictStorageCollectionWebsocket` from `homeassistant/helpers/collection.py`. Each domain's `__init__.py` constructs it with the identical positional pattern:
+
+```python
+collection.DictStorageCollectionWebsocket(
+    storage_collection, DOMAIN, DOMAIN, STORAGE_FIELDS, STORAGE_FIELDS
+).async_setup(hass)
+```
+
+The second argument is `api_prefix` and the third is `model_name`; every domain passes `DOMAIN` for both. This has two important consequences that hold for **every** domain covered by this feature:
+
+1. **Command prefix** — every command is named `f"{api_prefix}/<op>"`, i.e. `"{domain}/list"`, `"{domain}/create"`, `"{domain}/update"`, `"{domain}/delete"` (plus `"{domain}/subscribe"`, which is explicitly out of scope per *Non-Goals*). Registration happens in `StorageCollectionWebsocket.async_setup` at `homeassistant/helpers/collection.py:566-628`.
+2. **Update/delete ID key** — the update and delete schemas require a field named `self.item_id_key`, a computed property at `homeassistant/helpers/collection.py:561-564`:
+
+   ```python
+   @property
+   def item_id_key(self) -> str:
+       """Return item ID key."""
+       return f"{self.model_name}_id"
+   ```
+
+   Because every domain passes `model_name=DOMAIN`, the ID key is uniformly `"{domain}_id"` — `input_boolean_id`, `input_number_id`, `input_text_id`, `input_select_id`, `input_datetime_id`, `input_button_id`, `counter_id`, `timer_id`. **No per-domain `_ID_KEYS_BY_DOMAIN` lookup is required** — `Api.update_*` / `Api.delete_*` can use `f"{domain}_id"` interpolation.
+
+The websocket handlers themselves live in the same file:
+
+- `ws_list_item` (registration `collection.py:569-576`, handler body at `collection.py:630-635`): returns `self.storage_collection.async_items()` — a `list[dict]`.
+- `ws_create_item` (registration `collection.py:578-590`, handler body at `collection.py:637-654`): strips `"id"` and `"type"` from the inbound message, forwards the rest to `async_create_item`, then `connection.send_result(msg["id"], item)` — response is the created item `dict`.
+- `ws_update_item` (registration `collection.py:601-614`, handler body at `collection.py:706-731`): extracts `item_id = data.pop(self.item_id_key)`, calls `async_update_item(item_id, data)`, responds with the updated item `dict`. On `ItemNotFound` it sends `ERR_NOT_FOUND`. On `vol.Invalid` it sends `ERR_INVALID_FORMAT`.
+- `ws_delete_item` (registration `collection.py:616-628`, handler body at `collection.py:733-746`): calls `self.storage_collection.async_delete_item(msg[self.item_id_key])`, then `connection.send_result(msg["id"])` — **no payload**, so HA returns `{"success": true, "result": null}` and Hassette's `send_and_wait` unwraps to `None`.
+
+### Command summary (all 8 domains)
+
+Every domain follows the identical shape: `{domain}/list`, `{domain}/create`, `{domain}/update`, `{domain}/delete`, with ID key `{domain}_id`, list response `list[dict]`, create/update response `dict`, delete response `None`. The 8 rows below confirm this by citing each domain's `DictStorageCollectionWebsocket(...)` call site and `DOMAIN` constant:
+
+| Domain | Commands | Update/Delete ID key | Registration site |
+|---|---|---|---|
+| `input_boolean` | `input_boolean/{list,create,update,delete}` | `input_boolean_id` | `homeassistant/components/input_boolean/__init__.py:116-118` (`DOMAIN = "input_boolean"` at line 31) |
+| `input_number` | `input_number/{list,create,update,delete}` | `input_number_id` | `homeassistant/components/input_number/__init__.py:132-134` (`DOMAIN = "input_number"` at line 31) |
+| `input_text` | `input_text/{list,create,update,delete}` | `input_text_id` | `homeassistant/components/input_text/__init__.py:141-143` (`DOMAIN = "input_text"` at line 31) |
+| `input_select` | `input_select/{list,create,update,delete}` | `input_select_id` | `homeassistant/components/input_select/__init__.py:162-164` (`DOMAIN = "input_select"` at line 39) |
+| `input_datetime` | `input_datetime/{list,create,update,delete}` | `input_datetime_id` | `homeassistant/components/input_datetime/__init__.py:154-156` (`DOMAIN = "input_datetime"` at line 31) |
+| `input_button` | `input_button/{list,create,update,delete}` | `input_button_id` | `homeassistant/components/input_button/__init__.py:101-103` (`DOMAIN = "input_button"` at line 26) |
+| `counter` | `counter/{list,create,update,delete}` | `counter_id` | `homeassistant/components/counter/__init__.py:120-122` (`DOMAIN = "counter"` at line 39) |
+| `timer` | `timer/{list,create,update,delete}` | `timer_id` | `homeassistant/components/timer/__init__.py:136-138` (`DOMAIN = "timer"` at line 33) |
+
+All 8 domains use **identical** positional args `(storage_collection, DOMAIN, DOMAIN, STORAGE_FIELDS, STORAGE_FIELDS)` — create and update share one schema (no asymmetry). The `update` schema at the WS layer additionally accepts `self.item_id_key: str` (required) on top of the domain's `STORAGE_FIELDS`; the `delete` schema accepts only `self.item_id_key: str`. WP02 should model `Update*Params` with every field from the domain's STORAGE_FIELDS as optional (for partial updates via `exclude_unset=True`).
+
+### Per-domain fields
+
+Field names below use HA's `CONF_*` constant values (the strings that appear on the wire), not the Python constant names.
+
+#### `input_boolean`
+- **Create fields** (all shared with update): `name: str` (required, `vol.Length(min=1)`), `initial: bool` (optional), `icon: str` (optional, `cv.icon`).
+- **Schema source:** `homeassistant/components/input_boolean/__init__.py:37-41` (`STORAGE_FIELDS`).
+- **Collection class:** `InputBooleanStorageCollection(collection.DictStorageCollection)` at `homeassistant/components/input_boolean/__init__.py:64-81`.
+- **Validators:** none (no cross-field invariants).
+- **List response shape:** `list[dict]` where each entry has `id`, `name`, and whatever optional fields were set.
+
+#### `input_number`
+- **Create fields:** `name: str` (required), `min: float` (required, `vol.Coerce(float)`), `max: float` (required, `vol.Coerce(float)`), `initial: float` (optional), `step: float` (optional, default `1`, `vol.Range(min=1e-9)`), `icon: str` (optional), `unit_of_measurement: str` (optional), `mode: str` (optional, default `"slider"`, one of `["box", "slider"]`).
+- **Schema source:** `homeassistant/components/input_number/__init__.py:66-75` (`STORAGE_FIELDS`).
+- **Validators:** `_cv_input_number` at `homeassistant/components/input_number/__init__.py:52-63` enforces `max > min` and `min <= initial <= max`. Models should mirror this as a `@model_validator(mode="after")` on `Create*Params` / `Update*Params`. For partial updates where only one of `min`/`max` is set, the validator should **only** fire if the caller provides enough information to validate — this matters because HA's server-side validator runs against the merged (existing + update) data, not the update alone. Simplest correct behavior in Hassette models: skip the invariant check on `Update*Params` and let HA return the error if it's violated. Document this as an explicit tradeoff.
+
+#### `input_text`
+- **Create fields:** `name: str` (required), `min: int` (optional, default `0`, range `[0, MAX_LENGTH_STATE_STATE=255]`), `max: int` (optional, default `100`, range `[1, 255]`), `initial: str` (optional, default `""`), `icon: str` (optional), `unit_of_measurement: str` (optional), `pattern: str` (optional), `mode: str` (optional, default `"text"`, one of `["text", "password"]`).
+- **Schema source:** `homeassistant/components/input_text/__init__.py:53-66` (`STORAGE_FIELDS`).
+- **Validators:** `_cv_input_text` at `homeassistant/components/input_text/__init__.py:69-82` enforces `min <= max` and validates the initial value fits the `min`/`max` length bounds. Same partial-update consideration as `input_number` — WP02 should skip the invariant check on `Update*Params`.
+
+#### `input_select`
+- **Create fields:** `name: str` (required), `options: list[str]` (required, `vol.Length(min=1)`, unique, each `cv.string`), `initial: str` (optional), `icon: str` (optional).
+- **Schema source:** `homeassistant/components/input_select/__init__.py:57-64` (`STORAGE_FIELDS`).
+- **Validators:** `_cv_input_select` at `homeassistant/components/input_select/__init__.py:84-93` enforces `initial` must be a member of `options`, and duplicate options are removed (via the `_remove_duplicates` helper at `homeassistant/components/input_select/__init__.py:67-81`).
+
+#### `input_datetime`
+- **Create fields:** `name: str` (required), `has_date: bool` (optional, default `False`), `has_time: bool` (optional, default `False`), `icon: str` (optional), `initial: str` (optional).
+- **Schema source:** `homeassistant/components/input_datetime/__init__.py:61-67` (`STORAGE_FIELDS`).
+- **Validators:** `has_date_or_time` at `homeassistant/components/input_datetime/__init__.py:70-75` enforces `has_date or has_time` — the "entity needs at least a date or a time" invariant referenced in the *Architecture* section. `CreateInputDatetimeParams` in WP02 carries a matching `@model_validator(mode="after")`. Because the HA defaults are `False/False`, a user who calls `CreateInputDatetimeParams(name="foo")` would hit HA's validator — Hassette should catch this locally.
+
+#### `input_button`
+- **Create fields:** `name: str` (required), `icon: str` (optional).
+- **Schema source:** `homeassistant/components/input_button/__init__.py:30-33` (`STORAGE_FIELDS`).
+- **Validators:** none.
+- **Note:** Buttons are "press to trigger"-style helpers — no `initial` field, no state, no value. The `press` action is a service call (`input_button.press`), not WS CRUD. This is consistent with the design's choice to leave service-call shortcuts to `counter` only.
+
+#### `counter`
+- **Create fields:** `name: str` (required), `icon: str` (optional), `initial: int` (optional, default `0`, `cv.positive_int`), `maximum: int | None` (optional, default `None`), `minimum: int | None` (optional, default `None`), `restore: bool` (optional, default `True`), `step: int` (optional, default `1`, `cv.positive_int`).
+- **Schema source:** `homeassistant/components/counter/__init__.py:51-59` (`STORAGE_FIELDS`).
+- **Validators:** none at the schema level — the `Counter` class applies min/max clamping in its runtime properties, but the CRUD schema does not.
+- **Note:** `counter` uses `CONF_MAXIMUM`/`CONF_MINIMUM` (the full words), not `max`/`min` like `input_number`. WP02 field names must match: `maximum: int | None`, `minimum: int | None`. This is a per-domain asymmetry to watch for.
+
+#### `timer`
+- **Create fields:** `name: str` (required, `cv.string` — note: NOT `vol.Length(min=1)` like the other domains), `icon: str` (optional), `duration: timedelta` (optional, default `0`, `cv.time_period` — HA parses strings like `"00:05:00"` or integers as seconds), `restore: bool` (optional, default `False`).
+- **Schema source:** `homeassistant/components/timer/__init__.py:68-73` (`STORAGE_FIELDS`).
+- **Validators:** none.
+- **Note 1:** `timer.name` validation is weaker than the other domains (empty string is technically accepted by `cv.string`, though `_get_suggested_id` would produce an empty slug which `slugify` normalizes to `"unknown"`). WP02 can still require a non-empty name in the Pydantic model for Hassette callers — stricter client-side validation is fine.
+- **Note 2:** `duration` is a `timedelta` server-side. WP02's `CreateTimerParams.duration` field should accept `str | int | timedelta` and serialize to the HA wire format (HA's `cv.time_period` accepts strings like `"00:05:00"`, integers as seconds, or dict form). Recommendation: accept `str | int` in the Pydantic model and let HA's coercion handle both; document `"HH:MM:SS"` as the canonical string format.
+- **Note 3:** `timer` service actions (`timer.start`, `timer.pause`, `timer.cancel`, `timer.change`, `timer.finish`) are registered as **entity services** via `async_register_entity_service` at `homeassistant/components/timer/__init__.py:154-166`, NOT as WebSocket commands — consistent with the design's "no timer action wrappers" decision in the *Counter service-call shortcuts* section.
+
+### HA error envelope structure
+
+HA's WebSocket error responses are produced by `error_message` in `homeassistant/components/websocket_api/messages.py:81-104`:
+
+```python
+def error_message(
+    iden: int | None,
+    code: str,
+    message: str,
+    translation_key: str | None = None,
+    translation_domain: str | None = None,
+    translation_placeholders: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return an error result message."""
+    error_payload: dict[str, Any] = {
+        "code": code,
+        "message": message,
+    }
+    # In case `translation_key` is `None` we do not set it, nor the
+    # `translation`_placeholders` and `translation_domain`.
+    if translation_key is not None:
+        error_payload["translation_key"] = translation_key
+        error_payload["translation_placeholders"] = translation_placeholders
+        error_payload["translation_domain"] = translation_domain
+    return {
+        "id": iden,
+        **BASE_ERROR_MESSAGE,
+        "error": error_payload,
+    }
+```
+
+(`BASE_ERROR_MESSAGE` is defined at `homeassistant/components/websocket_api/messages.py:47-50` as `{"type": const.TYPE_RESULT, "success": False}`.)
+
+So the wire format is:
+
+```json
+{
+  "id": 42,
+  "type": "result",
+  "success": false,
+  "error": {
+    "code": "not_found",
+    "message": "Unable to find input_boolean_id vacation_mode"
+  }
+}
+```
+
+**The `code` field is always present** inside `error` for HA-issued error responses — it is not optional. Translation fields (`translation_key`, `translation_domain`, `translation_placeholders`) are sometimes added but Hassette doesn't need them.
+
+**Impact on `FailedMessageError.code`:** the field is populated for every HA-sent error. It is `None` only when `send_and_wait` synthesizes its own `FailedMessageError` for non-envelope failures (e.g., `TimeoutError` in `websocket_service.py:270` — the timeout path wraps the exception itself without going through `from_error_response`). WP03's tests should cover both: (1) an HA-sent error envelope produces `code == "<ha-code>"`, and (2) a transport timeout produces `code is None`.
+
+**Update to `websocket_service.py:292-293`** — currently:
+
+```python
+err = (message.get("error") or {}).get("message", "Unknown error")
+fut.set_exception(FailedMessageError.from_error_response(err, original_data=message))
+```
+
+Must become:
+
+```python
+error_obj = message.get("error") or {}
+err = error_obj.get("message", "Unknown error")
+code = error_obj.get("code")
+fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
+```
+
+### Error codes Hassette may see
+
+From `homeassistant/components/websocket_api/const.py:37-48`, the complete set of HA error codes is:
+
+| Constant | String value | Likely in helper CRUD path? |
+|---|---|---|
+| `ERR_ID_REUSE` | `"id_reuse"` | No (protocol-level message ID reuse) |
+| `ERR_INVALID_FORMAT` | `"invalid_format"` | **Yes** — schema validation failures in create/update |
+| `ERR_NOT_ALLOWED` | `"not_allowed"` | Possibly (service-call shortcuts) |
+| `ERR_NOT_FOUND` | `"not_found"` | **Yes** — `update`/`delete` with unknown ID |
+| `ERR_NOT_SUPPORTED` | `"not_supported"` | No |
+| `ERR_HOME_ASSISTANT_ERROR` | `"home_assistant_error"` | Possibly (generic HA errors) |
+| `ERR_SERVICE_VALIDATION_ERROR` | `"service_validation_error"` | Possibly (counter service calls) |
+| `ERR_UNKNOWN_COMMAND` | `"unknown_command"` | Only if Hassette sends a malformed `type` |
+| `ERR_UNKNOWN_ERROR` | `"unknown_error"` | Catch-all |
+| `ERR_UNAUTHORIZED` | `"unauthorized"` | Yes — create/update/delete are `require_admin` |
+| `ERR_TIMEOUT` | `"timeout"` | HA-side timeout (distinct from Hassette's transport timeout) |
+| `ERR_TEMPLATE_ERROR` | `"template_error"` | No |
+
+**Important:** HA's helper CRUD path does **not** have a `"name_in_use"` error code. See the next section for what this means.
+
+### HA does NOT reject duplicate create names — it silently suffixes
+
+This is the single most consequential finding from WP01. `StorageCollection.async_create_item` at `homeassistant/helpers/collection.py:311-328` delegates ID assignment to `IDManager.generate_id` at `homeassistant/helpers/collection.py:98-108`:
+
+```python
+def generate_id(self, suggestion: str) -> str:
+    """Generate an ID."""
+    base = slugify(suggestion)
+    proposal = base
+    attempt = 1
+
+    while self.has_id(proposal):
+        attempt += 1
+        proposal = f"{base}_{attempt}"
+
+    return proposal
+```
+
+When a caller creates a helper with a name that slugifies to an existing ID, HA **auto-suffixes** the ID (`vacation_mode`, `vacation_mode_2`, `vacation_mode_3`, ...) and silently succeeds. There is no exception raised, no warning logged, and no error code surfaced. The `ws_create_item` handler at `collection.py:637-654` catches only `vol.Invalid` and `ValueError`, neither of which `generate_id` raises.
+
+**This invalidates the design's original concurrent-bootstrap pattern.** An earlier draft of this design's `## Alternatives Considered` section included a "race-safe variant" that caught `FailedMessageError` with `e.code == "name_in_use"` and re-fetched, on the assumption that two concurrent creators of the same helper would collide at the HA server. HA will never produce `code == "name_in_use"`. Instead, the "losing" concurrent creator successfully creates a **second helper** with id `vacation_mode_2`, leaving two semantically-duplicate records in HA storage. The simple loop-over-`list_*`-then-create version exhibits the same behavior under concurrency — the check-then-create is not atomic, and neither call raises. There is nothing to "retry" because nothing failed.
+
+**Design updates applied in WP01** (all revisions live in this same design doc):
+
+1. **`## Alternatives Considered` → "Race-safe variant"**: removed entirely. The simple 5-line loop remains documented as the canonical pattern, with prose explaining HA's auto-suffix behavior and the naming-discipline mitigation (each app uses a helper name unique within the deployment, typically prefixed with the app identifier, and only one app owns provisioning for any given helper). Users who need strict cross-app uniqueness must coordinate outside the WS layer — the framework does not attempt to paper over HA's lack of atomic upsert.
+2. **`## Architecture` → "Example programmatic error handling"**: rewritten. The previous example caught `e.code == "name_in_use"` on a `create_*` call; that code is dead, so the example now demonstrates catching `e.code == "not_found"` on an `update_*` call (a real error code that HA actually emits, verified in the "Error codes Hassette may see" table above). The new example also cross-references this section for the full trace.
+3. **`## Documentation` → narrative guide**: updated to ship only the simple 5-line bootstrap pattern plus a "gotchas" section that explains HA's auto-suffix behavior and the naming-discipline recommendation. The previously-planned "Advanced: concurrent provisioning" section with a race-safe variant is deleted — it would have trained users to catch an error code that never fires.
+4. **WP07**: updated to match the new design narrative. The WP no longer instructs the implementer to document a race-safe variant; it adds a "gotchas" bullet explaining HA auto-suffixing and citing this section for the trace. The Blocker list now flags any `e.code == "name_in_use"` snippet as BLOCKER.
+
+**Consequential adjustments to other WPs:**
+
+- **WP05's `RecordingApi.create_*`**: should match HA's auto-suffixing behavior for parity. When a test seeds `{"vacation_mode": ...}` and then calls `create_input_boolean(CreateInputBooleanParams(name="Vacation Mode"))`, the harness should produce id `vacation_mode_2`, not raise. The seed helper signature and the module-level `_slugify_helper_name` function are already in the design — `RecordingApi.create_*` just needs a collision-check loop that mirrors `IDManager.generate_id`.
+- **WP05's `RecordingApi.delete_*`**: the design's original choice to `raise KeyError` on delete-of-nonexistent is now reconsidered. HA returns `ERR_NOT_FOUND` (not silent success), so strict-in-harness is correct in intent. The divergence is only in exception class: HA raises `FailedMessageError(code="not_found")` via the WS error envelope, the harness raises `KeyError`. The "HA delete-of-nonexistent behavior" section below recommends switching the harness to raise `FailedMessageError(code="not_found")` instead, so app tests using `pytest.raises(FailedMessageError)` work identically against the harness and real HA.
+
+### HA slug-derivation rule
+
+HA uses `homeassistant.util.slugify` to convert a create-time `name` into a stored `id`. Source at `homeassistant/util/__init__.py:41-46`:
+
+```python
+def slugify(text: str | None, *, separator: str = "_") -> str:
+    """Slugify a given text."""
+    if text == "" or text is None:
+        return ""
+    slug = unicode_slug.slugify(text, separator=separator)
+    return "unknown" if slug == "" else slug
+```
+
+The `unicode_slug` alias is imported at `homeassistant/util/__init__.py:15` as `import slugify as unicode_slug` — this is the [`python-slugify`](https://pypi.org/project/python-slugify/) PyPI package (not the `awesome-slugify` variant, and not HA's own implementation). `python-slugify` applies these transformations by default:
+
+- **Lowercases** the input
+- **ASCII-fies** via unidecode (e.g., `"Café"` → `"cafe"`, `"ümlaut"` → `"umlaut"`)
+- **Separator**: HA passes `separator="_"`, so spaces and most punctuation become `_`
+- **Collapses** consecutive separators to a single underscore
+- **Strips** leading/trailing separators
+- **Drops** characters that don't map to an ASCII letter, digit, or the separator
+- **No max length** — HA does not pass `max_length`
+
+Edge-case handling from `homeassistant.util.slugify` itself:
+
+- `slugify(None)` → `""`
+- `slugify("")` → `""`
+- `slugify("%%")` (i.e. input that `unicode_slug.slugify` reduces to empty) → `"unknown"` (HA's fallback)
+
+**Example transformations** (verified mentally against `python-slugify`'s rules — WP05 should add unit tests to pin these):
+
+| Input `name` | `slugify(name)` result |
+|---|---|
+| `"Vacation Mode"` | `"vacation_mode"` |
+| `"Guest Bedroom #1"` | `"guest_bedroom_1"` |
+| `"  Leading/trailing  "` | `"leading_trailing"` |
+| `"Café Lights"` | `"cafe_lights"` |
+| `"ÜberHelper"` | `"uberhelper"` |
+| `"%%"` | `"unknown"` |
+| `""` | `""` |
+| `None` | `""` |
+
+**Impact on WP05's `_slugify_helper_name`:** the design doc currently suggests `name.lower().replace(" ", "_")` as a fallback. This is **insufficient** — it doesn't handle unicode, punctuation, or collision-suffixing. WP05 should instead:
+
+1. Check whether Hassette already has a `slugify` utility (`grep -r slugify src/hassette/` — at the time of WP01 there is no such utility in the repo, only the Jinja `entity_id_to_slug` filter in `tools/generate_docs_helper.py` and unrelated docs).
+2. Add `python-slugify` as a runtime dependency OR vendor a minimal implementation that matches HA's rules.
+3. **Recommendation:** add `python-slugify>=8.0` to `pyproject.toml` dependencies and call it with `separator="_"` — exactly mirroring HA's call. This is simpler, more robust, and zero-maintenance. WP02 should include the dependency bump. The cost is one small wheel (~20 KB) and the benefit is that WP05's harness produces byte-identical ids to real HA.
+4. Wrap it in a helper like:
+
+   ```python
+   # src/hassette/test_utils/recording_api.py
+   from slugify import slugify as _unicode_slug
+
+   def _slugify_helper_name(name: str | None) -> str:
+       """Mirror homeassistant.util.slugify for RecordingApi parity with HA."""
+       if name == "" or name is None:
+           return ""
+       slug = _unicode_slug(name, separator="_")
+       return "unknown" if slug == "" else slug
+   ```
+5. Also implement HA's collision-suffixing so that seeding `{"vacation_mode": ...}` and then `create_*` with `name="Vacation Mode"` produces `vacation_mode_2`:
+
+   ```python
+   def _generate_helper_id(existing_ids: set[str], name: str) -> str:
+       base = _slugify_helper_name(name)
+       if not base or base not in existing_ids:
+           return base
+       attempt = 2
+       while f"{base}_{attempt}" in existing_ids:
+           attempt += 1
+       return f"{base}_{attempt}"
+   ```
+
+### HA delete-of-nonexistent behavior
+
+At `homeassistant/helpers/collection.py:358-366`, `StorageCollection.async_delete_item` is:
+
+```python
+async def async_delete_item(self, item_id: str) -> None:
+    """Delete item."""
+    if item_id not in self.data:
+        raise ItemNotFound(item_id)
+
+    item = self.data.pop(item_id)
+    self._async_schedule_save()
+
+    await self.notify_changes([CollectionChange(CHANGE_REMOVED, item_id, item)])
+```
+
+`ItemNotFound` is defined at `homeassistant/helpers/collection.py:74-80`:
+
+```python
+class ItemNotFound(CollectionError):
+    """Raised when an item is not found."""
+
+    def __init__(self, item_id: str) -> None:
+        """Initialize item not found error."""
+        super().__init__(f"Item {item_id} not found.")
+        self.item_id = item_id
+```
+
+The WS delete handler at `homeassistant/helpers/collection.py:733-746` catches it:
+
+```python
+except ItemNotFound:
+    connection.send_error(
+        msg["id"],
+        websocket_api.ERR_NOT_FOUND,
+        f"Unable to find {self.item_id_key} {msg[self.item_id_key]}",
+    )
+```
+
+So **HA returns an error envelope with `code == "not_found"`** for delete-of-nonexistent — it does NOT silently succeed. The design's strict-not-silent choice for `RecordingApi.delete_*` is confirmed, and WP01's verification further refined the choice to use `FailedMessageError(code="not_found")` (matching real HA's exception class) rather than `KeyError`. The final behavior alignment is:
+
+| Layer | Missing-id behavior |
+|---|---|
+| HA server | raises `ItemNotFound` → WS returns `{"success": false, "error": {"code": "not_found", ...}}` |
+| `Api.delete_*` | `ws_send_and_wait` raises `FailedMessageError(code="not_found")` |
+| `RecordingApi.delete_*` | raises `FailedMessageError(code="not_found")` — same exception class as real `Api`, so tests can use a single `except` block against both |
+
+**WP05 implementer note:** both `update_*` and `delete_*` on `RecordingApi` raise `FailedMessageError(code="not_found")` on missing ids. This provides byte-identical exception-class parity with the real `Api` — callers doing `try: await api.delete_input_boolean("x"); except FailedMessageError as e: if e.code == "not_found": ...` work identically against harness and live HA. The previous design draft used `KeyError` for internal consistency with `update_*`; WP01's HA source verification showed HA raises the `not_found` error for both cases, so we adopt the single-exception approach throughout.
+
+The same analysis applies to `update_*` on missing ids — HA raises `ItemNotFound` in `async_update_item` at `collection.py:330-356` (the `if item_id not in self.data: raise ItemNotFound(item_id)` guard on line 332-333), the WS handler `ws_update_item` at `collection.py:706-731` catches it and returns `ERR_NOT_FOUND`. Harness parity: `RecordingApi.update_*` raises `FailedMessageError(code="not_found")`.
+
+### HA same-connection read-after-write consistency
+
+An earlier draft of this design posed the question: "does HA's WebSocket API provide read-after-write consistency on the same WS connection?" — relevant at the time because a now-removed "race-safe variant" depended on re-fetching a helper immediately after a create. The answer is still worth recording for the simple bootstrap loop:
+
+- `StorageCollection.async_create_item` (`collection.py:311-328`) writes to `self.data[item_id]` **before** `_async_schedule_save()` — the in-memory dict is updated synchronously.
+- `ws_list_item` calls `self.storage_collection.async_items()` which returns `list(self.data.values())` — reading the same in-memory dict.
+- A subsequent `{domain}/list` command from the same WS client on the same connection reads the updated dict. As long as both commands are processed in order (which HA guarantees per connection), the list response includes the newly-created item.
+
+**Verdict: same-connection read-after-write is reliable.** Cross-connection consistency (two Hassette instances on separate connections racing) is likewise reliable because the underlying `StorageCollection.data` is a shared in-memory dict on the HA process — there's no replication lag.
+
+This section is informational only — with the race-safe variant removed, the simple loop no longer depends on this guarantee for correctness, but users who want to call `list_*` immediately after `create_*` on the same `Api` instance can rely on it.
+
+### Impact on implementation
+
+Consolidated list of WP02–WP05 adjustments required or recommended based on WP01:
+
+1. **WP02 (models)**:
+   - `counter` uses `minimum`/`maximum` (not `min`/`max`) — field names must match.
+   - `timer.duration` is a `timedelta` server-side via `cv.time_period`; Pydantic model field accepts `str | int | timedelta` and serializes as `"HH:MM:SS"` string.
+   - `CreateInputNumberParams` / `CreateInputTextParams` model-level invariants (min < max, initial in range) should fire on create but be **skipped on update** because HA validates against merged data.
+   - Add `python-slugify>=8.0` to `pyproject.toml` dependencies (needed by WP05).
+2. **WP03 (exception changes)**:
+   - `FailedMessageError.code` is **reliably populated** for every HA-sent error — it is only `None` on transport-level failures (timeouts). Tests should cover both cases.
+   - Update `websocket_service.py:292-293` to extract `code` from `message["error"]["code"]`.
+3. **WP04 (Api methods)**:
+   - All 8 domains use `{domain}_id` as the ID key — no `_ID_KEYS_BY_DOMAIN` lookup needed. Use `f"{domain}_id"` interpolation.
+   - Command names are `f"{domain}/list|create|update|delete"` uniformly.
+   - `delete_*` response is `None` (no result payload) — no `_expect_*` call needed.
+4. **WP05 (RecordingApi harness)**:
+   - Implement `_slugify_helper_name` via `python-slugify` with `separator="_"` to match HA exactly.
+   - Implement collision-suffixing in `create_*` to mirror `IDManager.generate_id` — concurrent-name creates produce `name_2`, `name_3`, ... instead of raising.
+   - **Change `update_*` and `delete_*` to raise `FailedMessageError(code="not_found")` instead of `KeyError`** — this gives test code a single exception type that works against both harness and real HA. Update the "RecordingApi seed surface" section of this design doc accordingly in a design amendment (or fold into WP05's PR).
+5. **Alternatives Considered → Race-safe bootstrap variant**: removed in WP01. HA never emits `code == "name_in_use"` — the branch was dead code. The section now documents only the simple 5-line loop plus prose explaining HA's auto-suffix behavior and the naming-discipline recommendation. The `## Architecture` example and the `## Documentation` narrative-guide description were updated in the same pass, and WP07's subtasks and blocker list were rewritten to match.
 
 ## Alternatives Considered
 
@@ -519,9 +907,7 @@ If possible, add at least one `@pytest.mark.requires_ha` integration smoke test 
 - The method's type return was strictly worse than the methods it wrapped
 - It couldn't be unit-tested without a separate seed surface that was itself being deferred
 
-Users who need the pattern write it themselves. Two variants:
-
-**Simple version (default)** — fine for the vast majority of apps. ~5 lines:
+Users who need the pattern write it themselves. The canonical form is a ~5-line loop:
 
 ```python
 async def _ensure_vacation_mode(self) -> InputBooleanRecord:
@@ -533,40 +919,11 @@ async def _ensure_vacation_mode(self) -> InputBooleanRecord:
     )
 ```
 
-**Race-safe variant (advanced pattern, concurrent provisioning only)** — use when two or more apps in the same deployment might self-provision the **same** helper concurrently (e.g., both apps launched via `asyncio.gather` in `on_initialize` and both call `_ensure_vacation_mode`). This narrow case is rare but when it hits, the simple version produces a `FailedMessageError` with `code == "name_in_use"` on the losing caller. The safe variant catches exactly that code and re-fetches:
+This is the **only** pattern shipped in the narrative guide. An earlier draft of this design included a second "race-safe variant" that caught `FailedMessageError` with `e.code == "name_in_use"` and re-fetched, on the assumption that two concurrent creators of the same helper name would collide at the HA server and produce that error. **WP01 verified against HA source at tag `2026.4.1` that this assumption is wrong** — HA never emits `name_in_use` for helper CRUD. See the `## HA WebSocket Commands` → "HA does NOT reject duplicate create names" section for the full trace through `StorageCollection.async_create_item` → `IDManager.generate_id`.
 
-```python
-async def _ensure_vacation_mode(self) -> InputBooleanRecord:
-    # First pass: check for an existing record
-    for record in await self.api.list_input_booleans():
-        if record.id == "vacation_mode":
-            return record
-    try:
-        return await self.api.create_input_boolean(
-            CreateInputBooleanParams(name="vacation_mode", initial=False)
-        )
-    except FailedMessageError as e:
-        if e.code != "name_in_use":
-            # Transport failure, permission error, validation error — not a race.
-            # Surface it to the caller; don't mask real errors as "another app won."
-            raise
-        # Race: another caller won. Re-fetch and return their record.
-        for record in await self.api.list_input_booleans():
-            if record.id == "vacation_mode":
-                return record
-        # Re-fetch missed after a successful concurrent create — indicates
-        # WS read-after-write eventual consistency. Re-raise so the caller
-        # gets a clear error rather than a silent wrong result.
-        raise
-```
+**What HA actually does on concurrent create:** `IDManager.generate_id` slugifies the caller's `name`, checks `has_id(proposal)`, and if the base id is taken it appends `_2`, `_3`, ... until it finds an unused slot. Both concurrent creators succeed — one gets `vacation_mode`, the other gets `vacation_mode_2`. No exception is raised, no error code is emitted, and the losing caller has no way to detect it happened via the WS response alone. There is no race to "resolve" via catch-and-retry because the WS-layer error that pattern was guarding against does not exist.
 
-**Critical**: the safe variant uses `if e.code != "name_in_use": raise`, NOT a bare `except FailedMessageError:`. A bare except would swallow timeouts, permission errors, and malformed payloads as if they were races — exactly the debugging hell the improved `FailedMessageError.code` was added to prevent.
-
-The **simple version is the default pattern** promoted in the narrative guide. Most hassette deployments have many apps but only one app provisions any given helper — the race only occurs when two apps happen to bootstrap the same named helper, which is a code smell on the user's side (you probably want one shared app or a coordinator). The race-safe variant is documented but labeled as "only needed if you are certain two apps will provision the same helper concurrently."
-
-Neither version is "as convenient" as `ensure_helper("input_boolean", "vacation_mode")`, but both are **honest code** — the caller can see what's happening, decide whether they need to guard against concurrency, and choose matching semantics. Apps that need many helpers can factor their own private helper in their base class. The framework does not ship an `ensure_helper` because getting concurrency, id-matching, and type safety correct inside a framework-level abstraction is a larger scope than this PR, and doing any of them partially would be worse than not shipping the abstraction at all.
-
-**WP01 verification item**: the race-safe variant's "re-fetch after a successful concurrent create" path assumes HA's WebSocket API provides read-after-write consistency on the same WS connection. If two separate Hassette instances on separate WS connections race, the losing instance's re-fetch may not yet see the winning instance's record. WP01 should document HA's actual behavior here; if read-after-write is not guaranteed across connections, the race-safe pattern needs a retry loop with timeout, not a single re-fetch.
+**The correct mitigation is naming discipline, not catch-and-retry.** Each app should use a helper name that is unique within the deployment (e.g., prefix with the app's identifier, `myapp_vacation_mode`), and only one app should own provisioning for any given helper. If two apps genuinely need to share a helper, the shared-provisioner role belongs to one of them — typically a small bootstrap app that runs first — and the consumers read the resulting helper id via `list_*`. This is a code-level convention, not a runtime lock; attempting to enforce uniqueness inside the framework would require either a cross-app shared lock (out of scope) or an attribute-based lookup (a larger redesign that would change every `Create*Params` model).
 
 If, in six months, real users ask for a framework-level helper with the concurrency/id-matching/testability all designed in from the start, we add it then. We do not ship a broken convenience method now in the hope that nobody will notice the seven edge cases.
 
@@ -601,7 +958,8 @@ If, in six months, real users ask for a framework-level helper with the concurre
 - `create_*` → `list_*` includes the new record
 - `update_*` → `list_*` reflects the updated fields
 - `delete_*` → `list_*` no longer includes the record
-- `update_*` on unseeded `helper_id` raises `KeyError` with a diagnostic message
+- `update_*` on unseeded `helper_id` raises `FailedMessageError(code="not_found")` with a diagnostic message (matches real HA)
+- `delete_*` on unseeded `helper_id` raises `FailedMessageError(code="not_found")` with a diagnostic message (matches real HA)
 - `create_*` records an `ApiCall` with the correct method name and kwargs
 - Counter action methods record an `ApiCall` with the correct method name and `entity_id`
 
@@ -661,12 +1019,14 @@ Every new method emits at least one log line:
 
 ### Dependencies to update
 
-None. No new third-party libraries. All code uses existing `pydantic`, `whenever`, and stdlib.
+**Add `python-slugify` as a direct runtime dependency** (`pyproject.toml`). Used by WP05's `_slugify_helper_name` helper in `recording_api.py` to match HA's exact slug-derivation rule (HA itself uses `python-slugify` via `homeassistant.util.slugify` — verified in `## HA WebSocket Commands → HA slug-derivation rule`). The package is already present in `uv.lock` as a transitive dependency, but must be declared as direct so WP05's import is supported by the dependency graph. WP02 owns the `pyproject.toml` bump.
+
+No other new third-party libraries. All other code uses existing `pydantic`, `whenever`, and stdlib.
 
 ### Documentation
 
 - `docs/` (readthedocs) has API reference pages auto-generated from `Api` docstrings — the new methods will appear automatically
-- One narrative guide: `docs/pages/advanced/managing-helpers.md` (consistent with existing advanced docs like `state-registry.md` and `dependency-injection.md`; the repo does not use a `docs/guides/` directory) — includes the **simple 5-line bootstrap pattern as the default** worked example for self-provisioning apps, plus an "Advanced: concurrent provisioning" section with the race-safe 13-line variant for the narrow case where multiple apps might bootstrap the same helper simultaneously. The advanced section explicitly notes the `if e.code != "name_in_use": raise` narrowing requirement, so readers don't introduce a bare `except` that masks real transport errors. This is in scope for the PR (not deferred) so users who discover the feature also discover the recommended pattern and the concurrency caveat together.
+- One narrative guide: `docs/pages/advanced/managing-helpers.md` (consistent with existing advanced docs like `state-registry.md` and `dependency-injection.md`; the repo does not use a `docs/guides/` directory) — includes the **simple 5-line bootstrap pattern** as the worked example for self-provisioning apps, followed by a "Gotchas" section that explains HA's auto-suffix behavior (`IDManager.generate_id` silently appends `_2`, `_3`, ... on name collisions — verified in the `## HA WebSocket Commands` section above) and the naming-discipline recommendation (each app uses a helper name unique within the deployment, typically prefixed with the app identifier). The guide does **not** include a "race-safe variant" that catches `name_in_use`, because HA never emits that error code — see the `## HA WebSocket Commands` → "HA does NOT reject duplicate create names" section for the trace. This is in scope for the PR (not deferred) so users who discover the feature also discover the recommended pattern and the concurrency caveat together.
 
 ### Rollout
 
