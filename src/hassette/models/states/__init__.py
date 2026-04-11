@@ -6,6 +6,7 @@ from .base import BaseState
 from .calendar import CalendarState
 from .camera import CameraState
 from .climate import ClimateAttributes, ClimateState
+from .counter import CounterAttributes, CounterState
 from .cover import CoverAttributes, CoverState
 from .device_tracker import DeviceTrackerState
 from .event import EventState
@@ -79,6 +80,8 @@ __all__ = [
     "ClimateEntityFeature",
     "ClimateState",
     "ConversationState",
+    "CounterAttributes",
+    "CounterState",
     "CoverAttributes",
     "CoverEntityFeature",
     "CoverState",
