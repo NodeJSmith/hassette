@@ -1,7 +1,7 @@
 # Design: Helper CRUD API
 
 **Date:** 2026-04-10
-**Status:** approved
+**Status:** archived
 **Issue:** [#440](https://github.com/hassette/hassette/issues/440)
 **Spec:** none (feature created directly via `spec-helper init`; see Open Questions)
 **Research:** inline — derived from planner output, code verification, and an adversarial challenge pass (5 critics, 21 findings, all resolved below)
