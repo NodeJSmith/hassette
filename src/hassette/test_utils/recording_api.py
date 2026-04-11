@@ -11,8 +11,36 @@ import copy
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
 
-from hassette.exceptions import EntityNotFoundError
+from slugify import slugify as _py_slugify
+
+from hassette.exceptions import EntityNotFoundError, FailedMessageError
 from hassette.models.entities.base import BaseEntity
+from hassette.models.helpers import (
+    CounterRecord,
+    CreateCounterParams,
+    CreateInputBooleanParams,
+    CreateInputButtonParams,
+    CreateInputDatetimeParams,
+    CreateInputNumberParams,
+    CreateInputSelectParams,
+    CreateInputTextParams,
+    CreateTimerParams,
+    InputBooleanRecord,
+    InputButtonRecord,
+    InputDatetimeRecord,
+    InputNumberRecord,
+    InputSelectRecord,
+    InputTextRecord,
+    TimerRecord,
+    UpdateCounterParams,
+    UpdateInputBooleanParams,
+    UpdateInputButtonParams,
+    UpdateInputDatetimeParams,
+    UpdateInputNumberParams,
+    UpdateInputSelectParams,
+    UpdateInputTextParams,
+    UpdateTimerParams,
+)
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
@@ -23,6 +51,65 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.state_proxy import StateProxy
     from hassette.events import HassStateDict
+
+
+# ---------------------------------------------------------------------------
+# Helper domain constants
+# ---------------------------------------------------------------------------
+
+_SUPPORTED_HELPER_DOMAINS: frozenset[str] = frozenset(
+    {
+        "input_boolean",
+        "input_number",
+        "input_text",
+        "input_select",
+        "input_datetime",
+        "input_button",
+        "counter",
+        "timer",
+    }
+)
+
+# Hand-maintained dict literal that must stay in sync with the 8 Record classes above.
+# Adding a 9th helper domain requires adding an entry here. A future refactor could
+# add `domain: ClassVar[str]` to each Record model and auto-populate this dict, but
+# that is out of scope for this PR.
+_RECORD_TYPE_TO_DOMAIN: dict[type, str] = {
+    InputBooleanRecord: "input_boolean",
+    InputNumberRecord: "input_number",
+    InputTextRecord: "input_text",
+    InputSelectRecord: "input_select",
+    InputDatetimeRecord: "input_datetime",
+    InputButtonRecord: "input_button",
+    CounterRecord: "counter",
+    TimerRecord: "timer",
+}
+
+
+def _slugify_helper_name(name: str) -> str:
+    """Slugify a helper name exactly as HA does — using python-slugify with separator='_'.
+
+    This is harness-only logic. Production Api.create_* methods do NOT call this;
+    they let HA slugify server-side.
+    """
+    return _py_slugify(name, separator="_")
+
+
+def _generate_helper_id(existing_ids: set[str], name: str) -> str:
+    """Generate a unique helper ID, mirroring HA's IDManager.generate_id behaviour.
+
+    Computes base_id = _slugify_helper_name(name). If base_id is not in
+    existing_ids, returns it. Otherwise, appends _2, _3, ... until unused.
+    """
+    base_id = _slugify_helper_name(name)
+    if base_id not in existing_ids:
+        return base_id
+    n = 2
+    while True:
+        candidate = f"{base_id}_{n}"
+        if candidate not in existing_ids:
+            return candidate
+        n += 1
 
 
 @runtime_checkable
@@ -64,6 +151,59 @@ class ApiProtocol(Protocol):
     async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None: ...
     async def entity_exists(self, entity_id: str) -> bool: ...
     async def get_state_or_none(self, entity_id: str) -> BaseState | None: ...
+
+    # input_boolean CRUD
+    async def list_input_booleans(self) -> list[InputBooleanRecord]: ...
+    async def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord: ...
+    async def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord: ...
+    async def delete_input_boolean(self, helper_id: str) -> None: ...
+
+    # input_number CRUD
+    async def list_input_numbers(self) -> list[InputNumberRecord]: ...
+    async def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord: ...
+    async def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord: ...
+    async def delete_input_number(self, helper_id: str) -> None: ...
+
+    # input_text CRUD
+    async def list_input_texts(self) -> list[InputTextRecord]: ...
+    async def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord: ...
+    async def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord: ...
+    async def delete_input_text(self, helper_id: str) -> None: ...
+
+    # input_select CRUD
+    async def list_input_selects(self) -> list[InputSelectRecord]: ...
+    async def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord: ...
+    async def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord: ...
+    async def delete_input_select(self, helper_id: str) -> None: ...
+
+    # input_datetime CRUD
+    async def list_input_datetimes(self) -> list[InputDatetimeRecord]: ...
+    async def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord: ...
+    async def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord: ...
+    async def delete_input_datetime(self, helper_id: str) -> None: ...
+
+    # input_button CRUD
+    async def list_input_buttons(self) -> list[InputButtonRecord]: ...
+    async def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord: ...
+    async def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord: ...
+    async def delete_input_button(self, helper_id: str) -> None: ...
+
+    # counter CRUD
+    async def list_counters(self) -> list[CounterRecord]: ...
+    async def create_counter(self, params: CreateCounterParams) -> CounterRecord: ...
+    async def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord: ...
+    async def delete_counter(self, helper_id: str) -> None: ...
+
+    # timer CRUD
+    async def list_timers(self) -> list[TimerRecord]: ...
+    async def create_timer(self, params: CreateTimerParams) -> TimerRecord: ...
+    async def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord: ...
+    async def delete_timer(self, helper_id: str) -> None: ...
+
+    # counter action methods
+    async def increment_counter(self, entity_id: str) -> None: ...
+    async def decrement_counter(self, entity_id: str) -> None: ...
+    async def reset_counter(self, entity_id: str) -> None: ...
 
 
 def _not_implemented(method_name: str) -> Never:
@@ -115,6 +255,7 @@ class RecordingApi(Resource):
     """
 
     calls: list[ApiCall]
+    helper_definitions: dict[str, dict[str, Any]]
     # `_RecordingSyncFacade` is intentionally private (underscore prefix). Users should
     # access the sync facade only via `harness.api_recorder.sync`; do not import the
     # type directly — it is not part of the public API surface.
@@ -141,6 +282,7 @@ class RecordingApi(Resource):
         # lazily from hassette._state_proxy (when created via App.add_child()).
         self._state_proxy_override = state_proxy
         self.calls = []
+        self.helper_definitions = {d: {} for d in _SUPPORTED_HELPER_DOMAINS}
         self.sync = _RecordingSyncFacade(self)
 
     @property
@@ -158,6 +300,15 @@ class RecordingApi(Resource):
     async def on_initialize(self) -> None:
         """Mark this resource ready. Called by Resource.initialize()."""
         self.mark_ready(reason="RecordingApi initialized")
+
+    def _new_helper_id(self, domain: str, name: str) -> str:
+        """Generate a unique helper id for domain, mirroring HA's IDManager.generate_id.
+
+        Private sync helper called by create_* methods. The sync facade generator
+        rewrites ``self._new_helper_id(...)`` → ``self._parent._new_helper_id(...)``
+        so body-copied create methods in _RecordingSyncFacade call this correctly.
+        """
+        return _generate_helper_id(set(self.helper_definitions[domain].keys()), name)
 
     # ------------------------------------------------------------------
     # Write methods — record ApiCall, then return a stub value.
@@ -394,119 +545,548 @@ class RecordingApi(Resource):
         _not_implemented("delete_entity")
 
     # ------------------------------------------------------------------
-    # Helper CRUD stubs — implemented in WP05.
-    # These satisfy the test_api_write_methods_covered_by_recording_api
-    # parity gate. WP05 replaces these with real implementations that
-    # seed `helper_definitions` and record ApiCall entries.
+    # Helper CRUD — seeds/mutates helper_definitions dict and records ApiCall.
+    # Signatures match hassette.api.Api exactly.
     # ------------------------------------------------------------------
 
-    async def create_input_boolean(self, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("create_input_boolean")
+    # --- input_boolean ---
 
-    async def update_input_boolean(self, helper_id: str, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("update_input_boolean")
+    async def list_input_booleans(self) -> list[InputBooleanRecord]:
+        """Return all seeded input_boolean helpers."""
+        return cast("list[InputBooleanRecord]", list(self.helper_definitions["input_boolean"].values()))
+
+    async def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
+        """Record the call and add a record to helper_definitions.
+
+        Auto-suffixes on collision (mirrors HA's IDManager.generate_id).
+        """
+        self.calls.append(
+            ApiCall(
+                method="create_input_boolean",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_boolean", params.name)
+        record = InputBooleanRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_boolean"][record.id] = record
+        return record
+
+    async def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_boolean",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_boolean"]:
+            raise FailedMessageError(
+                f"input_boolean helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_boolean"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_boolean"][helper_id] = updated
+        return updated
 
     async def delete_input_boolean(self, helper_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("delete_input_boolean")
+        """Record the call and remove the seeded record.
 
-    async def create_input_number(self, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("create_input_number")
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_boolean",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_boolean"]:
+            raise FailedMessageError(
+                f"input_boolean helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_boolean"][helper_id]
 
-    async def update_input_number(self, helper_id: str, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("update_input_number")
+    # --- input_number ---
+
+    async def list_input_numbers(self) -> list[InputNumberRecord]:
+        """Return all seeded input_number helpers."""
+        return cast("list[InputNumberRecord]", list(self.helper_definitions["input_number"].values()))
+
+    async def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_number",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_number", params.name)
+        record = InputNumberRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_number"][record.id] = record
+        return record
+
+    async def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_number",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_number"]:
+            raise FailedMessageError(
+                f"input_number helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_number"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_number"][helper_id] = updated
+        return updated
 
     async def delete_input_number(self, helper_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("delete_input_number")
+        """Record the call and remove the seeded record.
 
-    async def create_input_text(self, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("create_input_text")
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_number",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_number"]:
+            raise FailedMessageError(
+                f"input_number helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_number"][helper_id]
 
-    async def update_input_text(self, helper_id: str, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("update_input_text")
+    # --- input_text ---
+
+    async def list_input_texts(self) -> list[InputTextRecord]:
+        """Return all seeded input_text helpers."""
+        return cast("list[InputTextRecord]", list(self.helper_definitions["input_text"].values()))
+
+    async def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_text",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_text", params.name)
+        record = InputTextRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_text"][record.id] = record
+        return record
+
+    async def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_text",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_text"]:
+            raise FailedMessageError(
+                f"input_text helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_text"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_text"][helper_id] = updated
+        return updated
 
     async def delete_input_text(self, helper_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("delete_input_text")
+        """Record the call and remove the seeded record.
 
-    async def create_input_select(self, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("create_input_select")
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_text",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_text"]:
+            raise FailedMessageError(
+                f"input_text helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_text"][helper_id]
 
-    async def update_input_select(self, helper_id: str, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("update_input_select")
+    # --- input_select ---
+
+    async def list_input_selects(self) -> list[InputSelectRecord]:
+        """Return all seeded input_select helpers."""
+        return cast("list[InputSelectRecord]", list(self.helper_definitions["input_select"].values()))
+
+    async def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_select",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_select", params.name)
+        record = InputSelectRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_select"][record.id] = record
+        return record
+
+    async def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_select",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_select"]:
+            raise FailedMessageError(
+                f"input_select helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_select"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_select"][helper_id] = updated
+        return updated
 
     async def delete_input_select(self, helper_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("delete_input_select")
+        """Record the call and remove the seeded record.
 
-    async def create_input_datetime(self, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("create_input_datetime")
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_select",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_select"]:
+            raise FailedMessageError(
+                f"input_select helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_select"][helper_id]
 
-    async def update_input_datetime(self, helper_id: str, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("update_input_datetime")
+    # --- input_datetime ---
+
+    async def list_input_datetimes(self) -> list[InputDatetimeRecord]:
+        """Return all seeded input_datetime helpers."""
+        return cast("list[InputDatetimeRecord]", list(self.helper_definitions["input_datetime"].values()))
+
+    async def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_datetime",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_datetime", params.name)
+        record = InputDatetimeRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_datetime"][record.id] = record
+        return record
+
+    async def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_datetime",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_datetime"]:
+            raise FailedMessageError(
+                f"input_datetime helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_datetime"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_datetime"][helper_id] = updated
+        return updated
 
     async def delete_input_datetime(self, helper_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("delete_input_datetime")
+        """Record the call and remove the seeded record.
 
-    async def create_input_button(self, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("create_input_button")
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_datetime",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_datetime"]:
+            raise FailedMessageError(
+                f"input_datetime helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_datetime"][helper_id]
 
-    async def update_input_button(self, helper_id: str, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("update_input_button")
+    # --- input_button ---
+
+    async def list_input_buttons(self) -> list[InputButtonRecord]:
+        """Return all seeded input_button helpers."""
+        return cast("list[InputButtonRecord]", list(self.helper_definitions["input_button"].values()))
+
+    async def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_button",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_button", params.name)
+        record = InputButtonRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_button"][record.id] = record
+        return record
+
+    async def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_button",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_button"]:
+            raise FailedMessageError(
+                f"input_button helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_button"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_button"][helper_id] = updated
+        return updated
 
     async def delete_input_button(self, helper_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("delete_input_button")
+        """Record the call and remove the seeded record.
 
-    async def create_counter(self, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("create_counter")
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_button",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_button"]:
+            raise FailedMessageError(
+                f"input_button helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_button"][helper_id]
 
-    async def update_counter(self, helper_id: str, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("update_counter")
+    # --- counter ---
+
+    async def list_counters(self) -> list[CounterRecord]:
+        """Return all seeded counter helpers."""
+        return cast("list[CounterRecord]", list(self.helper_definitions["counter"].values()))
+
+    async def create_counter(self, params: CreateCounterParams) -> CounterRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_counter",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("counter", params.name)
+        record = CounterRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["counter"][record.id] = record
+        return record
+
+    async def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_counter",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["counter"]:
+            raise FailedMessageError(
+                f"counter helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["counter"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["counter"][helper_id] = updated
+        return updated
 
     async def delete_counter(self, helper_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("delete_counter")
+        """Record the call and remove the seeded record.
 
-    async def create_timer(self, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("create_timer")
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_counter",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["counter"]:
+            raise FailedMessageError(
+                f"counter helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["counter"][helper_id]
 
-    async def update_timer(self, helper_id: str, params: Any) -> Any:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("update_timer")
+    # --- timer ---
+
+    async def list_timers(self) -> list[TimerRecord]:
+        """Return all seeded timer helpers."""
+        return cast("list[TimerRecord]", list(self.helper_definitions["timer"].values()))
+
+    async def create_timer(self, params: CreateTimerParams) -> TimerRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_timer",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("timer", params.name)
+        record = TimerRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["timer"][record.id] = record
+        return record
+
+    async def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_timer",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["timer"]:
+            raise FailedMessageError(
+                f"timer helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["timer"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["timer"][helper_id] = updated
+        return updated
 
     async def delete_timer(self, helper_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("delete_timer")
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_timer",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["timer"]:
+            raise FailedMessageError(
+                f"timer helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["timer"][helper_id]
+
+    # --- counter action methods ---
 
     async def increment_counter(self, entity_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("increment_counter")
+        """Record an increment_counter call directly (not via call_service)."""
+        self.calls.append(
+            ApiCall(
+                method="increment_counter",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id},
+            )
+        )
 
     async def decrement_counter(self, entity_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("decrement_counter")
+        """Record a decrement_counter call directly (not via call_service)."""
+        self.calls.append(
+            ApiCall(
+                method="decrement_counter",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id},
+            )
+        )
 
     async def reset_counter(self, entity_id: str) -> None:
-        """WP05 stub — raises NotImplementedError."""
-        _not_implemented("reset_counter")
+        """Record a reset_counter call directly (not via call_service)."""
+        self.calls.append(
+            ApiCall(
+                method="reset_counter",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id},
+            )
+        )
 
     # ------------------------------------------------------------------
     # Fallback for uncovered methods
@@ -617,7 +1197,7 @@ class RecordingApi(Resource):
             )
 
     def reset(self) -> None:
-        """Clear all recorded calls.
+        """Clear all recorded calls and reset helper_definitions to empty-per-domain state.
 
         Replaces the calls list with a new empty list rather than mutating the
         existing list in place. This preserves any snapshots callers hold
@@ -625,6 +1205,7 @@ class RecordingApi(Resource):
         will still see the original calls after reset, as expected.
         """
         self.calls = []
+        self.helper_definitions = {d: {} for d in _SUPPORTED_HELPER_DOMAINS}
 
 
 # ---------------------------------------------------------------------------

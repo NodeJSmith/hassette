@@ -9,13 +9,13 @@ import copy
 import typing
 from collections.abc import Generator
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.const.misc import FalseySentinel
-from hassette.exceptions import EntityNotFoundError
+from hassette.exceptions import EntityNotFoundError, FailedMessageError
 from hassette.models.entities.base import BaseEntity
 from hassette.models.helpers import (
     CounterRecord,
@@ -346,106 +346,429 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_entity"))
 
     def list_input_booleans(self) -> list[InputBooleanRecord]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_booleans"))
+        """Return all seeded input_boolean helpers."""
+
+        return cast("list[InputBooleanRecord]", list(self._parent.helper_definitions["input_boolean"].values()))
 
     def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_boolean"))
+        """Record the call and add a record to helper_definitions.
+
+        Auto-suffixes on collision (mirrors HA's IDManager.generate_id)."""
+
+        self._parent.calls.append(
+            ApiCall(method="create_input_boolean", args=(), kwargs=params.model_dump(exclude_unset=True))
+        )
+        generated_id = self._parent._new_helper_id("input_boolean", params.name)
+        record = InputBooleanRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_boolean"][record.id] = record
+        return record
 
     def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_boolean"))
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(
+                method="update_input_boolean",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self._parent.helper_definitions["input_boolean"]:
+            raise FailedMessageError(
+                f"input_boolean helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self._parent.helper_definitions["input_boolean"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_boolean"][helper_id] = updated
+        return updated
 
     def delete_input_boolean(self, helper_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_boolean"))
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(method="delete_input_boolean", args=(helper_id,), kwargs={"helper_id": helper_id})
+        )
+        if helper_id not in self._parent.helper_definitions["input_boolean"]:
+            raise FailedMessageError(f"input_boolean helper {helper_id!r} not found.", code="not_found")
+        del self._parent.helper_definitions["input_boolean"][helper_id]
 
     def list_input_numbers(self) -> list[InputNumberRecord]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_numbers"))
+        """Return all seeded input_number helpers."""
+
+        return cast("list[InputNumberRecord]", list(self._parent.helper_definitions["input_number"].values()))
 
     def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_number"))
+        """Record the call and add a record to helper_definitions."""
+
+        self._parent.calls.append(
+            ApiCall(method="create_input_number", args=(), kwargs=params.model_dump(exclude_unset=True))
+        )
+        generated_id = self._parent._new_helper_id("input_number", params.name)
+        record = InputNumberRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_number"][record.id] = record
+        return record
 
     def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_number"))
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(
+                method="update_input_number",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self._parent.helper_definitions["input_number"]:
+            raise FailedMessageError(
+                f"input_number helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self._parent.helper_definitions["input_number"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_number"][helper_id] = updated
+        return updated
 
     def delete_input_number(self, helper_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_number"))
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(method="delete_input_number", args=(helper_id,), kwargs={"helper_id": helper_id})
+        )
+        if helper_id not in self._parent.helper_definitions["input_number"]:
+            raise FailedMessageError(f"input_number helper {helper_id!r} not found.", code="not_found")
+        del self._parent.helper_definitions["input_number"][helper_id]
 
     def list_input_texts(self) -> list[InputTextRecord]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_texts"))
+        """Return all seeded input_text helpers."""
+
+        return cast("list[InputTextRecord]", list(self._parent.helper_definitions["input_text"].values()))
 
     def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_text"))
+        """Record the call and add a record to helper_definitions."""
+
+        self._parent.calls.append(
+            ApiCall(method="create_input_text", args=(), kwargs=params.model_dump(exclude_unset=True))
+        )
+        generated_id = self._parent._new_helper_id("input_text", params.name)
+        record = InputTextRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_text"][record.id] = record
+        return record
 
     def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_text"))
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(
+                method="update_input_text",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self._parent.helper_definitions["input_text"]:
+            raise FailedMessageError(
+                f"input_text helper {helper_id!r} not found. Seed it via harness.seed_helper() first.", code="not_found"
+            )
+        existing = self._parent.helper_definitions["input_text"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_text"][helper_id] = updated
+        return updated
 
     def delete_input_text(self, helper_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_text"))
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(method="delete_input_text", args=(helper_id,), kwargs={"helper_id": helper_id})
+        )
+        if helper_id not in self._parent.helper_definitions["input_text"]:
+            raise FailedMessageError(f"input_text helper {helper_id!r} not found.", code="not_found")
+        del self._parent.helper_definitions["input_text"][helper_id]
 
     def list_input_selects(self) -> list[InputSelectRecord]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_selects"))
+        """Return all seeded input_select helpers."""
+
+        return cast("list[InputSelectRecord]", list(self._parent.helper_definitions["input_select"].values()))
 
     def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_select"))
+        """Record the call and add a record to helper_definitions."""
+
+        self._parent.calls.append(
+            ApiCall(method="create_input_select", args=(), kwargs=params.model_dump(exclude_unset=True))
+        )
+        generated_id = self._parent._new_helper_id("input_select", params.name)
+        record = InputSelectRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_select"][record.id] = record
+        return record
 
     def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_select"))
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(
+                method="update_input_select",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self._parent.helper_definitions["input_select"]:
+            raise FailedMessageError(
+                f"input_select helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self._parent.helper_definitions["input_select"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_select"][helper_id] = updated
+        return updated
 
     def delete_input_select(self, helper_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_select"))
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(method="delete_input_select", args=(helper_id,), kwargs={"helper_id": helper_id})
+        )
+        if helper_id not in self._parent.helper_definitions["input_select"]:
+            raise FailedMessageError(f"input_select helper {helper_id!r} not found.", code="not_found")
+        del self._parent.helper_definitions["input_select"][helper_id]
 
     def list_input_datetimes(self) -> list[InputDatetimeRecord]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_datetimes"))
+        """Return all seeded input_datetime helpers."""
+
+        return cast("list[InputDatetimeRecord]", list(self._parent.helper_definitions["input_datetime"].values()))
 
     def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_datetime"))
+        """Record the call and add a record to helper_definitions."""
+
+        self._parent.calls.append(
+            ApiCall(method="create_input_datetime", args=(), kwargs=params.model_dump(exclude_unset=True))
+        )
+        generated_id = self._parent._new_helper_id("input_datetime", params.name)
+        record = InputDatetimeRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_datetime"][record.id] = record
+        return record
 
     def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_datetime"))
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(
+                method="update_input_datetime",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self._parent.helper_definitions["input_datetime"]:
+            raise FailedMessageError(
+                f"input_datetime helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self._parent.helper_definitions["input_datetime"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_datetime"][helper_id] = updated
+        return updated
 
     def delete_input_datetime(self, helper_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_datetime"))
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(method="delete_input_datetime", args=(helper_id,), kwargs={"helper_id": helper_id})
+        )
+        if helper_id not in self._parent.helper_definitions["input_datetime"]:
+            raise FailedMessageError(f"input_datetime helper {helper_id!r} not found.", code="not_found")
+        del self._parent.helper_definitions["input_datetime"][helper_id]
 
     def list_input_buttons(self) -> list[InputButtonRecord]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_buttons"))
+        """Return all seeded input_button helpers."""
+
+        return cast("list[InputButtonRecord]", list(self._parent.helper_definitions["input_button"].values()))
 
     def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_button"))
+        """Record the call and add a record to helper_definitions."""
+
+        self._parent.calls.append(
+            ApiCall(method="create_input_button", args=(), kwargs=params.model_dump(exclude_unset=True))
+        )
+        generated_id = self._parent._new_helper_id("input_button", params.name)
+        record = InputButtonRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_button"][record.id] = record
+        return record
 
     def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_button"))
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(
+                method="update_input_button",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self._parent.helper_definitions["input_button"]:
+            raise FailedMessageError(
+                f"input_button helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self._parent.helper_definitions["input_button"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["input_button"][helper_id] = updated
+        return updated
 
     def delete_input_button(self, helper_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_button"))
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(method="delete_input_button", args=(helper_id,), kwargs={"helper_id": helper_id})
+        )
+        if helper_id not in self._parent.helper_definitions["input_button"]:
+            raise FailedMessageError(f"input_button helper {helper_id!r} not found.", code="not_found")
+        del self._parent.helper_definitions["input_button"][helper_id]
 
     def list_counters(self) -> list[CounterRecord]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_counters"))
+        """Return all seeded counter helpers."""
+
+        return cast("list[CounterRecord]", list(self._parent.helper_definitions["counter"].values()))
 
     def create_counter(self, params: CreateCounterParams) -> CounterRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_counter"))
+        """Record the call and add a record to helper_definitions."""
+
+        self._parent.calls.append(
+            ApiCall(method="create_counter", args=(), kwargs=params.model_dump(exclude_unset=True))
+        )
+        generated_id = self._parent._new_helper_id("counter", params.name)
+        record = CounterRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["counter"][record.id] = record
+        return record
 
     def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_counter"))
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(
+                method="update_counter",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self._parent.helper_definitions["counter"]:
+            raise FailedMessageError(
+                f"counter helper {helper_id!r} not found. Seed it via harness.seed_helper() first.", code="not_found"
+            )
+        existing = self._parent.helper_definitions["counter"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["counter"][helper_id] = updated
+        return updated
 
     def delete_counter(self, helper_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_counter"))
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(ApiCall(method="delete_counter", args=(helper_id,), kwargs={"helper_id": helper_id}))
+        if helper_id not in self._parent.helper_definitions["counter"]:
+            raise FailedMessageError(f"counter helper {helper_id!r} not found.", code="not_found")
+        del self._parent.helper_definitions["counter"][helper_id]
 
     def list_timers(self) -> list[TimerRecord]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_timers"))
+        """Return all seeded timer helpers."""
+
+        return cast("list[TimerRecord]", list(self._parent.helper_definitions["timer"].values()))
 
     def create_timer(self, params: CreateTimerParams) -> TimerRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_timer"))
+        """Record the call and add a record to helper_definitions."""
+
+        self._parent.calls.append(ApiCall(method="create_timer", args=(), kwargs=params.model_dump(exclude_unset=True)))
+        generated_id = self._parent._new_helper_id("timer", params.name)
+        record = TimerRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["timer"][record.id] = record
+        return record
 
     def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_timer"))
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(
+            ApiCall(
+                method="update_timer",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self._parent.helper_definitions["timer"]:
+            raise FailedMessageError(
+                f"timer helper {helper_id!r} not found. Seed it via harness.seed_helper() first.", code="not_found"
+            )
+        existing = self._parent.helper_definitions["timer"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self._parent.helper_definitions["timer"][helper_id] = updated
+        return updated
 
     def delete_timer(self, helper_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_timer"))
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded."""
+
+        self._parent.calls.append(ApiCall(method="delete_timer", args=(helper_id,), kwargs={"helper_id": helper_id}))
+        if helper_id not in self._parent.helper_definitions["timer"]:
+            raise FailedMessageError(f"timer helper {helper_id!r} not found.", code="not_found")
+        del self._parent.helper_definitions["timer"][helper_id]
 
     def increment_counter(self, entity_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="increment_counter"))
+        """Record an increment_counter call directly (not via call_service)."""
+
+        self._parent.calls.append(
+            ApiCall(method="increment_counter", args=(entity_id,), kwargs={"entity_id": entity_id})
+        )
 
     def decrement_counter(self, entity_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="decrement_counter"))
+        """Record a decrement_counter call directly (not via call_service)."""
+
+        self._parent.calls.append(
+            ApiCall(method="decrement_counter", args=(entity_id,), kwargs={"entity_id": entity_id})
+        )
 
     def reset_counter(self, entity_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="reset_counter"))
+        """Record a reset_counter call directly (not via call_service)."""
+
+        self._parent.calls.append(ApiCall(method="reset_counter", args=(entity_id,), kwargs={"entity_id": entity_id}))

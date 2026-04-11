@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from hassette.events import HassStateDict
 
 import pydantic
+from pydantic import BaseModel
 from pydantic_settings.sources import InitSettingsSource
 from whenever import Instant, ZonedDateTime
 
@@ -50,7 +51,7 @@ from hassette.test_utils.config import make_test_config
 from hassette.test_utils.exceptions import DrainError, DrainTimeout
 from hassette.test_utils.harness import HassetteHarness, wait_for
 from hassette.test_utils.helpers import create_call_service_event, create_state_change_event, make_state_dict
-from hassette.test_utils.recording_api import RecordingApi
+from hassette.test_utils.recording_api import _RECORD_TYPE_TO_DOMAIN, RecordingApi
 from hassette.types.enums import ResourceStatus
 
 LOGGER = logging.getLogger(__name__)
@@ -562,6 +563,27 @@ class AppTestHarness:
             ),
         )
         await state_proxy._test_seed_state(entity_id, state_dict)
+
+    def seed_helper(self, record: BaseModel) -> None:
+        """Seed a stored helper config for tests that read helper CRUD.
+
+        Domain is derived from the record class. Passing a record of a type
+        not registered in _RECORD_TYPE_TO_DOMAIN raises ValueError immediately.
+
+        Args:
+            record: A helper Record model instance (e.g., InputBooleanRecord).
+
+        Raises:
+            ValueError: If the record's type is not a known helper record type.
+        """
+        try:
+            domain = _RECORD_TYPE_TO_DOMAIN[type(record)]
+        except KeyError as e:
+            raise ValueError(
+                f"Unknown helper record type: {type(record).__name__}. "
+                f"Expected one of: {sorted(t.__name__ for t in _RECORD_TYPE_TO_DOMAIN)}"
+            ) from e
+        self.api_recorder.helper_definitions[domain][record.id] = record  # pyright: ignore[reportAttributeAccessIssue]
 
     async def set_states(self, states: dict[str, str | tuple[str, dict]]) -> None:
         """Seed multiple entities at once.
