@@ -289,8 +289,19 @@ class WebsocketService(Service):
             fut.set_result(message.get("result"))
 
         else:
-            err = (message.get("error") or {}).get("message", "Unknown error")
-            fut.set_exception(FailedMessageError.from_error_response(err, original_data=message))
+            # HA error envelope shape (verified in WP01, see
+            # design/specs/2037-helper-crud-api/design.md §"HA WebSocket Commands"):
+            #   {"type": "result", "success": false, "error": {"code": "<code>", "message": "<msg>"}}
+            error_envelope = message.get("error") or {}
+            err = error_envelope.get("message", "Unknown error")
+            code = error_envelope.get("code")
+            if code is None and error_envelope:
+                self.logger.debug(
+                    "HA error envelope has no 'code' field (raw envelope: %r). "
+                    "e.code will be None — caller code-guards will fall through.",
+                    error_envelope,
+                )
+            fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
 
     async def send_json(self, **data) -> None:
         """Send a JSON payload over the WebSocket connection, with an incrementing message ID.

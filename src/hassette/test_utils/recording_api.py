@@ -8,11 +8,44 @@ fidelity should use a full integration test with a live HA connection.
 """
 
 import copy
+from collections.abc import Generator
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
 
-from hassette.exceptions import EntityNotFoundError
+import aiohttp
+from slugify import slugify as _py_slugify
+from whenever import Date, PlainDateTime, ZonedDateTime
+
+from hassette.const.misc import FalseySentinel
+from hassette.exceptions import EntityNotFoundError, FailedMessageError
 from hassette.models.entities.base import BaseEntity
+from hassette.models.helpers import (
+    CounterRecord,
+    CreateCounterParams,
+    CreateInputBooleanParams,
+    CreateInputButtonParams,
+    CreateInputDatetimeParams,
+    CreateInputNumberParams,
+    CreateInputSelectParams,
+    CreateInputTextParams,
+    CreateTimerParams,
+    InputBooleanRecord,
+    InputButtonRecord,
+    InputDatetimeRecord,
+    InputNumberRecord,
+    InputSelectRecord,
+    InputTextRecord,
+    TimerRecord,
+    UpdateCounterParams,
+    UpdateInputBooleanParams,
+    UpdateInputButtonParams,
+    UpdateInputDatetimeParams,
+    UpdateInputNumberParams,
+    UpdateInputSelectParams,
+    UpdateInputTextParams,
+    UpdateTimerParams,
+)
+from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
@@ -25,6 +58,80 @@ if TYPE_CHECKING:
     from hassette.events import HassStateDict
 
 
+# ---------------------------------------------------------------------------
+# Helper domain constants
+# ---------------------------------------------------------------------------
+
+_SUPPORTED_HELPER_DOMAINS: frozenset[str] = frozenset(
+    {
+        "input_boolean",
+        "input_number",
+        "input_text",
+        "input_select",
+        "input_datetime",
+        "input_button",
+        "counter",
+        "timer",
+    }
+)
+
+# Hand-maintained dict literal that must stay in sync with the 8 Record classes above.
+# Adding a 9th helper domain requires adding an entry here. A future refactor could
+# add `domain: ClassVar[str]` to each Record model and auto-populate this dict, but
+# that is out of scope for this PR.
+_RECORD_TYPE_TO_DOMAIN: dict[type, str] = {
+    InputBooleanRecord: "input_boolean",
+    InputNumberRecord: "input_number",
+    InputTextRecord: "input_text",
+    InputSelectRecord: "input_select",
+    InputDatetimeRecord: "input_datetime",
+    InputButtonRecord: "input_button",
+    CounterRecord: "counter",
+    TimerRecord: "timer",
+}
+
+assert set(_RECORD_TYPE_TO_DOMAIN.values()) == _SUPPORTED_HELPER_DOMAINS, (
+    "_RECORD_TYPE_TO_DOMAIN and _SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains"
+)
+
+
+def _slugify_helper_name(name: str | None) -> str:
+    """Convert an HA helper name into its stored id, mirroring homeassistant.util.slugify.
+
+    Three branches:
+
+    - Returns ``""`` for ``None`` or empty-string input — matches HA, where
+      an unnamed helper has no slug to derive an id from.
+    - Returns ``"unknown"`` when a non-empty input slugifies to an empty
+      string (e.g. ``"%%%"``) — matches HA's fallback in ``util.slugify``.
+    - Otherwise returns the ``python-slugify`` output with ``separator="_"``.
+
+    This is harness-only logic. Production ``Api.create_*`` methods do NOT
+    call this; they let HA slugify server-side.
+    """
+    if name == "" or name is None:
+        return ""
+    slug = _py_slugify(name, separator="_")
+    return "unknown" if slug == "" else slug
+
+
+def _generate_helper_id(existing_ids: set[str], name: str) -> str:
+    """Generate a unique helper ID, mirroring HA's IDManager.generate_id behaviour.
+
+    Computes base_id = _slugify_helper_name(name). If base_id is not in
+    existing_ids, returns it. Otherwise, appends _2, _3, ... until unused.
+    """
+    base_id = _slugify_helper_name(name)
+    if base_id not in existing_ids:
+        return base_id
+    n = 2
+    while True:
+        candidate = f"{base_id}_{n}"
+        if candidate not in existing_ids:
+            return candidate
+        n += 1
+
+
 @runtime_checkable
 class ApiProtocol(Protocol):
     """Protocol covering the public async interface of hassette.api.Api.
@@ -32,6 +139,28 @@ class ApiProtocol(Protocol):
     RecordingApi is verified to conform to this protocol at module import
     time via the module-level ``_: ApiProtocol = cast(...)`` assertion.
     """
+
+    # WebSocket methods
+    async def ws_send_and_wait(self, **data: Any) -> Any: ...
+    async def ws_send_json(self, **data: Any) -> None: ...
+
+    # REST methods
+    async def rest_request(
+        self,
+        method: str,
+        url: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        suppress_error_message: bool = False,
+        **kwargs,
+    ) -> aiohttp.ClientResponse: ...
+    async def get_rest_request(
+        self, url: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> aiohttp.ClientResponse: ...
+    async def post_rest_request(
+        self, url: str, data: dict[str, Any] | None = None, **kwargs
+    ) -> aiohttp.ClientResponse: ...
+    async def delete_rest_request(self, url: str, **kwargs) -> aiohttp.ClientResponse: ...
 
     # Write methods
     async def turn_on(self, entity_id: str | StrEnum, domain: str = ..., **data) -> None: ...
@@ -56,14 +185,122 @@ class ApiProtocol(Protocol):
         event_type: str,
         event_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
+    async def delete_entity(self, entity_id: str) -> None: ...
 
     # Read methods
     async def get_state(self, entity_id: str) -> BaseState: ...
+    async def get_state_raw(self, entity_id: str) -> "HassStateDict": ...
     async def get_states(self) -> list[BaseState]: ...
+    async def get_states_raw(self) -> list["HassStateDict"]: ...
+    async def get_states_iterator(self) -> Generator[BaseState[Any], Any, None]: ...
     async def get_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity: ...
     async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None: ...
     async def entity_exists(self, entity_id: str) -> bool: ...
     async def get_state_or_none(self, entity_id: str) -> BaseState | None: ...
+    async def get_state_value(self, entity_id: str) -> Any: ...
+    async def get_state_value_typed(self, entity_id: str) -> Any: ...
+    async def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel: ...
+
+    # Configuration and metadata
+    async def get_config(self) -> dict[str, Any]: ...
+    async def get_services(self) -> dict[str, Any]: ...
+    async def get_panels(self) -> dict[str, Any]: ...
+
+    # History, logbook, calendars, camera, template
+    async def get_history(
+        self,
+        entity_id: str,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str | None = None,
+        significant_changes_only: bool = False,
+        minimal_response: bool = False,
+        no_attributes: bool = False,
+    ) -> list[HistoryEntry]: ...
+    async def get_histories(
+        self,
+        entity_ids: list[str],
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str | None = None,
+        significant_changes_only: bool = False,
+        minimal_response: bool = False,
+        no_attributes: bool = False,
+    ) -> dict[str, list[HistoryEntry]]: ...
+    async def get_logbook(
+        self,
+        entity_id: str,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str,
+    ) -> list[dict]: ...
+    async def get_calendars(self) -> list[dict]: ...
+    async def get_calendar_events(
+        self,
+        calendar_id: str,
+        start_time: PlainDateTime | ZonedDateTime | Date | str,
+        end_time: PlainDateTime | ZonedDateTime | Date | str,
+    ) -> list[dict]: ...
+    async def get_camera_image(
+        self,
+        entity_id: str,
+        timestamp: PlainDateTime | ZonedDateTime | Date | str | None = None,
+    ) -> bytes: ...
+    async def render_template(
+        self,
+        template: str,
+        variables: dict | None = None,
+    ) -> str: ...
+
+    # input_boolean CRUD
+    async def list_input_booleans(self) -> list[InputBooleanRecord]: ...
+    async def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord: ...
+    async def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord: ...
+    async def delete_input_boolean(self, helper_id: str) -> None: ...
+
+    # input_number CRUD
+    async def list_input_numbers(self) -> list[InputNumberRecord]: ...
+    async def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord: ...
+    async def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord: ...
+    async def delete_input_number(self, helper_id: str) -> None: ...
+
+    # input_text CRUD
+    async def list_input_texts(self) -> list[InputTextRecord]: ...
+    async def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord: ...
+    async def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord: ...
+    async def delete_input_text(self, helper_id: str) -> None: ...
+
+    # input_select CRUD
+    async def list_input_selects(self) -> list[InputSelectRecord]: ...
+    async def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord: ...
+    async def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord: ...
+    async def delete_input_select(self, helper_id: str) -> None: ...
+
+    # input_datetime CRUD
+    async def list_input_datetimes(self) -> list[InputDatetimeRecord]: ...
+    async def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord: ...
+    async def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord: ...
+    async def delete_input_datetime(self, helper_id: str) -> None: ...
+
+    # input_button CRUD
+    async def list_input_buttons(self) -> list[InputButtonRecord]: ...
+    async def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord: ...
+    async def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord: ...
+    async def delete_input_button(self, helper_id: str) -> None: ...
+
+    # counter CRUD
+    async def list_counters(self) -> list[CounterRecord]: ...
+    async def create_counter(self, params: CreateCounterParams) -> CounterRecord: ...
+    async def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord: ...
+    async def delete_counter(self, helper_id: str) -> None: ...
+
+    # timer CRUD
+    async def list_timers(self) -> list[TimerRecord]: ...
+    async def create_timer(self, params: CreateTimerParams) -> TimerRecord: ...
+    async def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord: ...
+    async def delete_timer(self, helper_id: str) -> None: ...
+
+    # counter action methods
+    async def increment_counter(self, entity_id: str) -> None: ...
+    async def decrement_counter(self, entity_id: str) -> None: ...
+    async def reset_counter(self, entity_id: str) -> None: ...
 
 
 def _not_implemented(method_name: str) -> Never:
@@ -115,6 +352,7 @@ class RecordingApi(Resource):
     """
 
     calls: list[ApiCall]
+    helper_definitions: dict[str, dict[str, Any]]
     # `_RecordingSyncFacade` is intentionally private (underscore prefix). Users should
     # access the sync facade only via `harness.api_recorder.sync`; do not import the
     # type directly — it is not part of the public API surface.
@@ -141,6 +379,7 @@ class RecordingApi(Resource):
         # lazily from hassette._state_proxy (when created via App.add_child()).
         self._state_proxy_override = state_proxy
         self.calls = []
+        self.helper_definitions = {d: {} for d in _SUPPORTED_HELPER_DOMAINS}
         self.sync = _RecordingSyncFacade(self)
 
     @property
@@ -158,6 +397,30 @@ class RecordingApi(Resource):
     async def on_initialize(self) -> None:
         """Mark this resource ready. Called by Resource.initialize()."""
         self.mark_ready(reason="RecordingApi initialized")
+
+    def _new_helper_id(self, domain: str, name: str) -> str:
+        """Generate a unique helper id for domain, mirroring HA's IDManager.generate_id.
+
+        Private sync helper called by create_* methods. The sync facade generator
+        rewrites ``self._new_helper_id(...)`` → ``self._parent._new_helper_id(...)``
+        so body-copied create methods in _RecordingSyncFacade call this correctly.
+
+        Emits a DEBUG log when the returned id was auto-suffixed due to a
+        collision — otherwise a test author who expected ``vacation_mode`` but
+        got ``vacation_mode_2`` has no log signal explaining why.
+        """
+        existing_ids = set(self.helper_definitions[domain].keys())
+        generated = _generate_helper_id(existing_ids, name)
+        base_slug = _slugify_helper_name(name)
+        if generated != base_slug:
+            self.logger.debug(
+                "RecordingApi %s: name %r -> id %r (base slug %r was already taken; auto-suffixed)",
+                domain,
+                name,
+                generated,
+                base_slug,
+            )
+        return generated
 
     # ------------------------------------------------------------------
     # Write methods — record ApiCall, then return a stub value.
@@ -394,6 +657,585 @@ class RecordingApi(Resource):
         _not_implemented("delete_entity")
 
     # ------------------------------------------------------------------
+    # Helper CRUD — seeds/mutates helper_definitions dict and records ApiCall.
+    # Signatures match hassette.api.Api exactly.
+    # ------------------------------------------------------------------
+
+    # --- input_boolean ---
+
+    async def list_input_booleans(self) -> list[InputBooleanRecord]:
+        """Return all seeded input_boolean helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputBooleanRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_boolean"].values()],
+        )
+
+    async def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
+        """Record the call and add a record to helper_definitions.
+
+        Auto-suffixes on collision (mirrors HA's IDManager.generate_id).
+        """
+        self.calls.append(
+            ApiCall(
+                method="create_input_boolean",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_boolean", params.name)
+        record = InputBooleanRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_boolean"][record.id] = record
+        return record.model_copy()
+
+    async def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_boolean",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_boolean"]:
+            raise FailedMessageError(
+                f"input_boolean helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_boolean"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_boolean"][helper_id] = updated
+        return updated.model_copy()
+
+    async def delete_input_boolean(self, helper_id: str) -> None:
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_boolean",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_boolean"]:
+            raise FailedMessageError(
+                f"input_boolean helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_boolean"][helper_id]
+
+    # --- input_number ---
+
+    async def list_input_numbers(self) -> list[InputNumberRecord]:
+        """Return all seeded input_number helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputNumberRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_number"].values()],
+        )
+
+    async def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_number",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_number", params.name)
+        record = InputNumberRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_number"][record.id] = record
+        return record.model_copy()
+
+    async def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_number",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_number"]:
+            raise FailedMessageError(
+                f"input_number helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_number"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_number"][helper_id] = updated
+        return updated.model_copy()
+
+    async def delete_input_number(self, helper_id: str) -> None:
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_number",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_number"]:
+            raise FailedMessageError(
+                f"input_number helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_number"][helper_id]
+
+    # --- input_text ---
+
+    async def list_input_texts(self) -> list[InputTextRecord]:
+        """Return all seeded input_text helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputTextRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_text"].values()],
+        )
+
+    async def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_text",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_text", params.name)
+        record = InputTextRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_text"][record.id] = record
+        return record.model_copy()
+
+    async def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_text",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_text"]:
+            raise FailedMessageError(
+                f"input_text helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_text"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_text"][helper_id] = updated
+        return updated.model_copy()
+
+    async def delete_input_text(self, helper_id: str) -> None:
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_text",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_text"]:
+            raise FailedMessageError(
+                f"input_text helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_text"][helper_id]
+
+    # --- input_select ---
+
+    async def list_input_selects(self) -> list[InputSelectRecord]:
+        """Return all seeded input_select helpers as isolated copies.
+
+        Uses ``model_copy(deep=True)`` because ``InputSelectRecord.options``
+        is a ``list[str]`` — the only nested mutable field across all eight
+        helper record types. Shallow copies would alias the list between the
+        stored record and the returned copy, allowing a caller's
+        ``record.options.append(...)`` to silently corrupt harness state.
+        Other domains continue to use shallow copies because their fields
+        are all scalars.
+        """
+        return cast(
+            "list[InputSelectRecord]",
+            [r.model_copy(deep=True) for r in self.helper_definitions["input_select"].values()],
+        )
+
+    async def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_select",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_select", params.name)
+        record = InputSelectRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_select"][record.id] = record
+        # deep=True because InputSelectRecord.options is a list[str] — see list_input_selects.
+        return record.model_copy(deep=True)
+
+    async def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_select",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_select"]:
+            raise FailedMessageError(
+                f"input_select helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_select"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_select"][helper_id] = updated
+        # deep=True because InputSelectRecord.options is a list[str] — see list_input_selects.
+        return updated.model_copy(deep=True)
+
+    async def delete_input_select(self, helper_id: str) -> None:
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_select",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_select"]:
+            raise FailedMessageError(
+                f"input_select helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_select"][helper_id]
+
+    # --- input_datetime ---
+
+    async def list_input_datetimes(self) -> list[InputDatetimeRecord]:
+        """Return all seeded input_datetime helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputDatetimeRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_datetime"].values()],
+        )
+
+    async def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_datetime",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_datetime", params.name)
+        record = InputDatetimeRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_datetime"][record.id] = record
+        return record.model_copy()
+
+    async def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_datetime",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_datetime"]:
+            raise FailedMessageError(
+                f"input_datetime helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_datetime"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_datetime"][helper_id] = updated
+        return updated.model_copy()
+
+    async def delete_input_datetime(self, helper_id: str) -> None:
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_datetime",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_datetime"]:
+            raise FailedMessageError(
+                f"input_datetime helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_datetime"][helper_id]
+
+    # --- input_button ---
+
+    async def list_input_buttons(self) -> list[InputButtonRecord]:
+        """Return all seeded input_button helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[InputButtonRecord]",
+            [r.model_copy() for r in self.helper_definitions["input_button"].values()],
+        )
+
+    async def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_input_button",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("input_button", params.name)
+        record = InputButtonRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_button"][record.id] = record
+        return record.model_copy()
+
+    async def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_input_button",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_button"]:
+            raise FailedMessageError(
+                f"input_button helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["input_button"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["input_button"][helper_id] = updated
+        return updated.model_copy()
+
+    async def delete_input_button(self, helper_id: str) -> None:
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_input_button",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["input_button"]:
+            raise FailedMessageError(
+                f"input_button helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["input_button"][helper_id]
+
+    # --- counter ---
+
+    async def list_counters(self) -> list[CounterRecord]:
+        """Return all seeded counter helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[CounterRecord]",
+            [r.model_copy() for r in self.helper_definitions["counter"].values()],
+        )
+
+    async def create_counter(self, params: CreateCounterParams) -> CounterRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_counter",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("counter", params.name)
+        record = CounterRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["counter"][record.id] = record
+        return record.model_copy()
+
+    async def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_counter",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["counter"]:
+            raise FailedMessageError(
+                f"counter helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["counter"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["counter"][helper_id] = updated
+        return updated.model_copy()
+
+    async def delete_counter(self, helper_id: str) -> None:
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_counter",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["counter"]:
+            raise FailedMessageError(
+                f"counter helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["counter"][helper_id]
+
+    # --- timer ---
+
+    async def list_timers(self) -> list[TimerRecord]:
+        """Return all seeded timer helpers (shallow copies — safe to mutate)."""
+        return cast(
+            "list[TimerRecord]",
+            [r.model_copy() for r in self.helper_definitions["timer"].values()],
+        )
+
+    async def create_timer(self, params: CreateTimerParams) -> TimerRecord:
+        """Record the call and add a record to helper_definitions."""
+        self.calls.append(
+            ApiCall(
+                method="create_timer",
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id("timer", params.name)
+        record = TimerRecord(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions["timer"][record.id] = record
+        return record.model_copy()
+
+    async def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
+        """Record the call and mutate the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="update_timer",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions["timer"]:
+            raise FailedMessageError(
+                f"timer helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions["timer"][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions["timer"][helper_id] = updated
+        return updated.model_copy()
+
+    async def delete_timer(self, helper_id: str) -> None:
+        """Record the call and remove the seeded record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        self.calls.append(
+            ApiCall(
+                method="delete_timer",
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions["timer"]:
+            raise FailedMessageError(
+                f"timer helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions["timer"][helper_id]
+
+    # --- counter action methods ---
+
+    async def increment_counter(self, entity_id: str) -> None:
+        """Record an increment_counter call directly (not via call_service)."""
+        self.calls.append(
+            ApiCall(
+                method="increment_counter",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id},
+            )
+        )
+
+    async def decrement_counter(self, entity_id: str) -> None:
+        """Record a decrement_counter call directly (not via call_service)."""
+        self.calls.append(
+            ApiCall(
+                method="decrement_counter",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id},
+            )
+        )
+
+    async def reset_counter(self, entity_id: str) -> None:
+        """Record a reset_counter call directly (not via call_service)."""
+        self.calls.append(
+            ApiCall(
+                method="reset_counter",
+                args=(entity_id,),
+                kwargs={"entity_id": entity_id},
+            )
+        )
+
+    # ------------------------------------------------------------------
     # Fallback for uncovered methods
     # ------------------------------------------------------------------
 
@@ -502,7 +1344,7 @@ class RecordingApi(Resource):
             )
 
     def reset(self) -> None:
-        """Clear all recorded calls.
+        """Clear all recorded calls and reset helper_definitions to empty-per-domain state.
 
         Replaces the calls list with a new empty list rather than mutating the
         existing list in place. This preserves any snapshots callers hold
@@ -510,6 +1352,7 @@ class RecordingApi(Resource):
         will still see the original calls after reset, as expected.
         """
         self.calls = []
+        self.helper_definitions = {d: {} for d in _SUPPORTED_HELPER_DOMAINS}
 
 
 # ---------------------------------------------------------------------------

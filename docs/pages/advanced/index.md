@@ -4,6 +4,7 @@ These features let you extend and customize Hassette beyond the core functionali
 
 - **[Dependency Injection](dependency-injection.md)** — automatic event data extraction and type conversion for handler parameters.
 - **[Custom States](custom-states.md)** — define Pydantic state models for domains not included in the core framework.
+- **[Managing Helpers](managing-helpers.md)** — create, update, and delete persistent HA helpers (`input_boolean`, `counter`, `timer`, etc.) from within your app.
 - **[State Registry](state-registry.md)** — how Hassette maps Home Assistant domains to state model classes.
 - **[Type Registry](type-registry.md)** — automatic value type conversion (strings to ints, booleans, datetimes, etc.).
 - **[Log Level Tuning](log-level-tuning.md)** — per-service log verbosity control.

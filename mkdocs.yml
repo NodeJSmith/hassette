@@ -69,6 +69,7 @@ nav:
       - Overview: pages/advanced/index.md
       - Dependency Injection: pages/advanced/dependency-injection.md
       - Custom States: pages/advanced/custom-states.md
+      - Managing Helpers: pages/advanced/managing-helpers.md
       - State Registry: pages/advanced/state-registry.md
       - TypeRegistry: pages/advanced/type-registry.md
       - Log Level Tuning: pages/advanced/log-level-tuning.md

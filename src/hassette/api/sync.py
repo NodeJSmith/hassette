@@ -14,6 +14,32 @@ import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.const.misc import FalseySentinel
+from hassette.models.helpers import (
+    CounterRecord,
+    CreateCounterParams,
+    CreateInputBooleanParams,
+    CreateInputButtonParams,
+    CreateInputDatetimeParams,
+    CreateInputNumberParams,
+    CreateInputSelectParams,
+    CreateInputTextParams,
+    CreateTimerParams,
+    InputBooleanRecord,
+    InputButtonRecord,
+    InputDatetimeRecord,
+    InputNumberRecord,
+    InputSelectRecord,
+    InputTextRecord,
+    TimerRecord,
+    UpdateCounterParams,
+    UpdateInputBooleanParams,
+    UpdateInputButtonParams,
+    UpdateInputDatetimeParams,
+    UpdateInputNumberParams,
+    UpdateInputSelectParams,
+    UpdateInputTextParams,
+    UpdateTimerParams,
+)
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
@@ -222,7 +248,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.turn_on(entity_id, domain, **data))
 
-    def turn_off(self, entity_id: str, domain: str = "homeassistant"):
+    def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant"):
         """Turn off a specific entity in Home Assistant.
 
         Args:
@@ -231,7 +257,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain))
 
-    def toggle_service(self, entity_id: str, domain: str = "homeassistant"):
+    def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant"):
         """Toggle a specific entity in Home Assistant.
 
         Args:
@@ -509,3 +535,339 @@ class ApiSyncFacade(Resource):
             RuntimeError: If the deletion fails."""
 
         return self.task_bucket.run_sync(self._api.delete_entity(entity_id))
+
+    def list_input_booleans(self) -> list[InputBooleanRecord]:
+        """List all stored input_boolean helpers.
+
+        Returns:
+            List of InputBooleanRecord instances representing stored configs."""
+
+        return self.task_bucket.run_sync(self._api.list_input_booleans())
+
+    def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
+        """Create a new input_boolean helper.
+
+        Args:
+            params: Parameters for the new helper.
+
+        Returns:
+            The stored record returned by Home Assistant."""
+
+        return self.task_bucket.run_sync(self._api.create_input_boolean(params))
+
+    def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
+        """Update an existing input_boolean helper.
+
+        Args:
+            helper_id: The ID of the helper to update.
+            params: Fields to update (unset fields are left unchanged).
+
+        Returns:
+            The updated stored record."""
+
+        return self.task_bucket.run_sync(self._api.update_input_boolean(helper_id, params))
+
+    def delete_input_boolean(self, helper_id: str) -> None:
+        """Delete an input_boolean helper.
+
+        Args:
+            helper_id: The ID of the helper to delete."""
+
+        return self.task_bucket.run_sync(self._api.delete_input_boolean(helper_id))
+
+    def list_input_numbers(self) -> list[InputNumberRecord]:
+        """List all stored input_number helpers.
+
+        Returns:
+            List of InputNumberRecord instances representing stored configs."""
+
+        return self.task_bucket.run_sync(self._api.list_input_numbers())
+
+    def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
+        """Create a new input_number helper.
+
+        Args:
+            params: Parameters for the new helper.
+
+        Returns:
+            The stored record returned by Home Assistant."""
+
+        return self.task_bucket.run_sync(self._api.create_input_number(params))
+
+    def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
+        """Update an existing input_number helper.
+
+        Args:
+            helper_id: The ID of the helper to update.
+            params: Fields to update (unset fields are left unchanged).
+
+        Returns:
+            The updated stored record."""
+
+        return self.task_bucket.run_sync(self._api.update_input_number(helper_id, params))
+
+    def delete_input_number(self, helper_id: str) -> None:
+        """Delete an input_number helper.
+
+        Args:
+            helper_id: The ID of the helper to delete."""
+
+        return self.task_bucket.run_sync(self._api.delete_input_number(helper_id))
+
+    def list_input_texts(self) -> list[InputTextRecord]:
+        """List all stored input_text helpers.
+
+        Returns:
+            List of InputTextRecord instances representing stored configs."""
+
+        return self.task_bucket.run_sync(self._api.list_input_texts())
+
+    def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
+        """Create a new input_text helper.
+
+        Args:
+            params: Parameters for the new helper.
+
+        Returns:
+            The stored record returned by Home Assistant."""
+
+        return self.task_bucket.run_sync(self._api.create_input_text(params))
+
+    def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
+        """Update an existing input_text helper.
+
+        Args:
+            helper_id: The ID of the helper to update.
+            params: Fields to update (unset fields are left unchanged).
+
+        Returns:
+            The updated stored record."""
+
+        return self.task_bucket.run_sync(self._api.update_input_text(helper_id, params))
+
+    def delete_input_text(self, helper_id: str) -> None:
+        """Delete an input_text helper.
+
+        Args:
+            helper_id: The ID of the helper to delete."""
+
+        return self.task_bucket.run_sync(self._api.delete_input_text(helper_id))
+
+    def list_input_selects(self) -> list[InputSelectRecord]:
+        """List all stored input_select helpers.
+
+        Returns:
+            List of InputSelectRecord instances representing stored configs."""
+
+        return self.task_bucket.run_sync(self._api.list_input_selects())
+
+    def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
+        """Create a new input_select helper.
+
+        Args:
+            params: Parameters for the new helper.
+
+        Returns:
+            The stored record returned by Home Assistant."""
+
+        return self.task_bucket.run_sync(self._api.create_input_select(params))
+
+    def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
+        """Update an existing input_select helper.
+
+        Args:
+            helper_id: The ID of the helper to update.
+            params: Fields to update (unset fields are left unchanged).
+
+        Returns:
+            The updated stored record."""
+
+        return self.task_bucket.run_sync(self._api.update_input_select(helper_id, params))
+
+    def delete_input_select(self, helper_id: str) -> None:
+        """Delete an input_select helper.
+
+        Args:
+            helper_id: The ID of the helper to delete."""
+
+        return self.task_bucket.run_sync(self._api.delete_input_select(helper_id))
+
+    def list_input_datetimes(self) -> list[InputDatetimeRecord]:
+        """List all stored input_datetime helpers.
+
+        Returns:
+            List of InputDatetimeRecord instances representing stored configs."""
+
+        return self.task_bucket.run_sync(self._api.list_input_datetimes())
+
+    def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
+        """Create a new input_datetime helper.
+
+        Args:
+            params: Parameters for the new helper.
+
+        Returns:
+            The stored record returned by Home Assistant."""
+
+        return self.task_bucket.run_sync(self._api.create_input_datetime(params))
+
+    def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
+        """Update an existing input_datetime helper.
+
+        Args:
+            helper_id: The ID of the helper to update.
+            params: Fields to update (unset fields are left unchanged).
+
+        Returns:
+            The updated stored record."""
+
+        return self.task_bucket.run_sync(self._api.update_input_datetime(helper_id, params))
+
+    def delete_input_datetime(self, helper_id: str) -> None:
+        """Delete an input_datetime helper.
+
+        Args:
+            helper_id: The ID of the helper to delete."""
+
+        return self.task_bucket.run_sync(self._api.delete_input_datetime(helper_id))
+
+    def list_input_buttons(self) -> list[InputButtonRecord]:
+        """List all stored input_button helpers.
+
+        Returns:
+            List of InputButtonRecord instances representing stored configs."""
+
+        return self.task_bucket.run_sync(self._api.list_input_buttons())
+
+    def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
+        """Create a new input_button helper.
+
+        Args:
+            params: Parameters for the new helper.
+
+        Returns:
+            The stored record returned by Home Assistant."""
+
+        return self.task_bucket.run_sync(self._api.create_input_button(params))
+
+    def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
+        """Update an existing input_button helper.
+
+        Args:
+            helper_id: The ID of the helper to update.
+            params: Fields to update (unset fields are left unchanged).
+
+        Returns:
+            The updated stored record."""
+
+        return self.task_bucket.run_sync(self._api.update_input_button(helper_id, params))
+
+    def delete_input_button(self, helper_id: str) -> None:
+        """Delete an input_button helper.
+
+        Args:
+            helper_id: The ID of the helper to delete."""
+
+        return self.task_bucket.run_sync(self._api.delete_input_button(helper_id))
+
+    def list_counters(self) -> list[CounterRecord]:
+        """List all stored counter helpers.
+
+        Returns:
+            List of CounterRecord instances representing stored configs."""
+
+        return self.task_bucket.run_sync(self._api.list_counters())
+
+    def create_counter(self, params: CreateCounterParams) -> CounterRecord:
+        """Create a new counter helper.
+
+        Args:
+            params: Parameters for the new helper.
+
+        Returns:
+            The stored record returned by Home Assistant."""
+
+        return self.task_bucket.run_sync(self._api.create_counter(params))
+
+    def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
+        """Update an existing counter helper (stored config, not live value).
+
+        Args:
+            helper_id: The ID of the helper to update.
+            params: Fields to update (unset fields are left unchanged).
+
+        Returns:
+            The updated stored record."""
+
+        return self.task_bucket.run_sync(self._api.update_counter(helper_id, params))
+
+    def delete_counter(self, helper_id: str) -> None:
+        """Delete a counter helper.
+
+        Args:
+            helper_id: The ID of the helper to delete."""
+
+        return self.task_bucket.run_sync(self._api.delete_counter(helper_id))
+
+    def list_timers(self) -> list[TimerRecord]:
+        """List all stored timer helpers.
+
+        Returns:
+            List of TimerRecord instances representing stored configs."""
+
+        return self.task_bucket.run_sync(self._api.list_timers())
+
+    def create_timer(self, params: CreateTimerParams) -> TimerRecord:
+        """Create a new timer helper.
+
+        Args:
+            params: Parameters for the new helper.
+
+        Returns:
+            The stored record returned by Home Assistant."""
+
+        return self.task_bucket.run_sync(self._api.create_timer(params))
+
+    def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
+        """Update an existing timer helper.
+
+        Args:
+            helper_id: The ID of the helper to update.
+            params: Fields to update (unset fields are left unchanged).
+
+        Returns:
+            The updated stored record."""
+
+        return self.task_bucket.run_sync(self._api.update_timer(helper_id, params))
+
+    def delete_timer(self, helper_id: str) -> None:
+        """Delete a timer helper.
+
+        Args:
+            helper_id: The ID of the helper to delete."""
+
+        return self.task_bucket.run_sync(self._api.delete_timer(helper_id))
+
+    def increment_counter(self, entity_id: str) -> None:
+        """Increment a counter entity's current value (live state, not stored config).
+
+        Args:
+            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``)."""
+
+        return self.task_bucket.run_sync(self._api.increment_counter(entity_id))
+
+    def decrement_counter(self, entity_id: str) -> None:
+        """Decrement a counter entity's current value (live state, not stored config).
+
+        Args:
+            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``)."""
+
+        return self.task_bucket.run_sync(self._api.decrement_counter(entity_id))
+
+    def reset_counter(self, entity_id: str) -> None:
+        """Reset a counter entity's value to its configured initial (live state, not stored config).
+
+        Args:
+            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``)."""
+
+        return self.task_bucket.run_sync(self._api.reset_counter(entity_id))

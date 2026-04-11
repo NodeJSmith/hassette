@@ -58,6 +58,14 @@ _KNOWN_READ_METHODS: frozenset[str] = frozenset(
         "get_rest_request",
         "post_rest_request",
         "delete_rest_request",
+        "list_input_booleans",
+        "list_input_numbers",
+        "list_input_texts",
+        "list_input_selects",
+        "list_input_datetimes",
+        "list_input_buttons",
+        "list_counters",
+        "list_timers",
     }
 )
 
