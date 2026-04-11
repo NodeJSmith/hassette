@@ -196,6 +196,10 @@ nav:
 +      - Testing: pages/migration/testing.md
 +      - Migration Checklist: pages/migration/checklist.md
 -  - AppDaemon Comparison: pages/appdaemon-comparison.md
++   - Advanced:
++      ...
+-      - TypeRegistry: pages/advanced/type-registry.md
++      - Type Registry: pages/advanced/type-registry.md
 ```
 
 ### Rationale for each change
@@ -282,6 +286,7 @@ The following pages are being moved or deleted. Any page with inbound links must
 | `pages/testing/index.md` (time-control section) | `pages/testing/time-control.md` | Any WP documentation that links to `#time-control` anchor on testing/index.md |
 | `pages/testing/index.md` (concurrency section) | `pages/testing/concurrency.md` | Any WP documentation that links to `#concurrency` anchor on testing/index.md |
 | `pages/testing/index.md` (factories section) | `pages/testing/factories.md` | Any WP documentation that links to `#event-factories` anchor on testing/index.md |
+| `pages/troubleshooting.md` | `pages/troubleshooting.md` (unchanged URL) | No redirect needed. Nav position change only: Troubleshooting moves from position 7 (after AppDaemon Comparison) to position 8 (after Migration Guide) in the top-level nav. The WP executing the Migration Guide restructuring must place Troubleshooting after Migration Guide in `mkdocs.yml`. |
 
 **Note:** The `pages/testing/index.md` page itself is **not** deleted — only its excess content is extracted. The original URL remains valid with reduced content covering Quick Start through Asserting API Calls.
 
