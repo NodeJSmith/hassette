@@ -394,6 +394,121 @@ class RecordingApi(Resource):
         _not_implemented("delete_entity")
 
     # ------------------------------------------------------------------
+    # Helper CRUD stubs — implemented in WP05.
+    # These satisfy the test_api_write_methods_covered_by_recording_api
+    # parity gate. WP05 replaces these with real implementations that
+    # seed `helper_definitions` and record ApiCall entries.
+    # ------------------------------------------------------------------
+
+    async def create_input_boolean(self, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("create_input_boolean")
+
+    async def update_input_boolean(self, helper_id: str, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("update_input_boolean")
+
+    async def delete_input_boolean(self, helper_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("delete_input_boolean")
+
+    async def create_input_number(self, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("create_input_number")
+
+    async def update_input_number(self, helper_id: str, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("update_input_number")
+
+    async def delete_input_number(self, helper_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("delete_input_number")
+
+    async def create_input_text(self, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("create_input_text")
+
+    async def update_input_text(self, helper_id: str, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("update_input_text")
+
+    async def delete_input_text(self, helper_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("delete_input_text")
+
+    async def create_input_select(self, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("create_input_select")
+
+    async def update_input_select(self, helper_id: str, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("update_input_select")
+
+    async def delete_input_select(self, helper_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("delete_input_select")
+
+    async def create_input_datetime(self, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("create_input_datetime")
+
+    async def update_input_datetime(self, helper_id: str, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("update_input_datetime")
+
+    async def delete_input_datetime(self, helper_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("delete_input_datetime")
+
+    async def create_input_button(self, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("create_input_button")
+
+    async def update_input_button(self, helper_id: str, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("update_input_button")
+
+    async def delete_input_button(self, helper_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("delete_input_button")
+
+    async def create_counter(self, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("create_counter")
+
+    async def update_counter(self, helper_id: str, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("update_counter")
+
+    async def delete_counter(self, helper_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("delete_counter")
+
+    async def create_timer(self, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("create_timer")
+
+    async def update_timer(self, helper_id: str, params: Any) -> Any:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("update_timer")
+
+    async def delete_timer(self, helper_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("delete_timer")
+
+    async def increment_counter(self, entity_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("increment_counter")
+
+    async def decrement_counter(self, entity_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("decrement_counter")
+
+    async def reset_counter(self, entity_id: str) -> None:
+        """WP05 stub — raises NotImplementedError."""
+        _not_implemented("reset_counter")
+
+    # ------------------------------------------------------------------
     # Fallback for uncovered methods
     # ------------------------------------------------------------------
 

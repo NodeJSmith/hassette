@@ -17,6 +17,32 @@ from whenever import Date, PlainDateTime, ZonedDateTime
 from hassette.const.misc import FalseySentinel
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.base import BaseEntity
+from hassette.models.helpers import (
+    CounterRecord,
+    CreateCounterParams,
+    CreateInputBooleanParams,
+    CreateInputButtonParams,
+    CreateInputDatetimeParams,
+    CreateInputNumberParams,
+    CreateInputSelectParams,
+    CreateInputTextParams,
+    CreateTimerParams,
+    InputBooleanRecord,
+    InputButtonRecord,
+    InputDatetimeRecord,
+    InputNumberRecord,
+    InputSelectRecord,
+    InputTextRecord,
+    TimerRecord,
+    UpdateCounterParams,
+    UpdateInputBooleanParams,
+    UpdateInputButtonParams,
+    UpdateInputDatetimeParams,
+    UpdateInputNumberParams,
+    UpdateInputSelectParams,
+    UpdateInputTextParams,
+    UpdateTimerParams,
+)
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
@@ -318,3 +344,108 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def delete_entity(self, entity_id: str) -> None:
         raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_entity"))
+
+    def list_input_booleans(self) -> list[InputBooleanRecord]:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_booleans"))
+
+    def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_boolean"))
+
+    def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_boolean"))
+
+    def delete_input_boolean(self, helper_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_boolean"))
+
+    def list_input_numbers(self) -> list[InputNumberRecord]:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_numbers"))
+
+    def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_number"))
+
+    def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_number"))
+
+    def delete_input_number(self, helper_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_number"))
+
+    def list_input_texts(self) -> list[InputTextRecord]:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_texts"))
+
+    def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_text"))
+
+    def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_text"))
+
+    def delete_input_text(self, helper_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_text"))
+
+    def list_input_selects(self) -> list[InputSelectRecord]:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_selects"))
+
+    def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_select"))
+
+    def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_select"))
+
+    def delete_input_select(self, helper_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_select"))
+
+    def list_input_datetimes(self) -> list[InputDatetimeRecord]:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_datetimes"))
+
+    def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_datetime"))
+
+    def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_datetime"))
+
+    def delete_input_datetime(self, helper_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_datetime"))
+
+    def list_input_buttons(self) -> list[InputButtonRecord]:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_input_buttons"))
+
+    def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_input_button"))
+
+    def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_input_button"))
+
+    def delete_input_button(self, helper_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_input_button"))
+
+    def list_counters(self) -> list[CounterRecord]:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_counters"))
+
+    def create_counter(self, params: CreateCounterParams) -> CounterRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_counter"))
+
+    def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_counter"))
+
+    def delete_counter(self, helper_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_counter"))
+
+    def list_timers(self) -> list[TimerRecord]:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="list_timers"))
+
+    def create_timer(self, params: CreateTimerParams) -> TimerRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="create_timer"))
+
+    def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="update_timer"))
+
+    def delete_timer(self, helper_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_timer"))
+
+    def increment_counter(self, entity_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="increment_counter"))
+
+    def decrement_counter(self, entity_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="decrement_counter"))
+
+    def reset_counter(self, entity_id: str) -> None:
+        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="reset_counter"))
