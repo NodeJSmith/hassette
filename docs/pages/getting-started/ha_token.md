@@ -28,8 +28,8 @@ Long-lived access tokens belong to your Home Assistant user account and grant th
 
 Once you have the token, add it to `config/.env`:
 
-```
-HASSETTE__TOKEN=your_long_lived_access_token_here
+```bash
+--8<-- "pages/getting-started/snippets/env_token.sh"
 ```
 
 See the [Local Setup](index.md) guide for the full configuration steps.

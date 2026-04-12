@@ -67,7 +67,7 @@ See the [Web UI docs](pages/web-ui/index.md) for a full tour.
 ## Quick start
 
 ```bash
-pip install hassette
+--8<-- "pages/getting-started/snippets/install.sh"
 ```
 
 Then follow the [Local Setup guide](pages/getting-started/index.md) — you'll have a running app in about 30 minutes.
