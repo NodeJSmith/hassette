@@ -4,17 +4,17 @@ The Apps page lets you view and manage all registered automations.
 
 ![Apps](../../_static/web_ui_apps.png)
 
-## Status Summary
+## Status Filter
 
-A badge at the top shows the current count by status (e.g. "7 running"). Below it, filter tabs let you narrow the list:
+Filter tabs at the top let you narrow the app list by status:
 
 - **All** — every registered app
 - **Running** — actively running apps
-- **Stopped** — manually stopped apps
 - **Failed** — apps that encountered an error
+- **Stopped** — manually stopped apps
 - **Disabled** — apps disabled in configuration
 
-Each tab shows its count, so you can spot problems at a glance.
+Each tab shows its count so you can spot problems at a glance.
 
 ## App Table
 
@@ -23,30 +23,31 @@ The table displays one row per app with the following columns:
 | Column | Description |
 |--------|-------------|
 | **App Key** | Unique identifier (links to the app detail view) |
-| **Name** | Display name of the app |
+| **Name** | Display name of the app. If the class name differs from the display name, the class name appears below it. |
 | **Status** | Current status badge: running, stopped, failed, disabled, or blocked (waiting for a dependency to become ready — typically resolves automatically) |
 | **Error** | Error message if the app has failed, otherwise `—` |
 | **Actions** | Stop, Reload, and Start buttons |
 
+On mobile, the table switches to a card layout with the same information.
+
 ## Actions
 
-Each app row has action buttons:
+Each app row has action buttons that depend on the app's current status:
 
-- **Stop** (yellow) — stops the app.
-- **Reload** (blue) — reloads the app, picking up code changes.
-- **Start** (green) — appears when an app is stopped or failed.
+- **Stop** — stops a running app.
+- **Reload** — reloads a running app, picking up code changes.
+- **Start** — appears when an app is stopped or failed; restarts it.
 
 ## Multi-Instance Apps
 
-Apps configured with multiple instances show an expandable row with an "N instances" badge. Click the chevron to reveal individual instances. In the screenshot above, `motion_lights` and `presence_tracker` each have 2 instances. Each instance has its own status and action buttons.
+Apps configured with multiple instances show an expandable row. Click the chevron next to the app key to reveal individual instances. Each instance has its own status badge and action buttons.
 
 ## App Detail View
 
 Clicking an app key navigates to a detail page that shows:
 
-- App metadata (class, status, configuration)
-- **Listeners** — event bus subscriptions for that app
-- **Jobs** — scheduled jobs belonging to the app
+- **Event Handlers** — event bus subscriptions for that app, with listener counts
+- **Scheduled Jobs** — active scheduled jobs belonging to the app
 - **Logs** — log entries filtered to that app
 
-This gives you a focused view of everything related to a single automation.
+Multi-instance apps include an instance selector at the top. The active instance's health data, listeners, and jobs are scoped to the selected instance.

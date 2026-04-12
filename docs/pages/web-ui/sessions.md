@@ -19,7 +19,7 @@ The table displays one row per session, ordered newest first:
 | **Status** | Colored badge: **running** (current session), **success** (clean shutdown), **failure** (crashed), or **unknown** (orphaned) |
 | **Started At** | Timestamp when Hassette started |
 | **Stopped At** | Timestamp when Hassette shut down, or `—` if still running |
-| **Duration** | How long the session lasted (e.g. `2h 15m`) |
+| **Duration** | How long the session lasted. Short sessions show seconds (`45s`) or minutes (`3m 20s`); longer sessions show hours and minutes (`2h 15m`). |
 | **Error Type** | Exception class name if the session ended in a crash, otherwise `—` |
 | **Error Message** | Error details if the session crashed, otherwise `—` |
 

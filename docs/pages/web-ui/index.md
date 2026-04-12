@@ -18,8 +18,7 @@ Two settings control it:
 To disable the UI while keeping the REST API:
 
 ```toml
-[hassette]
-run_web_ui = false
+--8<-- "pages/web-ui/snippets/disable-ui.toml"
 ```
 
 See [Global Settings](../core-concepts/configuration/global.md#web-ui-settings) for the full list of configuration options.
@@ -61,4 +60,4 @@ The sidebar provides access to every section:
 
 ## Real-Time Updates
 
-A green **Connected** indicator in the top-right corner shows the WebSocket connection status. While connected, the UI receives live updates — new log entries stream in, event counts increment, and app statuses refresh automatically. Data also refreshes on a 30-second polling interval as a fallback.
+A connection indicator in the status bar shows the WebSocket connection status. While connected, the UI receives live updates — new log entries stream in, event counts increment, and app statuses refresh automatically. If the connection drops, the indicator shows **Reconnecting...** or **Disconnected** until the connection is restored.
