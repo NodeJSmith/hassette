@@ -29,7 +29,10 @@ Network errors are automatically retried. Catch `HassetteError` to handle all AP
 
 ## Synchronous Usage
 
-If you are writing a synchronous app (or calling from a synchronous context), use `self.api.sync` to access blocking versions of all methods:
+If you are writing a synchronous app, subclass `AppSync` and override `on_initialize_sync` instead of `on_initialize`. Hassette runs your sync method in a thread, where `self.api.sync` provides blocking versions of all API methods:
+
+!!! note
+    `self.api.sync` is only safe to call from **outside the event loop** — specifically from `AppSync` lifecycle methods (`on_initialize_sync`, `on_shutdown_sync`). Calling it from inside an `async def` method will deadlock.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_sync_usage.py"
