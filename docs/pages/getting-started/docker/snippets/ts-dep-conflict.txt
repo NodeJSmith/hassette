@@ -1,0 +1,11 @@
+─────────────────────────────────────────────────────────
+  DEPENDENCY CONFLICT
+
+  Your project's dependencies conflict with this version
+  of Hassette. This usually means your uv.lock was generated
+  against a different Hassette version than this image.
+
+  To fix: run 'uv lock' locally, commit uv.lock, and restart.
+─────────────────────────────────────────────────────────
+Because you require yarl==1.20.0 and yarl==1.22.0, we can conclude that
+your requirements are unsatisfiable.

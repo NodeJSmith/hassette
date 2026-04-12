@@ -9,13 +9,13 @@ This guide covers common issues when running Hassette in Docker and how to resol
 Always start by checking the logs:
 
 ```bash
-docker compose logs hassette
+--8<-- "pages/getting-started/docker/snippets/ts-check-logs.sh"
 ```
 
 For more detail:
 
 ```bash
-docker compose logs --tail=200 hassette
+--8<-- "pages/getting-started/docker/snippets/ts-check-logs-tail.sh"
 ```
 
 ### Common Startup Issues
@@ -27,8 +27,7 @@ docker compose logs --tail=200 hassette
 **Solution:** Ensure `HASSETTE__TOKEN` is set in `config/.env`:
 
 ```bash
-# config/.env
-HASSETTE__TOKEN=your_long_lived_access_token_here
+--8<-- "pages/getting-started/docker/snippets/ts-token-env.sh"
 ```
 
 #### Can't Reach Home Assistant
@@ -41,9 +40,9 @@ HASSETTE__TOKEN=your_long_lived_access_token_here
 2. Check network configuration
 3. Test connectivity from the container:
 
-   ```bash
-   docker compose exec hassette curl -I http://homeassistant:8123
-   ```
+```bash
+--8<-- "pages/getting-started/docker/snippets/ts-curl-ha.sh"
+```
 
 #### Permission Errors
 
@@ -52,7 +51,7 @@ HASSETTE__TOKEN=your_long_lived_access_token_here
 **Solution:** The container runs as user `hassette`. Ensure mounted files are readable:
 
 ```bash
-chmod -R a+r ./config ./apps
+--8<-- "pages/getting-started/docker/snippets/ts-chmod.sh"
 ```
 
 ## Apps Not Loading
@@ -62,7 +61,7 @@ chmod -R a+r ./config ./apps
 Verify Hassette can see your app files:
 
 ```bash
-docker compose exec hassette ls -la /apps
+--8<-- "pages/getting-started/docker/snippets/ts-ls-apps.sh"
 ```
 
 ### 2. Verify APP_DIR Configuration
@@ -70,15 +69,13 @@ docker compose exec hassette ls -la /apps
 Ensure `app_dir` in `hassette.toml` matches the container path:
 
 ```toml
-[hassette]
-app_dir = "/apps"  # Must match volume mount
+--8<-- "pages/getting-started/docker/snippets/ts-app-dir-toml.toml"
 ```
 
 If using `src/` layout:
 
 ```yaml
-environment:
-  - HASSETTE__APP_DIR=/apps/src/my_apps
+--8<-- "pages/getting-started/docker/snippets/ts-app-dir-src-env.yml"
 ```
 
 ### 3. Check for Python Errors
@@ -86,7 +83,7 @@ environment:
 Look for syntax or import errors in the logs:
 
 ```bash
-docker compose logs hassette | grep -i "error\|exception\|traceback"
+--8<-- "pages/getting-started/docker/snippets/ts-grep-errors.sh"
 ```
 
 ### 4. Verify App Configuration
@@ -94,10 +91,7 @@ docker compose logs hassette | grep -i "error\|exception\|traceback"
 Ensure your app is configured in `hassette.toml`:
 
 ```toml
-[apps.my_app]
-filename = "my_app.py"
-class_name = "MyApp"
-enabled = true
+--8<-- "pages/getting-started/docker/snippets/ts-app-config.toml"
 ```
 
 ## Dependency Installation Fails
@@ -107,7 +101,7 @@ enabled = true
 Look for installation errors in the logs:
 
 ```bash
-docker compose logs hassette | grep -i "installing\|error\|failed"
+--8<-- "pages/getting-started/docker/snippets/ts-dep-install-logs.sh"
 ```
 
 ### Dependency Conflicts
@@ -115,17 +109,7 @@ docker compose logs hassette | grep -i "installing\|error\|failed"
 **Symptom:** Container exits at startup with a `DEPENDENCY CONFLICT` banner followed by a uv resolver error like:
 
 ```
-─────────────────────────────────────────────────────────
-  DEPENDENCY CONFLICT
-
-  Your project's dependencies conflict with this version
-  of Hassette. This usually means your uv.lock was generated
-  against a different Hassette version than this image.
-
-  To fix: run 'uv lock' locally, commit uv.lock, and restart.
-─────────────────────────────────────────────────────────
-Because you require yarl==1.20.0 and yarl==1.22.0, we can conclude that
-your requirements are unsatisfiable.
+--8<-- "pages/getting-started/docker/snippets/ts-dep-conflict.txt"
 ```
 
 **Why it happens:** Your project's `uv.lock` was resolved against a different version of Hassette than the Docker image you're running. When the startup script installs your dependencies through Hassette's constraints file, it detects the version mismatch and exits rather than silently downgrading a framework package.
@@ -135,12 +119,7 @@ your requirements are unsatisfiable.
 For project-based installs (`pyproject.toml` + `uv.lock`):
 
 ```bash
-# Re-resolve against the current hassette version
-uv lock
-
-# Commit the updated lockfile
-git add uv.lock
-git commit -m "update uv.lock for hassette upgrade"
+--8<-- "pages/getting-started/docker/snippets/ts-uv-relock.sh"
 ```
 
 Then restart the container.
@@ -148,17 +127,13 @@ Then restart the container.
 For `requirements.txt`-based installs: relax any pinned versions that conflict, or check which version range hassette requires:
 
 ```bash
-docker compose exec hassette cat /app/constraints.txt | grep <package>
+--8<-- "pages/getting-started/docker/snippets/ts-check-constraints.sh"
 ```
 
 **How to prevent it:** Pin hassette in your project dependencies to match the image tag you're deploying. For example, if you're using the `0.24.0-py3.13` image:
 
 ```toml
-# pyproject.toml
-dependencies = [
-    "hassette==0.24.0",
-    # ... your other deps
-]
+--8<-- "pages/getting-started/docker/snippets/ts-pin-hassette-pyproject.toml"
 ```
 
 Re-run `uv lock` after changing the pin, then commit both files.
@@ -170,14 +145,13 @@ Re-run `uv lock` after changing the pin, then commit both files.
 **Solution:** Check `HASSETTE__PROJECT_DIR` points to the right location:
 
 ```yaml
-environment:
-  - HASSETTE__PROJECT_DIR=/apps  # Must contain pyproject.toml
+--8<-- "pages/getting-started/docker/snippets/ts-project-dir-env.yml"
 ```
 
 Verify the file exists:
 
 ```bash
-docker compose exec hassette cat /apps/pyproject.toml
+--8<-- "pages/getting-started/docker/snippets/ts-cat-pyproject.sh"
 ```
 
 ### Project Has pyproject.toml But Dependencies Don't Install
@@ -187,9 +161,7 @@ docker compose exec hassette cat /apps/pyproject.toml
 **Solution:** Generate a lockfile locally and commit it:
 
 ```bash
-uv lock
-git add uv.lock
-git commit -m "add uv.lock"
+--8<-- "pages/getting-started/docker/snippets/ts-uv-lock-add.sh"
 ```
 
 If you cannot run `uv` locally, use the `requirements.txt` approach with `HASSETTE__INSTALL_DEPS=1` instead.
@@ -202,10 +174,9 @@ If you cannot run `uv` locally, use the `requirements.txt` approach with `HASSET
 
 1. **Confirm `HASSETTE__INSTALL_DEPS=1` is set** — requirements discovery is disabled by default. Without this variable, no requirements files are scanned.
 
-   ```yaml
-   environment:
-     - HASSETTE__INSTALL_DEPS=1
-   ```
+```yaml
+--8<-- "pages/getting-started/docker/snippets/ts-install-deps-env.yml"
+```
 
 2. **Verify the filename is exactly `requirements.txt`** — the startup script only discovers files named exactly `requirements.txt`. Files named `requirements-dev.txt`, `requirements_test.txt`, or any other variant are ignored.
 
@@ -214,7 +185,7 @@ If you cannot run `uv` locally, use the `requirements.txt` approach with `HASSET
 Check what the container sees:
 
 ```bash
-docker compose exec hassette fdfind -t f -a --max-depth 5 '^requirements\.txt$' /apps /config
+--8<-- "pages/getting-started/docker/snippets/ts-find-requirements.sh"
 ```
 
 ### Version Conflicts
@@ -227,9 +198,9 @@ docker compose exec hassette fdfind -t f -a --max-depth 5 '^requirements\.txt$' 
 2. For `requirements.txt`, relax overly tight version pins
 3. Check the constraints file to see what versions hassette requires:
 
-   ```bash
-   docker compose exec hassette cat /app/constraints.txt
-   ```
+```bash
+--8<-- "pages/getting-started/docker/snippets/ts-check-constraints.sh"
+```
 
 ### Import Errors at Runtime
 
@@ -252,34 +223,29 @@ The health check queries `http://127.0.0.1:8126/api/health`.
 
 1. **Check if Hassette is starting successfully:**
 
-   ```bash
-   docker compose logs hassette
-   ```
+```bash
+--8<-- "pages/getting-started/docker/snippets/ts-check-logs.sh"
+```
 
 2. **Verify the health service is running:**
 
-   The health service is enabled by default. Check if it's accessible:
+The health service is enabled by default. Check if it's accessible:
 
-   ```bash
-   docker compose exec hassette curl http://127.0.0.1:8126/api/health
-   ```
+```bash
+--8<-- "pages/getting-started/docker/snippets/ts-health-check.sh"
+```
 
 3. **Check for port conflicts:**
 
-   Ensure no other service uses port 8126 inside the container.
+Ensure no other service uses port 8126 inside the container.
 
 4. **Increase start period:**
 
-   If the container installs dependencies at startup, it may take more than a few seconds before Hassette is ready to respond to health checks. Increase `start_period` to give it time:
+If the container installs dependencies at startup, it may take more than a few seconds before Hassette is ready to respond to health checks. Increase `start_period` to give it time:
 
-   ```yaml
-   healthcheck:
-     test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/api/health"]
-     interval: 30s
-     timeout: 5s
-     retries: 3
-     start_period: 60s
-   ```
+```yaml
+--8<-- "pages/getting-started/docker/snippets/ts-healthcheck-long-start.yml"
+```
 
 ## Hot Reload Not Working
 
@@ -294,9 +260,7 @@ For hot reload to work:
 ### Configuration
 
 ```toml
-[hassette]
-watch_files = true
-allow_reload_in_prod = true  # Only if dev_mode = false
+--8<-- "pages/getting-started/docker/snippets/ts-hot-reload.toml"
 ```
 
 ### Verify Volume Mounts
@@ -304,14 +268,7 @@ allow_reload_in_prod = true  # Only if dev_mode = false
 Ensure files are mounted, not copied:
 
 ```yaml
-volumes:
-  - ./apps:/apps  # ✓ Mounted - changes reflected
-```
-
-Not:
-
-```dockerfile
-COPY ./apps /apps  # ✗ Copied - changes not reflected
+--8<-- "pages/getting-started/docker/snippets/ts-vol-mount.yml"
 ```
 
 ## Import Errors
@@ -324,10 +281,9 @@ COPY ./apps /apps  # ✗ Copied - changes not reflected
 
 1. Verify the package is in your dependencies:
 
-   ```toml
-   # pyproject.toml
-   dependencies = ["xyz>=1.0.0"]
-   ```
+```toml
+--8<-- "pages/getting-started/docker/snippets/ts-pyproject-dep.toml"
+```
 
 2. Check installation logs for errors
 
@@ -340,8 +296,7 @@ COPY ./apps /apps  # ✗ Copied - changes not reflected
 **Solution:** This usually means the virtual environment isn't activated or the Docker image is corrupt. Check the startup logs — the script validates that hassette is importable before doing anything else, and prints a clear error if that import fails. If you see `"ERROR: Failed to import hassette — the Docker image may be corrupt"`, try pulling the image again:
 
 ```bash
-docker compose pull
-docker compose up -d
+--8<-- "pages/getting-started/docker/snippets/ts-docker-pull.sh"
 ```
 
 ## Performance Issues
@@ -358,10 +313,9 @@ docker compose up -d
 1. Use `uv.lock` for faster resolution (packages are already pinned, no resolution needed)
 2. Mount a persistent cache volume:
 
-   ```yaml
-   volumes:
-     - uv_cache:/uv_cache
-   ```
+```yaml
+--8<-- "pages/getting-started/docker/snippets/ts-uv-cache-vol.yml"
+```
 
 3. Pre-build a custom image with dependencies — see [Pre-building a Custom Image](dependencies.md#pre-building-a-custom-image)
 
@@ -372,15 +326,9 @@ docker compose up -d
 1. Check for memory leaks in your apps
 2. Limit container memory:
 
-   ```yaml
-   services:
-     hassette:
-       # ... other config ...
-       deploy:
-         resources:
-           limits:
-             memory: 512M
-   ```
+```yaml
+--8<-- "pages/getting-started/docker/snippets/ts-memory-limit.yml"
+```
 
 ## Getting Help
 
@@ -390,23 +338,13 @@ If you can't resolve an issue:
 
 2. **Collect diagnostic information:**
 
-   ```bash
-   # Container status
-   docker compose ps
-
-   # Full logs
-   docker compose logs hassette > hassette.log
-
-   # Environment
-   docker compose exec hassette env | grep HASSETTE
-
-   # File structure - example uses fdfind to automatically exclude pycache/pyc/etc.
-   docker compose exec hassette fdfind . /apps /config -t f
-   ```
+```bash
+--8<-- "pages/getting-started/docker/snippets/ts-diagnostics.sh"
+```
 
 3. **Open a new issue** with the diagnostic information
 
 ## See Also
 
-- [Docker Overview](index.md) - Quick start guide
-- [Managing Dependencies](dependencies.md) - Dependency installation details
+- [Docker Overview](index.md) — Quick start guide
+- [Managing Dependencies](dependencies.md) — Dependency installation details

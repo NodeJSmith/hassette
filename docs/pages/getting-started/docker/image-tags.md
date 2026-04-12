@@ -9,14 +9,14 @@ Hassette publishes Docker images for multiple Python versions. All tags explicit
 For reproducible production builds, pin both the Hassette version and Python version:
 
 ```
-ghcr.io/nodejsmith/hassette:<version>-py<python>
+--8<-- "pages/getting-started/docker/snippets/tag-format-versioned.txt"
 ```
 
 **Examples:**
 
-- `ghcr.io/nodejsmith/hassette:0.19.0-py3.13`
-- `ghcr.io/nodejsmith/hassette:0.18.0-py3.12`
-- `ghcr.io/nodejsmith/hassette:0.18.0.dev1-py3.11`
+- `ghcr.io/nodejsmith/hassette:0.24.0-py3.13`
+- `ghcr.io/nodejsmith/hassette:0.24.0-py3.12`
+- `ghcr.io/nodejsmith/hassette:0.24.0-py3.11`
 
 This is the **preferred way** to consume Hassette in production.
 
@@ -25,7 +25,7 @@ This is the **preferred way** to consume Hassette in production.
 If you want automatic upgrades within a Python line:
 
 ```
-ghcr.io/nodejsmith/hassette:latest-py<python>
+--8<-- "pages/getting-started/docker/snippets/tag-format-latest.txt"
 ```
 
 **Examples:**
@@ -42,7 +42,7 @@ ghcr.io/nodejsmith/hassette:latest-py<python>
 Pull requests opened from branches **in this repository** get a stable, mutable tag pointing at the latest build of that PR:
 
 ```
-ghcr.io/nodejsmith/hassette:pr-<number>-py3.13
+--8<-- "pages/getting-started/docker/snippets/tag-format-pr.txt"
 ```
 
 **Example:**
@@ -65,7 +65,7 @@ The tag is updated on every push to the PR branch, so `docker pull` always fetch
 Every merge to `main` publishes a `main` tag for testing the latest unreleased code:
 
 ```
-ghcr.io/nodejsmith/hassette:main-py3.13
+--8<-- "pages/getting-started/docker/snippets/tag-format-main.txt"
 ```
 
 **Example:**
@@ -84,14 +84,14 @@ The following tag patterns are **not** published:
 
 | Pattern                            | Reason                                     |
 | ---------------------------------- | ------------------------------------------ |
-| `latest` (without Python version)  | Ambiguous - always specify Python version  |
-| Version tags without `-py<python>` | Ambiguous - always specify Python version  |
+| `latest` (without Python version)  | Ambiguous — always specify Python version  |
+| Version tags without `-py<python>` | Ambiguous — always specify Python version  |
 | Floating tags for pre-releases     | Explicit version required for pre-releases |
 
 If you want a pre-release, you must explicitly request it by version:
 
 ```
-ghcr.io/nodejsmith/hassette:0.18.0.dev1-py3.13
+--8<-- "pages/getting-started/docker/snippets/tag-prerelease-explicit.txt"
 ```
 
 ## Supported Python Versions
@@ -100,9 +100,9 @@ Each release is built for multiple Python versions:
 
 | Python Version | Status      |
 | -------------- | ----------- |
-| 3.13           | ✅ Supported |
-| 3.12           | ✅ Supported |
-| 3.11           | ✅ Supported |
+| 3.13           | Supported |
+| 3.12           | Supported |
+| 3.11           | Supported |
 
 !!! note "Version Support"
     Not all Python versions may be supported indefinitely. See release notes for changes to supported versions.
@@ -114,9 +114,7 @@ Each release is built for multiple Python versions:
 Use a pinned version with your preferred Python:
 
 ```yaml
-services:
-  hassette:
-    image: ghcr.io/nodejsmith/hassette:0.19.0-py3.13
+--8<-- "pages/getting-started/docker/snippets/tag-pinned-compose.yml"
 ```
 
 ### For Development
@@ -124,19 +122,15 @@ services:
 Use the latest stable release:
 
 ```yaml
-services:
-  hassette:
-    image: ghcr.io/nodejsmith/hassette:latest-py3.13
+--8<-- "pages/getting-started/docker/snippets/tag-latest-compose.yml"
 ```
 
-### For Testing New Features
+### For Testing Pre-release Features
 
 Use a specific pre-release version:
 
 ```yaml
-services:
-  hassette:
-    image: ghcr.io/nodejsmith/hassette:0.19.0.dev1-py3.13
+--8<-- "pages/getting-started/docker/snippets/tag-prerelease-compose.yml"
 ```
 
 ## Updating Images
@@ -144,12 +138,11 @@ services:
 ### Pull Latest
 
 ```bash
-docker compose pull
-docker compose up -d
+--8<-- "pages/getting-started/docker/snippets/docker-pull-update.sh"
 ```
 
 ### Check Current Version
 
 ```bash
-docker compose exec hassette hassette --version
+--8<-- "pages/getting-started/docker/snippets/docker-version-check.sh"
 ```

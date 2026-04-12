@@ -1,0 +1,2 @@
+[hassette]
+app_dir = "/apps"  # Must match volume mount

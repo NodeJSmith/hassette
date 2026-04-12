@@ -1,0 +1,16 @@
+services:
+  hassette:
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
+    volumes:
+      - ./config:/config
+      - .:/apps
+      - data:/data
+      - uv_cache:/uv_cache
+    environment:
+      - HASSETTE__PROJECT_DIR=/apps
+      - HASSETTE__APP_DIR=/apps/src/my_apps
+      - TZ=America/New_York
+
+volumes:
+  data:
+  uv_cache:
