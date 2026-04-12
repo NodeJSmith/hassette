@@ -69,7 +69,10 @@ nav:
       - Sessions: pages/web-ui/sessions.md
       - Logs: pages/web-ui/logs.md
   - Testing:
-      - Testing Your Apps: pages/testing/index.md
+      - Quick Start: pages/testing/index.md
+      - Time Control: pages/testing/time-control.md
+      - Concurrency & pytest-xdist: pages/testing/concurrency.md
+      - Factories & Internals: pages/testing/factories.md
   - Advanced:
       - Overview: pages/advanced/index.md
       - Dependency Injection: pages/advanced/dependency-injection.md
