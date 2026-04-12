@@ -80,8 +80,16 @@ nav:
       - State Registry: pages/advanced/state-registry.md
       - TypeRegistry: pages/advanced/type-registry.md
       - Log Level Tuning: pages/advanced/log-level-tuning.md
+  - Migration Guide:
+      - Overview: pages/migration/index.md
+      - Mental Model: pages/migration/concepts.md
+      - Bus & Events: pages/migration/bus.md
+      - Scheduler: pages/migration/scheduler.md
+      - API Calls: pages/migration/api.md
+      - Configuration: pages/migration/configuration.md
+      - Testing: pages/migration/testing.md
+      - Migration Checklist: pages/migration/checklist.md
   - Troubleshooting: pages/troubleshooting.md
-  - AppDaemon Comparison: pages/appdaemon-comparison.md
   - Changelog: CHANGELOG.md  # symlinked from repo root
   - API Reference: reference/
 

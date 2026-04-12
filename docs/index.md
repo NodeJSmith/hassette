@@ -79,4 +79,4 @@ Then follow the [Local Setup guide](pages/getting-started/index.md) — you'll h
 - **Production:** [Docker Deployment](pages/getting-started/docker/index.md)
 - **Architecture overview:** [Core Concepts](pages/core-concepts/index.md)
 - **Full configuration:** [Configuration Overview](pages/core-concepts/configuration/index.md)
-- **Migrating from AppDaemon?** [AppDaemon Comparison](pages/appdaemon-comparison.md)
+- **Migrating from AppDaemon?** [Migration Guide](pages/migration/index.md)

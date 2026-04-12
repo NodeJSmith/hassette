@@ -1,0 +1,6 @@
+my_app:
+  module: my_app
+  class: MyApp
+  args:
+    entity: light.kitchen
+    brightness: 200

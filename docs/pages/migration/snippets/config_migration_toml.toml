@@ -1,0 +1,8 @@
+[hassette]
+base_url = "http://192.168.1.179:8123"
+# Token read from HASSETTE__TOKEN env var or .env file
+
+[apps.my_app]
+filename = "my_app.py"
+class_name = "MyApp"
+config = {entity = "light.kitchen", brightness = 200}
