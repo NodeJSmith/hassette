@@ -224,7 +224,7 @@ class Api(Resource):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         suppress_error_message: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> aiohttp.ClientResponse:
         """Make a REST request to the Home Assistant API.
 
@@ -243,7 +243,7 @@ class Api(Resource):
         )
 
     async def get_rest_request(
-        self, url: str, params: dict[str, Any] | None = None, **kwargs
+        self, url: str, params: dict[str, Any] | None = None, **kwargs: Any
     ) -> aiohttp.ClientResponse:
         """Make a GET request to the Home Assistant API.
 
@@ -257,7 +257,9 @@ class Api(Resource):
         """
         return await self.rest_request("GET", url, params=params, **kwargs)
 
-    async def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs) -> aiohttp.ClientResponse:
+    async def post_rest_request(
+        self, url: str, data: dict[str, Any] | None = None, **kwargs: Any
+    ) -> aiohttp.ClientResponse:
         """Make a POST request to the Home Assistant API.
 
         Args:
@@ -270,7 +272,7 @@ class Api(Resource):
         """
         return await self.rest_request("POST", url, data=data, **kwargs)
 
-    async def delete_rest_request(self, url: str, **kwargs) -> aiohttp.ClientResponse:
+    async def delete_rest_request(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a DELETE request to the Home Assistant API.
 
         Args:
@@ -396,7 +398,7 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None,
         return_response: Literal[True],
-        **data,
+        **data: Any,
     ) -> ServiceResponse: ...
 
     @overload
@@ -406,7 +408,7 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: typing.Literal[False] | None = None,
-        **data,
+        **data: Any,
     ) -> None: ...
 
     async def call_service(
@@ -415,7 +417,7 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
-        **data,
+        **data: Any,
     ) -> ServiceResponse | None:
         """Call a Home Assistant service.
 
@@ -451,7 +453,7 @@ class Api(Resource):
         await self.ws_send_json(**payload)
         return None
 
-    async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
+    async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
         """Turn on a specific entity in Home Assistant.
 
         Args:

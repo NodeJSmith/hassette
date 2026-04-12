@@ -68,7 +68,7 @@ class ApiSyncFacade(Resource):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         suppress_error_message: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> aiohttp.ClientResponse:
         """Make a REST request to the Home Assistant API.
 
@@ -86,7 +86,7 @@ class ApiSyncFacade(Resource):
             self._api.rest_request(method, url, params, data, suppress_error_message, **kwargs)
         )
 
-    def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs) -> aiohttp.ClientResponse:
+    def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a GET request to the Home Assistant API.
 
         Args:
@@ -99,7 +99,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.get_rest_request(url, params, **kwargs))
 
-    def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs) -> aiohttp.ClientResponse:
+    def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a POST request to the Home Assistant API.
 
         Args:
@@ -112,7 +112,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.post_rest_request(url, data, **kwargs))
 
-    def delete_rest_request(self, url: str, **kwargs) -> aiohttp.ClientResponse:
+    def delete_rest_request(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a DELETE request to the Home Assistant API.
 
         Args:
@@ -197,7 +197,7 @@ class ApiSyncFacade(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
-        **data,
+        **data: Any,
     ) -> ServiceResponse | None:
         """Call a Home Assistant service.
 
@@ -213,7 +213,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))
 
-    def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
+    def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
         """Turn on a specific entity in Home Assistant.
 
         Args:

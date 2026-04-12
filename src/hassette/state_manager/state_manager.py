@@ -253,7 +253,7 @@ class StateManager(Resource):
 
         Raises:
             AttributeError: If the attribute name matches a reserved name or if the domain is not registered in the
-            state registry.
+                state registry.
 
         Example:
             ```python

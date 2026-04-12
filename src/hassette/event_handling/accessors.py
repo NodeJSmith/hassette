@@ -260,7 +260,7 @@ def get_all_changes(
 
     Args:
         exclude (Sequence[str], optional): List of attribute names to exclude from the changes. Defaults to fields
-        that change every state update (e.g., `last_updated`, `last_changed`, `context`).
+            that change every state update (e.g., `last_updated`, `last_changed`, `context`).
 
     Returns:
         dict[str, dict[str, Any]]: A nested dict mapping names to tuples of (old_value, new_value).

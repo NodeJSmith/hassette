@@ -5,7 +5,7 @@ from abc import abstractmethod
 from contextlib import suppress
 from functools import cached_property
 from logging import INFO, Logger, getLogger
-from typing import ClassVar, TypeVar, final
+from typing import Any, ClassVar, TypeVar, final
 
 from diskcache import Cache
 
@@ -193,7 +193,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Return the log level from the config for this resource."""
         return self.hassette.config.log_level
 
-    def add_child(self, child_class: type[_ResourceT], **kwargs) -> _ResourceT:
+    def add_child(self, child_class: type[_ResourceT], **kwargs: Any) -> _ResourceT:
         """Create and add a child resource to this resource.
 
         Args:
