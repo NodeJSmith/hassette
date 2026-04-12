@@ -1,4 +1,4 @@
-**Approval status:** PENDING — author must add `**APPROVED**` and a date before content WPs run.
+**Approval status:** **APPROVED** 2026-04-12 — all recommendations accepted. Amendments recorded in audit: (1) "Persistent Storage" renamed to "App Cache" in nav, moved to `pages/core-concepts/cache/`, split into `cache/index.md` (conceptual: overview, basic usage, how it works, configuration, lifecycle) and `cache/patterns.md` (practical: examples, best practices, troubleshooting). All other recommendations accepted as written.
 
 ---
 
@@ -132,7 +132,9 @@ nav:
           - Services: pages/core-concepts/api/services.md
           - Utilities: pages/core-concepts/api/utilities.md
       - States: pages/core-concepts/states/index.md
-      - Persistent Storage: pages/core-concepts/persistent-storage.md
+      - App Cache:
+          - Overview: pages/core-concepts/cache/index.md
+          - Patterns & Examples: pages/core-concepts/cache/patterns.md
       - Database & Telemetry: pages/core-concepts/database-telemetry.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md
@@ -180,6 +182,13 @@ nav:
 -      - Hassette vs. YAML: pages/getting-started/hassette-vs-ha-yaml.md
 +      - Is Hassette Right for You?: pages/getting-started/hassette-vs-ha-yaml.md
        ...
+   - Core Concepts:
+       ...
+-      - Persistent Storage: pages/core-concepts/persistent-storage.md
++      - App Cache:
++          - Overview: pages/core-concepts/cache/index.md
++          - Patterns & Examples: pages/core-concepts/cache/patterns.md
+       ...
    - Testing:
 -      - Testing Your Apps: pages/testing/index.md
 +      - Testing Your Apps: pages/testing/index.md
@@ -208,6 +217,7 @@ nav:
 |--------|-----------|
 | Rename `Hassette vs. YAML` → `Is Hassette Right for You?` | The nav label should describe the reader's goal, not the content format. |
 | Split `Testing:` into four pages | Current page is 636 lines covering three distinct concerns. Beginners must read past 200+ lines of advanced content (time control, concurrency, factories) before they understand the testing mental model. Split ensures beginners can stop after the first page. |
+| Replace `Persistent Storage` with `App Cache:` (two subpages) | The page is entirely about `self.cache` / diskcache — "Persistent Storage" is not the name users look for. Renamed to "App Cache" to match the attribute name. Split into `cache/index.md` (conceptual: overview, basic usage, how it works, configuration, lifecycle) and `cache/patterns.md` (practical: all five examples, best practices, troubleshooting). This mirrors the Bus/Scheduler/API subpage pattern. |
 | Replace `AppDaemon Comparison` with `Migration Guide:` section (8 pages) | Spec decision (design.md). The 1039-line comparison page is the densest page in the entire doc set. It needs to be broken into focused guides by topic so AppDaemon users can navigate to the specific equivalents they need without reading the entire page. |
 | Move Migration Guide before Troubleshooting | A reader migrating from AppDaemon benefits from this content before they hit troubleshooting. |
 | Rename `TypeRegistry` → `Type Registry` | Typography consistency: other entries use spaces. |
@@ -241,7 +251,7 @@ nav:
 | `pages/core-concepts/api/services.md` | 35 | 3 snippet files | **rewrite** | Short but focused. Good snippet discipline. |
 | `pages/core-concepts/api/utilities.md` | 40 | 3 snippet files | **rewrite** | Short. Good snippet discipline. |
 | `pages/core-concepts/states/index.md` | 65 | 4 snippet files | **rewrite** | Good snippet discipline. Prose review needed. |
-| `pages/core-concepts/persistent-storage.md` | 424 | 0 | **rewrite** | Dense (424 lines) with all inline fenced blocks. Convert to snippets. Split candidate if content review reveals logical subsections. |
+| `pages/core-concepts/persistent-storage.md` | 424 | 0 | **rename + rewrite + split** | 424 lines, all inline fenced blocks. Renamed to "App Cache" in nav; file moves to `pages/core-concepts/cache/`. Split into two pages: `cache/index.md` covers Overview, Basic Usage, How It Works (storage location, shared cache, lazy initialization, automatic cleanup), Configuration, and Lifecycle; `cache/patterns.md` covers all five examples (API response caching, rate-limiting, counters, complex data, expiring entries), Best Practices, and Troubleshooting. Convert all inline fenced blocks to snippet files under `pages/core-concepts/cache/snippets/`. |
 | `pages/core-concepts/database-telemetry.md` | 115 | 0 | **rewrite** | Reasonable length. All inline fenced blocks. Convert to snippets. |
 | `pages/core-concepts/configuration/index.md` | 26 | 1 snippet include | **rewrite** | Thin overview with one snippet include (file_discovery.md). Expand conceptual explanation. |
 | `pages/core-concepts/configuration/auth.md` | 30 | 0 | **rewrite** | Very thin at 30 lines. No code blocks. Appropriate for narrow topic but prose is sparse. |
@@ -262,6 +272,8 @@ nav:
 | `pages/troubleshooting.md` | 59 | 0 | **keep / minor update** | Well-structured symptom-oriented guide. No code blocks needed. |
 | `pages/appdaemon-comparison.md` | 1039 | 0 | **delete / migrate** | Replace with 8-page Migration Guide section (see Section 1 and Section 3). |
 | **New pages (to create):** | | | | |
+| `pages/core-concepts/cache/index.md` | — | — | **create** | Sourced from persistent-storage.md §Overview, §Basic Usage, §How It Works, §Configuration, §Lifecycle. Conceptual half of the split. |
+| `pages/core-concepts/cache/patterns.md` | — | — | **create** | Sourced from persistent-storage.md §Examples (all five), §Best Practices, §Troubleshooting. Practical reference half of the split. |
 | `pages/testing/time-control.md` | — | — | **create** | Extracted from testing/index.md §Time Control. |
 | `pages/testing/concurrency.md` | — | — | **create** | Extracted from testing/index.md §Concurrency sections. |
 | `pages/testing/factories.md` | — | — | **create** | Extracted from testing/index.md §Event Factories + §Advanced + §Limitations. |
@@ -282,6 +294,7 @@ The following pages are being moved or deleted. Any page with inbound links must
 
 | Old path | New path | Inbound links that must be updated |
 |----------|----------|-------------------------------------|
+| `pages/core-concepts/persistent-storage.md` | `pages/core-concepts/cache/index.md` | Any existing inbound links to persistent-storage; search codebase for `persistent-storage` before deleting. |
 | `pages/appdaemon-comparison.md` | `pages/migration/index.md` | `docs/index.md:71` — `"Migration"` link pointing to appdaemon-comparison |
 | `pages/testing/index.md` (time-control section) | `pages/testing/time-control.md` | Any WP documentation that links to `#time-control` anchor on testing/index.md |
 | `pages/testing/index.md` (concurrency section) | `pages/testing/concurrency.md` | Any WP documentation that links to `#concurrency` anchor on testing/index.md |
@@ -382,6 +395,7 @@ These directories are used exclusively within their own nav section. They do not
 | Core Concepts / Scheduler | `pages/core-concepts/scheduler/snippets/` |
 | Core Concepts / API | `pages/core-concepts/api/snippets/` |
 | Core Concepts / States | `pages/core-concepts/states/snippets/` |
+| Core Concepts / App Cache | `pages/core-concepts/cache/snippets/` |
 | Core Concepts / Configuration | `pages/core-concepts/configuration/snippets/` (shared with Getting Started — see above) |
 | Advanced | `pages/advanced/snippets/` (contains `dependency-injection/` shared with type-registry — see above) |
 
@@ -389,7 +403,7 @@ These directories are used exclusively within their own nav section. They do not
 
 These pages need all inline fenced code blocks converted to `--8<--` snippet files (per spec FR#9) during their content WP:
 
-`pages/getting-started/docker/dependencies.md`, `pages/getting-started/docker/image-tags.md`, `pages/getting-started/docker/troubleshooting.md`, `pages/core-concepts/bus/index.md`, `pages/core-concepts/scheduler/index.md`, `pages/core-concepts/api/index.md`, `pages/core-concepts/persistent-storage.md`, `pages/core-concepts/database-telemetry.md`, `pages/advanced/log-level-tuning.md`, `pages/testing/index.md` (and its three new split pages).
+`pages/getting-started/docker/dependencies.md`, `pages/getting-started/docker/image-tags.md`, `pages/getting-started/docker/troubleshooting.md`, `pages/core-concepts/bus/index.md`, `pages/core-concepts/scheduler/index.md`, `pages/core-concepts/api/index.md`, `pages/core-concepts/cache/index.md` and `pages/core-concepts/cache/patterns.md` (sourced from persistent-storage.md), `pages/core-concepts/database-telemetry.md`, `pages/advanced/log-level-tuning.md`, `pages/testing/index.md` (and its three new split pages).
 
 ---
 
