@@ -39,7 +39,7 @@ This page organizes common problems by symptom. Click through to the relevant se
 
 - **Data lost after restart**: Verify the `data_dir` is correctly configured and writable. In Docker, ensure the `/data` volume is mounted.
 - **Cache shared between instances**: All instances of the same app class share one cache directory. Use `self.app_config.instance_name` as a key prefix to avoid collisions.
-- See [Persistent Storage — Troubleshooting](core-concepts/persistent-storage.md#troubleshooting) for more.
+- See [App Cache — Troubleshooting](core-concepts/cache/patterns.md#troubleshooting) for more.
 
 ## Custom state class not registering
 

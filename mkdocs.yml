@@ -53,7 +53,9 @@ nav:
           - Services: pages/core-concepts/api/services.md
           - Utilities: pages/core-concepts/api/utilities.md
       - States: pages/core-concepts/states/index.md
-      - Persistent Storage: pages/core-concepts/persistent-storage.md
+      - App Cache:
+          - Overview: pages/core-concepts/cache/index.md
+          - Patterns & Examples: pages/core-concepts/cache/patterns.md
       - Database & Telemetry: pages/core-concepts/database-telemetry.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md

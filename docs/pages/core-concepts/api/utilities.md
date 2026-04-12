@@ -37,4 +37,4 @@ Retrieve logbook entries.
 
 - [Retrieving Entities & States](entities.md) - Get entity and state data
 - [Calling Services](services.md) - Invoke Home Assistant services
-- [Persistent Storage](../persistent-storage.md) - Cache historical data locally
+- [App Cache](../cache/index.md) - Cache data locally across restarts

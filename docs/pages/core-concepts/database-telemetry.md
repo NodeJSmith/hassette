@@ -21,11 +21,7 @@ Framework-internal handlers (telemetry workers, WebSocket service, scheduler ser
 All database settings are optional. The defaults work well for most installations.
 
 ```toml
-# hassette.toml
-[hassette]
-db_path = "/path/to/hassette.db"   # default: {data_dir}/hassette.db
-db_retention_days = 7              # default: 7 (minimum: 1)
-db_max_size_mb = 500               # default: 500 (0 = no size limit)
+--8<-- "pages/core-concepts/snippets/database-telemetry/db_config.toml"
 ```
 
 | Field | Type | Default | Description |
@@ -61,14 +57,7 @@ Use this endpoint if you want to monitor specifically whether telemetry data col
 This is the **system-level** health check for Hassette as a whole. It reports the overall status of the Hassette process — whether it is running, starting up, or shutting down. Use this endpoint for Docker health checks and uptime monitoring.
 
 ```yaml
-# docker-compose.yml
-services:
-  hassette:
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8126/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+--8<-- "pages/core-concepts/snippets/database-telemetry/healthcheck.yml"
 ```
 
 !!! note "Choosing the right endpoint"
@@ -98,12 +87,7 @@ To resolve a degraded state:
 3. **Delete and restart** — if the database is corrupted, deleting it is safe. Only telemetry history is lost; your automations are unaffected:
 
     ```bash
-    # Docker
-    docker compose exec hassette rm /data/hassette.db
-    docker compose restart hassette
-
-    # Local
-    rm ~/.local/share/hassette/v0/hassette.db  # replace v0 with your major version, or use your configured db_path
+    --8<-- "pages/core-concepts/snippets/database-telemetry/db_recovery.sh"
     ```
 
     Hassette will recreate the database on next startup.
@@ -112,4 +96,4 @@ To resolve a degraded state:
 
 - [Sessions](../web-ui/sessions.md) — session history in the web UI
 - [Global Configuration](configuration/global.md) — all configuration fields
-- [Persistent Storage](persistent-storage.md) — the disk cache for app data (separate from telemetry)
+- [App Cache](cache/index.md) — the disk cache for app data (separate from telemetry)

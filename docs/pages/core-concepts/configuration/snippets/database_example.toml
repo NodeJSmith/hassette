@@ -1,0 +1,4 @@
+[hassette]
+db_path = "/var/lib/hassette/telemetry.db"
+db_retention_days = 14
+db_max_size_mb = 1000

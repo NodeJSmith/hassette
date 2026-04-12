@@ -48,7 +48,7 @@ Each app receives pre-configured helpers:
 - **[`self.bus`](../bus/index.md)** - Subscribe to events.
 - **[`self.scheduler`](../scheduler/index.md)** - Schedule jobs.
 - **[`self.states`](../states/index.md)** - Access entity states.
-- **[`self.cache`](../persistent-storage.md)** - Persistent disk-based storage.
+- **[`self.cache`](../cache/index.md)** - Persistent disk-based storage.
 - **`self.logger`** - Dedicated logger instance.
 - **[`self.app_config`](configuration.md)** - Typed configuration.
 
@@ -88,7 +88,7 @@ Use [`self.api`](../api/index.md) to call Home Assistant services.
 
 ### Persist Data Between Restarts
 
-Use [`self.cache`](../persistent-storage.md) to store data that should survive app restarts.
+Use [`self.cache`](../cache/index.md) to store data that should survive app restarts.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_cache_counter.py:cache_counter"

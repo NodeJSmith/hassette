@@ -165,4 +165,4 @@ Without `if_exists="skip"`, a reload would raise `ValueError` because `sensor_ch
 
 - [Job Management](management.md) - Name, track, and cancel scheduled jobs
 - [Bus](../bus/index.md) - Combine scheduled tasks with event-driven automation
-- [Persistent Storage](../persistent-storage.md) - Store data between scheduled runs
+- [App Cache](../cache/index.md) - Store data between scheduled runs
