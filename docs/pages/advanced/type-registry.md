@@ -143,7 +143,9 @@ Hassette includes comprehensive built-in conversion:
 
 - `str` ↔ `int`: Basic integer conversion
 - `str` ↔ `float`: Floating-point conversion
-- `str` ↔ `Decimal`: High-precision decimal conversion
+- `str` → `Decimal`: High-precision decimal parsing
+- `float` → `Decimal`: Floating-point to high-precision decimal
+- `Decimal` → `int` / `float`: Precision-loss conversion
 - `int` → `float`: Integer to float conversion
 - `float` → `int`: Float to integer (truncation)
 
@@ -152,19 +154,30 @@ Hassette includes comprehensive built-in conversion:
 - `str` → `bool`: Handles Home Assistant boolean strings
   - True values: `"on"`, `"true"`, `"yes"`, `"1"`
   - False values: `"off"`, `"false"`, `"no"`, `"0"`
-- `bool` → `str`: Converts to `"on"` or `"off"` (HA format)
-- `int` → `bool`: Standard truthiness conversion
+- `bool` → `str`: Converts to `"True"` or `"False"` (Python `str()` — not HA format)
 
 ### DateTime Conversions
 
 Uses the `whenever` library for robust datetime handling:
 
-- `str` → `Instant`: Parse ISO 8601 to timezone-aware instant
-- `str` → `ZonedDateTime`: Parse to zoned datetime
-- `str` → `OffsetDateTime`: Parse to offset-aware datetime
-- `str` → `SystemDateTime`: Parse to system datetime
-- `str` → `LocalDateTime`: Parse to naive local datetime
-- And reverse conversions back to strings
+**`whenever` types:**
+
+- `str` → `ZonedDateTime`: Parse HA datetime strings (ISO, plain, or date-only — assumed system timezone)
+- `str` → `Date`: ISO date string via `Date.parse_iso`
+- `str` → `Time`: ISO time string via `Time.parse_iso`
+- `str` → `OffsetDateTime`: ISO datetime with UTC offset via `OffsetDateTime.parse_iso`
+- `str` → `PlainDateTime`: ISO datetime without timezone via `PlainDateTime.parse_iso`
+- `ZonedDateTime` → `Instant`: Strip timezone info (`to_instant`)
+- `ZonedDateTime` → `PlainDateTime`: Drop timezone (`to_plain`)
+- `ZonedDateTime` → `str`: ISO format (`format_iso`)
+- `Time` → `str`: ISO format (`format_iso`)
+
+**Stdlib datetime types:**
+
+- `str` → `datetime`: Parse via `ZonedDateTime.py_datetime()`
+- `str` → `time`: Parse via `Time.parse_iso().py_time()`
+- `str` → `date`: Parse via `Date.parse_iso().py_date()`
+- `Time` → `time`: Convert via `py_time()`
 
 ### Conversion Errors
 

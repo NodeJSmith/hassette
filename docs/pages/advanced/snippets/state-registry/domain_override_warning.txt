@@ -1,1 +1,0 @@
-WARNING - Overriding original state class SensorState for domain 'sensor' with CustomSensorState

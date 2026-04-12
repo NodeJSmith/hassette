@@ -127,11 +127,7 @@ If you want to override the default state class for a domain (for example, to ad
 --8<-- "pages/advanced/snippets/state-registry/domain_override.py"
 ```
 
-The StateRegistry will log a warning but use your custom class:
-
-```
---8<-- "pages/advanced/snippets/state-registry/domain_override_warning.txt"
-```
+The StateRegistry silently replaces the existing class with your custom one.
 
 ## Union Type Support
 

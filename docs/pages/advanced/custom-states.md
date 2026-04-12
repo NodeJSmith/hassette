@@ -151,3 +151,9 @@ If state conversion is failing:
 1. **Check the base class** - Ensure it matches your entity's state value type
 2. **Validate attributes** - Make sure custom attributes use proper Pydantic field types
 3. **Check Home Assistant data** - Verify the actual state data structure from Home Assistant
+
+## See Also
+
+- [State Registry](state-registry.md) — register your custom state class for a domain
+- [Type Registry](type-registry.md) — register custom type converters for field values
+- [Dependency Injection](dependency-injection.md) — inject typed states into event handlers

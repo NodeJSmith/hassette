@@ -78,7 +78,7 @@ The file watcher logs every detected file change at `INFO` level. In development
 
 This shows detailed WebSocket message traffic and REST API call/response details. Useful when troubleshooting connectivity issues or unexpected state values.
 
-## Related Resources
+## See Also
 
 - [Global Configuration](../core-concepts/configuration/global.md) — all configuration fields including `log_level`
 - [App Configuration](../core-concepts/apps/configuration.md) — per-app log level overrides
