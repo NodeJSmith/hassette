@@ -2,22 +2,25 @@
 
 # Hassette
 
-A simple, modern, async-first Python framework for building Home Assistant automations.
+> An async-first Python framework for writing Home Assistant automations as code — with type safety, dependency injection, and a built-in test harness.
 
 ## What is Hassette?
 
-Hassette is a framework that helps you write Home Assistant automations in Python. Instead of using the HA user interface or writing YAML, you create "apps" as Python classes that respond to Home Assistant events, call services, and manage state.
+Hassette lets you write Home Assistant automations as Python classes instead of YAML. Each automation is an **app**: a Python class that subscribes to events, calls services, schedules tasks, and manages persistent state.
 
-If you're familiar with the Python ecosystem, consider it like a marriage between AppDaemon and FastAPI — HA automations built on modern async Python, Pydantic models, and type safety.
+If you know Python, think of it as FastAPI-style dependency injection for Home Assistant events — handlers declare the data they need, and Hassette extracts it automatically from the event stream.
+
+**Who it's for:** Python developers who have outgrown YAML automations — automations with complex logic, shared state, unit tests, or a need for type safety. Not sure if Hassette is right for you? See [Is Hassette Right for You?](pages/getting-started/hassette-vs-ha-yaml.md)
 
 ## Why Hassette?
 
-- **Write automations as code**: Build "apps" as Python classes that subscribe to events, call services, and manage state.
-- **Async-first**: Use async where it matters; sync apps are supported too.
-- **Type-safe configuration**: Pydantic models give validation, defaults, and IDE help.
-- **Dependency injection**: Clean handler signatures that focus on the data you need.
-- **Persistent storage**: Built-in disk cache for storing data across restarts, intelligent rate-limiting, and more
-- **Great DX**: Clear logs, fast iteration, and hot reloading during development.
+- **Write automations as code** — Python classes with full access to the language: loops, functions, libraries, modules.
+- **Async-first** — built on `asyncio`; sync apps are supported too.
+- **Type-safe configuration** — Pydantic models give validation, defaults, and IDE autocomplete for every app's settings.
+- **Dependency injection** — handlers declare the fields they need; Hassette extracts them from the event automatically.
+- **App cache** — built-in disk-backed cache for storing data across restarts, with rate-limiting and TTL support.
+- **Built-in test harness** — unit-test automations with `AppTestHarness`, event simulation, and time control.
+- **Great DX** — clear structured logs, fast iteration, and hot reloading during development.
 
 ## See it in action
 
@@ -61,11 +64,19 @@ See the [Web UI docs](pages/web-ui/index.md) for a full tour.
 - Typed, validated configuration for safer refactors
 - Cleaner integrations with Home Assistant services and entities
 
+## Quick start
+
+```bash
+pip install hassette
+```
+
+Then follow the [Local Setup guide](pages/getting-started/index.md) — you'll have a running app in about 30 minutes.
+
 ## Next steps
 
-- **Is Hassette right for you?** [Hassette vs. YAML Automations](pages/getting-started/hassette-vs-ha-yaml.md)
+- **Is Hassette right for you?** [Is Hassette Right for You?](pages/getting-started/hassette-vs-ha-yaml.md)
 - **Local setup:** [Local Setup](pages/getting-started/index.md)
 - **Production:** [Docker Deployment](pages/getting-started/docker/index.md)
 - **Architecture overview:** [Core Concepts](pages/core-concepts/index.md)
 - **Full configuration:** [Configuration Overview](pages/core-concepts/configuration/index.md)
-- **Migration:** [AppDaemon Comparison](pages/appdaemon-comparison.md)
+- **Migrating from AppDaemon?** [AppDaemon Comparison](pages/appdaemon-comparison.md)
