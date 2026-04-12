@@ -79,18 +79,7 @@ Once defined, custom state classes work seamlessly with Hassette's APIs:
 ### Via get_states()
 
 ```python
-from hassette import App
-from .my_states import RedditState
-
-class MyApp(App):
-    async def on_initialize(self):
-        # Get all reddit entities
-        reddit_states = self.states[RedditState]
-
-        for entity_id, state in reddit_states:
-            print(f"{entity_id}: {state.value}")
-            if state.attributes.karma:
-                print(f"  Karma: {state.attributes.karma}")
+--8<-- "pages/advanced/snippets/custom-states/via_get_states.py"
 ```
 
 ### With Dependency Injection
@@ -102,10 +91,7 @@ class MyApp(App):
 ### Direct API Access
 
 ```python
-reddit_state = await self.api.get_state("reddit.my_account")
-assert isinstance(reddit_state, RedditState)
-if reddit_state.attributes.subreddit:
-    print(f"Subreddit: {reddit_state.attributes.subreddit}")
+--8<-- "pages/advanced/snippets/custom-states/direct_api_access.py"
 ```
 
 ## Runtime vs Type-Time Access
@@ -113,24 +99,17 @@ if reddit_state.attributes.subreddit:
 For known domains (defined in Hassette or in the `.pyi` stub), you can use property-style access:
 
 ```python
-# Known domains (autocomplete works)
-for entity_id, light in self.states.light:
-    print(light.attributes.brightness)
+--8<-- "pages/advanced/snippets/custom-states/known_domain_access.py"
 ```
 
 For custom domains, use `states[<class>]` for full type checking:
 
 ```python
-# Custom domains (use states[<class>] for typing)
-custom_states = self.states[MyCustomState]
-for entity_id, state in custom_states:
-    print(state.value)
+--8<-- "pages/advanced/snippets/custom-states/custom_domain_typed_access.py"
 ```
 
 ```python
-# Works at runtime but static analysis sees BaseState
-for entity_id, state in self.states.my_custom_domain:
-    print(state.value)  # state is typed as BaseState
+--8<-- "pages/advanced/snippets/custom-states/custom_domain_runtime_access.py"
 ```
 
 ## Complete Example

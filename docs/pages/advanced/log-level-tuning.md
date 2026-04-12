@@ -7,15 +7,7 @@ Hassette lets you set log verbosity independently for each internal service. Thi
 Every service in Hassette has a dedicated `*_log_level` configuration field. When set, that service uses the specified level instead of the global `log_level`. When not set, the service inherits the global `log_level` (which defaults to `INFO`).
 
 ```toml
-# hassette.toml
-[hassette]
-log_level = "INFO"                        # global default
-
-# Turn up verbosity for the scheduler only
-scheduler_service_log_level = "DEBUG"
-
-# Silence noisy file watcher logs
-file_watcher_log_level = "WARNING"
+--8<-- "pages/advanced/snippets/log-level-tuning/basic_example.toml"
 ```
 
 ## Available Fields
@@ -55,12 +47,7 @@ This means setting `log_level = "DEBUG"` raises the verbosity of every service a
 The `apps_log_level` field sets the default log level for all your automation apps. You can also override the log level for a specific app in its configuration:
 
 ```toml
-# hassette.toml
-[hassette]
-apps_log_level = "INFO"
-
-[apps.my_noisy_app]
-log_level = "WARNING"
+--8<-- "pages/advanced/snippets/log-level-tuning/per_app_log_level.toml"
 ```
 
 See [App Configuration](../core-concepts/apps/configuration.md) for details on per-app settings.
@@ -70,8 +57,7 @@ See [App Configuration](../core-concepts/apps/configuration.md) for details on p
 ### Debugging the Scheduler
 
 ```toml
-[hassette]
-scheduler_service_log_level = "DEBUG"
+--8<-- "pages/advanced/snippets/log-level-tuning/debug_scheduler.toml"
 ```
 
 This produces detailed output about job trigger evaluation, next-run calculations, and execution timing without affecting other services.
@@ -79,8 +65,7 @@ This produces detailed output about job trigger evaluation, next-run calculation
 ### Quieting the File Watcher
 
 ```toml
-[hassette]
-file_watcher_log_level = "WARNING"
+--8<-- "pages/advanced/snippets/log-level-tuning/quiet_file_watcher.toml"
 ```
 
 The file watcher logs every detected file change at `INFO` level. In development with frequent saves, this can be noisy. Setting it to `WARNING` suppresses routine change detection messages.
@@ -88,9 +73,7 @@ The file watcher logs every detected file change at `INFO` level. In development
 ### Debugging Home Assistant Communication
 
 ```toml
-[hassette]
-websocket_log_level = "DEBUG"
-api_log_level = "DEBUG"
+--8<-- "pages/advanced/snippets/log-level-tuning/debug_ha_comms.toml"
 ```
 
 This shows detailed WebSocket message traffic and REST API call/response details. Useful when troubleshooting connectivity issues or unexpected state values.

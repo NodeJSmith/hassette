@@ -44,10 +44,7 @@ When state data arrives from Home Assistant, both registries cooperate:
 
 1. **Raw data arrives** from Home Assistant:
    ```python
-   state_dict = {
-       "entity_id": "time.current",
-       "state": "12:01:01"  # String from HA
-   }
+   --8<-- "pages/advanced/snippets/state-registry/flow_raw_input.py"
    ```
 
 2. **StateRegistry** determines the model class based on the `time` domain → returns `TimeState`
@@ -60,8 +57,7 @@ When state data arrives from Home Assistant, both registries cooperate:
 
 6. **Validation completes** with the properly typed value:
    ```python
-   time_state = registry.try_convert_state(state_dict)
-   # Result: TimeState with state=whenever.Time
+   --8<-- "pages/advanced/snippets/state-registry/flow_converted_output.py"
    ```
 
 ### The value_type ClassVar
@@ -134,7 +130,7 @@ If you want to override the default state class for a domain (for example, to ad
 The StateRegistry will log a warning but use your custom class:
 
 ```
-WARNING - Overriding original state class SensorState for domain 'sensor' with CustomSensorState
+--8<-- "pages/advanced/snippets/state-registry/domain_override_warning.txt"
 ```
 
 ## Union Type Support

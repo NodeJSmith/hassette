@@ -1,0 +1,9 @@
+# hassette.toml
+[hassette]
+log_level = "INFO"                        # global default
+
+# Turn up verbosity for the scheduler only
+scheduler_service_log_level = "DEBUG"
+
+# Silence noisy file watcher logs
+file_watcher_log_level = "WARNING"

@@ -79,8 +79,7 @@ The `value_type` defines what types are valid for the `state` field. It can be:
 When a state is created or validated, the `BaseState._validate_domain_and_state` model validator automatically uses the TypeRegistry to convert the raw state value:
 
 ```python
-# In BaseState._validate_domain_and_state
-values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
+--8<-- "pages/advanced/snippets/type-registry/base_state_convert_call.py"
 ```
 
 This means when you work with typed state models, values are automatically converted:
@@ -94,10 +93,7 @@ This means when you work with typed state models, values are automatically conve
 The TypeRegistry intelligently handles Union types (including `value_type` tuples) by trying conversions in order:
 
 ```python
-from typing import Union
-
-# value_type = (int, float, str) becomes Union[int, float, str]
-# TypeRegistry tries: str → int, then str → float, then keeps as str
+--8<-- "pages/advanced/snippets/type-registry/union_type_order.py"
 ```
 
 The conversion attempts each type in the Union until one succeeds, preserving the original value if no conversion works.
@@ -175,18 +171,12 @@ Uses the `whenever` library for robust datetime handling:
 When a conversion fails, the TypeRegistry wraps the error with context:
 
 ```python
-from hassette import TYPE_REGISTRY
-
-try:
-    result = TYPE_REGISTRY.convert("not_a_number", int)
-except ValueError as e:
-    # Error message uses the error_message from the converter
-    print(e)  # Error details about the conversion failure
+--8<-- "pages/advanced/snippets/type-registry/conversion_error.py"
 ```
 
 ### Missing Converters
 
-If no converter is registered for a type pair, a `TypeError` is raised:
+If no converter is registered for a type pair and the type's constructor also fails, an `UnableToConvertValueError` is raised:
 
 ```python
 --8<-- "pages/advanced/snippets/type-registry/missing_converter.py"
@@ -212,11 +202,7 @@ The TypeRegistry provides methods to inspect registered converters:
 
 Output example:
 ```
-str → int
-str → float
-str → bool
-int → float
-...
+--8<-- "pages/advanced/snippets/type-registry/inspect_list_output.txt"
 ```
 
 ### Check for Specific Converter
@@ -236,10 +222,7 @@ int → float
 When converting to Union types, the TypeRegistry tries each type in order until one succeeds:
 
 ```python
-# For Union[int, float, str]
-# 1. Try str → int
-# 2. If that fails, try str → float
-# 3. If that fails, try str → str (identity)
+--8<-- "pages/advanced/snippets/type-registry/union_type_performance.py"
 ```
 
 For better performance with Union types, order the types from most specific to least specific:
@@ -254,9 +237,7 @@ For better performance with Union types, order the types from most specific to l
 Always specify `value_type` in custom state models:
 
 ```python
-class CustomState(BaseState):
-    # Explicitly define expected types
-    value_type: ClassVar[type | tuple[type, ...]] = int
+--8<-- "pages/advanced/snippets/type-registry/best_practice_value_type.py"
 ```
 
 ### 2. Use Type Hints with Custom Extractors
@@ -264,13 +245,7 @@ class CustomState(BaseState):
 Leverage type hints for automatic conversion in dependency injection:
 
 ```python
-# TypeRegistry converts automatically based on type hint
-async def handler(
-    temperature: Annotated[float, A.get_attr_new("temperature")],
-    humidity: Annotated[int, A.get_attr_new("humidity")],
-):
-    # temperature and humidity are already the correct types
-    pass
+--8<-- "pages/advanced/snippets/type-registry/best_practice_type_hints.py"
 ```
 
 ### 3. Provide Clear Error Messages
@@ -278,13 +253,7 @@ async def handler(
 When creating custom converters, write helpful error messages:
 
 ```python
-@register_type_converter_fn(error_message="Cannot convert '{value}' to MyType. Expected format: X,Y,Z")
-def str_to_mytype(value: str) -> MyType:
-    """Convert string to MyType with clear error handling.
-
-    Types inferred from signature: str → MyType
-    """
-    # ... conversion logic with helpful ValueError messages
+--8<-- "pages/advanced/snippets/type-registry/best_practice_error_msg.py"
 ```
 
 ### 4. Register Converters Early
@@ -292,12 +261,7 @@ def str_to_mytype(value: str) -> MyType:
 Register custom converters at module import time using decorators:
 
 ```python
-# my_converters.py
-from hassette import register_type_converter_fn
-
-@register_type_converter_fn(...)  # Registered when module is imported
-def my_converter(...):
-    pass
+--8<-- "pages/advanced/snippets/type-registry/best_practice_register_early.py"
 ```
 
 Then import your converters module in your app's `__init__.py` or before first use.
@@ -307,24 +271,7 @@ Then import your converters module in your app's `__init__.py` or before first u
 Always test custom converters with edge cases:
 
 ```python
-import pytest
-from hassette import TYPE_REGISTRY
-
-def test_custom_converter():
-    """Test custom RGB converter."""
-    # Valid conversion
-    result = TYPE_REGISTRY.convert("255,128,0", RGBColor)
-    assert result.red == 255
-    assert result.green == 128
-    assert result.blue == 0
-
-    # Invalid format
-    with pytest.raises(ValueError, match="Invalid RGB format"):
-        TYPE_REGISTRY.convert("not_rgb", RGBColor)
-
-    # Out of range
-    with pytest.raises(ValueError, match="must be between 0 and 255"):
-        TYPE_REGISTRY.convert("300,128,0", RGBColor)
+--8<-- "pages/advanced/snippets/type-registry/best_practice_test_converter.py"
 ```
 ## Common Patterns
 
