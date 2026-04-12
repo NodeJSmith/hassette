@@ -1,0 +1,12 @@
+project_dir/
+├── docker-compose.yml
+├── config/
+│   ├── hassette.toml
+│   └── .env
+├── pyproject.toml
+├── uv.lock
+└── src/
+    └── my_apps/
+        ├── __init__.py
+        ├── app_one.py
+        └── app_two.py

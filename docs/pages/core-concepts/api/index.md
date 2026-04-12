@@ -1,6 +1,6 @@
 # API Overview
 
-The `Api` resource allows your apps to interact with Home Assistant. It wraps the REST and WebSocket APIs with typed interfaces.
+The `Api` resource lets your apps interact with Home Assistant. It wraps the REST and WebSocket APIs with typed Python interfaces and handles authentication, retries, and type conversion automatically.
 
 ```mermaid
 graph TB
@@ -11,40 +11,41 @@ graph TB
 
 ## Usage
 
-The API is pre-configured and available as `self.api`.
+`self.api` is pre-configured and ready to use in any app:
 
 ```python
-async def on_initialize(self):
-    try:
-        state = await self.api.get_state("sun.sun")
-        self.logger.info("Sun is %s", state.value)
-    except HassetteError as e:
-        self.logger.error("HA API error: %s", e)
-        return None # Handling
+--8<-- "pages/core-concepts/api/snippets/api_overview_usage.py"
 ```
 
 ## Error Handling
 
 The API raises typed exceptions for common failures:
 
-- [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError]: Entity does not exist.
-- [`InvalidAuthError`][hassette.exceptions.InvalidAuthError]: Authentication failed.
-- [`HassetteError`][hassette.exceptions.HassetteError]: Generic upstream error.
+- [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] — entity does not exist in Home Assistant
+- [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] — authentication failed; check your token
+- [`HassetteError`][hassette.exceptions.HassetteError] — generic upstream error
 
-Requests are automatically retried for network errors.
+Network errors are automatically retried. Catch `HassetteError` to handle all API failures in one place.
 
 ## Synchronous Usage
 
-If you are writing a synchronous app, use `self.api.sync` to access blocking versions of all methods.
+If you are writing a synchronous app (or calling from a synchronous context), use `self.api.sync` to access blocking versions of all methods:
 
 ```python
-def on_initialize(self):
-    # Note .sync property!
-    self.api.sync.turn_on("light.office")
+--8<-- "pages/core-concepts/api/snippets/api_sync_usage.py"
 ```
+
+## API vs. StateManager
+
+The API fetches state directly from Home Assistant over the network. For reading entity state in most situations, prefer `self.states` — it provides instant synchronous access from a local cache with no network overhead:
+
+- `self.states.light["kitchen"]` — domain-specific typed access, no `await`
+- `self.states.get("light.kitchen")` — direct lookup by entity ID, no `await`
+
+Use `self.api` when you specifically need guaranteed fresh data directly from Home Assistant.
 
 ## Next Steps
 
-- **[Entities & States](entities.md)**: Retrieving state data.
-- **[Services](services.md)**: Controlling devices.
-- **[Utilities](utilities.md)**: History, templates, and more.
+- **[Entities & States](entities.md)** — retrieve state data from Home Assistant
+- **[Services](services.md)** — invoke Home Assistant services
+- **[Utilities](utilities.md)** — history, logbook, templates, and more

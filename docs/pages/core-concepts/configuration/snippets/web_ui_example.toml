@@ -1,0 +1,3 @@
+[hassette]
+run_web_ui = true
+web_api_port = 8126

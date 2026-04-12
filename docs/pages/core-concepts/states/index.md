@@ -61,5 +61,5 @@ You can iterate over domains to find entities.
 
 - [API - Entities & States](../api/entities.md) - Retrieve states via API
 - [Bus](../bus/index.md) - Subscribe to state change events
-- [Persistent Storage](../persistent-storage.md) - Cache state data locally
+- [App Cache](../cache/index.md) - Cache data locally across restarts
 - [Custom States](../../advanced/custom-states.md) - Define custom state models

@@ -1,67 +1,77 @@
-# Hassette vs. Home Assistant YAML Automations
+# Is Hassette Right for You?
 
-Home Assistant includes a built-in automation system using YAML. Hassette lets you write automations in Python instead. Here's how to decide which is right for you.
+Home Assistant ships with two built-in automation systems: UI-created automations and YAML automations. Hassette is a third option — Python code running alongside Home Assistant as a separate process. This page helps you decide whether Hassette is worth the extra setup.
 
-## Home Assistant YAML Automations
+## Quick comparison
 
-YAML automations are built into Home Assistant and work great for straightforward automation needs.
+| | HA UI / YAML | Hassette |
+|---|---|---|
+| **Setup** | None — built in | ~30 min install + config |
+| **Language** | YAML + Jinja2 templates | Python 3.11+ |
+| **Programming knowledge needed** | None | Basic Python |
+| **Editor support** | HA UI or any text editor | Full IDE autocomplete, type checking |
+| **Testing** | Manual; limited tooling | `AppTestHarness`, event simulation, time control |
+| **Complex logic** | Awkward in YAML/Jinja2 | Native Python: loops, functions, libraries |
+| **Code reuse** | Copy-paste across automations | Shared functions, base classes, modules |
+| **Persistent state** | Input helpers, custom scripts | Built-in app cache with TTL support |
+| **Runs alongside existing automations** | — | Yes — Hassette connects via the same WebSocket API; your YAML automations keep working |
+| **Debugging** | HA logbook, traces | Structured logs, web UI, Python debugger |
 
-**Good for:**
+## HA UI / YAML automations
 
-- Simple trigger-action automations (turn on lights when motion detected)
-- Quick prototyping and experimentation
-- Users who prefer visual editors over code
-- No installation required—works out of the box
+YAML automations are built into Home Assistant and work well for straightforward automation needs. You can create them from the UI without writing any code.
 
-**Limitations:**
+**When YAML is the right choice:**
 
-- Complex logic becomes hard to read and maintain in YAML
-- Limited code reuse across automations
-- Jinja2 templates can be restrictive for advanced logic
-- Debugging and testing requires workarounds
-- No type safety—errors only appear at runtime
+- Simple trigger-action patterns (turn on lights when motion detected, send a notification at sunrise)
+- Quick prototyping — iterate fast without leaving the Home Assistant UI
+- You prefer visual tools over writing code
+- Your automations are stable and don't need testing
 
-**Best for:** Simple automations you can manage through the UI. If you're happy with YAML automations, stick with them.
+**Where YAML becomes painful:**
+
+- Complex conditions that need nested logic or state tracking across multiple events
+- Reusing the same logic across several automations (there is no real "import" in YAML)
+- Jinja2 templates get unwieldy past a few lines
+- Debugging requires reading trace logs rather than running code interactively
 
 ## Hassette
 
-Hassette brings Python's power to Home Assistant automations. This unlocks capabilities that are difficult or impossible in YAML.
+Hassette brings Python's full power to Home Assistant automations. Your automations become ordinary Python classes — you can test them, refactor them, and share code between them.
 
-**Good for:**
+**When Hassette is the right choice:**
 
-- Complex logic with conditionals, loops, and data structures
-- Reusable functions and shared code across automations
-- Type safety with Python type hints and Pydantic models
-- Built-in [testing harness](../testing/index.md) — test your apps with `AppTestHarness`, event simulation, and time control
-- Persistent state management without workarounds
-- Async/await for efficient concurrent operations
+- Your YAML automations have grown hard to read or maintain
+- You want to write tests for your automations
+- You need persistent state without workarounds (input helpers, MQTT retain, etc.)
+- You're comfortable with Python — or willing to learn it
+- You want IDE support: autocomplete, type checking, and inline documentation
 
-**Trade-offs:**
+**What you're committing to:**
 
-- Requires Python knowledge (basic understanding is enough to start)
-- Additional setup and configuration needed
-- Managing Python dependencies for your automations
+- **Python knowledge** — basic understanding is enough to start; you'll learn more as you go
+- **Setup time** — around 30 minutes from install to your first running app ([Local Setup](index.md))
+- **Dependency management** — you own the Python environment and any library dependencies
+- **A separate process** — Hassette runs outside Home Assistant, not as an integration
 
-**Best for:** Automations that have grown too complex for YAML, or when you need features like persistent state, code reuse, or proper testing.
+## What Hassette does not replace
 
-## What You're Signing Up For
+Hassette does **not** replace the Home Assistant WebSocket or REST API. It uses those APIs internally. Your existing YAML automations, UI automations, scripts, and scenes continue to work exactly as before — Hassette connects as an additional client.
 
-- **Setup time**: ~30 minutes from install to your first running app ([Local Setup](index.md)).
-- **Runs alongside HA automations**: Hassette does not replace or interfere with your existing YAML automations or UI-created automations. They coexist — Hassette connects as a separate client via the same WebSocket API.
-- **Incremental migration**: You can move automations one at a time. Start with one complex automation that's painful in YAML, keep everything else as-is.
-- **Requirements**: Python 3.11+, a running Home Assistant instance, and a long-lived access token.
+You can migrate automations incrementally. Start with the one that's most painful in YAML and keep everything else as-is.
 
-## Making the Decision
+## Making the call
 
 **Stick with YAML if:**
 
 - Your automations are simple trigger-action patterns
-- You're new to programming and want the easiest path
-- The Home Assistant UI works well for your needs
+- You prefer the Home Assistant UI and don't want to write code
+- You're new to programming and want the easiest possible path
 
-**Consider Hassette if:**
+**Start with Hassette if:**
 
-- You're hitting YAML's limitations (complex conditions, state tracking, code reuse)
-- You want to test and debug automations like regular code
-- You're comfortable with basic Python or willing to learn
-- You need your automations to maintain state across runs
+- You're hitting YAML's limits: complex conditions, state tracking across events, or painful Jinja2
+- You want to test and debug your automations like ordinary code
+- You need automations to remember state across restarts without using input helpers
+
+If you're still unsure, the [Local Setup](index.md) guide takes 30 minutes. Try building one automation in Hassette — you'll know quickly whether the model suits you.

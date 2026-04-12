@@ -1,0 +1,9 @@
+project_dir/
+├── docker-compose.yml
+├── config/
+│   ├── hassette.toml
+│   └── .env
+└── apps/
+    ├── my_app.py
+    ├── another_app.py
+    └── requirements.txt  # optional

@@ -1,4 +1,4 @@
-# Docker Deployment
+# Docker Setup
 
 This guide walks through deploying Hassette with Docker Compose, the recommended way to run Hassette in production.
 
@@ -12,21 +12,19 @@ This guide walks through deploying Hassette with Docker Compose, the recommended
 - A long-lived access token from your Home Assistant profile
 
 !!! note
-
-    If you don't have a token yet, you can follow the steps in the [Creating a Home Assistant token](../ha_token.md) guide.
+    If you don't have a token yet, follow the steps in the [Creating a Home Assistant token](../ha_token.md) guide.
 
 ## Quick Start
 
-The fastest way to get started is to use the pre-built image from GitHub Container Registry:
+The fastest path from zero to a running Hassette instance:
 
-1. **Create project directory**
+**1. Create a project directory**
 
 ```bash
-mkdir project_dir && cd project_dir
-mkdir -p config apps
+--8<-- "pages/getting-started/docker/snippets/mkdir-project.sh"
 ```
 
-2. **Create Docker Compose file**
+**2. Create the Docker Compose file**
 
 Create `docker-compose.yml` in `project_dir`:
 
@@ -34,31 +32,49 @@ Create `docker-compose.yml` in `project_dir`:
 --8<-- "pages/getting-started/docker/snippets/docker-compose.yml"
 ```
 
-3. **Create configuration files**
+**3. Create your configuration**
 
-Create `config/hassette.toml` and `config/.env` with your Home Assistant token — see [Configuration](#configuration) below for the full setup.
-
-4. **Start Hassette**
+Create `config/.env` with your Home Assistant token:
 
 ```bash
-docker compose up -d
+--8<-- "pages/getting-started/docker/snippets/env-file.sh"
 ```
 
-Verify it's running: `docker compose logs hassette -f` — you should see "Connected to Home Assistant" in the output.
+Create `config/hassette.toml`:
+
+```toml
+--8<-- "pages/getting-started/docker/snippets/hassette.toml"
+```
+
+Create `apps/my_app.py`:
+
+```python
+--8<-- "pages/getting-started/docker/snippets/my_app.py"
+```
+
+**4. Start Hassette**
+
+```bash
+--8<-- "pages/getting-started/docker/snippets/docker-compose-up.sh"
+```
+
+After a few seconds, check the logs:
+
+```bash
+--8<-- "pages/getting-started/docker/snippets/docker-compose-logs-hassette.sh"
+```
+
+You should see `"Connected to Home Assistant"` in the output.
+
+!!! warning "Web UI Security"
+    The Docker Compose file exposes port 8126, which serves the web UI and REST API with **no authentication**. Anyone on your network can view, start, stop, and reload your automations. For remote servers, bind to `127.0.0.1` via `web_api_host` or place Hassette behind a reverse proxy with authentication. See [Web UI — Accessing the UI](../../web-ui/index.md#accessing-the-ui) for details.
 
 ## Directory Structure
 
 Hassette expects the following directory structure when running in Docker:
 
 ```
-project_dir/
-├── docker-compose.yml
-├── config/
-│   ├── hassette.toml      # Hassette configuration
-│   └── .env               # Secrets (HA token, etc.)
-└── apps/
-    ├── my_app.py          # Your app files
-    └── another_app.py
+--8<-- "pages/getting-started/docker/snippets/dir-structure.txt"
 ```
 
 The Docker image uses four volumes:
@@ -71,7 +87,7 @@ The Docker image uses four volumes:
 | `/uv_cache` | Python package cache for faster restarts (Docker volume) |
 
 !!! note "Package Structure"
-    For simple setups, just put `.py` files in `./apps`. For more complex projects with dependencies, see [Managing Dependencies](dependencies.md).
+    For simple setups, put `.py` files directly in `./apps`. For projects with external Python dependencies, see [Managing Dependencies](dependencies.md).
 
 ## Configuration
 
@@ -80,63 +96,40 @@ The Docker image uses four volumes:
 Create `config/.env` with your Home Assistant token:
 
 ```bash
-# config/.env
-HASSETTE__TOKEN=your_long_lived_access_token_here
+--8<-- "pages/getting-started/docker/snippets/env-file.sh"
 ```
-
-!!! note
-    If you do not yet have a token, follow the steps in the [Creating a Home Assistant token](../ha_token.md) guide.
 
 !!! warning "Security"
     Never commit `.env` files to version control. Add `config/.env` to your `.gitignore`.
 
-### Hassette Configuration
+### Environment Variables Reference
 
-Create `config/hassette.toml`:
+Override any configuration via environment variables using the `HASSETTE__` prefix:
 
-```toml
---8<-- "pages/getting-started/docker/snippets/hassette.toml"
-```
+| Variable                | Description                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `HASSETTE__TOKEN`       | Home Assistant long-lived access token                                                               |
+| `HASSETTE__BASE_URL`    | Home Assistant URL (e.g., `http://homeassistant:8123`)                                               |
+| `HASSETTE__APP_DIR`     | Directory containing your app Python files                                                           |
+| `HASSETTE__PROJECT_DIR` | Directory containing `pyproject.toml`/`uv.lock` for dependency installation                         |
+| `HASSETTE__CONFIG_DIR`  | Directory containing configuration files                                                             |
+| `HASSETTE__LOG_LEVEL`   | Logging level (`debug`, `info`, `warning`, `error`). (`LOG_LEVEL` is also read at startup before the config initializes, but `HASSETTE__LOG_LEVEL` controls the full runtime log level.) |
+| `HASSETTE__INSTALL_DEPS`| Set to `1` to enable `requirements.txt` file discovery and installation at startup                   |
+| `TZ`                    | System timezone (e.g., `America/New_York`)                                                           |
 
-### Create Your First App
-
-Create `apps/my_app.py`:
-
-```python
---8<-- "pages/getting-started/docker/snippets/my_app.py"
-```
-
-### Start Hassette
-
-```bash
-docker compose up -d
-```
-
-!!! warning "Web UI Security"
-    The Docker Compose file exposes port 8126, which serves the web UI and REST API with **no authentication**. Anyone on your network can view, start, stop, and reload your automations. For remote servers, bind to `127.0.0.1` via `web_api_host` or place Hassette behind a reverse proxy with authentication. See [Web UI — Accessing the UI](../../web-ui/index.md#accessing-the-ui) for details.
-
-Check the logs:
-
-```bash
-docker compose logs -f hassette
-```
-
-You should see Hassette connect to Home Assistant and load your apps.
+See [Managing Dependencies](dependencies.md) for details on `HASSETTE__APP_DIR` and `HASSETTE__PROJECT_DIR`.
 
 ## Production Deployment
 
 ### Hot Reloading in Production
 
-Hassette supports hot reloading, but it's disabled by default in production. To enable:
+Hassette watches for file changes by default, but automatic app reloads require `allow_reload_in_prod = true` when running outside dev mode. To enable automatic reloads in production:
 
 ```toml
-[hassette]
-dev_mode = false  # Keep production mode
-allow_reload_in_prod = true  # But allow file watching
-watch_files = true
+--8<-- "pages/getting-started/docker/snippets/prod-reload.toml"
 ```
 
-Now Hassette will automatically restart apps when you change files in `./apps/`.
+With this configuration, Hassette restarts apps when you change files in `./apps/`.
 
 !!! warning "Performance"
     File watching adds overhead. Only enable if you need it.
@@ -155,49 +148,25 @@ The compose examples include `stop_grace_period: 45s` to give Hassette enough ti
 ### Docker Compose Logs
 
 ```bash
-# Follow all logs
-docker compose logs -f
-
-# Just Hassette
-docker compose logs -f hassette
-
-# Last 100 lines
-docker compose logs --tail=100 hassette
+--8<-- "pages/getting-started/docker/snippets/docker-compose-logs.sh"
 ```
 
 ### Web UI
 
 Hassette includes a web UI at `http://<host>:8126/ui/` with a live dashboard, app management, log streaming, and session history. No extra setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
 
-## Environment Variables Reference
-
-Override any configuration via environment variables using the `HASSETTE__` prefix:
-
-| Variable                | Description                                                                                          |
-| ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| `HASSETTE__TOKEN`       | Home Assistant long-lived access token                                                               |
-| `HASSETTE__BASE_URL`    | Home Assistant URL (e.g., `http://homeassistant:8123`)                                               |
-| `HASSETTE__APP_DIR`     | Directory containing your app Python files                                                           |
-| `HASSETTE__PROJECT_DIR` | Directory containing `pyproject.toml`/`uv.lock` for dependency installation                         |
-| `HASSETTE__CONFIG_DIR`  | Directory containing configuration files                                                             |
-| `HASSETTE__LOG_LEVEL`   | Logging level (`debug`, `info`, `warning`, `error`). Also accepts `LOG_LEVEL` as a shorthand alias. |
-| `HASSETTE__INSTALL_DEPS`| Set to `1` to enable `requirements.txt` file discovery and installation at startup                   |
-| `TZ`                    | System timezone (e.g., `America/New_York`)                                                           |
-
-See [Managing Dependencies](dependencies.md) for details on `HASSETTE__APP_DIR` and `HASSETTE__PROJECT_DIR`.
-
 ## Next Steps
 
-- [Managing Dependencies](dependencies.md) - Install Python packages for your apps
-- [Image Tags](image-tags.md) - Choose the right Docker image
-- [Troubleshooting](troubleshooting.md) - Common issues and solutions
+- [Managing Dependencies](dependencies.md) — Install Python packages for your apps
+- [Image Tags](image-tags.md) — Choose the right Docker image
+- [Troubleshooting](troubleshooting.md) — Common issues and solutions
 
 !!! note "File Locations"
     For details on where Hassette searches for `hassette.toml` and `.env` files, including the `-c` and `-e` override flags, see [Configuration — File Locations](../../core-concepts/configuration/index.md#file-locations).
 
 ## See Also
 
-- [Getting Started](../index.md) - Local development setup
-- [Configuration](../../core-concepts/configuration/index.md) - Complete configuration reference
-- [Apps](../../core-concepts/apps/index.md) - Writing and structuring apps
-- [Examples](https://github.com/NodeJSmith/hassette/tree/main/examples) - Example apps and configurations
+- [Getting Started](../index.md) — Local development setup
+- [Configuration](../../core-concepts/configuration/index.md) — Complete configuration reference
+- [Apps](../../core-concepts/apps/index.md) — Writing and structuring apps
+- [Examples](https://github.com/NodeJSmith/hassette/tree/main/examples) — Example apps and configurations

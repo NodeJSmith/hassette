@@ -7,6 +7,9 @@ use_directory_urls: true
 watch:
   - src
 
+extra_css:
+  - _static/hassette.css
+
 theme:
   name: material
   logo: _static/hassette-logo.svg
@@ -23,7 +26,7 @@ nav:
   - Home: index.md
   - Getting Started:
       - Local Setup: pages/getting-started/index.md
-      - Hassette vs. YAML: pages/getting-started/hassette-vs-ha-yaml.md
+      - Is Hassette Right for You?: pages/getting-started/hassette-vs-ha-yaml.md
       - Docker Deployment:
           - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
@@ -50,7 +53,9 @@ nav:
           - Services: pages/core-concepts/api/services.md
           - Utilities: pages/core-concepts/api/utilities.md
       - States: pages/core-concepts/states/index.md
-      - Persistent Storage: pages/core-concepts/persistent-storage.md
+      - App Cache:
+          - Overview: pages/core-concepts/cache/index.md
+          - Patterns & Examples: pages/core-concepts/cache/patterns.md
       - Database & Telemetry: pages/core-concepts/database-telemetry.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md
@@ -121,4 +126,5 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.tabbed
+  - pymdownx.tabbed:
+      alternate_style: true

@@ -54,4 +54,4 @@ Hassette automatically cancels **all** jobs created by an app when that app stop
 
 - [Scheduling Methods](methods.md) - All available scheduling methods
 - [Apps Lifecycle](../apps/lifecycle.md) - Initialize and shutdown jobs properly
-- [Persistent Storage](../persistent-storage.md) - Remember job state across restarts
+- [App Cache](../cache/index.md) - Remember job state across restarts

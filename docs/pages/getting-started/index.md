@@ -8,7 +8,7 @@ This is the shortest path to get Hassette running with a config file, a `.env` f
 ## 1. Install Hassette
 
 ```bash
-pip install hassette
+--8<-- "pages/getting-started/snippets/install.sh"
 ```
 
 ## 2. Create a project layout
@@ -16,7 +16,7 @@ pip install hassette
 From an empty directory:
 
 ```bash
-mkdir -p config hassette_apps
+--8<-- "pages/getting-started/snippets/project_layout.sh"
 ```
 
 ## 3. Create a Home Assistant token
@@ -28,8 +28,7 @@ Follow the steps in [Creating a Home Assistant token](ha_token.md).
 Create `config/.env`:
 
 ```bash
-# config/.env
-HASSETTE__TOKEN=your_long_lived_access_token_here
+--8<-- "pages/getting-started/snippets/env_file.sh"
 ```
 
 !!! warning "Security"
@@ -62,10 +61,7 @@ Create `hassette_apps/main.py`:
     This example uses a raw event for simplicity. Once you're comfortable, Hassette's [dependency injection](../core-concepts/bus/handlers.md) lets you write cleaner handlers with automatic type conversion:
 
     ```python
-    from hassette import App, AppConfig, D, states
-
-    async def on_sun_change(self, new_state: D.StateNew[states.SunState]):
-        self.logger.info("Sun changed: %s", new_state.value)
+    --8<-- "pages/getting-started/snippets/typed_handler.py:typed-handler"
     ```
 
 ## 7. Run Hassette
@@ -73,17 +69,13 @@ Create `hassette_apps/main.py`:
 From your project directory:
 
 ```bash
-hassette
+--8<-- "pages/getting-started/snippets/run.sh"
 ```
 
 Hassette is a long-running process. You should see output like:
 
 ```
-INFO hassette ... ─ Connected to Home Assistant
-INFO hassette.MyApp.0 ... ─ This is from the config file!
-INFO hassette.MyApp.0 ... ─ Heartbeat
-INFO hassette.MyApp.0 ... ─ Sun changed: below_horizon
-INFO hassette.MyApp.0 ... ─ Porch light turned on
+--8<-- "pages/getting-started/snippets/run_output.txt"
 ```
 
 The greeting comes from the `greeting` field in your `hassette.toml` — Hassette loaded your config and passed it to your app as `self.app_config.greeting`. When the sun sets, the app calls `self.api.turn_on()` to switch on a light — a complete automation in a few lines of Python.
@@ -94,7 +86,7 @@ The greeting comes from the `greeting` field in your `hassette.toml` — Hassett
 If you need explicit paths:
 
 ```bash
-hassette -c ./config/hassette.toml -e ./config/.env
+--8<-- "pages/getting-started/snippets/run_explicit.sh"
 ```
 
 !!! tip "Having trouble?"

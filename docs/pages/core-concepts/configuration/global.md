@@ -37,7 +37,7 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 - **`data_dir`** (string): Directory where Hassette stores persistent data.
     - Default: platform-dependent. Docker: `/data`. Linux: `~/.local/share/hassette/vN/`. macOS: `~/Library/Application Support/hassette/vN/`. Where `N` is the installed major version.
     - Override with `HASSETTE__DATA_DIR` environment variable for a stable path across upgrades.
-    - Used for [persistent cache](../persistent-storage.md) storage and other data files.
+    - Used for [app cache](../cache/index.md) storage and other data files.
     - Each resource class gets its own subdirectory: `{data_dir}/{ClassName}/cache/`
 
     !!! warning "Major version upgrades"
@@ -46,14 +46,12 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 - **`default_cache_size`** (integer): Maximum size in bytes for each resource's disk cache.
     - Default: `104857600` (100 MiB)
     - When the limit is reached, least recently used items are automatically evicted.
-    - See [Persistent Storage](../persistent-storage.md) for usage details.
+    - See [App Cache](../cache/index.md) for usage details.
 
 **Example:**
 
 ```toml
-[hassette]
-data_dir = "/var/lib/hassette"
-default_cache_size = 209715200  # 200 MiB
+--8<-- "pages/core-concepts/configuration/snippets/storage_example.toml"
 ```
 
 ## Web UI Settings
@@ -91,9 +89,7 @@ These settings control the [web UI](../../web-ui/index.md) and the underlying we
 **Example:**
 
 ```toml
-[hassette]
-run_web_ui = true
-web_api_port = 8126
+--8<-- "pages/core-concepts/configuration/snippets/web_ui_example.toml"
 ```
 
 ## Database Settings
@@ -109,10 +105,7 @@ These settings control the persistent telemetry database. See [Database & Teleme
 **Example:**
 
 ```toml
-[hassette]
-db_path = "/var/lib/hassette/telemetry.db"
-db_retention_days = 14
-db_max_size_mb = 1000
+--8<-- "pages/core-concepts/configuration/snippets/database_example.toml"
 ```
 
 ## Timeout Settings
@@ -157,9 +150,7 @@ Filter out noisy events at the bus level before they reach your apps.
 **Example:**
 
 ```toml
-[hassette]
-bus_excluded_domains = ["sensor", "media_*"]
-bus_excluded_entities = ["switch.noisy_device"]
+--8<-- "pages/core-concepts/configuration/snippets/bus_filter_example.toml"
 ```
 
 ## Production Settings
@@ -226,4 +217,4 @@ These settings control automatic restart behavior when an internal service crash
 
 - [Authentication](auth.md) - Tokens and secrets
 - [Applications](applications.md) - App registration and configuration
-- [Persistent Storage](../persistent-storage.md) - Using the disk cache
+- [App Cache](../cache/index.md) - Using the disk cache

@@ -31,11 +31,11 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App] or 
 Hassette uses the [`whenever`](https://whenever.readthedocs.io) library for timezone-aware date/time handling instead of Python's stdlib `datetime`. Every app provides `self.now()`, which returns a `ZonedDateTime` in your system timezone.
 
 ```python
-# whenever types — used throughout Hassette
-from whenever import ZonedDateTime, TimeDelta
+--8<-- "pages/core-concepts/apps/snippets/apps_whenever_dates.py:imports"
+```
 
-next_run = self.now().add(hours=2)          # 2 hours from now
-elapsed = self.now() - last_seen            # returns a TimeDelta
+```python
+--8<-- "pages/core-concepts/apps/snippets/apps_whenever_dates.py:usage"
 ```
 
 You'll see `ZonedDateTime` in scheduler parameters, persistent storage examples, and custom state definitions. If you're familiar with `datetime.datetime`, the API is similar but always timezone-aware.
@@ -48,7 +48,7 @@ Each app receives pre-configured helpers:
 - **[`self.bus`](../bus/index.md)** - Subscribe to events.
 - **[`self.scheduler`](../scheduler/index.md)** - Schedule jobs.
 - **[`self.states`](../states/index.md)** - Access entity states.
-- **[`self.cache`](../persistent-storage.md)** - Persistent disk-based storage.
+- **[`self.cache`](../cache/index.md)** - Persistent disk-based storage.
 - **`self.logger`** - Dedicated logger instance.
 - **[`self.app_config`](configuration.md)** - Typed configuration.
 
@@ -59,7 +59,7 @@ Each app receives pre-configured helpers:
 Subscribe to events using [`self.bus`](../bus/index.md) to react to changes in Home Assistant.
 
 ```python
-self.on_change_listener = self.bus.on_state_change(self.app_config.light, handler=self.on_change)
+--8<-- "pages/core-concepts/apps/snippets/apps_subscribe_state_change.py:subscribe_state_change"
 ```
 
 ### Run Recurring Jobs
@@ -67,7 +67,7 @@ self.on_change_listener = self.bus.on_state_change(self.app_config.light, handle
 Use [`self.scheduler`](../scheduler/index.md) to schedule recurring tasks.
 
 ```python
-self.scheduler.run_hourly(self.log_status)
+--8<-- "pages/core-concepts/apps/snippets/apps_run_hourly.py:run_hourly"
 ```
 
 ### Check Entity States
@@ -75,8 +75,7 @@ self.scheduler.run_hourly(self.log_status)
 Use [`self.states`](../states/index.md) to check the current state of entities.
 
 ```python
-current_state = self.states.light[self.app_config.light].value
-self.logger.info("Current state of %s: %s", self.app_config.light, current_state)
+--8<-- "pages/core-concepts/apps/snippets/apps_check_state.py:check_state"
 ```
 
 ### Call Services
@@ -84,20 +83,15 @@ self.logger.info("Current state of %s: %s", self.app_config.light, current_state
 Use [`self.api`](../api/index.md) to call Home Assistant services.
 
 ```python
-await self.api.call_service("light", "turn_on", entity_id=self.app_config.light)
+--8<-- "pages/core-concepts/apps/snippets/apps_call_service.py:call_service"
 ```
 
 ### Persist Data Between Restarts
 
-Use [`self.cache`](../persistent-storage.md) to store data that should survive app restarts.
+Use [`self.cache`](../cache/index.md) to store data that should survive app restarts.
 
 ```python
-# Load counter from cache, defaulting to 0
-self.counter = self.cache.get("counter", 0)
-
-# Increment and save back
-self.counter += 1
-self.cache["counter"] = self.counter
+--8<-- "pages/core-concepts/apps/snippets/apps_cache_counter.py:cache_counter"
 ```
 
 ### Run Blocking Code
@@ -105,9 +99,7 @@ self.cache["counter"] = self.counter
 If you need to call a synchronous library (e.g., a database driver or CPU-bound computation) from an async app, use `self.task_bucket.run_in_thread()` to offload it to a thread pool:
 
 ```python
-async def on_initialize(self):
-    # Run a blocking function without freezing the event loop
-    result = await self.task_bucket.run_in_thread(self.expensive_sync_call)
+--8<-- "pages/core-concepts/apps/snippets/apps_run_in_thread.py:run_in_thread"
 ```
 
 For callbacks that may be sync or async, `self.task_bucket.make_async_adapter(fn)` normalizes any callable into an async callable — sync functions are automatically wrapped in `run_in_thread`.

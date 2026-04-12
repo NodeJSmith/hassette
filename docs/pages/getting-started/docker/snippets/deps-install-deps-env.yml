@@ -1,0 +1,2 @@
+environment:
+  - HASSETTE__INSTALL_DEPS=1
