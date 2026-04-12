@@ -122,7 +122,7 @@ The following example shows the complete migration of a state-reading pattern:
 --8<-- "pages/migration/snippets/api_migration_getting_states.py"
 ```
 
-## Further Reading
+## See Also
 
 - [API Overview](../core-concepts/api/index.md) — the full API reference
 - [Entities & States](../core-concepts/api/entities.md) — typed entity state access

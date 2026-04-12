@@ -79,7 +79,7 @@ In AppDaemon, every callback runs in its own thread, so you can do blocking IO s
 1. Use `AppSync` and write a synchronous callback — it runs in a thread automatically
 2. Make the callback `async def` and use `asyncio.to_thread()` or `self.task_bucket.run_in_thread()` for the blocking part
 
-## Further Reading
+## See Also
 
 - [Scheduler Overview](../core-concepts/scheduler/index.md) — the full scheduler API
 - [Scheduling Methods](../core-concepts/scheduler/methods.md) — all scheduling helpers with examples

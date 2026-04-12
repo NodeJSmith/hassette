@@ -60,6 +60,16 @@ The table below maps the most common AppDaemon operations to their Hassette equi
 | Run every morning at 07:30 | `self.run_daily(self.morning, time(7, 30, 0))` | `self.scheduler.run_daily(self.morning, start=time(7, 30))` |
 | Get entity state (cached) | `self.get_state("light.kitchen")` | `self.states.light.get("light.kitchen")` |
 | Call a Home Assistant service | `self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)` | `await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"}, brightness=200)` |
-| Access app configuration | `self.args["entity"]` | `self.app_config.entity` |
+| Access app configuration | `self.args["args"]["entity"]` | `self.app_config.entity` |
 | Stop a listener | `self.cancel_listen_state(handle)` | `subscription.cancel()` |
 | Stop a scheduled job | `self.cancel_timer(handle)` | `job.cancel()` |
+
+## Next Steps
+
+- [Mental Model](concepts.md) — how AppDaemon and Hassette differ in design philosophy
+- [Bus & Events](bus.md) — `listen_state` / `listen_event` → `bus.on_state_change` / `bus.on_call_service`
+- [Scheduler](scheduler.md) — `run_in`, `run_daily`, and other scheduler equivalents
+- [API Calls](api.md) — getting states, calling services, setting states
+- [Configuration](configuration.md) — `appdaemon.yaml` + `apps.yaml` → `hassette.toml` + `AppConfig`
+- [Testing](testing.md) — how to test Hassette apps with `AppTestHarness`
+- [Migration Checklist](checklist.md) — step-by-step migration checklist

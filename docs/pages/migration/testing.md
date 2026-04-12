@@ -65,8 +65,8 @@ Inside the `async with` block:
 Before simulating events, seed entity state using `set_state()`:
 
 ```python
-harness.set_state("binary_sensor.motion", "off")
-harness.set_state("light.kitchen", "off", {"brightness": 0, "friendly_name": "Kitchen"})
+await harness.set_state("binary_sensor.motion", "off")
+await harness.set_state("light.kitchen", "off", brightness=0, friendly_name="Kitchen")
 ```
 
 !!! warning "`set_state()` does not fire bus events"
@@ -78,14 +78,10 @@ Use the simulate methods to trigger your app's handlers:
 
 ```python
 # Simulate a state change
-from hassette.test_utils import create_state_change_event
-
-await harness.simulate_state_change(
-    create_state_change_event("binary_sensor.motion", old="off", new="on")
-)
+await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
 
 # Simulate a service call
-await harness.simulate_call_service("input_button", "press", {"entity_id": "input_button.test"})
+await harness.simulate_call_service("input_button", "press", entity_id="input_button.test")
 ```
 
 Each simulate method waits for all triggered handlers to finish before returning.
@@ -96,7 +92,7 @@ Each simulate method waits for all triggered handlers to finish before returning
 
 ```python
 # Assert a specific call was made
-harness.api_recorder.assert_called("turn_on", target={"entity_id": "light.kitchen"})
+harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
 
 # Assert a call was NOT made
 harness.api_recorder.assert_not_called("turn_off")
@@ -141,18 +137,21 @@ state_dict = make_light_state_dict(brightness=200, friendly_name="Kitchen")
 The test scheduler supports time control. Freeze time to a known point, then advance it to trigger scheduled jobs:
 
 ```python
+from whenever import Instant
+
 async with AppTestHarness(MyApp, config={}) as harness:
-    with harness.freeze_time("2025-01-01 07:00:00"):
-        # App initializes with frozen time
-        # Advance to the time your job should fire
-        await harness.advance_time(seconds=1800)
-        # Assert the job fired
-        harness.api_recorder.assert_called("turn_on")
+    # Freeze to a known instant (takes Instant or ZonedDateTime — not a string)
+    harness.freeze_time(Instant.from_utc(2025, 1, 1, 7, 0, 0))
+    # Advance time (synchronous — no await)
+    harness.advance_time(seconds=1800)
+    # Trigger any jobs that became due
+    await harness.trigger_due_jobs()
+    harness.api_recorder.assert_called("turn_on")
 ```
 
 See [Time Control](../testing/time-control.md) for the full time-control API.
 
-## Further Reading
+## See Also
 
 - [Testing Your Apps](../testing/index.md) — full test harness reference
 - [Time Control](../testing/time-control.md) — freezing and advancing time in tests

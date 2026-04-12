@@ -88,3 +88,9 @@ class MyApp(AppSync):
 ```
 
 `AppSync` runs in a managed thread and provides `self.api.sync` for blocking API access. It is a good intermediate step when migrating apps with heavy synchronous logic.
+
+## See Also
+
+- [Bus & Events](bus.md) — migrating `listen_state` and `listen_event` to `bus.on_state_change` and `bus.on_call_service`
+- [API Calls](api.md) — migrating `get_state`, `call_service`, and `set_state`
+- [Dependency Injection](../advanced/dependency-injection.md) — the full dependency injection reference

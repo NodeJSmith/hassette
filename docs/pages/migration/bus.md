@@ -143,7 +143,7 @@ The subscription object returned by `on_state_change()`, `on_call_service()`, an
     --8<-- "pages/migration/snippets/bus_migration_service_calls.py"
     ```
 
-## Further Reading
+## See Also
 
 - [Bus Overview](../core-concepts/bus/index.md) — the full bus API
 - [Writing Handlers](../core-concepts/bus/handlers.md) — handler patterns and DI

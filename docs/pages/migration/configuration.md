@@ -97,7 +97,7 @@ Then replace dictionary access with typed config access:
 
     ```python
     from pydantic import Field
-    from hassette import AppConfig
+    from hassette import App, AppConfig
 
     class MyAppConfig(AppConfig):
         entity: str = Field(..., description="The entity to monitor")
@@ -116,7 +116,7 @@ Then replace dictionary access with typed config access:
 - **Default values** — use `Field(default_value)` to declare defaults; Hassette applies them if the toml omits the key
 - **Constraints** — Pydantic validators like `ge=0, le=255` catch invalid values before your app starts
 
-## Further Reading
+## See Also
 
 - [App Configuration](../core-concepts/apps/configuration.md) — full reference for defining `AppConfig` models
 - [Configuration Overview](../core-concepts/configuration/index.md) — `hassette.toml` structure
