@@ -1,0 +1,30 @@
+name: Docs
+
+on:
+    push:
+        paths:
+            - "docs/**"
+            - "mkdocs.yml"
+            - "pyproject.toml"
+            - ".github/workflows/docs.yml"
+    workflow_dispatch:
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install uv and set the Python version
+              uses: astral-sh/setup-uv@v6
+              with:
+                  python-version: "3.13"
+
+            - name: Install dependencies
+              run: uv sync
+
+            - name: Build docs (strict)
+              run: uv run mkdocs build --strict

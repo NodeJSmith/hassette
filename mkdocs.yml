@@ -3,6 +3,8 @@ site_url: https://hassette.readthedocs.io/
 repo_name: NodeJSmith/hassette
 repo_url: https://github.com/NodeJSmith/hassette
 docs_dir: docs
+exclude_docs: |
+  **/snippets/**/*.md
 use_directory_urls: true
 watch:
   - src
