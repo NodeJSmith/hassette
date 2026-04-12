@@ -18,22 +18,7 @@ Hassette's Docker image includes a constraints file (`/app/constraints.txt`) tha
 When the container starts, the [startup script](https://github.com/NodeJSmith/hassette/blob/main/scripts/docker_start.sh) performs these steps in order:
 
 ```mermaid
-graph TD
-    A[Container Starts] --> B[Activate venv\nValidate hassette importable]
-    B --> C{uv.lock exists?}
-    C -->|Yes| D[uv export → /tmp/user-deps.txt]
-    D --> E[uv pip install -r user-deps.txt\n-c constraints.txt]
-    E --> F[uv pip install --no-deps project]
-    C -->|No| G{pyproject.toml exists?}
-    G -->|Yes| H[Log: run uv lock to generate a lockfile]
-    G -->|No| I[Skip project install]
-    F --> J{HASSETTE__INSTALL_DEPS=1?}
-    H --> J
-    I --> J
-    J -->|Yes| K[Discover requirements.txt files via fd\nexact match only]
-    K --> L[For each: uv pip install -r file -c constraints.txt]
-    L --> M[Start hassette]
-    J -->|No| M
+--8<-- "pages/getting-started/docker/snippets/deps-startup-flow.mmd"
 ```
 
 ### Key Behaviors
