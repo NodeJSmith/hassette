@@ -156,14 +156,7 @@ All `run_*` methods accept an `if_exists` parameter to control this behavior:
 This is especially useful in `on_initialize`, which runs again on app reload:
 
 ```python
-async def on_initialize(self):
-    # Safe to call on every reload — won't create duplicates
-    self.scheduler.run_every(
-        self.check_sensors,
-        60,
-        name="sensor_check",
-        if_exists="skip",
-    )
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_idempotent_registration.py:idempotent_registration"
 ```
 
 Without `if_exists="skip"`, a reload would raise `ValueError` because `sensor_check` is already registered from the previous initialization.
