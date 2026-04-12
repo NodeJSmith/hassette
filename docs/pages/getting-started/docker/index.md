@@ -113,7 +113,7 @@ Override any configuration via environment variables using the `HASSETTE__` pref
 | `HASSETTE__APP_DIR`     | Directory containing your app Python files                                                           |
 | `HASSETTE__PROJECT_DIR` | Directory containing `pyproject.toml`/`uv.lock` for dependency installation                         |
 | `HASSETTE__CONFIG_DIR`  | Directory containing configuration files                                                             |
-| `HASSETTE__LOG_LEVEL`   | Logging level (`debug`, `info`, `warning`, `error`). Also accepts `LOG_LEVEL` as a shorthand alias. |
+| `HASSETTE__LOG_LEVEL`   | Logging level (`debug`, `info`, `warning`, `error`). (`LOG_LEVEL` is also read at startup before the config initializes, but `HASSETTE__LOG_LEVEL` controls the full runtime log level.) |
 | `HASSETTE__INSTALL_DEPS`| Set to `1` to enable `requirements.txt` file discovery and installation at startup                   |
 | `TZ`                    | System timezone (e.g., `America/New_York`)                                                           |
 

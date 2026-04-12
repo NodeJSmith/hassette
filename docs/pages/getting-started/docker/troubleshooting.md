@@ -27,7 +27,7 @@ For more detail:
 **Solution:** Ensure `HASSETTE__TOKEN` is set in `config/.env`:
 
 ```bash
---8<-- "pages/getting-started/docker/snippets/ts-token-env.sh"
+--8<-- "pages/getting-started/docker/snippets/env-file.sh"
 ```
 
 #### Can't Reach Home Assistant
@@ -161,7 +161,7 @@ Verify the file exists:
 **Solution:** Generate a lockfile locally and commit it:
 
 ```bash
---8<-- "pages/getting-started/docker/snippets/ts-uv-lock-add.sh"
+--8<-- "pages/getting-started/docker/snippets/uv-lock.sh"
 ```
 
 If you cannot run `uv` locally, use the `requirements.txt` approach with `HASSETTE__INSTALL_DEPS=1` instead.
@@ -175,7 +175,7 @@ If you cannot run `uv` locally, use the `requirements.txt` approach with `HASSET
 1. **Confirm `HASSETTE__INSTALL_DEPS=1` is set** — requirements discovery is disabled by default. Without this variable, no requirements files are scanned.
 
 ```yaml
---8<-- "pages/getting-started/docker/snippets/ts-install-deps-env.yml"
+--8<-- "pages/getting-started/docker/snippets/deps-install-deps-env.yml"
 ```
 
 2. **Verify the filename is exactly `requirements.txt`** — the startup script only discovers files named exactly `requirements.txt`. Files named `requirements-dev.txt`, `requirements_test.txt`, or any other variant are ignored.
@@ -244,7 +244,7 @@ Ensure no other service uses port 8126 inside the container.
 If the container installs dependencies at startup, it may take more than a few seconds before Hassette is ready to respond to health checks. Increase `start_period` to give it time:
 
 ```yaml
---8<-- "pages/getting-started/docker/snippets/ts-healthcheck-long-start.yml"
+--8<-- "pages/getting-started/docker/snippets/ts-health-check-long-start.yml"
 ```
 
 ## Hot Reload Not Working
@@ -296,7 +296,7 @@ Ensure files are mounted, not copied:
 **Solution:** This usually means the virtual environment isn't activated or the Docker image is corrupt. Check the startup logs — the script validates that hassette is importable before doing anything else, and prints a clear error if that import fails. If you see `"ERROR: Failed to import hassette — the Docker image may be corrupt"`, try pulling the image again:
 
 ```bash
---8<-- "pages/getting-started/docker/snippets/ts-docker-pull.sh"
+--8<-- "pages/getting-started/docker/snippets/docker-pull-update.sh"
 ```
 
 ## Performance Issues
