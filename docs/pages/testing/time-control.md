@@ -42,7 +42,7 @@ Fires all jobs whose scheduled time is at or before the current frozen time. Ret
 
 Jobs re-enqueued during dispatch (repeating jobs) are not re-triggered in the same call — only the snapshot of due jobs at the moment of the call is processed. This prevents infinite loops when the clock is frozen.
 
-## What's Next
+## Next Steps
 
-- [Concurrency & pytest-xdist](concurrency.md) — Understand how the time-control lock interacts with parallel test runners
-- [Quick Start](index.md) — Back to the harness basics
+- **[Concurrency & pytest-xdist](concurrency.md)**: Understand how the time-control lock interacts with parallel test runners
+- **[Quick Start](index.md)**: Back to the harness basics

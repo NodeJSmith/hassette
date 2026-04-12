@@ -9,13 +9,13 @@ The core idea: `AppTestHarness` runs your app against a test-grade Hassette envi
 `hassette.test_utils` is part of the main `hassette` package — no extra install required. You only need to add your test runner:
 
 ```bash
---8<-- "pages/testing/snippets/testing_install_pip.bash"
+--8<-- "pages/testing/snippets/testing_install_pip.sh"
 ```
 
 Or with uv:
 
 ```bash
---8<-- "pages/testing/snippets/testing_install_uv.bash"
+--8<-- "pages/testing/snippets/testing_install_uv.sh"
 ```
 
 Add this to your `pyproject.toml` to configure pytest-asyncio:
@@ -212,18 +212,18 @@ If the harness raises `TimeoutError: Timed out waiting for <YourApp> RUNNING`, t
 !!! info "This is a bare `TimeoutError`, not `DrainTimeout`"
     Harness startup timeouts are distinct from drain timeouts. The startup wait still raises a plain `TimeoutError` — catch `TimeoutError` here, not `DrainTimeout` or `DrainFailure`. Drain-related failures only happen once the harness is running and you call `simulate_*`.
 
-Check test output for earlier log lines — exceptions raised during `on_initialize()` are caught and logged at `WARNING` level during teardown, so the `TimeoutError` is the surface symptom, not the root cause.
+Check test output for log lines near the `TimeoutError` — exceptions raised during `on_initialize()` are caught and logged at `WARNING` level during harness cleanup, so the `TimeoutError` is the surface symptom, not the root cause.
 
 Common triggers:
 - A required config field is present but its value causes a runtime error during initialization (distinct from a missing-field `AppConfigurationError` which fires before entry).
 - `on_initialize()` awaits something that never resolves, such as an external call that isn't mocked.
 - An `await` inside `on_initialize()` raises an exception that propagates out.
 
-## What's Next
+## Next Steps
 
-- [Time Control](time-control.md) — Freeze and advance time to test scheduler-driven behavior
-- [Concurrency & pytest-xdist](concurrency.md) — Understand the same-class lock and parallel test runners
-- [Factories & Internals](factories.md) — Event factories, state factories, `make_test_config`, and `RecordingApi` coverage boundary
-- [Bus](../core-concepts/bus/index.md) — Learn how to register handlers in your app
-- [Scheduler](../core-concepts/scheduler/index.md) — Learn how to register scheduled jobs
-- [API](../core-concepts/api/index.md) — The `self.api` methods your app calls
+- **[Time Control](time-control.md)**: Freeze and advance time to test scheduler-driven behavior
+- **[Concurrency & pytest-xdist](concurrency.md)**: Understand the same-class lock and parallel test runners
+- **[Factories & Internals](factories.md)**: Event factories, state factories, `make_test_config`, and `RecordingApi` coverage boundary
+- **[Bus](../core-concepts/bus/index.md)**: Learn how to register handlers in your app
+- **[Scheduler](../core-concepts/scheduler/index.md)**: Learn how to register scheduled jobs
+- **[API](../core-concepts/api/index.md)**: The `self.api` methods your app calls

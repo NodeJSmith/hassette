@@ -51,8 +51,8 @@ The drain exception hierarchy is rooted at `DrainFailure` so callers can catch a
 
 Harness startup timeouts (raised if `on_initialize()` takes more than 5 seconds) are a separate `TimeoutError` and are not `DrainFailure` subclasses. See [Harness Startup Failures](index.md#harness-startup-failures) on the Quick Start page.
 
-## What's Next
+## Next Steps
 
-- [Factories & Internals](factories.md) — Event factories and `RecordingApi` coverage boundary
-- [Time Control](time-control.md) — How to freeze and advance time
-- [Quick Start](index.md) — Back to the harness basics
+- **[Factories & Internals](factories.md)**: Event factories and `RecordingApi` coverage boundary
+- **[Time Control](time-control.md)**: How to freeze and advance time
+- **[Quick Start](index.md)**: Back to the harness basics

@@ -9,10 +9,10 @@ class SensorApp(App[AppConfig]):
         self.bus.on_attribute_change("sensor.temp", "temperature", handler=self.on_temp_attr)
 
     async def on_temp_state(self):
-        pass
+        await self.api.turn_on("light.indicator")
 
     async def on_temp_attr(self):
-        pass
+        await self.api.turn_on("light.indicator")
 
 
 async def test_both_handlers_fire():
@@ -20,5 +20,5 @@ async def test_both_handlers_fire():
         # simulate_attribute_change fires BOTH handlers.
         await harness.simulate_attribute_change("sensor.temp", "temperature", old_value=20, new_value=21)
 
-        # Account for this in count assertions
-        harness.api_recorder.assert_call_count("call_service", 2)  # not 1
+        # Account for this in count assertions — both handlers ran
+        harness.api_recorder.assert_call_count("turn_on", 2)  # not 1

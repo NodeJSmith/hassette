@@ -103,13 +103,12 @@ Pass `**overrides` to replace any of the defaults.
 
 ## RecordingApi Coverage Boundary
 
-`RecordingApi` stubs write methods and delegates state reads to the seeded `StateProxy`. Anything that requires a live HA connection raises `NotImplementedError`:
+`RecordingApi` stubs write methods and delegates state reads to the seeded `StateProxy`. Anything that requires a live HA connection raises `NotImplementedError`.
+
+**Explicit stubs** (raise `NotImplementedError` directly):
 
 - `get_state_raw()`
 - `get_states_raw()`
-- `get_state_value()`
-- `get_state_value_typed()`
-- `get_attribute()`
 - `get_history()`
 - `render_template()`
 - `ws_send_and_wait()`
@@ -117,7 +116,15 @@ Pass `**overrides` to replace any of the defaults.
 - `rest_request()`
 - `delete_entity()`
 
-For these methods, seed the data you need via `harness.set_state()` and use the read methods that delegate to `StateProxy`: `get_state()`, `get_states()`, `get_entity()`, `get_entity_or_none()`, `entity_exists()`, `get_state_or_none()`.
+**Redirected via `__getattr__`** (raise `NotImplementedError` with a message pointing to `get_state()`):
+
+- `get_state_value()`
+- `get_state_value_typed()`
+- `get_attribute()`
+
+Any other public method not explicitly defined on `RecordingApi` also falls through to `__getattr__` and raises `NotImplementedError`.
+
+For all of the above, seed the data you need via `harness.set_state()` and use the read methods that delegate to `StateProxy`: `get_state()`, `get_states()`, `get_entity()`, `get_entity_or_none()`, `entity_exists()`, `get_state_or_none()`.
 
 !!! note "`api.sync` is a recording facade"
     `harness.api_recorder.sync` is a `_RecordingSyncFacade` — a recording proxy, not a `Mock`. Write calls made via `self.api.sync.*` appear in the same `api_recorder.calls` list as their async counterparts and can be asserted with the same API:
@@ -135,8 +142,8 @@ For these methods, seed the data you need via `harness.set_state()` and use the 
 
 `hassette.test_utils` also re-exports a set of Tier 2 symbols — internal utilities used by Hassette's own test suite — for backward compatibility. These are **not in `__all__`** and may change without notice. They are not documented here. Use Tier 1 APIs (`AppTestHarness`, `RecordingApi`, the factory functions, `make_test_config`, and the drain exception types) for all end-user testing.
 
-## What's Next
+## Next Steps
 
-- [Quick Start](index.md) — Back to the harness basics
-- [Time Control](time-control.md) — Freeze and advance time for scheduler tests
-- [Concurrency & pytest-xdist](concurrency.md) — Understand the concurrency locks
+- **[Quick Start](index.md)**: Back to the harness basics
+- **[Time Control](time-control.md)**: Freeze and advance time for scheduler tests
+- **[Concurrency & pytest-xdist](concurrency.md)**: Understand the concurrency locks
