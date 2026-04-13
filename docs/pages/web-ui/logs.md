@@ -1,5 +1,7 @@
 # Logs
 
+Navigate here when you want to diagnose an automation that isn't behaving as expected, or when you need to search through recent log output without tailing a file.
+
 The Log Viewer provides a filterable, searchable view of Hassette's log output with real-time streaming.
 
 ![Logs](../../_static/web_ui_logs.png)

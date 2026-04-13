@@ -28,7 +28,7 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App] or 
 
 ## Dates and Times
 
-Hassette uses the [`whenever`](https://whenever.readthedocs.io) library for timezone-aware date/time handling instead of Python's stdlib `datetime`. Every app provides `self.now()`, which returns a `ZonedDateTime` in your system timezone.
+Hassette uses the [`whenever`](https://whenever.readthedocs.io) library for timezone-aware date/time handling instead of Python's stdlib `datetime`. Python's `datetime` has a mutable API and makes it easy to accidentally create "naive" (timezone-unaware) objects — a common source of bugs in time-sensitive automations. `whenever` is always timezone-aware and immutable, so incorrect comparisons between naive and aware times become type errors rather than silent failures. Every app provides `self.now()`, which returns a `ZonedDateTime` in your system timezone.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_whenever_dates.py:imports"
@@ -51,7 +51,7 @@ Each app receives pre-configured helpers:
 - **[`self.cache`](../cache/index.md)** - Persistent disk-based storage.
 - **`self.logger`** - Dedicated logger instance.
 - **[`self.app_config`](configuration.md)** - Typed configuration.
-- **`self.task_bucket`** - Offload blocking work to a thread pool.
+- **`self.task_bucket`** - Spawn background tasks and offload blocking work to a thread pool.
 
 ## Common Use Cases
 
@@ -87,6 +87,9 @@ Use [`self.api`](../api/index.md) to call Home Assistant services.
 --8<-- "pages/core-concepts/apps/snippets/apps_call_service.py:call_service"
 ```
 
+!!! warning "Forgetting `await` on API calls"
+    Every `self.api.*` method is a coroutine — it **must** be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and silently does nothing: no error is raised, no service is called, and no log message appears. If an API call seems to have no effect, check that you haven't dropped the `await`.
+
 ### Persist Data Between Restarts
 
 Use [`self.cache`](../cache/index.md) to store data that should survive app restarts.
@@ -95,15 +98,67 @@ Use [`self.cache`](../cache/index.md) to store data that should survive app rest
 --8<-- "pages/core-concepts/apps/snippets/apps_cache_counter.py:cache_counter"
 ```
 
-### Run Blocking Code
+### Run Background Tasks and Blocking Code
 
-If you need to call a synchronous library (e.g., a database driver or CPU-bound computation) from an async app, use `self.task_bucket.run_in_thread()` to offload it to a thread pool:
+`self.task_bucket` is Hassette's task manager for an app. It has two main jobs:
+
+**Spawn fire-and-forget coroutines** with `spawn()`. The bucket tracks the task and cancels it automatically when the app shuts down — you don't need to store the task handle or manage cleanup yourself:
 
 ```python
---8<-- "pages/core-concepts/apps/snippets/apps_run_in_thread.py:run_in_thread"
+--8<-- "pages/core-concepts/apps/snippets/apps_task_bucket.py:spawn"
 ```
 
-For callbacks that may be sync or async, `self.task_bucket.make_async_adapter(fn)` normalizes any callable into an async callable — sync functions are automatically wrapped in `run_in_thread`.
+**Offload blocking calls** with `run_in_thread()`. If you need to call a synchronous library (e.g., a database driver or CPU-bound computation), await this instead of calling the function directly:
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/apps_task_bucket.py:run_in_thread"
+```
+
+For handlers that may be sync or async, `make_async_adapter(fn)` normalizes any callable into an async callable — sync functions are automatically wrapped in `run_in_thread`.
+
+!!! info "Automatic cancellation on shutdown"
+    All tasks tracked by `task_bucket` — including those spawned with `spawn()` — are cancelled when the app shuts down. Hassette waits briefly for them to finish, then logs any that don't respond.
+
+## Restricting to a Single App During Development
+
+The `@only_app` decorator prevents multiple instances of the same app class from running. Apply it during development or testing when you want to isolate one app without editing your configuration files:
+
+```python
+from hassette import App, only_app
+
+@only_app
+class MyApp(App[MyConfig]):
+    ...
+```
+
+If more than one class in your project is decorated with `@only_app`, Hassette raises an error at startup. Remove the decorator before deploying.
+
+## Sending Internal Events Between Apps
+
+`self.send_event(event_name, event)` fires a Hassette-internal event onto the framework's event bus, allowing one app to signal others without going through Home Assistant's event system. Any app that has subscribed to `event_name` via `self.bus` will receive it.
+
+```python
+await self.send_event("lights_synced", MySyncEvent(source=self.instance_name))
+```
+
+## Synchronous Apps
+
+??? note "AppSync — for blocking code"
+    [`AppSync`][hassette.app.app.AppSync] is a subclass of `App` for automations that must call blocking (non-async) libraries. Instead of overriding `on_initialize` and `on_shutdown`, you override their `_sync`-suffixed counterparts (`on_initialize_sync`, `on_shutdown_sync`, etc.). Hassette runs these methods in a thread pool so they do not block the event loop.
+
+    ```python
+    from hassette import AppSync
+
+    class MyApp(AppSync[MyConfig]):
+        def on_initialize_sync(self) -> None:
+            # safe to call blocking libraries here
+            ...
+
+        def on_shutdown_sync(self) -> None:
+            ...
+    ```
+
+    Prefer async `App` whenever possible. Use `AppSync` only when a third-party library provides no async interface and wrapping it yourself is impractical.
 
 ## Next Steps
 

@@ -37,6 +37,9 @@ If you want automatic upgrades within a Python line:
 !!! note "Stable Releases Only"
     These tags only point to stable releases. Pre-releases (`.dev`, `a`, `b`, `rc`, etc.) are never published to `latest-py*` tags.
 
+!!! warning "Upgrade Risk"
+    `latest-py*` tags update automatically on every stable release. If a new Hassette release includes breaking changes to configuration or app APIs, your container will silently upgrade on the next `docker pull`. Pin to a specific version if you need to control when upgrades happen.
+
 ### Testing Open Pull Requests
 
 Pull requests opened from branches **in this repository** get a stable, mutable tag pointing at the latest build of that PR:

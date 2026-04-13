@@ -1,5 +1,7 @@
 # Apps
 
+Navigate here when you want to see which automations are running, restart a failed app, or manually stop and reload an app during development.
+
 The Apps page lets you view and manage all registered automations.
 
 ![Apps](../../_static/web_ui_apps.png)

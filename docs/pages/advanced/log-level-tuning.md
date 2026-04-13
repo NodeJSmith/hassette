@@ -2,6 +2,21 @@
 
 Hassette lets you set log verbosity independently for each internal service. This is useful when you need to debug a specific area (e.g. the scheduler) without flooding your logs with noise from everything else.
 
+## When to Use This
+
+If something isn't working as expected, narrow the noise before enabling global `DEBUG`. Start from the symptom:
+
+| Symptom | Service to tune |
+|---------|----------------|
+| Events not firing, wrong filters | `bus_service_log_level` |
+| Jobs not running, wrong timing | `scheduler_service_log_level` |
+| App not loading or crashing on start | `app_handler_log_level` |
+| Unexpected state values, stale data | `state_proxy_log_level` or `api_log_level` |
+| HA connection drops, WebSocket errors | `websocket_log_level` |
+| High API call latency, HTTP errors | `api_log_level` |
+| Noisy file-change messages in development | `file_watcher_log_level` |
+| Web UI not responding, dashboard errors | `web_api_log_level` |
+
 ## How It Works
 
 Every service in Hassette has a dedicated `*_log_level` configuration field. When set, that service uses the specified level instead of the global `log_level`. When not set, the service inherits the global `log_level` (which defaults to `INFO`).

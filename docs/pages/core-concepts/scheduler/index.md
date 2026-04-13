@@ -4,6 +4,9 @@ The built-in scheduler allows you to run functions at specific times or interval
 
 The scheduler is available as `self.scheduler` in every app.
 
+!!! tip "Interval-based vs. wall-clock scheduling"
+    `run_daily`, `run_hourly`, and `run_minutely` are **interval-based**: they fire at the configured `start` time, then repeat every N units from that point. They do not re-anchor to wall-clock boundaries after a restart — if Hassette restarts after the start time has passed, the job fires immediately, then resumes its normal cadence. For strict wall-clock scheduling ("every day at exactly 7:00 AM, skip if missed"), use [`run_cron`](methods.md#run_cron) instead.
+
 ```mermaid
 graph TB
     APP[Your App] --> |run_in| SCHED[Scheduler]

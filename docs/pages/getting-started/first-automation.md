@@ -40,13 +40,18 @@ Rather than reading config from a dict (like `self.args["key"]`), Hassette uses 
 
 Use `self.bus.on_state_change()` to react to HA state changes. The `"sun.*"` pattern matches any entity in the `sun` domain (typically `sun.sun`).
 
-The handler uses **dependency injection** to receive the data it needs. Annotate parameters with `D.StateNew[T]` and Hassette extracts and converts the value automatically — no event payload parsing required:
+The Quickstart used a raw event handler — that works, but Hassette can do better. With **dependency injection** (DI), you annotate handler parameters with types like `D.StateNew[T]`, and Hassette extracts and converts the data automatically — no event payload parsing required:
 
 ```python
 --8<-- "pages/getting-started/snippets/first_automation_step3.py"
 ```
 
-`D.StateNew[states.SunState]` tells Hassette to extract the new state from the event and convert it to a typed `SunState` object. The `.value` attribute holds the state string (`"above_horizon"` or `"below_horizon"`). Your IDE knows the type; Pyright will catch typos.
+Two names appear here that aren't obvious at first glance:
+
+- **`D`** is a short alias for `hassette.dependencies` — a module containing type annotations that tell Hassette what to extract from each event and inject into your handler parameters.
+- **`states`** is the `hassette.models.states` module — it contains typed state classes for each Home Assistant domain (`SunState`, `LightState`, `BinarySensorState`, and [many others](../core-concepts/states/index.md#built-in-state-types)).
+
+So `D.StateNew[states.SunState]` means: *extract the new state from this event and give it to me already converted to a `SunState` object*. The `.value` attribute holds the state string (`"above_horizon"` or `"below_horizon"`). Your IDE knows the type; Pyright will catch typos.
 
 `self.api.turn_on()` calls the HA service. The `domain="light"` argument routes it to `light.turn_on` instead of the generic `homeassistant.turn_on`. Use the entity's domain as the `domain=` value — e.g., `domain="switch"` for switch entities, `domain="input_boolean"` for input booleans.
 
@@ -87,10 +92,13 @@ INFO hassette.MyApp.0 ... — Heartbeat
 
 Lines for `Sun changed` and `Porch light turned on` appear only at sunset.
 
+!!! tip "Testing the sunset handler"
+    The `on_sun_change` handler reacts to state transitions — it won't fire just because the sun is already below the horizon when Hassette starts. To test it without waiting for actual sunset, temporarily use `self.bus.on_state_change("sun.sun", ...)` and manually call `hass.states.set("sun.sun", "below_horizon")` from the Developer Tools in Home Assistant.
+
 ## What you just built
 
 - **Typed config**: `MyAppConfig` declares the `greeting` field with a default. Hassette validates it at startup.
-- **Event subscription**: `on_sun_change` fires every time the `sun.*` state changes. Dependency injection (`D.StateNew[states.SunState]`) delivers a typed state object — no event payload parsing. You didn't write any polling loop.
+- **Event subscription**: `on_sun_change` fires every time the `sun.*` state changes. Dependency injection (`D.StateNew[states.SunState]`) delivers a typed state object — no event payload parsing. You didn't write any polling loop. See the [built-in state types](../core-concepts/states/index.md#built-in-state-types) for all available classes.
 - **Scheduled job**: `log_heartbeat` runs every 60 seconds. Hassette tracks the job and cancels it automatically when the app shuts down.
 - **API call**: `self.api.turn_on()` calls a HA service without you managing HTTP sessions or WebSocket framing.
 
@@ -100,3 +108,8 @@ Lines for `Sun changed` and `Porch light turned on` appear only at sunset.
 - **[Dependency Injection](../core-concepts/bus/dependency-injection.md)** — extract typed state objects directly into handler parameters instead of parsing event dicts
 - **[Testing Your Apps](../testing/index.md)** — write unit tests for this automation using `AppTestHarness`
 - **[Scheduler Methods](../core-concepts/scheduler/methods.md)** — `run_daily`, `run_cron`, `run_once`, and more
+- **[Application Configuration](../core-concepts/configuration/applications.md)** — load multiple apps, run the same app with different config, or disable apps without deleting code
+
+---
+
+You now have the essentials: a typed app class, config, event subscriptions, and scheduled jobs. Everything beyond this point adds depth — stronger filtering, richer injection types, testing, advanced scheduling — but you can build real automations with what you've just learned.

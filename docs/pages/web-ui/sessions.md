@@ -1,5 +1,7 @@
 # Sessions
 
+Navigate here when you want to confirm whether Hassette has been restarting unexpectedly, check how long the current run has been stable, or investigate a past crash.
+
 The Sessions page shows a history of every time Hassette has started and stopped. Each row represents one Hassette process lifetime — from startup to shutdown (or crash).
 
 ![Sessions](../../_static/web_ui_sessions.png)

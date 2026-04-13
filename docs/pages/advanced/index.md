@@ -8,8 +8,6 @@ You do not need to read all of these. Start with the one that matches your immed
 
 **[Custom States](custom-states.md)** — How to define a typed state class for a Home Assistant domain that Hassette does not know about yet. This is the entry point: define the class, and the State Registry picks it up automatically.
 
-**[Managing Helpers](managing-helpers.md)** — How to create, update, and delete persistent HA helpers (`input_boolean`, `counter`, `timer`, etc.) from within your app.
-
 **[State Registry](state-registry.md)** — How Hassette maps domains to state model classes and converts raw Home Assistant state dictionaries to typed Pydantic models. Read this if you need to understand or override the mapping, or if you are seeing unexpected state types at runtime.
 
 **[Type Registry](type-registry.md)** — How Hassette converts raw string values from Home Assistant to Python types (`int`, `bool`, `datetime`, custom types, etc.). Read this when the built-in conversions do not cover your case or you need to register a converter for a custom type.
@@ -22,4 +20,4 @@ These pages assume you are comfortable with [Apps](../core-concepts/apps/index.m
 
 ## See Also
 
-- [API Reference](../../reference/index.md) — full auto-generated reference for all public modules, including the event handling annotations (`A`, `C`, `D`, `P`) and state models.
+- [API Reference](../../reference/) — full auto-generated reference for all public modules, including the event handling annotations (`A`, `C`, `D`, `P`) and state models.

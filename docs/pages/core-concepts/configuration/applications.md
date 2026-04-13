@@ -1,5 +1,7 @@
 # Application Configuration
 
+This page covers the **TOML side** of app configuration: registering apps in `hassette.toml`, supplying config values, and running multiple instances. For how to define typed `AppConfig` models in Python, see [App Configuration](../apps/configuration.md).
+
 Apps are registered and configured in the `hassette.toml` file under `[apps.<name>]`.
 
 ## App Registration
@@ -57,26 +59,10 @@ To run the same app multiple times with different configurations, use `[[apps.<n
 
 ## Typed Configuration
 
-Apps should define a configuration model by subclassing `AppConfig`. This provides:
-
-1. **Validation**: Errors if config is invalid.
-2. **Type Safety**: Access config with correct types in your code.
-3. **Environment Variables**: Automatic mapping of env vars to config fields.
-
-**Python Definition:**
-
-```python
---8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"
-```
-
-**TOML Usage:**
-
-```toml
---8<-- "pages/core-concepts/apps/snippets/app_config.toml"
-```
+The `config` values supplied in TOML are validated against an `AppConfig` subclass that you define in Python. Hassette raises a configuration error at startup if any required field is missing or has the wrong type. For how to define that model, see [App Configuration](../apps/configuration.md).
 
 ## See Also
 
-- [App Configuration](../apps/configuration.md) - Using config in your app code
+- [App Configuration](../apps/configuration.md) - Defining typed `AppConfig` models in Python
 - [Global Settings](global.md) - Runtime and connection settings
 - [Authentication](auth.md) - Tokens and secrets

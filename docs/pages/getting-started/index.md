@@ -2,9 +2,6 @@
 
 This guide covers **local development**: running Hassette directly with Python and `uv`. If you're deploying to a server or want a containerized setup, use [Docker Deployment](docker/index.md) instead.
 
-!!! tip "Prefer Docker?"
-    If you're deploying to a server or want a pre-packaged environment, use the [Docker Deployment](docker/index.md) guide.
-
 ## Prerequisites
 
 - **Python 3.11 or later** — Hassette requires Python 3.11+. Check your version with `python --version`.
@@ -115,7 +112,6 @@ If you need explicit paths:
 
 - [Your First Automation](first-automation.md) — step-by-step tutorial explaining how the app pattern works
 - [Web UI](../web-ui/index.md) — open `http://localhost:8126/ui/` to see the dashboard
-- [Creating a Home Assistant token](ha_token.md) — if you haven't set up your token yet
 - [Apps Overview](../core-concepts/apps/index.md) — writing your first automation
 - [Configuration Overview](../core-concepts/configuration/index.md) — config precedence, file locations, and options
 - [Application Configuration](../core-concepts/configuration/applications.md) — registering and configuring apps

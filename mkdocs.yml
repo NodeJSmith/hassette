@@ -29,13 +29,13 @@ nav:
   - Getting Started:
       - Is Hassette Right for You?: pages/getting-started/hassette-vs-ha-yaml.md
       - Quickstart: pages/getting-started/index.md
+      - Home Assistant Token: pages/getting-started/ha_token.md
       - Your First Automation: pages/getting-started/first-automation.md
       - Docker Deployment:
           - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
           - Image Tags: pages/getting-started/docker/image-tags.md
           - Troubleshooting: pages/getting-started/docker/troubleshooting.md
-      - Home Assistant Token: pages/getting-started/ha_token.md
   - Core Concepts:
       - Architecture: pages/core-concepts/index.md
       - Apps:
@@ -51,12 +51,13 @@ nav:
           - Overview: pages/core-concepts/scheduler/index.md
           - Scheduling Methods: pages/core-concepts/scheduler/methods.md
           - Job Management: pages/core-concepts/scheduler/management.md
+      - States: pages/core-concepts/states/index.md
       - API:
           - Overview: pages/core-concepts/api/index.md
           - Entities & States: pages/core-concepts/api/entities.md
           - Services: pages/core-concepts/api/services.md
+          - Managing Helpers: pages/advanced/managing-helpers.md
           - Utilities: pages/core-concepts/api/utilities.md
-      - States: pages/core-concepts/states/index.md
       - App Cache:
           - Overview: pages/core-concepts/cache/index.md
           - Patterns & Examples: pages/core-concepts/cache/patterns.md
@@ -80,7 +81,6 @@ nav:
   - Advanced:
       - Overview: pages/advanced/index.md
       - Custom States: pages/advanced/custom-states.md
-      - Managing Helpers: pages/advanced/managing-helpers.md
       - State Registry: pages/advanced/state-registry.md
       - Type Registry: pages/advanced/type-registry.md
       - Log Level Tuning: pages/advanced/log-level-tuning.md
@@ -135,6 +135,7 @@ markdown_extensions:
   - pymdownx.snippets:
       base_path: docs
       check_paths: true
+      dedent_subsections: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid

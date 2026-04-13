@@ -88,13 +88,12 @@ Learn more about writing apps in the [apps](apps/index.md) section.
 - [States](states/index.md) – working with state models.
 - [Configuration](configuration/index.md) – Hassette and app configuration.
 - [Web UI](../web-ui/index.md) – browser-based monitoring and management.
-- [API Reference](../../reference/index.md) – full auto-generated reference for all public modules.
+- [API Reference](../../reference/) – full auto-generated reference for all public modules.
 
-## Advanced Topics
+??? note "Advanced Topics — read these after you're comfortable with the basics"
+    Once you've written a few automations, these topics give you more control:
 
-For deeper dives into advanced features:
-
-- [Dependency Injection](bus/dependency-injection.md) – automatic event data extraction and type conversion.
-- [Type Registry](../advanced/type-registry.md) – automatic value type conversion system.
-- [State Registry](../advanced/state-registry.md) – domain to state model mapping.
-- [Custom States](../advanced/custom-states.md) – defining your own state classes.
+    - [Dependency Injection](bus/dependency-injection.md) – automatic event data extraction and type conversion.
+    - [Type Registry](../advanced/type-registry.md) – automatic value type conversion system.
+    - [State Registry](../advanced/state-registry.md) – domain to state model mapping.
+    - [Custom States](../advanced/custom-states.md) – defining your own state classes.

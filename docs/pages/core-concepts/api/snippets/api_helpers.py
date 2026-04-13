@@ -8,3 +8,6 @@ class HelperApp(App):
 
         # Turn off
         await self.api.turn_off("switch.fan")
+
+        # Toggle (reverses current on/off state)
+        await self.api.toggle_service("light.bedroom")

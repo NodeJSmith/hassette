@@ -1,5 +1,8 @@
 # State Registry
 
+!!! info "Prerequisites"
+    This page assumes familiarity with [Custom States](custom-states.md). Read that first if you haven't defined a custom state class yet.
+
 The **StateRegistry** maintains a mapping between Home Assistant domains (like `light`, `sensor`, `switch`) and their corresponding Pydantic state model classes. It enables automatic type conversion when working with state data from Home Assistant.
 
 ## When Do I Need This?
@@ -24,7 +27,7 @@ When Home Assistant sends state change events, the state data arrives as untyped
 
 ### Automatic Registration
 
-All classes that inherit from `BaseState` are registered automatically at class creation time if they have a valid domain. You do not need to call any registration function — defining the class is sufficient.
+All classes that inherit from `BaseState` — the root model class that all Hassette state types extend — are registered automatically at class creation time if they have a valid domain. You do not need to call any registration function — defining the class is sufficient.
 
 ??? note "Implementation details: `__init_subclass__` hook"
     Registration happens via the `__init_subclass__` hook in `BaseState`, which adds the class to the global `StateRegistry` as soon as the class body is evaluated.

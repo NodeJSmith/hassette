@@ -135,8 +135,8 @@ For all of the above, seed the data you need via `harness.set_state()` and use t
 
     Methods not covered by the facade raise `NotImplementedError` rather than silently succeeding.
 
-!!! warning "Needs human review"
-    The list of `NotImplementedError` methods above was accurate at the time of writing but may not reflect future changes to `RecordingApi`. If you find a method missing from this list, check `src/hassette/test_utils/recording_api.py` directly and update this page.
+!!! note
+    The list of `NotImplementedError` methods above reflects `RecordingApi` at the time this page was written. If you encounter an unexpected `NotImplementedError`, check `src/hassette/test_utils/recording_api.py` for the current state.
 
 ## Tier 2 Re-exports
 

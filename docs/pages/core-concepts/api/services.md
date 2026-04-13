@@ -12,7 +12,7 @@ Use `call_service` for generic service invocations.
 
 ## Convenience Helpers
 
-Common operations like turning entities on/off have dedicated helpers.
+Common operations like turning entities on/off have dedicated helpers. They save you from specifying the domain and service name separately — `turn_on("light.porch")` is more readable than `call_service("homeassistant", "turn_on", entity_id="light.porch")` and less error-prone.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_helpers.py"

@@ -35,7 +35,19 @@ Hassette automatically cancels **all** jobs created by an app when that app stop
 
 2. **Check References**: If a job isn't cancelling, make sure you are calling cancel on the correct instance.
 
-3. **Avoid Overlapping Jobs**: If a job takes longer than its interval, multiple instances might run concurrently. Ensure your logic handles this safe guarding if necessary.
+3. **Avoid Overlapping Jobs**: If a job takes longer than its interval, multiple instances might run concurrently. Use an `asyncio.Lock` to guard the handler body:
+   ```python
+   class MyApp(App[AppConfig]):
+       async def on_initialize(self):
+           self._sync_lock = asyncio.Lock()
+           self.scheduler.run_every(self.sync_data, interval=30)
+
+       async def sync_data(self):
+           if self._sync_lock.locked():
+               return  # previous run still in progress — skip this tick
+           async with self._sync_lock:
+               ...  # do work
+   ```
 
 ## Troubleshooting
 

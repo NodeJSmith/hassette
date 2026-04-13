@@ -14,7 +14,10 @@ Telemetry is collected automatically. You do not need to enable it or write any 
 
 ### Source Tier
 
-Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are recorded with `source_tier='framework'` and excluded from Dashboard KPIs. The **Handlers** and **Jobs** counts on the Dashboard reflect only your app registrations — not Hassette's own housekeeping listeners.
+Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are excluded from Dashboard KPIs. The **Handlers** and **Jobs** counts on the Dashboard reflect only your app registrations — not Hassette's own housekeeping listeners.
+
+??? note "Internal detail"
+    Internally, framework handlers are stored with `source_tier='framework'` and filtered out of the KPI queries. This distinction is invisible to your apps — it only affects what appears on the Dashboard.
 
 ## Configuration
 
