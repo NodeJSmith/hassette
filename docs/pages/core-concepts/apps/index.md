@@ -51,7 +51,7 @@ Each app receives pre-configured helpers:
 - **[`self.cache`](../cache/index.md)** - Persistent disk-based storage.
 - **`self.logger`** - Dedicated logger instance.
 - **[`self.app_config`](configuration.md)** - Typed configuration.
-- **`self.task_bucket`** - Spawn background tasks and offload blocking work to a thread pool.
+- **[`self.task_bucket`](task-bucket.md)** - Spawn background tasks and offload blocking work to a thread pool.
 
 ## Common Use Cases
 
@@ -100,24 +100,13 @@ Use [`self.cache`](../cache/index.md) to store data that should survive app rest
 
 ### Run Background Tasks and Blocking Code
 
-`self.task_bucket` is Hassette's task manager for an app. It has two main jobs:
-
-**Spawn fire-and-forget coroutines** with `spawn()`. The bucket tracks the task and cancels it automatically when the app shuts down — you don't need to store the task handle or manage cleanup yourself:
+Use [`self.task_bucket`](task-bucket.md) to spawn fire-and-forget coroutines or offload blocking calls to a thread pool. All tracked tasks are cancelled automatically on shutdown.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_task_bucket.py:spawn"
 ```
 
-**Offload blocking calls** with `run_in_thread()`. If you need to call a synchronous library (e.g., a database driver or CPU-bound computation), await this instead of calling the function directly:
-
-```python
---8<-- "pages/core-concepts/apps/snippets/apps_task_bucket.py:run_in_thread"
-```
-
-For handlers that may be sync or async, `make_async_adapter(fn)` normalizes any callable into an async callable — sync functions are automatically wrapped in `run_in_thread`.
-
-!!! info "Automatic cancellation on shutdown"
-    All tasks tracked by `task_bucket` — including those spawned with `spawn()` — are cancelled when the app shuts down. Hassette waits briefly for them to finish, then logs any that don't respond.
+See the [Task Bucket](task-bucket.md) page for the full API: `spawn()`, `run_in_thread()`, `make_async_adapter()`, and cross-thread communication.
 
 ## Restricting to a Single App During Development
 

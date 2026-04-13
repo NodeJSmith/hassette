@@ -18,11 +18,17 @@ theme:
   favicon: _static/hassette-logo.svg
   features:
     - navigation.instant
+    - navigation.instant.prefetch
     - navigation.tracking
     - navigation.indexes
     - navigation.footer
+    - navigation.path
+    - navigation.tabs
     - content.code.copy
     - content.code.select
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
 
 nav:
   - Home: index.md
@@ -42,6 +48,7 @@ nav:
           - Overview: pages/core-concepts/apps/index.md
           - Lifecycle: pages/core-concepts/apps/lifecycle.md
           - Configuration: pages/core-concepts/apps/configuration.md
+          - Task Bucket: pages/core-concepts/apps/task-bucket.md
       - Bus:
           - Overview: pages/core-concepts/bus/index.md
           - Writing Handlers: pages/core-concepts/bus/handlers.md
@@ -78,6 +85,15 @@ nav:
       - Time Control: pages/testing/time-control.md
       - Concurrency & pytest-xdist: pages/testing/concurrency.md
       - Factories & Internals: pages/testing/factories.md
+  - Recipes:
+      - Overview: pages/recipes/index.md
+      - Motion-Activated Lights: pages/recipes/motion-lights.md
+      - Daily Notification: pages/recipes/daily-notification.md
+      - Debounce Sensor Changes: pages/recipes/debounce-sensor-changes.md
+      - React to a Service Call: pages/recipes/service-call-reaction.md
+      - Monitor Sensor Thresholds: pages/recipes/sensor-threshold.md
+      - Vacation Mode Toggle: pages/recipes/vacation-mode-toggle.md
+      - Test Your Automation: pages/recipes/test-automation.md
   - Advanced:
       - Overview: pages/advanced/index.md
       - Custom States: pages/advanced/custom-states.md
