@@ -58,25 +58,30 @@ You can rate-limit your handlers directly in the subscription call to handle noi
 
 Both `debounce` and `throttle` must be positive; zero or negative values raise `ValueError` at registration. Specifying both `debounce` and `throttle` together also raises `ValueError` — only one rate-limiting strategy may be active at a time. Combining `once=True` with either also raises `ValueError`.
 
-## Registration Identity
+## Handler Exceptions
 
-All subscription methods accept an optional `name=` parameter that sets a stable natural key for the listener:
+If a handler raises an exception, Hassette catches it, logs it at `ERROR` level with the full traceback, and records the failure in the telemetry database. The exception does not propagate — the app keeps running, and the next event dispatches as normal. Other handlers for the same event are not affected.
 
-```python
---8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
-```
+This is the same behavior as scheduled jobs: unhandled exceptions are logged to error but do not crash anything.
 
-Without `name=`, Hassette derives a natural key from the handler function name, topic, and predicate signature. If two subscriptions share the same derived key — for example, two calls to `on_state_change` for the same entity with the same handler — registering the second one raises a `ValueError`:
+??? info "Registration Identity"
+    All subscription methods accept an optional `name=` parameter that sets a stable natural key for the listener:
 
-```
-ValueError: Duplicate listener registration detected for handler 'on_motion'
-on topic 'hass.event.state_changed.binary_sensor.motion' (key='on_motion'). Add name= to disambiguate if intentional.
-```
+    ```python
+    --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
+    ```
 
-The `name=` parameter resolves this: it replaces the derived key with your explicit value, making each registration distinct.
+    Without `name=`, Hassette derives a natural key from the handler function name, topic, and predicate signature. If two subscriptions share the same derived key — for example, two calls to `on_state_change` for the same entity with the same handler — registering the second one raises a `ValueError`:
 
-!!! note "Persistence"
-    Listener and job names survive restarts. When Hassette starts, existing registrations are matched by their natural key and updated in place rather than re-inserted. See [Registration Persistence](../database-telemetry.md#registration-persistence) for details.
+    ```
+    ValueError: Duplicate listener registration detected for handler 'on_motion'
+    on topic 'hass.event.state_changed.binary_sensor.motion' (key='on_motion'). Add name= to disambiguate if intentional.
+    ```
+
+    The `name=` parameter resolves this: it replaces the derived key with your explicit value, making each registration distinct.
+
+    !!! note "Persistence"
+        Listener and job names survive restarts. When Hassette starts, existing registrations are matched by their natural key and updated in place rather than re-inserted. See [Registration Persistence](../database-telemetry.md#registration-persistence) for details.
 
 ## Next Steps
 

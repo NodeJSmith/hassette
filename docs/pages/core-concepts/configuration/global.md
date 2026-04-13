@@ -2,6 +2,13 @@
 
 Global settings control how Hassette runs and connects to Home Assistant. These are defined under the `[hassette]` table in `hassette.toml`.
 
+**Most users only need the first few sections.** The settings are organized from most to least commonly configured:
+
+- **Common** — [Connection](#connection-settings), [Runtime](#runtime-settings), [Storage](#storage-settings), [Web UI](#web-ui-settings), [Database](#database-settings)
+- **Advanced** — [Timeouts](#timeout-settings), [Scheduler](#scheduler-settings), [Logging](#logging-settings), [Bus Filtering](#bus-filtering-settings), [Production](#production-settings), [App Detection](#app-detection-settings), [Service Restart Policy](#service-restart-policy), [Other Advanced](#other-advanced-settings)
+
+---
+
 ## Connection Settings
 
 - **`base_url`** (string): Home Assistant URL.

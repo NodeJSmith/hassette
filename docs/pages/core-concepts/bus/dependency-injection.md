@@ -12,7 +12,7 @@ In this example, `new_state` and `entity_id` are automatically extracted from th
 
 ## Three Event Handling Patterns
 
-Hassette supports three patterns for handling events, starting with the most common and recommended approach.
+Hassette supports three patterns for handling events. The [Writing Handlers](handlers.md) page introduces all three starting from the simplest (raw events). Here they are ordered by what you'll use most in production code.
 
 ### DI Extraction
 
@@ -146,7 +146,8 @@ Dependency injection works seamlessly with custom keyword arguments passed when 
 
 ## Advanced: Custom Extractors and Type Conversion
 
-The sections below are for cases where the built-in annotations don't cover what you need. Most apps can stop reading after this line.
+!!! note "Most apps stop here"
+    The sections below cover cases where the built-in annotations don't meet your needs. If the annotations above handle your use case, you don't need to read further.
 
 ## Custom Extractors
 
