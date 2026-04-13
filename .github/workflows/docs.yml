@@ -54,5 +54,8 @@ jobs:
             - name: Install dependencies
               run: uv sync
 
+            - name: Type-check snippets
+              run: uv run pyright --project docs
+
             - name: Build docs (strict)
               run: uv run mkdocs build --strict

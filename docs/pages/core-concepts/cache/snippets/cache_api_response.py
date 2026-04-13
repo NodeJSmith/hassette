@@ -14,7 +14,7 @@ class WeatherApp(App[AppConfig]):
             # Return cached data if less than 30 minutes old
             if cached_time > self.now().subtract(minutes=30):
                 self.logger.info("Using cached weather for %s", location)
-                return data
+                return data  # pyright: ignore[reportReturnType]
 
         # Fetch fresh data from API
         self.logger.info("Fetching fresh weather for %s", location)

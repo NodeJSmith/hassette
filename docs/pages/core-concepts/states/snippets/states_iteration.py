@@ -7,5 +7,5 @@ class IteratorApp(App):
         for entity_id, sensor in self.states.sensor:
             if not hasattr(sensor.attributes, "battery_level"):
                 continue
-            if sensor.attributes.battery_level < 20:
+            if sensor.attributes.battery_level < 20:  # pyright: ignore[reportAttributeAccessIssue]
                 self.logger.warning("Low battery: %s", entity_id)

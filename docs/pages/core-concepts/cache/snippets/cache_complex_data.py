@@ -15,7 +15,7 @@ class EnergyStats:
 class EnergyTrackerApp(App[AppConfig]):
     async def on_initialize(self):
         # Load previous stats or create new ones
-        self.stats: EnergyStats = self.cache.get(
+        self.stats: EnergyStats = self.cache.get(  # pyright: ignore[reportAttributeAccessIssue]
             "energy_stats",
             EnergyStats(0.0, 0.0, self.now()),
         )
@@ -39,4 +39,4 @@ class EnergyTrackerApp(App[AppConfig]):
 
     async def get_current_usage(self) -> float:
         state = await self.api.get_state("sensor.power_usage")
-        return float(state.state)
+        return float(state.value)

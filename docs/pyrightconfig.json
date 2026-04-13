@@ -1,0 +1,30 @@
+{
+    "include": ["pages"],
+    "exclude": [
+        // Intentional type violations — snippets that show runtime-only patterns
+        // or deliberately wrong inputs to illustrate error conditions
+        "pages/advanced/snippets/custom-states",
+        "pages/advanced/snippets/state-registry",
+        "pages/advanced/snippets/type-registry/base_state_convert_call.py",
+        // Migration snippets import appdaemon (not installed) and show pre-migration code
+        "pages/migration/snippets"
+    ],
+    "venvPath": "..",
+    "venv": ".venv",
+    "pythonVersion": "3.11",
+    "typeCheckingMode": "basic",
+
+    // Snippet-specific suppressions
+    // Fictional modules (my_apps.*, my_app, appdaemon) are imported for reader context
+    "reportMissingImports": "none",
+    // diskcache Cache.__getitem__ returns a complex union type that triggers false
+    // positives on arithmetic and assignment in cache snippet files
+    "reportOperatorIssue": "none",
+    "reportAssignmentType": "none",
+    "reportGeneralTypeIssues": "none",
+
+    // Keep these active — they catch real bugs in snippet code
+    "reportAttributeAccessIssue": "error",
+    "reportUndefinedVariable": "error",
+    "reportReturnType": "error"
+}
