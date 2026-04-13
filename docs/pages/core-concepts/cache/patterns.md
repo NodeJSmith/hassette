@@ -45,7 +45,13 @@ The cache stores any picklable Python object — including dataclasses with type
 
 ## Pattern: Expiring Cache Entries
 
-The cache does not have built-in TTL on individual entries. Implement expiration by storing a timestamp alongside the value:
+For simple expiration, use `self.cache.set(key, value, expire=seconds)` — diskcache removes the entry automatically once the timeout elapses:
+
+```python
+self.cache.set("weather_data", payload, expire=3600)  # expires in 1 hour
+```
+
+When you need access to the timestamp itself — for example, to display "last fetched" information or to implement custom staleness logic — store a timestamp alongside the value instead:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_expiring.py"

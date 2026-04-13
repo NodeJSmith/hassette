@@ -1,5 +1,5 @@
 from hassette import App, AppConfig
-from hassette.bus.listeners import Subscription
+from hassette.bus import Subscription
 
 
 class MotionApp(App[AppConfig]):
