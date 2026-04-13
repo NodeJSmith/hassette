@@ -18,8 +18,15 @@ For `on_state_change`, the most common way to filter is using the `changed_to`, 
 
 Pass concrete values to match exact states:
 
+Match when a state becomes a specific value with `changed_to`:
+
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_simple_start.py"
+```
+
+Match when a state leaves a specific value with `changed_from`:
+
+```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_simple_stop.py"
 ```
 
@@ -27,8 +34,15 @@ Pass concrete values to match exact states:
 
 For more logic, you can pass **Predicates** or callables directly to these parameters. This is the recommended way to handle most state change logic.
 
+Match against a set of values with `C.IsIn`:
+
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_predicate_isin.py"
+```
+
+Use a comparison condition with `C.Comparison`:
+
+```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_predicate_lambda.py"
 ```
 
@@ -70,9 +84,21 @@ Logical OR (Using `P.AnyOf`):
 
 A simple dict passed to `where` matches keys and values in the service data.
 
+Literal match — all keys and values must match exactly:
+
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_literal.py"
+```
+
+Key presence — the key must exist, value doesn't matter:
+
+```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_presence.py"
+```
+
+Callable values — custom check per key:
+
+```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_callable.py"
 ```
 
