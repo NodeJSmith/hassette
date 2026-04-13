@@ -80,6 +80,7 @@ nav:
   - Advanced:
       - Overview: pages/advanced/index.md
       - Custom States: pages/advanced/custom-states.md
+      - Managing Helpers: pages/advanced/managing-helpers.md
       - State Registry: pages/advanced/state-registry.md
       - Type Registry: pages/advanced/type-registry.md
       - Log Level Tuning: pages/advanced/log-level-tuning.md

@@ -57,6 +57,32 @@ import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.const.misc import FalseySentinel
+from hassette.models.helpers import (
+    CounterRecord,
+    CreateCounterParams,
+    CreateInputBooleanParams,
+    CreateInputButtonParams,
+    CreateInputDatetimeParams,
+    CreateInputNumberParams,
+    CreateInputSelectParams,
+    CreateInputTextParams,
+    CreateTimerParams,
+    InputBooleanRecord,
+    InputButtonRecord,
+    InputDatetimeRecord,
+    InputNumberRecord,
+    InputSelectRecord,
+    InputTextRecord,
+    TimerRecord,
+    UpdateCounterParams,
+    UpdateInputBooleanParams,
+    UpdateInputButtonParams,
+    UpdateInputDatetimeParams,
+    UpdateInputNumberParams,
+    UpdateInputSelectParams,
+    UpdateInputTextParams,
+    UpdateTimerParams,
+)
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource

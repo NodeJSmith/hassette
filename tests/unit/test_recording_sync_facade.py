@@ -18,6 +18,24 @@ from hassette.conversion import STATE_REGISTRY
 from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.light import LightEntity
+from hassette.models.helpers import (
+    CreateCounterParams,
+    CreateInputBooleanParams,
+    CreateInputButtonParams,
+    CreateInputDatetimeParams,
+    CreateInputNumberParams,
+    CreateInputSelectParams,
+    CreateInputTextParams,
+    CreateTimerParams,
+    UpdateCounterParams,
+    UpdateInputBooleanParams,
+    UpdateInputButtonParams,
+    UpdateInputDatetimeParams,
+    UpdateInputNumberParams,
+    UpdateInputSelectParams,
+    UpdateInputTextParams,
+    UpdateTimerParams,
+)
 from hassette.models.services import ServiceResponse
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
@@ -434,6 +452,50 @@ async def test_body_copied_methods_are_sync():
         ("toggle_service", ("sensor.test",), {}),
         ("turn_off", ("sensor.test",), {}),
         ("turn_on", ("sensor.test",), {}),
+        # Helper CRUD — list methods (read-only)
+        ("list_input_booleans", (), {}),
+        ("list_input_numbers", (), {}),
+        ("list_input_texts", (), {}),
+        ("list_input_selects", (), {}),
+        ("list_input_datetimes", (), {}),
+        ("list_input_buttons", (), {}),
+        ("list_counters", (), {}),
+        ("list_timers", (), {}),
+        # Helper CRUD — create methods
+        ("create_input_boolean", (CreateInputBooleanParams(name="test_bool"),), {}),
+        ("create_input_number", (CreateInputNumberParams(name="test_num", min=0.0, max=10.0),), {}),
+        ("create_input_text", (CreateInputTextParams(name="test_text"),), {}),
+        ("create_input_select", (CreateInputSelectParams(name="test_sel", options=["a"]),), {}),
+        (
+            "create_input_datetime",
+            (CreateInputDatetimeParams(name="test_dt", has_date=True),),
+            {},
+        ),
+        ("create_input_button", (CreateInputButtonParams(name="test_btn"),), {}),
+        ("create_counter", (CreateCounterParams(name="test_ctr"),), {}),
+        ("create_timer", (CreateTimerParams(name="test_tmr"),), {}),
+        # Helper CRUD — update methods (using IDs that were just created above)
+        ("update_input_boolean", ("test_bool", UpdateInputBooleanParams(initial=True)), {}),
+        ("update_input_number", ("test_num", UpdateInputNumberParams(step=0.5)), {}),
+        ("update_input_text", ("test_text", UpdateInputTextParams(max=100)), {}),
+        ("update_input_select", ("test_sel", UpdateInputSelectParams(options=["a", "b"])), {}),
+        ("update_input_datetime", ("test_dt", UpdateInputDatetimeParams(has_time=True)), {}),
+        ("update_input_button", ("test_btn", UpdateInputButtonParams(icon="mdi:button")), {}),
+        ("update_counter", ("test_ctr", UpdateCounterParams(step=2)), {}),
+        ("update_timer", ("test_tmr", UpdateTimerParams(duration=60)), {}),
+        # Helper CRUD — delete methods
+        ("delete_input_boolean", ("test_bool",), {}),
+        ("delete_input_number", ("test_num",), {}),
+        ("delete_input_text", ("test_text",), {}),
+        ("delete_input_select", ("test_sel",), {}),
+        ("delete_input_datetime", ("test_dt",), {}),
+        ("delete_input_button", ("test_btn",), {}),
+        ("delete_counter", ("test_ctr",), {}),
+        ("delete_timer", ("test_tmr",), {}),
+        # Counter action methods
+        ("increment_counter", ("counter.test",), {}),
+        ("decrement_counter", ("counter.test",), {}),
+        ("reset_counter", ("counter.test",), {}),
     ]
 
     # Drift guard: the set of methods we invoke above must exactly match the set of
