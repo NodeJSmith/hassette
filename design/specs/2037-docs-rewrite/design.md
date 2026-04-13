@@ -1,7 +1,7 @@
 # Design: Hassette Documentation Rewrite
 
 **Date:** 2026-04-11
-**Status:** approved
+**Status:** archived
 **Spec:** design/specs/2037-docs-rewrite/spec.md
 **Research:** /tmp/claude-mine-design-research-oEN2jn/brief.md
 
