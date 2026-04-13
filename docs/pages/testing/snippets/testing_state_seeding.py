@@ -9,8 +9,10 @@ async def test_thermostat_state_seeding():
         await harness.set_state("sensor.temperature", "20.5", unit_of_measurement="°C")
 
         # Seed multiple entities at once
-        await harness.set_states({
-            "sensor.temperature": ("20.5", {"unit_of_measurement": "°C"}),
-            "sensor.humidity": "55",
-            "climate.living_room": "heat",
-        })
+        await harness.set_states(
+            {
+                "sensor.temperature": ("20.5", {"unit_of_measurement": "°C"}),
+                "sensor.humidity": "55",
+                "climate.living_room": "heat",
+            }
+        )

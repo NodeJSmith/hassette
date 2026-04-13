@@ -20,4 +20,4 @@ class MyApp(App[MyAppConfig]):
         if value == "below_horizon":
             await self.api.turn_on("light.porch", domain="light")
             self.logger.info("Porch light turned on")
-    # --8<-- [end:raw_handler]
+        # --8<-- [end:raw_handler]

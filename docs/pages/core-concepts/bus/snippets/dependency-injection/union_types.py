@@ -2,9 +2,7 @@ from hassette import App, D, states
 
 
 class SensorApp(App):
-    async def on_sensor_change(
-        self, new_state: D.StateNew[states.SensorState | states.BinarySensorState], entity_id: D.EntityId
-    ):
+    async def on_sensor_change(self, new_state: D.StateNew[states.SensorState | states.BinarySensorState], entity_id: D.EntityId):
         # new_state is automatically converted to the correct type
         # based on the entity's domain
         if isinstance(new_state, states.SensorState):

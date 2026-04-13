@@ -25,8 +25,6 @@ async def test_motion_turns_on_light():
         await harness.set_state("binary_sensor.motion", "off")
         await harness.set_state("light.kitchen", "off", brightness=0)
 
-        await harness.simulate_state_change(
-            "binary_sensor.motion", old_value="off", new_value="on"
-        )
+        await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
 
         harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")

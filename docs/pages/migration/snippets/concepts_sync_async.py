@@ -22,4 +22,4 @@ class MyMixedApp(App):
 
     def blocking_work(self):
         # This runs in a thread pool
-        return expensive_computation()  # noqa: F821
+        return expensive_computation()

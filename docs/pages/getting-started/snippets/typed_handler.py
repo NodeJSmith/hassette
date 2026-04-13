@@ -8,4 +8,4 @@ class MyApp(App[AppConfig]):
     # --8<-- [start:typed-handler]
     async def on_sun_change(self, new_state: D.StateNew[states.SunState]):
         self.logger.info("Sun changed: %s", new_state.value)
-    # --8<-- [end:typed-handler]
+        # --8<-- [end:typed-handler]

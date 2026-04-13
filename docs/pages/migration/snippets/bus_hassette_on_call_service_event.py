@@ -8,9 +8,7 @@ class MyConfig(AppConfig):
 
 class MyApp(App[MyConfig]):
     async def on_initialize(self):
-        sub = self.bus.on_call_service(
-            service="press", handler=self.minimal_callback, where={"entity_id": self.app_config.button_entity}
-        )
+        sub = self.bus.on_call_service(service="press", handler=self.minimal_callback, where={"entity_id": self.app_config.button_entity})
         self.logger.info("Subscribed: %s", sub)
 
     def minimal_callback(self, event: CallServiceEvent) -> None:

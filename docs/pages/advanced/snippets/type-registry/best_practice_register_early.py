@@ -7,5 +7,4 @@ class MyType:
 
 
 @register_type_converter_fn  # Registered when module is imported
-def str_to_mytype(value: str) -> MyType:
-    ...
+def str_to_mytype(value: str) -> MyType: ...
