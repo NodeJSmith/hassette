@@ -122,8 +122,8 @@ Here's a complete example with a custom integration:
 
 ## Best Practices
 
-1. **One domain per state class** - Each state class should handle exactly one domain
-2. **Use Literal for domain** - Always use `Literal["domain_name"]` to enable auto-registration
+1. **One domain per state class** - Each state class should handle exactly one domain. Mixing domains in one class breaks the registry lookup, which maps one domain string to exactly one class.
+2. **Use Literal for domain** - Always use `Literal["domain_name"]` to enable auto-registration. A plain `str` annotation does not carry a value at class definition time, so the registry cannot extract the domain name automatically.
 3. **Choose the right base class** - Match the base class to your entity's state value type
 4. **Document your attributes** - Add docstrings to custom attribute classes
 5. **Use typing** - Leverage type hints throughout for better IDE support and type checking

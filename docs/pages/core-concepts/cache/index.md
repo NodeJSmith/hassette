@@ -85,7 +85,7 @@ You never need to manually open or close the cache.
 
 ## Data Types
 
-The cache stores any Python object that supports [pickling](https://docs.python.org/3/library/pickle.html):
+The cache stores any Python object that supports [pickling](https://docs.python.org/3/library/pickle.html) (Python's built-in serialization format for converting objects to bytes for storage):
 
 - Primitives: `str`, `int`, `float`, `bool`, `None`
 - Collections: `list`, `dict`, `tuple`, `set`

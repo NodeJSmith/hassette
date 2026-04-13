@@ -4,7 +4,7 @@ The harness has two independent isolation mechanisms. Understanding which applie
 
 ## Same-Class Concurrency (always applies)
 
-`AppTestHarness` holds a **per-App-class `asyncio.Lock`** for the entire `async with` block. This applies to every harness, whether or not you call `freeze_time`.
+`AppTestHarness` holds a **per-App-class `asyncio.Lock`** for the entire `async with` block. An `asyncio.Lock` is a mutual exclusion primitive that allows only one coroutine at a time to proceed past the lock; others wait until it is released. This applies to every harness, whether or not you call `freeze_time`.
 
 - Two harnesses for the **same App class** cannot run concurrently in the same event loop. Do not use `asyncio.gather()` with multiple harnesses that share a class — the second one will deadlock waiting for the first's lock.
 - Two harnesses for **different App classes** can run concurrently in the same event loop without conflict.

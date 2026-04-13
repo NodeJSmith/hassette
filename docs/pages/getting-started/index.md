@@ -1,6 +1,6 @@
 # Quickstart
 
-This is the shortest path to get Hassette running with a config file, a `.env` file for your token, and one tiny app.
+This guide covers **local development**: running Hassette directly with Python and `uv`. If you're deploying to a server or want a containerized setup, use [Docker Deployment](docker/index.md) instead.
 
 !!! tip "Prefer Docker?"
     If you're deploying to a server or want a pre-packaged environment, use the [Docker Deployment](docker/index.md) guide.
@@ -8,9 +8,11 @@ This is the shortest path to get Hassette running with a config file, a `.env` f
 ## Prerequisites
 
 - **Python 3.11 or later** — Hassette requires Python 3.11+. Check your version with `python --version`.
-- **uv** — this guide uses `uv` as the package manager. Install it with `pip install uv` or see the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/) for other methods.
+- **uv** — this guide uses `uv` as the package manager. See the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/) for installation methods.
 
-## 1. Install Hassette
+## 1. Create a project and install Hassette
+
+`uv init` creates a Python project with a `pyproject.toml`, then `uv add` installs Hassette into it:
 
 ```bash
 --8<-- "pages/getting-started/snippets/install.sh"
@@ -18,7 +20,7 @@ This is the shortest path to get Hassette running with a config file, a `.env` f
 
 ## 2. Create a project layout
 
-From an empty directory:
+From your new project directory:
 
 ```bash
 --8<-- "pages/getting-started/snippets/project_layout.sh"
@@ -88,6 +90,8 @@ From your project directory:
 --8<-- "pages/getting-started/snippets/run.sh"
 ```
 
+`uv run` executes the command inside the project's virtual environment, so the `hassette` CLI is available without manually activating the venv.
+
 Hassette is a long-running process. You should see output like:
 
 ```
@@ -97,9 +101,6 @@ Hassette is a long-running process. You should see output like:
 Lines 4 and 5 appear only at sunset — you may not see them immediately.
 
 The greeting comes from the `greeting` field in your `hassette.toml` — Hassette loaded your config and passed it to your app as `self.app_config.greeting`. When the sun sets, the app calls `self.api.turn_on()` to switch on a light — a complete automation in a few lines of Python.
-
-!!! tip
-    If your environment doesn't expose the `hassette` command, run `python -m hassette` instead.
 
 If you need explicit paths:
 

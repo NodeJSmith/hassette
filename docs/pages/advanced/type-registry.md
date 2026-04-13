@@ -1,5 +1,7 @@
 # TypeRegistry
 
+Home Assistant sends nearly all values as strings over its API — even numbers and booleans. The TypeRegistry is Hassette's mechanism for automatically converting those strings to the correct Python types before they reach your code.
+
 The TypeRegistry provides automatic type conversion for raw values from Home Assistant — converting string values to their proper Python types (integers, floats, booleans, datetimes, etc.) throughout the framework.
 
 ## When Do I Need This?
