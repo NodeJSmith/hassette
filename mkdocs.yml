@@ -27,8 +27,9 @@ theme:
 nav:
   - Home: index.md
   - Getting Started:
-      - Local Setup: pages/getting-started/index.md
       - Is Hassette Right for You?: pages/getting-started/hassette-vs-ha-yaml.md
+      - Quickstart: pages/getting-started/index.md
+      - Your First Automation: pages/getting-started/first-automation.md
       - Docker Deployment:
           - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
@@ -44,6 +45,7 @@ nav:
       - Bus:
           - Overview: pages/core-concepts/bus/index.md
           - Writing Handlers: pages/core-concepts/bus/handlers.md
+          - Dependency Injection: pages/core-concepts/bus/dependency-injection.md
           - Filtering & Predicates: pages/core-concepts/bus/filtering.md
       - Scheduler:
           - Overview: pages/core-concepts/scheduler/index.md
@@ -71,16 +73,15 @@ nav:
       - Sessions: pages/web-ui/sessions.md
       - Logs: pages/web-ui/logs.md
   - Testing:
-      - Quick Start: pages/testing/index.md
+      - Testing Your Apps: pages/testing/index.md
       - Time Control: pages/testing/time-control.md
       - Concurrency & pytest-xdist: pages/testing/concurrency.md
       - Factories & Internals: pages/testing/factories.md
   - Advanced:
       - Overview: pages/advanced/index.md
-      - Dependency Injection: pages/advanced/dependency-injection.md
       - Custom States: pages/advanced/custom-states.md
       - State Registry: pages/advanced/state-registry.md
-      - TypeRegistry: pages/advanced/type-registry.md
+      - Type Registry: pages/advanced/type-registry.md
       - Log Level Tuning: pages/advanced/log-level-tuning.md
   - Migration Guide:
       - Overview: pages/migration/index.md

@@ -2,12 +2,11 @@
 
 Use this checklist when migrating each app from AppDaemon to Hassette. Work through one app at a time — verify it works before moving to the next.
 
+Complete the pre-migration steps in the [Migration Guide overview](index.md) before starting this checklist.
+
 ## Before You Start
 
-- [ ] Follow the [Local Setup guide](../getting-started/index.md) to install Hassette and verify the connection to Home Assistant
-- [ ] Confirm your `hassette.toml` has `base_url` and token configured
-- [ ] Read the [Mental Model](concepts.md) page to understand the key design differences
-- [ ] Choose one small, simple app as your first migration target
+- [ ] **Requires Python 3.11 or later** — check with `python --version` or `python3 --version`. Hassette will not install on Python 3.10 or earlier. See [python.org/downloads](https://www.python.org/downloads/) to upgrade.
 
 ## Step 1: Configuration
 
@@ -21,8 +20,12 @@ See [Configuration](configuration.md) for the full conversion guide.
 ## Step 2: App Structure
 
 - [ ] Change base class from `Hass` (or `ADAPI`) to `App` (async) or `AppSync` (sync)
-- [ ] Rename `initialize()` to `on_initialize()` — add `async def` if using `App`
-- [ ] If you have `terminate()`, rename it to `on_shutdown()` and add `async def`
+- [ ] Rename `initialize()` to the correct hook for your base class:
+    - `App`: `async def on_initialize(self)` — must be `async def`
+    - `AppSync`: `def on_initialize_sync(self)` — must be a plain synchronous method; do **not** override `on_initialize` on `AppSync` (it is `@final` and raises `NotImplementedError`)
+- [ ] If you have `terminate()`, rename it:
+    - `App`: `async def on_shutdown(self)`
+    - `AppSync`: `def on_shutdown_sync(self)`
 - [ ] Confirm the app starts without errors (`uv run hassette` or your start command)
 
 See [Mental Model](concepts.md) for the lifecycle differences.
@@ -90,7 +93,7 @@ See [Testing](testing.md) for the test harness guide.
 
 !!! tip "State access"
     - AppDaemon: `self.get_state()` returns a cached state (string or dict)
-    - Hassette: `self.states.light.get()` returns a typed cached state (no `await` needed)
+    - Hassette: `self.states.light.get("kitchen")` returns a typed cached state (no `await` needed) — pass the entity name without the domain prefix. Passing the full ID `"light.kitchen"` also works.
     - Use `self.api.get_state()` only when you need to force a fresh read from Home Assistant.
 
 ## Next Steps
@@ -98,5 +101,5 @@ See [Testing](testing.md) for the test harness guide.
 After migrating all your apps:
 
 - Review the [Core Concepts](../core-concepts/index.md) to learn the full Hassette feature set
-- Explore the [Advanced](../advanced/index.md) section for dependency injection, custom states, and type registries
+- Explore [Dependency Injection](../core-concepts/bus/dependency-injection.md), [Custom States](../advanced/custom-states.md), and [Type Registries](../advanced/type-registry.md)
 - Set up the [Web UI](../web-ui/index.md) for live monitoring of your automations

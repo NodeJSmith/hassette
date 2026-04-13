@@ -1,9 +1,14 @@
-# Local Setup
+# Quickstart
 
 This is the shortest path to get Hassette running with a config file, a `.env` file for your token, and one tiny app.
 
 !!! tip "Prefer Docker?"
     If you're deploying to a server or want a pre-packaged environment, use the [Docker Deployment](docker/index.md) guide.
+
+## Prerequisites
+
+- **Python 3.11 or later** — Hassette requires Python 3.11+. Check your version with `python --version`.
+- **uv** — this guide uses `uv` as the package manager. Install it with `pip install uv` or see the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/) for other methods.
 
 ## 1. Install Hassette
 
@@ -31,6 +36,9 @@ Create `config/.env`:
 --8<-- "pages/getting-started/snippets/env_file.sh"
 ```
 
+!!! note "Double underscore in `HASSETTE__TOKEN`"
+    The double underscore (`__`) is required — it follows the Pydantic settings convention for nested configuration. `HASSETTE_TOKEN` (single underscore) will not be recognized and Hassette will start but fail to authenticate with Home Assistant.
+
 !!! warning "Security"
     Never commit `.env` files to version control.
 
@@ -43,6 +51,9 @@ Create `config/hassette.toml`:
 ```
 
 Update `base_url` to match your Home Assistant instance.
+
+!!! note "TOML `[[double bracket]]` syntax"
+    The `[[apps.my_app.config]]` section uses TOML array-of-tables syntax, which is required for the `config` section in `hassette.toml`. Using single brackets `[apps.my_app.config]` will cause a configuration parse error.
 
 --8<-- "pages/core-concepts/configuration/snippets/file_discovery.md"
 
@@ -57,8 +68,13 @@ Create `hassette_apps/main.py`:
 --8<-- "pages/getting-started/snippets/first_app.py"
 ```
 
+!!! warning "Replace `light.porch` with a real entity"
+    The example uses `light.porch` — replace it with an entity that actually exists in your Home Assistant instance. You can find your entity IDs in the Home Assistant UI under **Developer Tools > States**.
+
 !!! note "Typed handlers"
     This example uses a raw event for simplicity. Once you're comfortable, Hassette's [dependency injection](../core-concepts/bus/handlers.md) lets you write cleaner handlers with automatic type conversion:
+
+    Add to your imports: `from hassette import D, states`
 
     ```python
     --8<-- "pages/getting-started/snippets/typed_handler.py:typed-handler"
@@ -78,6 +94,8 @@ Hassette is a long-running process. You should see output like:
 --8<-- "pages/getting-started/snippets/run_output.txt"
 ```
 
+Lines 4 and 5 appear only at sunset — you may not see them immediately.
+
 The greeting comes from the `greeting` field in your `hassette.toml` — Hassette loaded your config and passed it to your app as `self.app_config.greeting`. When the sun sets, the app calls `self.api.turn_on()` to switch on a light — a complete automation in a few lines of Python.
 
 !!! tip
@@ -94,6 +112,7 @@ If you need explicit paths:
 
 ## Next steps
 
+- [Your First Automation](first-automation.md) — step-by-step tutorial explaining how the app pattern works
 - [Web UI](../web-ui/index.md) — open `http://localhost:8126/ui/` to see the dashboard
 - [Creating a Home Assistant token](ha_token.md) — if you haven't set up your token yet
 - [Apps Overview](../core-concepts/apps/index.md) — writing your first automation

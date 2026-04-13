@@ -1,1 +1,2 @@
-pip install hassette
+pip install uv
+uv add hassette

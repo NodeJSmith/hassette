@@ -5,7 +5,7 @@ Hassette uses **dependency injection** (DI) to automatically extract and provide
 ## Quick Example
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/quick_example.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/quick_example.py"
 ```
 
 In this example, `new_state` and `entity_id` are automatically extracted from the `RawStateChangeEvent` and injected into your handler based on their type annotations.
@@ -19,7 +19,7 @@ Hassette supports three patterns for handling events, starting with the most com
 Extract only the specific data you need:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/pattern3_di.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/pattern3_di.py"
 ```
 
 **Use when:** You want clean, focused handlers with minimal boilerplate.
@@ -29,7 +29,7 @@ Extract only the specific data you need:
 Receive the full event with state objects converted to typed Pydantic models:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/pattern2_typed.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/pattern2_typed.py"
 ```
 
 **Use when:** You want type safety but need access to the full event structure (context, timestamps, metadata, etc.).
@@ -40,7 +40,7 @@ Receive the full event with state objects converted to typed Pydantic models:
 Receive the full event object with state data as untyped dictionaries:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/pattern1_raw.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/pattern1_raw.py"
 ```
 
 **Use when:** You need full control or are working with dynamic/unknown state structures.
@@ -66,7 +66,7 @@ Extract typed state objects from state change events:
 | `MaybeStateOld[T]` | `T` or `None` | Extract old state, returns `None` if missing |
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/state_object_extractors.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/state_object_extractors.py"
 ```
 
 !!! note
@@ -74,7 +74,7 @@ Extract typed state objects from state change events:
     condition for you.
 
     ```python
-    --8<-- "pages/advanced/snippets/dependency-injection/note_changed_condition.py"
+    --8<-- "pages/core-concepts/bus/snippets/dependency-injection/note_changed_condition.py:note_changed"
     ```
 
 ### Identity Extractors
@@ -84,13 +84,26 @@ Extract entity IDs and domains from events:
 | Annotation      | Type                | Description                                    |
 | --------------- | ------------------- | ---------------------------------------------- |
 | `EntityId`      | `str`               | Extract entity ID, raises if missing           |
-| `MaybeEntityId` | `str` or `Sentinel` | Extract entity ID, returns sentinel if missing |
+| `MaybeEntityId` | `str` or `MISSING_VALUE` (falsy sentinel) | Extract entity ID, returns sentinel if missing |
 | `Domain`        | `str`               | Extract domain, raises if missing              |
-| `MaybeDomain`   | `str` or `Sentinel` | Extract domain, returns sentinel if missing    |
+| `MaybeDomain`   | `str` or `MISSING_VALUE` (falsy sentinel) | Extract domain, returns sentinel if missing    |
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/identity_extractors.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/identity_extractors.py"
 ```
+
+!!! note "Check with truthiness, not isinstance"
+    `MISSING_VALUE` is a `FalseySentinel` — it is always falsy. Use `if entity_id:` to check for a present value rather than isinstance checks. `FalseySentinel` is not a public type and should not be used in type checks directly.
+
+    ```python
+    async def handler(entity_id: D.MaybeEntityId):
+        if entity_id:
+            # entity_id is a str here
+            ...
+        else:
+            # entity_id is MISSING_VALUE (falsy)
+            ...
+    ```
 
 ### Other Extractors
 
@@ -100,7 +113,7 @@ Extract entity IDs and domains from events:
 | `TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Convert raw event to typed event     |
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/other_extractors.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/other_extractors.py"
 ```
 
 ## Union Type Support
@@ -108,7 +121,7 @@ Extract entity IDs and domains from events:
 DI extractors support Union types, allowing handlers to work with multiple state types:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/union_types.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/union_types.py"
 ```
 
 The StateRegistry determines the correct state class based on the entity's domain, and the DI system converts the raw state dictionary to the appropriate Pydantic model.
@@ -118,7 +131,7 @@ The StateRegistry determines the correct state class based on the entity's domai
 You can extract multiple pieces of data in a single handler:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/multiple_dependencies.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/multiple_dependencies.py"
 ```
 
 ## Mixing DI with Custom kwargs
@@ -126,8 +139,14 @@ You can extract multiple pieces of data in a single handler:
 Dependency injection works seamlessly with custom keyword arguments passed when registering handlers:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/mixing_kwargs.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/mixing_kwargs.py"
 ```
+
+---
+
+## Advanced: Custom Extractors and Type Conversion
+
+The sections below are for cases where the built-in annotations don't cover what you need. Most apps can stop reading after this line.
 
 ## Custom Extractors
 
@@ -136,7 +155,7 @@ You can create custom extractors using the `Annotated` type with either existing
 ### Using Built-in Accessors
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/custom_extractor_builtin.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_builtin.py"
 ```
 
 ### Writing Your Own Extractor
@@ -144,7 +163,7 @@ You can create custom extractors using the `Annotated` type with either existing
 Any callable that accepts an event and returns a value can be used as an extractor:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/custom_extractor_own.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_own.py"
 ```
 
 ### Advanced: Extractor + Converter Pattern
@@ -152,12 +171,12 @@ Any callable that accepts an event and returns a value can be used as an extract
 For more complex scenarios, you can use the `AnnotationDetails` class to combine extraction and type conversion:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/custom_extractor_converter.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_converter.py"
 ```
 
 ## Automatic Type Conversion with TypeRegistry
 
-Hassette's dependency injection system uses the [TypeRegistry](type-registry.md) to automatically convert extracted values to match your type annotations. This integrates seamlessly with custom extractors.
+Hassette's dependency injection system uses the [TypeRegistry](../../advanced/type-registry.md) to automatically convert extracted values to match your type annotations. This integrates seamlessly with custom extractors.
 
 ### How It Works
 
@@ -171,7 +190,7 @@ When you use a custom extractor with a type annotation, the DI system:
 This means you can write simple extractors that return raw values, and let TypeRegistry handle the type conversion:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/builtin_conversions_implicit.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/builtin_conversions_implicit.py"
 ```
 
 ### Built-in Conversions
@@ -184,7 +203,7 @@ The TypeRegistry provides comprehensive built-in conversions for common types:
 
 **Examples:**
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/builtin_conversions_explicit.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/builtin_conversions_explicit.py"
 ```
 
 ### Custom Type Converters
@@ -192,7 +211,7 @@ The TypeRegistry provides comprehensive built-in conversions for common types:
 You can register your own type converters for custom types:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/custom_type_converter.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_type_converter.py"
 ```
 
 ### When Conversion Happens
@@ -215,13 +234,13 @@ If you want to handle conversion yourself, you can:
 1. **Use `Any` type annotation** to receive the raw value:
 
    ```python
-   --8<-- "pages/advanced/snippets/dependency-injection/bypass_conversion_any.py"
+   --8<-- "pages/core-concepts/bus/snippets/dependency-injection/bypass_conversion_any.py"
    ```
 
 2. **Provide a custom converter** in `AnnotationDetails`:
 
    ```python
-   --8<-- "pages/advanced/snippets/dependency-injection/bypass_conversion_custom.py"
+   --8<-- "pages/core-concepts/bus/snippets/dependency-injection/bypass_conversion_custom.py"
    ```
 
 ### Error Handling
@@ -229,7 +248,7 @@ If you want to handle conversion yourself, you can:
 When type conversion fails, Hassette provides clear error messages:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/error_handling.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/error_handling.py"
 ```
 
 ## Handler Signature Restrictions
@@ -265,5 +284,5 @@ The core implementation lives in:
 
 ## See Also
 
-- [Type Registry](type-registry.md) - automatic type conversion system
-- [State Registry](state-registry.md) - domain to state model mapping
+- [Type Registry](../../advanced/type-registry.md) - automatic type conversion system
+- [State Registry](../../advanced/state-registry.md) - domain to state model mapping

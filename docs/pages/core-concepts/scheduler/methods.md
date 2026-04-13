@@ -95,6 +95,9 @@ Run every N hours.
 ### `run_daily`
 Run on a fixed daily interval (every N days). Use `start` to anchor the first run to a specific time; for a strict "every day at exactly 7:00 AM" schedule, use [`run_cron`](#run_cron) instead.
 
+!!! note "Interval-based, not cron-based"
+    `run_daily` (and `run_hourly`, `run_minutely`) are interval-based — they fire at the `start` time, then again every N units later. They do not re-anchor to wall-clock boundaries after a restart. If Hassette restarts after the configured start time has already passed for the day, the job fires immediately at startup, then at the start time the following day. Use `run_cron` for strict wall-clock scheduling that skips a missed run rather than firing immediately.
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `func` | callable | *(required)* | The function to run. |

@@ -7,5 +7,6 @@ filename = "main.py"
 class_name = "MyApp"
 enabled = true
 
+# [[double brackets]] = TOML array-of-tables; supports running the same app with multiple configs
 [[apps.my_app.config]]
 greeting = "This is from the config file!"

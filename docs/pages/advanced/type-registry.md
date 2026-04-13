@@ -1,6 +1,16 @@
 # TypeRegistry
 
-The TypeRegistry is a core component of Hassette that provides automatic type conversion for raw values from Home Assistant. It enables seamless conversion of string values to their proper Python types (integers, floats, booleans, datetimes, etc.) throughout the framework.
+The TypeRegistry provides automatic type conversion for raw values from Home Assistant — converting string values to their proper Python types (integers, floats, booleans, datetimes, etc.) throughout the framework.
+
+## When Do I Need This?
+
+**Most apps never need to touch the TypeRegistry.** The built-in converters handle all standard Home Assistant types automatically.
+
+You need this page when:
+
+- You have a custom state model whose `value_type` is a type Hassette does not know how to convert (e.g., a third-party type or an enum).
+- You need to register a converter for a custom extractor in the dependency injection system.
+- A built-in conversion is giving unexpected results and you need to understand or override it.
 
 ## Purpose
 
@@ -14,19 +24,18 @@ The TypeRegistry automatically converts these string values to their proper Pyth
 
 ## Core Concepts
 
-### TypeConverterEntry
+??? note "Implementation details: TypeConverterEntry"
+    Each registered converter is stored as a `TypeConverterEntry` dataclass containing:
 
-Each registered converter is stored as a `TypeConverterEntry` dataclass containing:
+    - **func**: The actual conversion function
+    - **from_type**: Source type (e.g., `str`)
+    - **to_type**: Target type (e.g., `int`)
+    - **error_types**: Tuple of exception types to catch (defaults to `(ValueError,)`)
+    - **error_message**: Optional custom error message template (uses `{value}`, `{from_type}`, `{to_type}` placeholders)
 
-- **func**: The actual conversion function
-- **from_type**: Source type (e.g., `str`)
-- **to_type**: Target type (e.g., `int`)
-- **error_types**: Tuple of exception types to catch (defaults to `(ValueError,)`)
-- **error_message**: Optional custom error message template (uses `{value}`, `{from_type}`, `{to_type}` placeholders)
-
-```python
---8<-- "pages/advanced/snippets/type-registry/entry_example.py"
-```
+    ```python
+    --8<-- "pages/advanced/snippets/type-registry/entry_example.py"
+    ```
 
 ### Registration System
 
@@ -37,7 +46,7 @@ The TypeRegistry provides two ways to register converters:
 Use `@register_type_converter_fn` to register a conversion function:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/custom_type_converter.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_type_converter.py"
 ```
 
 #### Simple Type Registration
@@ -205,30 +214,31 @@ Provide helpful error messages in your custom converters:
 
 ## Inspection and Debugging
 
-The TypeRegistry provides methods to inspect registered converters:
+??? note "Implementation details: inspection API"
+    The TypeRegistry provides methods to inspect registered converters. These are primarily useful for Hassette core developers or for debugging unexpected conversion behavior.
 
-### List All Conversions
+    ### List All Conversions
 
-```python
---8<-- "pages/advanced/snippets/type-registry/inspect_list.py"
-```
+    ```python
+    --8<-- "pages/advanced/snippets/type-registry/inspect_list.py"
+    ```
 
-Output example:
-```
---8<-- "pages/advanced/snippets/type-registry/inspect_list_output.txt"
-```
+    Output example:
+    ```
+    --8<-- "pages/advanced/snippets/type-registry/inspect_list_output.txt"
+    ```
 
-### Check for Specific Converter
+    ### Check for Specific Converter
 
-```python
---8<-- "pages/advanced/snippets/type-registry/inspect_check.py"
-```
+    ```python
+    --8<-- "pages/advanced/snippets/type-registry/inspect_check.py"
+    ```
 
-### Get Converter Details
+    ### Get Converter Details
 
-```python
---8<-- "pages/advanced/snippets/type-registry/inspect_details.py"
-```
+    ```python
+    --8<-- "pages/advanced/snippets/type-registry/inspect_details.py"
+    ```
 
 ### Union Type Performance
 
@@ -315,5 +325,5 @@ Convert strings with units to numeric values:
 ## See Also
 
 - [State Registry](state-registry.md) - Domain to model class mapping
-- [Dependency Injection](dependency-injection.md) - Using TypeRegistry with custom extractors
+- [Dependency Injection](../core-concepts/bus/dependency-injection.md) - Using TypeRegistry with custom extractors
 - [State Models](../core-concepts/states/index.md) - State model reference

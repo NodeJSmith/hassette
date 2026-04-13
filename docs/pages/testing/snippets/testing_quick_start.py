@@ -14,5 +14,4 @@ async def test_light_turns_on_when_motion_detected():
         harness.api_recorder.assert_called(
             "turn_on",
             entity_id="light.hallway",
-            domain="light",
         )

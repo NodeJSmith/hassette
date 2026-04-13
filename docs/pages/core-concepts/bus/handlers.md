@@ -62,7 +62,7 @@ You can pass additional arguments to your handler using `kwargs` when subscribin
 
 Dependencies are available via `from hassette import D`. The most common are `StateNew[T]`, `StateOld[T]`, `EntityId`, and `Domain`.
 
-See the [Dependency Injection guide](../../advanced/dependency-injection.md#available-di-annotations) for the full annotation table, custom extractors, and automatic type conversion.
+See the [Dependency Injection guide](dependency-injection.md#available-di-annotations) for the full annotation table, custom extractors, and automatic type conversion.
 
 ### Restrictions
 
@@ -85,5 +85,5 @@ You can extract multiple pieces of data in a single handler:
 ## See Also
 
 - [Filtering & Predicates](filtering.md) - Filter which events trigger your handlers
-- [Dependency Injection](../../advanced/dependency-injection.md) - Advanced extraction patterns
+- [Dependency Injection](dependency-injection.md) - Full annotation table, custom extractors, and type conversion
 - [API](../api/index.md) - Call services in response to events

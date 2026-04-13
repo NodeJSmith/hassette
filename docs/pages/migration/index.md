@@ -14,6 +14,20 @@ Both AppDaemon and Hassette connect to Home Assistant via WebSocket and let you 
 | You want structured logs that include the calling method and line number | You rely on AppDaemon-specific features not yet in Hassette |
 | You want a dependency injection model for event handlers | — |
 
+## Known Gaps
+
+The following AppDaemon features are not currently in Hassette. If your apps rely on any of these, migration is not yet recommended:
+
+| AppDaemon feature | Status in Hassette |
+|-------------------|--------------------|
+| `listen_log` / log event subscriptions | Out of scope — not planned |
+| HADashboard | Out of scope — Hassette has its own web UI for monitoring, not display panels |
+| Notification app helpers (`notify`, `call_action`) | Out of scope — call `self.api.call_service("notify", ...)` directly |
+| MQTT plugin | Roadmap — not yet supported; use `self.api.call_service` workarounds |
+| Global variables / inter-app communication via `AD` | Not supported — use shared state in the HA state store or a persistent cache |
+
+If a feature you depend on is missing, open an issue or check the [GitHub discussions](https://github.com/NodeJSmith/hassette/discussions).
+
 ## What Changes
 
 When you migrate from AppDaemon, you change four areas:
@@ -29,7 +43,7 @@ The scheduler API is similar to AppDaemon's, with named parameters and richer jo
 
 Before you start migrating app by app, complete this setup:
 
-- [ ] Follow the [Local Setup guide](../getting-started/index.md) to install Hassette and confirm `hassette.toml` connects to Home Assistant
+- [ ] Follow the [Quickstart guide](../getting-started/index.md) to install Hassette and confirm `hassette.toml` connects to Home Assistant
 - [ ] Read [Mental Model](concepts.md) to understand the key design differences
 - [ ] Pick one small, simple app as your first migration target
 - [ ] Follow the [Migration Checklist](checklist.md) for that app
@@ -58,7 +72,7 @@ The table below maps the most common AppDaemon operations to their Hassette equi
 | Monitor service calls | `self.listen_event(self.on_service, "call_service", domain="light")` | `self.bus.on_call_service(domain="light", handler=self.on_service)` |
 | Schedule something in 60 seconds | `self.run_in(self.turn_off, 60)` | `self.scheduler.run_in(self.turn_off, delay=60)` |
 | Run every morning at 07:30 | `self.run_daily(self.morning, time(7, 30, 0))` | `self.scheduler.run_daily(self.morning, start=time(7, 30))` |
-| Get entity state (cached) | `self.get_state("light.kitchen")` | `self.states.light.get("light.kitchen")` |
+| Get entity state (cached) | `self.get_state("light.kitchen")` | `self.states.light.get("kitchen")` *(or `"light.kitchen"` — both forms are accepted)* |
 | Call a Home Assistant service | `self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)` | `await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"}, brightness=200)` |
 | Access app configuration | `self.args["args"]["entity"]` | `self.app_config.entity` |
 | Stop a listener | `self.cancel_listen_state(handle)` | `subscription.cancel()` |

@@ -18,9 +18,9 @@ The harness has two independent isolation mechanisms. Understanding which applie
 
 ## Parallel Test Suites (pytest-xdist)
 
-If you run tests with `pytest-xdist` (`pytest -n auto` or `pytest -n <N>`), two parallel workers can each try to acquire the time lock in their own processes — but because the lock is process-global, each worker's lock is independent. The problem is that two time-control tests scheduled to *different* workers can race on which one actually sees frozen time for your assertions.
+Each xdist worker runs in its own process with its own time lock — workers cannot interfere with each other's frozen clock. The actual concern is within a single worker: `freeze_time` tests that are not grouped may interleave if the worker runs multiple async tests concurrently. Mark all `freeze_time` tests with the same `xdist_group` to serialize them within one worker:
 
-Mark all tests that call `freeze_time` with the same `xdist_group` so they run on the same worker sequentially:
+
 
 ```python
 --8<-- "pages/testing/snippets/testing_xdist_group.py"
@@ -30,13 +30,7 @@ If you run pytest sequentially (no `-n` flag), you do not need this marker.
 
 ## pytest-asyncio Mode
 
-Configure `asyncio_mode = "auto"` in your `pyproject.toml`:
-
-```toml
---8<-- "pages/testing/snippets/testing_asyncio_mode.toml"
-```
-
-With `asyncio_mode = "auto"`, any `async def test_*` function is automatically treated as an async test — no `@pytest.mark.asyncio` decorator required. If you skip this config, your async tests will silently succeed **without actually running** — a silent false-green failure mode.
+See [Installation](index.md#installation) on the Quick Start page for the required `asyncio_mode = "auto"` configuration and the false-green warning.
 
 ## `DrainFailure` Exception Hierarchy
 

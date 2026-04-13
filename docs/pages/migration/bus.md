@@ -44,7 +44,7 @@ If you prefer to receive the raw event and inspect it yourself:
 | `old="off"` | `changed_from="off"` |
 | `attribute="battery"` | Use `on_attribute_change()` instead |
 
-For more complex filtering, pass a `where` dict or a `predicate` argument. See the [Bus filtering docs](../core-concepts/bus/filtering.md) for the full reference.
+For more complex filtering, pass a predicate via the `where` parameter (`where=P.StateTo('on')` for example). See the [Bus filtering docs](../core-concepts/bus/filtering.md) for the full reference.
 
 ## Service Call Listeners
 
@@ -148,4 +148,4 @@ The subscription object returned by `on_state_change()`, `on_call_service()`, an
 - [Bus Overview](../core-concepts/bus/index.md) — the full bus API
 - [Writing Handlers](../core-concepts/bus/handlers.md) — handler patterns and DI
 - [Filtering & Predicates](../core-concepts/bus/filtering.md) — composable predicate system
-- [Dependency Injection](../advanced/dependency-injection.md) — full DI reference
+- [Dependency Injection](../core-concepts/bus/dependency-injection.md) — full DI reference

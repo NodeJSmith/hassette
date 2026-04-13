@@ -50,7 +50,7 @@ Hassette brings Python's full power to Home Assistant automations. Your automati
 **What you're committing to:**
 
 - **Python knowledge** — basic understanding is enough to start; you'll learn more as you go
-- **Setup time** — around 30 minutes from install to your first running app ([Local Setup](index.md))
+- **Setup time** — around 30 minutes from install to your first running app ([Quickstart](index.md))
 - **Dependency management** — you own the Python environment and any library dependencies
 - **A separate process** — Hassette runs outside Home Assistant, not as an integration
 
@@ -74,4 +74,4 @@ You can migrate automations incrementally. Start with the one that's most painfu
 - You want to test and debug your automations like ordinary code
 - You need automations to remember state across restarts without using input helpers
 
-If you're still unsure, the [Local Setup](index.md) guide takes 30 minutes. Try building one automation in Hassette — you'll know quickly whether the model suits you.
+If you're still unsure, the [Quickstart](index.md) guide takes 30 minutes. Try building one automation in Hassette — you'll know quickly whether the model suits you.

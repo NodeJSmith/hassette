@@ -51,6 +51,7 @@ Each app receives pre-configured helpers:
 - **[`self.cache`](../cache/index.md)** - Persistent disk-based storage.
 - **`self.logger`** - Dedicated logger instance.
 - **[`self.app_config`](configuration.md)** - Typed configuration.
+- **`self.task_bucket`** - Offload blocking work to a thread pool.
 
 ## Common Use Cases
 

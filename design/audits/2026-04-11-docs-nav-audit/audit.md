@@ -222,6 +222,21 @@ nav:
 | Move Migration Guide before Troubleshooting | A reader migrating from AppDaemon benefits from this content before they hit troubleshooting. |
 | Rename `TypeRegistry` → `Type Registry` | Typography consistency: other entries use spaces. |
 
+### Tacit amendments (post-approval deviations)
+
+| Change | WP | Rationale |
+|--------|----|-----------|
+| `Core Concepts: pages/migration/concepts.md` renamed to `Mental Model` in `mkdocs.yml` | WP09 | "Mental Model" avoids a nav collision with the top-level "Core Concepts" section and is clearer to readers. Accepted as a tacit amendment — no other WP depends on the exact label. |
+
+### Tier C Amendments (API reference)
+
+The following modules were added to `PUBLIC_MODULES` Tier C in `tools/gen_ref_pages.py` beyond the nav audit's explicit allowlist. These are autoref targets in narrative docs that require generated reference pages.
+
+| Module | Reason |
+|--------|--------|
+| `hassette.exceptions` | Narrative docs reference `EntityNotFoundError`, `InvalidAuthError`, etc. — autoref links require a generated page |
+| `hassette.state_manager.state_manager` | `StateManager` and `DomainStates` are autoref targets in states docs |
+
 ---
 
 ## Section 2: Per-Page Recommendations

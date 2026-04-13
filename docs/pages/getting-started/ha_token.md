@@ -32,7 +32,7 @@ Once you have the token, add it to `config/.env`:
 --8<-- "pages/getting-started/snippets/env_token.sh"
 ```
 
-See the [Local Setup](index.md) guide for the full configuration steps.
+See the [Quickstart](index.md) guide for the full configuration steps.
 
 !!! warning "Keep your token secret"
     The token has the same permissions as your Home Assistant user account. Never commit it to version control or share it publicly. If a token is exposed, revoke it immediately from the same Security tab and generate a new one.

@@ -33,6 +33,9 @@ The easiest way to access states is via domain properties.
 
 Notice how you do not need to use the domain in the entity ID - since you're already accessing the domain via `self.states.sensor`, you only need to provide the entity name.
 
+!!! note "Bracket access raises `KeyError` for missing entities"
+    `self.states.light["bedroom"]` raises `KeyError` — not `EntityNotFoundError` — if the entity does not exist. Use `.get("bedroom")` for safe access that returns `None` when the entity is absent.
+
 ### Direct Entity Access
 
 Use `self.states.get(entity_id)` when you have a full entity ID and don't need to specify the domain or state class. It automatically resolves to the correct domain-specific type (e.g., `LightState` for `light.*`), or falls back to `BaseState` for unregistered domains.

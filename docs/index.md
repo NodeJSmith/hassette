@@ -70,12 +70,22 @@ See the [Web UI docs](pages/web-ui/index.md) for a full tour.
 --8<-- "pages/getting-started/snippets/install.sh"
 ```
 
-Then follow the [Local Setup guide](pages/getting-started/index.md) — you'll have a running app in about 30 minutes.
+Then follow the [Quickstart guide](pages/getting-started/index.md) — you'll have a running app in about 30 minutes.
+
+## Already using AppDaemon?
+
+Hassette offers three concrete improvements over AppDaemon:
+
+1. **Pydantic-validated configuration** — app settings are typed `AppConfig` models, not raw `self.args` dicts. Missing fields fail at startup with a clear error, not at runtime when a handler fires.
+2. **Built-in test harness** — `AppTestHarness` runs your app against a `RecordingApi` in place of a live HA connection. Simulate state changes, assert on service calls, and control time — no mocking required.
+3. **Dependency injection for event handlers** — handlers declare the fields they need as type annotations; Hassette extracts and converts them automatically. No manual payload parsing.
+
+See the [Migration Guide](pages/migration/index.md) for a concept-by-concept comparison and step-by-step checklist.
 
 ## Next steps
 
 - **Is Hassette right for you?** [Is Hassette Right for You?](pages/getting-started/hassette-vs-ha-yaml.md)
-- **Local setup:** [Local Setup](pages/getting-started/index.md)
+- **Local setup:** [Quickstart](pages/getting-started/index.md)
 - **Production:** [Docker Deployment](pages/getting-started/docker/index.md)
 - **Architecture overview:** [Core Concepts](pages/core-concepts/index.md)
 - **Full configuration:** [Configuration Overview](pages/core-concepts/configuration/index.md)

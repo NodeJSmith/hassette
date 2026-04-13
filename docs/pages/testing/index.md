@@ -30,6 +30,9 @@ With `asyncio_mode = "auto"`, any `async def test_*` function is automatically t
 
 Here's a complete test for an app that turns on a light when motion is detected:
 
+!!! note "Replace the placeholders with your own app"
+    Replace `MotionLights` with your app class and `motion_lights` with your module path. The config keys (`motion_entity`, `light_entity`) should match the fields on your app's `AppConfig` subclass.
+
 ```python
 --8<-- "pages/testing/snippets/testing_quick_start.py"
 ```
@@ -126,21 +129,8 @@ All three simulate methods wait for dispatched handlers to finish before returni
 --8<-- "pages/testing/snippets/testing_simulate_timeout.py"
 ```
 
-!!! note "Task chains drain to completion — and surface failures via `DrainFailure`"
-    The drain is iterative: after the bus dispatch queue clears, any tasks spawned by `self.task_bucket.spawn(...)` inside a handler are awaited in turn, and tasks those tasks spawn are awaited too — to arbitrary depth. `simulate_*` does not return until the full chain is settled.
-
-    Drain failures are rooted at a single base class — `DrainFailure` — with two concrete subclasses:
-
-    * `DrainError` — one or more spawned handler tasks raised a non-cancellation exception.
-    * `DrainTimeout` — the drain did not reach quiescence within the configured timeout.
-
-    Catch either outcome uniformly with a single `except DrainFailure:` clause, or branch on the concrete type when you need to react differently:
-
-    ```python
-    --8<-- "pages/testing/snippets/testing_drain_exceptions.py"
-    ```
-
-    `DrainTimeout` does **not** inherit from `TimeoutError` — catch `DrainTimeout` (or `DrainFailure`) instead. The diagnostic message includes the names of the pending tasks and a hint to check for debounced handlers.
+!!! note "Task chains drain to completion"
+    The drain is iterative: after the bus dispatch queue clears, any tasks spawned by `self.task_bucket.spawn(...)` inside a handler are awaited in turn, to arbitrary depth. `simulate_*` does not return until the full chain is settled. If a task raises or the drain times out, a `DrainFailure` subclass is raised — see [DrainFailure Exception Hierarchy](concurrency.md#drainfailure-exception-hierarchy) for the full exception hierarchy and catch patterns.
 
 ## Asserting API Calls
 

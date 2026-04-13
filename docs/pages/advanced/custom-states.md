@@ -14,7 +14,7 @@ To create a custom state class, inherit from one of the base state classes and d
 --8<-- "pages/advanced/snippets/custom-states/basic_custom_state.py"
 ```
 
-That's it! The state class notifies the registry upon creation and is immediately available for use.
+That's it! The state class notifies the registry upon creation and is immediately available for use. This happens automatically via Python's `__init_subclass__` hook — no explicit registration call is required. See [State Registry](state-registry.md) for how automatic registration works.
 
 ## Choosing a Base Class
 
@@ -154,6 +154,6 @@ If state conversion is failing:
 
 ## See Also
 
-- [State Registry](state-registry.md) — register your custom state class for a domain
+- [State Registry](state-registry.md) — how automatic registration works
 - [Type Registry](type-registry.md) — register custom type converters for field values
-- [Dependency Injection](dependency-injection.md) — inject typed states into event handlers
+- [Dependency Injection](../core-concepts/bus/dependency-injection.md) — inject typed states into event handlers

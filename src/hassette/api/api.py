@@ -24,13 +24,13 @@ Examples:
 
     ```python
     # Basic service call
-    await self.api.call_service("light", "turn_on", entity_id="light.kitchen")
+    await self.api.call_service("light", "turn_on", target={"entity_id": "light.kitchen"})
 
     # Service call with data
     await self.api.call_service(
         "light",
         "turn_on",
-        entity_id="light.living_room",
+        target={"entity_id": "light.living_room"},
         brightness=200,
         color_name="blue"
     )
@@ -100,7 +100,7 @@ Examples:
     start_time = end_time.subtract(hours=24)
 
     history = await self.api.get_history(
-        entity_ids=["sensor.temperature"],
+        entity_id="sensor.temperature",
         start_time=start_time,
         end_time=end_time
     )
@@ -108,6 +108,7 @@ Examples:
     # Get logbook entries
     logbook = await self.api.get_logbook(
         start_time=start_time,
+        end_time=end_time,
         entity_id="light.kitchen"
     )
     ```
@@ -458,7 +459,10 @@ class Api(Resource):
 
         Args:
             entity_id: The ID of the entity to turn on (e.g., "light.office").
-            domain: The domain of the entity (default: "homeassistant").
+            domain: The domain to use for the service call (default: ``"homeassistant"``).
+                This calls the generic ``homeassistant.turn_on`` service, which is deprecated
+                in Home Assistant 2024.x in favor of domain-specific services. For lights,
+                pass ``domain="light"``; for switches, pass ``domain="switch"``.
 
         """
         entity_id = str(entity_id)
@@ -471,7 +475,10 @@ class Api(Resource):
 
         Args:
             entity_id: The ID of the entity to turn off (e.g., "light.office").
-            domain: The domain of the entity (default: "homeassistant").
+            domain: The domain to use for the service call (default: ``"homeassistant"``).
+                This calls the generic ``homeassistant.turn_off`` service, which is deprecated
+                in Home Assistant 2024.x in favor of domain-specific services. For lights,
+                pass ``domain="light"``; for switches, pass ``domain="switch"``.
 
         """
         self.logger.debug("Turning off entity %s", entity_id)
@@ -482,7 +489,10 @@ class Api(Resource):
 
         Args:
             entity_id: The ID of the entity to toggle (e.g., "light.office").
-            domain: The domain of the entity (default: "homeassistant").
+            domain: The domain to use for the service call (default: ``"homeassistant"``).
+                This calls the generic ``homeassistant.toggle`` service, which is deprecated
+                in Home Assistant 2024.x in favor of domain-specific services. For lights,
+                pass ``domain="light"``; for switches, pass ``domain="switch"``.
 
         """
         self.logger.debug("Toggling entity %s", entity_id)
@@ -616,11 +626,6 @@ class Api(Resource):
 
         Raises:
             TypeError: If the model is not a valid StateType subclass.
-
-        Example:
-            ```python
-            date: ZonedDateTime = await self.api.get_state_value_typed("input_datetime.test")
-            ```
 
         Warning:
             For states like `SensorState` the value type in Hassette is `str`, even if the sensor represents a number,

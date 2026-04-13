@@ -93,4 +93,4 @@ class MyApp(AppSync):
 
 - [Bus & Events](bus.md) — migrating `listen_state` and `listen_event` to `bus.on_state_change` and `bus.on_call_service`
 - [API Calls](api.md) — migrating `get_state`, `call_service`, and `set_state`
-- [Dependency Injection](../advanced/dependency-injection.md) — the full dependency injection reference
+- [Dependency Injection](../core-concepts/bus/dependency-injection.md) — the full dependency injection reference

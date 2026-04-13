@@ -83,6 +83,9 @@ Convert your `appdaemon.yaml` and `apps.yaml` to a single `hassette.toml`:
     --8<-- "pages/migration/snippets/config_migration_toml.toml"
     ```
 
+!!! note "`[[double brackets]]` — TOML array-of-tables"
+    The `[[apps.my_app.config]]` syntax uses TOML array-of-tables, which means you can repeat it to run the same app class with multiple independent configurations (for example, one instance per room). Change `[[...]]` to `[...]` and you get a single-item table — the double brackets signal a list.
+
 Then replace dictionary access with typed config access:
 
 === "Before (AppDaemon)"
