@@ -1,0 +1,26 @@
+extend = "../ruff.toml"
+
+# Snippets are pedagogical — use a wider limit to avoid wrapping tutorial calls
+# in ways that hurt readability.
+line-length = 160
+
+# testing_constructor.py uses deliberately aligned inline comments for visual
+# clarity. ruff format always normalizes to 2-space gaps, which degrades the
+# docs. Exclude only this file; all other snippets are formatted normally.
+extend-exclude = [
+    "pages/testing/snippets/testing_constructor.py",
+]
+
+[lint]
+extend-ignore = [
+    "F401",   # unused-import — snippets import for reader context
+    "F821",   # undefined-name — code-excerpt snippets reference names from surrounding context
+    "F841",   # unused-variable — pedagogical assignments show what the result looks like
+    "ARG001", # unused-function-argument — stub handlers show intended signature
+    "ARG002", # unused-method-argument
+    "B007",   # unused-loop-variable — iteration-pattern snippets show the variable for reader context
+    "E501",   # line-too-long — repr output and config values cannot be wrapped without losing meaning
+    "I001",   # unsorted-imports — pedagogical import ordering may differ from isort conventions
+    "N999",   # invalid-module-name — step-named files are intentional
+    "TC002",  # typing-only-third-party-import — snippets need runtime imports for reader context
+]

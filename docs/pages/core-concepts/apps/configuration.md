@@ -1,6 +1,6 @@
 # App Configuration
 
-Each app can define a Pydantic configuration model to validate its settings. This gives you type safety, automatic parsing, and environment variable injection.
+This page covers the **Python side** of app configuration: defining `AppConfig` subclasses, typed fields, defaults, and environment variable injection. For how to register apps and supply config values in `hassette.toml`, see [Application Configuration](../configuration/applications.md).
 
 ## Defining Config Models
 
@@ -10,20 +10,14 @@ Inherit from [`AppConfig`][hassette.app.app_config.AppConfig] to define your con
 --8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"
 ```
 
+The `App` generic parameter (`App[MyAppConfig]`) tells Hassette which config class to instantiate. Inside your app, `self.app_config` is typed as `MyAppConfig`, giving you full IDE completion and type checking.
+
 ## Base Fields
 
 The base `AppConfig` includes standard fields available to all apps:
 
 - `instance_name: str = ""` - Used for logging and identification.
 - `log_level: LOG_LEVEL_TYPE` - Log-level override for this app instance; defaults to `INFO` or the global `log_level` setting.
-
-## TOML Configuration
-
-You can configure your apps in `hassette.toml`.
-
-```toml
---8<-- "pages/core-concepts/apps/snippets/app_config.toml"
-```
 
 ## Secrets & Environment Variables
 
@@ -33,4 +27,8 @@ You can configure your apps in `hassette.toml`.
 --8<-- "pages/core-concepts/apps/snippets/app_config_env_prefix.py"
 ```
 
-Now you can set `MYAPP_API_KEY` in your environment or `.env` file.
+Now you can set `MYAPP_API_KEY` in your environment or `.env` file. TOML values and environment variables are merged; environment variables take precedence.
+
+## See Also
+
+- [Application Configuration](../configuration/applications.md) - Registering apps and supplying config values in `hassette.toml`

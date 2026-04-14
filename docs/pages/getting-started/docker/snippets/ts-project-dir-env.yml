@@ -1,0 +1,2 @@
+environment:
+  - HASSETTE__PROJECT_DIR=/apps  # Must contain pyproject.toml

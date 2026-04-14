@@ -7,5 +7,5 @@ class NotifyApp(App):
             domain="notify",
             service="mobile_app_phone",
             message="Hello from Hassette!",
-            data={"priority": "high"},
+            priority="high",
         )

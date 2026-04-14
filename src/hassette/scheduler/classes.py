@@ -55,14 +55,17 @@ class IntervalTrigger:
         seconds: float = 0,
         start: ZonedDateTime | None = None,
     ) -> Self:
+        """Create an IntervalTrigger from separate hours/minutes/seconds components."""
         return cls(TimeDelta(hours=hours, minutes=minutes, seconds=seconds), start=start)
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
+        """Return the first scheduled run time at or after current_time."""
         if self.start > current_time:
             return self.start.round(unit="second")
         return self._advance_past(self.start, current_time)
 
     def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+        """Return the next run time after previous_run that is later than current_time."""
         return self._advance_past(previous_run, current_time)
 
     def _advance_past(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
@@ -139,6 +142,7 @@ class CronTrigger:
         return cls(cron_expression, start=start)
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
+        """Return the first cron-grid-aligned run time at or after current_time."""
         # Use start as the croniter anchor, but always snap to the cron grid.
         # This finds the first cron-aligned time at or after start (or current_time if no start).
         anchor = self.start or current_time
@@ -146,6 +150,7 @@ class CronTrigger:
         return self._next_after(anchor, reference)
 
     def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+        """Return the next cron-grid-aligned run time after previous_run that is later than current_time."""
         return self._next_after(previous_run, current_time)
 
     def _next_after(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:

@@ -3,9 +3,14 @@ site_url: https://hassette.readthedocs.io/
 repo_name: NodeJSmith/hassette
 repo_url: https://github.com/NodeJSmith/hassette
 docs_dir: docs
+exclude_docs: |
+  **/snippets/**/*.md
 use_directory_urls: true
 watch:
   - src
+
+extra_css:
+  - _static/hassette.css
 
 theme:
   name: material
@@ -13,44 +18,56 @@ theme:
   favicon: _static/hassette-logo.svg
   features:
     - navigation.instant
+    - navigation.instant.prefetch
     - navigation.tracking
     - navigation.indexes
     - navigation.footer
+    - navigation.path
+    - navigation.tabs
     - content.code.copy
     - content.code.select
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
 
 nav:
   - Home: index.md
   - Getting Started:
-      - Local Setup: pages/getting-started/index.md
-      - Hassette vs. YAML: pages/getting-started/hassette-vs-ha-yaml.md
+      - Is Hassette Right for You?: pages/getting-started/hassette-vs-ha-yaml.md
+      - Quickstart: pages/getting-started/index.md
+      - Home Assistant Token: pages/getting-started/ha_token.md
+      - Your First Automation: pages/getting-started/first-automation.md
       - Docker Deployment:
           - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
           - Image Tags: pages/getting-started/docker/image-tags.md
           - Troubleshooting: pages/getting-started/docker/troubleshooting.md
-      - Home Assistant Token: pages/getting-started/ha_token.md
   - Core Concepts:
       - Architecture: pages/core-concepts/index.md
       - Apps:
           - Overview: pages/core-concepts/apps/index.md
           - Lifecycle: pages/core-concepts/apps/lifecycle.md
           - Configuration: pages/core-concepts/apps/configuration.md
+          - Task Bucket: pages/core-concepts/apps/task-bucket.md
       - Bus:
           - Overview: pages/core-concepts/bus/index.md
           - Writing Handlers: pages/core-concepts/bus/handlers.md
+          - Dependency Injection: pages/core-concepts/bus/dependency-injection.md
           - Filtering & Predicates: pages/core-concepts/bus/filtering.md
       - Scheduler:
           - Overview: pages/core-concepts/scheduler/index.md
           - Scheduling Methods: pages/core-concepts/scheduler/methods.md
           - Job Management: pages/core-concepts/scheduler/management.md
+      - States: pages/core-concepts/states/index.md
       - API:
           - Overview: pages/core-concepts/api/index.md
           - Entities & States: pages/core-concepts/api/entities.md
           - Services: pages/core-concepts/api/services.md
+          - Managing Helpers: pages/advanced/managing-helpers.md
           - Utilities: pages/core-concepts/api/utilities.md
-      - States: pages/core-concepts/states/index.md
-      - Persistent Storage: pages/core-concepts/persistent-storage.md
+      - App Cache:
+          - Overview: pages/core-concepts/cache/index.md
+          - Patterns & Examples: pages/core-concepts/cache/patterns.md
       - Database & Telemetry: pages/core-concepts/database-telemetry.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md
@@ -65,16 +82,33 @@ nav:
       - Logs: pages/web-ui/logs.md
   - Testing:
       - Testing Your Apps: pages/testing/index.md
+      - Time Control: pages/testing/time-control.md
+      - Concurrency & pytest-xdist: pages/testing/concurrency.md
+      - Factories & Internals: pages/testing/factories.md
+  - Recipes:
+      - Overview: pages/recipes/index.md
+      - Motion-Activated Lights: pages/recipes/motion-lights.md
+      - Daily Notification: pages/recipes/daily-notification.md
+      - Debounce Sensor Changes: pages/recipes/debounce-sensor-changes.md
+      - React to a Service Call: pages/recipes/service-call-reaction.md
+      - Monitor Sensor Thresholds: pages/recipes/sensor-threshold.md
+      - Vacation Mode Toggle: pages/recipes/vacation-mode-toggle.md
   - Advanced:
       - Overview: pages/advanced/index.md
-      - Dependency Injection: pages/advanced/dependency-injection.md
       - Custom States: pages/advanced/custom-states.md
-      - Managing Helpers: pages/advanced/managing-helpers.md
       - State Registry: pages/advanced/state-registry.md
-      - TypeRegistry: pages/advanced/type-registry.md
+      - Type Registry: pages/advanced/type-registry.md
       - Log Level Tuning: pages/advanced/log-level-tuning.md
+  - AppDaemon Migration:
+      - Overview: pages/migration/index.md
+      - Mental Model: pages/migration/concepts.md
+      - Bus & Events: pages/migration/bus.md
+      - Scheduler: pages/migration/scheduler.md
+      - API Calls: pages/migration/api.md
+      - Configuration: pages/migration/configuration.md
+      - Testing: pages/migration/testing.md
+      - Migration Checklist: pages/migration/checklist.md
   - Troubleshooting: pages/troubleshooting.md
-  - AppDaemon Comparison: pages/appdaemon-comparison.md
   - Changelog: CHANGELOG.md  # symlinked from repo root
   - API Reference: reference/
 
@@ -116,9 +150,11 @@ markdown_extensions:
   - pymdownx.snippets:
       base_path: docs
       check_paths: true
+      dedent_subsections: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.tabbed
+  - pymdownx.tabbed:
+      alternate_style: true

@@ -4,11 +4,14 @@ When you schedule a task, you receive a [`ScheduledJob`][hassette.scheduler.clas
 
 ## The ScheduledJob Object
 
-The job object contains useful metadata:
-
-- `job.name`: The name of the job (useful for logs).
-- `job.next_run`: A `ZonedDateTime` indicating when it runs next.
-- `job.cancelled`: Boolean status.
+| Attribute | Type | Description |
+|---|---|---|
+| `name` | `str` | Human-readable name. Auto-generated from the callable if not provided. Used in logs and for idempotent re-registration. |
+| `next_run` | `ZonedDateTime` | Timestamp of the next scheduled execution. |
+| `trigger` | `IntervalTrigger \| CronTrigger \| None` | The trigger that drives rescheduling. `None` for one-shot jobs (`run_in`, `run_once`). |
+| `job_id` | `int` | Unique integer identifier assigned at creation. Stable for the lifetime of the job object. |
+| `cancelled` | `bool` | `True` once `cancel()` has been called. The scheduler skips dispatching cancelled jobs. |
+| `repeat` | `bool` | Whether the job reschedules itself after each run. `True` for interval and cron jobs. |
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_metadata.py"
@@ -28,22 +31,54 @@ Hassette automatically cancels **all** jobs created by an app when that app stop
 
 ## Best Practices
 
-1. **Name your jobs**: Use the `name` parameter for better logs.
+1. **Name your jobs**: Use the `name` parameter for better logs and safe reloads.
+
+   Names serve two purposes beyond readability. First, they appear in every log line that mentions the job — making it easy to correlate scheduler activity with a specific task. Second, names are the key used for idempotent re-registration: if your app reloads and calls `run_every(..., name="sensor_check", if_exists="skip")`, Hassette returns the existing job rather than creating a duplicate. Without a name, each reload creates a new job alongside the old one.
+
    ```python
    --8<-- "pages/core-concepts/scheduler/snippets/scheduler_naming.py"
    ```
 
-2. **Check References**: If a job isn't cancelling, make sure you are calling cancel on the correct instance.
+2. **Avoid Overlapping Jobs**: If a job takes longer than its interval, multiple instances might run concurrently. Use an `asyncio.Lock` to guard the handler body:
+   ```python
+   import asyncio
 
-3. **Avoid Overlapping Jobs**: If a job takes longer than its interval, multiple instances might run concurrently. Ensure your logic handles this safe guarding if necessary.
+   class MyApp(App[AppConfig]):
+       async def on_initialize(self):
+           self._sync_lock = asyncio.Lock()
+           self.scheduler.run_every(self.sync_data, interval=30)
+
+       async def sync_data(self):
+           if self._sync_lock.locked():
+               return  # previous run still in progress — skip this tick
+           async with self._sync_lock:
+               ...  # do work
+   ```
+
+## Self-Cancelling Job Pattern
+
+A common pattern for "poll until condition met" automations is a job that cancels itself from inside the handler. Store the `ScheduledJob` reference on the app instance so the handler can reach it:
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_self_cancel.py"
+```
+
+Once `cancel()` is called, the scheduler skips the next dispatch and removes the job from the queue. No external coordination needed.
 
 ## Troubleshooting
 
 ### Job Not Running?
 
 1. **Check `start` time**: Did you accidentally schedule it for the past or tomorrow?
-2. **Exception in task**: If the task raises an unhandled exception, it fails silently (logged to error). Check your logs.
-3. **Reference Lost**: This doesn't stop the job (the scheduler holds a strong reference), but preventing you from cancelling it.
+2. **Exception in task**: If the task raises an unhandled exception, the scheduler catches it, logs it at `ERROR` level, and continues running — the job is not removed. Look for lines like:
+   ```
+   ERROR hassette.core.command_executor - Job error (job_db_id=42)
+   Traceback (most recent call last):
+     ...
+   ValueError: unexpected sensor value
+   ```
+   The job will keep firing on its normal schedule until you fix the underlying error or cancel the job manually.
+3. **Reference Lost**: Losing the `ScheduledJob` variable doesn't stop the job (the scheduler holds a strong reference), but it prevents you from cancelling it later.
 
 ### Runs Too Often?
 
@@ -54,4 +89,4 @@ Hassette automatically cancels **all** jobs created by an app when that app stop
 
 - [Scheduling Methods](methods.md) - All available scheduling methods
 - [Apps Lifecycle](../apps/lifecycle.md) - Initialize and shutdown jobs properly
-- [Persistent Storage](../persistent-storage.md) - Remember job state across restarts
+- [App Cache](../cache/index.md) - Remember job state across restarts

@@ -1,6 +1,19 @@
 # State Registry
 
-The **StateRegistry** is a core component of Hassette that maintains a mapping between Home Assistant domains (like `light`, `sensor`, `switch`) and their corresponding Pydantic state model classes. It enables automatic type conversion when working with state data from Home Assistant.
+!!! info "Prerequisites"
+    This page assumes familiarity with [Custom States](custom-states.md). Read that first if you haven't defined a custom state class yet.
+
+The **StateRegistry** maintains a mapping between Home Assistant domains (like `light`, `sensor`, `switch`) and their corresponding Pydantic state model classes. It enables automatic type conversion when working with state data from Home Assistant.
+
+## When Do I Need This?
+
+**Most apps never need to touch the StateRegistry directly.** The built-in state classes cover all standard Home Assistant domains, and the DI system and `self.states` cache use the registry automatically.
+
+You need this page when:
+
+- You are writing a [custom state class](custom-states.md) for a domain Hassette does not yet know about.
+- You want to override the default state class for an existing domain (e.g., to add custom attributes).
+- You are seeing unexpected state types at runtime and need to understand how the mapping works.
 
 ## What is the State Registry?
 
@@ -14,14 +27,14 @@ When Home Assistant sends state change events, the state data arrives as untyped
 
 ### Automatic Registration
 
-All classes that inherit from BaseState are registered automatically at class creation time if they have a valid domain.
+All classes that inherit from `BaseState` — the root model class that all Hassette state types extend — are registered automatically at class creation time if they have a valid domain. You do not need to call any registration function — defining the class is sufficient.
 
-This is done via the `__init_subclass__` hook in BaseState, which adds the class to the global StateRegistry.
+??? note "Implementation details: `__init_subclass__` hook"
+    Registration happens via the `__init_subclass__` hook in `BaseState`, which adds the class to the global `StateRegistry` as soon as the class body is evaluated.
 
-```python
---8<-- "pages/advanced/snippets/state-registry/automatic_registration.py"
-```
-
+    ```python
+    --8<-- "pages/advanced/snippets/state-registry/automatic_registration.py"
+    ```
 
 ### Domain Lookup
 
@@ -44,10 +57,7 @@ When state data arrives from Home Assistant, both registries cooperate:
 
 1. **Raw data arrives** from Home Assistant:
    ```python
-   state_dict = {
-       "entity_id": "time.current",
-       "state": "12:01:01"  # String from HA
-   }
+   --8<-- "pages/advanced/snippets/state-registry/flow_raw_input.py"
    ```
 
 2. **StateRegistry** determines the model class based on the `time` domain → returns `TimeState`
@@ -60,8 +70,7 @@ When state data arrives from Home Assistant, both registries cooperate:
 
 6. **Validation completes** with the properly typed value:
    ```python
-   time_state = registry.try_convert_state(state_dict)
-   # Result: TimeState with state=whenever.Time
+   --8<-- "pages/advanced/snippets/state-registry/flow_converted_output.py"
    ```
 
 ### The value_type ClassVar
@@ -115,7 +124,7 @@ The `try_convert_state` method:
 
 ### Via Dependency Injection
 
-The StateRegistry integrates seamlessly with [dependency injection](dependency-injection.md):
+The StateRegistry integrates seamlessly with [dependency injection](../core-concepts/bus/dependency-injection.md):
 
 ```python
 --8<-- "pages/advanced/snippets/state-registry/di_integration.py"
@@ -131,11 +140,7 @@ If you want to override the default state class for a domain (for example, to ad
 --8<-- "pages/advanced/snippets/state-registry/domain_override.py"
 ```
 
-The StateRegistry will log a warning but use your custom class:
-
-```
-WARNING - Overriding original state class SensorState for domain 'sensor' with CustomSensorState
-```
+The StateRegistry silently replaces the existing class with your custom one.
 
 ## Union Type Support
 
@@ -183,7 +188,7 @@ Raised when conversion to the target state class fails:
 
 ### With Dependency Injection
 
-The StateRegistry powers all state type conversions in [dependency injection](dependency-injection.md):
+The StateRegistry powers all state type conversions in [dependency injection](../core-concepts/bus/dependency-injection.md):
 
 ```python
 --8<-- "pages/advanced/snippets/state-registry/integration_di.py"
@@ -215,5 +220,5 @@ If you do need to access it, it is accessible through `self.hassette.state_regis
 ## See Also
 
 - [Type Registry](type-registry.md) - automatic value type conversion
-- [Dependency Injection](dependency-injection.md) - using StateRegistry via DI annotations
+- [Dependency Injection](../core-concepts/bus/dependency-injection.md) - using StateRegistry via DI annotations
 - [Custom States](custom-states.md) - defining your own state classes

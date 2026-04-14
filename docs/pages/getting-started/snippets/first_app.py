@@ -19,7 +19,7 @@ class MyApp(App[MyAppConfig]):
 
         # Turn on porch light at sunset
         if value == "below_horizon":
-            await self.api.turn_on("light.porch")
+            await self.api.turn_on("light.porch", domain="light")  # Replace "light.porch" with a real entity from your Home Assistant
             self.logger.info("Porch light turned on")
 
     async def log_heartbeat(self):

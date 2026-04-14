@@ -11,6 +11,41 @@ SRC_DIR = ROOT / "src"
 VIRTUAL_REF_ROOT = Path("reference")
 DEBUG = bool(os.environ.get("GEN_REF_DEBUG"))
 
+# Public API allowlist — derived from nav audit Section 6.
+# Only modules in this set will have reference stubs generated.
+# Seeded from hassette.__all__ (Tier A) plus curated additions (Tier B).
+PUBLIC_MODULES: frozenset[str] = frozenset(
+    {
+        # --- Tier A: hassette.__all__ entries ---
+        "hassette.app",  # App, AppConfig, AppSync, only_app
+        "hassette.api",  # Api
+        "hassette.api.sync",  # ApiSyncFacade
+        "hassette.bus",  # Bus
+        "hassette.scheduler",  # Scheduler
+        "hassette.core.core",  # Hassette (entrypoint)
+        "hassette.config",  # HassetteConfig
+        "hassette.const",  # ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
+        "hassette.conversion",  # STATE_REGISTRY, TYPE_REGISTRY, TypeConverterEntry, register_*
+        "hassette.events",  # RawStateChangeEvent
+        "hassette.models.services",  # ServiceResponse
+        "hassette.models.entities",  # entities module
+        "hassette.models.states",  # states module
+        "hassette.task_bucket",  # TaskBucket
+        "hassette.event_handling.accessors",  # A / accessors
+        "hassette.event_handling.conditions",  # C / conditions
+        "hassette.event_handling.dependencies",  # D / dependencies
+        "hassette.event_handling.predicates",  # P / predicates
+        # --- Tier B: curated additions beyond __all__ ---
+        "hassette.models.states.base",  # BaseState, StringBaseState, NumericBaseState, etc.
+        "hassette.scheduler.classes",  # ScheduledJob
+        "hassette.test_utils",  # AppTestHarness, RecordingApi, event factories, etc.
+        # --- Tier C: autoref targets in narrative docs ---
+        "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, CannotOverrideFinalError
+        "hassette.state_manager.state_manager",  # StateManager, DomainStates
+        "hassette.bus.extraction",  # BusExtraction type used in dependency injection docs
+    }
+)
+
 
 def format_title(part: str) -> str:
     return " ".join(word.capitalize() for word in part.split("_"))
@@ -25,6 +60,25 @@ def main() -> None:
 
     if DEBUG:
         print("[gen-ref] generating API reference stubs...", flush=True)
+
+    # Write the reference overview page first so it appears at the top of the nav.
+    index_content = (
+        "# API Reference\n\n"
+        "The API reference is auto-generated from source docstrings."
+        " It covers all public modules in Hassette.\n\n"
+        "Browse the modules in the navigation sidebar, or jump directly to a section:\n\n"
+        "- **App** — `hassette.app` · `hassette.core.core` · `hassette.config`\n"
+        "- **Event handling** — `hassette.bus` · `hassette.events`"
+        " · `hassette.event_handling.*`\n"
+        "- **API & States** — `hassette.api` · `hassette.scheduler`"
+        " · `hassette.state_manager.*` · `hassette.models.*`\n"
+        "- **Type system** — `hassette.conversion` · `hassette.const`\n"
+        "- **Testing** — `hassette.test_utils`\n"
+        "- **Utilities** — `hassette.task_bucket` · `hassette.exceptions`\n"
+    )
+    with mkdocs_gen_files.open(VIRTUAL_REF_ROOT / "index.md", "w") as index_file:
+        index_file.write(index_content)
+    nav[["Overview"]] = "index.md"
 
     for path in sorted(SRC_DIR.rglob("*.py")):
         module_parts = path.relative_to(SRC_DIR).with_suffix("").parts
@@ -46,14 +100,21 @@ def main() -> None:
             doc_path = doc_path.with_name("index.md")
             full_doc_path = full_doc_path.with_name("index.md")
 
+        module_path = ".".join(parts)
+
+        if module_path not in PUBLIC_MODULES:
+            if DEBUG:
+                print(f"[gen-ref] skipping {module_path} (not in allowlist)")
+            continue
+
         nav_entry = [format_title(part) for part in parts]
         nav[nav_entry] = doc_path.as_posix()
 
         if DEBUG:
-            print(f"[gen-ref] writing {full_doc_path} for {'.'.join(parts)}")
+            print(f"[gen-ref] writing {full_doc_path} for {module_path}")
 
         with mkdocs_gen_files.open(full_doc_path, "w") as fd:
-            fd.write(f"::: {'.'.join(parts)}\n")
+            fd.write(f"::: {module_path}\n")
 
         mkdocs_gen_files.set_edit_path(full_doc_path, path.relative_to(ROOT))
 

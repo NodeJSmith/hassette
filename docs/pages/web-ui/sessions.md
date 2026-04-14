@@ -1,5 +1,7 @@
 # Sessions
 
+Navigate here when you want to confirm whether Hassette has been restarting unexpectedly, check how long the current run has been stable, or investigate a past crash.
+
 The Sessions page shows a history of every time Hassette has started and stopped. Each row represents one Hassette process lifetime — from startup to shutdown (or crash).
 
 ![Sessions](../../_static/web_ui_sessions.png)
@@ -19,7 +21,7 @@ The table displays one row per session, ordered newest first:
 | **Status** | Colored badge: **running** (current session), **success** (clean shutdown), **failure** (crashed), or **unknown** (orphaned) |
 | **Started At** | Timestamp when Hassette started |
 | **Stopped At** | Timestamp when Hassette shut down, or `—` if still running |
-| **Duration** | How long the session lasted (e.g. `2h 15m`) |
+| **Duration** | How long the session lasted. Short sessions show seconds (`45s`) or minutes (`3m 20s`); longer sessions show hours and minutes (`2h 15m`). |
 | **Error Type** | Exception class name if the session ended in a crash, otherwise `—` |
 | **Error Message** | Error details if the session crashed, otherwise `—` |
 

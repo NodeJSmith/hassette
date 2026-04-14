@@ -10,9 +10,9 @@ Hassette ensures that all core services (API, Bus, Scheduler) are fully ready be
 
 The initialization hooks are called in this order:
 
-1. [`before_initialize`][hassette.resources.base.Resource.before_initialize]
-2. [`on_initialize`][hassette.resources.base.Resource.on_initialize]
-3. [`after_initialize`][hassette.resources.base.Resource.after_initialize]
+1. `before_initialize`
+2. `on_initialize`
+3. `after_initialize`
 
 Use these to register event handlers, schedule jobs, or perform any startup logic.
 
@@ -29,9 +29,9 @@ When shutting down or reloading, Hassette transitions the app through `STOPPING 
 
 The shutdown hooks are called in this order:
 
-1. [`before_shutdown`][hassette.resources.base.Resource.before_shutdown]
-2. [`on_shutdown`][hassette.resources.base.Resource.on_shutdown]
-3. [`after_shutdown`][hassette.resources.base.Resource.after_shutdown]
+1. `before_shutdown`
+2. `on_shutdown`
+3. `after_shutdown`
 
 ## Automatic Cleanup
 
@@ -47,3 +47,31 @@ This means you generally do **not** need to manually unsubscribe or cancel jobs 
     **Do not override** `initialize`, `shutdown`, or `cleanup` methods directly. These are internal methods that manage resource setup, lifecycle ordering, and teardown — they are marked final to prevent accidental overrides that could break the resource contract.
 
     Use the `on_initialize` and `on_shutdown` hooks instead — they are called at the correct point within these methods. Attempting to override a final method will raise a [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] when your app class is loaded.
+
+## AppSync Lifecycle Hooks
+
+If you use `AppSync` instead of `App`, use the `_sync` variants of each lifecycle hook:
+
+| `App` (async) | `AppSync` (sync) |
+|---|---|
+| `on_initialize` | `on_initialize_sync` |
+| `on_shutdown` | `on_shutdown_sync` |
+| `before_initialize` | `before_initialize_sync` |
+| `before_shutdown` | `before_shutdown_sync` |
+| `after_initialize` | `after_initialize_sync` |
+| `after_shutdown` | `after_shutdown_sync` |
+
+`AppSync` runs each lifecycle hook in a thread pool via `run_in_thread`, so the hooks must be synchronous — they cannot use `await`. The async hooks (`on_initialize`, `on_shutdown`, etc.) are marked `@final` on `AppSync` and will raise `NotImplementedError` if you try to override them directly.
+
+!!! warning "Use `on_initialize_sync`, not `on_initialize`, in AppSync"
+    In `AppSync`, overriding `on_initialize` will raise `NotImplementedError` at startup. Override `on_initialize_sync` instead:
+
+    ```python
+    class MyApp(AppSync):
+        def on_initialize_sync(self) -> None:
+            self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
+
+        def on_light_change(self):
+            # synchronous handler — safe for blocking IO
+            pass
+    ```

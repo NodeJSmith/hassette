@@ -1,0 +1,17 @@
+services:
+  hassette:
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
+    volumes:
+      - ./config:/config
+      - .:/apps  # Mount entire project to /apps
+      - data:/data
+      - uv_cache:/uv_cache
+    environment:
+      # Startup script finds pyproject.toml/uv.lock at /apps
+      - HASSETTE__PROJECT_DIR=/apps
+      # Hassette finds app files in /apps/src/my_apps
+      - HASSETTE__APP_DIR=/apps/src/my_apps
+
+volumes:
+  data:
+  uv_cache:

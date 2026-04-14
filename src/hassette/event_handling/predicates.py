@@ -485,9 +485,9 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
         - If condition is a callable, call and ensure bool.
         - Async/coroutine predicates are explicitly disallowed (raise).
 
-    Warnings:
-        - This function does not handle collections any differently than other literals, it will compare
-            them for equality only. Use specific conditions like IsIn/NotIn/Intersects for collection membership tests.
+    Note:
+        This function does not handle collections any differently than other literals — it compares
+        them for equality only. Use specific conditions like IsIn/NotIn/Intersects for collection membership tests.
     """
     if condition is NOT_PROVIDED:
         return True

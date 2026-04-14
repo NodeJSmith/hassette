@@ -1,0 +1,13 @@
+services:
+  hassette:
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
+    volumes:
+      - ./config:/config
+      - ./apps:/apps
+      - data:/data
+      - uv_cache:/uv_cache
+    # No need to set APP_DIR or PROJECT_DIR - defaults work fine
+
+volumes:
+  data:
+  uv_cache:

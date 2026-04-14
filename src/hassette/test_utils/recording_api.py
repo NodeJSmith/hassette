@@ -172,7 +172,7 @@ class ApiProtocol(Protocol):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
-        **data,
+        **data: Any,
     ) -> ServiceResponse | None: ...
     async def set_state(
         self,
@@ -427,7 +427,7 @@ class RecordingApi(Resource):
     # Signatures must exactly match hassette.api.Api.
     # ------------------------------------------------------------------
 
-    async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
+    async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
         """Record a turn_on call directly under its own method name."""
         entity_id = str(entity_id)
         self.calls.append(
@@ -466,7 +466,7 @@ class RecordingApi(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
-        **data,
+        **data: Any,
     ) -> ServiceResponse | None:
         """Record a call_service call. Returns stub ServiceResponse when return_response=True."""
         self.calls.append(
@@ -1279,7 +1279,7 @@ class RecordingApi(Resource):
             return list(self.calls)
         return [c for c in self.calls if c.method == method]
 
-    def assert_called(self, method: str, **kwargs) -> None:
+    def assert_called(self, method: str, **kwargs: Any) -> None:
         """Assert that method was called at least once with matching kwargs.
 
         Performs partial (subset) matching: the call passes if all specified

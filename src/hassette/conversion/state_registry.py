@@ -122,6 +122,13 @@ class StateRegistry:
 
     @classmethod
     def register(cls, state_class: type["BaseState"], *, domain: Hashable = None, device_class: Hashable = None):
+        """Register a state class for a given domain and optional device_class combination.
+
+        Args:
+            state_class: The state class to register. Must be a subclass of BaseState.
+            domain: The Home Assistant domain (e.g., "light", "sensor"). If None, matches any domain.
+            device_class: The device class (e.g., "temperature", "motion"). If None, matches any device class.
+        """
         key = StateKey(domain=domain, device_class=device_class)
         cls._registry[key] = state_class
 

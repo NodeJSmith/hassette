@@ -1,0 +1,5 @@
+INFO hassette ... ─ Connected to Home Assistant
+INFO hassette.MyApp.0 ... ─ This is from the config file!
+INFO hassette.MyApp.0 ... ─ Heartbeat
+INFO hassette.MyApp.0 ... ─ Sun changed: below_horizon
+INFO hassette.MyApp.0 ... ─ Porch light turned on

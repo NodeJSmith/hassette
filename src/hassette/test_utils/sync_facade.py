@@ -114,17 +114,17 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         suppress_error_message: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> aiohttp.ClientResponse:
         raise NotImplementedError(_STUB_MSG_GENERIC.format(name="rest_request"))
 
-    def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs) -> aiohttp.ClientResponse:
+    def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
         raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_rest_request"))
 
-    def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs) -> aiohttp.ClientResponse:
+    def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
         raise NotImplementedError(_STUB_MSG_GENERIC.format(name="post_rest_request"))
 
-    def delete_rest_request(self, url: str, **kwargs) -> aiohttp.ClientResponse:
+    def delete_rest_request(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_rest_request"))
 
     def get_states_raw(self) -> list["HassStateDict"]:
@@ -166,7 +166,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
-        **data,
+        **data: Any,
     ) -> ServiceResponse | None:
         """Record a call_service call. Returns stub ServiceResponse when return_response=True."""
 
@@ -187,7 +187,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
             return ServiceResponse(context=Context(id=None, parent_id=None, user_id=None))
         return None
 
-    def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data) -> None:
+    def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
         """Record a turn_on call directly under its own method name."""
 
         entity_id = str(entity_id)

@@ -1,0 +1,11 @@
+appdaemon:
+  time_zone: America/Chicago
+  latitude: 51.725
+  longitude: 14.3434
+  elevation: 0
+  use_dictionary_unpacking: true
+  plugins:
+    HASS:
+      type: hass
+      ha_url: http://192.168.1.179:8123
+      token: !env_var HOME_ASSISTANT_TOKEN

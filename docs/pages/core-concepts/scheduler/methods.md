@@ -33,6 +33,9 @@ Run once at a specific time.
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
+!!! note "Past start times fire immediately"
+    If the resolved `start` time is already in the past (for example, `start=(7, 0)` called at 9 AM), the job is queued with that past timestamp and fires on the scheduler's next tick — effectively immediately.
+
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_once.py"
 ```
@@ -95,6 +98,8 @@ Run every N hours.
 ### `run_daily`
 Run on a fixed daily interval (every N days). Use `start` to anchor the first run to a specific time; for a strict "every day at exactly 7:00 AM" schedule, use [`run_cron`](#run_cron) instead.
 
+See [Scheduler Overview](index.md) for the distinction between interval-based and wall-clock scheduling.
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `func` | callable | *(required)* | The function to run. |
@@ -133,7 +138,7 @@ Run on a complex schedule using cron syntax.
 |-----------|------|---------|-------------|
 | `func` | callable | *(required)* | The function to run. |
 | `name` | `str` | `""` | Optional name for the job. |
-| `start` | `ScheduleStartType` | `None` | Earliest time the cron schedule may fire. See [The `start` Parameter](index.md#the-start-parameter). |
+| `start` | `ScheduleStartType` | `None` | Earliest permitted fire time. The first run is the next cron-grid-aligned time at or after `start`. If `start` is in the past or omitted, the first run is the next cron-aligned time after now. See [The `start` Parameter](index.md#the-start-parameter). |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
@@ -151,25 +156,26 @@ All `run_*` methods accept an `if_exists` parameter to control this behavior:
 | Value | Behavior |
 |-------|----------|
 | `"error"` (default) | Raise `ValueError` if a job with the same name already exists. |
-| `"skip"` | Return the existing job if its configuration matches. Raises `ValueError` if a job with the same name exists but has a different configuration (e.g., different interval or callback). Useful for safe re-registration in `on_initialize`. |
+| `"skip"` | Return the existing job if its configuration matches. Raises `ValueError` if a job with the same name exists but has a different configuration. Two jobs match when they have the same callable, trigger (interval or cron expression), repeat flag, `args`, and `kwargs`. Useful for safe re-registration in `on_initialize`. |
 
 This is especially useful in `on_initialize`, which runs again on app reload:
 
 ```python
-async def on_initialize(self):
-    # Safe to call on every reload — won't create duplicates
-    self.scheduler.run_every(
-        self.check_sensors,
-        60,
-        name="sensor_check",
-        if_exists="skip",
-    )
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_idempotent_registration.py:idempotent_registration"
 ```
 
 Without `if_exists="skip"`, a reload would raise `ValueError` because `sensor_check` is already registered from the previous initialization.
+
+## Passing Arguments to Handlers
+
+All `run_*` methods accept `args` and `kwargs` to pass data to the scheduled handler at call time. This avoids capturing mutable state in closures.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_args_kwargs.py"
+```
 
 ## See Also
 
 - [Job Management](management.md) - Name, track, and cancel scheduled jobs
 - [Bus](../bus/index.md) - Combine scheduled tasks with event-driven automation
-- [Persistent Storage](../persistent-storage.md) - Store data between scheduled runs
+- [App Cache](../cache/index.md) - Store data between scheduled runs

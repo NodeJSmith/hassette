@@ -97,7 +97,7 @@ def make_light_state_dict(
     state: str = "on",
     brightness: int | None = None,
     color_temp: int | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """Factory for creating light state dictionary.
 
@@ -130,7 +130,7 @@ def make_sensor_state_dict(
     state: str = "25.5",
     unit_of_measurement: str | None = None,
     device_class: str | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """Factory for creating sensor state dictionary.
 
@@ -156,7 +156,7 @@ def make_sensor_state_dict(
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
 
 
-def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", **kwargs) -> dict[str, Any]:
+def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", **kwargs: Any) -> dict[str, Any]:
     """Factory for creating switch state dictionary.
 
     Args:

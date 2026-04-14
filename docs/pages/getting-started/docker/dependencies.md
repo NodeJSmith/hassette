@@ -18,22 +18,7 @@ Hassette's Docker image includes a constraints file (`/app/constraints.txt`) tha
 When the container starts, the [startup script](https://github.com/NodeJSmith/hassette/blob/main/scripts/docker_start.sh) performs these steps in order:
 
 ```mermaid
-graph TD
-    A[Container Starts] --> B[Activate venv\nValidate hassette importable]
-    B --> C{uv.lock exists?}
-    C -->|Yes| D[uv export → /tmp/user-deps.txt]
-    D --> E[uv pip install -r user-deps.txt\n-c constraints.txt]
-    E --> F[uv pip install --no-deps project]
-    C -->|No| G{pyproject.toml exists?}
-    G -->|Yes| H[Log: run uv lock to generate a lockfile]
-    G -->|No| I[Skip project install]
-    F --> J{HASSETTE__INSTALL_DEPS=1?}
-    H --> J
-    I --> J
-    J -->|Yes| K[Discover requirements.txt files via fd\nexact match only]
-    K --> L[For each: uv pip install -r file -c constraints.txt]
-    L --> M[Start hassette]
-    J -->|No| M
+--8<-- "pages/getting-started/docker/snippets/deps-startup-flow.mmd"
 ```
 
 ### Key Behaviors
@@ -64,29 +49,13 @@ These two environment variables serve different purposes:
 For basic apps where you do not need to import sibling files, use a simple flat structure:
 
 ```
-project_dir/
-├── docker-compose.yml
-├── config/
-│   ├── hassette.toml
-│   └── .env
-└── apps/
-    ├── my_app.py
-    ├── another_app.py
-    └── requirements.txt  # optional
+--8<-- "pages/getting-started/docker/snippets/deps-flat-dir-structure.txt"
 ```
 
 **docker-compose.yml:**
 
 ```yaml
-services:
-  hassette:
-    image: ghcr.io/nodejsmith/hassette:latest-py3.13
-    volumes:
-      - ./config:/config
-      - ./apps:/apps
-      - data:/data
-      - uv_cache:/uv_cache
-    # No need to set APP_DIR or PROJECT_DIR - defaults work fine
+--8<-- "pages/getting-started/docker/snippets/deps-flat-compose.yml"
 ```
 
 In this setup:
@@ -102,36 +71,13 @@ In this setup:
 For projects using the standard Python `src/` layout:
 
 ```
-project_dir/
-├── docker-compose.yml
-├── config/
-│   ├── hassette.toml
-│   └── .env
-├── pyproject.toml
-├── uv.lock
-└── src/
-    └── my_apps/
-        ├── __init__.py
-        ├── app_one.py
-        └── app_two.py
+--8<-- "pages/getting-started/docker/snippets/deps-src-dir-structure.txt"
 ```
 
 **docker-compose.yml:**
 
 ```yaml
-services:
-  hassette:
-    image: ghcr.io/nodejsmith/hassette:latest-py3.13
-    volumes:
-      - ./config:/config
-      - .:/apps  # Mount entire project to /apps
-      - data:/data
-      - uv_cache:/uv_cache
-    environment:
-      # Startup script finds pyproject.toml/uv.lock at /apps
-      - HASSETTE__PROJECT_DIR=/apps
-      # Hassette finds app files in /apps/src/my_apps
-      - HASSETTE__APP_DIR=/apps/src/my_apps
+--8<-- "pages/getting-started/docker/snippets/deps-src-compose.yml"
 ```
 
 In this setup:
@@ -146,15 +92,7 @@ In this setup:
 Create a `pyproject.toml` in your project:
 
 ```toml
-[project]
-name = "my-hassette-apps"
-version = "0.1.0"
-requires-python = ">=3.11"
-dependencies = [
-    "requests>=2.31.0",
-    "aiohttp>=3.9.0",
-    "pydantic>=2.0.0",
-]
+--8<-- "pages/getting-started/docker/snippets/pyproject-example.toml"
 ```
 
 ### With a Lock File (Required)
@@ -162,9 +100,7 @@ dependencies = [
 Generate a lock file before deploying:
 
 ```bash
-uv lock
-git add uv.lock
-git commit -m "add uv.lock"
+--8<-- "pages/getting-started/docker/snippets/uv-lock.sh"
 ```
 
 If a `uv.lock` file exists alongside your `pyproject.toml`, the startup script uses the export-then-install pattern: it exports your resolved dependencies as a flat requirements list and installs them through the constraints file.
@@ -177,24 +113,20 @@ If a `uv.lock` file exists alongside your `pyproject.toml`, the startup script u
 For simpler setups, place a `requirements.txt` file in `/config` or `/apps`:
 
 ```
-apps/
-├── my_app.py
-└── requirements.txt
+--8<-- "pages/getting-started/docker/snippets/deps-requirements-dir-structure.txt"
 ```
 
 **apps/requirements.txt:**
 
 ```
-requests>=2.31.0
-aiohttp>=3.9.0
+--8<-- "pages/getting-started/docker/snippets/requirements-example.txt"
 ```
 
 !!! warning "Opt-in required"
     Requirements file discovery is disabled by default. Set `HASSETTE__INSTALL_DEPS=1` in your compose environment to enable it.
 
 ```yaml
-environment:
-  - HASSETTE__INSTALL_DEPS=1
+--8<-- "pages/getting-started/docker/snippets/deps-install-deps-env.yml"
 ```
 
 The startup script uses `fd` to find files named exactly `requirements.txt` in both `/config` and `/apps` (up to 5 directory levels deep), then installs them in sorted path order with constraints applied.
@@ -209,8 +141,7 @@ The startup script uses `fd` to find files named exactly `requirements.txt` in b
 The `uv_cache` Docker volume caches downloaded packages. Combined with `uv.lock`, this makes subsequent container starts very fast because packages that are already cached don't need to be re-downloaded:
 
 ```yaml
-volumes:
-  - uv_cache:/uv_cache  # Persist package cache
+--8<-- "pages/getting-started/docker/snippets/uv-cache-volume.yml"
 ```
 
 ### Pre-building a Custom Image
@@ -218,37 +149,13 @@ volumes:
 For the fastest startup times, build a custom image with your dependencies pre-installed. Use the export-then-install pattern to ensure constraints are respected:
 
 ```dockerfile
-FROM ghcr.io/nodejsmith/hassette:latest-py3.13
-
-# Copy your project files
-COPY pyproject.toml uv.lock /project/
-
-# Export resolved deps as a flat requirements list
-RUN uv export \
-        --no-hashes --frozen \
-        --directory /project \
-        --no-default-groups \
-        --no-dev --no-editable --no-emit-project \
-        --output-file /tmp/user-deps.txt
-
-# Install through constraints
-RUN uv pip install -r /tmp/user-deps.txt -c /app/constraints.txt
-
-# Install the project package itself (no dep resolution)
-RUN uv pip install --no-deps /project
-
-RUN rm /tmp/user-deps.txt
+--8<-- "pages/getting-started/docker/snippets/custom-image.dockerfile"
 ```
 
 Then in `docker-compose.yml`:
 
 ```yaml
-services:
-  hassette:
-    build: .
-    volumes:
-      - ./apps:/apps/src/my_apps  # Just mount app code
-      - ./config:/config
+--8<-- "pages/getting-started/docker/snippets/custom-image-compose.yml"
 ```
 
 ### Known Limitations
@@ -262,64 +169,24 @@ User projects with local path dependencies (e.g., `foo = { path = "../shared-lib
 ### Example 1: Simple Flat Structure
 
 ```yaml
-# docker-compose.yml
-services:
-  hassette:
-    image: ghcr.io/nodejsmith/hassette:latest-py3.13
-    volumes:
-      - ./config:/config
-      - ./apps:/apps
-      - data:/data
-      - uv_cache:/uv_cache
-    environment:
-      - TZ=America/New_York
-      - HASSETTE__INSTALL_DEPS=1
-
-volumes:
-  data:
-  uv_cache:
+--8<-- "pages/getting-started/docker/snippets/deps-example1-compose.yml"
 ```
 
 ```
-# apps/requirements.txt
-requests>=2.31.0
+--8<-- "pages/getting-started/docker/snippets/deps-example1-requirements.txt"
 ```
 
 ### Example 2: src/ Layout with Lock File
 
 ```yaml
-# docker-compose.yml
-services:
-  hassette:
-    image: ghcr.io/nodejsmith/hassette:latest-py3.13
-    volumes:
-      - ./config:/config
-      - .:/apps
-      - data:/data
-      - uv_cache:/uv_cache
-    environment:
-      - HASSETTE__PROJECT_DIR=/apps
-      - HASSETTE__APP_DIR=/apps/src/my_apps
-      - TZ=America/New_York
-
-volumes:
-  data:
-  uv_cache:
+--8<-- "pages/getting-started/docker/snippets/deps-example2-compose.yml"
 ```
 
 ```toml
-# pyproject.toml
-[project]
-name = "my-hassette-apps"
-version = "0.1.0"
-requires-python = ">=3.11"
-dependencies = [
-    "requests>=2.31.0",
-    "aiohttp>=3.9.0",
-]
+--8<-- "pages/getting-started/docker/snippets/deps-example2-pyproject.toml"
 ```
 
 ## See Also
 
-- [Docker Overview](index.md) - Quick start guide
-- [Troubleshooting](troubleshooting.md) - Common issues and solutions
+- [Docker Overview](index.md) — Quick start guide
+- [Troubleshooting](troubleshooting.md) — Common issues and solutions

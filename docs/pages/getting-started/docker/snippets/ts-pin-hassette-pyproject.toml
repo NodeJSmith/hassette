@@ -1,0 +1,5 @@
+[project]
+dependencies = [
+    "hassette==0.24.0",
+    # ... your other deps
+]

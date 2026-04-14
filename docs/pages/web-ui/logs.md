@@ -1,5 +1,7 @@
 # Logs
 
+Navigate here when you want to diagnose an automation that isn't behaving as expected, or when you need to search through recent log output without tailing a file.
+
 The Log Viewer provides a filterable, searchable view of Hassette's log output with real-time streaming.
 
 ![Logs](../../_static/web_ui_logs.png)
@@ -8,9 +10,9 @@ The Log Viewer provides a filterable, searchable view of Hassette's log output w
 
 Three controls at the top let you narrow the log entries:
 
-- **Level filter** dropdown — `All Levels`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
+- **Level filter** dropdown — defaults to `INFO`. Choose `All Levels`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` to set the minimum log level shown.
 - **App filter** dropdown — `All Apps` or a specific app.
-- **Search** input — free-text search across log messages.
+- **Search** input — free-text search across log messages and logger names.
 
 An **entry count** indicator (e.g. "69 entries") shows how many entries match the current filters.
 
@@ -26,6 +28,9 @@ An **entry count** indicator (e.g. "69 entries") shows how many entries match th
 
 Columns are **sortable** — click a header to toggle the sort direction. You can sort by Level, Timestamp, App, or Message.
 
+!!! note
+    The Source column is hidden on tablet-sized viewports (max-width: 1024px) to conserve space.
+
 ## Real-Time Streaming
 
 New log entries arrive via WebSocket and appear at the top of the list automatically — no manual refresh needed. The entry count updates as new messages stream in.
@@ -34,6 +39,10 @@ New log entries arrive via WebSocket and appear at the top of the list automatic
 
 When you sort by any column other than Timestamp, live streaming is automatically paused to keep the sort order stable. A **"Live updates paused"** indicator appears with a **Resume** button. Click Resume (or sort by Timestamp again) to restore live streaming.
 
+## Display Limit
+
+The log viewer renders up to **500** entries at a time after applying filters. If your filtered result exceeds 500 entries, narrow your filters to see specific entries.
+
 ## Buffer Size
 
-The log viewer displays entries from an in-memory ring buffer. By default, the last **2000** entries are retained. Adjust this with the `web_api_log_buffer_size` setting in [Global Settings](../core-concepts/configuration/global.md#web-ui-settings).
+The log viewer fetches entries from an in-memory ring buffer on the server. By default, the last **2000** entries are retained. Adjust this with the `web_api_log_buffer_size` setting in [Global Settings](../core-concepts/configuration/global.md#web-ui-settings).

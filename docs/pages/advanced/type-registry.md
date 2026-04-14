@@ -1,6 +1,18 @@
 # TypeRegistry
 
-The TypeRegistry is a core component of Hassette that provides automatic type conversion for raw values from Home Assistant. It enables seamless conversion of string values to their proper Python types (integers, floats, booleans, datetimes, etc.) throughout the framework.
+Home Assistant sends nearly all values as strings over its API — even numbers and booleans. The TypeRegistry is Hassette's mechanism for automatically converting those strings to the correct Python types before they reach your code.
+
+The TypeRegistry provides automatic type conversion for raw values from Home Assistant — converting string values to their proper Python types (integers, floats, booleans, datetimes, etc.) throughout the framework.
+
+## When Do I Need This?
+
+**Most apps never need to touch the TypeRegistry.** The built-in converters handle all standard Home Assistant types automatically.
+
+You need this page when:
+
+- You have a custom state model whose `value_type` is a type Hassette does not know how to convert (e.g., a third-party type or an enum).
+- You need to register a converter for a custom extractor in the dependency injection system.
+- A built-in conversion is giving unexpected results and you need to understand or override it.
 
 ## Purpose
 
@@ -14,19 +26,18 @@ The TypeRegistry automatically converts these string values to their proper Pyth
 
 ## Core Concepts
 
-### TypeConverterEntry
+??? note "Implementation details: TypeConverterEntry"
+    Each registered converter is stored as a `TypeConverterEntry` dataclass containing:
 
-Each registered converter is stored as a `TypeConverterEntry` dataclass containing:
+    - **func**: The actual conversion function
+    - **from_type**: Source type (e.g., `str`)
+    - **to_type**: Target type (e.g., `int`)
+    - **error_types**: Tuple of exception types to catch (defaults to `(ValueError,)`)
+    - **error_message**: Optional custom error message template (uses `{value}`, `{from_type}`, `{to_type}` placeholders)
 
-- **func**: The actual conversion function
-- **from_type**: Source type (e.g., `str`)
-- **to_type**: Target type (e.g., `int`)
-- **error_types**: Tuple of exception types to catch (defaults to `(ValueError,)`)
-- **error_message**: Optional custom error message template (uses `{value}`, `{from_type}`, `{to_type}` placeholders)
-
-```python
---8<-- "pages/advanced/snippets/type-registry/entry_example.py"
-```
+    ```python
+    --8<-- "pages/advanced/snippets/type-registry/entry_example.py"
+    ```
 
 ### Registration System
 
@@ -37,7 +48,7 @@ The TypeRegistry provides two ways to register converters:
 Use `@register_type_converter_fn` to register a conversion function:
 
 ```python
---8<-- "pages/advanced/snippets/dependency-injection/custom_type_converter.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_type_converter.py"
 ```
 
 #### Simple Type Registration
@@ -79,8 +90,7 @@ The `value_type` defines what types are valid for the `state` field. It can be:
 When a state is created or validated, the `BaseState._validate_domain_and_state` model validator automatically uses the TypeRegistry to convert the raw state value:
 
 ```python
-# In BaseState._validate_domain_and_state
-values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
+--8<-- "pages/advanced/snippets/type-registry/base_state_convert_call.py"
 ```
 
 This means when you work with typed state models, values are automatically converted:
@@ -94,10 +104,7 @@ This means when you work with typed state models, values are automatically conve
 The TypeRegistry intelligently handles Union types (including `value_type` tuples) by trying conversions in order:
 
 ```python
-from typing import Union
-
-# value_type = (int, float, str) becomes Union[int, float, str]
-# TypeRegistry tries: str → int, then str → float, then keeps as str
+--8<-- "pages/advanced/snippets/type-registry/union_type_order.py"
 ```
 
 The conversion attempts each type in the Union until one succeeds, preserving the original value if no conversion works.
@@ -147,7 +154,9 @@ Hassette includes comprehensive built-in conversion:
 
 - `str` ↔ `int`: Basic integer conversion
 - `str` ↔ `float`: Floating-point conversion
-- `str` ↔ `Decimal`: High-precision decimal conversion
+- `str` → `Decimal`: High-precision decimal parsing
+- `float` → `Decimal`: Floating-point to high-precision decimal
+- `Decimal` → `int` / `float`: Precision-loss conversion
 - `int` → `float`: Integer to float conversion
 - `float` → `int`: Float to integer (truncation)
 
@@ -156,37 +165,42 @@ Hassette includes comprehensive built-in conversion:
 - `str` → `bool`: Handles Home Assistant boolean strings
   - True values: `"on"`, `"true"`, `"yes"`, `"1"`
   - False values: `"off"`, `"false"`, `"no"`, `"0"`
-- `bool` → `str`: Converts to `"on"` or `"off"` (HA format)
-- `int` → `bool`: Standard truthiness conversion
+- `bool` → `str`: Converts to `"True"` or `"False"` (Python `str()` — not HA format)
 
 ### DateTime Conversions
 
 Uses the `whenever` library for robust datetime handling:
 
-- `str` → `Instant`: Parse ISO 8601 to timezone-aware instant
-- `str` → `ZonedDateTime`: Parse to zoned datetime
-- `str` → `OffsetDateTime`: Parse to offset-aware datetime
-- `str` → `SystemDateTime`: Parse to system datetime
-- `str` → `LocalDateTime`: Parse to naive local datetime
-- And reverse conversions back to strings
+**`whenever` types:**
+
+- `str` → `ZonedDateTime`: Parse HA datetime strings (ISO, plain, or date-only — assumed system timezone)
+- `str` → `Date`: ISO date string via `Date.parse_iso`
+- `str` → `Time`: ISO time string via `Time.parse_iso`
+- `str` → `OffsetDateTime`: ISO datetime with UTC offset via `OffsetDateTime.parse_iso`
+- `str` → `PlainDateTime`: ISO datetime without timezone via `PlainDateTime.parse_iso`
+- `ZonedDateTime` → `Instant`: Strip timezone info (`to_instant`)
+- `ZonedDateTime` → `PlainDateTime`: Drop timezone (`to_plain`)
+- `ZonedDateTime` → `str`: ISO format (`format_iso`)
+- `Time` → `str`: ISO format (`format_iso`)
+
+**Stdlib datetime types:**
+
+- `str` → `datetime`: Parse via `ZonedDateTime.py_datetime()`
+- `str` → `time`: Parse via `Time.parse_iso().py_time()`
+- `str` → `date`: Parse via `Date.parse_iso().py_date()`
+- `Time` → `time`: Convert via `py_time()`
 
 ### Conversion Errors
 
 When a conversion fails, the TypeRegistry wraps the error with context:
 
 ```python
-from hassette import TYPE_REGISTRY
-
-try:
-    result = TYPE_REGISTRY.convert("not_a_number", int)
-except ValueError as e:
-    # Error message uses the error_message from the converter
-    print(e)  # Error details about the conversion failure
+--8<-- "pages/advanced/snippets/type-registry/conversion_error.py"
 ```
 
 ### Missing Converters
 
-If no converter is registered for a type pair, a `TypeError` is raised:
+If no converter is registered for a type pair and the type's constructor also fails, an `UnableToConvertValueError` is raised:
 
 ```python
 --8<-- "pages/advanced/snippets/type-registry/missing_converter.py"
@@ -202,44 +216,38 @@ Provide helpful error messages in your custom converters:
 
 ## Inspection and Debugging
 
-The TypeRegistry provides methods to inspect registered converters:
+??? note "Implementation details: inspection API"
+    The TypeRegistry provides methods to inspect registered converters. These are primarily useful for Hassette core developers or for debugging unexpected conversion behavior.
 
-### List All Conversions
+    ### List All Conversions
 
-```python
---8<-- "pages/advanced/snippets/type-registry/inspect_list.py"
-```
+    ```python
+    --8<-- "pages/advanced/snippets/type-registry/inspect_list.py"
+    ```
 
-Output example:
-```
-str → int
-str → float
-str → bool
-int → float
-...
-```
+    Output example:
+    ```
+    --8<-- "pages/advanced/snippets/type-registry/inspect_list_output.txt"
+    ```
 
-### Check for Specific Converter
+    ### Check for Specific Converter
 
-```python
---8<-- "pages/advanced/snippets/type-registry/inspect_check.py"
-```
+    ```python
+    --8<-- "pages/advanced/snippets/type-registry/inspect_check.py"
+    ```
 
-### Get Converter Details
+    ### Get Converter Details
 
-```python
---8<-- "pages/advanced/snippets/type-registry/inspect_details.py"
-```
+    ```python
+    --8<-- "pages/advanced/snippets/type-registry/inspect_details.py"
+    ```
 
 ### Union Type Performance
 
 When converting to Union types, the TypeRegistry tries each type in order until one succeeds:
 
 ```python
-# For Union[int, float, str]
-# 1. Try str → int
-# 2. If that fails, try str → float
-# 3. If that fails, try str → str (identity)
+--8<-- "pages/advanced/snippets/type-registry/union_type_performance.py"
 ```
 
 For better performance with Union types, order the types from most specific to least specific:
@@ -254,9 +262,7 @@ For better performance with Union types, order the types from most specific to l
 Always specify `value_type` in custom state models:
 
 ```python
-class CustomState(BaseState):
-    # Explicitly define expected types
-    value_type: ClassVar[type | tuple[type, ...]] = int
+--8<-- "pages/advanced/snippets/type-registry/best_practice_value_type.py"
 ```
 
 ### 2. Use Type Hints with Custom Extractors
@@ -264,13 +270,7 @@ class CustomState(BaseState):
 Leverage type hints for automatic conversion in dependency injection:
 
 ```python
-# TypeRegistry converts automatically based on type hint
-async def handler(
-    temperature: Annotated[float, A.get_attr_new("temperature")],
-    humidity: Annotated[int, A.get_attr_new("humidity")],
-):
-    # temperature and humidity are already the correct types
-    pass
+--8<-- "pages/advanced/snippets/type-registry/best_practice_type_hints.py"
 ```
 
 ### 3. Provide Clear Error Messages
@@ -278,13 +278,7 @@ async def handler(
 When creating custom converters, write helpful error messages:
 
 ```python
-@register_type_converter_fn(error_message="Cannot convert '{value}' to MyType. Expected format: X,Y,Z")
-def str_to_mytype(value: str) -> MyType:
-    """Convert string to MyType with clear error handling.
-
-    Types inferred from signature: str → MyType
-    """
-    # ... conversion logic with helpful ValueError messages
+--8<-- "pages/advanced/snippets/type-registry/best_practice_error_msg.py"
 ```
 
 ### 4. Register Converters Early
@@ -292,12 +286,7 @@ def str_to_mytype(value: str) -> MyType:
 Register custom converters at module import time using decorators:
 
 ```python
-# my_converters.py
-from hassette import register_type_converter_fn
-
-@register_type_converter_fn(...)  # Registered when module is imported
-def my_converter(...):
-    pass
+--8<-- "pages/advanced/snippets/type-registry/best_practice_register_early.py"
 ```
 
 Then import your converters module in your app's `__init__.py` or before first use.
@@ -307,24 +296,7 @@ Then import your converters module in your app's `__init__.py` or before first u
 Always test custom converters with edge cases:
 
 ```python
-import pytest
-from hassette import TYPE_REGISTRY
-
-def test_custom_converter():
-    """Test custom RGB converter."""
-    # Valid conversion
-    result = TYPE_REGISTRY.convert("255,128,0", RGBColor)
-    assert result.red == 255
-    assert result.green == 128
-    assert result.blue == 0
-
-    # Invalid format
-    with pytest.raises(ValueError, match="Invalid RGB format"):
-        TYPE_REGISTRY.convert("not_rgb", RGBColor)
-
-    # Out of range
-    with pytest.raises(ValueError, match="must be between 0 and 255"):
-        TYPE_REGISTRY.convert("300,128,0", RGBColor)
+--8<-- "pages/advanced/snippets/type-registry/best_practice_test_converter.py"
 ```
 ## Common Patterns
 
@@ -355,5 +327,5 @@ Convert strings with units to numeric values:
 ## See Also
 
 - [State Registry](state-registry.md) - Domain to model class mapping
-- [Dependency Injection](dependency-injection.md) - Using TypeRegistry with custom extractors
+- [Dependency Injection](../core-concepts/bus/dependency-injection.md) - Using TypeRegistry with custom extractors
 - [State Models](../core-concepts/states/index.md) - State model reference
