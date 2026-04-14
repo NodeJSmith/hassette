@@ -23,15 +23,18 @@ Hassette exposes the scheduler as a separate attribute `self.scheduler`. Methods
 !!! note "Interval-based, not cron-based"
     All Hassette interval methods (`run_minutely`, `run_hourly`, `run_daily`) are interval-based, not cron-based — they fire at the given `start` time and then every N units later, not at wall-clock boundaries. Use `run_cron` for wall-clock alignment.
 
-| AppDaemon | Hassette | Notes |
-|-----------|----------|-------|
+| AppDaemon | Hassette | Hassette Notes |
+|-----------|----------|----------------|
 | `self.run_in(cb, 60)` | `self.scheduler.run_in(cb, delay=60)` | Delay in seconds |
 | `self.run_once(cb, time(7, 30))` | `self.scheduler.run_once(cb, start=time(7, 30))` | Runs once at given time |
 | `self.run_every(cb, "now", 300)` | `self.scheduler.run_every(cb, interval=300, start=self.now())` | Repeating interval in seconds |
 | `self.run_minutely(cb)` | `self.scheduler.run_minutely(cb)` | Interval-based. The first run fires within one scheduler tick (typically under 1 second) — not at the next wall-clock minute boundary. |
 | `self.run_hourly(cb, time(0, 30))` | `self.scheduler.run_hourly(cb, start=time(0, 30))` | Interval-based, not cron-based. Fires at the given offset, then every N hours. |
-| `self.run_daily(cb, time(7, 30))` | `self.scheduler.run_daily(cb, start=time(7, 30))` | Interval-based, not cron-based. If Hassette restarts after the start time has passed for the day, the job fires immediately at startup, then at the start time the following day. Use `run_cron` for strict wall-clock scheduling that skips a missed run rather than firing immediately. |
+| `self.run_daily(cb, time(7, 30))` | `self.scheduler.run_daily(cb, start=time(7, 30))` | Interval-based, not wall-clock — see note below. |
 | `self.cancel_timer(handle)` | `job.cancel()` | Cancel via the returned job object |
+
+!!! note "run_daily restart behavior"
+    If Hassette restarts after the configured start time has already passed for the day, the job fires immediately at startup, then resumes at the scheduled time on subsequent days. Use `run_cron` for strict wall-clock scheduling that skips a missed run rather than firing immediately.
 
 !!! warning "Always pass `start=` as a keyword argument"
     Unlike AppDaemon, Hassette's `run_daily`, `run_hourly`, and `run_minutely` take a count (`days`, `hours`, `minutes`) as their second positional parameter. Passing a `time` object positionally will cause a `TypeError`. Always use the keyword form:
@@ -88,7 +91,7 @@ The following shows a typical AppDaemon pattern converted to Hassette. Note the 
 
 ## Blocking Work in Scheduler Callbacks
 
-In AppDaemon, every callback runs in its own thread, so you can do blocking IO safely. In Hassette, the scheduler automatically wraps sync callables in a thread pool via `make_async_adapter`, regardless of whether you're using `App` or `AppSync`. This means:
+In AppDaemon, every callback runs in its own thread, so you can do blocking IO safely. In Hassette, the scheduler automatically runs sync callables in a thread pool, regardless of whether you're using `App` or `AppSync`. This means:
 
 - Write the callback as a plain (non-async) `def` — the scheduler detects that it's not a coroutine and runs it in a thread automatically.
 - Use `AppSync` only if you also want sync lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`, etc.) — not because you need scheduler callbacks to run in threads.

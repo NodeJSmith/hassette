@@ -50,7 +50,7 @@ See [Bus & Events](bus.md) for side-by-side examples.
 - [ ] Convert each `self.run_every(cb, "now", interval)` to `self.scheduler.run_every(cb, start=self.now(), interval=interval)`
 - [ ] Convert each `self.run_daily(cb, time)` to `self.scheduler.run_daily(cb, start=time)`
 - [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` on the returned `ScheduledJob`
-- [ ] Check any blocking work inside callbacks — either use `AppSync` or offload with `task_bucket.run_in_thread()`
+- [ ] Check any blocking work inside callbacks — for apps with heavy sync logic, switch to `AppSync`; for isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`
 
 See [Scheduler](scheduler.md) for method equivalents.
 
@@ -93,7 +93,7 @@ See [Testing](testing.md) for the test harness guide.
 
 !!! tip "State access"
     - AppDaemon: `self.get_state()` returns a cached state (string or dict)
-    - Hassette: `self.states.light.get("kitchen")` returns a typed cached state (no `await` needed) — pass the entity name without the domain prefix. Passing the full ID `"light.kitchen"` also works.
+    - Hassette: `self.states.light.get("light.kitchen")` returns a typed cached state (no `await` needed) (the domain prefix is optional).
     - Use `self.api.get_state()` only when you need to force a fresh read from Home Assistant.
 
 ## Next Steps

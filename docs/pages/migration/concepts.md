@@ -6,7 +6,7 @@ This page covers how AppDaemon and Hassette differ at the design level — not j
 
 **AppDaemon** runs each app in a separate thread. This means you can write synchronous code without worrying about blocking the event loop — long-running operations work fine because they run in their own thread.
 
-**Hassette** runs all apps in a single asyncio event loop. You write `async`/`await` code. If you have blocking or IO-bound operations, you either use `AppSync` (which runs in a thread automatically) or offload work to a thread using `self.task_bucket.run_in_thread()`.
+**Hassette** runs all apps in a single asyncio event loop. You write `async`/`await` code. If you have blocking or IO-bound operations, you either use `AppSync` (which runs synchronous lifecycle hooks in a managed thread) or offload work to a thread using `self.task_bucket.run_in_thread()`.
 
 ```python
 --8<-- "pages/migration/snippets/concepts_sync_async.py"

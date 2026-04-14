@@ -8,6 +8,12 @@ AppDaemon exposes event subscriptions as methods directly on `self`: `self.liste
 
 Hassette centralizes event subscriptions on `self.bus`. Each subscription method returns a `Subscription` object. You cancel it by calling `.cancel()` on that object.
 
+!!! warning "Handler constraints"
+    Handlers **cannot** use positional-only parameters (parameters before `/`) or variadic positional arguments (`*args`). This applies to all `self.bus` subscription methods.
+
+!!! note "Event payload values are untyped"
+    Event objects are typed, but the values inside payload dicts (such as `service_data`) are `dict[str, Any]`. Use dependency injection or convert data manually to work with typed objects.
+
 ## State Change Listeners
 
 ### AppDaemon
@@ -80,12 +86,6 @@ Available dependency markers for service call handlers include:
 --8<-- "pages/migration/snippets/bus_hassette_on_call_service_event.py"
 ```
 
-!!! warning "Handler constraints"
-    Handlers **cannot** use positional-only parameters (parameters before `/`) or variadic positional arguments (`*args`).
-
-!!! note "Untyped event payload at runtime"
-    The event bus works with typed events, but the data in the event payload is untyped at runtime. Use dependency injection or convert data manually to work with typed objects.
-
 ## Canceling Subscriptions
 
 === "AppDaemon"
@@ -101,7 +101,7 @@ Available dependency markers for service call handlers include:
     --8<-- "pages/migration/snippets/bus_cancel_subscription.py"
     ```
 
-The subscription object returned by `on_state_change()`, `on_call_service()`, and `on()` all support `.cancel()`.
+In Hassette, the subscription object returned by `on_state_change()`, `on_call_service()`, and `on()` all support `.cancel()`.
 
 ## Common Migration Patterns
 

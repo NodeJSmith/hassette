@@ -48,7 +48,7 @@ For cases where you need to force a fresh read from Home Assistant (rare):
 ```
 
 !!! note "Type narrowing"
-    `get_state()` is annotated as returning `BaseState`. Use type narrowing or casting to tell the type checker the specific state type you expect.
+    In Hassette, `get_state()` is annotated as returning `BaseState`. Use type narrowing or casting to tell the type checker the specific state type you expect.
 
 **When to use each approach:**
 
@@ -57,25 +57,25 @@ For cases where you need to force a fresh read from Home Assistant (rare):
 
 ## Calling Services
 
-### AppDaemon
+=== "AppDaemon"
 
-```python
-def my_callback(self, **kwargs):
-    self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)
+    ```python
+    def my_callback(self, **kwargs):
+        self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)
 
-    # or use the helper
-    self.turn_on("light.kitchen", brightness=200)
-```
+        # or use the helper
+        self.turn_on("light.kitchen", brightness=200)
+    ```
 
-AppDaemon uses a `domain/service` string format. The call is synchronous.
+    AppDaemon uses a `domain/service` string format. The call is synchronous.
 
-### Hassette
+=== "Hassette"
 
-```python
---8<-- "pages/migration/snippets/api_hassette_call_service.py"
-```
+    ```python
+    --8<-- "pages/migration/snippets/api_hassette_call_service.py"
+    ```
 
-Hassette uses separate `domain` and `service` arguments. The call is async. Helpers like `turn_on()` are also available.
+    Hassette uses separate `domain` and `service` arguments. The call is async. Helpers like `turn_on()` are also available.
 
 !!! warning "Don't forget `await`"
     Forgetting `await` on an API call returns a coroutine object instead of executing the call. If your service calls appear to do nothing, check that you have `await` on each one.
