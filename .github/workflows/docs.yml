@@ -37,8 +37,6 @@ jobs:
 
     docs-check:
         # Catches API reference drift when src/ changes without docs/ changes.
-        # Runs on all pull requests with no path filter.
-        if: github.event_name == 'pull_request'
         runs-on: ubuntu-latest
         timeout-minutes: 10
 
