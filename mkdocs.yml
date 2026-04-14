@@ -99,7 +99,7 @@ nav:
       - State Registry: pages/advanced/state-registry.md
       - Type Registry: pages/advanced/type-registry.md
       - Log Level Tuning: pages/advanced/log-level-tuning.md
-  - Migration Guide:
+  - AppDaemon Migration:
       - Overview: pages/migration/index.md
       - Mental Model: pages/migration/concepts.md
       - Bus & Events: pages/migration/bus.md
