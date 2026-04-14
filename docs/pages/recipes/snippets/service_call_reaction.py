@@ -1,9 +1,11 @@
+from pydantic_settings import SettingsConfigDict
+
 from hassette import App, AppConfig, P
 from hassette.events import CallServiceEvent
 
 
 class LightGroupConfig(AppConfig):
-    model_config = {"env_prefix": "light_group_"}
+    model_config = SettingsConfigDict(env_prefix="light_group_")
 
     primary_light: str = "light.living_room_main"
     accent_light: str = "light.living_room_accent"
