@@ -19,20 +19,18 @@ class DebounceSensorApp(App[AppConfig]):
     async def on_temperature_stable(
         self,
         new_state: D.StateNew[states.SensorState],
-        old_state: D.MaybeStateOld[states.SensorState],
+        old_state: D.StateOld[states.SensorState],
     ) -> None:
         try:
             new_temp = float(str(new_state.value))
         except (TypeError, ValueError):
             return
 
-        old_value = old_state.value if not isinstance(old_state, type(new_state)) and old_state else "unknown"
-
         if new_temp >= THRESHOLD:
             self.logger.info(
                 "Temperature crossed %.1f°C threshold: %s → %.1f°C (stable for %ss)",
                 THRESHOLD,
-                old_value,
+                old_state.value,
                 new_temp,
                 DEBOUNCE_SECONDS,
             )
