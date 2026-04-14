@@ -4,14 +4,14 @@ from hassette import App, AppConfig
 from hassette.scheduler import ScheduledJob
 
 VACATION_TOGGLE = "input_boolean.vacation_mode"
-LIGHTS = ["light.living_room", "light.kitchen", "light.bedroom"]
+LIGHTS = ("light.living_room", "light.kitchen", "light.bedroom")
 CHECK_INTERVAL = 900  # seconds (15 minutes)
 PRESENCE_JOB_NAME = "vacation_presence_sim"
 
 
 class VacationModeConfig(AppConfig):
     vacation_toggle: str = VACATION_TOGGLE
-    lights: list[str] = LIGHTS
+    lights: tuple[str, ...] = LIGHTS
     check_interval: float = CHECK_INTERVAL
 
 

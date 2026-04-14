@@ -1,6 +1,3 @@
-import asyncio
-from collections.abc import Callable
-
 from hassette import App, AppConfig
 
 
@@ -26,8 +23,16 @@ class AdapterApp(App[AppConfig]):
 
 class SyncBridgeApp(App[AppConfig]):
     async def on_initialize(self):
+        self.task_bucket.spawn(self.background_work(), name="background_work")
+
+    async def background_work(self) -> None:
+        # Offload blocking work to a thread
+        result = await self.task_bucket.run_in_thread(self.blocking_library_call)
+        self.logger.info("Result: %s", result)
+
+    def blocking_library_call(self) -> str:
         # --8<-- [start:run_sync]
-        # Run an async coroutine from synchronous code (e.g., inside run_in_thread)
+        # Inside a thread (run_in_thread or AppSync), call async code with run_sync
         state = self.task_bucket.run_sync(self.api.get_state("sensor.temperature"))
         # --8<-- [end:run_sync]
-        self.logger.info("State: %s", state)
+        return str(state.value)
