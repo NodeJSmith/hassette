@@ -1,4 +1,4 @@
-from hassette import App, AppConfig, C, RawStateChangeEvent
+from hassette import App, AppConfig, C, D, states
 
 
 THRESHOLD = 25.0
@@ -16,27 +16,23 @@ class DebounceSensorApp(App[AppConfig]):
             debounce=DEBOUNCE_SECONDS,
         )
 
-    async def on_temperature_stable(self, event: RawStateChangeEvent) -> None:
-        data = event.payload.data
-        new_state = data.new_state
-        old_state = data.old_state
-
-        if new_state is None:
-            return
-
-        raw_new = new_state.get("state")
-        raw_old = old_state.get("state") if old_state else None
-
+    async def on_temperature_stable(
+        self,
+        new_state: D.StateNew[states.SensorState],
+        old_state: D.MaybeStateOld[states.SensorState],
+    ) -> None:
         try:
-            new_temp = float(str(raw_new))
+            new_temp = float(str(new_state.value))
         except (TypeError, ValueError):
             return
+
+        old_value = old_state.value if not isinstance(old_state, type(new_state)) and old_state else "unknown"
 
         if new_temp >= THRESHOLD:
             self.logger.info(
                 "Temperature crossed %.1f°C threshold: %s → %.1f°C (stable for %ss)",
                 THRESHOLD,
-                raw_old,
+                old_value,
                 new_temp,
                 DEBOUNCE_SECONDS,
             )

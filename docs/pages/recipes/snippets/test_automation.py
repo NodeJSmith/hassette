@@ -3,8 +3,7 @@
 # --8<-- [start:app]
 from pydantic_settings import SettingsConfigDict
 
-from hassette import App, AppConfig
-from hassette.events import RawStateChangeEvent
+from hassette import App, AppConfig, D, states
 
 
 class MotionLightsConfig(AppConfig):
@@ -22,7 +21,7 @@ class MotionLights(App[MotionLightsConfig]):
             handler=self.handle_motion,
         )
 
-    async def handle_motion(self, event: RawStateChangeEvent) -> None:
+    async def handle_motion(self, new_state: D.StateNew[states.BinarySensorState]) -> None:
         await self.api.turn_on(self.app_config.light, domain="light")
 # --8<-- [end:app]
 

@@ -1,5 +1,4 @@
-from hassette import App, AppConfig
-from hassette.events import RawStateChangeEvent
+from hassette import App, AppConfig, D, states
 from hassette.scheduler import ScheduledJob
 
 MOTION_SENSOR = "binary_sensor.hallway_motion"
@@ -23,18 +22,15 @@ class MotionLights(App[MotionLightsConfig]):
             handler=self.on_motion,
         )
 
-    async def on_motion(self, event: RawStateChangeEvent) -> None:
-        new_state = event.payload.data.new_state
-        state_value = new_state.get("state") if new_state else None
-
-        if state_value == "on":
+    async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]) -> None:
+        if new_state.value == "on":
             # Motion detected — cancel any pending off job and turn the light on.
             if self._off_job is not None:
                 self._off_job.cancel()
                 self._off_job = None
             await self.api.turn_on(self.app_config.light, domain="light")
 
-        elif state_value == "off":
+        elif new_state.value == "off":
             # Motion cleared — schedule the light to turn off after the delay.
             self._off_job = self.scheduler.run_in(
                 self.turn_off_light,

@@ -12,7 +12,7 @@ Sensors like temperature or humidity often emit bursts of near-identical reading
 
 - **`debounce=10.0`** — the handler is not called until the sensor has been quiet for 10 seconds. Any new event during that window resets the timer, so rapid fluctuations are silently discarded.
 - **`changed=C.Increased()`** — the debounce timer only starts for events where the new value is numerically greater than the old one. Decreases and unchanged readings never queue the handler.
-- The handler receives the settled event and converts the raw state string to a float before comparing it to `THRESHOLD`.
+- The handler uses **dependency injection** (`D.StateNew[states.SensorState]`) to receive the new state as a typed object. The value is converted to a float before comparing to `THRESHOLD`.
 - When the temperature is at or above the threshold after stabilising, a single log line is emitted.
 - Adjust `THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID for your sensor.
 
