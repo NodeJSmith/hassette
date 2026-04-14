@@ -16,8 +16,6 @@ Recipes are complete, working automations that solve common Home Assistant tasks
 
 **[Vacation Mode Toggle](vacation-mode-toggle.md)** — Use a Home Assistant input boolean helper to switch app behavior on and off without redeploying.
 
-**[Test Your Automation](test-automation.md)** — Write unit tests for your app using `HassetteHarness` to verify behavior without a live Home Assistant instance.
-
 Each recipe is a complete, working app. Copy the code, update the entity IDs for your setup, and run it.
 
 ## See Also

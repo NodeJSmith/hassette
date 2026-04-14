@@ -93,7 +93,6 @@ nav:
       - React to a Service Call: pages/recipes/service-call-reaction.md
       - Monitor Sensor Thresholds: pages/recipes/sensor-threshold.md
       - Vacation Mode Toggle: pages/recipes/vacation-mode-toggle.md
-      - Test Your Automation: pages/recipes/test-automation.md
   - Advanced:
       - Overview: pages/advanced/index.md
       - Custom States: pages/advanced/custom-states.md
