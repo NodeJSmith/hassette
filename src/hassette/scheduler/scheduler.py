@@ -91,7 +91,13 @@ class Scheduler(Resource):
     """Tracks jobs by name for uniqueness validation within this scheduler instance."""
 
     _jobs_by_group: dict[str, list["ScheduledJob"]]
-    """Tracks jobs by group for bulk cancellation."""
+    """Tracks jobs by group for bulk cancellation.
+
+    Uses ``list`` (not ``set``) because ``ScheduledJob`` is a mutable dataclass
+    (``@dataclass(order=True)``): Python sets ``__hash__ = None`` for mutable
+    dataclasses, making them unhashable. Duplicate-removal is idempotent via
+    ``list.remove()`` wrapped in ``suppress(ValueError)``.
+    """
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
@@ -102,11 +108,11 @@ class Scheduler(Resource):
 
         # Register removal callback so exhausted one-shot jobs are removed from _jobs_by_group
         # automatically when SchedulerService removes them after firing.
-        # WP04 adds register_removal_callback() to SchedulerService; guard on isinstance (not
-        # just hasattr) so that AsyncMock stubs in tests don't accidentally call the method and
-        # produce unawaited-coroutine warnings.
+        # WP04 adds register_removal_callback() to SchedulerService. Guard on
+        # iscoroutinefunction to block AsyncMock stubs (which would produce an
+        # unawaited-coroutine warning if called without await).
         _register = getattr(self.scheduler_service, "register_removal_callback", None)
-        if isinstance(self.scheduler_service, SchedulerService) and callable(_register):
+        if callable(_register) and not asyncio.iscoroutinefunction(_register):
             _register(self.owner_id, self._on_job_removed)
 
     def _on_job_removed(self, job: "ScheduledJob") -> None:

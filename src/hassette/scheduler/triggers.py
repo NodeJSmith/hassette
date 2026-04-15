@@ -90,9 +90,16 @@ class Once:
 
         if isinstance(at, str):
             self._at_str = at
-            hour_str, minute_str = at.split(":")
-            hour = int(hour_str)
-            minute = int(minute_str)
+            parts = at.split(":")
+            if len(parts) != 2:
+                raise ValueError(f"Once 'at' must be 'HH:MM', got {at!r}")
+            try:
+                hour = int(parts[0])
+                minute = int(parts[1])
+            except ValueError:
+                raise ValueError(f"Once 'at' must be 'HH:MM', got {at!r}") from None
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                raise ValueError(f"Once 'at' time out of range: {at!r}")
             now = date_utils.now()
             target = ZonedDateTime(now.year, now.month, now.day, hour, minute, tz=now.tz)
             if target <= now:
@@ -106,6 +113,14 @@ class Once:
                 target = target.add(days=1)
             self._fire_at = target
         else:
+            now = date_utils.now()
+            if at <= now:
+                if if_past == "error":
+                    raise ValueError(f"Once(at=<ZonedDateTime {at.format_iso()!r}>) is in the past and if_past='error'")
+                LOGGER.warning(
+                    "Once(at=<ZonedDateTime %r>) is in the past — job will fire immediately.",
+                    at.format_iso(),
+                )
             self._fire_at = at
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
@@ -231,9 +246,16 @@ class Daily:
     """
 
     def __init__(self, at: str) -> None:
-        hour_str, minute_str = at.split(":")
-        hour = int(hour_str)
-        minute = int(minute_str)
+        parts = at.split(":")
+        if len(parts) != 2:
+            raise ValueError(f"Daily 'at' must be 'HH:MM', got {at!r}")
+        try:
+            hour = int(parts[0])
+            minute = int(parts[1])
+        except ValueError:
+            raise ValueError(f"Daily 'at' must be 'HH:MM', got {at!r}") from None
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError(f"Daily 'at' time out of range: {at!r}")
         # 5-field standard cron: minute hour dom month dow
         self._expr = f"{minute} {hour} * * *"
         self._at_str = at

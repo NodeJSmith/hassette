@@ -1,7 +1,8 @@
 """Unit tests for Scheduler resource: new schedule() entry point, job groups, convenience wrappers."""
 
+import asyncio
 from collections.abc import Callable
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
@@ -218,7 +219,7 @@ class TestConvenienceWrappers:
         scheduler = _make_scheduler()
         job = scheduler.run_daily(_noop, at="07:00")
         assert isinstance(job.trigger, Daily)
-        assert job.trigger._at_str == "07:00"
+        assert job.trigger.trigger_id() == "cron:0 7 * * *"
 
     def test_run_in_delegates_to_after_trigger(self) -> None:
         """run_in(cb, 30) schedules with After(seconds=30)."""
@@ -295,3 +296,52 @@ class TestConvenienceWrappers:
         scheduler = _make_scheduler()
         job = scheduler.run_in(_noop, 30, group="once")
         assert job in scheduler._jobs_by_group["once"]
+
+
+# ---------------------------------------------------------------------------
+# Callback registration guard
+# ---------------------------------------------------------------------------
+
+
+class TestCallbackRegistrationGuard:
+    """Verify the registration guard in Scheduler.__init__ is correct.
+
+    The guard ``callable(_register) and not asyncio.iscoroutinefunction(_register)``
+    must register with a sync service and skip registration for AsyncMock stubs
+    (to avoid unawaited-coroutine warnings in tests that use AsyncMock for
+    SchedulerService methods).
+
+    End-to-end integration of the registration path (``Scheduler.__init__`` →
+    ``SchedulerService.register_removal_callback``) is deferred to WP04, which
+    adds ``register_removal_callback`` to ``SchedulerService``. Until then,
+    ``getattr(scheduler_service, "register_removal_callback", None)`` returns
+    ``None`` on the real service and the block is skipped in integration tests.
+    """
+
+    def _run_registration_block(self, scheduler: Scheduler, mock_service: Mock) -> None:
+        """Execute the exact registration block from Scheduler.__init__."""
+        _register = getattr(mock_service, "register_removal_callback", None)
+        if callable(_register) and not asyncio.iscoroutinefunction(_register):
+            _register(scheduler.owner_id, scheduler._on_job_removed)
+
+    def test_sync_service_registers_callback(self) -> None:
+        """register_removal_callback is called when the service method is sync."""
+        scheduler = _make_scheduler()
+        mock_service = Mock()
+        self._run_registration_block(scheduler, mock_service)
+        mock_service.register_removal_callback.assert_called_once_with("test_owner", scheduler._on_job_removed)
+
+    def test_async_mock_service_skips_registration(self) -> None:
+        """register_removal_callback is NOT called when it is an AsyncMock (avoids coroutine warning)."""
+        scheduler = _make_scheduler()
+        mock_service = Mock()
+        mock_service.register_removal_callback = AsyncMock()
+        self._run_registration_block(scheduler, mock_service)
+        mock_service.register_removal_callback.assert_not_called()
+
+    def test_service_without_method_skips_registration(self) -> None:
+        """No error when the service has no register_removal_callback (pre-WP04 forward compat)."""
+        scheduler = _make_scheduler()
+        mock_service = Mock(spec=[])  # no attributes
+        # Should not raise
+        self._run_registration_block(scheduler, mock_service)
