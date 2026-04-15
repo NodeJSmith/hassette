@@ -26,7 +26,7 @@ def _job_to_dict(job: "ScheduledJob") -> dict[str, Any]:
         "name": job.name,
         "owner_id": job.owner_id,
         "next_run": str(job.next_run),
-        "repeat": job.repeat,
+        "repeat": False,  # WP04: repeat field removed from ScheduledJob; triggers handle recurrence
         "cancelled": job.cancelled,
         "trigger_type": trigger_type,
         "trigger_detail": trigger_detail,

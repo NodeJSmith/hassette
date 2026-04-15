@@ -168,20 +168,21 @@ class TelemetryRepository:
         """
         self._validate_source_tier(registration.app_key, registration.source_tier)
         db = self._db_service.db
+        # Note: the `repeat` DB column is preserved for schema compatibility (WP04 will
+        # add trigger_label/trigger_detail columns and migrate repeat=0 for all rows).
         cursor = await db.execute(
             """
             INSERT INTO scheduled_jobs (
                 app_key, instance_index, job_name, handler_method,
-                trigger_type, trigger_value, repeat,
+                trigger_type, trigger_value,
                 args_json, kwargs_json,
                 source_location, registration_source, source_tier
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
                 handler_method = excluded.handler_method,
                 trigger_type = excluded.trigger_type,
                 trigger_value = excluded.trigger_value,
-                repeat = excluded.repeat,
                 args_json = excluded.args_json,
                 kwargs_json = excluded.kwargs_json,
                 source_location = excluded.source_location,
@@ -197,7 +198,6 @@ class TelemetryRepository:
                 registration.handler_method,
                 registration.trigger_type,
                 registration.trigger_value,
-                1 if registration.repeat else 0,
                 registration.args_json,
                 registration.kwargs_json,
                 registration.source_location,

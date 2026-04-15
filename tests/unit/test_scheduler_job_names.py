@@ -7,6 +7,7 @@ import pytest
 
 from hassette.scheduler.classes import CronTrigger, IntervalTrigger, ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
+from hassette.scheduler.triggers import Every
 from hassette.utils.date_utils import now
 
 
@@ -24,8 +25,7 @@ def _make_job(
     name: str = "",
     *,
     job: Callable[..., None] | None = None,
-    trigger: IntervalTrigger | None = None,
-    repeat: bool = False,
+    trigger: object = None,
 ) -> ScheduledJob:
     """Create a minimal ScheduledJob."""
     return ScheduledJob(
@@ -34,7 +34,6 @@ def _make_job(
         job=job or (lambda: None),
         name=name,
         trigger=trigger,
-        repeat=repeat,
     )
 
 
@@ -179,19 +178,19 @@ class TestIfExistsSkip:
         """if_exists='skip' considers trigger type and value."""
         scheduler = _make_scheduler()
         fn = lambda: None  # noqa: E731
-        trigger_30s = IntervalTrigger.from_arguments(seconds=30)
-        trigger_60s = IntervalTrigger.from_arguments(seconds=60)
+        trigger_30s = Every(seconds=30)
+        trigger_60s = Every(seconds=60)
 
-        scheduler.add_job(_make_job("poll", job=fn, trigger=trigger_30s, repeat=True))
+        scheduler.add_job(_make_job("poll", job=fn, trigger=trigger_30s))
 
         # Same trigger config → skip
-        same_trigger = IntervalTrigger.from_arguments(seconds=30)
-        result = scheduler.add_job(_make_job("poll", job=fn, trigger=same_trigger, repeat=True), if_exists="skip")
+        same_trigger = Every(seconds=30)
+        result = scheduler.add_job(_make_job("poll", job=fn, trigger=same_trigger), if_exists="skip")
         assert result is scheduler._jobs_by_name["poll"]
 
         # Different trigger config → error
         with pytest.raises(ValueError, match="poll"):
-            scheduler.add_job(_make_job("poll", job=fn, trigger=trigger_60s, repeat=True), if_exists="skip")
+            scheduler.add_job(_make_job("poll", job=fn, trigger=trigger_60s), if_exists="skip")
 
     def test_error_mode_always_raises_on_duplicate(self) -> None:
         """Default if_exists='error' raises even when config matches."""

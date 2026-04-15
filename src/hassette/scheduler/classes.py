@@ -47,6 +47,15 @@ class IntervalTrigger:
     def __str__(self) -> str:
         return f"interval:{self.interval.in_seconds():g}s"
 
+    def trigger_id(self) -> str:
+        """Bridge method for TriggerProtocol compatibility. WP03 will remove IntervalTrigger.
+
+        The ``"every:"`` prefix is intentionally shared with ``Every.trigger_id()`` so that
+        an ``IntervalTrigger(hours=1)`` job and an ``Every(hours=1)`` job are treated as the
+        same logical job by ``ScheduledJob.matches()`` during the migration window.
+        """
+        return f"every:{int(self.interval.in_seconds())}"
+
     @classmethod
     def from_arguments(
         cls,
@@ -101,6 +110,10 @@ class CronTrigger:
         return hash(self.cron_expression)
 
     def __str__(self) -> str:
+        return f"cron:{self.cron_expression}"
+
+    def trigger_id(self) -> str:
+        """Bridge method for TriggerProtocol compatibility. WP03 will remove CronTrigger."""
         return f"cron:{self.cron_expression}"
 
     @classmethod
@@ -185,7 +198,7 @@ class ScheduledJob:
     """Unique string identifier for the owner of the job, e.g., a component or integration name."""
 
     next_run: ZonedDateTime = field(compare=False)
-    """Timestamp of the next scheduled run."""
+    """Unjittered logical fire time — used as `previous_run` in subsequent trigger calls."""
 
     job: "JobCallable" = field(compare=False)
     """The callable to execute when the job runs."""
@@ -199,8 +212,14 @@ class ScheduledJob:
     trigger: "TriggerProtocol | None" = field(compare=False, default=None)
     """The trigger that determines the job's schedule."""
 
-    repeat: bool = field(compare=False, default=False)
-    """Whether the job should be rescheduled after running."""
+    group: str | None = field(default=None, compare=False)
+    """Optional group name for grouping related jobs. Included in deduplication comparison."""
+
+    jitter: float | None = field(default=None, compare=False)
+    """Seconds of random offset applied at enqueue time. Does not affect next_run (unjittered).
+
+    TODO(WP06): apply ``random.uniform(0, jitter)`` to the sort_index offset at enqueue time.
+    """
 
     name: str = field(default="", compare=False)
     """Optional name for the job for easier identification."""
@@ -237,7 +256,9 @@ class ScheduledJob:
 
         if not self.name:
             callable_name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
-            self.name = f"{callable_name}:{self.trigger}" if self.trigger else callable_name
+            # TriggerProtocol types expose trigger_label(); legacy IntervalTrigger/CronTrigger use __str__.
+            trigger_str = self.trigger.trigger_label() if hasattr(self.trigger, "trigger_label") else str(self.trigger)
+            self.name = f"{callable_name}:{trigger_str}" if self.trigger else callable_name
 
         self.args = tuple(self.args)
         self.kwargs = dict(self.kwargs)
@@ -257,13 +278,20 @@ class ScheduledJob:
     def matches(self, other: "ScheduledJob") -> bool:
         """Check whether two jobs represent the same logical configuration.
 
-        Compares the callable, trigger, repeat flag, args, and kwargs. Does not compare
-        runtime state (job_id, next_run, sort_index, cancelled, owner).
+        Compares callable, trigger (by trigger_id()), group, args, and kwargs.
+        Does not compare runtime state (job_id, next_run, sort_index, cancelled, owner).
+
+        Two jobs with identical callable/trigger/args but different groups are distinct
+        logical jobs and will not match.
         """
+        if self.trigger is not None and other.trigger is not None:
+            triggers_match = self.trigger.trigger_id() == other.trigger.trigger_id()
+        else:
+            triggers_match = self.trigger is other.trigger
         return (
             self.job == other.job
-            and self.trigger == other.trigger
-            and self.repeat == other.repeat
+            and triggers_match
+            and self.group == other.group
             and self.args == other.args
             and self.kwargs == other.kwargs
         )

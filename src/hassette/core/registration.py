@@ -74,8 +74,11 @@ class ScheduledJobRegistration:
     trigger_value: str | None
     """String representation of the trigger configuration, or None."""
 
-    repeat: bool
-    """Whether the job repeats after each run."""
+    trigger_label: str
+    """Short stable label for telemetry / UI display (from trigger.trigger_label())."""
+
+    trigger_detail: str | None
+    """Optional human-readable detail string (from trigger.trigger_detail())."""
 
     args_json: str
     """JSON-serialized positional arguments."""

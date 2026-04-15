@@ -118,7 +118,6 @@ def _make_mock_job(
     job.name = name
     job.job = MagicMock(__qualname__="MyApp.my_job")
     job.trigger = None
-    job.repeat = False
     job.args = ()
     job.kwargs = {}
     job.db_id = None
@@ -196,7 +195,8 @@ async def test_job_registration_persists_correct_app_key(
         handler_method="MyApp.my_job",
         trigger_type=None,
         trigger_value=None,
-        repeat=False,
+        trigger_label="once",
+        trigger_detail=None,
         args_json="[]",
         kwargs_json="{}",
         source_location="test_registration.py:1",

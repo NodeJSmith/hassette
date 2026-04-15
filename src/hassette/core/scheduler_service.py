@@ -14,7 +14,7 @@ from hassette.core.commands import ExecuteJob
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import CronTrigger, IntervalTrigger
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, TriggerProtocol
 from hassette.utils.serialization import safe_json_serialize
 
 if typing.TYPE_CHECKING:
@@ -235,6 +235,20 @@ class SchedulerService(Service):
         else:
             trigger_type = None
             trigger_value = None
+        # WP04 will rewrite this method to use trigger.trigger_label() / trigger_detail()
+        # from TriggerProtocol. Temporarily derive label/detail from the legacy trigger types.
+        if isinstance(trigger, IntervalTrigger):
+            trigger_label = "interval"
+            trigger_detail: str | None = str(trigger.interval)
+        elif isinstance(trigger, CronTrigger):
+            trigger_label = "cron"
+            trigger_detail = trigger.cron_expression
+        elif isinstance(trigger, TriggerProtocol):
+            trigger_label = trigger.trigger_label()
+            trigger_detail = trigger.trigger_detail()
+        else:
+            trigger_label = "once"
+            trigger_detail = None
         reg = ScheduledJobRegistration(
             app_key=job.app_key,
             instance_index=job.instance_index,
@@ -242,7 +256,8 @@ class SchedulerService(Service):
             handler_method=getattr(job.job, "__qualname__", str(job.job)),
             trigger_type=trigger_type,
             trigger_value=trigger_value,
-            repeat=job.repeat,
+            trigger_label=trigger_label,
+            trigger_detail=trigger_detail,
             args_json=safe_json_serialize(list(job.args)),
             kwargs_json=safe_json_serialize(job.kwargs),
             source_location=source_location,
@@ -326,9 +341,12 @@ class SchedulerService(Service):
             await self._remove_job(job)
             return
 
-        if job.repeat and job.trigger:
+        # WP04 rewrites this method fully. For now, a job repeats when its trigger
+        # returns a non-None next_run_time (i.e., it is not a one-shot trigger).
+        _next_time = job.trigger.next_run_time(job.next_run, date_utils.now()) if job.trigger else None
+        if _next_time is not None and job.trigger:
             curr_next_run = job.next_run
-            next_run = job.trigger.next_run_time(job.next_run, date_utils.now())
+            next_run = _next_time
             job.set_next_run(next_run)
             next_run_time_delta = job.next_run - curr_next_run
             secs = next_run_time_delta.in_seconds()

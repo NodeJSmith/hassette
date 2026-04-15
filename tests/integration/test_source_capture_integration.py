@@ -100,7 +100,7 @@ async def test_scheduler_schedule_captures_test_file_source(scheduler: "Schedule
     try:
         run_at = now().add(hours=1)
         trigger = IntervalTrigger.from_arguments(hours=1)
-        job = scheduler.schedule(my_job, run_at, trigger=trigger, repeat=True, name="test_job")
+        job = scheduler.schedule(my_job, run_at, trigger=trigger, name="test_job")
 
         assert job.source_location, "source_location should not be empty"
         assert THIS_FILE in job.source_location, (

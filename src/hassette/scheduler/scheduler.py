@@ -211,12 +211,14 @@ class Scheduler(Resource):
         # Capture source while user code is still on the stack (before async spawn boundary)
         source_location, registration_source = capture_registration_source()
 
+        # WP04 rewrites schedule() to use the new TriggerProtocol API.
+        # `repeat` parameter is deprecated — trigger.next_run_time() returning None signals one-shot.
+        del repeat  # unused; removed from ScheduledJob
         job = ScheduledJob(
             owner_id=self.owner_id,
             next_run=run_at,
             job=func,
             trigger=trigger,
-            repeat=repeat,
             name=name,
             args=tuple(args) if args else (),
             kwargs=dict(kwargs) if kwargs else {},

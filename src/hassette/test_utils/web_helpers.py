@@ -4,6 +4,7 @@ These build manifest, snapshot, listener-metric, and registry objects
 used by both e2e and integration web tests.
 """
 
+import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -176,7 +177,6 @@ def make_job(
     name: str = "check_lights",
     owner_id: str = "MyApp.MyApp[0]",
     next_run: str = "2024-01-01T00:05:00",
-    repeat: bool = True,
     cancelled: bool = False,
     trigger_type: str = "interval",
     trigger_detail: str | None = None,
@@ -196,8 +196,6 @@ def make_job(
         seconds = 30
         if trigger_detail is not None:
             # Parse ISO 8601 duration like "PT30S" → 30 seconds
-            import re
-
             m = re.search(r"(\d+)S", trigger_detail)
             if m:
                 seconds = int(m.group(1))
@@ -212,7 +210,6 @@ def make_job(
         app_key=app_key,
         instance_index=instance_index,
         next_run=next_run,
-        repeat=repeat,
         cancelled=cancelled,
         trigger=trigger,
     )
