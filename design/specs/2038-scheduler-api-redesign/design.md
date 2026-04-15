@@ -35,7 +35,9 @@ This is a full rewrite of `src/hassette/scheduler/`. The following areas will ch
 
 ---
 
-## Core: One Entry Point, Trigger Objects as Nouns
+## Architecture
+
+### Core: One Entry Point, Trigger Objects as Nouns
 
 The existing `Scheduler.schedule()` method is replaced wholesale. The new public entry point is:
 
@@ -76,7 +78,7 @@ job = self.scheduler.run_cron(self.my_callback, "0 9 * * 1-5")
 
 ---
 
-## `TriggerProtocol` — Public, Extended
+### `TriggerProtocol` — Public, Extended
 
 `TriggerProtocol` is re-exported from `hassette.scheduler`. Six methods:
 
@@ -146,11 +148,11 @@ class SolarPollTrigger:
 
 ---
 
-## Trigger Types
+### Trigger Types
 
 All trigger types live in `hassette.scheduler.triggers` and are importable from `hassette.scheduler`.
 
-### `After` — one-shot after a delay
+#### `After` — one-shot after a delay
 
 ```python
 After(seconds=30)
@@ -160,7 +162,7 @@ After(timedelta=TimeDelta(minutes=5))
 
 `next_run_time()` returns `None` — fires once and is removed.
 
-### `Once` — one-shot at a specific wall-clock time
+#### `Once` — one-shot at a specific wall-clock time
 
 ```python
 Once(at="07:00")                           # today at 07:00; if already past, tomorrow
@@ -172,7 +174,7 @@ Once(at=ZonedDateTime(...))                # specific instant
 
 `if_past: Literal["tomorrow", "error"] = "tomorrow"` controls behaviour when `Once` is constructed after the specified wall-clock time has already passed today. The default (`"tomorrow"`) defers to the same time tomorrow and emits a `WARNING` log: `"Once(at='07:00') constructed after the target time — deferring to tomorrow."` Set `if_past="error"` to raise `ValueError` instead, preserving the prior behaviour for automations that relied on the exception to detect scheduling errors.
 
-### `Every` — fixed interval, drift-resistant
+#### `Every` — fixed interval, drift-resistant
 
 ```python
 Every(seconds=30)
@@ -185,7 +187,7 @@ Every(hours=1, start=ZonedDateTime(...))  # first fire at this instant, then eve
 
 Preserves drift-resistant `_advance_past()` anchor arithmetic from the current `IntervalTrigger`.
 
-### `Daily` — wall-clock anchored, DST-safe
+#### `Daily` — wall-clock anchored, DST-safe
 
 ```python
 Daily(at="07:00")  # every day at 07:00
@@ -195,7 +197,7 @@ Daily(at="07:00")  # every day at 07:00
 
 `Daily` does **not** accept an `every=N` parameter. "Every N days at 07:00" sounds like a natural extension but `*/N` in the day-of-month cron field fires on even calendar day numbers (1st, 3rd, 5th, ...), not "N days after the last fire." Use `Cron` with an explicit expression for multi-day cadences.
 
-### `Cron` — cron expression
+#### `Cron` — cron expression
 
 ```python
 Cron("0 9 * * 1-5")       # weekdays at 9am (5-field)
@@ -206,7 +208,7 @@ Accepts both 5-field (standard) and 6-field (seconds appended) expressions via `
 
 ---
 
-## Jitter
+### Jitter
 
 Jitter is a scheduling concern, not a trigger concern. It lives at the `schedule()` call site and is applied by `SchedulerService`:
 
@@ -228,7 +230,7 @@ Triggers themselves are stateless — jitter state lives in the `ScheduledJob`, 
 
 ---
 
-## Job Groups
+### Job Groups
 
 Jobs accept an optional `group=` parameter. Group membership is tracked in `_jobs_by_group: dict[str, set[ScheduledJob]]` on the per-app `Scheduler` resource — not in the shared `SchedulerService` queue, ensuring cross-app isolation.
 
@@ -260,7 +262,7 @@ Without this contract, one-shot jobs leave stale references in `_jobs_by_group` 
 
 ---
 
-## `ScheduledJob` — Updated Surface
+### `ScheduledJob` — Updated Surface
 
 ```python
 job = self.scheduler.schedule(self.my_callback, Daily(at="07:00"), group="morning")
