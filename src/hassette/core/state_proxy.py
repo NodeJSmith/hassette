@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any
 
 from fair_async_rlock import FairAsyncRLock
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
-from whenever import TimeDelta
 
 from hassette.bus import Bus
 from hassette.events import RawStateChangeEvent
@@ -92,7 +91,7 @@ class StateProxy(Resource):
         if not self.hassette.config.disable_state_proxy_polling:
             self.poll_job = self.scheduler.run_every(
                 self._load_cache,
-                interval=TimeDelta(seconds=self.hassette.config.state_proxy_poll_interval_seconds),
+                seconds=self.hassette.config.state_proxy_poll_interval_seconds,
                 if_exists="skip",
             )
         else:

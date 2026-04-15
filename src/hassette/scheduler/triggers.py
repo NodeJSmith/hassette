@@ -43,8 +43,6 @@ class After:
             self._delay = TimeDelta(seconds=seconds, minutes=minutes)
         if self._delay.in_seconds() <= 0:
             raise ValueError("After trigger delay must be positive")
-        if self._delay.in_seconds() != int(self._delay.in_seconds()):
-            raise ValueError("After trigger delay must be a whole number of seconds")
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return current_time plus the delay."""
@@ -283,8 +281,10 @@ class Cron:
 
     def __init__(self, expression: str) -> None:
         self._expression = expression
-        # Validation is performed eagerly by CronTrigger constructor
-        self._cron = CronTrigger(expression)
+        try:
+            self._cron = CronTrigger(expression)
+        except ValueError as e:
+            raise ValueError(f"Invalid cron expression: {expression!r}") from e
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return the first cron-grid-aligned run time at or after current_time."""

@@ -132,15 +132,13 @@ async def test_cron_trigger_first_run_with_future_start_daily() -> None:
 async def test_run_cron_rejects_invalid(hassette_with_scheduler: Hassette) -> None:
     """run_cron raises ValueError when the cron expression is invalid."""
     with pytest.raises(ValueError, match="Invalid cron expression"):
-        hassette_with_scheduler._scheduler.run_cron(lambda: None, second="nope")
+        hassette_with_scheduler._scheduler.run_cron(lambda: None, "not a cron expression at all")
 
 
 @pytest.mark.integration
 async def test_run_cron_accepts_valid(hassette_with_scheduler: Hassette) -> None:
     """Valid cron expressions schedule jobs successfully."""
-    scheduled_job = hassette_with_scheduler._scheduler.run_cron(
-        lambda: None, second="1", start=_t(2025, 8, 18, 0, 0, 0)
-    )
+    scheduled_job = hassette_with_scheduler._scheduler.run_cron(lambda: None, "* * * * *")
     await asyncio.sleep(0)
     scheduled_job.cancel()
 

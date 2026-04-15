@@ -31,7 +31,7 @@ class SimTestApp(App[SimConfig]):
         self.handler_call_count = 0
         self.service_calls = []
         self.bus.on_state_change("sensor.temp", handler=self._on_temp)
-        self.scheduler.run_daily(self._daily_task, start=(7, 0), name="daily")
+        self.scheduler.run_daily(self._daily_task, at="07:00", name="daily")
 
     async def _on_temp(self, event: RawStateChangeEvent) -> None:
         await self.api.turn_on("light.alert")

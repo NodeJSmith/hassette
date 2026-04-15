@@ -257,7 +257,11 @@ class ScheduledJob:
         if not self.name:
             callable_name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
             # TriggerProtocol types expose trigger_label(); legacy IntervalTrigger/CronTrigger use __str__.
-            trigger_str = self.trigger.trigger_label() if hasattr(self.trigger, "trigger_label") else str(self.trigger)
+            trigger_str = (
+                self.trigger.trigger_label()
+                if self.trigger is not None and hasattr(self.trigger, "trigger_label")
+                else str(self.trigger)
+            )
             self.name = f"{callable_name}:{trigger_str}" if self.trigger else callable_name
 
         self.args = tuple(self.args)

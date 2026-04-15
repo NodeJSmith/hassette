@@ -12,12 +12,20 @@ from hassette.utils.date_utils import now
 
 
 def _make_scheduler() -> Scheduler:
-    """Create a minimal Scheduler instance with mocked internals."""
-    scheduler = Scheduler.__new__(Scheduler)
+    """Create a minimal Scheduler instance with mocked internals.
+
+    Uses a unique per-call subclass so that property overrides for owner_id do
+    NOT mutate the shared Scheduler class — which would break parallel test
+    workers that create real Scheduler instances concurrently.
+    """
+    # Fresh subclass per call: property assignments stay on _TestScheduler, not Scheduler.
+    _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
+    _TestScheduler.owner_id = property(lambda _self: "test_owner")  # pyright: ignore[reportAttributeAccessIssue]
+
+    scheduler = _TestScheduler.__new__(_TestScheduler)
     scheduler.scheduler_service = Mock()
     scheduler._jobs_by_name = {}
-    # owner_id is a property on Resource that reads parent.unique_name
-    type(scheduler).owner_id = property(lambda _self: "test_owner")
+    scheduler._jobs_by_group = {}
     return scheduler
 
 
