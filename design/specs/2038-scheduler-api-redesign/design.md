@@ -1,6 +1,6 @@
 # Scheduler API Redesign Proposal
 
-**Status**: Draft v5 — final challenge revision
+**Status**: approved
 **Date**: 2026-04-14
 **Scope**: Full rewrite of `src/hassette/scheduler/`
 **Prior art**: `design/research/2026-04-14-scheduler-api-ergonomics/research.md`
