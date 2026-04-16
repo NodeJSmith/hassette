@@ -8,10 +8,10 @@ import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from whenever import TimeDelta
+from whenever import ZonedDateTime
 
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
-from hassette.scheduler.classes import CronTrigger, IntervalTrigger
+from hassette.scheduler.triggers import After, Cron, Every, Once
 
 
 def make_full_snapshot(
@@ -186,12 +186,14 @@ def make_job(
 ) -> SimpleNamespace:
     """Build a ``SimpleNamespace`` scheduler job for test fixtures.
 
-    Uses real ``IntervalTrigger``/``CronTrigger`` objects so that ``job_to_dict``
-    isinstance checks work correctly in route handlers.
+    Uses real trigger objects (``Every``, ``Cron``, ``Once``, ``After``) that
+    implement ``TriggerProtocol`` so that ``resolve_trigger()`` works via the
+    ``trigger_db_type()`` path.
     """
+    trigger: object
     if trigger_type == "cron":
         cron_expr = trigger_detail or "0 0 * * *"
-        trigger = CronTrigger(cron_expr)
+        trigger = Cron(cron_expr)
     elif trigger_type == "interval":
         seconds = 30
         if trigger_detail is not None:
@@ -199,9 +201,13 @@ def make_job(
             m = re.search(r"(\d+)S", trigger_detail)
             if m:
                 seconds = int(m.group(1))
-        trigger = IntervalTrigger(TimeDelta(seconds=seconds))
+        trigger = Every(seconds=seconds)
+    elif trigger_type == "once":
+        trigger = Once(at=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0))
+    elif trigger_type == "after":
+        trigger = After(seconds=30)
     else:
-        trigger = SimpleNamespace()  # "once" — no interval or cron attrs
+        trigger = None
     return SimpleNamespace(
         job_id=job_id,
         db_id=db_id,
