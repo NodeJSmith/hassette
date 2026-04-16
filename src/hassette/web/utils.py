@@ -4,8 +4,6 @@ import asyncio
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from hassette.scheduler.classes import CronTrigger, IntervalTrigger
-
 if TYPE_CHECKING:
     from hassette.core.runtime_query_service import RuntimeQueryService
     from hassette.core.telemetry_models import ListenerSummary
@@ -38,17 +36,28 @@ async def gather_all_listeners(
     return listeners
 
 
-def resolve_trigger(job: "ScheduledJob") -> tuple[str, str | None]:
+def resolve_trigger(job: "ScheduledJob") -> tuple[str | None, str | None]:
     """Return (trigger_type, trigger_detail) for a ScheduledJob.
 
+    Delegates to ``TriggerProtocol.trigger_db_type()`` and
+    ``trigger_detail()`` — no isinstance dispatch.  Falls back to
+    ``str(trigger)`` for legacy trigger objects that do not implement
+    the protocol.
+
     Returns:
-        A tuple of (trigger_type, trigger_detail) where trigger_type is one of
-        "interval", "cron", or "one-shot", and trigger_detail is a human-readable
-        description (e.g. "every 30s", "*/5 * * * *", or None for one-shot jobs).
+        A tuple of (type, detail) where type is the trigger's DB discriminator
+        (e.g. "interval", "cron", "once", "after", "custom") and detail is an
+        optional human-readable description (e.g. "3600s", "0 7 * * *"), or
+        ``(None, None)`` when the job has no trigger.
     """
     trigger = job.trigger
-    if isinstance(trigger, IntervalTrigger):
-        return "interval", f"every {trigger.interval}"
-    if isinstance(trigger, CronTrigger):
-        return "cron", str(trigger.cron_expression)
-    return "one-shot", None
+    if trigger is None:
+        return None, None
+    if hasattr(trigger, "trigger_db_type"):
+        return trigger.trigger_db_type(), trigger.trigger_detail()
+    # Legacy IntervalTrigger/CronTrigger: __str__ returns "type:detail".
+    text = str(trigger)
+    type_str, sep, detail = text.partition(":")
+    if not sep:
+        LOGGER.warning("Trigger %r has no ':' separator in str() — using full string as type", trigger)
+    return type_str, detail or None

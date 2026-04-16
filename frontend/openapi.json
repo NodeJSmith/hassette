@@ -2756,7 +2756,21 @@
             "title": "Cancelled"
           },
           "trigger_type": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "interval",
+                  "cron",
+                  "once",
+                  "after",
+                  "custom"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Trigger Type"
           },
           "trigger_detail": {

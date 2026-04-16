@@ -110,7 +110,7 @@ class ScheduledJobResponse(BaseModel):
     next_run: str
     repeat: bool
     cancelled: bool
-    trigger_type: str
+    trigger_type: Literal["interval", "cron", "once", "after", "custom"] | None
     trigger_detail: str | None = None
 
 
