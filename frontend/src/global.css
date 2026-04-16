@@ -637,6 +637,32 @@ strong {
   background: var(--ht-surface-recessed);
 }
 
+/* — Group filter chip bar ————————————————————————————— */
+.ht-group-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.ht-group-chip {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--ht-motion-micro), border-color var(--ht-motion-micro), color var(--ht-motion-micro);
+}
+
+.ht-group-chip:hover {
+  border-color: var(--ht-border-strong);
+}
+
+.ht-group-chip--active,
+.ht-group-chip[aria-pressed="true"] {
+  background: var(--ht-accent-light);
+  color: var(--ht-accent);
+  border-color: var(--ht-accent);
+  font-weight: var(--ht-weight-semibold);
+}
+
 /* — Buttons ———————————————————————————————————————————— */
 .ht-btn {
   display: inline-flex;

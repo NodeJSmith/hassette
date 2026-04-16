@@ -5,7 +5,7 @@ import type { ComponentChildren } from "preact";
 import { AppDetailPage } from "./app-detail";
 import { AppStateContext } from "../state/context";
 import { createAppState, type AppState } from "../state/create-app-state";
-import type { AppInstance, AppManifest, ManifestListResponse } from "../api/endpoints";
+import type { AppInstance, AppManifest, ManifestListResponse, JobData } from "../api/endpoints";
 
 // Stub wouter navigation
 vi.mock("wouter", () => ({
@@ -117,14 +117,44 @@ describe("AppDetailPage", () => {
     vi.clearAllMocks();
   });
 
-  function setupUseApi(manifest: AppManifest) {
+  function createJob(overrides: Partial<JobData> = {}): JobData {
+    return {
+      job_id: 1,
+      app_key: "test_app",
+      instance_index: 0,
+      job_name: "my_job",
+      handler_method: "my_app.my_job",
+      trigger_type: "every",
+      trigger_label: "Every 5 minutes",
+      trigger_detail: null,
+      args_json: "[]",
+      kwargs_json: "{}",
+      source_location: "",
+      registration_source: null,
+      source_tier: "app",
+      total_executions: 0,
+      successful: 0,
+      failed: 0,
+      last_executed_at: null,
+      total_duration_ms: 0,
+      avg_duration_ms: 0,
+      group: null,
+      next_run: null,
+      fire_at: null,
+      jitter: null,
+      cancelled: false,
+      ...overrides,
+    };
+  }
+
+  function setupUseApi(manifest: AppManifest, jobsData: JobData[] = []) {
     // useApi is called once for manifests; useScopedApi is called 3 times for health, listeners, jobs
     useApi
       .mockReturnValueOnce(fakeApiResult(createManifestListResponse(manifest)));
     useScopedApi
       .mockReturnValueOnce(fakeApiResult(null)) // health
       .mockReturnValueOnce(fakeApiResult([])) // listeners
-      .mockReturnValueOnce(fakeApiResult([])); // jobs
+      .mockReturnValueOnce(fakeApiResult(jobsData)); // jobs
   }
 
   it("shows owner_id as PID when owner_id is present", () => {
@@ -155,5 +185,42 @@ describe("AppDetailPage", () => {
 
     const meta = getByTestId("instance-meta");
     expect(meta.textContent).not.toContain("PID");
+  });
+
+  it("jobs heading shows N registered count", () => {
+    const manifest = createManifest();
+    const jobs = [
+      createJob({ job_id: 1, next_run: 1700010000 }),
+      createJob({ job_id: 2, next_run: null }),
+      createJob({ job_id: 3, next_run: 1700020000 }),
+    ];
+    setupUseApi(manifest, jobs);
+
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const heading = getByTestId("jobs-heading");
+    expect(heading.textContent).toContain("3 registered");
+    expect(heading.textContent).not.toContain("active");
+  });
+
+  it("jobs heading secondary count shows currently scheduled jobs (next_run non-null)", () => {
+    const manifest = createManifest();
+    const jobs = [
+      createJob({ job_id: 1, next_run: 1700010000 }),
+      createJob({ job_id: 2, next_run: null }),
+      createJob({ job_id: 3, next_run: 1700020000 }),
+    ];
+    setupUseApi(manifest, jobs);
+
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const scheduledCount = getByTestId("jobs-scheduled-count");
+    expect(scheduledCount.textContent).toContain("2 currently scheduled");
   });
 });
